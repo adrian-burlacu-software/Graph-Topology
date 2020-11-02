@@ -1,0 +1,38 @@
+{
+  "name": "trie-experiments",
+  "version": "1.0.0",
+  "description": "The experiment tests for comparing symbolic and graph neural networks in learning and accessing the mental lexicon.",
+  "scripts": {
+    "main": "node --no-warnings src\\index.js",
+    "test": "node --max-old-space-size=6144 ./node_modules/jest/bin/jest.js --runInBand --testTimeout=1800000"
+  },
+  "jest": {
+    "collectCoverage": true,
+    "coverageReporters": [
+      "html",
+      "text"
+    ]
+  },
+  "keywords": [
+    "General",
+    "Artificial",
+    "Intelligence",
+    "Symbolic",
+    "Learning",
+    "Computer",
+    "Science"
+  ],
+  "author": "Adrian Burlacu",
+  "license": "MIT",
+  "dependencies": {
+    "async-csv": "^2.1.3",
+    "fisher-yates": "^1.0.3",
+    "flat-promise": "^1.0.2",
+    "prompt-async": "^0.9.9",
+    "struct": "0.0.12"
+  },
+  "devDependencies": {
+    "jest": "^26.4.2",
+    "prettier": "^2.1.2"
+  }
+}

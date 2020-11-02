@@ -1,0 +1,5 @@
+currentStateIn,methodOut
+0,init
+1,getFalse
+2,getCallbackResult
+-1,end

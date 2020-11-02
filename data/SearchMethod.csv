@@ -1,0 +1,8 @@
+currentStateIn,methodOut
+0,init
+1,getWordInit
+2,getSearchLoop
+3,getCheckFalse
+4,getNodeEndCheck
+5,getTrue
+-1,end

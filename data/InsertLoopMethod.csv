@@ -1,0 +1,9 @@
+currentStateIn,methodOut
+0,init
+1,getNextLetter
+2,getCheckFalse
+3,getFalse
+4,getLetterIndex
+5,getNextNodeId
+6,getTrue
+-1,end
