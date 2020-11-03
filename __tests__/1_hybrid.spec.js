@@ -11,7 +11,7 @@ let TrieHybrid = require("../src/trieHybrid.js");
 // EXPERIMENT PARAMETERS
 const numTrials = 10;
 
-describe.skip("1.a.S Access tests for the hybrid ML trie.", () => {
+describe("1.a.S Access tests for the hybrid ML trie.", () => {
   const fileName = "results/results_1a_hybrid_";
   
   const numRepeats = 2;

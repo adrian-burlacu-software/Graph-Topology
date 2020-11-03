@@ -13,7 +13,7 @@ const numTrials = 10;
 // Also, that needs to perform a specific overlap test in addition to the randomized method here so we can see the accessing. This could be instead of pre-allocating the node memory??...
 
 
-describe.skip("1.a.S Access tests for the symbolic trie.", () => {
+describe("1.a.S Access tests for the symbolic trie.", () => {
   const fileName = "results/results_1a_symbolic_";
   const maxWordLength = 9;
   
@@ -135,7 +135,7 @@ describe.skip("1.a.S Access tests for the symbolic trie.", () => {
   }
 });
 
-describe.skip("1.b.S Growth for the symbolic trie.", () => {
+describe("1.b.S Growth for the symbolic trie.", () => {
   const fileName = "results/results_1b_symbolic_";
 	const maxWordLength = 11;
 	

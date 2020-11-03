@@ -6,7 +6,7 @@ let TrieLocal = require("../src/TrieLocal");
 
 const numTrials = 10;
 
-describe.skip("1.a.S Access tests for the local trie.", () => {
+describe("1.a.S Access tests for the local trie.", () => {
     const fileName = "results/results_1a_local_";
   const maxWordLength = 9;
   
@@ -125,7 +125,7 @@ describe.skip("1.a.S Access tests for the local trie.", () => {
   }
 });
 
-describe.skip("1.b.S Growth for the local trie.", () => {
+describe("1.b.S Growth for the local trie.", () => {
   const fileName = "results/results_1b_local_";
   const maxWordLength = 11;
   

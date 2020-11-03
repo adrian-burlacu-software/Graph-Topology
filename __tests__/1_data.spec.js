@@ -8,7 +8,7 @@ let DataWrapper = require("../src/DataWrapper");
 // EXPERIMENT PARAMETERS
 const numTrials = 10;
 
-describe.skip("1.a.S Access tests for the data trie.", () => {
+describe("1.a.S Access tests for the data trie.", () => {
   const fileName = "results/results_1a_data_";
   const maxWordLength = 9;
   
@@ -134,7 +134,7 @@ describe.skip("1.a.S Access tests for the data trie.", () => {
   }
 });
 
-describe.skip("1.b.S Growth for the data trie.", () => {
+describe("1.b.S Growth for the data trie.", () => {
     const fileName = "results/results_1b_data_";
 	const maxWordLength = 11;
 	

@@ -2,7 +2,7 @@ const fs = require("fs").promises;
 const csv = require('async-csv');
 let TrieSymbolicGenerator = require("../src/trieSymbolicGenerator");
 
-describe("Generate the training data for the ML model.", () => {
+describe.skip("Generate the training data for the ML model.", () => {
   // Getting the common steps done with arguments.
   const commonSetup = async function (numLetters) {
     let trieSymbolicGenerator = new TrieSymbolicGenerator();
@@ -34,7 +34,7 @@ describe("Generate the training data for the ML model.", () => {
     await fs.writeFile(`results/TrieModel_${numLetters}_.csv`, await csv.stringify(output),'utf-8');
   }
  
-  test.skip("Generating the graph of words with three letters.", async () => {
+  test("Generating the graph of words with three letters.", async () => {
     const numLetters = 3;
 
     let trieSymbolicGenerator = await commonSetup(numLetters);
@@ -44,7 +44,7 @@ describe("Generate the training data for the ML model.", () => {
     expect(true).toEqual(true);
   });
   
-  test.skip("Generating the graph of words with four letters.", async () => {
+  test("Generating the graph of words with four letters.", async () => {
     const numLetters = 4;
     let trieSymbolicGenerator = await commonSetup(numLetters);
     await commonProcessing(numLetters, trieSymbolicGenerator);
