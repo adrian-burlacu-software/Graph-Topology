@@ -8,6 +8,7 @@ module.exports = class TrieNode {
     // Trie properties
     // Initialize Children: [Null,...Null, Null]
     this.children = new Array(TrieStats.ALPHABET_SIZE).fill(null);
+	this.patterns = {};
 
     // Complete words
     this.isEndOfWord = false;

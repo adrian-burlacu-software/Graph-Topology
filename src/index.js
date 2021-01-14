@@ -10,7 +10,7 @@ async function Main () {
 
   console.log("2. You need to enable the following commands: java(Orace JRE) and npm(NodeJS) on your Windows system.");
   console.log("");
-  console.log("If you want to re-build using the portable JDK or you want help changing  your environment letiable,");
+  console.log("If you want to re-build using the portable JDK or you want help changing  your environment variable,");
   console.log("You can install a portable version of Java: https://portapps.io/download/oracle-jdk-portable-win64-11.0.7-17-setup.exe");
   console.log("Run oracle-jdk-portable.exe from the oracle-jdk-portable folder.");
   console.log("You need to set your own environment letiable for this portable NodeJS.");
@@ -19,7 +19,7 @@ async function Main () {
 
   console.log("This is a global setup script should this project need it.");
   console.log("Any changes will be applied before the tests are run with 'npm test'.");
-  console.log("You only need to run 'npm run main' once, otherwise use 'npm test' continue? (y/yes)");
+  console.log("You only need to run 'npm start' once, otherwise use 'npm test' continue? (y/yes)");
   console.log("");
   prompt.start();
   const {start} = await prompt.get(["start"]);

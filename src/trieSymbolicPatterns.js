@@ -1,18 +1,19 @@
 let TrieNode = require("./trieNode.js");
 
-module.exports = class TrieSymbolic {
+module.exports = class TrieSymbolicPatterns {
 	
   // Initialize the trie properties
   constructor() {
     this.root = new TrieNode();
   }
   
-  insert(key) {
+  insert(key, pattern) {
     let index;
     
     // Select the root as the Starting state
     let currentNode = this.root;
-    
+    currentNode.patterns[pattern] = true;
+	
     // Loop over the word
     for (let letter of key) {
       // Gets the letter index
@@ -27,19 +28,21 @@ module.exports = class TrieSymbolic {
       // Assign the current trie state to the child node
       // NOTE: Can this performance be optimized? Not with a non-local design!!
       currentNode = currentNode.children[index];
+	  currentNode.patterns[pattern] = true;
     }
     
     // Capture end properties on the node 
     currentNode.isEndOfWord = true;
   }
 
-  search(key) {
+  search(key, pattern) {
     let index;
     let height = 0;
     
     // Initiates the search
     let currentNode = this.root;
-    
+    let isPatternValid = true;
+	
     for (let letter of key) {
       // Gets the letter's alphabetic index, a numeric value.
       index = letter.charCodeAt() - 'a'.charCodeAt();
@@ -54,12 +57,17 @@ module.exports = class TrieSymbolic {
         break;
       }
       
+	  if(!currentNode.patterns[pattern]) {
+		  isPatternValid = false;
+		  break;
+	  }
+	  
       height++;
     }
     
     // The node for the last letter is found AND
     // The node that is found is marked as the end of the word
-    let result = currentNode != null && currentNode.isEndOfWord;
+    let result = currentNode != null && currentNode.isEndOfWord && isPatternValid;
     
     return {
       found: result,
