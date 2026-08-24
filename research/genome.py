@@ -43,11 +43,11 @@ GENOME = {
     # describing an external evolutionary process.
     "designer": {
         "input_gain": 0.80,
-        "match_gain": 1.35,
+        "match_gain": 1.45,
         "context_gain": 0.20,
         "branch_bias": 0.45,
         "reuse_bias": 0.00,
-        "decision_margin": 0.05,
+        "decision_margin": 0.10,
         "leak": 0.90,
         "threshold": 1.0,
     },
