@@ -1,0 +1,33 @@
+{
+  "compute": {
+    "cpu_workers": 4,
+    "gpu_devices": [],
+    "parallel_experiments": 1
+  },
+  "experiment": {
+    "seed": 42,
+    "episodes": 200,
+    "max_cells": 250,
+    "max_synapses": 1000
+  },
+  "vocabulary": {
+    "training": [
+      "CAT",
+      "CAR",
+      "CAN",
+      "CARD",
+      "CART",
+      "DOG",
+      "DOT",
+      "DO",
+      "BAT",
+      "BAR"
+    ],
+    "test": [
+      "CAB",
+      "CAP",
+      "DOR",
+      "DART"
+    ]
+  }
+}
