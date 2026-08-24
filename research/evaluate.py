@@ -1,50 +1,57 @@
-import json
-
-from genome import GENOME
-from simulator import DevelopmentalNetwork
-
-
-def load_config():
-
-    with open("config.json") as f:
-        return json.load(f)
+from simulator import Network, Config
 
 
 def evaluate():
 
-    config = load_config()
+    # --------------------------------------------------------
+    # SMALL FIRST EXPERIMENT
+    # --------------------------------------------------------
+    #
+    # These are intentionally chosen because they share
+    # prefixes and therefore force the designer to decide
+    # between reuse and branching.
+    #
+    training = [
+        "CAT",
+        "CAR",
+        "CAN",
+        "CARD",
+        "CART",
+        "DOG",
+        "DOT",
+        "BAT",
+    ]
 
-    network = DevelopmentalNetwork(
-        GENOME,
-        seed=config["experiment"]["seed"]
+    config = Config(
+        designer_learning_rate=0.05,
+
+        # Keep the experiment stable.
+        spike_threshold=1.0,
+        leak=0.90,
+
+        excite_weight=1.0,
+        inhibit_weight=0.6,
+
+        reward_correct_reuse=1.0,
+        reward_correct_branch=1.0,
+
+        # Small cost prevents "branch everything"
+        # from becoming the easiest strategy.
+        branch_cost=-0.25,
     )
 
-    training = config["vocabulary"]["training"]
+    network = Network(config)
 
-    network.train(training)
+    network.train(
+        training,
+        epochs=5,
+    )
 
-    stats = network.stats()
+    network.print_summary()
 
-    print()
-    print("=== EXPERIMENT ===")
+    network.print_topology()
 
-    for key, value in stats.items():
-        print(f"{key:18}: {value}")
-
-    print()
-    print("=== TOPOLOGY ===")
-
-    for cell in network.topology():
-
-        print(
-            f"{cell['id']:>3} "
-            f"{cell['role']:>10} "
-            f"{str(cell['symbol']):>2} "
-            f"parent={str(cell['parent']):>3} "
-            f"in={cell['incoming']} "
-            f"out={cell['outgoing']} "
-            f"order={cell['order']}"
-        )
+    network.print_vocabulary_tree()
 
 
 if __name__ == "__main__":

@@ -6,22 +6,21 @@
   },
   "experiment": {
     "seed": 42,
+    "epochs": 5,
     "episodes": 200,
     "max_cells": 250,
     "max_synapses": 1000
   },
   "vocabulary": {
     "training": [
-      "CAT",
-      "CAR",
-      "CAN",
-      "CARD",
-      "CART",
-      "DOG",
-      "DOT",
-      "DO",
-      "BAT",
-      "BAR"
+        "CAT",
+        "CAR",
+        "CAN",
+        "COT",
+        "DOG",
+        "DOT",
+        "BAT",
+        "BAR"
     ],
     "test": [
       "CAB",

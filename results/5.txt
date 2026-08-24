@@ -1,0 +1,83 @@
+
+=== PLASTICITY EXPERIMENT ===
+epochs : 20
+words  : 10
+
+epoch=  1 cells= 19 reuse= 16 create= 15 reward=   18.00
+epoch=  2 cells= 19 reuse= 47 create= 15 reward=   80.00
+epoch=  3 cells= 19 reuse= 78 create= 15 reward=  142.00
+epoch=  4 cells= 19 reuse=109 create= 15 reward=  204.00
+epoch=  5 cells= 19 reuse=140 create= 15 reward=  266.00
+epoch=  6 cells= 19 reuse=171 create= 15 reward=  328.00
+epoch=  7 cells= 19 reuse=202 create= 15 reward=  390.00
+epoch=  8 cells= 19 reuse=233 create= 15 reward=  452.00
+epoch=  9 cells= 19 reuse=264 create= 15 reward=  514.00
+epoch= 10 cells= 19 reuse=295 create= 15 reward=  576.00
+epoch= 11 cells= 19 reuse=326 create= 15 reward=  638.00
+epoch= 12 cells= 19 reuse=357 create= 15 reward=  700.00
+epoch= 13 cells= 19 reuse=388 create= 15 reward=  762.00
+epoch= 14 cells= 19 reuse=419 create= 15 reward=  824.00
+epoch= 15 cells= 19 reuse=450 create= 15 reward=  886.00
+epoch= 16 cells= 19 reuse=481 create= 15 reward=  948.00
+epoch= 17 cells= 19 reuse=512 create= 15 reward= 1010.00
+epoch= 18 cells= 19 reuse=543 create= 15 reward= 1072.00
+epoch= 19 cells= 19 reuse=574 create= 15 reward= 1134.00
+epoch= 20 cells= 19 reuse=605 create= 15 reward= 1196.00
+
+=== FINAL ===
+cells               : 19
+designer_cells      : 4
+vocabulary_cells    : 15
+synapses            : 20
+reusable_cells      : 15
+designer_spikes     : 1543
+total_reward        : 1196.0
+total_reuse         : 605
+total_create        : 15
+
+=== DESIGNER OUTPUT ===
+reuse_output : 1.0000
+branch_output: -4.9577
+
+=== DESIGNER SYNAPSES ===
+0 -> 1  EXCITE weight=2.0000 learning=30.4000
+0 -> 2  EXCITE weight=0.9250 learning=0.0750
+0 -> 3  EXCITE weight=2.0000 learning=30.6375
+1 -> 2 INHIBIT weight=0.6000 learning=0.0000
+2 -> 1 INHIBIT weight=0.6000 learning=0.0000
+
+=== TOPOLOGY ===
+  0   designer None parent=None in=0 out=6 order=0.0 pot=0.00 spikes=310 inh=0.00
+  1   designer None parent=None in=2 out=1 order=0.0 pot=0.00 spikes=611 inh=0.00
+  2   designer None parent=None in=2 out=1 order=0.0 pot=-4.46 spikes=4 inh=1.42
+  3   designer None parent=None in=1 out=0 order=0.0 pot=0.00 spikes=618 inh=0.00
+  4 vocabulary  C parent=  0 in=1 out=1 order=0 pot=0.00 spikes=0 inh=0.00
+  5 vocabulary  A parent=  4 in=1 out=3 order=1 pot=0.00 spikes=0 inh=0.00
+  6 vocabulary  T parent=  5 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+  7 vocabulary  R parent=  5 in=1 out=2 order=2 pot=0.00 spikes=0 inh=0.00
+  8 vocabulary  N parent=  5 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+  9 vocabulary  D parent=  7 in=1 out=0 order=3 pot=0.00 spikes=0 inh=0.00
+ 10 vocabulary  T parent=  7 in=1 out=0 order=3 pot=0.00 spikes=0 inh=0.00
+ 11 vocabulary  D parent=  0 in=1 out=1 order=0 pot=0.00 spikes=0 inh=0.00
+ 12 vocabulary  O parent= 11 in=1 out=2 order=1 pot=0.00 spikes=0 inh=0.00
+ 13 vocabulary  G parent= 12 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+ 14 vocabulary  T parent= 12 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+ 15 vocabulary  B parent=  0 in=1 out=1 order=0 pot=0.00 spikes=0 inh=0.00
+ 16 vocabulary  A parent= 15 in=1 out=2 order=1 pot=0.00 spikes=0 inh=0.00
+ 17 vocabulary  T parent= 16 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+ 18 vocabulary  R parent= 16 in=1 out=0 order=2 pot=0.00 spikes=0 inh=0.00
+ 
+=== NOTES ===
+We've now established:
+
+one initial designer cell;
+designer cells can form a network;
+excitation/inhibition exists;
+designer activity affects topology;
+topology produces a measurable consequence;
+consequence produces reward;
+reward modifies synapses;
+repeated experience changes behavior;
+behavior converged toward reuse.
+
+That's a legitimate little developmental-learning system.

@@ -3,3 +3,6 @@ cells:          28
 synapses:       21
 reusable cells: 4
 score:          36.990
+
+=== NOTES ===
+First baseline
