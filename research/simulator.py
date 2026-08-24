@@ -267,9 +267,32 @@ class Network:
             if c.kind == "designer"
         ]
 
-    def find_root_symbol(self, symbol: str) -> Optional[int]:
+    def find_root_symbol(
+        self,
+        symbol: str,
+    ) -> Optional[int]:
         for cell in self.vocabulary_cells():
-            if cell.parent is None and cell.symbol == symbol:
+            if (
+                cell.parent is None
+                and cell.symbol == symbol
+            ):
+                return cell.id
+
+        return None
+
+    def find_global_symbol(
+        self,
+        symbol: str,
+    ) -> Optional[int]:
+        """
+        Experimental global symbol lookup.
+
+        This lets the topology become a DAG instead of requiring
+        every occurrence of a symbol to live under the same parent.
+        """
+
+        for cell in self.vocabulary_cells():
+            if cell.symbol == symbol:
                 return cell.id
 
         return None
@@ -279,6 +302,8 @@ class Network:
         parent_id: Optional[int],
         symbol: str,
     ) -> Optional[int]:
+
+        # Root lookup remains structural.
         if parent_id is None:
             return self.find_root_symbol(symbol)
 
@@ -287,6 +312,7 @@ class Network:
         if parent is None:
             return None
 
+        # First preference: exact local edge.
         for cid in parent.outgoing:
             child = self.cells[cid]
 
@@ -295,6 +321,14 @@ class Network:
                 and child.symbol == symbol
             ):
                 return cid
+
+        # Experimental second stage:
+        # reuse an existing symbol elsewhere in the graph.
+        if self.reuse_genome.get(
+            "global_symbol_reuse",
+            False,
+        ):
+            return self.find_global_symbol(symbol)
 
         return None
 
@@ -319,6 +353,29 @@ class Network:
         parent: Optional[int],
         order: int,
     ) -> int:
+
+        # If global symbol reuse is enabled, don't create a duplicate
+        # merely because this symbol exists under another parent.
+        if (
+            parent is not None
+            and self.reuse_genome.get(
+                "global_symbol_reuse",
+                False,
+            )
+        ):
+            existing = self.find_global_symbol(symbol)
+
+            if existing is not None:
+                if parent not in self.cells[existing].incoming:
+                    self.connect(
+                        parent,
+                        existing,
+                        EXCITE,
+                        self.config.excite_weight,
+                    )
+
+                return existing
+
         cid = self.create_cell(
             "vocabulary",
             symbol,
@@ -334,7 +391,6 @@ class Network:
                 self.config.excite_weight,
             )
 
-        # Vocabulary cells provide local recurrent feedback.
         self.connect(
             cid,
             self.designer_root,

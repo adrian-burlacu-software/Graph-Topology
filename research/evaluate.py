@@ -17,7 +17,6 @@ TRAINING = [
     "BAT",
 ]
 
-
 TEST = [
     "CAT",
     "CAR",
@@ -27,7 +26,6 @@ TEST = [
     "DOG",
     "DOT",
     "BAT",
-
     "CAD",
     "COD",
     "COT",
@@ -42,113 +40,130 @@ TEST = [
     "CARTD",
 ]
 
-
 EXPECTED_REUSE = 50
 EXPECTED_CREATE = 17
 
 
 def config_from_genome(genome: dict) -> Config:
-    d = genome["designer"]
-    p = genome["plasticity"]
-    i = genome["inhibition"]
+    """
+    The simulator is already genome-driven.
+
+    Do NOT flatten the genome into Config fields here.
+    Network expects the complete nested genome:
+        genome["designer"]
+        genome["growth"]
+        genome["connection"]
+        ...
+    """
 
     return Config(
-        designer_learning_rate=p["reward_learning_rate"],
-        vocabulary_learning_rate=p["weight_learning_rate"],
-
-        spike_threshold=d["threshold"],
-        leak=d["leak"],
-
-        excite_weight=genome["connection"]["initial_strength"] * 2.0,
-        inhibit_weight=max(
-            0.05,
-            i["strength"] + 0.25,
-        ),
-
-        reward_correct_reuse=genome["reuse"]["reuse_reward"],
-        reward_correct_branch=1.0,
-
-        reward_wrong_reuse=-1.0,
-        reward_wrong_branch=-0.25,
-
-        branch_cost=-0.25 * genome["growth"]["growth_cost"],
-
-        feedback_weight=max(
-            0.01,
-            min(
-                0.5,
-                genome["ordering"]["sequence_strength"] * 0.10,
-            ),
-        ),
+        genome=genome,
     )
 
 
-def expected_for_word(network: Network, word: str):
+def expected_for_word(
+    network: Network,
+    word: str,
+):
     """
-    Calculate the structural expectation BEFORE mutating the graph.
+    Determine the structural expectation before mutation.
     """
-    expected_reuse = 0
-    expected_create = 0
+
+    reuse = 0
+    create = 0
 
     current = None
 
     for symbol in word:
-        existing = network.find_child(current, symbol)
+        existing = network.find_child(
+            current,
+            symbol,
+        )
 
         if existing is None:
-            expected_create += 1
+            create += 1
         else:
-            expected_reuse += 1
+            reuse += 1
             current = existing
 
-    return expected_reuse, expected_create
+    return reuse, create
 
 
-def run_once(genome: dict, verbose: bool = True):
-    config = config_from_genome(genome)
-    network = Network(config)
+def run_once(
+    genome: dict,
+    verbose: bool = True,
+):
+    config = config_from_genome(
+        genome
+    )
+
+    network = Network(
+        config
+    )
 
     if verbose:
-        print("=== TRAINING ===")
-        print()
         print(
             "genome:",
             genome_summary(genome),
         )
 
-    network.train(TRAINING, epochs=5)
+    print()
+    print("=== TRAINING ===")
 
-    if verbose:
-        print()
-        print("=== FREEZE ===")
-        print("No learning after training.")
+    network.train(
+        TRAINING,
+        epochs=5,
+    )
+
+    print()
+    print("=== FREEZE ===")
+    print("No learning after training.")
 
     network.config.designer_learning_rate = 0.0
     network.config.vocabulary_learning_rate = 0.0
 
-    before_cells = len(network.cells)
+    before_cells = len(
+        network.cells
+    )
 
     total_reuse = 0
     total_create = 0
     exact_words = 0
 
-    if verbose:
-        print()
-        print("=== NOVEL TEST ===")
+    print()
+    print("=== NOVEL TEST ===")
 
     for word in TEST:
-        expected_reuse, expected_create = expected_for_word(
-            network,
-            word,
+
+        expected_reuse, expected_create = (
+            expected_for_word(
+                network,
+                word,
+            )
         )
 
-        before_reuse = network.total_reuse
-        before_create = network.total_create
+        reuse_before = (
+            network.total_reuse
+        )
 
-        result = network.process_word(word)
+        create_before = (
+            network.total_create
+        )
 
-        word_reuse = network.total_reuse - before_reuse
-        word_create = network.total_create - before_create
+        result = network.process_word(
+            word,
+            learn=False,
+        )
+
+        word_reuse = (
+            network.total_reuse
+            - reuse_before
+        )
+
+        word_create = (
+            network.total_create
+            - create_before
+        )
 
         total_reuse += word_reuse
         total_create += word_create
@@ -161,34 +176,89 @@ def run_once(genome: dict, verbose: bool = True):
         if exact:
             exact_words += 1
 
-        if verbose:
-            print(
-                f"{word:5s} "
-                f"reuse={word_reuse:2d} "
-                f"create={word_create:2d} "
-                f"expected_reuse={expected_reuse:2d} "
-                f"expected_create={expected_create:2d} "
-                f"exact={exact}"
-            )
+        print(
+            f"{word:5s} "
+            f"reuse={word_reuse:2d} "
+            f"create={word_create:2d} "
+            f"expected_reuse={expected_reuse:2d} "
+            f"expected_create={expected_create:2d} "
+            f"exact={exact}"
+        )
 
-    after_cells = len(network.cells)
+    after_cells = len(
+        network.cells
+    )
 
     reuse_error = abs(
-        total_reuse - EXPECTED_REUSE
+        total_reuse
+        - EXPECTED_REUSE
     )
 
     create_error = abs(
-        total_create - EXPECTED_CREATE
+        total_create
+        - EXPECTED_CREATE
     )
 
-    # Exact structural generalization is the primary fitness.
     score = (
         exact_words * 100.0
         - reuse_error * 10.0
         - create_error * 10.0
     )
 
-    result = {
+    print()
+    print("=== GENERALIZATION ===")
+
+    print(
+        f"training_words       : "
+        f"{len(TRAINING)}"
+    )
+
+    print(
+        f"test_words           : "
+        f"{len(TEST)}"
+    )
+
+    print(
+        f"cells_before_test    : "
+        f"{before_cells}"
+    )
+
+    print(
+        f"cells_after_test     : "
+        f"{after_cells}"
+    )
+
+    print(
+        f"new_cells            : "
+        f"{after_cells - before_cells}"
+    )
+
+    print(
+        f"test_reuse           : "
+        f"{total_reuse}"
+    )
+
+    print(
+        f"test_create          : "
+        f"{total_create}"
+    )
+
+    print(
+        f"expected_reuse       : "
+        f"{EXPECTED_REUSE}"
+    )
+
+    print(
+        f"expected_create      : "
+        f"{EXPECTED_CREATE}"
+    )
+
+    print(
+        f"exact_words          : "
+        f"{exact_words}/{len(TEST)}"
+    )
+
+    return {
         "score": score,
         "exact_words": exact_words,
         "reuse": total_reuse,
@@ -200,22 +270,6 @@ def run_once(genome: dict, verbose: bool = True):
         "network": network,
     }
 
-    if verbose:
-        print()
-        print("=== GENERALIZATION ===")
-        print(f"training_words       : {len(TRAINING)}")
-        print(f"test_words           : {len(TEST)}")
-        print(f"cells_before_test    : {before_cells}")
-        print(f"cells_after_test     : {after_cells}")
-        print(f"new_cells            : {after_cells - before_cells}")
-        print(f"test_reuse           : {total_reuse}")
-        print(f"test_create          : {total_create}")
-        print(f"expected_reuse       : {EXPECTED_REUSE}")
-        print(f"expected_create      : {EXPECTED_CREATE}")
-        print(f"exact_words          : {exact_words}/{len(TEST)}")
-
-    return result
-
 
 def evolve(
     generations: int = 10,
@@ -226,9 +280,13 @@ def evolve(
 
     base = clone_genome()
 
-    population = [clone_genome(base)]
+    population = [
+        clone_genome(base)
+    ]
 
-    for _ in range(population_size - 1):
+    for _ in range(
+        population_size - 1
+    ):
         population.append(
             mutate_genome(
                 base,
@@ -240,16 +298,27 @@ def evolve(
     best_genome = None
     best_score = float("-inf")
 
+    print()
     print("=== GENOME EXPERIMENT ===")
-    print(f"generations : {generations}")
-    print(f"population  : {population_size}")
-    print(f"seed        : {seed}")
+    print(
+        f"generations : {generations}"
+    )
+    print(
+        f"population  : {population_size}"
+    )
+    print(
+        f"seed        : {seed}"
+    )
     print()
 
-    for generation in range(1, generations + 1):
+    for generation in range(
+        1,
+        generations + 1,
+    ):
         scored = []
 
         for genome in population:
+
             result = run_once(
                 genome,
                 verbose=False,
@@ -264,15 +333,19 @@ def evolve(
             )
 
         scored.sort(
-            key=lambda item: item[0],
+            key=lambda x: x[0],
             reverse=True,
         )
 
-        score, champion, result = scored[0]
+        score, champion, result = (
+            scored[0]
+        )
 
         if score > best_score:
             best_score = score
-            best_genome = clone_genome(champion)
+            best_genome = clone_genome(
+                champion
+            )
 
         print(
             f"generation={generation:2d} "
@@ -284,44 +357,72 @@ def evolve(
 
         print(
             "  ",
-            genome_summary(champion),
+            genome_summary(
+                champion
+            ),
         )
 
         elite_count = max(
             1,
-            int(population_size * 0.25),
+            int(
+                population_size
+                * GENOME["evolution"]["elite_fraction"]
+            ),
         )
 
         elites = [
-            clone_genome(item[1])
-            for item in scored[:elite_count]
+            clone_genome(
+                item[1]
+            )
+            for item in scored[
+                :elite_count
+            ]
         ]
 
-        next_population = list(elites)
+        next_population = list(
+            elites
+        )
 
-        while len(next_population) < population_size:
-            parent = random.choice(elites)
+        while len(
+            next_population
+        ) < population_size:
 
-            child = mutate_genome(
-                parent,
-                mutation_rate=0.25,
-                mutation_scale=0.05,
+            parent = random.choice(
+                elites
             )
 
-            next_population.append(child)
+            child = mutate_genome(
+                parent
+            )
 
-        population = next_population
+            next_population.append(
+                child
+            )
+
+        population = (
+            next_population
+        )
 
     print()
     print("=== BEST GENOME ===")
-    print(genome_summary(best_genome))
-    print(f"score : {best_score:.1f}")
+
+    print(
+        genome_summary(
+            best_genome
+        )
+    )
+
+    print(
+        f"score : {best_score:.1f}"
+    )
 
     return best_genome
 
 
 def evaluate():
+
     print("=== BASELINE ===")
+
     baseline = run_once(
         clone_genome(),
         verbose=True,
@@ -348,6 +449,7 @@ def evaluate():
 
     print()
     print("=== LEARNED NETWORK ===")
+
     final["network"].print_summary()
 
     print()
