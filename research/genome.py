@@ -37,17 +37,13 @@ GENOME = {
         "minimum_activity": 0.01,
     },
 
-    # Experimental genome parameters.
-    #
-    # These affect the actual simulator dynamics rather than merely
-    # describing an external evolutionary process.
     "designer": {
         "input_gain": 0.80,
-        "match_gain": 1.45,
+        "match_gain": 1.35,
         "context_gain": 0.20,
         "branch_bias": 0.45,
         "reuse_bias": 0.00,
-        "decision_margin": 0.10,
+        "decision_margin": 0.05,
         "leak": 0.90,
         "threshold": 1.0,
     },
@@ -81,17 +77,21 @@ def mutate_genome(
     mutation_rate: float | None = None,
     mutation_scale: float | None = None,
 ) -> dict:
-    """
-    Produce a mutated genome.
-
-    This is deliberately generic: every numeric leaf has a chance to
-    mutate, while integer/bounded parameters are kept valid.
-    """
     result = clone_genome(genome)
 
     evolution = result["evolution"]
-    rate = evolution["mutation_rate"] if mutation_rate is None else mutation_rate
-    scale = evolution["mutation_scale"] if mutation_scale is None else mutation_scale
+
+    rate = (
+        evolution["mutation_rate"]
+        if mutation_rate is None
+        else mutation_rate
+    )
+
+    scale = (
+        evolution["mutation_scale"]
+        if mutation_scale is None
+        else mutation_scale
+    )
 
     def mutate_tree(node):
         for key, value in list(node.items()):
@@ -108,13 +108,13 @@ def mutate_genome(
             mutated = _mutate_value(float(value), scale)
 
             if isinstance(value, int):
-                node[key] = max(1, int(round(mutated)))
+                node[key] = int(round(mutated))
             else:
                 node[key] = mutated
 
     mutate_tree(result)
 
-    # Keep the genome sane.
+    # Hard validity limits.
     result["growth"]["max_children_per_cell"] = max(
         1,
         int(result["growth"]["max_children_per_cell"]),
@@ -145,14 +145,25 @@ def mutate_genome(
         result["designer"]["decision_margin"],
     )
 
+    result["reuse"]["match_threshold"] = min(
+        1.0,
+        max(0.0, result["reuse"]["match_threshold"]),
+    )
+
+    result["plasticity"]["reward_learning_rate"] = max(
+        0.0,
+        result["plasticity"]["reward_learning_rate"],
+    )
+
+    result["plasticity"]["weight_learning_rate"] = max(
+        0.0,
+        result["plasticity"]["weight_learning_rate"],
+    )
+
     return result
 
 
 def genome_distance(a: dict, b: dict) -> float:
-    """
-    Simple numeric genome distance.
-    Useful for later evolutionary experiments.
-    """
     total = 0.0
     count = 0
 
@@ -168,6 +179,7 @@ def genome_distance(a: dict, b: dict) -> float:
 
             if isinstance(xv, dict) and isinstance(yv, dict):
                 walk(xv, yv)
+
             elif isinstance(xv, (int, float)) and isinstance(yv, (int, float)):
                 total += abs(float(xv) - float(yv))
                 count += 1
@@ -175,3 +187,20 @@ def genome_distance(a: dict, b: dict) -> float:
     walk(a, b)
 
     return total / count if count else 0.0
+
+
+def genome_summary(genome: dict) -> str:
+    d = genome["designer"]
+    p = genome["plasticity"]
+    r = genome["reuse"]
+
+    return (
+        f"match={r['match_threshold']:.3f} "
+        f"input={d['input_gain']:.3f} "
+        f"match_gain={d['match_gain']:.3f} "
+        f"branch={d['branch_bias']:.3f} "
+        f"reuse={d['reuse_bias']:.3f} "
+        f"margin={d['decision_margin']:.3f} "
+        f"leak={d['leak']:.3f} "
+        f"lr={p['reward_learning_rate']:.3f}"
+    )
