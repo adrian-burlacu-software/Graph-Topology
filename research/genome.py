@@ -31,12 +31,11 @@ GENOME = {
         "minimum_activity": 0.01,
     },
 
-    # Experimental evolutionary parameters.
     "evolution": {
-        "mutation_rate": 0.10,
-        "mutation_scale": 0.10,
-        "elite_fraction": 0.20,
         "population_size": 16,
-        "generations": 20,
-    },
+        "generations": 50,
+        "elite_fraction": 0.25,
+        "mutation_rate": 0.15,
+        "mutation_scale": 0.10,
+    }
 }

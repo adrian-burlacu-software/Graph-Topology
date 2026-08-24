@@ -1,0 +1,121 @@
+=== TRAINING ===
+
+=== PLASTICITY EXPERIMENT ===
+epochs : 5
+words  : 8
+
+epoch=  1 cells= 18 reuse= 12 create= 14 reward=   22.50
+epoch=  2 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  3 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  4 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  5 cells= 18 reuse= 26 create=  0 reward=   26.00
+
+=== FREEZE ===
+No learning after training.
+
+=== NOVEL TEST ===
+CAT   reuse= 3 create= 0 result={'word': 'CAT', 'created': 0, 'reused': 3, 'branched': 0}
+CAR   reuse= 3 create= 0 result={'word': 'CAR', 'created': 0, 'reused': 3, 'branched': 0}
+CAN   reuse= 3 create= 0 result={'word': 'CAN', 'created': 0, 'reused': 3, 'branched': 0}
+CARD  reuse= 4 create= 0 result={'word': 'CARD', 'created': 0, 'reused': 4, 'branched': 0}
+CART  reuse= 4 create= 0 result={'word': 'CART', 'created': 0, 'reused': 4, 'branched': 0}
+DOG   reuse= 3 create= 0 result={'word': 'DOG', 'created': 0, 'reused': 3, 'branched': 0}
+DOT   reuse= 3 create= 0 result={'word': 'DOT', 'created': 0, 'reused': 3, 'branched': 0}
+BAT   reuse= 3 create= 0 result={'word': 'BAT', 'created': 0, 'reused': 3, 'branched': 0}
+CAD   reuse= 2 create= 1 result={'word': 'CAD', 'created': 1, 'reused': 2, 'branched': 1}
+COD   reuse= 1 create= 2 result={'word': 'COD', 'created': 2, 'reused': 1, 'branched': 2}
+COT   reuse= 2 create= 1 result={'word': 'COT', 'created': 1, 'reused': 2, 'branched': 1}
+BAD   reuse= 2 create= 1 result={'word': 'BAD', 'created': 1, 'reused': 2, 'branched': 1}
+BAR   reuse= 2 create= 1 result={'word': 'BAR', 'created': 1, 'reused': 2, 'branched': 1}
+BARD  reuse= 3 create= 1 result={'word': 'BARD', 'created': 1, 'reused': 3, 'branched': 1}
+BAN   reuse= 2 create= 1 result={'word': 'BAN', 'created': 1, 'reused': 2, 'branched': 1}
+DART  reuse= 1 create= 3 result={'word': 'DART', 'created': 3, 'reused': 1, 'branched': 3}
+DAT   reuse= 2 create= 1 result={'word': 'DAT', 'created': 1, 'reused': 2, 'branched': 1}
+BOT   reuse= 1 create= 2 result={'word': 'BOT', 'created': 2, 'reused': 1, 'branched': 2}
+BOAT  reuse= 2 create= 2 result={'word': 'BOAT', 'created': 2, 'reused': 2, 'branched': 2}
+CARTD reuse= 4 create= 1 result={'word': 'CARTD', 'created': 1, 'reused': 4, 'branched': 1}
+
+=== GENERALIZATION ===
+training_words       : 8
+test_words           : 20
+cells_before_test    : 18
+cells_after_test     : 35
+new_cells            : 17
+test_reuse           : 50
+test_create          : 17
+
+=== LEARNED NETWORK ===
+
+=== FINAL ===
+cells               : 35
+designer_cells      : 4
+vocabulary_cells    : 31
+synapses            : 65
+reusable_cells      : 28
+designer_spikes     : 459
+vocabulary_feedback_synapses: 31
+total_reward        : 189.2
+total_reuse         : 166
+total_create        : 31
+correct_reuse       : 166
+correct_branch      : 31
+wrong_reuse         : 0
+wrong_branch        : 0
+action_reuse        : 166
+action_branch       : 31
+
+=== DESIGNER OUTPUT ===
+reuse_output : 1.9796
+branch_output: 0.8998
+
+=== DECISION MATRIX ===
+reuse available:
+    REUSE  : 166
+    BRANCH : 0
+reuse unavailable:
+    REUSE  : 0
+    BRANCH : 31
+
+=== DESIGNER SYNAPSES ===
+0 -> 1 EXCITE  weight=1.5537 learning=0.5800
+0 -> 2 EXCITE  weight=0.7625 learning=0.0525
+1 -> 2 INHIBIT weight=0.6000 learning=0.0000
+2 -> 1 INHIBIT weight=0.6000 learning=0.0000
+1 -> 3 EXCITE  weight=1.0000 learning=0.0000
+2 -> 3 EXCITE  weight=1.0000 learning=0.0000
+
+=== VOCABULARY GRAPH ===
+C [4]
+  A [5]
+    T [6]
+    R [7]
+      D [9]
+      T [10]
+        D [34]
+    N [8]
+    D [18]
+  O [19]
+    D [20]
+    T [21]
+D [11]
+  O [12]
+    G [13]
+    T [14]
+  A [26]
+    R [27]
+      T [28]
+    T [29]
+B [15]
+  A [16]
+    T [17]
+    D [22]
+    R [23]
+      D [24]
+    N [25]
+  O [30]
+    T [31]
+    A [32]
+      T [33]
+ 
+=== NOTES ===
+Extensive test of baseline champion.
