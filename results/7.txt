@@ -1,0 +1,87 @@
+
+=== PLASTICITY EXPERIMENT ===
+epochs : 5
+words  : 8
+
+epoch=  1 cells= 18 reuse= 12 create= 14 reward=   22.50
+epoch=  2 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  3 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  4 cells= 18 reuse= 26 create=  0 reward=   26.00
+epoch=  5 cells= 18 reuse= 26 create=  0 reward=   26.00
+
+=== FINAL ===
+cells               : 18
+designer_cells      : 4
+vocabulary_cells    : 14
+synapses            : 31
+reusable_cells      : 11
+designer_spikes     : 297
+vocabulary_feedback_synapses: 14
+total_reward        : 126.5
+total_reuse         : 116
+total_create        : 14
+correct_reuse       : 116
+correct_branch      : 14
+wrong_reuse         : 0
+wrong_branch        : 0
+action_reuse        : 116
+action_branch       : 14
+
+=== DESIGNER OUTPUT ===
+reuse_output : 4.2904
+branch_output: 0.0829
+
+=== DECISION MATRIX ===
+reuse available:
+    REUSE  : 116
+    BRANCH : 0
+reuse unavailable:
+    REUSE  : 0
+    BRANCH : 14
+
+=== DESIGNER SYNAPSES ===
+0 -> 1 EXCITE  weight=1.5537 learning=0.5800
+0 -> 2 EXCITE  weight=0.7625 learning=0.0525
+1 -> 2 INHIBIT weight=0.6000 learning=0.0000
+2 -> 1 INHIBIT weight=0.6000 learning=0.0000
+1 -> 3 EXCITE  weight=1.0000 learning=0.0000
+2 -> 3 EXCITE  weight=1.0000 learning=0.0000
+
+=== TOPOLOGY ===
+  0 designer   None parent=None in=14 out=2 order=0 pot=0.00 spikes=65 inh=0.00
+  1 designer   None parent=None in=2 out=2 order=0 pot=4.29 spikes=125 inh=0.00
+  2 designer   None parent=None in=2 out=2 order=0 pot=0.08 spikes=17 inh=1.20
+  3 designer   None parent=None in=2 out=0 order=0 pot=0.00 spikes=0 inh=0.00
+  4 vocabulary    C parent=None in=0 out=2 order=0 pot=0.00 spikes=25 inh=0.00
+  5 vocabulary    A parent=   4 in=1 out=4 order=1 pot=0.00 spikes=25 inh=0.00
+  6 vocabulary    T parent=   5 in=1 out=1 order=2 pot=0.00 spikes=0 inh=0.00
+  7 vocabulary    R parent=   5 in=1 out=3 order=2 pot=0.00 spikes=10 inh=0.00
+  8 vocabulary    N parent=   5 in=1 out=1 order=2 pot=0.00 spikes=0 inh=0.00
+  9 vocabulary    D parent=   7 in=1 out=1 order=3 pot=0.00 spikes=0 inh=0.00
+ 10 vocabulary    T parent=   7 in=1 out=1 order=3 pot=0.00 spikes=0 inh=0.00
+ 11 vocabulary    D parent=None in=0 out=2 order=0 pot=0.00 spikes=10 inh=0.00
+ 12 vocabulary    O parent=  11 in=1 out=3 order=1 pot=0.00 spikes=10 inh=0.00
+ 13 vocabulary    G parent=  12 in=1 out=1 order=2 pot=0.00 spikes=0 inh=0.00
+ 14 vocabulary    T parent=  12 in=1 out=1 order=2 pot=0.00 spikes=0 inh=0.00
+ 15 vocabulary    B parent=None in=0 out=2 order=0 pot=0.00 spikes=5 inh=0.00
+ 16 vocabulary    A parent=  15 in=1 out=2 order=1 pot=0.00 spikes=5 inh=0.00
+ 17 vocabulary    T parent=  16 in=1 out=1 order=2 pot=0.00 spikes=0 inh=0.00
+
+=== VOCABULARY GRAPH ===
+C [4]
+  A [5]
+    T [6]
+    R [7]
+      D [9]
+      T [10]
+    N [8]
+D [11]
+  O [12]
+    G [13]
+    T [14]
+B [15]
+  A [16]
+    T [17]
+ 
+=== NOTES ===
+Baseline champion.
