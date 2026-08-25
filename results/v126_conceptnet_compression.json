@@ -1,0 +1,5083 @@
+{
+  "experiment": "V126 ConceptNet teacher -> compressed student",
+  "seed": 12601,
+  "dictionary_words": 4925,
+  "teacher_total_edges": 2269365,
+  "teacher_dictionary_edges": 188312,
+  "teacher_baseline": {
+    "semantic": {
+      "covered_words": 4925,
+      "coverage": 1.0,
+      "evaluated": 2388,
+      "precision": 0.08278465053042391,
+      "recall": 0.32258813910823964,
+      "f1": 0.1258685628885377
+    },
+    "relation_scores": {
+      "IsA": {
+        "covered_words": 3315,
+        "precision": 0.07437613346838368,
+        "recall": 0.051775743798356866,
+        "f1": 0.05352239558955688
+      },
+      "PartOf": {
+        "covered_words": 760,
+        "precision": 0.02483143078306395,
+        "recall": 0.007904602376964186,
+        "f1": 0.010759383729497456
+      },
+      "HasA": {
+        "covered_words": 313,
+        "precision": 0.012878021430896098,
+        "recall": 0.0030235502911382306,
+        "f1": 0.0043573098588306205
+      },
+      "UsedFor": {
+        "covered_words": 703,
+        "precision": 0.0082394449518241,
+        "recall": 0.011086683417085427,
+        "f1": 0.007550521881270515
+      },
+      "CapableOf": {
+        "covered_words": 1084,
+        "precision": 0.0038329533016605395,
+        "recall": 0.0033067121320890167,
+        "f1": 0.002805203375799955
+      },
+      "HasProperty": {
+        "covered_words": 599,
+        "precision": 0.016274883164016332,
+        "recall": 0.004697096594081519,
+        "f1": 0.0064023680424650795
+      },
+      "Causes": {
+        "covered_words": 249,
+        "precision": 0.005899259964698042,
+        "recall": 0.0014726409826912338,
+        "f1": 0.001994278658851523
+      },
+      "AtLocation": {
+        "covered_words": 1048,
+        "precision": 0.021744695859780765,
+        "recall": 0.013598747706787907,
+        "f1": 0.01391203192052009
+      },
+      "MadeOf": {
+        "covered_words": 152,
+        "precision": 0.011515912897822446,
+        "recall": 0.002028994177235383,
+        "f1": 0.0033404758279130136
+      },
+      "ReceivesAction": {
+        "covered_words": 432,
+        "precision": 0.0007677275265214964,
+        "recall": 0.0001645130413974635,
+        "f1": 0.00026225403109825224
+      },
+      "HasPrerequisite": {
+        "covered_words": 173,
+        "precision": 0.004395111166630401,
+        "recall": 0.003043989790220946,
+        "f1": 0.002217138640782965
+      },
+      "HasFirstSubevent": {
+        "covered_words": 77,
+        "precision": 0.0011306532663316585,
+        "recall": 0.00046512323522373774,
+        "f1": 0.0005981781107409248
+      },
+      "HasLastSubevent": {
+        "covered_words": 64,
+        "precision": 0.0010747354497354497,
+        "recall": 0.000603713009491904,
+        "f1": 0.0006637803083265691
+      },
+      "MotivatedByGoal": {
+        "covered_words": 96,
+        "precision": 0.0026992221119381044,
+        "recall": 0.0019262981574539363,
+        "f1": 0.001596062555675507
+      },
+      "Synonym": {
+        "covered_words": 4255,
+        "precision": 0.08728559344998305,
+        "recall": 0.06595327829624312,
+        "f1": 0.06293093026442241
+      },
+      "Antonym": {
+        "covered_words": 1414,
+        "precision": 0.050317947763508904,
+        "recall": 0.014378439818138312,
+        "f1": 0.020716336404150475
+      },
+      "RelatedTo": {
+        "covered_words": 4891,
+        "precision": 0.11020957346434933,
+        "recall": 0.2840028515593842,
+        "f1": 0.14218961942860742
+      },
+      "SimilarTo": {
+        "covered_words": 1271,
+        "precision": 0.027050189722620504,
+        "recall": 0.01206927494615937,
+        "f1": 0.013315962510808499
+      },
+      "DefinedAs": {
+        "covered_words": 218,
+        "precision": 0.00020938023450586265,
+        "recall": 0.00012213847012841985,
+        "f1": 0.0001535455053042993
+      },
+      "HasContext": {
+        "covered_words": 3291,
+        "precision": 0.007905144264572986,
+        "recall": 0.004994217117332695,
+        "f1": 0.0052093404868142875
+      }
+    },
+    "edges": 188312
+  },
+  "budgets": {
+    "0.01": {
+      "build": {
+        "budget_fraction": 0.01,
+        "teacher_edges": 188312,
+        "student_edges": 1883,
+        "actual_fraction": 0.009999362759675431,
+        "dictionary_words_with_edge": 1883,
+        "seconds": 0.4680979999975534
+      },
+      "semantic": {
+        "covered_words": 1883,
+        "coverage": 0.3823350253807107,
+        "evaluated": 2388,
+        "precision": 0.03936348408710218,
+        "recall": 0.005814289702480657,
+        "f1": 0.01008348621413948
+      },
+      "relation_scores": {
+        "IsA": {
+          "covered_words": 797,
+          "precision": 0.026381909547738693,
+          "recall": 0.0037788147084629495,
+          "f1": 0.006583845151684347
+        },
+        "PartOf": {
+          "covered_words": 7,
+          "precision": 0.0008375209380234506,
+          "recall": 0.00014357501794687725,
+          "f1": 0.00024427694025683976
+        },
+        "HasA": {
+          "covered_words": 4,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "UsedFor": {
+          "covered_words": 108,
+          "precision": 0.00711892797319933,
+          "recall": 0.0010643495254048017,
+          "f1": 0.0018412166653372685
+        },
+        "CapableOf": {
+          "covered_words": 64,
+          "precision": 0.0008375209380234506,
+          "recall": 0.0001360971524288107,
+          "f1": 0.00023264470500651406
+        },
+        "HasProperty": {
+          "covered_words": 17,
+          "precision": 0.0016750418760469012,
+          "recall": 0.0002721943048576214,
+          "f1": 0.0004652894100130281
+        },
+        "Causes": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "AtLocation": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MadeOf": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "ReceivesAction": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasPrerequisite": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasFirstSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasLastSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MotivatedByGoal": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "Synonym": {
+          "covered_words": 826,
+          "precision": 0.0020938023450586263,
+          "recall": 0.0003494655818776422,
+          "f1": 0.0005965674935524182
+        },
+        "Antonym": {
+          "covered_words": 9,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "RelatedTo": {
+          "covered_words": 3,
+          "precision": 0.0004187604690117253,
+          "recall": 6.979341150195422e-05,
+          "f1": 0.00011964584828906437
+        },
+        "SimilarTo": {
+          "covered_words": 48,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "DefinedAs": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasContext": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "teacher_edge_recall": {
+        "teacher_edges": 183380,
+        "student_edges": 1883,
+        "edge_recall": 0.0102682953430036
+      },
+      "random_control": {
+        "covered_words": 1377,
+        "coverage": 0.2795939086294416,
+        "evaluated": 2388,
+        "precision": 0.029808766052484646,
+        "recall": 0.006422987955651272,
+        "f1": 0.010173329834133854
+      },
+      "student_edges_by_relation": {
+        "Synonym": 826,
+        "IsA": 797,
+        "CapableOf": 64,
+        "SimilarTo": 48,
+        "UsedFor": 108,
+        "HasProperty": 17,
+        "Antonym": 9,
+        "HasA": 4,
+        "PartOf": 7,
+        "RelatedTo": 3
+      },
+      "traces": [
+        {
+          "word": "hello",
+          "gold": [
+            "friend",
+            "goodbye",
+            "greet",
+            "hey",
+            "hi"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "greeting",
+              "weight": 3.464
+            },
+            {
+              "relation": "IsA",
+              "end": "greeting",
+              "weight": 2.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "bye",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "uk",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "opposite of goodbye",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "greeting",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "greeting",
+            "greeting",
+            "bye",
+            "uk",
+            "opposite of goodbye",
+            "greet",
+            "greeting"
+          ],
+          "student_direct": [
+            "greeting"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "greeting"
+            ],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "greeting",
+          "gold": [],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "acknowledgment",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "front door",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "single communication act",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "social activity",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "arrival",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "conventional",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "conversation",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "hello",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "letter",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "presence",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "salutation",
+              "weight": 1.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "welcome",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "acknowledgment",
+            "front door",
+            "single communication act",
+            "social activity",
+            "arrival",
+            "conventional",
+            "conversation",
+            "greet",
+            "greet",
+            "hello",
+            "letter",
+            "presence",
+            "salutation",
+            "welcome"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "dog",
+          "gold": [
+            "animal",
+            "bark",
+            "four",
+            "friend",
+            "fur",
+            "leg",
+            "pet",
+            "tail"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "CapableOf",
+              "end": "bark",
+              "weight": 16.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guard house",
+              "weight": 10.392
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "pet",
+              "weight": 9.83
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "animal",
+              "weight": 9.41
+            },
+            {
+              "relation": "AtLocation",
+              "end": "kennel",
+              "weight": 9.381
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "canine",
+              "weight": 7.626
+            },
+            {
+              "relation": "CapableOf",
+              "end": "pet",
+              "weight": 7.483
+            },
+            {
+              "relation": "IsA",
+              "end": "loyal friend",
+              "weight": 6.633
+            },
+            {
+              "relation": "UsedFor",
+              "end": "companionship",
+              "weight": 6.325
+            },
+            {
+              "relation": "CapableOf",
+              "end": "run",
+              "weight": 6.0
+            },
+            {
+              "relation": "IsA",
+              "end": "pet",
+              "weight": 6.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "table",
+              "weight": 5.657
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guide blind person",
+              "weight": 5.292
+            },
+            {
+              "relation": "HasA",
+              "end": "four legs",
+              "weight": 5.292
+            },
+            {
+              "relation": "IsA",
+              "end": "mammal",
+              "weight": 5.292
+            },
+            {
+              "relation": "AtLocation",
+              "end": "park",
+              "weight": 4.899
+            },
+            {
+              "relation": "IsA",
+              "end": "canine",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "doghouse",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "drink water",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guard property",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "sense danger",
+              "weight": 4.472
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "woof",
+              "weight": 4.396
+            },
+            {
+              "relation": "AtLocation",
+              "end": "dog house",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasA",
+              "end": "fleas",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "bark",
+              "weight": 3.977
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "tail",
+              "weight": 3.891
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "wolf",
+              "weight": 3.879
+            },
+            {
+              "relation": "Antonym",
+              "end": "cat",
+              "weight": 3.686
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "friend",
+              "weight": 3.642
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cat",
+              "weight": 3.622
+            },
+            {
+              "relation": "AtLocation",
+              "end": "backyard",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "porch",
+              "weight": 3.464
+            }
+          ],
+          "teacher_concepts": [
+            "bark",
+            "guard house",
+            "pet",
+            "animal",
+            "kennel",
+            "canine",
+            "pet",
+            "loyal friend",
+            "companionship",
+            "run",
+            "pet",
+            "table",
+            "guide blind person",
+            "four legs",
+            "mammal",
+            "park",
+            "canine",
+            "doghouse",
+            "drink water",
+            "guard property",
+            "sense danger",
+            "woof",
+            "dog house",
+            "fleas",
+            "bark",
+            "tail",
+            "wolf",
+            "cat",
+            "friend",
+            "cat",
+            "backyard",
+            "porch"
+          ],
+          "student_direct": [
+            "bark"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [
+              "bark"
+            ],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "animal",
+          "gold": [
+            "cat",
+            "dog",
+            "fur",
+            "human",
+            "mammal",
+            "pet",
+            "wild",
+            "zoo"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "zoo",
+              "weight": 7.483
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living",
+              "weight": 4.437
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "creature",
+              "weight": 4.404
+            },
+            {
+              "relation": "CapableOf",
+              "end": "move itself about",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "alive",
+              "weight": 4.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "eating",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dog",
+              "weight": 3.129
+            },
+            {
+              "relation": "AtLocation",
+              "end": "park",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "petting",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cat",
+              "weight": 2.571
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dog cat",
+              "weight": 2.044
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "zoo",
+              "weight": 2.029
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living thing",
+              "weight": 2.023
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "being",
+              "weight": 2.012
+            },
+            {
+              "relation": "AtLocation",
+              "end": "pet store",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "feel pain",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "live",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "live long",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "organism",
+              "weight": 2.0
+            },
+            {
+              "relation": "PartOf",
+              "end": "ecology",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "fleshly",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "food",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "killing for food",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "pet",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "beast",
+              "weight": 1.774
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "term",
+              "weight": 1.721
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "generic",
+              "weight": 1.671
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "general",
+              "weight": 1.603
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "legs",
+              "weight": 1.498
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "kingdom",
+              "weight": 1.494
+            },
+            {
+              "relation": "Antonym",
+              "end": "vegetable",
+              "weight": 1.268
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living creature",
+              "weight": 1.267
+            }
+          ],
+          "teacher_concepts": [
+            "zoo",
+            "living",
+            "creature",
+            "move itself about",
+            "alive",
+            "eating",
+            "dog",
+            "park",
+            "petting",
+            "cat",
+            "dog cat",
+            "zoo",
+            "living thing",
+            "being",
+            "pet store",
+            "feel pain",
+            "live",
+            "live long",
+            "organism",
+            "ecology",
+            "fleshly",
+            "food",
+            "killing for food",
+            "pet",
+            "beast",
+            "term",
+            "generic",
+            "general",
+            "legs",
+            "kingdom",
+            "vegetable",
+            "living creature"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "ability",
+          "gold": [
+            "able",
+            "capable",
+            "capacity",
+            "power",
+            "quality",
+            "skill",
+            "talent"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "Antonym",
+              "end": "inability",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "cognition",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "quality",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "able",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "skill",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "capability",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "able",
+              "weight": 1.37
+            },
+            {
+              "relation": "Antonym",
+              "end": "disability",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "limited to",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "scottish",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "disposition",
+              "weight": 1.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "acquired through experience",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "ableness",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "address",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "agreeability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "aptitude",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "availability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "avoidability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "capable",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "clusterability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "collocability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "combinability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "competence",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "condition",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "countability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "crystallizability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dexterity",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "disability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "editability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "enforceability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "enjoyability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "factorizability",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "inability",
+            "cognition",
+            "quality",
+            "able",
+            "skill",
+            "capability",
+            "able",
+            "disability",
+            "limited to",
+            "scottish",
+            "disposition",
+            "acquired through experience",
+            "ableness",
+            "address",
+            "agreeability",
+            "aptitude",
+            "availability",
+            "avoidability",
+            "capable",
+            "clusterability",
+            "collocability",
+            "combinability",
+            "competence",
+            "condition",
+            "countability",
+            "crystallizability",
+            "dexterity",
+            "disability",
+            "editability",
+            "enforceability",
+            "enjoyability",
+            "factorizability"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "abandon",
+          "gold": [
+            "desert",
+            "give",
+            "leave",
+            "up",
+            "withdraw"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "unrestraint",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "vacate",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "wildness",
+              "weight": 2.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "acquire",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "arrogate",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "embrace",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "engage",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "gain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "join",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "maintain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "retain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "unite",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "abandonment",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "abandonware",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "adhere",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "artificial",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "banish",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cast out",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "constraint",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "desert",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "desist",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "discontinue",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "exercise",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "expel",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "follow",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "forsake",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "freedom",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "give up",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "impulses",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "inhibitions",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "insurer",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "interest",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "unrestraint",
+            "vacate",
+            "wildness",
+            "acquire",
+            "arrogate",
+            "embrace",
+            "engage",
+            "gain",
+            "join",
+            "maintain",
+            "retain",
+            "unite",
+            "abandonment",
+            "abandonware",
+            "adhere",
+            "artificial",
+            "banish",
+            "cast out",
+            "constraint",
+            "desert",
+            "desist",
+            "discontinue",
+            "exercise",
+            "expel",
+            "follow",
+            "forsake",
+            "freedom",
+            "give up",
+            "impulses",
+            "inhibitions",
+            "insurer",
+            "interest"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "water",
+          "gold": [
+            "clear",
+            "drink",
+            "lake",
+            "life",
+            "liquid",
+            "ocean",
+            "river",
+            "wet"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "lake",
+              "weight": 9.798
+            },
+            {
+              "relation": "UsedFor",
+              "end": "drink",
+              "weight": 8.246
+            },
+            {
+              "relation": "AtLocation",
+              "end": "river",
+              "weight": 7.483
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "liquid",
+              "weight": 7.317
+            },
+            {
+              "relation": "AtLocation",
+              "end": "pool",
+              "weight": 7.211
+            },
+            {
+              "relation": "AtLocation",
+              "end": "waterfall",
+              "weight": 6.633
+            },
+            {
+              "relation": "HasProperty",
+              "end": "liquid",
+              "weight": 6.325
+            },
+            {
+              "relation": "IsA",
+              "end": "reflective surface",
+              "weight": 6.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "boiled",
+              "weight": 5.292
+            },
+            {
+              "relation": "AtLocation",
+              "end": "surface of earth",
+              "weight": 4.899
+            },
+            {
+              "relation": "CapableOf",
+              "end": "freeze",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "ocean",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "sink",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "thin paint",
+              "weight": 4.472
+            },
+            {
+              "relation": "HasProperty",
+              "end": "transparent",
+              "weight": 4.472
+            },
+            {
+              "relation": "UsedFor",
+              "end": "quenching thirst",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "bottle",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "glass",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "puddle",
+              "weight": 4.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "flow",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "blue",
+              "weight": 4.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "drinking",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "drink",
+              "weight": 3.757
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "clear",
+              "weight": 3.635
+            },
+            {
+              "relation": "AtLocation",
+              "end": "jar",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "rain",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "soup",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "stream",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "toilet",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "fill bucket",
+              "weight": 3.464
+            },
+            {
+              "relation": "IsA",
+              "end": "life",
+              "weight": 3.464
+            },
+            {
+              "relation": "UsedFor",
+              "end": "bathing",
+              "weight": 3.464
+            }
+          ],
+          "teacher_concepts": [
+            "lake",
+            "drink",
+            "river",
+            "liquid",
+            "pool",
+            "waterfall",
+            "liquid",
+            "reflective surface",
+            "boiled",
+            "surface of earth",
+            "freeze",
+            "ocean",
+            "sink",
+            "thin paint",
+            "transparent",
+            "quenching thirst",
+            "bottle",
+            "glass",
+            "puddle",
+            "flow",
+            "blue",
+            "drinking",
+            "drink",
+            "clear",
+            "jar",
+            "rain",
+            "soup",
+            "stream",
+            "toilet",
+            "fill bucket",
+            "life",
+            "bathing"
+          ],
+          "student_direct": [
+            "drink"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [
+              "drink"
+            ],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "music",
+          "gold": [
+            "instrument",
+            "melody",
+            "song",
+            "sound",
+            "tune"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "HasProperty",
+              "end": "soothing",
+              "weight": 7.211
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "notes",
+              "weight": 6.847
+            },
+            {
+              "relation": "HasProperty",
+              "end": "relaxing",
+              "weight": 6.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "melody",
+              "weight": 5.278
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "art",
+              "weight": 5.127
+            },
+            {
+              "relation": "AtLocation",
+              "end": "opera",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "sound good",
+              "weight": 4.472
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "dance",
+              "weight": 4.472
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "song",
+              "weight": 4.326
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "songs",
+              "weight": 4.188
+            },
+            {
+              "relation": "UsedFor",
+              "end": "pleasure",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "noise",
+              "weight": 3.894
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "instruments",
+              "weight": 3.781
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "listening",
+              "weight": 3.732
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "composed",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "tune",
+              "weight": 3.356
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "radio",
+              "weight": 3.155
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "lyrics",
+              "weight": 3.105
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "play piano",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasProperty",
+              "end": "enjoyable",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "sequence of sounds",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "sound",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "relax yourself",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "singing",
+              "weight": 2.763
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "entertainment",
+              "weight": 2.684
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "rhythm",
+              "weight": 2.612
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "beat",
+              "weight": 2.053
+            },
+            {
+              "relation": "AtLocation",
+              "end": "carnival",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "night club",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "express feelings",
+              "weight": 2.0
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "have fun",
+              "weight": 2.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "music",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "soothing",
+            "notes",
+            "relaxing",
+            "melody",
+            "art",
+            "opera",
+            "sound good",
+            "dance",
+            "song",
+            "songs",
+            "pleasure",
+            "noise",
+            "instruments",
+            "listening",
+            "composed",
+            "tune",
+            "radio",
+            "lyrics",
+            "play piano",
+            "enjoyable",
+            "sequence of sounds",
+            "sound",
+            "relax yourself",
+            "singing",
+            "entertainment",
+            "rhythm",
+            "beat",
+            "carnival",
+            "night club",
+            "express feelings",
+            "have fun",
+            "music"
+          ],
+          "student_direct": [
+            "soothing"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [
+              "soothing"
+            ],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "chair",
+          "gold": [
+            "comfort",
+            "four",
+            "leg",
+            "on",
+            "relax",
+            "sit",
+            "table",
+            "wood"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "office",
+              "weight": 8.485
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sitting",
+              "weight": 7.795
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "seat",
+              "weight": 6.779
+            },
+            {
+              "relation": "AtLocation",
+              "end": "desk",
+              "weight": 6.633
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "furniture",
+              "weight": 6.461
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sit",
+              "weight": 5.279
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "table",
+              "weight": 4.235
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "legs",
+              "weight": 4.076
+            },
+            {
+              "relation": "AtLocation",
+              "end": "cubicle",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "porch",
+              "weight": 3.464
+            },
+            {
+              "relation": "UsedFor",
+              "end": "resting",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sitting furniture",
+              "weight": 3.241
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four",
+              "weight": 3.16
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "seating",
+              "weight": 2.873
+            },
+            {
+              "relation": "AtLocation",
+              "end": "church",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "kitchen",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "living room",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "room",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four legs",
+              "weight": 2.803
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sit on",
+              "weight": 2.722
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "place",
+              "weight": 2.229
+            },
+            {
+              "relation": "AtLocation",
+              "end": "floor",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "furniture store",
+              "weight": 2.0
+            },
+            {
+              "relation": "HasA",
+              "end": "four legs",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "seat",
+              "weight": 2.0
+            },
+            {
+              "relation": "PartOf",
+              "end": "funiture",
+              "weight": 2.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "found in office",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "electric chair",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "moderate",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "president",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "professorship",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "people",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "office",
+            "sitting",
+            "seat",
+            "desk",
+            "furniture",
+            "sit",
+            "table",
+            "legs",
+            "cubicle",
+            "porch",
+            "resting",
+            "sitting furniture",
+            "four",
+            "seating",
+            "church",
+            "kitchen",
+            "living room",
+            "room",
+            "four legs",
+            "sit on",
+            "place",
+            "floor",
+            "furniture store",
+            "four legs",
+            "seat",
+            "funiture",
+            "found in office",
+            "electric chair",
+            "moderate",
+            "president",
+            "professorship",
+            "people"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "car",
+          "gold": [
+            "door",
+            "drive",
+            "engine",
+            "four",
+            "passage",
+            "transport",
+            "vehicle",
+            "wheel"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "city",
+              "weight": 7.483
+            },
+            {
+              "relation": "AtLocation",
+              "end": "parking lot",
+              "weight": 6.928
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "vehicle",
+              "weight": 6.574
+            },
+            {
+              "relation": "CapableOf",
+              "end": "crash",
+              "weight": 6.325
+            },
+            {
+              "relation": "CapableOf",
+              "end": "go fast",
+              "weight": 6.325
+            },
+            {
+              "relation": "HasA",
+              "end": "seats",
+              "weight": 6.325
+            },
+            {
+              "relation": "AtLocation",
+              "end": "repair shop",
+              "weight": 5.657
+            },
+            {
+              "relation": "CapableOf",
+              "end": "roll over",
+              "weight": 5.292
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "automobile",
+              "weight": 4.925
+            },
+            {
+              "relation": "CapableOf",
+              "end": "slow down",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "road",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "freeway",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "car show",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "race track",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "enter garage",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "pass another car",
+              "weight": 3.464
+            },
+            {
+              "relation": "HasProperty",
+              "end": "red",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "wheels",
+              "weight": 3.237
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "auto",
+              "weight": 3.08
+            },
+            {
+              "relation": "AtLocation",
+              "end": "car dealership",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasA",
+              "end": "seat",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasA",
+              "end": "windows",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasProperty",
+              "end": "heavy",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "motor vehicle",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "vehicle",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "fun",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "driving",
+              "weight": 2.52
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "transportation",
+              "weight": 2.404
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four",
+              "weight": 2.108
+            },
+            {
+              "relation": "AtLocation",
+              "end": "neighbor's house",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "come up drive",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "cost money",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "city",
+            "parking lot",
+            "vehicle",
+            "crash",
+            "go fast",
+            "seats",
+            "repair shop",
+            "roll over",
+            "automobile",
+            "slow down",
+            "road",
+            "freeway",
+            "car show",
+            "race track",
+            "enter garage",
+            "pass another car",
+            "red",
+            "wheels",
+            "auto",
+            "car dealership",
+            "seat",
+            "windows",
+            "heavy",
+            "motor vehicle",
+            "vehicle",
+            "fun",
+            "driving",
+            "transportation",
+            "four",
+            "neighbor's house",
+            "come up drive",
+            "cost money"
+          ],
+          "student_direct": [
+            "crash"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [
+              "crash"
+            ],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        }
+      ]
+    },
+    "0.02": {
+      "build": {
+        "budget_fraction": 0.02,
+        "teacher_edges": 188312,
+        "student_edges": 3766,
+        "actual_fraction": 0.019998725519350863,
+        "dictionary_words_with_edge": 3766,
+        "seconds": 0.5124680000008084
+      },
+      "semantic": {
+        "covered_words": 3766,
+        "coverage": 0.7646700507614214,
+        "evaluated": 2388,
+        "precision": 0.08040201005025126,
+        "recall": 0.01246360772114541,
+        "f1": 0.02146645928052963
+      },
+      "relation_scores": {
+        "IsA": {
+          "covered_words": 1612,
+          "precision": 0.04020100502512563,
+          "recall": 0.00615029512642578,
+          "f1": 0.010611922044082848
+        },
+        "PartOf": {
+          "covered_words": 26,
+          "precision": 0.0033500837520938024,
+          "recall": 0.00048257158809922627,
+          "f1": 0.0008408444338092579
+        },
+        "HasA": {
+          "covered_words": 7,
+          "precision": 0.0004187604690117253,
+          "recall": 6.979341150195422e-05,
+          "f1": 0.00011964584828906437
+        },
+        "UsedFor": {
+          "covered_words": 210,
+          "precision": 0.012144053601340033,
+          "recall": 0.0018884103054957325,
+          "f1": 0.0032487171306266782
+        },
+        "CapableOf": {
+          "covered_words": 130,
+          "precision": 0.001256281407035176,
+          "recall": 0.00018844221105527637,
+          "f1": 0.0003257025870091197
+        },
+        "HasProperty": {
+          "covered_words": 45,
+          "precision": 0.0046063651591289785,
+          "recall": 0.0007403086862885857,
+          "f1": 0.0012679136422855015
+        },
+        "Causes": {
+          "covered_words": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "AtLocation": {
+          "covered_words": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MadeOf": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "ReceivesAction": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasPrerequisite": {
+          "covered_words": 1,
+          "precision": 0.0004187604690117253,
+          "recall": 8.375209380234506e-05,
+          "f1": 0.00013958682300390843
+        },
+        "HasFirstSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasLastSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MotivatedByGoal": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "Synonym": {
+          "covered_words": 1522,
+          "precision": 0.00628140703517588,
+          "recall": 0.0011037329504666189,
+          "f1": 0.0018711281274095344
+        },
+        "Antonym": {
+          "covered_words": 24,
+          "precision": 0.0004187604690117253,
+          "recall": 8.375209380234506e-05,
+          "f1": 0.00013958682300390843
+        },
+        "RelatedTo": {
+          "covered_words": 69,
+          "precision": 0.011306532663316583,
+          "recall": 0.0016725492542075456,
+          "f1": 0.002901411821009811
+        },
+        "SimilarTo": {
+          "covered_words": 118,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "DefinedAs": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasContext": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "teacher_edge_recall": {
+        "teacher_edges": 183380,
+        "student_edges": 3766,
+        "edge_recall": 0.0205365906860072
+      },
+      "random_control": {
+        "covered_words": 2158,
+        "coverage": 0.43817258883248733,
+        "evaluated": 2388,
+        "precision": 0.042538918135651804,
+        "recall": 0.012873893275903327,
+        "f1": 0.018357983555293635
+      },
+      "student_edges_by_relation": {
+        "Synonym": 1522,
+        "IsA": 1612,
+        "CapableOf": 130,
+        "SimilarTo": 118,
+        "UsedFor": 210,
+        "HasProperty": 45,
+        "Antonym": 24,
+        "HasA": 7,
+        "PartOf": 26,
+        "RelatedTo": 69,
+        "HasPrerequisite": 1,
+        "AtLocation": 1,
+        "Causes": 1
+      }
+    },
+    "0.05": {
+      "build": {
+        "budget_fraction": 0.05,
+        "teacher_edges": 188312,
+        "student_edges": 9415,
+        "actual_fraction": 0.049996813798377164,
+        "dictionary_words_with_edge": 4925,
+        "seconds": 0.47244709999358747
+      },
+      "semantic": {
+        "covered_words": 4925,
+        "coverage": 1.0,
+        "evaluated": 2388,
+        "precision": 0.09566548942157532,
+        "recall": 0.035252153625269206,
+        "f1": 0.044766586708987206
+      },
+      "relation_scores": {
+        "IsA": {
+          "covered_words": 2235,
+          "precision": 0.06030150753768844,
+          "recall": 0.00964893914014517,
+          "f1": 0.016547685517534765
+        },
+        "PartOf": {
+          "covered_words": 385,
+          "precision": 0.0184675179650054,
+          "recall": 0.004370064608758076,
+          "f1": 0.006585331000168345
+        },
+        "HasA": {
+          "covered_words": 288,
+          "precision": 0.01370237279470948,
+          "recall": 0.0030235502911382306,
+          "f1": 0.004496259407327907
+        },
+        "UsedFor": {
+          "covered_words": 349,
+          "precision": 0.010410185849884342,
+          "recall": 0.0030280370104490708,
+          "f1": 0.004446040187246218
+        },
+        "CapableOf": {
+          "covered_words": 286,
+          "precision": 0.0026173813391150076,
+          "recall": 0.0010189838079285316,
+          "f1": 0.0012046063313556384
+        },
+        "HasProperty": {
+          "covered_words": 395,
+          "precision": 0.013093204267171827,
+          "recall": 0.00305944404562495,
+          "f1": 0.004546044407853453
+        },
+        "Causes": {
+          "covered_words": 226,
+          "precision": 0.005967336683417085,
+          "recall": 0.0012004466778336126,
+          "f1": 0.0019466621225415195
+        },
+        "AtLocation": {
+          "covered_words": 220,
+          "precision": 0.01355388051367951,
+          "recall": 0.002272274068756481,
+          "f1": 0.00374229576490883
+        },
+        "MadeOf": {
+          "covered_words": 152,
+          "precision": 0.011515912897822446,
+          "recall": 0.002028994177235383,
+          "f1": 0.0033404758279130136
+        },
+        "ReceivesAction": {
+          "covered_words": 243,
+          "precision": 0.000628140703517588,
+          "recall": 0.00011216798277099784,
+          "f1": 0.00018611576400521124
+        },
+        "HasPrerequisite": {
+          "covered_words": 93,
+          "precision": 0.0038147084629496686,
+          "recall": 0.0014502073861370345,
+          "f1": 0.001958494232363579
+        },
+        "HasFirstSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasLastSubevent": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MotivatedByGoal": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "Synonym": {
+          "covered_words": 1846,
+          "precision": 0.01507537688442211,
+          "recall": 0.0027997128499641062,
+          "f1": 0.004709393528489006
+        },
+        "Antonym": {
+          "covered_words": 37,
+          "precision": 0.0004187604690117253,
+          "recall": 8.375209380234506e-05,
+          "f1": 0.00013958682300390843
+        },
+        "RelatedTo": {
+          "covered_words": 197,
+          "precision": 0.015912897822445562,
+          "recall": 0.0023186368349684934,
+          "f1": 0.004029738640291405
+        },
+        "SimilarTo": {
+          "covered_words": 164,
+          "precision": 0.0008375209380234506,
+          "recall": 0.0001535455053042993,
+          "f1": 0.0002592326712929728
+        },
+        "DefinedAs": {
+          "covered_words": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "HasContext": {
+          "covered_words": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "teacher_edge_recall": {
+        "teacher_edges": 183380,
+        "student_edges": 9415,
+        "edge_recall": 0.05134147671501799
+      },
+      "random_control": {
+        "covered_words": 3439,
+        "coverage": 0.6982741116751269,
+        "evaluated": 2388,
+        "precision": 0.07040708628334257,
+        "recall": 0.03038954694105448,
+        "f1": 0.03808002233226264
+      },
+      "student_edges_by_relation": {
+        "Synonym": 1846,
+        "IsA": 2235,
+        "CapableOf": 678,
+        "SimilarTo": 164,
+        "UsedFor": 705,
+        "HasProperty": 678,
+        "Antonym": 37,
+        "HasA": 596,
+        "PartOf": 624,
+        "RelatedTo": 197,
+        "HasPrerequisite": 254,
+        "AtLocation": 352,
+        "Causes": 434,
+        "CausesDesire": 1,
+        "HasContext": 1,
+        "MadeOf": 207,
+        "ReceivesAction": 406
+      }
+    },
+    "0.1": {
+      "build": {
+        "budget_fraction": 0.1,
+        "teacher_edges": 188312,
+        "student_edges": 18831,
+        "actual_fraction": 0.09999893793279238,
+        "dictionary_words_with_edge": 4925,
+        "seconds": 0.5488121999951545
+      },
+      "semantic": {
+        "covered_words": 4925,
+        "coverage": 1.0,
+        "evaluated": 2388,
+        "precision": 0.09031927716262401,
+        "recall": 0.06011505942410465,
+        "f1": 0.059860968756504956
+      },
+      "relation_scores": {
+        "IsA": {
+          "covered_words": 2287,
+          "precision": 0.06089475153545505,
+          "recall": 0.01013799154502672,
+          "f1": 0.01724631454530952
+        },
+        "PartOf": {
+          "covered_words": 679,
+          "precision": 0.023672236996671668,
+          "recall": 0.0068183177793730565,
+          "f1": 0.009484793141491967
+        },
+        "HasA": {
+          "covered_words": 313,
+          "precision": 0.012878021430896098,
+          "recall": 0.0030235502911382306,
+          "f1": 0.0043573098588306205
+        },
+        "UsedFor": {
+          "covered_words": 479,
+          "precision": 0.01530939229219232,
+          "recall": 0.006332755045066603,
+          "f1": 0.008161364252345473
+        },
+        "CapableOf": {
+          "covered_words": 492,
+          "precision": 0.00411791545400768,
+          "recall": 0.0016860094121400654,
+          "f1": 0.0019226023692320694
+        },
+        "HasProperty": {
+          "covered_words": 591,
+          "precision": 0.016299425902126907,
+          "recall": 0.004697096594081519,
+          "f1": 0.0064243718766331835
+        },
+        "Causes": {
+          "covered_words": 245,
+          "precision": 0.006011829983249581,
+          "recall": 0.0014726409826912338,
+          "f1": 0.002066222567626647
+        },
+        "AtLocation": {
+          "covered_words": 367,
+          "precision": 0.01629676158570631,
+          "recall": 0.003397942091409428,
+          "f1": 0.0052560446213494065
+        },
+        "MadeOf": {
+          "covered_words": 152,
+          "precision": 0.011515912897822446,
+          "recall": 0.002028994177235383,
+          "f1": 0.0033404758279130136
+        },
+        "ReceivesAction": {
+          "covered_words": 371,
+          "precision": 0.0010469011725293131,
+          "recall": 0.0001645130413974635,
+          "f1": 0.00027917364600781687
+        },
+        "HasPrerequisite": {
+          "covered_words": 157,
+          "precision": 0.005826454528848075,
+          "recall": 0.003043989790220946,
+          "f1": 0.003147762363357603
+        },
+        "HasFirstSubevent": {
+          "covered_words": 77,
+          "precision": 0.0011306532663316585,
+          "recall": 0.00046512323522373774,
+          "f1": 0.0005981781107409248
+        },
+        "HasLastSubevent": {
+          "covered_words": 64,
+          "precision": 0.0010747354497354497,
+          "recall": 0.000603713009491904,
+          "f1": 0.0006637803083265691
+        },
+        "MotivatedByGoal": {
+          "covered_words": 94,
+          "precision": 0.003516942995586212,
+          "recall": 0.0019262981574539363,
+          "f1": 0.0020521704641802033
+        },
+        "Synonym": {
+          "covered_words": 1930,
+          "precision": 0.01521496370742602,
+          "recall": 0.0028834649437664514,
+          "f1": 0.004814083645741938
+        },
+        "Antonym": {
+          "covered_words": 739,
+          "precision": 0.024512443168222063,
+          "recall": 0.004688123155459839,
+          "f1": 0.007642710909042568
+        },
+        "RelatedTo": {
+          "covered_words": 506,
+          "precision": 0.0573178391959799,
+          "recall": 0.01363613703437824,
+          "f1": 0.020849893734537543
+        },
+        "SimilarTo": {
+          "covered_words": 398,
+          "precision": 0.000977107761027359,
+          "recall": 0.00023729759910664431,
+          "f1": 0.0003639227885459041
+        },
+        "DefinedAs": {
+          "covered_words": 218,
+          "precision": 0.00020938023450586265,
+          "recall": 0.00012213847012841985,
+          "f1": 0.0001535455053042993
+        },
+        "HasContext": {
+          "covered_words": 416,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "teacher_edge_recall": {
+        "teacher_edges": 183380,
+        "student_edges": 18831,
+        "edge_recall": 0.10268840658741411
+      },
+      "random_control": {
+        "covered_words": 4196,
+        "coverage": 0.8519796954314721,
+        "evaluated": 2388,
+        "precision": 0.07474930638349801,
+        "recall": 0.05566622796522294,
+        "f1": 0.05591165705874396
+      },
+      "student_edges_by_relation": {
+        "Synonym": 2152,
+        "IsA": 2433,
+        "CapableOf": 1356,
+        "SimilarTo": 976,
+        "UsedFor": 1410,
+        "HasProperty": 1356,
+        "Antonym": 976,
+        "HasA": 791,
+        "PartOf": 1248,
+        "RelatedTo": 759,
+        "HasPrerequisite": 814,
+        "AtLocation": 705,
+        "Causes": 868,
+        "CausesDesire": 1,
+        "HasContext": 488,
+        "MadeOf": 207,
+        "ReceivesAction": 814,
+        "HasFirstSubevent": 317,
+        "HasLastSubevent": 351,
+        "MotivatedByGoal": 542,
+        "DefinedAs": 267
+      },
+      "traces": [
+        {
+          "word": "hello",
+          "gold": [
+            "friend",
+            "goodbye",
+            "greet",
+            "hey",
+            "hi"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "greeting",
+              "weight": 3.464
+            },
+            {
+              "relation": "IsA",
+              "end": "greeting",
+              "weight": 2.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "bye",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "uk",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "opposite of goodbye",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "greeting",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "greeting",
+            "greeting",
+            "bye",
+            "uk",
+            "opposite of goodbye",
+            "greet",
+            "greeting"
+          ],
+          "student_direct": [
+            "greeting",
+            "opposite of goodbye",
+            "bye"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "greeting"
+            ],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [
+              "opposite of goodbye"
+            ],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "greeting",
+          "gold": [],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "acknowledgment",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "front door",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "single communication act",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "social activity",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "arrival",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "conventional",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "conversation",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "greet",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "hello",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "letter",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "presence",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "salutation",
+              "weight": 1.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "welcome",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "acknowledgment",
+            "front door",
+            "single communication act",
+            "social activity",
+            "arrival",
+            "conventional",
+            "conversation",
+            "greet",
+            "greet",
+            "hello",
+            "letter",
+            "presence",
+            "salutation",
+            "welcome"
+          ],
+          "student_direct": [],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "dog",
+          "gold": [
+            "animal",
+            "bark",
+            "four",
+            "friend",
+            "fur",
+            "leg",
+            "pet",
+            "tail"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "CapableOf",
+              "end": "bark",
+              "weight": 16.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guard house",
+              "weight": 10.392
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "pet",
+              "weight": 9.83
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "animal",
+              "weight": 9.41
+            },
+            {
+              "relation": "AtLocation",
+              "end": "kennel",
+              "weight": 9.381
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "canine",
+              "weight": 7.626
+            },
+            {
+              "relation": "CapableOf",
+              "end": "pet",
+              "weight": 7.483
+            },
+            {
+              "relation": "IsA",
+              "end": "loyal friend",
+              "weight": 6.633
+            },
+            {
+              "relation": "UsedFor",
+              "end": "companionship",
+              "weight": 6.325
+            },
+            {
+              "relation": "CapableOf",
+              "end": "run",
+              "weight": 6.0
+            },
+            {
+              "relation": "IsA",
+              "end": "pet",
+              "weight": 6.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "table",
+              "weight": 5.657
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guide blind person",
+              "weight": 5.292
+            },
+            {
+              "relation": "HasA",
+              "end": "four legs",
+              "weight": 5.292
+            },
+            {
+              "relation": "IsA",
+              "end": "mammal",
+              "weight": 5.292
+            },
+            {
+              "relation": "AtLocation",
+              "end": "park",
+              "weight": 4.899
+            },
+            {
+              "relation": "IsA",
+              "end": "canine",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "doghouse",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "drink water",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "guard property",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "sense danger",
+              "weight": 4.472
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "woof",
+              "weight": 4.396
+            },
+            {
+              "relation": "AtLocation",
+              "end": "dog house",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasA",
+              "end": "fleas",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "bark",
+              "weight": 3.977
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "tail",
+              "weight": 3.891
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "wolf",
+              "weight": 3.879
+            },
+            {
+              "relation": "Antonym",
+              "end": "cat",
+              "weight": 3.686
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "friend",
+              "weight": 3.642
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cat",
+              "weight": 3.622
+            },
+            {
+              "relation": "AtLocation",
+              "end": "backyard",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "porch",
+              "weight": 3.464
+            }
+          ],
+          "teacher_concepts": [
+            "bark",
+            "guard house",
+            "pet",
+            "animal",
+            "kennel",
+            "canine",
+            "pet",
+            "loyal friend",
+            "companionship",
+            "run",
+            "pet",
+            "table",
+            "guide blind person",
+            "four legs",
+            "mammal",
+            "park",
+            "canine",
+            "doghouse",
+            "drink water",
+            "guard property",
+            "sense danger",
+            "woof",
+            "dog house",
+            "fleas",
+            "bark",
+            "tail",
+            "wolf",
+            "cat",
+            "friend",
+            "cat",
+            "backyard",
+            "porch"
+          ],
+          "student_direct": [
+            "pet",
+            "bark",
+            "guard house",
+            "canine",
+            "loyal friend",
+            "companionship",
+            "run",
+            "mammal",
+            "guide blind person",
+            "animal",
+            "kennel",
+            "four legs",
+            "drink water",
+            "guard property",
+            "sense danger",
+            "fleas",
+            "hear whistling",
+            "mark territory",
+            "smell drugs",
+            "table",
+            "guarding property",
+            "chasing ball",
+            "corner cat",
+            "dig up bone",
+            "dig up bones",
+            "fight cat",
+            "guide blind",
+            "mother puppy",
+            "walk on leash",
+            "fun",
+            "cat",
+            "park"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "loyal friend",
+              "pet",
+              "mammal",
+              "canine"
+            ],
+            "UsedFor": [
+              "companionship",
+              "guarding property",
+              "pet"
+            ],
+            "CapableOf": [
+              "bark",
+              "guard house",
+              "pet",
+              "run",
+              "guide blind person",
+              "drink water",
+              "guard property",
+              "sense danger",
+              "hear whistling",
+              "mark territory",
+              "smell drugs",
+              "chasing ball",
+              "corner cat",
+              "dig up bone",
+              "dig up bones",
+              "fight cat",
+              "guide blind",
+              "mother puppy",
+              "walk on leash",
+              "bite",
+              "stray"
+            ],
+            "HasProperty": [
+              "fun",
+              "black",
+              "alive",
+              "brown",
+              "gray",
+              "larger than cat",
+              "mean",
+              "playing dead",
+              "running in dream",
+              "very common pet"
+            ],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": [
+              "pet",
+              "animal",
+              "canine"
+            ]
+          }
+        },
+        {
+          "word": "animal",
+          "gold": [
+            "cat",
+            "dog",
+            "fur",
+            "human",
+            "mammal",
+            "pet",
+            "wild",
+            "zoo"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "zoo",
+              "weight": 7.483
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living",
+              "weight": 4.437
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "creature",
+              "weight": 4.404
+            },
+            {
+              "relation": "CapableOf",
+              "end": "move itself about",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "alive",
+              "weight": 4.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "eating",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dog",
+              "weight": 3.129
+            },
+            {
+              "relation": "AtLocation",
+              "end": "park",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "petting",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cat",
+              "weight": 2.571
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dog cat",
+              "weight": 2.044
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "zoo",
+              "weight": 2.029
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living thing",
+              "weight": 2.023
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "being",
+              "weight": 2.012
+            },
+            {
+              "relation": "AtLocation",
+              "end": "pet store",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "feel pain",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "live",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "live long",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "organism",
+              "weight": 2.0
+            },
+            {
+              "relation": "PartOf",
+              "end": "ecology",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "fleshly",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "food",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "killing for food",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "pet",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "beast",
+              "weight": 1.774
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "term",
+              "weight": 1.721
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "generic",
+              "weight": 1.671
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "general",
+              "weight": 1.603
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "legs",
+              "weight": 1.498
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "kingdom",
+              "weight": 1.494
+            },
+            {
+              "relation": "Antonym",
+              "end": "vegetable",
+              "weight": 1.268
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "living creature",
+              "weight": 1.267
+            }
+          ],
+          "teacher_concepts": [
+            "zoo",
+            "living",
+            "creature",
+            "move itself about",
+            "alive",
+            "eating",
+            "dog",
+            "park",
+            "petting",
+            "cat",
+            "dog cat",
+            "zoo",
+            "living thing",
+            "being",
+            "pet store",
+            "feel pain",
+            "live",
+            "live long",
+            "organism",
+            "ecology",
+            "fleshly",
+            "food",
+            "killing for food",
+            "pet",
+            "beast",
+            "term",
+            "generic",
+            "general",
+            "legs",
+            "kingdom",
+            "vegetable",
+            "living creature"
+          ],
+          "student_direct": [
+            "alive",
+            "move itself about",
+            "zoo",
+            "eating",
+            "petting",
+            "food",
+            "pet",
+            "killing for food",
+            "live",
+            "ecology",
+            "park",
+            "ecosystem",
+            "nature",
+            "meat"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [
+              "petting",
+              "food",
+              "killing for food",
+              "pet"
+            ],
+            "CapableOf": [
+              "move itself about",
+              "eating",
+              "live"
+            ],
+            "HasProperty": [
+              "alive"
+            ],
+            "PartOf": [
+              "ecology",
+              "ecosystem",
+              "nature"
+            ],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "ability",
+          "gold": [
+            "able",
+            "capable",
+            "capacity",
+            "power",
+            "quality",
+            "skill",
+            "talent"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "Antonym",
+              "end": "inability",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "cognition",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "quality",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "able",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "skill",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "capability",
+              "weight": 2.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "able",
+              "weight": 1.37
+            },
+            {
+              "relation": "Antonym",
+              "end": "disability",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "limited to",
+              "weight": 1.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "scottish",
+              "weight": 1.0
+            },
+            {
+              "relation": "IsA",
+              "end": "disposition",
+              "weight": 1.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "acquired through experience",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "ableness",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "address",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "agreeability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "aptitude",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "availability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "avoidability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "capable",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "clusterability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "collocability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "combinability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "competence",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "condition",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "countability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "crystallizability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "dexterity",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "disability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "editability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "enforceability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "enjoyability",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "factorizability",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "inability",
+            "cognition",
+            "quality",
+            "able",
+            "skill",
+            "capability",
+            "able",
+            "disability",
+            "limited to",
+            "scottish",
+            "disposition",
+            "acquired through experience",
+            "ableness",
+            "address",
+            "agreeability",
+            "aptitude",
+            "availability",
+            "avoidability",
+            "capable",
+            "clusterability",
+            "collocability",
+            "combinability",
+            "competence",
+            "condition",
+            "countability",
+            "crystallizability",
+            "dexterity",
+            "disability",
+            "editability",
+            "enforceability",
+            "enjoyability",
+            "factorizability"
+          ],
+          "student_direct": [
+            "cognition",
+            "inability",
+            "acquired through experience"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "cognition"
+            ],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "abandon",
+          "gold": [
+            "desert",
+            "give",
+            "leave",
+            "up",
+            "withdraw"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "IsA",
+              "end": "unrestraint",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "vacate",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "wildness",
+              "weight": 2.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "acquire",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "arrogate",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "embrace",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "engage",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "gain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "join",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "maintain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "retain",
+              "weight": 1.0
+            },
+            {
+              "relation": "Antonym",
+              "end": "unite",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "abandonment",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "abandonware",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "adhere",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "artificial",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "banish",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "cast out",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "constraint",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "desert",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "desist",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "discontinue",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "exercise",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "expel",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "follow",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "forsake",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "freedom",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "give up",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "impulses",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "inhibitions",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "insurer",
+              "weight": 1.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "interest",
+              "weight": 1.0
+            }
+          ],
+          "teacher_concepts": [
+            "unrestraint",
+            "vacate",
+            "wildness",
+            "acquire",
+            "arrogate",
+            "embrace",
+            "engage",
+            "gain",
+            "join",
+            "maintain",
+            "retain",
+            "unite",
+            "abandonment",
+            "abandonware",
+            "adhere",
+            "artificial",
+            "banish",
+            "cast out",
+            "constraint",
+            "desert",
+            "desist",
+            "discontinue",
+            "exercise",
+            "expel",
+            "follow",
+            "forsake",
+            "freedom",
+            "give up",
+            "impulses",
+            "inhibitions",
+            "insurer",
+            "interest"
+          ],
+          "student_direct": [
+            "unrestraint"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "unrestraint"
+            ],
+            "UsedFor": [],
+            "CapableOf": [],
+            "HasProperty": [],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": []
+          }
+        },
+        {
+          "word": "water",
+          "gold": [
+            "clear",
+            "drink",
+            "lake",
+            "life",
+            "liquid",
+            "ocean",
+            "river",
+            "wet"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "lake",
+              "weight": 9.798
+            },
+            {
+              "relation": "UsedFor",
+              "end": "drink",
+              "weight": 8.246
+            },
+            {
+              "relation": "AtLocation",
+              "end": "river",
+              "weight": 7.483
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "liquid",
+              "weight": 7.317
+            },
+            {
+              "relation": "AtLocation",
+              "end": "pool",
+              "weight": 7.211
+            },
+            {
+              "relation": "AtLocation",
+              "end": "waterfall",
+              "weight": 6.633
+            },
+            {
+              "relation": "HasProperty",
+              "end": "liquid",
+              "weight": 6.325
+            },
+            {
+              "relation": "IsA",
+              "end": "reflective surface",
+              "weight": 6.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "boiled",
+              "weight": 5.292
+            },
+            {
+              "relation": "AtLocation",
+              "end": "surface of earth",
+              "weight": 4.899
+            },
+            {
+              "relation": "CapableOf",
+              "end": "freeze",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "ocean",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "sink",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "thin paint",
+              "weight": 4.472
+            },
+            {
+              "relation": "HasProperty",
+              "end": "transparent",
+              "weight": 4.472
+            },
+            {
+              "relation": "UsedFor",
+              "end": "quenching thirst",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "bottle",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "glass",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "puddle",
+              "weight": 4.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "flow",
+              "weight": 4.0
+            },
+            {
+              "relation": "HasProperty",
+              "end": "blue",
+              "weight": 4.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "drinking",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "drink",
+              "weight": 3.757
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "clear",
+              "weight": 3.635
+            },
+            {
+              "relation": "AtLocation",
+              "end": "jar",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "rain",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "soup",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "stream",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "toilet",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "fill bucket",
+              "weight": 3.464
+            },
+            {
+              "relation": "IsA",
+              "end": "life",
+              "weight": 3.464
+            },
+            {
+              "relation": "UsedFor",
+              "end": "bathing",
+              "weight": 3.464
+            }
+          ],
+          "teacher_concepts": [
+            "lake",
+            "drink",
+            "river",
+            "liquid",
+            "pool",
+            "waterfall",
+            "liquid",
+            "reflective surface",
+            "boiled",
+            "surface of earth",
+            "freeze",
+            "ocean",
+            "sink",
+            "thin paint",
+            "transparent",
+            "quenching thirst",
+            "bottle",
+            "glass",
+            "puddle",
+            "flow",
+            "blue",
+            "drinking",
+            "drink",
+            "clear",
+            "jar",
+            "rain",
+            "soup",
+            "stream",
+            "toilet",
+            "fill bucket",
+            "life",
+            "bathing"
+          ],
+          "student_direct": [
+            "liquid",
+            "drink",
+            "reflective surface",
+            "lake",
+            "freeze",
+            "quenching thirst",
+            "thin paint",
+            "transparent",
+            "drinking",
+            "flow",
+            "blue",
+            "river",
+            "pool",
+            "bathing",
+            "cleaning",
+            "extinguish most fires",
+            "fill bucket",
+            "waterfall",
+            "boiled",
+            "wash",
+            "put out fire",
+            "quench thirst",
+            "watering plants",
+            "extinguish fire",
+            "fill glass",
+            "surface of earth",
+            "oxygen",
+            "ocean",
+            "sink",
+            "hydration",
+            "washing",
+            "bottle"
+          ],
+          "student_by_relation": {
+            "IsA": [
+              "reflective surface"
+            ],
+            "UsedFor": [
+              "drink",
+              "quenching thirst",
+              "drinking",
+              "bathing",
+              "cleaning",
+              "extinguish most fires",
+              "put out fire",
+              "quench thirst",
+              "wash",
+              "watering plants",
+              "hydration",
+              "washing"
+            ],
+            "CapableOf": [
+              "freeze",
+              "thin paint",
+              "flow",
+              "fill bucket",
+              "extinguish fire",
+              "fill glass",
+              "evaporate"
+            ],
+            "HasProperty": [
+              "liquid",
+              "transparent",
+              "blue",
+              "dangerous",
+              "good to drink",
+              "beautiful",
+              "clear",
+              "cloudy",
+              "cold",
+              "colorless",
+              "important",
+              "neutral",
+              "refreshing"
+            ],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": [
+              "liquid"
+            ]
+          }
+        },
+        {
+          "word": "music",
+          "gold": [
+            "instrument",
+            "melody",
+            "song",
+            "sound",
+            "tune"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "HasProperty",
+              "end": "soothing",
+              "weight": 7.211
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "notes",
+              "weight": 6.847
+            },
+            {
+              "relation": "HasProperty",
+              "end": "relaxing",
+              "weight": 6.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "melody",
+              "weight": 5.278
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "art",
+              "weight": 5.127
+            },
+            {
+              "relation": "AtLocation",
+              "end": "opera",
+              "weight": 4.472
+            },
+            {
+              "relation": "CapableOf",
+              "end": "sound good",
+              "weight": 4.472
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "dance",
+              "weight": 4.472
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "song",
+              "weight": 4.326
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "songs",
+              "weight": 4.188
+            },
+            {
+              "relation": "UsedFor",
+              "end": "pleasure",
+              "weight": 4.0
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "noise",
+              "weight": 3.894
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "instruments",
+              "weight": 3.781
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "listening",
+              "weight": 3.732
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "composed",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "tune",
+              "weight": 3.356
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "radio",
+              "weight": 3.155
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "lyrics",
+              "weight": 3.105
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "play piano",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasProperty",
+              "end": "enjoyable",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "sequence of sounds",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "sound",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "relax yourself",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "singing",
+              "weight": 2.763
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "entertainment",
+              "weight": 2.684
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "rhythm",
+              "weight": 2.612
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "beat",
+              "weight": 2.053
+            },
+            {
+              "relation": "AtLocation",
+              "end": "carnival",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "night club",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "express feelings",
+              "weight": 2.0
+            },
+            {
+              "relation": "CausesDesire",
+              "end": "have fun",
+              "weight": 2.0
+            },
+            {
+              "relation": "HasContext",
+              "end": "music",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "soothing",
+            "notes",
+            "relaxing",
+            "melody",
+            "art",
+            "opera",
+            "sound good",
+            "dance",
+            "song",
+            "songs",
+            "pleasure",
+            "noise",
+            "instruments",
+            "listening",
+            "composed",
+            "tune",
+            "radio",
+            "lyrics",
+            "play piano",
+            "enjoyable",
+            "sequence of sounds",
+            "sound",
+            "relax yourself",
+            "singing",
+            "entertainment",
+            "rhythm",
+            "beat",
+            "carnival",
+            "night club",
+            "express feelings",
+            "have fun",
+            "music"
+          ],
+          "student_direct": [
+            "soothing",
+            "relaxing",
+            "sound good",
+            "pleasure",
+            "notes",
+            "sound",
+            "relax yourself",
+            "enjoyable",
+            "opera",
+            "composed",
+            "bad",
+            "written on paper",
+            "artistic",
+            "contemporary",
+            "good",
+            "universal",
+            "complex or simple",
+            "good or bad",
+            "mainstream or fringe",
+            "pleasant to hear",
+            "pleasing to ears",
+            "pretty sound",
+            "vocal or instrumental",
+            "information",
+            "effect on people",
+            "special notation",
+            "heard",
+            "liked",
+            "stolen",
+            "sung",
+            "universal language",
+            "sounds"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [
+              "pleasure",
+              "relax yourself"
+            ],
+            "CapableOf": [
+              "sound good"
+            ],
+            "HasProperty": [
+              "soothing",
+              "relaxing",
+              "enjoyable",
+              "bad",
+              "sound",
+              "artistic",
+              "complex or simple",
+              "contemporary",
+              "good",
+              "good or bad",
+              "mainstream or fringe",
+              "pleasant to hear",
+              "pleasing to ears",
+              "pretty sound",
+              "universal",
+              "vocal or instrumental"
+            ],
+            "PartOf": [],
+            "Synonym": [],
+            "RelatedTo": [
+              "notes"
+            ]
+          }
+        },
+        {
+          "word": "chair",
+          "gold": [
+            "comfort",
+            "four",
+            "leg",
+            "on",
+            "relax",
+            "sit",
+            "table",
+            "wood"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "office",
+              "weight": 8.485
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sitting",
+              "weight": 7.795
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "seat",
+              "weight": 6.779
+            },
+            {
+              "relation": "AtLocation",
+              "end": "desk",
+              "weight": 6.633
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "furniture",
+              "weight": 6.461
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sit",
+              "weight": 5.279
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "table",
+              "weight": 4.235
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "legs",
+              "weight": 4.076
+            },
+            {
+              "relation": "AtLocation",
+              "end": "cubicle",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "porch",
+              "weight": 3.464
+            },
+            {
+              "relation": "UsedFor",
+              "end": "resting",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sitting furniture",
+              "weight": 3.241
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four",
+              "weight": 3.16
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "seating",
+              "weight": 2.873
+            },
+            {
+              "relation": "AtLocation",
+              "end": "church",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "kitchen",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "living room",
+              "weight": 2.828
+            },
+            {
+              "relation": "AtLocation",
+              "end": "room",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four legs",
+              "weight": 2.803
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "sit on",
+              "weight": 2.722
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "place",
+              "weight": 2.229
+            },
+            {
+              "relation": "AtLocation",
+              "end": "floor",
+              "weight": 2.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "furniture store",
+              "weight": 2.0
+            },
+            {
+              "relation": "HasA",
+              "end": "four legs",
+              "weight": 2.0
+            },
+            {
+              "relation": "IsA",
+              "end": "seat",
+              "weight": 2.0
+            },
+            {
+              "relation": "PartOf",
+              "end": "funiture",
+              "weight": 2.0
+            },
+            {
+              "relation": "ReceivesAction",
+              "end": "found in office",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "electric chair",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "moderate",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "president",
+              "weight": 2.0
+            },
+            {
+              "relation": "Synonym",
+              "end": "professorship",
+              "weight": 2.0
+            },
+            {
+              "relation": "UsedFor",
+              "end": "people",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "office",
+            "sitting",
+            "seat",
+            "desk",
+            "furniture",
+            "sit",
+            "table",
+            "legs",
+            "cubicle",
+            "porch",
+            "resting",
+            "sitting furniture",
+            "four",
+            "seating",
+            "church",
+            "kitchen",
+            "living room",
+            "room",
+            "four legs",
+            "sit on",
+            "place",
+            "floor",
+            "furniture store",
+            "four legs",
+            "seat",
+            "funiture",
+            "found in office",
+            "electric chair",
+            "moderate",
+            "president",
+            "professorship",
+            "people"
+          ],
+          "student_direct": [
+            "seat",
+            "office",
+            "sitting",
+            "furniture",
+            "resting",
+            "desk",
+            "people",
+            "funiture",
+            "cubicle",
+            "porch",
+            "four legs",
+            "church",
+            "kitchen",
+            "room",
+            "found in office",
+            "soft or hard",
+            "legs",
+            "fixed",
+            "found at desk",
+            "found in building",
+            "found in convent",
+            "found in hotel",
+            "found in house",
+            "found in lounge",
+            "found in monestary",
+            "found in motel",
+            "found in store",
+            "wood"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [
+              "resting",
+              "people",
+              "seat"
+            ],
+            "CapableOf": [],
+            "HasProperty": [
+              "soft or hard"
+            ],
+            "PartOf": [
+              "funiture"
+            ],
+            "Synonym": [],
+            "RelatedTo": [
+              "sitting",
+              "seat",
+              "furniture"
+            ]
+          }
+        },
+        {
+          "word": "car",
+          "gold": [
+            "door",
+            "drive",
+            "engine",
+            "four",
+            "passage",
+            "transport",
+            "vehicle",
+            "wheel"
+          ],
+          "teacher_direct": [
+            {
+              "relation": "AtLocation",
+              "end": "city",
+              "weight": 7.483
+            },
+            {
+              "relation": "AtLocation",
+              "end": "parking lot",
+              "weight": 6.928
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "vehicle",
+              "weight": 6.574
+            },
+            {
+              "relation": "CapableOf",
+              "end": "crash",
+              "weight": 6.325
+            },
+            {
+              "relation": "CapableOf",
+              "end": "go fast",
+              "weight": 6.325
+            },
+            {
+              "relation": "HasA",
+              "end": "seats",
+              "weight": 6.325
+            },
+            {
+              "relation": "AtLocation",
+              "end": "repair shop",
+              "weight": 5.657
+            },
+            {
+              "relation": "CapableOf",
+              "end": "roll over",
+              "weight": 5.292
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "automobile",
+              "weight": 4.925
+            },
+            {
+              "relation": "CapableOf",
+              "end": "slow down",
+              "weight": 4.899
+            },
+            {
+              "relation": "AtLocation",
+              "end": "road",
+              "weight": 4.472
+            },
+            {
+              "relation": "AtLocation",
+              "end": "freeway",
+              "weight": 4.0
+            },
+            {
+              "relation": "AtLocation",
+              "end": "car show",
+              "weight": 3.464
+            },
+            {
+              "relation": "AtLocation",
+              "end": "race track",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "enter garage",
+              "weight": 3.464
+            },
+            {
+              "relation": "CapableOf",
+              "end": "pass another car",
+              "weight": 3.464
+            },
+            {
+              "relation": "HasProperty",
+              "end": "red",
+              "weight": 3.464
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "wheels",
+              "weight": 3.237
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "auto",
+              "weight": 3.08
+            },
+            {
+              "relation": "AtLocation",
+              "end": "car dealership",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasA",
+              "end": "seat",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasA",
+              "end": "windows",
+              "weight": 2.828
+            },
+            {
+              "relation": "HasProperty",
+              "end": "heavy",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "motor vehicle",
+              "weight": 2.828
+            },
+            {
+              "relation": "IsA",
+              "end": "vehicle",
+              "weight": 2.828
+            },
+            {
+              "relation": "UsedFor",
+              "end": "fun",
+              "weight": 2.828
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "driving",
+              "weight": 2.52
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "transportation",
+              "weight": 2.404
+            },
+            {
+              "relation": "RelatedTo",
+              "end": "four",
+              "weight": 2.108
+            },
+            {
+              "relation": "AtLocation",
+              "end": "neighbor's house",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "come up drive",
+              "weight": 2.0
+            },
+            {
+              "relation": "CapableOf",
+              "end": "cost money",
+              "weight": 2.0
+            }
+          ],
+          "teacher_concepts": [
+            "city",
+            "parking lot",
+            "vehicle",
+            "crash",
+            "go fast",
+            "seats",
+            "repair shop",
+            "roll over",
+            "automobile",
+            "slow down",
+            "road",
+            "freeway",
+            "car show",
+            "race track",
+            "enter garage",
+            "pass another car",
+            "red",
+            "wheels",
+            "auto",
+            "car dealership",
+            "seat",
+            "windows",
+            "heavy",
+            "motor vehicle",
+            "vehicle",
+            "fun",
+            "driving",
+            "transportation",
+            "four",
+            "neighbor's house",
+            "come up drive",
+            "cost money"
+          ],
+          "student_direct": [
+            "crash",
+            "go fast",
+            "seats",
+            "roll over",
+            "slow down",
+            "city",
+            "vehicle",
+            "parking lot",
+            "enter garage",
+            "pass another car",
+            "red",
+            "repair shop",
+            "fun",
+            "heavy",
+            "seat",
+            "windows",
+            "road",
+            "drive",
+            "transport",
+            "freeway",
+            "turning into driveway",
+            "airship",
+            "elevator",
+            "engine",
+            "stored in garage",
+            "product of factory",
+            "same as automobile",
+            "expensive",
+            "green",
+            "new",
+            "opaque",
+            "shiny"
+          ],
+          "student_by_relation": {
+            "IsA": [],
+            "UsedFor": [
+              "fun",
+              "drive",
+              "transport"
+            ],
+            "CapableOf": [
+              "crash",
+              "go fast",
+              "roll over",
+              "slow down",
+              "enter garage",
+              "pass another car"
+            ],
+            "HasProperty": [
+              "red",
+              "heavy",
+              "turning into driveway",
+              "big and blue",
+              "bought and sold",
+              "convenient to own",
+              "expensive",
+              "green",
+              "new",
+              "opaque",
+              "painted blue",
+              "passing on left",
+              "pushing from behind",
+              "shiny",
+              "slow"
+            ],
+            "PartOf": [
+              "airship",
+              "elevator",
+              "train"
+            ],
+            "Synonym": [],
+            "RelatedTo": [
+              "vehicle"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "compression_curve": [
+    {
+      "fraction": 0.01,
+      "edges": 1883,
+      "semantic_f1": 0.01008348621413948,
+      "coverage": 0.3823350253807107,
+      "teacher_edge_recall": 0.0102682953430036,
+      "random_f1": 0.010173329834133854
+    },
+    {
+      "fraction": 0.02,
+      "edges": 3766,
+      "semantic_f1": 0.02146645928052963,
+      "coverage": 0.7646700507614214,
+      "teacher_edge_recall": 0.0205365906860072,
+      "random_f1": 0.018357983555293635
+    },
+    {
+      "fraction": 0.05,
+      "edges": 9415,
+      "semantic_f1": 0.044766586708987206,
+      "coverage": 1.0,
+      "teacher_edge_recall": 0.05134147671501799,
+      "random_f1": 0.03808002233226264
+    },
+    {
+      "fraction": 0.1,
+      "edges": 18831,
+      "semantic_f1": 0.059860968756504956,
+      "coverage": 1.0,
+      "teacher_edge_recall": 0.10268840658741411,
+      "random_f1": 0.05591165705874396
+    }
+  ],
+  "trace_words": [
+    "hello",
+    "greeting",
+    "dog",
+    "animal",
+    "ability",
+    "abandon",
+    "water",
+    "music",
+    "chair",
+    "car"
+  ],
+  "elapsed_seconds": 4.493133099997067
+}
