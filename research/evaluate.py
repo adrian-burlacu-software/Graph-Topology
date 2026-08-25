@@ -18,26 +18,19 @@ TRAINING = [
 ]
 
 TEST = [
-    "CAT",
-    "CAR",
-    "CAN",
-    "CARD",
-    "CART",
-    "DOG",
-    "DOT",
     "BAT",
-    "CAD",
-    "COD",
-    "COT",
-    "BAD",
     "BAR",
-    "BARD",
-    "BAN",
-    "DART",
-    "DAT",
-    "BOT",
     "BOAT",
+    "BOAR",
+    "BOATD",
+    "CAB",
+    "COAT",
+    "COAR",
+    "CART",
     "CARTD",
+    "BART",
+    "BARD",
+    "BOARD"
 ]
 
 EXPECTED_REUSE = 50
