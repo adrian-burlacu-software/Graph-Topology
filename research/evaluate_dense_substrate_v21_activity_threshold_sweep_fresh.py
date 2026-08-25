@@ -544,7 +544,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V20 - SEQUENTIAL EVALUATION TRACE ===")
+    print("=== DENSE SUBSTRATE V21 - ACTIVITY THRESHOLD SWEEP ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -592,6 +592,51 @@ def run():
     print("strong_after_prune  :", strong_after_prune)
 
     net.evaluate_frozen(TEST)
+    print()
+    print("=== V21 ACTIVITY THRESHOLD SWEEP ===")
+
+    observations = []
+
+    for word in TEST:
+        for pos in range(len(word)):
+            context, fired = net.trace_substrate_input(word, pos)
+            activity = len(fired) / max(1, net.cell_count)
+
+            # Exact benchmark ground truth from DensePlasticSubstrateV1.
+            expected = "REUSE" if net.available(word, pos) else "BRANCH"
+
+            observations.append(
+                (word, pos, activity, expected)
+            )
+
+    print("observations :", len(observations))
+
+    for threshold_i in range(33):
+        threshold = threshold_i / 32.0
+        correct = 0
+        false_reuse = 0
+        false_branch = 0
+
+        for word, pos, activity, expected in observations:
+            predicted = "REUSE" if activity >= threshold else "BRANCH"
+
+            if predicted == expected:
+                correct += 1
+            elif predicted == "REUSE":
+                false_reuse += 1
+            else:
+                false_branch += 1
+
+        print(
+            f"threshold={threshold:.6f} "
+            f"correct={correct:2d}/{len(observations)} "
+            f"accuracy={correct / len(observations):.4f} "
+            f"false_reuse={false_reuse:2d} "
+            f"false_branch={false_branch:2d}"
+        )
+
+    print("=== END V21 ACTIVITY THRESHOLD SWEEP ===")
+
 
 
 
