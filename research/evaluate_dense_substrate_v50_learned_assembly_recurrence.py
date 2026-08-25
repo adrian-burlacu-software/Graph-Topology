@@ -119,6 +119,36 @@ class DenseCell:
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
 
+    def v50_reset_recurrence(self):
+        self._v50_recurrence = {}
+        self._v50_occurrences = []
+
+    def v50_activation_signature(self, word, pos):
+        fired = self.activate_substrate_frozen(word, pos)
+        return tuple(sorted(fired))
+
+    def v50_observe_training(self, word, pos):
+        signature = self.v50_activation_signature(word, pos)
+        self._v50_occurrences.append(
+            (word, pos, signature)
+        )
+        self._v50_recurrence[signature] = (
+            self._v50_recurrence.get(signature, 0) + 1
+        )
+        return signature
+
+    def v50_recurrence_evidence(self, word, pos):
+        signature = self.v50_activation_signature(word, pos)
+        count = self._v50_recurrence.get(signature, 0)
+        return {
+            "word": word,
+            "pos": pos,
+            "signature": signature,
+            "seen_count": count,
+            "seen_before": count > 0,
+        }
+
+
     def _v42_state_fingerprint(self):
         """Stable fingerprint for frozen-readout determinism diagnostics."""
         import hashlib
@@ -922,8 +952,71 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         print(f"strong_after_test     : {strong_after}")
 
 
+
+def v50_run_recurrence_experiment(net, training, test):
+    print()
+    print("=== V50 LEARNED ASSEMBLY RECURRENCE ===")
+    print(
+        "No external assembly list, vocabulary memory, labels, "
+        "BoundaryGraph, or ground truth is supplied to the readout."
+    )
+    print()
+
+    net.v50_reset_recurrence()
+
+    print("--- TRAINING RECURRENCE ---")
+    for word in training:
+        for pos in range(len(word)):
+            signature = net.v50_observe_training(word, pos)
+            count = net._v50_recurrence[signature]
+            print(
+                f"{word:6s} pos={pos} "
+                f"cells={list(signature)} "
+                f"occurrences={count}"
+            )
+
+    print()
+    print("unique_training_assemblies :", len(net._v50_recurrence))
+    print(
+        "total_training_positions  :",
+        len(net._v50_occurrences),
+    )
+
+    print()
+    print("--- FROZEN TEST RECURRENCE ---")
+
+    reuse = 0
+    branch = 0
+
+    for word in test:
+        for pos in range(len(word)):
+            evidence = net.v50_recurrence_evidence(word, pos)
+
+            if evidence["seen_before"]:
+                reuse += 1
+            else:
+                branch += 1
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"cells={list(evidence['signature'])} "
+                f"seen_count={evidence['seen_count']} "
+                f"actual={evidence['seen_before'] and 'REUSE' or 'BRANCH'}"
+            )
+
+    print()
+    print("test_reuse  :", reuse)
+    print("test_branch :", branch)
+    print(
+        "test_total  :",
+        reuse + branch,
+    )
+    print()
+    print("=== END V50 LEARNED ASSEMBLY RECURRENCE ===")
+    print()
+
 def run():
-    print("=== DENSE SUBSTRATE V49 - FROZEN DESIGNER READOUT ===")
+    print("=== DENSE SUBSTRATE V50 - LEARNED ASSEMBLY RECURRENCE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1887,6 +1980,8 @@ def run():
         print()
 
     v48_frozen_state_proof()
+
+    v50_run_recurrence_experiment(net, TRAINING, TEST)
 
     v49_designer_readout_determinism()
 
