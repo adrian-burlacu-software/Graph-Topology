@@ -213,42 +213,213 @@ class StructuredCompositionSubstrate:
 # Decoupled designer
 # ---------------------------------------------------------------------------
 
-class DecoupledDesigner:
+class DecoupledDesignerV60:
     """
-    Minimal designer.
+    Designer sees only substrate-observable state.
 
-    It receives ONLY a substrate cell and its learned structural topology.
+    Forbidden:
+      * word
+      * position
+      * composition
+      * independent ground truth
+      * external assembly lists
 
-    It does not receive:
-      * IndependentGroundTruth
-      * the word
-      * the symbol
-      * REUSE/BRANCH labels
-      * an external list of known compositions
-
-    For this baseline, the designer emits structural evidence rather than
-    pretending that structural identity itself is proof of REUSE.
+    Allowed:
+      * active cell id
+      * learned activation count
+      * learned incoming/outgoing topology
+      * learned transition weights
     """
 
     def __init__(self, substrate: StructuredCompositionSubstrate) -> None:
         self.substrate = substrate
 
-    def inspect(self, cell: CompositionCell) -> Dict[str, object]:
+    def inspect_cell(self, cell: CompositionCell) -> Dict[str, object]:
         outgoing = [
             (dst, weight)
             for (src, dst), weight in self.substrate.transition_weights.items()
             if src == cell.cell_id
         ]
+        incoming = [
+            (src, weight)
+            for (src, dst), weight in self.substrate.transition_weights.items()
+            if dst == cell.cell_id
+        ]
 
         outgoing.sort(key=lambda item: (-item[1], item[0]))
+        incoming.sort(key=lambda item: (-item[1], item[0]))
 
         return {
             "cell_id": cell.cell_id,
             "activation_count": cell.activations,
-            "incoming_count": cell.incoming_count,
-            "outgoing_count": cell.outgoing_count,
+            "incoming_count": len(incoming),
+            "outgoing_count": len(outgoing),
+            "incoming_mass": sum(weight for _, weight in incoming),
+            "outgoing_mass": sum(weight for _, weight in outgoing),
+            "incoming": tuple(incoming),
             "outgoing": tuple(outgoing),
         }
+
+    def decide_from_observable_state(
+        self,
+        cell: CompositionCell,
+    ) -> str:
+        """
+        Structural novelty decision.
+
+        A cell that has learned experience is treated as a reusable
+        representation; a cell with no learned history is treated as a
+        branch candidate.
+
+        IMPORTANT:
+        This does not inspect cell.composition.
+        """
+        evidence = self.inspect_cell(cell)
+
+        learned_history = (
+            evidence["activation_count"] > 0
+            or evidence["incoming_count"] > 0
+            or evidence["outgoing_count"] > 0
+        )
+
+        return "REUSE" if learned_history else "BRANCH"
+
+
+# ---------------------------------------------------------------------------
+# V60 evaluation helpers
+# ---------------------------------------------------------------------------
+
+def v60_probe_designer(
+    substrate: StructuredCompositionSubstrate,
+    words: Iterable[str],
+) -> None:
+    designer = DecoupledDesignerV60(substrate)
+
+    print("=== V60 DECOUPLED DESIGNER DECISIONS ===")
+
+    for word in words:
+        for pos in range(len(word)):
+            cell = substrate.encode(word, pos)
+            decision = designer.decide_from_observable_state(cell)
+            evidence = designer.inspect_cell(cell)
+
+            # Deliberately do not print composition. The goal is to demonstrate
+            # that the designer itself never needs it.
+            print(
+                f"{word:6s} pos={pos} "
+                f"cell={evidence['cell_id']:3d} "
+                f"activations={evidence['activation_count']:3d} "
+                f"in={evidence['incoming_count']:2d} "
+                f"out={evidence['outgoing_count']:2d} "
+                f"decision={decision}"
+            )
+
+    print("=== END V60 DECOUPLED DESIGNER DECISIONS ===")
+    print()
+
+
+def v60_evaluate(
+    substrate: StructuredCompositionSubstrate,
+    ground_truth: IndependentGroundTruth,
+) -> None:
+    """
+    Evaluate the blind designer against the independent V28 target.
+
+    Ground truth exists only in this outer evaluator. It is never passed into
+    DecoupledDesignerV60.
+    """
+    designer = DecoupledDesignerV60(substrate)
+
+    correct = 0
+    total = 0
+    errors = []
+
+    for word in TEST:
+        for pos in range(len(word)):
+            cell = substrate.encode(word, pos)
+
+            actual = designer.decide_from_observable_state(cell)
+            expected = (
+                "REUSE"
+                if ground_truth.available(word, pos)
+                else "BRANCH"
+            )
+
+            total += 1
+
+            if actual == expected:
+                correct += 1
+            else:
+                errors.append(
+                    {
+                        "word": word,
+                        "pos": pos,
+                        "expected": expected,
+                        "actual": actual,
+                        "cell": cell.cell_id,
+                    }
+                )
+
+    print("=== V60 DECUPLED DESIGNER RESULT ===")
+    print(f"correct_positions : {correct}/{total}")
+    print(f"accuracy          : {correct / total:.4f}")
+    print(f"error_positions    : {len(errors)}")
+
+    for error in errors[:20]:
+        print(
+            f"{error['word']:6s} "
+            f"pos={error['pos']:2d} "
+            f"cell={error['cell']:3d} "
+            f"expected={error['expected']:6s} "
+            f"actual={error['actual']:6s}"
+        )
+
+    print("=== END V60 DECUPLED DESIGNER RESULT ===")
+    print()
+
+
+def v60_boundary_separation(
+    substrate: StructuredCompositionSubstrate,
+    ground_truth: IndependentGroundTruth,
+) -> None:
+    """
+    Measure whether the observable substrate state separates known and novel
+    compositions before interpreting the designer accuracy.
+
+    Again, composition semantics are not passed to the designer.
+    """
+    reuse = []
+    branch = []
+
+    for word in TEST:
+        for pos in range(len(word)):
+            cell = substrate.encode(word, pos)
+
+            learned = (
+                cell.activations
+                + cell.incoming_count
+                + cell.outgoing_count
+            )
+
+            if ground_truth.available(word, pos):
+                reuse.append(learned)
+            else:
+                branch.append(learned)
+
+    print("=== V60 OBSERVABLE SEPARATION ===")
+    print("reuse_observable_values  :", reuse)
+    print("branch_observable_values :", branch)
+
+    print(
+        "reuse_all_positive       :",
+        all(value > 0 for value in reuse),
+    )
+    print(
+        "branch_any_zero          :",
+        any(value == 0 for value in branch),
+    )
+    print("=== END V60 OBSERVABLE SEPARATION ===")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -454,10 +625,10 @@ def evaluate_structural_capacity(
 
 
 def main() -> None:
-    print("=== V59 STRUCTURED COMPOSITION BASELINE ===")
+    print("=== V60 STRUCTURED SUBSTRATE + DECOUPLED DESIGNER ===")
     print(
-        "Control question: does the structured substrate preserve "
-        "compositional distinctions that the dense generic pool collapsed?"
+        "The substrate preserves structured composition; the designer "
+        "cannot inspect that composition."
     )
     print()
 
@@ -465,43 +636,39 @@ def main() -> None:
 
     substrate = StructuredCompositionSubstrate()
 
-    print("=== V59 TRAINING ===")
+    print("=== V60 TRAINING ===")
     substrate.train(TRAINING)
-    print("training_words       :", len(TRAINING))
+    print("training_words     :", len(TRAINING))
     print(
-        "training_positions   :",
+        "training_positions :",
         sum(len(word) for word in TRAINING),
+    )
+    print(
+        "composition_cells  :",
+        len(substrate.cells_by_id),
+    )
+    print(
+        "transition_edges   :",
+        len(substrate.transition_weights),
     )
     print()
 
-    show_substrate_summary(substrate)
-
-    # Small representative probe.
-    probe_words = [
-        "CAT",
-        "CAD",
-        "BOAT",
-        "BOARD",
-    ]
-
-    probe_compositions(
+    v60_probe_designer(
         substrate,
-        ground_truth,
-        probe_words,
+        ["CAT", "CAD", "BOAT", "BOARD"],
     )
 
-    probe_decoupled_designer(
-        substrate,
-        ground_truth,
-        probe_words,
-    )
-
-    evaluate_structural_capacity(
+    v60_evaluate(
         substrate,
         ground_truth,
     )
 
-    print("=== V59 COMPLETE ===")
+    v60_boundary_separation(
+        substrate,
+        ground_truth,
+    )
+
+    print("=== V60 COMPLETE ===")
 
 
 if __name__ == "__main__":
