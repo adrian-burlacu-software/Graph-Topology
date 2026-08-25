@@ -87,6 +87,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         self.active_edges = set()
 
+        # V8 diagnostics: prove whether coincidence plasticity is actually
+        # being reached and whether receptive weights change.
+        self.learning_events = 0
+        self.learning_debug = []
+
         # Distributed receptive fields. Every generic cell has both
         # channels; no cell is assigned to a particular composition.
         self.prefix_weights = [0.10 for _ in range(cell_count)]
@@ -177,6 +182,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             # IMPORTANT: coincidence learning happens independently of
             # whether this generic neuron spikes.
             if learn and prefix_active and suffix_active:
+                before_p = self.prefix_weights[i]
+                before_s = self.suffix_weights[i]
+
                 delta = self.learning_rate * coincidence
 
                 self.prefix_weights[i] = min(
@@ -187,6 +195,23 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                     1.0,
                     self.suffix_weights[i] + delta,
                 )
+
+                self.learning_events += 1
+
+                # Capture only the first few events so output stays readable.
+                if len(self.learning_debug) < 12:
+                    self.learning_debug.append({
+                        "cell": i,
+                        "prefix_active": prefix_active,
+                        "suffix_active": suffix_active,
+                        "coincidence": coincidence,
+                        "learning_rate": self.learning_rate,
+                        "delta": delta,
+                        "prefix_before": before_p,
+                        "prefix_after": self.prefix_weights[i],
+                        "suffix_before": before_s,
+                        "suffix_after": self.suffix_weights[i],
+                    })
 
             # Learned receptive fields now amplify the same coincidence.
             learned_drive = (
@@ -444,7 +469,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V6 - COINCIDENCE PLASTICITY ===")
+    print("=== DENSE SUBSTRATE V8 - COINCIDENCE DIAGNOSTIC ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -465,10 +490,48 @@ def run():
     net.train_dense(TRAINING, epochs=5)
 
     print()
+    print("=== LEARNING PATH DIAGNOSTICS ===")
+    print(f"learning_events : {net.learning_events}")
+
+    if not net.learning_debug:
+        print("NO LEARNING EVENTS RECORDED")
+    else:
+        for event in net.learning_debug:
+            print(
+                "cell={cell} "
+                "prefix_active={prefix_active} "
+                "suffix_active={suffix_active} "
+                "coincidence={coincidence:.6f} "
+                "lr={learning_rate:.6f} "
+                "delta={delta:.6f} "
+                "prefix={prefix_before:.6f}->{prefix_after:.6f} "
+                "suffix={suffix_before:.6f}->{suffix_after:.6f}".format(
+                    **event
+                )
+            )
+
+    print()
     print("=== COINCIDENCE TOPOLOGY ===")
+    initial_receptive_strength = 32 * 0.1 * 0.1
+    final_receptive_strength = sum(
+        p * s
+        for p, s in zip(
+            net.prefix_weights,
+            net.suffix_weights,
+        )
+    )
+
     print(
-        "distributed_receptive_strength : "
-        f"{sum(p * s for p, s in zip(net.prefix_weights, net.suffix_weights)):.4f}"
+        "initial_receptive_strength : "
+        f"{initial_receptive_strength:.4f}"
+    )
+    print(
+        "final_receptive_strength   : "
+        f"{final_receptive_strength:.4f}"
+    )
+    print(
+        "receptive_strength_delta   : "
+        f"{final_receptive_strength - initial_receptive_strength:.4f}"
     )
     strong = sum(
         1
