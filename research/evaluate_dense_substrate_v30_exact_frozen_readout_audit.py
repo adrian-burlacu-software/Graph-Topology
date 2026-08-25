@@ -278,11 +278,31 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             learn=False,
         )
 
-        # Dense activity magnitude is the designer's structural evidence.
+        # V30 instrumentation: capture exactly what the existing designer
+        # receives. Do not reset cells or reproduce the activation path here.
         activity = min(
             1.0,
             len(fired) / max(1, self.cell_count),
         )
+
+        fired_set = set(fired)
+        learned_mass = 0.0
+        strong_outgoing = 0
+
+        for i in fired_set:
+            for (src, dst), weight in self.weights.items():
+                if src == i and weight >= 0.50:
+                    learned_mass += weight
+                    strong_outgoing += 1
+
+        self.last_dense_trace = {
+            "word": word,
+            "pos": pos,
+            "fired": list(fired),
+            "activity": activity,
+            "learned_mass": learned_mass,
+            "strong_outgoing": strong_outgoing,
+        }
 
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
@@ -455,7 +475,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V29 - SUBSTRATE REPRESENTATION AUDIT ===")
+    print("=== DENSE SUBSTRATE V30 - EXACT FROZEN READOUT AUDIT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -586,141 +606,70 @@ def run():
 
 
     print()
-    print("=== V29 SUBSTRATE REPRESENTATION AUDIT ===")
+    print("=== V30 EXACT FROZEN READOUT AUDIT ===")
+    print(
+        "The trace below is captured INSIDE "
+        "designer_from_dense_activity()."
+    )
+    print(
+        "This is the exact activity the designer uses for its decision."
+    )
 
-    def gt(word, pos):
-        return net.ground_truth.available(word, pos)
+    def probe_exact_path(label, rows):
+        print()
+        print(f"--- {label} ---")
 
-    def snapshot(words):
+        for word, pos, expected in rows:
+            action = net.designer_from_dense_activity(word, pos)
+            trace = net.last_dense_trace
+
+            print(
+                f"{word:6s} pos={pos} symbol={word[pos]} "
+                f"expected={expected:6s} actual={action:6s} "
+                f"fired={len(trace['fired']):2d}/{net.cell_count} "
+                f"activity={trace['activity']:.6f} "
+                f"strong_out={trace['strong_outgoing']:3d} "
+                f"learned_mass={trace['learned_mass']:.3f} "
+                f"cells={trace['fired']}"
+            )
+
+    def labelled_rows(words, limit=12):
         rows = []
         for word in words:
             for pos in range(len(word)):
-                # Use the exact frozen path: no learning and no designer.
-                for cell in net.cells:
-                    cell.reset()
-
-                fired = net.activate_substrate(word, pos, learn=False)
-                fired_set = set(fired)
-                activity = len(fired_set) / max(1, net.cell_count)
-
-                rows.append({
-                    "word": word,
-                    "pos": pos,
-                    "expected": "REUSE" if gt(word, pos) else "BRANCH",
-                    "fired": fired_set,
-                    "activity": activity,
-                })
+                expected = (
+                    "REUSE"
+                    if net.ground_truth.available(word, pos)
+                    else "BRANCH"
+                )
+                rows.append((word, pos, expected))
+                if len(rows) >= limit:
+                    return rows
         return rows
 
-    train_rows = snapshot(TRAINING)
-    test_rows = snapshot(TEST)
-
-    def summarize(name, rows):
-        reuse = [r for r in rows if r["expected"] == "REUSE"]
-        branch = [r for r in rows if r["expected"] == "BRANCH"]
-
-        def mean(xs):
-            return sum(xs) / len(xs) if xs else 0.0
-
-        print()
-        print(f"--- {name} ---")
-        print("reuse_rows  :", len(reuse))
-        print("branch_rows :", len(branch))
-
-        print(
-            "reuse_activity_mean  :",
-            f"{mean([r['activity'] for r in reuse]):.6f}",
-        )
-        print(
-            "branch_activity_mean :",
-            f"{mean([r['activity'] for r in branch]):.6f}",
-        )
-
-        print(
-            "reuse_activity_range :",
-            (
-                f"{min(r['activity'] for r in reuse):.6f}"
-                f"..{max(r['activity'] for r in reuse):.6f}"
-                if reuse else "NONE"
-            ),
-        )
-        print(
-            "branch_activity_range:",
-            (
-                f"{min(r['activity'] for r in branch):.6f}"
-                f"..{max(r['activity'] for r in branch):.6f}"
-                if branch else "NONE"
-            ),
-        )
-
-        # Nearest opposite-class overlap: maximum Jaccard similarity.
-        max_cross = 0.0
-        for a in reuse:
-            for b in branch:
-                union = len(a["fired"] | b["fired"])
-                if union:
-                    max_cross = max(
-                        max_cross,
-                        len(a["fired"] & b["fired"]) / union,
-                    )
-
-        print("max_cross_class_jaccard:", f"{max_cross:.6f}")
-
-    summarize("TRAINING", train_rows)
-    summarize("HELD-OUT TEST", test_rows)
-
-    print()
-    print("--- SAMPLE REPRESENTATIONS ---")
-    for row in train_rows[:6] + test_rows[:6]:
-        print(
-            f"{row['word']:6s} pos={row['pos']} "
-            f"expected={row['expected']:6s} "
-            f"activity={row['activity']:.6f} "
-            f"fired={sorted(row['fired'])}"
-        )
-
-    # Measure whether activity alone could separate the classes. This is a
-    # diagnostic, not a replacement classifier: find the best threshold on
-    # TRAINING and report it on TEST without changing the network.
-    candidates = sorted({r["activity"] for r in train_rows} | {0.0, 1.0})
-    best = None
-
-    for threshold in candidates:
-        correct = sum(
-            ("REUSE" if r["activity"] >= threshold else "BRANCH")
-            == r["expected"]
-            for r in train_rows
-        )
-        key = (correct, -threshold)
-        if best is None or key > best[0]:
-            best = (key, threshold)
-
-    threshold = best[1]
-
-    def threshold_score(rows):
-        return sum(
-            ("REUSE" if r["activity"] >= threshold else "BRANCH")
-            == r["expected"]
-            for r in rows
-        )
-
-    train_correct = threshold_score(train_rows)
-    test_correct = threshold_score(test_rows)
-
-    print()
-    print("=== ACTIVITY-ONLY DIAGNOSTIC ===")
-    print("chosen_training_threshold:", f"{threshold:.6f}")
-    print(
-        "training_accuracy:",
-        f"{train_correct}/{len(train_rows)} "
-        f"({train_correct / max(1, len(train_rows)):.4f})",
+    probe_exact_path(
+        "TRAINING MIXED",
+        labelled_rows(TRAINING),
     )
-    print(
-        "heldout_accuracy :",
-        f"{test_correct}/{len(test_rows)} "
-        f"({test_correct / max(1, len(test_rows)):.4f})",
+    probe_exact_path(
+        "HELD-OUT MIXED",
+        labelled_rows(TEST),
     )
-    print("=== END V29 SUBSTRATE REPRESENTATION AUDIT ===")
+
+    # Quantify the key causal question:
+    # does the learned topology actually enter the designer decision?
+    # The current readout computes its structural evidence from len(fired)
+    # only; learned_mass/strong_outgoing are diagnostic measurements.
+    print()
+    print("=== V30 READOUT DEPENDENCY ===")
+    print("decision_activity_source : len(fired) / cell_count")
+    print("learned_weight_source    : diagnostic only")
+    print(
+        "learned topology affects designer decision:",
+        "NO (under current readout)"
+    )
+    print("=== END V30 EXACT FROZEN READOUT AUDIT ===")
+    print()
 
     net.evaluate_frozen(TEST)
 
