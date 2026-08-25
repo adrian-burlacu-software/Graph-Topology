@@ -352,8 +352,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 
-    def state_probe(self, word, pos):
-        """Probe one frozen position while snapshotting/restoring cell state."""
+
+    def trace_substrate_input(self, word, pos):
+        """Probe the frozen substrate and restore all mutable cell state."""
         snapshot = [
             (
                 cell.potential,
@@ -366,15 +367,6 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         context = self.context_vector(word, pos)
         fired = list(self.activate_substrate(word, pos, learn=False))
 
-        after = [
-            (
-                cell.potential,
-                getattr(cell, "activation", None),
-                getattr(cell, "spike", None),
-            )
-            for cell in self.cells
-        ]
-
         for cell, state in zip(self.cells, snapshot):
             cell.potential = state[0]
             if hasattr(cell, "activation") and state[1] is not None:
@@ -382,33 +374,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             if hasattr(cell, "spike") and state[2] is not None:
                 cell.spike = state[2]
 
-        return context, fired, after
-
-    def debug_decision(self, word, pos):
-        """Trace the exact frozen decision inputs for one position."""
-        context = self.context_vector(word, pos)
-
-        # Use the real frozen substrate path.
-        fired = self.activate_substrate(word, pos, learn=False)
-
-        # Preserve the exact designer inputs exposed by this implementation.
-        reuse_score = 0.0
-        branch_score = 0.0
-
-        # Search the class for the existing decision routine's scoring
-        # semantics by invoking it in frozen mode and recording the result.
-        decision = self.designer_decide(word, pos, learn=False)
-
-        return {
-            "word": word,
-            "pos": pos,
-            "symbol": word[pos],
-            "context": context,
-            "fired": list(fired),
-            "decision": decision,
-            "reuse_score": reuse_score,
-            "branch_score": branch_score,
-        }
+        return context, fired
 
     def evaluate_frozen(self, words):
         print()
@@ -430,6 +396,12 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
             for pos in range(len(word)):
                 expected = self.available(word, pos)
+
+                print("TRACE designer_from_dense_activity call:")
+
+                print("  word =", word)
+
+                print("  pos =", pos)
 
                 action = self.designer_from_dense_activity(
                     word,
@@ -510,7 +482,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V18 - STATE ISOLATION PROBE ===")
+    print("=== DENSE SUBSTRATE V19 - EVALUATION PATH TRACE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -560,41 +532,21 @@ def run():
     net.evaluate_frozen(TEST)
 
     print()
-    print("=== V18 STATE-ISOLATION PROBE ===")
+    print("=== V19 SUBSTRATE INPUT COMPARISON ===")
 
-    probes = [
+    for word, pos in [
         ("CAT", 1),
         ("CAD", 1),
-        ("CAT", 1),
-    ]
-
-    results = []
-
-    for word, pos in probes:
-        context, fired, after = net.state_probe(word, pos)
-        results.append((word, pos, context, fired))
-
-        print()
+        ("BOAT", 0),
+        ("BOARD", 3),
+    ]:
+        context, fired = net.trace_substrate_input(word, pos)
         print(
             f"{word} pos={pos} symbol={word[pos]} "
             f"context={context} fired={fired}"
         )
 
-    print()
-    print("=== A/B/A CONSISTENCY ===")
-
-    cat_first = results[0][3]
-    cad = results[1][3]
-    cat_second = results[2][3]
-
-    print(f"CAT first : {cat_first}")
-    print(f"CAD       : {cad}")
-    print(f"CAT second: {cat_second}")
-    print(f"CAT stable: {cat_first == cat_second}")
-    print(f"CAT differs from CAD: {cat_first != cad}")
-
-    print()
-    print("=== END V18 STATE-ISOLATION PROBE ===")
+    print("=== END V19 SUBSTRATE INPUT COMPARISON ===")
 
 
 if __name__ == "__main__":
