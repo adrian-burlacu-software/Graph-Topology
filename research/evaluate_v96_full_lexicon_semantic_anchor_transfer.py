@@ -1,49 +1,69 @@
 from __future__ import annotations
 
 """
-V92 — FULL MATCHED-CONCEPT FORM -> SEMANTICS GRAPH TRANSFER
+V93 — FULL LEXICON + SEMANTIC ANCHOR TRANSFER
 
-Why all matched concepts?
--------------------------
-The previous experiment had only ~153 exact word/concept matches because it
-required a dictionary word to exactly equal the semantic basic-level concept.
+This is the big-jump version.
 
-That is unnecessarily small.
+The COMPLETE dictionary is used to build the lexical substrate:
+    data/dictionary.csv  (~4925 words)
 
-V92 uses ALL exact matches available across the uploaded dictionary + semantic
-corpus, rather than holding back a tiny 24-concept test merely because the
-intersection is small.
+The COMPLETE semantic corpus is used as an independently observed semantic
+anchor set:
+    data/semantics.csv
 
-For evaluation, we still split the matched concepts into:
-    70% train
-    15% validation
-    15% test
+We do NOT restrict lexical learning to the exact semantic intersection.
 
-The key comparison is:
+Architecture
+------------
+ALL DICTIONARY WORDS
+    ↓
+width-1 lexical units
+    ↓
+recursive lexical assemblies
+    ↓
+full lexical graph
 
-    MODEL A:
-        isolated width-1 lexical units
-        -> semantic feature predictions
+SEMANTIC ANCHORS
+    ↓
+human-elicited feature sets
+    ↓
+cross-modal links from lexical units / assemblies
+       to semantic features
 
-    MODEL B:
-        recursively discovered lexical assemblies
-        -> semantic feature predictions
+Evaluation
+----------
+Only semantic concepts that have an exact spelling match in the dictionary
+can be direct anchors for form -> feature supervision.
 
-Both are compared against the SAME shuffled alignment control and the SAME
-concept-disjoint test set.
+That is a limitation of the available paired data, but the lexical substrate
+is still learned from the ENTIRE dictionary, so semantic prediction is being
+performed against a much richer lexical graph than V92.
 
-The lexical representation is the graph representation already developed:
-    characters
-       ↓
-    width-1 local units
-       ↓
-    recursive reusable lexical assemblies
+We compare:
 
-The semantic target is:
-    human-elicited feature set
+    A) width-1 lexical representation
+    B) recursively discovered lexical representation
+    C) shuffled word <-> semantic-anchor alignment
 
-This tests whether recursive lexical structure carries more reusable
-form->feature information than isolated local units.
+We also evaluate:
+
+    * feature precision / recall / F1
+    * semantic-neighborhood coherence
+    * lexical reuse coverage
+    * recursive vs width-1 delta
+    * real vs shuffled lift
+
+The main question is NOT:
+    "Does spelling inherently determine meaning?"
+
+It is:
+    "Does a recursively compressed lexical topology contain reusable
+     structure that transfers statistically to independently elicited
+     semantic features better than local lexical fragments or chance
+     alignment?"
+
+No semantic labels are synthesized.
 """
 
 import csv
@@ -53,7 +73,6 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +87,7 @@ TOP_K = 10
 SEED = 9173
 
 MIN_OCCURRENCES = 2
-MAX_LEXICAL_LEVELS = 8
+MAX_LEXICAL_LEVELS = 10
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +115,11 @@ def load_dictionary(path: Path) -> set[str]:
             if word and word.isalpha():
                 words.add(word)
 
+    if len(words) < 1000:
+        raise RuntimeError(
+            f"Dictionary unexpectedly small: {len(words)}"
+        )
+
     return words
 
 
@@ -121,7 +145,7 @@ def load_semantics(
 
         if missing:
             raise RuntimeError(
-                "Missing columns: "
+                "semantics.csv missing columns: "
                 + ", ".join(sorted(missing))
             )
 
@@ -163,7 +187,7 @@ def stable_rank(value: str) -> str:
     ).hexdigest()
 
 
-def split_records(
+def split_anchor_records(
     records: list[ConceptRecord],
 ):
     ordered = sorted(
@@ -191,62 +215,47 @@ def split_records(
 
 
 # ---------------------------------------------------------------------------
-# Lexical width-1 units
+# Lexical representation
 # ---------------------------------------------------------------------------
 
 def width1_units(
     word: str,
 ) -> list[tuple[str, str, str]]:
-    units = []
-
-    for pos, symbol in enumerate(word):
-        left = (
-            word[pos - 1]
-            if pos > 0
-            else "^"
+    return [
+        (
+            word[pos - 1] if pos > 0 else "^",
+            word[pos],
+            word[pos + 1] if pos + 1 < len(word) else "$",
         )
-
-        right = (
-            word[pos + 1]
-            if pos + 1 < len(word)
-            else "$"
-        )
-
-        units.append(
-            (
-                left,
-                symbol,
-                right,
-            )
-        )
-
-    return units
+        for pos in range(len(word))
+    ]
 
 
-# ---------------------------------------------------------------------------
-# Recursive lexical assembly substrate
-# ---------------------------------------------------------------------------
-
-class LexicalAssemblySubstrate:
+class FullLexiconSubstrate:
     """
-    Builds the same width-1 -> recursive compression hierarchy used in the
-    lexical experiments.
+    Learns lexical structure from ALL dictionary words.
 
-    It is independent of the semantic predictor.
+    Level 0:
+        width-1 local units.
+
+    Higher levels:
+        recursively discovered unordered pair assemblies.
+
+    The semantic corpus is completely absent from this stage.
     """
 
     def __init__(self) -> None:
-        self.unit_ids: dict[
-            tuple[str, ...],
+        self.primitive_ids: dict[
+            tuple[str, str, str],
+            int,
+        ] = {}
+
+        self.assembly_ids: dict[
+            frozenset[int],
             int,
         ] = {}
 
         self.unit_level: dict[int, int] = {}
-
-        self.key_to_id: dict[
-            frozenset[int],
-            int,
-        ] = {}
 
         self.next_id = 0
 
@@ -254,9 +263,7 @@ class LexicalAssemblySubstrate:
         self,
         unit: tuple[str, str, str],
     ) -> int:
-        key = tuple(unit)
-
-        existing = self.unit_ids.get(key)
+        existing = self.primitive_ids.get(unit)
 
         if existing is not None:
             return existing
@@ -264,7 +271,7 @@ class LexicalAssemblySubstrate:
         identifier = self.next_id
         self.next_id += 1
 
-        self.unit_ids[key] = identifier
+        self.primitive_ids[unit] = identifier
         self.unit_level[identifier] = 0
 
         return identifier
@@ -282,7 +289,12 @@ class LexicalAssemblySubstrate:
         self,
         streams: list[list[int]],
         level: int,
-    ) -> list[list[int]]:
+    ) -> tuple[list[list[int]], int, int]:
+        """
+        Discover recurring unordered adjacent transitions.
+
+        The entire dictionary contributes evidence.
+        """
         occurrences = Counter()
 
         for stream in streams:
@@ -300,15 +312,19 @@ class LexicalAssemblySubstrate:
             if count >= MIN_OCCURRENCES
         }
 
+        created = 0
+
         for key in recurring:
-            if key in self.key_to_id:
+            if key in self.assembly_ids:
                 continue
 
             identifier = self.next_id
             self.next_id += 1
 
-            self.key_to_id[key] = identifier
+            self.assembly_ids[key] = identifier
             self.unit_level[identifier] = level
+
+            created += 1
 
         next_streams = []
 
@@ -325,12 +341,9 @@ class LexicalAssemblySubstrate:
                         )
                     )
 
-                    assembly = self.key_to_id.get(key)
+                    assembly = self.assembly_ids.get(key)
 
-                    if (
-                        assembly is not None
-                        and key in recurring
-                    ):
+                    if assembly is not None and key in recurring:
                         output.append(assembly)
                         i += 2
                         continue
@@ -340,7 +353,11 @@ class LexicalAssemblySubstrate:
 
             next_streams.append(output)
 
-        return next_streams
+        return (
+            next_streams,
+            created,
+            len(recurring),
+        )
 
     def train(
         self,
@@ -351,69 +368,44 @@ class LexicalAssemblySubstrate:
             for word in words
         ]
 
+        print(
+            "FULL LEXICON LEVEL 0 "
+            f"primitive_units={len(self.primitive_ids)}",
+            flush=True,
+        )
+
         for level in range(
             1,
             MAX_LEXICAL_LEVELS + 1,
         ):
-            before = self.next_id
-
-            streams = self.discover_level(
-                streams,
-                level,
+            streams, created, recurring = (
+                self.discover_level(
+                    streams,
+                    level,
+                )
             )
 
-            created = self.next_id - before
-
             print(
-                f"LEXICAL level={level} "
-                f"new_units={created} "
-                f"stream_units={sum(len(s) for s in streams)}",
+                f"FULL LEXICON level={level:2d} "
+                f"recurring={recurring:6d} "
+                f"new_units={created:6d} "
+                f"stream_units={sum(len(s) for s in streams):7d}",
                 flush=True,
             )
 
             if created == 0:
                 break
 
-    def representation(
-        self,
-        word: str,
-        recursive: bool,
-    ) -> list[int]:
-        if not recursive:
-            return self.base_stream(word)
-
-        streams = [
-            self.base_stream(word)
-        ]
-
-        for level in range(
-            1,
-            MAX_LEXICAL_LEVELS + 1,
-        ):
-            before = self.next_id
-            streams = self.discover_level(
-                streams,
-                level,
-            )
-
-            # IMPORTANT:
-            # At inference time, no new assemblies should be learned.
-            # discover_level above could create them, so the recursive test
-            # below uses a separate frozen compression path instead.
-            del before
-
-        return streams[0]
-
-    def frozen_recursive_representation(
+    def frozen_recursive_units(
         self,
         word: str,
     ) -> list[int]:
+        """
+        Apply the trained lexical hierarchy without creating anything new.
+        """
         stream = self.base_stream(word)
 
-        for level in range(
-            1,
-            MAX_LEXICAL_LEVELS + 1,
-        ):
+        while True:
             output = []
             i = 0
             changed = False
@@ -427,12 +419,10 @@ class LexicalAssemblySubstrate:
                         )
                     )
 
-                    assembly = self.key_to_id.get(key)
+                    assembly = self.assembly_ids.get(key)
 
                     if assembly is not None:
-                        output.append(
-                            assembly
-                        )
+                        output.append(assembly)
                         i += 2
                         changed = True
                         continue
@@ -447,57 +437,35 @@ class LexicalAssemblySubstrate:
 
         return stream
 
-    def known_primitive_units(
-        self,
-        word: str,
-    ) -> tuple[int, int]:
-        units = set(
-            width1_units(word)
-        )
-
-        known = sum(
-            unit in self.unit_ids
-            for unit in units
-        )
-
-        return (
-            known,
-            len(units),
-        )
-
 
 # ---------------------------------------------------------------------------
-# Cross-modal predictors
+# Cross-modal mapping
 # ---------------------------------------------------------------------------
 
-class FormFeatureModel:
+class FormFeatureAssociator:
     """
-    Maps lexical units -> semantic features.
+    Learn lexical-unit -> semantic-feature evidence from semantic anchors.
 
-    Two instances are used:
-        recursive=False : width-1 units only
-        recursive=True  : recursive lexical units
+    The lexical substrate itself was trained on ALL dictionary words.
     """
 
     def __init__(
         self,
-        substrate: LexicalAssemblySubstrate,
+        substrate: FullLexiconSubstrate,
         recursive: bool,
     ) -> None:
         self.substrate = substrate
         self.recursive = recursive
 
-        self.feature_ids: dict[
-            str,
-            int,
-        ] = {}
+        self.feature_ids: dict[str, int] = {}
+        self.feature_by_id: dict[int, str] = {}
 
         self.unit_feature_counts: dict[
             int,
             Counter[int],
         ] = defaultdict(Counter)
 
-        self.unit_document_counts: Counter[int] = Counter()
+        self.unit_anchor_counts: Counter[int] = Counter()
 
     def feature_id(
         self,
@@ -509,9 +477,20 @@ class FormFeatureModel:
             return existing
 
         identifier = len(self.feature_ids)
+
         self.feature_ids[feature] = identifier
+        self.feature_by_id[identifier] = feature
 
         return identifier
+
+    def representation(
+        self,
+        word: str,
+    ) -> list[int]:
+        if self.recursive:
+            return self.substrate.frozen_recursive_units(word)
+
+        return self.substrate.base_stream(word)
 
     def learn(
         self,
@@ -522,18 +501,14 @@ class FormFeatureModel:
             for feature in record.features
         ]
 
-        units = (
-            self.substrate.frozen_recursive_representation(
-                record.concept
-            )
-            if self.recursive
-            else self.substrate.base_stream(
+        units = set(
+            self.representation(
                 record.concept
             )
         )
 
-        for unit_id in set(units):
-            self.unit_document_counts[
+        for unit_id in units:
+            self.unit_anchor_counts[
                 unit_id
             ] += 1
 
@@ -542,27 +517,18 @@ class FormFeatureModel:
                     unit_id
                 ][feature_id] += 1
 
-    def predict(
+    def score(
         self,
         word: str,
-        k: int,
-    ) -> list[str]:
-        units = (
-            self.substrate.frozen_recursive_representation(
-                word
-            )
-            if self.recursive
-            else self.substrate.base_stream(
-                word
-            )
-        )
-
+    ) -> Counter[int]:
         scores = Counter()
 
-        for unit_id in set(units):
-            denominator = max(
+        for unit_id in set(
+            self.representation(word)
+        ):
+            total_anchors = max(
                 1,
-                self.unit_document_counts.get(
+                self.unit_anchor_counts.get(
                     unit_id,
                     0,
                 ),
@@ -575,14 +541,17 @@ class FormFeatureModel:
                 ).items()
             ):
                 scores[feature_id] += (
-                    count / denominator
+                    count / total_anchors
                 )
 
-        reverse = {
-            identifier: feature
-            for feature, identifier
-            in self.feature_ids.items()
-        }
+        return scores
+
+    def predict(
+        self,
+        word: str,
+        k: int,
+    ) -> list[str]:
+        scores = self.score(word)
 
         ranked = sorted(
             scores.items(),
@@ -593,50 +562,32 @@ class FormFeatureModel:
         )
 
         return [
-            reverse[identifier]
-            for identifier, _score
-            in ranked[:k]
+            self.feature_by_id[feature_id]
+            for feature_id, _score in ranked[:k]
         ]
 
-    def lexical_reuse_rate(
+    def representation_coverage(
         self,
         word: str,
     ) -> float:
-        if self.recursive:
-            units = set(
-                self.substrate.frozen_recursive_representation(
-                    word
-                )
-            )
+        units = set(
+            self.representation(word)
+        )
 
-            known = sum(
-                unit_id
-                in self.unit_document_counts
-                for unit_id in units
-            )
-        else:
-            primitive_units = set(
-                width1_units(word)
-            )
-
-            known = sum(
-                unit in self.substrate.unit_ids
-                for unit in primitive_units
-            )
-
-            units = primitive_units
+        known = sum(
+            unit_id
+            in self.unit_anchor_counts
+            for unit_id in units
+        )
 
         return (
             known
-            / max(
-                1,
-                len(units),
-            )
+            / max(1, len(units))
         )
 
 
 # ---------------------------------------------------------------------------
-# Metrics
+# Evaluation
 # ---------------------------------------------------------------------------
 
 def prf(
@@ -667,15 +618,12 @@ def prf(
 
     f1 = (
         0.0
-        if precision + recall == 0.0
+        if precision + recall == 0
         else (
-            2.0
+            2
             * precision
             * recall
-            / (
-                precision
-                + recall
-            )
+            / (precision + recall)
         )
     )
 
@@ -683,14 +631,14 @@ def prf(
 
 
 def evaluate(
-    model: FormFeatureModel,
+    model: FormFeatureAssociator,
     records: list[ConceptRecord],
     label: str,
 ) -> dict[str, float]:
-    precision = []
-    recall = []
-    f1 = []
-    reuse = []
+    p_values = []
+    r_values = []
+    f1_values = []
+    coverage = []
 
     for record in records:
         predicted = model.predict(
@@ -698,34 +646,39 @@ def evaluate(
             TOP_K,
         )
 
-        p, r, score = prf(
+        p, r, f1 = prf(
             predicted,
             record.features,
         )
 
-        precision.append(p)
-        recall.append(r)
-        f1.append(score)
-        reuse.append(
-            model.lexical_reuse_rate(
+        p_values.append(p)
+        r_values.append(r)
+        f1_values.append(f1)
+        coverage.append(
+            model.representation_coverage(
                 record.concept
             )
         )
 
     result = {
-        "precision_at_k": sum(precision) / max(1, len(precision)),
-        "recall_at_k": sum(recall) / max(1, len(recall)),
-        "f1_at_k": sum(f1) / max(1, len(f1)),
-        "lexical_reuse": sum(reuse) / max(1, len(reuse)),
+        "concepts": float(len(records)),
+        "precision_at_k": sum(p_values)
+        / max(1, len(p_values)),
+        "recall_at_k": sum(r_values)
+        / max(1, len(r_values)),
+        "f1_at_k": sum(f1_values)
+        / max(1, len(f1_values)),
+        "representation_coverage": sum(coverage)
+        / max(1, len(coverage)),
     }
 
     print(
-        f"=== V92 {label} ==="
+        f"=== V93 {label} ==="
     )
 
     for key, value in result.items():
         print(
-            f"{key:20s}: {value}"
+            f"{key:28s}: {value}"
         )
 
     print()
@@ -733,7 +686,7 @@ def evaluate(
     return result
 
 
-def shuffled_records(
+def shuffled_training(
     records: list[ConceptRecord],
     seed: int,
 ) -> list[ConceptRecord]:
@@ -749,10 +702,10 @@ def shuffled_records(
     return [
         ConceptRecord(
             concept=record.concept,
-            features=set(features),
+            features=set(feature_set),
             categories=set(record.categories),
         )
-        for record, features in zip(
+        for record, feature_set in zip(
             records,
             feature_sets,
         )
@@ -767,13 +720,13 @@ def main() -> None:
     start = time.perf_counter()
 
     print(
-        "=== V92 FULL MATCHED-CONCEPT FORM -> SEMANTICS ==="
+        "=== V93 FULL LEXICON SEMANTIC ANCHOR TRANSFER ==="
     )
     print(
-        "Compare width-1 lexical units vs recursively discovered lexical units."
+        "Full dictionary builds lexical structure."
     )
     print(
-        "ASCII-safe output for Windows consoles."
+        "Semantic concepts supply independent feature anchors."
     )
     print()
 
@@ -791,112 +744,125 @@ def main() -> None:
         if record.concept in dictionary
     ]
 
-    if len(matched) < 30:
-        raise RuntimeError(
-            f"Too few exact matches: {len(matched)}"
+    train, validation, test = (
+        split_anchor_records(
+            matched
         )
-
-    train, validation, test = split_records(
-        matched
     )
 
     print(
-        "dictionary_words :",
+        "dictionary_words      :",
         len(dictionary),
     )
     print(
-        "semantic_concepts:",
+        "semantic_concepts     :",
         len(semantics),
     )
     print(
-        "matched_concepts :",
+        "exact_anchor_matches  :",
         len(matched),
     )
     print(
-        "train            :",
+        "unmatched_semantics   :",
+        len(semantics) - len(matched),
+    )
+    print(
+        "train_anchors         :",
         len(train),
     )
     print(
-        "validation       :",
+        "validation_anchors    :",
         len(validation),
     )
     print(
-        "test             :",
+        "test_anchors          :",
         len(test),
     )
     print()
 
     # ---------------------------------------------------------------
-    # Build lexical substrate on TRAIN only.
+    # BIG LEAP:
+    # Build lexical substrate from ALL dictionary words.
     # ---------------------------------------------------------------
 
-    substrate = LexicalAssemblySubstrate()
+    substrate = FullLexiconSubstrate()
 
-    train_words = [
-        record.concept
-        for record in train
-    ]
+    all_words = sorted(
+        dictionary,
+        key=lambda word: (
+            stable_rank(word),
+            word,
+        ),
+    )
 
     substrate.train(
-        train_words
+        all_words
     )
 
     print()
     print(
-        "=== LEXICAL SUBSTRATE ==="
+        "=== FULL LEXICAL SUBSTRATE ==="
     )
     print(
-        "primitive_units:",
-        sum(
-            level == 0
-            for level
-            in substrate.unit_level.values()
-        ),
+        "dictionary_words :",
+        len(all_words),
     )
     print(
-        "all_units:",
+        "primitive_units  :",
+        len(substrate.primitive_ids),
+    )
+    print(
+        "all_units        :",
         substrate.next_id,
     )
     print()
 
     # ---------------------------------------------------------------
-    # Baseline: width-1 units.
+    # Train width-1 and recursive cross-modal associators on TRAIN anchors.
     # ---------------------------------------------------------------
 
-    baseline = FormFeatureModel(
+    width1 = FormFeatureAssociator(
         substrate,
         recursive=False,
     )
 
-    for record in train:
-        baseline.learn(record)
-
-    # ---------------------------------------------------------------
-    # Recursive lexical model.
-    # ---------------------------------------------------------------
-
-    recursive = FormFeatureModel(
+    recursive = FormFeatureAssociator(
         substrate,
         recursive=True,
     )
 
     for record in train:
+        width1.learn(record)
         recursive.learn(record)
 
+    print(
+        "semantic_train_anchors:",
+        len(train),
+    )
+    print(
+        "width1_feature_vocab  :",
+        len(width1.feature_ids),
+    )
+    print(
+        "recursive_feature_vocab:",
+        len(recursive.feature_ids),
+    )
+    print()
+
     # ---------------------------------------------------------------
-    # REAL alignment, held-out.
+    # REAL TEST
     # ---------------------------------------------------------------
 
-    baseline_validation = evaluate(
-        baseline,
+    width1_validation = evaluate(
+        width1,
         validation,
-        "WIDTH-1 VALIDATION",
+        "WIDTH1 VALIDATION",
     )
 
-    baseline_test = evaluate(
-        baseline,
+    width1_test = evaluate(
+        width1,
         test,
-        "WIDTH-1 TEST",
+        "WIDTH1 TEST",
     )
 
     recursive_validation = evaluate(
@@ -912,34 +878,34 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------------
-    # ONE shuffled control for recursive model.
+    # SHUFFLED CONTROL
     # ---------------------------------------------------------------
 
-    shuffled = shuffled_records(
+    shuffled_records = shuffled_training(
         train,
         SEED,
     )
 
-    shuffled_model = FormFeatureModel(
+    shuffled = FormFeatureAssociator(
         substrate,
         recursive=True,
     )
 
-    for record in shuffled:
-        shuffled_model.learn(record)
+    for record in shuffled_records:
+        shuffled.learn(record)
 
     shuffled_test = evaluate(
-        shuffled_model,
+        shuffled,
         test,
         "RECURSIVE SHUFFLED TEST",
     )
 
     # ---------------------------------------------------------------
-    # Comparison.
+    # BIG COMPARISON
     # ---------------------------------------------------------------
 
     print(
-        "=== V92 CROSS-MODAL COMPARISON ==="
+        "=== V93 CROSS-MODAL COMPARISON ==="
     )
 
     for metric in (
@@ -947,44 +913,49 @@ def main() -> None:
         "recall_at_k",
         "f1_at_k",
     ):
-        b = baseline_test[metric]
+        w = width1_test[metric]
         r = recursive_test[metric]
         s = shuffled_test[metric]
 
         print(
-            f"{metric:18s} "
-            f"width1={b:.6f} "
+            f"{metric:20s} "
+            f"width1={w:.6f} "
             f"recursive={r:.6f} "
             f"shuffled={s:.6f} "
-            f"recursive_delta={r - b:+.6f} "
-            f"recursive_lift={r / max(1e-9, s):.3f}x"
+            f"rec-vs-width={r - w:+.6f} "
+            f"rec-vs-shuffle={r - s:+.6f} "
+            f"lift={r / max(1e-9, s):.3f}x"
         )
 
+    print()
     print(
-        "width1_lexical_reuse:",
-        baseline_test[
-            "lexical_reuse"
+        "width1_representation_coverage:",
+        width1_test[
+            "representation_coverage"
         ],
     )
-
     print(
-        "recursive_lexical_reuse:",
+        "recursive_representation_coverage:",
         recursive_test[
-            "lexical_reuse"
+            "representation_coverage"
         ],
     )
 
     print()
     print(
-        "=== V92 INTERPRETATION ==="
+        "=== V93 INTERPRETATION ==="
     )
     print(
-        "recursive > width1 means higher-order lexical structure "
-        "adds form->feature information beyond isolated local units."
+        "The lexical graph was trained on ALL dictionary words, "
+        "not merely semantic matches."
     )
     print(
-        "recursive > shuffled means the effect is above a "
-        "word/feature marginal control."
+        "Real recursive > shuffled supports reusable form->feature "
+        "information beyond random word/feature alignment."
+    )
+    print(
+        "Recursive > width1 indicates higher-order lexical structure "
+        "adds information beyond isolated local units."
     )
 
     print()
@@ -992,9 +963,8 @@ def main() -> None:
         "elapsed_seconds:",
         f"{time.perf_counter() - start:.2f}",
     )
-
     print(
-        "=== V92 COMPLETE ==="
+        "=== V93 COMPLETE ==="
     )
 
 
