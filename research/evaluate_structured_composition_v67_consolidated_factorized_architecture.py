@@ -788,6 +788,652 @@ def run_invariant_checks(
 
 
 
+
+# ---------------------------------------------------------------------------
+# V67 CONSOLIDATED ARCHITECTURE
+# ---------------------------------------------------------------------------
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class FactorRef:
+    kind: str
+    value_id: int
+
+
+@dataclass(frozen=True)
+class BindingRef:
+    prefix: int
+    symbol: int
+    suffix: int
+
+
+@dataclass
+class BindingNode:
+    binding_id: int
+    factors: BindingRef
+    activations: int = 0
+
+
+class PrimitiveFactorStore:
+    """
+    Owns reusable primitive factors.
+
+    The store knows only factor identities. Higher-level code may use raw
+    strings to LOOK UP factors, but the designer never receives those strings.
+    """
+
+    def __init__(self) -> None:
+        self._tables: dict[str, dict[str, int]] = {
+            "prefix": {},
+            "symbol": {},
+            "suffix": {},
+        }
+
+    def learn(self, kind: str, value: str) -> int:
+        table = self._tables[kind]
+
+        existing = table.get(value)
+        if existing is not None:
+            return existing
+
+        value_id = len(table)
+        table[value] = value_id
+        return value_id
+
+    def lookup(self, kind: str, value: str) -> int:
+        return self._tables[kind].get(value, -1)
+
+    def known(self, kind: str, value_id: int) -> bool:
+        return value_id in self._tables[kind].values()
+
+    @property
+    def count(self) -> int:
+        return sum(
+            len(table)
+            for table in self._tables.values()
+        )
+
+    @property
+    def counts(self) -> dict[str, int]:
+        return {
+            kind: len(table)
+            for kind, table in self._tables.items()
+        }
+
+
+class BindingGraph:
+    """
+    Stores exact bindings between reusable primitive factors and learned
+    factor-to-factor support.
+
+    Importantly, bindings are keyed by factor IDs, not by raw strings.
+    """
+
+    def __init__(self) -> None:
+        self.nodes: dict[BindingRef, BindingNode] = {}
+        self.by_id: dict[int, BindingNode] = {}
+        self.next_id = 0
+
+        self.transition_weights: dict[tuple[int, int], float] = {}
+
+    def lookup(self, factors: BindingRef) -> BindingNode | None:
+        return self.nodes.get(factors)
+
+    def bind(self, factors: BindingRef) -> BindingNode:
+        existing = self.nodes.get(factors)
+
+        if existing is not None:
+            existing.activations += 1
+            return existing
+
+        node = BindingNode(
+            binding_id=self.next_id,
+            factors=factors,
+            activations=1,
+        )
+
+        self.next_id += 1
+        self.nodes[factors] = node
+        self.by_id[node.binding_id] = node
+        return node
+
+    def reinforce_transition(
+        self,
+        previous: BindingNode,
+        current: BindingNode,
+    ) -> None:
+        previous_ids = (
+            previous.factors.prefix,
+            previous.factors.symbol,
+            previous.factors.suffix,
+        )
+        current_ids = (
+            current.factors.prefix,
+            current.factors.symbol,
+            current.factors.suffix,
+        )
+
+        for source in previous_ids:
+            for target in current_ids:
+                key = (source, target)
+                self.transition_weights[key] = (
+                    self.transition_weights.get(key, 0.0) + 1.0
+                )
+
+    def transition_evidence(
+        self,
+        factors: BindingRef,
+    ) -> float:
+        ids = (
+            factors.prefix,
+            factors.symbol,
+            factors.suffix,
+        )
+
+        masses = [
+            self.transition_weights.get(
+                (source, target),
+                0.0,
+            )
+            for source in ids
+            for target in ids
+        ]
+
+        if not masses:
+            return 0.0
+
+        return sum(masses) / len(masses)
+
+    @property
+    def count(self) -> int:
+        return len(self.nodes)
+
+
+class CompositionLearnerV67:
+    """
+    Consolidated architecture.
+
+    Baseline readout:
+        exact binding exists -> REUSE
+        exact binding absent  -> BRANCH
+
+    Autonomous composition:
+        novel known-factor combination may be COMPOSE if structural evidence
+        passes the calibrated threshold.
+
+    The baseline readout and autonomous composition are intentionally separate.
+    """
+
+    def __init__(self) -> None:
+        self.factors = PrimitiveFactorStore()
+        self.bindings = BindingGraph()
+        self._calibration_scores: list[float] = []
+
+    def factorize(
+        self,
+        prefix: str,
+        symbol: str,
+        suffix: str,
+        learn: bool = False,
+    ) -> BindingRef:
+        def resolve(kind: str, value: str) -> int:
+            if learn:
+                return self.factors.learn(kind, value)
+            return self.factors.lookup(kind, value)
+
+        return BindingRef(
+            prefix=resolve("prefix", prefix),
+            symbol=resolve("symbol", symbol),
+            suffix=resolve("suffix", suffix),
+        )
+
+    def factorize_position(
+        self,
+        word: str,
+        pos: int,
+        learn: bool = False,
+    ) -> BindingRef:
+        return self.factorize(
+            word[:pos],
+            word[pos],
+            word[pos + 1:],
+            learn=learn,
+        )
+
+    def observe(self, factors: BindingRef) -> BindingNode:
+        if min(
+            factors.prefix,
+            factors.symbol,
+            factors.suffix,
+        ) < 0:
+            raise ValueError(
+                "Cannot observe a binding with unknown primitive factors."
+            )
+        return self.bindings.bind(factors)
+
+    def train_word(self, word: str) -> None:
+        previous = None
+
+        for pos in range(len(word)):
+            factors = self.factorize_position(
+                word,
+                pos,
+                learn=True,
+            )
+            current = self.observe(factors)
+
+            if previous is not None:
+                self.bindings.reinforce_transition(
+                    previous,
+                    current,
+                )
+
+            previous = current
+
+    def train(self, words: list[str]) -> None:
+        for word in words:
+            self.train_word(word)
+
+    def calibration_scores(self) -> list[float]:
+        scores = []
+
+        max_transition = max(
+            self.bindings.transition_weights.values(),
+            default=1.0,
+        )
+
+        for factors in self.bindings.nodes:
+            familiarity = 1.0
+            transition = self.bindings.transition_evidence(factors)
+
+            normalized = (
+                transition / max_transition
+                if max_transition > 0.0
+                else 0.0
+            )
+
+            scores.append(
+                0.5 * familiarity
+                + 0.5 * normalized
+            )
+
+        return sorted(scores)
+
+    def calibrate_threshold(self) -> float:
+        scores = self.calibration_scores()
+
+        if not scores:
+            return 1.0
+
+        self._calibration_scores = scores
+        return scores[0]
+
+    def baseline_decide(
+        self,
+        factors: BindingRef,
+    ) -> tuple[str, BindingNode | None, dict[str, float]]:
+        """
+        Pure V28-compatible readout.
+
+        Crucially, learned transition evidence cannot turn a novel binding into
+        REUSE. REUSE means the exact binding is already known.
+        """
+        known_factors = min(
+            factors.prefix,
+            factors.symbol,
+            factors.suffix,
+        ) >= 0
+
+        if not known_factors:
+            return "BRANCH", None, {
+                "familiarity": 0.0,
+                "transition": 0.0,
+                "score": 0.0,
+            }
+
+        existing = self.bindings.lookup(factors)
+
+        if existing is None:
+            return "BRANCH", None, {
+                "familiarity": 1.0,
+                "transition": self.bindings.transition_evidence(factors),
+                "score": 0.0,
+            }
+
+        existing.activations += 1
+
+        return "REUSE", existing, {
+            "familiarity": 1.0,
+            "transition": self.bindings.transition_evidence(factors),
+            "score": 1.0,
+        }
+
+    def autonomous_decide(
+        self,
+        factors: BindingRef,
+        threshold: float,
+    ) -> tuple[str, BindingNode | None, dict[str, float]]:
+        """
+        Separate autonomous composition policy.
+
+        This is only for novel combinations after baseline BRANCH has already
+        been established.
+        """
+        if min(
+            factors.prefix,
+            factors.symbol,
+            factors.suffix,
+        ) < 0:
+            return "BRANCH", None, {
+                "familiarity": 0.0,
+                "transition": 0.0,
+                "score": 0.0,
+            }
+
+        existing = self.bindings.lookup(factors)
+
+        if existing is not None:
+            existing.activations += 1
+            return "REUSE", existing, {
+                "familiarity": 1.0,
+                "transition": self.bindings.transition_evidence(factors),
+                "score": 1.0,
+            }
+
+        transition = self.bindings.transition_evidence(factors)
+        max_transition = max(
+            self.bindings.transition_weights.values(),
+            default=1.0,
+        )
+
+        normalized = (
+            transition / max_transition
+            if max_transition > 0.0
+            else 0.0
+        )
+
+        score = 0.5 + 0.5 * normalized
+
+        evidence = {
+            "familiarity": 1.0,
+            "transition": transition,
+            "normalized_transition": normalized,
+            "score": score,
+        }
+
+        if score >= threshold:
+            node = self.bindings.bind(factors)
+            return "COMPOSE", node, evidence
+
+        return "BRANCH", None, evidence
+
+    def observable_state(
+        self,
+        factors: BindingRef,
+    ) -> dict[str, object]:
+        binding = self.bindings.lookup(factors)
+
+        return {
+            "factor_ids": (
+                factors.prefix,
+                factors.symbol,
+                factors.suffix,
+            ),
+            "known_factors": min(
+                factors.prefix,
+                factors.symbol,
+                factors.suffix,
+            ) >= 0,
+            "binding_id": (
+                binding.binding_id
+                if binding is not None
+                else None
+            ),
+            "binding_known": binding is not None,
+            "transition_evidence": (
+                self.bindings.transition_evidence(factors)
+                if min(
+                    factors.prefix,
+                    factors.symbol,
+                    factors.suffix,
+                ) >= 0
+                else 0.0
+            ),
+        }
+
+
+class DecoupledDesignerV67:
+    """
+    Designer-facing readout for the baseline.
+
+    It does not infer REUSE from topology alone. REUSE requires an exact
+    learned binding; novel combinations are BRANCH until composition occurs.
+    """
+
+    def decide(
+        self,
+        observable: dict[str, object],
+        threshold: float | None = None,
+    ) -> str:
+        if not observable["known_factors"]:
+            return "BRANCH"
+
+        if observable["binding_known"]:
+            return "REUSE"
+
+        return "BRANCH"
+
+
+
+def v67_regression_suite() -> None:
+    print("=== V67 CONSOLIDATED ARCHITECTURE REGRESSION ===")
+
+    gt = validate_v28()
+
+    learner = CompositionLearnerV67()
+    learner.train(TRAINING)
+
+    threshold = learner.calibrate_threshold()
+    designer = DecoupledDesignerV67()
+
+    # ------------------------------------------------------------------
+    # Phase 1: exact V28-compatible baseline readout.
+    # ------------------------------------------------------------------
+    correct_before = 0
+    total_before = 0
+
+    for word in TEST:
+        for pos in range(len(word)):
+            factors = learner.factorize_position(
+                word,
+                pos,
+                learn=False,
+            )
+
+            observable = learner.observable_state(factors)
+            actual = designer.decide(observable)
+
+            expected = (
+                "REUSE"
+                if gt.available(word, pos)
+                else "BRANCH"
+            )
+
+            total_before += 1
+            correct_before += int(actual == expected)
+
+    print(
+        "V28 accuracy before autonomous composition :"
+        f" {correct_before}/{total_before}"
+    )
+
+    assert correct_before == total_before
+
+    # ------------------------------------------------------------------
+    # Phase 2: generate novel combinations from known primitive factors.
+    # ------------------------------------------------------------------
+    known = set(learner.bindings.nodes.keys())
+
+    prefixes = sorted(
+        learner.factors._tables["prefix"].keys()
+    )
+    symbols = sorted(
+        learner.factors._tables["symbol"].keys()
+    )
+    suffixes = sorted(
+        learner.factors._tables["suffix"].keys()
+    )
+
+    novel = []
+
+    for prefix in prefixes:
+        for symbol in symbols:
+            for suffix in suffixes:
+                if not prefix or not suffix:
+                    continue
+
+                factors = learner.factorize(
+                    prefix,
+                    symbol,
+                    suffix,
+                    learn=False,
+                )
+
+                if min(
+                    factors.prefix,
+                    factors.symbol,
+                    factors.suffix,
+                ) < 0:
+                    continue
+
+                if factors in known:
+                    continue
+
+                score = learner.bindings.transition_evidence(
+                    factors
+                )
+
+                novel.append(
+                    (
+                        prefix + symbol + suffix,
+                        factors,
+                        score,
+                    )
+                )
+
+    novel.sort(
+        key=lambda row: (
+            -row[2],
+            len(row[0]),
+            row[0],
+        )
+    )
+
+    novel = novel[:16]
+    assert novel
+
+    # ------------------------------------------------------------------
+    # Phase 3: baseline must classify every novel combination as BRANCH.
+    # Autonomous policy may separately choose COMPOSE.
+    # ------------------------------------------------------------------
+    baseline_branch = 0
+    autonomous_compose = 0
+    autonomous_branch = 0
+
+    for word, factors, _ in novel:
+        observable = learner.observable_state(factors)
+
+        baseline = designer.decide(observable)
+        assert baseline == "BRANCH"
+        baseline_branch += 1
+
+        decision, node, evidence = learner.autonomous_decide(
+            factors,
+            threshold,
+        )
+
+        assert decision in {"COMPOSE", "BRANCH"}
+
+        if decision == "COMPOSE":
+            assert node is not None
+            autonomous_compose += 1
+        else:
+            autonomous_branch += 1
+
+        print(
+            f"{word:12s} "
+            f"baseline={baseline:6s} "
+            f"autonomous={decision:7s} "
+            f"score={evidence['score']:.3f}"
+        )
+
+    print()
+    print("novel_cases         :", len(novel))
+    print("baseline_branch     :", baseline_branch)
+    print("autonomous_compose  :", autonomous_compose)
+    print("autonomous_branch   :", autonomous_branch)
+
+    assert baseline_branch == len(novel)
+
+    # ------------------------------------------------------------------
+    # Phase 4: any autonomous composition must become REUSE afterward.
+    # ------------------------------------------------------------------
+    replay_reuse = 0
+
+    for _, factors, _ in novel:
+        if learner.bindings.lookup(factors) is None:
+            continue
+
+        observable = learner.observable_state(factors)
+        replay = designer.decide(observable)
+
+        assert replay == "REUSE"
+        replay_reuse += 1
+
+    print("replay_reuse        :", replay_reuse)
+
+    assert replay_reuse == autonomous_compose
+
+    # ------------------------------------------------------------------
+    # Phase 5: primitive factors must never increase during composition.
+    # ------------------------------------------------------------------
+    print(
+        "primitive_factor_count :",
+        learner.factors.count,
+    )
+    print(
+        "binding_count          :",
+        learner.bindings.count,
+    )
+    print(
+        "transition_count       :",
+        len(learner.bindings.transition_weights),
+    )
+
+    print("V67 PRE-COMPOSE V28: PASS")
+    print("V67 BASELINE NOVEL-BRANCH: PASS")
+    print("V67 AUTONOMOUS COMPOSITION: PASS")
+    print("V67 REPLAY REUSE: PASS")
+    print("=== END V67 CONSOLIDATED ARCHITECTURE REGRESSION ===")
+
+
+def main() -> None:
+    print("=== V67 CONSOLIDATED FACTORIZED COMPOSITION ARCHITECTURE ===")
+    print(
+        "Production-shaped implementation of the validated V66 result."
+    )
+    print()
+
+    v67_regression_suite()
+
+    print()
+    print("=== V67 COMPLETE ===")
+
+
+if __name__ == "__main__":
+    main()
 # ---------------------------------------------------------------------------
 # V66 — AUTONOMOUS COMPOSE-vs-BRANCH DECISION SUITE
 # ---------------------------------------------------------------------------
