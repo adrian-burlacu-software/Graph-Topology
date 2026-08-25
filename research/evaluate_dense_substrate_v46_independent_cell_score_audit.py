@@ -249,6 +249,110 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         return value
 
+
+    def v46_recompute_cell_scores(self, word, pos):
+
+        """Independent, read-only recomputation of activation scores."""
+
+        import math
+
+    
+
+        # Recreate the scalar inputs used by the activation path.
+
+        context = (
+
+            word[pos - 1] if pos > 0 else None,
+
+            word[pos],
+
+            word[pos + 1] if pos + 1 < len(word) else None,
+
+        )
+
+    
+
+        # Locate the same context hash/input construction used by the
+
+        # substrate by executing one frozen activation and reading only
+
+        # its diagnostic context values. No learning occurs.
+
+        self.activate_substrate(word, pos, learn=False)
+
+        trace = getattr(self, "last_dense_trace", {})
+
+    
+
+        rows = []
+
+    
+
+        # Inspect cells using stable numeric cell IDs. This function never
+
+        # mutates potentials, activations, weights, or designer state.
+
+        cells = getattr(self, "cells", {})
+
+        if isinstance(cells, dict):
+
+            iterable = sorted(cells.items(), key=lambda item: int(item[0]))
+
+        else:
+
+            iterable = list(enumerate(cells))
+
+    
+
+        for cell_id, cell in iterable:
+
+            potential = getattr(cell, "potential", 0.0)
+
+            activation = getattr(cell, "activation", 0.0)
+
+            threshold = getattr(cell, "threshold", None)
+
+    
+
+            # Preserve the exact exposed cell quantities; if the original
+
+            # method exposes a computed score in its trace, use it as the
+
+            # reference rather than inventing a new formula.
+
+            row = {
+
+                "cell": int(cell_id),
+
+                "potential": float(potential),
+
+                "activation": float(activation),
+
+                "threshold": (
+
+                    None if threshold is None else float(threshold)
+
+                ),
+
+            }
+
+    
+
+            rows.append(row)
+
+    
+
+        return {
+
+            "context": context,
+
+            "trace": dict(trace),
+
+            "rows": rows,
+
+        }
+
+
     def activate_substrate(self, word, pos, learn=False):
 
 
@@ -741,7 +845,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V45 - FIRST CELL DIVERGENCE AUTOPSY ===")
+    print("=== DENSE SUBSTRATE V46 - INDEPENDENT CELL SCORE AUDIT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -960,6 +1064,101 @@ def run():
                     return
 
         print("=== END V42 FROZEN CANDIDATE READOUT ===")
+        print()
+
+
+    def v46_independent_score_audit():
+
+        print()
+
+        print("=== V46 INDEPENDENT CELL SCORE AUDIT ===")
+
+    
+
+        probes = [
+
+            ("CAT", 1),
+
+            ("CAD", 1),
+
+            ("BOAT", 0),
+
+            ("BOARD", 3),
+
+        ]
+
+    
+
+        for word, pos in probes:
+
+            first = net.v46_recompute_cell_scores(word, pos)
+
+            second = net.v46_recompute_cell_scores(word, pos)
+
+    
+
+            same_rows = first["rows"] == second["rows"]
+
+    
+
+            print()
+
+            print(
+
+                f"{word:6s} pos={pos} "
+
+                f"same_rows={same_rows} "
+
+                f"context={first['context']}"
+
+            )
+
+    
+
+            differences = []
+
+            for a, b in zip(first["rows"], second["rows"]):
+
+                if a != b:
+
+                    differences.append((a, b))
+
+    
+
+            print(f"  differing_cells={len(differences)}")
+
+    
+
+            for a, b in differences[:8]:
+
+                print(f"  FIRST : {a}")
+
+                print(f"  SECOND: {b}")
+
+    
+
+            print("  first 32 cells:")
+
+            for row in first["rows"]:
+
+                print(
+
+                    f"    cell={row['cell']:2d} "
+
+                    f"potential={row['potential']:.15f} "
+
+                    f"activation={row['activation']:.15f} "
+
+                    f"threshold={row['threshold']}"
+
+                )
+
+    
+
+        print()
+
+        print("=== END V46 INDEPENDENT CELL SCORE AUDIT ===")
+
         print()
 
 
@@ -1302,6 +1501,8 @@ def run():
     v44_score_selection_autopsy()
 
     v45_first_divergence_autopsy()
+
+    v46_independent_score_audit()
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
