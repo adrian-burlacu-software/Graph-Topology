@@ -280,27 +280,20 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V40: learned assembly coherence / closure.
+        # V41: pure learned-topology competition.
         #
-        # V39 showed that the learned topology is not a forward transition
-        # model. Stop treating it as one.
+        # The designer receives only the current dense activity and the
+        # learned substrate connectivity. There is NO external assembly
+        # library, symbol memory, transition memory, BoundaryGraph query,
+        # or ground-truth lookup.
         #
-        # Instead, ask whether the CURRENT active population forms a coherent
-        # learned structure:
+        # The hypothesis is that V13's strong result came from competition
+        # among learned pathways. We therefore measure how concentrated and
+        # internally supported the currently active cells' learned outgoing
+        # connectivity is, and how much of that connectivity is supported by
+        # multiple active sources.
         #
-        #   active cells
-        #       |
-        #       +--> strong learned edges staying inside assembly
-        #       |
-        #       +--> strong learned edges leaving assembly
-        #
-        # Diagnostics:
-        #   internal_edge_fraction
-        #   internal_weight_fraction
-        #   assembly_coherence
-        #   outgoing_entropy
-        #
-        # No prototypes, no temporal prediction, no ground truth.
+        # This is a structural signal generated entirely by the substrate.
 
         outgoing = []
 
@@ -308,74 +301,98 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             if src in fired_set and weight >= 0.50:
                 outgoing.append((src, dst, weight))
 
-        internal = [
-            (src, dst, weight)
-            for src, dst, weight in outgoing
-            if dst in fired_set
-        ]
-
-        external = [
-            (src, dst, weight)
-            for src, dst, weight in outgoing
-            if dst not in fired_set
-        ]
-
-        edge_count = len(outgoing)
-        internal_edge_count = len(internal)
-
         total_weight = sum(weight for _, _, weight in outgoing)
-        internal_weight = sum(weight for _, _, weight in internal)
 
-        internal_edge_fraction = (
-            internal_edge_count / edge_count
-            if edge_count else 0.0
+        # Destination support: how many distinct active source cells agree on
+        # each destination. A pathway supported by several active sources is
+        # stronger evidence than isolated outgoing edges.
+        destination_sources = {}
+
+        for src, dst, weight in outgoing:
+            destination_sources.setdefault(dst, set()).add(src)
+
+        supported_destinations = {
+            dst: len(sources)
+            for dst, sources in destination_sources.items()
+        }
+
+        if fired_set:
+            max_source_support = max(1, len(fired_set))
+        else:
+            max_source_support = 1
+
+        # Aggregate destination support weighted by learned edge strength.
+        support_mass = 0.0
+
+        for src, dst, weight in outgoing:
+            support = (
+                len(destination_sources[dst])
+                / max_source_support
+            )
+            support_mass += weight * support
+
+        support_fraction = (
+            support_mass / total_weight
+            if total_weight > 0.0
+            else 0.0
         )
 
-        internal_weight_fraction = (
-            internal_weight / total_weight
-            if total_weight else 0.0
-        )
-
-        # Coherence is deliberately conservative: both topology count and
-        # topology weight must agree.
-        assembly_coherence = (
-            0.5 * internal_edge_fraction
-            + 0.5 * internal_weight_fraction
-        )
-
-        # Measure how concentrated learned outgoing weight is across
-        # destinations. High entropy means diffuse/external connectivity;
-        # low entropy means concentrated connectivity.
+        # Concentration: how much outgoing learned mass is carried by the
+        # strongest destination. This is topology-only and does not require
+        # knowing what the destination represents.
         destination_mass = {}
 
-        for _, dst, weight in outgoing:
+        for src, dst, weight in outgoing:
             destination_mass[dst] = (
                 destination_mass.get(dst, 0.0)
                 + weight
             )
 
-        outgoing_entropy = 0.0
-
-        if destination_mass and total_weight > 0.0:
-            import math
-
-            for mass in destination_mass.values():
-                p = mass / total_weight
-                if p > 0.0:
-                    outgoing_entropy -= p * math.log(p)
-
-        # Normalize entropy by the number of destinations when possible.
-        if len(destination_mass) > 1:
-            import math
-
-            max_entropy = math.log(len(destination_mass))
-            normalized_entropy = (
-                outgoing_entropy / max_entropy
-                if max_entropy > 0.0
-                else 0.0
+        if destination_mass:
+            strongest_destination_mass = max(
+                destination_mass.values()
             )
         else:
-            normalized_entropy = 0.0
+            strongest_destination_mass = 0.0
+
+        concentration = (
+            strongest_destination_mass / total_weight
+            if total_weight > 0.0
+            else 0.0
+        )
+
+        # Competition: compare the strongest destination with the remaining
+        # outgoing mass. A dominant learned route has a positive margin;
+        # diffuse connectivity has little or no margin.
+        sorted_destination_mass = sorted(
+            destination_mass.values(),
+            reverse=True,
+        )
+
+        strongest = (
+            sorted_destination_mass[0]
+            if sorted_destination_mass
+            else 0.0
+        )
+        second = (
+            sorted_destination_mass[1]
+            if len(sorted_destination_mass) > 1
+            else 0.0
+        )
+
+        competition_margin = (
+            (strongest - second) / total_weight
+            if total_weight > 0.0
+            else 0.0
+        )
+
+        # A topology-only reuse signal. Keep this deliberately simple and
+        # interpretable rather than tuning it to the benchmark.
+        topology_evidence = (
+            0.4 * concentration
+            + 0.4 * support_fraction
+            + 0.2 * competition_margin
+        )
 
         self.last_dense_trace = {
             "word": word,
@@ -383,25 +400,25 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
             "learned_mass": total_weight,
-            "strong_outgoing": edge_count,
-            "internal_edge_count": internal_edge_count,
-            "external_edge_count": len(external),
-            "internal_weight": internal_weight,
-            "external_weight": (
-                total_weight - internal_weight
-            ),
-            "internal_edge_fraction": internal_edge_fraction,
-            "internal_weight_fraction": internal_weight_fraction,
-            "assembly_coherence": assembly_coherence,
-            "outgoing_entropy": outgoing_entropy,
-            "normalized_outgoing_entropy": normalized_entropy,
+            "strong_outgoing": len(outgoing),
             "destination_count": len(destination_mass),
+            "strongest_destination_mass": strongest_destination_mass,
+            "concentration": concentration,
+            "support_fraction": support_fraction,
+            "competition_margin": competition_margin,
+            "topology_evidence": topology_evidence,
+            "supported_destinations": sorted(
+                supported_destinations.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )[:8],
         }
 
-        # V40 is diagnostic-first. Do not turn coherence into a classifier
-        # until the metric is shown to separate the independent classes.
-        recurrent = False
-        predictive_evidence = 0.0
+        # Diagnostic-first: do not yet assert that topology evidence means
+        # REUSE. The benchmark classification remains neutral until the
+        # structural signal is shown to separate the classes.
+        reuse_evidence = topology_evidence
+        branch_evidence = 1.0 - topology_evidence
 
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
@@ -409,8 +426,8 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        # V40 diagnostic-only: leave the designer neutral while measuring
-        # assembly coherence.
+        # V41 diagnostic-only. Keep the designer neutral; topology_evidence
+        # is the experiment's measured structural signal.
         branch.potential += dg["branch_bias"]
 
         if root.potential >= dg["threshold"]:
@@ -571,7 +588,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V40 - LEARNED ASSEMBLY COHERENCE ===")
+    print("=== DENSE SUBSTRATE V41 - PURE TOPOLOGY COMPETITION ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -765,7 +782,7 @@ def run():
 
 
     print()
-    print("=== V40 LEARNED ASSEMBLY COHERENCE AUDIT ===")
+    print("=== V41 PURE TOPOLOGY COMPETITION AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -777,11 +794,11 @@ def run():
                     f"{word:6s} pos={pos} "
                     f"cells={len(trace['fired']):2d} "
                     f"edges={trace['strong_outgoing']:2d} "
-                    f"internal_edges={trace['internal_edge_count']:2d} "
-                    f"edge_frac={trace['internal_edge_fraction']:.3f} "
-                    f"weight_frac={trace['internal_weight_fraction']:.3f} "
-                    f"coherence={trace['assembly_coherence']:.3f} "
-                    f"entropy={trace['normalized_outgoing_entropy']:.3f}"
+                    f"dest={trace['destination_count']:2d} "
+                    f"concentration={trace['concentration']:.3f} "
+                    f"support={trace['support_fraction']:.3f} "
+                    f"margin={trace['competition_margin']:.3f} "
+                    f"evidence={trace['topology_evidence']:.3f}"
                 )
                 count += 1
                 if count >= limit:
@@ -791,7 +808,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V40 LEARNED ASSEMBLY COHERENCE AUDIT ===")
+    print("=== END V41 PURE TOPOLOGY COMPETITION AUDIT ===")
     print()
 
 
@@ -805,6 +822,16 @@ def run():
     print("=== V40 COHERENCE DIAGNOSTIC ===")
     print("Assembly coherence is diagnostic only; it does not drive REUSE.")
     print("=== END V40 COHERENCE DIAGNOSTIC ===")
+    print()
+
+    print()
+    print("=== V41 TOPOLOGY COMPETITION DIAGNOSTIC ===")
+    print(
+        "Evidence uses only current dense activity and learned substrate "
+        "connectivity."
+    )
+    print("No external assembly/vocabulary memory is supplied to the designer.")
+    print("=== END V41 TOPOLOGY COMPETITION DIAGNOSTIC ===")
     print()
     net.evaluate_frozen(TEST)
 
