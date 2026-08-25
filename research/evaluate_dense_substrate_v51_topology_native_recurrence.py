@@ -119,33 +119,73 @@ class DenseCell:
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
 
-    def v50_reset_recurrence(self):
-        self._v50_recurrence = {}
-        self._v50_occurrences = []
+    def v51_topology_signature(self, fired):
+        """Return a topology-only signature for the currently firing cells."""
+        fired_set = set(fired)
+        signatures = []
 
-    def v50_activation_signature(self, word, pos):
+        weights = getattr(self, "weights", None)
+        if weights is None:
+            weights = getattr(self, "connections", None)
+
+        if isinstance(weights, dict):
+            for source in sorted(fired_set, key=str):
+                outgoing = weights.get(source, {})
+                if isinstance(outgoing, dict):
+                    strong = []
+                    for target, weight in outgoing.items():
+                        try:
+                            w = float(weight)
+                        except (TypeError, ValueError):
+                            continue
+                        if w > 0:
+                            strong.append((target, round(w, 12)))
+                    strong.sort(
+                        key=lambda item: (-item[1], str(item[0]))
+                    )
+                    signatures.append(
+                        (source, tuple(str(target) for target, _ in strong))
+                    )
+
+        return tuple(signatures)
+
+    def v51_topology_evidence(self, word, pos):
+        """Compute recurrence evidence solely from learned topology."""
         fired = self.activate_substrate_frozen(word, pos)
-        return tuple(sorted(fired))
+        signature = self.v51_topology_signature(fired)
 
-    def v50_observe_training(self, word, pos):
-        signature = self.v50_activation_signature(word, pos)
-        self._v50_occurrences.append(
-            (word, pos, signature)
-        )
-        self._v50_recurrence[signature] = (
-            self._v50_recurrence.get(signature, 0) + 1
-        )
-        return signature
+        # Structural evidence: number of firing cells that have learned
+        # outgoing structure, and number of strong targets contained in that
+        # structure. No prior assembly/test-word memory is used.
+        active_sources = 0
+        strong_edges = 0
 
-    def v50_recurrence_evidence(self, word, pos):
-        signature = self.v50_activation_signature(word, pos)
-        count = self._v50_recurrence.get(signature, 0)
+        weights = getattr(self, "weights", None)
+        if weights is None:
+            weights = getattr(self, "connections", None)
+
+        if isinstance(weights, dict):
+            for source in fired:
+                outgoing = weights.get(source, {})
+                if isinstance(outgoing, dict):
+                    count = 0
+                    for weight in outgoing.values():
+                        try:
+                            if float(weight) > 0:
+                                count += 1
+                        except (TypeError, ValueError):
+                            pass
+                    if count:
+                        active_sources += 1
+                        strong_edges += count
+
         return {
             "word": word,
             "pos": pos,
-            "signature": signature,
-            "seen_count": count,
-            "seen_before": count > 0,
+            "fired": tuple(sorted(fired)),
+            "topology_signature": signature,
+            "active_sources": active_sources,
+            "strong_edges": strong_edges,
         }
 
 
@@ -639,9 +679,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         self.reset_designer_transient_state()
         n._reset_designer_input()
 
-        # Frozen readout: inference must not carry DenseCell membrane
-        # potential from one queried position into the next.
-        fired = self.activate_substrate_frozen(word, pos)
+        fired = self.activate_substrate(
+            word,
+            pos,
+            learn=False,
+        )
 
         fired_set = set(fired)
 
@@ -953,70 +995,83 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 
-def v50_run_recurrence_experiment(net, training, test):
+def v51_run_topology_native_experiment(net, training, test):
     print()
-    print("=== V50 LEARNED ASSEMBLY RECURRENCE ===")
+    print("=== V51 TOPOLOGY-NATIVE RECURRENCE ===")
     print(
-        "No external assembly list, vocabulary memory, labels, "
-        "BoundaryGraph, or ground truth is supplied to the readout."
+        "No assembly list, vocabulary memory, labels, ground truth, "
+        "or BoundaryGraph is supplied."
     )
+    print("Evidence comes only from learned outgoing topology.")
     print()
 
-    net.v50_reset_recurrence()
+    print("--- TRAINING TOPOLOGY SIGNATURES ---")
+    train_signatures = {}
 
-    print("--- TRAINING RECURRENCE ---")
     for word in training:
         for pos in range(len(word)):
-            signature = net.v50_observe_training(word, pos)
-            count = net._v50_recurrence[signature]
+            evidence = net.v51_topology_evidence(word, pos)
+            signature = evidence["topology_signature"]
+            train_signatures[signature] = (
+                train_signatures.get(signature, 0) + 1
+            )
+
             print(
                 f"{word:6s} pos={pos} "
-                f"cells={list(signature)} "
-                f"occurrences={count}"
+                f"fired={list(evidence['fired'])} "
+                f"active_sources={evidence['active_sources']} "
+                f"strong_edges={evidence['strong_edges']}"
             )
 
     print()
-    print("unique_training_assemblies :", len(net._v50_recurrence))
     print(
-        "total_training_positions  :",
-        len(net._v50_occurrences),
+        "unique_topology_signatures :",
+        len(train_signatures),
+    )
+    print(
+        "training_positions         :",
+        sum(train_signatures.values()),
     )
 
     print()
-    print("--- FROZEN TEST RECURRENCE ---")
-
-    reuse = 0
-    branch = 0
+    print("--- TEST TOPOLOGY EVIDENCE ---")
 
     for word in test:
         for pos in range(len(word)):
-            evidence = net.v50_recurrence_evidence(word, pos)
-
-            if evidence["seen_before"]:
-                reuse += 1
-            else:
-                branch += 1
+            evidence = net.v51_topology_evidence(word, pos)
 
             print(
                 f"{word:6s} pos={pos} "
-                f"cells={list(evidence['signature'])} "
-                f"seen_count={evidence['seen_count']} "
-                f"actual={evidence['seen_before'] and 'REUSE' or 'BRANCH'}"
+                f"fired={list(evidence['fired'])} "
+                f"active_sources={evidence['active_sources']} "
+                f"strong_edges={evidence['strong_edges']}"
             )
 
     print()
-    print("test_reuse  :", reuse)
-    print("test_branch :", branch)
-    print(
-        "test_total  :",
-        reuse + branch,
-    )
+    print("--- TOPOLOGY SIGNATURE REPEATABILITY ---")
+
+    for word, pos in (
+        ("CAT", 1),
+        ("CAD", 1),
+        ("BOAT", 0),
+        ("BOARD", 3),
+    ):
+        first = net.v51_topology_evidence(word, pos)
+        second = net.v51_topology_evidence(word, pos)
+
+        print(
+            f"{word:6s} pos={pos} "
+            f"same_fired={first['fired'] == second['fired']} "
+            f"same_topology="
+            f"{first['topology_signature'] == second['topology_signature']}"
+        )
+
     print()
-    print("=== END V50 LEARNED ASSEMBLY RECURRENCE ===")
+    print("=== END V51 TOPOLOGY-NATIVE RECURRENCE ===")
     print()
 
 def run():
-    print("=== DENSE SUBSTRATE V50 - LEARNED ASSEMBLY RECURRENCE ===")
+    print("=== DENSE SUBSTRATE V51 - TOPOLOGY-NATIVE RECURRENCE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1187,6 +1242,8 @@ def run():
                 if len(rows) >= limit:
                     return rows
         return rows
+
+    v51_run_topology_native_experiment(net, TRAINING, TEST)
 
     probe_exact_path(
         "TRAINING MIXED",
@@ -1741,91 +1798,6 @@ def run():
         )
 
 
-
-    def v49_designer_readout_determinism():
-
-
-        print()
-
-
-        print("=== V49 DESIGNER READOUT DETERMINISM ===")
-
-
-    
-
-
-        probes = [
-
-
-            ("CAT", 1),
-
-
-            ("CAD", 1),
-
-
-            ("BOAT", 0),
-
-
-            ("BOARD", 3),
-
-
-        ]
-
-
-    
-
-
-        for word, pos in probes:
-
-
-            before = net.v42_cell_state_snapshot()
-
-
-            first = net.designer_from_dense_activity(word, pos)
-
-
-            state_after_first = net.v42_cell_state_snapshot()
-
-
-    
-
-
-            second = net.designer_from_dense_activity(word, pos)
-
-
-            state_after_second = net.v42_cell_state_snapshot()
-
-
-    
-
-
-            print(
-
-
-                f"{word:6s} pos={pos} "
-
-
-                f"same_action={first == second} "
-
-
-                f"state_unchanged={before == state_after_first == state_after_second} "
-
-
-                f"first={first} second={second}"
-
-
-            )
-
-
-    
-
-
-        print("=== END V49 DESIGNER READOUT DETERMINISM ===")
-
-
-        print()
-
-
     def v48_frozen_state_proof():
 
         print()
@@ -1980,10 +1952,6 @@ def run():
         print()
 
     v48_frozen_state_proof()
-
-    v50_run_recurrence_experiment(net, TRAINING, TEST)
-
-    v49_designer_readout_determinism()
 
     v42_determinism_probe()
 
