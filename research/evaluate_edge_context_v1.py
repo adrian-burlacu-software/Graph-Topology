@@ -4,13 +4,27 @@ from simulator import Network, Config, REUSE, BRANCH
 from genome import clone_genome
 
 TRAINING = [
-    "CAT", "CAR", "CAN", "CARD", "CART", "DOG", "DOT", "BAT",
+    "CAT", "CAR", "CAN", "CARD", "CART",
+    "DOG", "DOT",
+    "BAT",
 ]
 
 TEST = [
-    "BAT", "BAR", "BOAT", "BOAR", "BOATD",
-    "CAB", "COAT", "COAR", "CART", "CARTD",
-    "BART", "BARD", "BOARD",
+    "COT",
+    "COD",
+    "COAT",
+    "COARD",
+    "BART",
+    "BARD",
+    "BAND",
+    "DART",
+    "DAT",
+    "BOAT",
+    "BOATD",
+    "BOARD",
+    "BOAR",
+    "CARTD",
+    "CARTDD",
 ]
 
 def suffix_matches(net: Network, cid: int, suffix: str) -> bool:
