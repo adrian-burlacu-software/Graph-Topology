@@ -176,22 +176,38 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             )
 
             coincidence = prefix_drive * suffix_drive
-            drive = 0.15 * (prefix_drive + suffix_drive) + coincidence
 
-            if cell.stimulate(drive):
+            # Initial coincidence is deliberately enough to be a learning
+            # event, while the learned receptive fields determine whether
+            # the generic neuron eventually spikes.
+            drive = 0.10 * (
+                prefix_drive + suffix_drive
+            ) + 0.50 * coincidence
+
+            # Coincidence directly drives plasticity. A spike is an
+            # output consequence, not a prerequisite for learning.
+            if learn and prefix_active and suffix_active:
+                delta = self.learning_rate * coincidence
+                self.prefix_weights[i] = min(
+                    1.0,
+                    self.prefix_weights[i] + delta,
+                )
+                self.suffix_weights[i] = min(
+                    1.0,
+                    self.suffix_weights[i] + delta,
+                )
+
+            # Learned receptive fields amplify later activation.
+            learned_drive = (
+                self.prefix_weights[i]
+                * self.suffix_weights[i]
+                * coincidence
+            )
+
+            total_drive = drive + learned_drive
+
+            if cell.stimulate(total_drive):
                 fired.append(i)
-
-                if learn and prefix_active and suffix_active:
-                    self.prefix_weights[i] = min(
-                        1.0,
-                        self.prefix_weights[i]
-                        + self.learning_rate * coincidence,
-                    )
-                    self.suffix_weights[i] = min(
-                        1.0,
-                        self.suffix_weights[i]
-                        + self.learning_rate * coincidence,
-                    )
 
         return fired
     def train_dense(self, words, epochs=5):
@@ -221,10 +237,19 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                 if weight >= 0.50
             )
 
+            learned_strength = sum(
+                p * s
+                for p, s in zip(
+                    self.prefix_weights,
+                    self.suffix_weights,
+                )
+            )
+
             print(
                 f"epoch={epoch:3d} "
                 f"active_spikes={active:4d} "
-                f"strong_connections={strong:4d}"
+                f"strong_connections={strong:4d} "
+                f"receptive_strength={learned_strength:.4f}"
             )
 
     def designer_from_dense_activity(self, word, pos):
@@ -423,7 +448,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V5 - COINCIDENCE + VALID EVALUATION ===")
+    print("=== DENSE SUBSTRATE V6 - COINCIDENCE PLASTICITY ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
