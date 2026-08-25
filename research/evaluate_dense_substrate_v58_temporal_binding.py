@@ -1488,10 +1488,10 @@ def v54_run_guaranteed_projection(net, training, test):
     print()
 
 
-def v56_run_temporal_binding_experiment(net, training, test):
-    print("V57_TEMPORAL_CODE_EXECUTED = TRUE")
+def v58_run_temporal_binding_experiment(net, training, test):
+    print("V58_TEMPORAL_CODE_EXECUTED = TRUE")
     print()
-    print("=== V56 TEMPORAL ASSEMBLY BINDING ===")
+    print("=== V58 TEMPORAL ASSEMBLY BINDING ===")
     print(
         "Transitions are learned only between consecutive frozen "
         "substrate assemblies."
@@ -1604,7 +1604,7 @@ def v56_run_temporal_binding_experiment(net, training, test):
         )
 
     print()
-    print("=== END V56 TEMPORAL ASSEMBLY BINDING ===")
+    print("=== END V58 TEMPORAL ASSEMBLY BINDING ===")
     print()
 
 def run():
@@ -1630,6 +1630,9 @@ def run():
 
 
     net.train_dense(TRAINING, epochs=5)
+
+    print("V58_TRAINING_COMPLETE = TRUE")
+    v58_run_temporal_binding_experiment(net, TRAINING, TEST)
     # Independent ground truth: no calls to net.learn_structure(), no access
     # from the designer, and no dependence on DensePlasticSubstrateV1 state.
     net.ground_truth = IndependentGroundTruth(REUSE_TRAINING)
@@ -1689,8 +1692,6 @@ def run():
 
 
     print("V55_TRAINING_COMPLETE = TRUE")
-    print("V57_TRAINING_READY = TRUE")
-    v56_run_temporal_binding_experiment(net, TRAINING, TEST)
 
 
     v54_run_guaranteed_projection(net, TRAINING, TEST)
@@ -2543,7 +2544,7 @@ def run():
 
 
 
-print("V56_FILE_READY = TRUE")
+print("V58_FILE_READY = TRUE")
 
 if __name__ == "__main__":
     run()
