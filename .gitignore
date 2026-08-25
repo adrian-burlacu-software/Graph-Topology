@@ -22,4 +22,4 @@
 hs_err_pid*
 research/__pycache__/
 llm/
-results/v101_smol_probe_float32.pt
+results/v102_smol_representation_geometry.pt
