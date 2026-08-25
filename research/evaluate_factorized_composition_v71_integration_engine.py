@@ -1011,16 +1011,20 @@ def smoke_test_v71() -> None:
     engine = FactorizedCompositionEngineV71()
     designer = DecoupledDesignerV71()
 
-    engine.train([
+    training = [
         "CAT",
         "CAR",
         "CAN",
         "BOAT",
-    ])
+    ]
 
+    engine.train(training)
     engine.calibrate_compose_threshold()
 
-    # Known exact composition.
+    # ------------------------------------------------------------------
+    # 1. Known exact composition -> REUSE
+    # ------------------------------------------------------------------
+
     known = engine.factorize(
         "CA",
         "T",
@@ -1030,48 +1034,152 @@ def smoke_test_v71() -> None:
 
     observable = engine.observable_state(known)
 
+    assert observable["known_factors"]
     assert designer.baseline(observable) == "REUSE"
 
-    # Known factors, novel exact combination. Baseline remains BRANCH.
-    novel = engine.factorize(
-        "CA",
-        "D",
-        "AT",
-        learn=False,
+    # ------------------------------------------------------------------
+    # 2. Build a genuinely novel triple from factors that are already
+    #    known individually.
+    #
+    #    We construct the candidate from the actual factor tables rather
+    #    than assuming a literal suffix such as "AT" was learned.
+    # ------------------------------------------------------------------
+
+    known_prefixes = sorted(
+        engine.factors._tables["prefix"].keys()
+    )
+    known_symbols = sorted(
+        engine.factors._tables["symbol"].keys()
+    )
+    known_suffixes = sorted(
+        engine.factors._tables["suffix"].keys()
     )
 
-    observable = engine.observable_state(novel)
+    known_bindings = set(
+        engine.graph.nodes.keys()
+    )
+
+    novel = None
+
+    for prefix in known_prefixes:
+        for symbol in known_symbols:
+            for suffix in known_suffixes:
+                if not prefix or not suffix:
+                    continue
+
+                factors = engine.factorize(
+                    prefix,
+                    symbol,
+                    suffix,
+                    learn=False,
+                )
+
+                if min(
+                    factors.prefix_id,
+                    factors.symbol_id,
+                    factors.suffix_id,
+                ) < 0:
+                    continue
+
+                if factors in known_bindings:
+                    continue
+
+                novel = (
+                    prefix + symbol + suffix,
+                    factors,
+                )
+                break
+
+            if novel is not None:
+                break
+
+        if novel is not None:
+            break
+
+    assert novel is not None, (
+        "V71 smoke test could not construct a novel combination "
+        "from already-learned factors"
+    )
+
+    novel_word, novel_factors = novel
+
+    observable = engine.observable_state(
+        novel_factors
+    )
 
     assert observable["known_factors"]
+    assert not observable["binding_known"]
+
+    # Stable baseline: novel exact binding is BRANCH.
     assert designer.baseline(observable) == "BRANCH"
 
-    # Autonomous policy may compose if specific evidence is sufficient.
-    decision, node, _ = engine.autonomous_readout(novel)
+    # ------------------------------------------------------------------
+    # 3. Autonomous policy may COMPOSE or BRANCH depending on learned
+    #    specific evidence.
+    # ------------------------------------------------------------------
 
-    assert decision in {"COMPOSE", "BRANCH"}
+    decision, node, evidence = (
+        engine.autonomous_readout(
+            novel_factors
+        )
+    )
+
+    assert decision in {
+        "COMPOSE",
+        "BRANCH",
+    }
 
     if decision == "COMPOSE":
         assert node is not None
 
-        after = engine.observable_state(novel)
+        after = engine.observable_state(
+            novel_factors
+        )
+
+        # Once composed, the stable baseline sees the exact binding as
+        # REUSE.
         assert designer.baseline(after) == "REUSE"
 
-    # Unknown primitive factor must remain BRANCH.
+    else:
+        assert node is None
+
+    # ------------------------------------------------------------------
+    # 4. Unknown primitive factor -> BRANCH.
+    # ------------------------------------------------------------------
+
     unknown = engine.factorize(
-        "ZZ",
-        "Z",
-        "ZZ",
+        "__UNKNOWN_PREFIX__",
+        "__UNKNOWN_SYMBOL__",
+        "__UNKNOWN_SUFFIX__",
         learn=False,
     )
 
-    observable = engine.observable_state(unknown)
+    observable = engine.observable_state(
+        unknown
+    )
 
+    assert not observable["known_factors"]
     assert designer.baseline(observable) == "BRANCH"
-    assert designer.autonomous(
-        observable,
-        engine.compose_threshold,
-    ) == "BRANCH"
+    assert (
+        designer.autonomous(
+            observable,
+            engine.compose_threshold,
+        )
+        == "BRANCH"
+    )
 
+    print(
+        "V71 novel smoke case :",
+        novel_word,
+    )
+    print(
+        "V71 novel decision   :",
+        decision,
+    )
+    print(
+        "V71 pair evidence    :",
+        evidence,
+    )
     print("V71 SMOKE TEST: PASS")
 
 
