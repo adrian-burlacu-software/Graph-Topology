@@ -89,9 +89,10 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
     def context_vector(self, word, pos):
         """
-        Encode only the two directional structural contexts.
+        Encode the two directional structural contexts separately.
 
-        No boundary lookup is used.
+        The dense substrate receives distinct prefix and suffix drives.
+        Their coincidence, not either context alone, controls plasticity.
         """
         prefix_node = self.prefix.lookup(word[:pos])
         suffix_node = self.suffix.lookup(word[pos + 1:])
@@ -122,31 +123,92 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         return value
 
     def activate_substrate(self, word, pos, learn=False):
-        context = self.context_vector(word, pos)
-        h = self.context_hash(context)
+        """
+        Two-channel coincidence learning.
 
-        # Dense initial connectivity: every generic cell receives a weak
-        # context projection. Only plasticity can make a pathway strong.
+        Prefix and suffix are separate input populations. A generic cell
+        can become strongly connected only when both channels are active
+        in the same local event.
+
+        No BoundaryGraph lookup and no explicit edge-cell allocation.
+        """
+        context = self.context_vector(word, pos)
+        prefix_node, symbol, suffix_node = context
+
+        h_prefix = (
+            0
+            if prefix_node is None
+            else (prefix_node + 1) * 73856093
+        )
+
+        h_suffix = (
+            0
+            if suffix_node is None
+            else (suffix_node + 1) * 83492791
+        )
+
+        h_symbol = ord(symbol) * 19349663
+
+        prefix_active = prefix_node is not None
+        suffix_active = suffix_node is not None
+
         fired = []
 
         for i, cell in enumerate(self.cells):
-            phase = ((h ^ (i * 2654435761)) & 0xFFFF) / 65535.0
+            # Distinct projections from the two structural memories.
+            p_phase = (
+                ((h_prefix ^ (i * 2654435761)) & 0xFFFF)
+                / 65535.0
+            )
 
-            # Weak distributed input.
-            input_amount = 0.10 + 0.10 * phase
+            s_phase = (
+                ((h_suffix ^ (i * 2246822519)) & 0xFFFF)
+                / 65535.0
+            )
 
-            if cell.stimulate(input_amount):
+            symbol_phase = (
+                ((h_symbol ^ (i * 3266489917)) & 0xFFFF)
+                / 65535.0
+            )
+
+            prefix_drive = (
+                0.12 + 0.10 * p_phase
+                if prefix_active else 0.0
+            )
+
+            suffix_drive = (
+                0.12 + 0.10 * s_phase
+                if suffix_active else 0.0
+            )
+
+            # Additive membrane integration is deliberately weaker than
+            # multiplicative coincidence. The latter is the plasticity
+            # gate.
+            total_drive = (
+                prefix_drive
+                + suffix_drive
+                + 0.04 * symbol_phase
+            )
+
+            if cell.stimulate(total_drive):
                 fired.append(i)
 
-        # Local Hebbian-style reinforcement among active cells.
-        if learn:
-            for i in fired:
-                for j in fired:
-                    if i != j:
+            if learn and prefix_active and suffix_active:
+                coincidence = prefix_drive * suffix_drive
+
+                if coincidence > 0.0:
+                    # Coincidence selectively strengthens the active
+                    # pathway. The product makes both sides necessary.
+                    for j in range(self.cell_count):
+                        if j == i:
+                            continue
+
                         key = (i, j)
+
                         self.weights[key] = min(
                             1.0,
-                            self.weights[key] + self.learning_rate,
+                            self.weights[key]
+                            + self.learning_rate * coincidence,
                         )
 
         return fired
@@ -201,7 +263,8 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             learn=False,
         )
 
-        # Dense activity magnitude is the designer's structural evidence.
+        # Structural evidence is distributed activity. The designer still
+        # receives no exact-boundary Boolean.
         activity = min(
             1.0,
             len(fired) / max(1, self.cell_count),
@@ -248,6 +311,38 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             n.designer_spikes += 1
 
         return n.designer_signal(None, "")
+
+    def prune_competitive(self, max_outgoing=4, minimum_strength=0.10):
+        """
+        Competitive magnitude pruning.
+
+        For each source cell, retain only its strongest outgoing
+        connections. This converts the dense substrate into an emergent
+        sparse graph without prescribing which cells should connect.
+
+        Ties are broken deterministically by destination id.
+        """
+        kept = {}
+
+        for i in range(self.cell_count):
+            outgoing = [
+                (j, weight)
+                for (src, j), weight in self.weights.items()
+                if src == i and weight >= minimum_strength
+            ]
+
+            outgoing.sort(
+                key=lambda item: (-item[1], item[0])
+            )
+
+            for j, weight in outgoing[:max_outgoing]:
+                kept[(i, j)] = weight
+
+        # Rebuild the potential matrix. Pruned edges are gone rather than
+        # merely marked inactive, so the resulting topology is explicit.
+        self.weights = kept
+
+        return len(kept)
 
     def evaluate_frozen(self, words):
         print()
@@ -318,11 +413,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V1 ===")
+    print("=== DENSE SUBSTRATE V3 - COINCIDENCE ===")
     print()
     print(
-        "Control experiment: fully connected generic substrate, "
-        "plastic effective connectivity."
+        "Fully connected generic substrate with separate prefix/suffix "
+        "channels and coincidence-gated plasticity."
     )
     print(
         "No explicit edge-cell allocation and no BoundaryGraph.has() "
@@ -337,6 +432,19 @@ def run():
     )
 
     net.train_dense(TRAINING, epochs=5)
+
+    print()
+    print("=== COINCIDENCE TOPOLOGY ===")
+    strong = sum(
+        1
+        for weight in net.weights.values()
+        if weight >= 0.50
+    )
+    print("potential_connections :", len(net.weights))
+    print("strong_connections    :", strong)
+
+    # No pruning in this experiment. We want the effect of coincidence
+    # learning in isolation.
     net.evaluate_frozen(TEST)
 
 
