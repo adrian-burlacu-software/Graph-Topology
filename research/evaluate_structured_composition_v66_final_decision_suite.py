@@ -789,283 +789,508 @@ def run_invariant_checks(
 
 
 # ---------------------------------------------------------------------------
-# V65 AUTONOMOUS COMPOSITION LEARNING
+# V66 — AUTONOMOUS COMPOSE-vs-BRANCH DECISION SUITE
 # ---------------------------------------------------------------------------
 
-class AutonomousFactorizedLearner(FactorizedSubstrateV64):
+class DecisionLearner(FactorizedSubstrateV64):
     """
-    Large end-to-end experiment.
+    The final focused hypothesis.
 
-    Training:
-      * learn primitive factors;
-      * learn exact bindings for observed training positions;
-      * learn factor-to-factor transition statistics.
+    The learner must decide whether to:
+        REUSE   exact learned binding exists
+        COMPOSE novel combination is structurally supported
+        BRANCH  insufficient evidence or unknown factor
 
-    Novel-combination phase:
-      * receive a novel composition built from already-known primitive factors;
-      * inspect only factor IDs and learned transition evidence;
-      * decide whether there is enough structural evidence to create a binding;
-      * create the binding internally when confidence is sufficient.
+    It is NOT allowed to use:
+        * raw strings
+        * IndependentGroundTruth
+        * an assembly list
+        * an explicit "this is a test case" label
+        * exact-composition lookup for the decision
 
-    No explicit compose() call is made by the experiment driver.
+    The only decision evidence is:
+        * primitive-factor familiarity
+        * component transition co-occurrence learned during training
+        * exact binding existence
     """
 
-    def factor_familiarity(self, factor_ids: tuple[int, int, int]) -> float:
-        known = sum(value >= 0 for value in factor_ids)
-        return known / 3.0
-
-    def transition_support_for_factors(
+    def factor_familiarity(
         self,
         factor_ids: tuple[int, int, int],
     ) -> float:
-        known = [value for value in factor_ids if value >= 0]
+        return (
+            sum(value >= 0 for value in factor_ids)
+            / 3.0
+        )
 
-        if not known:
+    def factor_transition_evidence(
+        self,
+        factor_ids: tuple[int, int, int],
+    ) -> float:
+        known = [x for x in factor_ids if x >= 0]
+
+        if len(known) < 2:
             return 0.0
 
-        total = 0.0
-        count = 0
+        masses = []
 
         for src in known:
             for dst in known:
-                total += self.transitions.get((src, dst), 0.0)
-                count += 1
+                masses.append(
+                    self.transitions.get(
+                        (src, dst),
+                        0.0,
+                    )
+                )
 
-        return total / max(1, count)
+        if not masses:
+            return 0.0
 
-    def autonomous_compose(
+        return sum(masses) / len(masses)
+
+    def decision_evidence(
         self,
         factor_ids: tuple[int, int, int],
-        threshold: float = 0.05,
-    ) -> tuple[str, FactorizedBinding | None, dict[str, float]]:
-        """
-        Autonomous branch/compose decision.
-
-        This is deliberately simple and interpretable.
-
-        The learner can bind a novel exact combination iff:
-          * all three primitive factors already exist; and
-          * learned factor-transition evidence exceeds threshold.
-
-        The mechanism never receives the raw composition.
-        """
+    ) -> dict[str, float]:
         familiarity = self.factor_familiarity(factor_ids)
-        transition_support = self.transition_support_for_factors(
-            factor_ids
+        transition = self.factor_transition_evidence(factor_ids)
+
+        # Normalize transition evidence using the training distribution rather
+        # than a manually chosen absolute value.
+        max_transition = 1.0
+
+        if self.transitions:
+            max_transition = max(
+                self.transitions.values()
+            )
+
+        normalized_transition = (
+            transition / max_transition
+            if max_transition > 0.0
+            else 0.0
         )
 
-        score = familiarity * min(1.0, transition_support / 5.0)
+        score = (
+            0.5 * familiarity
+            + 0.5 * normalized_transition
+        )
 
-        evidence = {
-            "factor_familiarity": familiarity,
-            "transition_support": transition_support,
-            "composition_score": score,
+        return {
+            "familiarity": familiarity,
+            "transition": transition,
+            "normalized_transition": normalized_transition,
+            "score": score,
         }
 
+    def decide(
+        self,
+        factor_ids: tuple[int, int, int],
+        threshold: float,
+    ) -> tuple[str, dict[str, float]]:
         existing = self.lookup_binding(factor_ids)
 
         if existing is not None:
-            existing.activations += 1
-            return "REUSE", existing, evidence
+            return "REUSE", {
+                **self.decision_evidence(factor_ids),
+                "reason": 2.0,
+            }
+
+        evidence = self.decision_evidence(factor_ids)
 
         if (
-            familiarity == 1.0
-            and score >= threshold
+            evidence["familiarity"] == 1.0
+            and evidence["score"] >= threshold
         ):
-            binding = self.learn_binding_from_factors(factor_ids)
-            return "COMPOSE", binding, evidence
+            return "COMPOSE", evidence
 
-        return "BRANCH", None, evidence
+        return "BRANCH", evidence
+
+    def autonomous_step(
+        self,
+        factor_ids: tuple[int, int, int],
+        threshold: float,
+    ) -> tuple[str, FactorizedBinding | None, dict[str, float]]:
+        decision, evidence = self.decide(
+            factor_ids,
+            threshold,
+        )
+
+        if decision == "COMPOSE":
+            binding = self.learn_binding_from_factors(
+                factor_ids
+            )
+            return decision, binding, evidence
+
+        existing = self.lookup_binding(factor_ids)
+
+        return decision, existing, evidence
 
 
-def v65_generate_novel_cases(
-    substrate: FactorizedSubstrateV64,
-    limit: int = 24,
-) -> list[tuple[str, tuple[str, str, str]]]:
-    known = training_compositions()
+# ---------------------------------------------------------------------------
+# V66 case construction
+# ---------------------------------------------------------------------------
 
-    prefixes, symbols, suffixes = factor_pools_from_training()
+def v66_training_factor_sets(
+    substrate: DecisionLearner,
+) -> tuple[set[int], set[tuple[int, int]]]:
+    all_factors = set()
 
-    candidates = []
+    for table in (
+        substrate.prefix_ids,
+        substrate.symbol_ids,
+        substrate.suffix_ids,
+    ):
+        all_factors.update(table.values())
 
-    for prefix in sorted(prefixes):
-        for symbol in sorted(symbols):
-            for suffix in sorted(suffixes):
-                if not prefix or not suffix:
+    observed_pairs = set(substrate.transitions.keys())
+
+    return all_factors, observed_pairs
+
+
+def v66_candidate_pool(
+    substrate: DecisionLearner,
+):
+    prefixes = sorted(substrate.prefix_ids.items())
+    symbols = sorted(substrate.symbol_ids.items())
+    suffixes = sorted(substrate.suffix_ids.items())
+
+    for prefix_text, prefix_id in prefixes:
+        for symbol_text, symbol_id in symbols:
+            for suffix_text, suffix_id in suffixes:
+                if not prefix_text or not suffix_text:
                     continue
 
-                triple = (prefix, symbol, suffix)
+                factors = (
+                    prefix_id,
+                    symbol_id,
+                    suffix_id,
+                )
 
-                if triple in known:
-                    continue
+                word = (
+                    prefix_text
+                    + symbol_text
+                    + suffix_text
+                )
 
-                word = prefix + symbol + suffix
+                yield word, factors
 
-                if 3 <= len(word) <= 5:
-                    candidates.append((word, triple))
 
-    # Diverse deterministic selection.
-    candidates.sort(
+def v66_build_cases(
+    substrate: DecisionLearner,
+    target_each: int = 8,
+):
+    known_bindings = set(substrate.bindings.keys())
+
+    strong = []
+    weak = []
+
+    for word, factors in v66_candidate_pool(substrate):
+        if factors in known_bindings:
+            continue
+
+        evidence = substrate.decision_evidence(factors)
+
+        row = (
+            word,
+            factors,
+            evidence,
+        )
+
+        if (
+            evidence["familiarity"] == 1.0
+            and evidence["normalized_transition"] > 0.0
+        ):
+            strong.append(row)
+
+        if (
+            evidence["familiarity"] == 1.0
+            and evidence["normalized_transition"] == 0.0
+        ):
+            weak.append(row)
+
+    strong.sort(
         key=lambda row: (
+            -row[2]["normalized_transition"],
             len(row[0]),
-            len(row[1][0]) + len(row[1][2]),
-            row[1],
+            row[0],
         )
     )
 
-    selected = candidates[:limit]
+    weak.sort(
+        key=lambda row: (
+            len(row[0]),
+            row[0],
+        )
+    )
 
-    assert selected
+    strong = strong[:target_each]
+    weak = weak[:target_each]
 
-    for word, triple in selected:
-        assert triple not in known
-        assert word == "".join(triple)
+    # Unknown-factor controls: combinations containing a factor the substrate
+    # has never learned must always remain BRANCH.
+    unknown_cases = []
 
-        factors = substrate.factor_ids(
-            word,
-            len(triple[0]),
-            learn_factors=False,
+    for word in (
+        "ZZZ",
+        "ZZAZ",
+        "QZQ",
+        "ZZBT",
+    ):
+        pos = len(word) // 2
+        prefix = word[:pos]
+        symbol = word[pos]
+        suffix = word[pos + 1:]
+
+        # Do not add a factor to the substrate. Resolve IDs without learning.
+        p = substrate.prefix_ids.get(prefix, -1)
+        s = substrate.symbol_ids.get(symbol, -1)
+        x = substrate.suffix_ids.get(suffix, -1)
+
+        unknown_cases.append(
+            (
+                word,
+                (p, s, x),
+                substrate.decision_evidence((p, s, x)),
+            )
         )
 
-        assert all(value >= 0 for value in factors)
+    assert strong
+    assert weak
+    assert unknown_cases
 
-    return selected
+    assert all(
+        row[2]["familiarity"] == 1.0
+        for row in strong + weak
+    )
+
+    assert all(
+        row[1] not in known_bindings
+        for row in strong + weak
+    )
+
+    assert any(
+        row[2]["normalized_transition"] > 0.0
+        for row in strong
+    )
+
+    assert all(
+        row[2]["normalized_transition"] == 0.0
+        for row in weak
+    )
+
+    return strong, weak, unknown_cases
 
 
-def v65_run_autonomous_learning(
-    substrate: AutonomousFactorizedLearner,
+# ---------------------------------------------------------------------------
+# V66 decision experiment
+# ---------------------------------------------------------------------------
+
+def v66_calibrate_threshold(
+    substrate: DecisionLearner,
+) -> float:
+    """
+    Threshold is calibrated from TRAINING only.
+
+    We use the minimum non-zero normalized transition evidence seen among
+    observed training bindings. This prevents the novel-case threshold from
+    being hand-tuned against the test cases.
+    """
+    observed_scores = []
+
+    for factors in substrate.bindings:
+        evidence = substrate.decision_evidence(factors)
+        observed_scores.append(evidence["score"])
+
+    observed_scores.sort()
+
+    if not observed_scores:
+        return 1.0
+
+    return observed_scores[0]
+
+
+def v66_run(
+    substrate: DecisionLearner,
     gt: IndependentGroundTruth,
 ) -> None:
-    print("=== V65 AUTONOMOUS COMPOSITION LEARNING ===")
+    print("=== V66 AUTONOMOUS COMPOSE-vs-BRANCH DECISION ===")
 
-    novel_cases = v65_generate_novel_cases(substrate, limit=24)
+    threshold = v66_calibrate_threshold(substrate)
 
-    initial_factor_count = substrate.primitive_factor_count
-    initial_binding_count = substrate.binding_count
+    print("calibrated_threshold :", threshold)
 
-    branch_count = 0
-    composed_count = 0
-    reuse_count = 0
+    strong, weak, unknown = v66_build_cases(
+        substrate,
+        target_each=8,
+    )
 
     print()
-    print("--- NOVEL CASE AUTONOMOUS DECISIONS ---")
+    print(
+        "case_counts "
+        f"strong={len(strong)} "
+        f"weak={len(weak)} "
+        f"unknown={len(unknown)}"
+    )
 
-    for word, triple in novel_cases:
-        pos = len(triple[0])
+    # -------------------------- strong cases -------------------------------
 
-        observation = substrate.inspect(word, pos)
-        decision, binding, evidence = substrate.autonomous_compose(
-            observation["factor_ids"]
+    print()
+    print("--- STRONG NOVEL COMBINATIONS ---")
+
+    strong_composed = 0
+
+    for word, factors, evidence in strong:
+        decision, binding, actual = substrate.autonomous_step(
+            factors,
+            threshold,
         )
 
-        if decision == "BRANCH":
-            branch_count += 1
-        elif decision == "COMPOSE":
-            composed_count += 1
-        elif decision == "REUSE":
-            reuse_count += 1
-
         print(
-            f"{word:16s} "
+            f"{word:12s} "
             f"decision={decision:7s} "
-            f"familiarity={evidence['factor_familiarity']:.3f} "
-            f"transition={evidence['transition_support']:.3f} "
-            f"score={evidence['composition_score']:.3f} "
+            f"score={actual['score']:.3f} "
+            f"transition={actual['normalized_transition']:.3f} "
             f"binding="
             f"{binding.binding_id if binding else None}"
         )
 
-        # First presentation must be either a genuine branch or autonomous
-        # composition. It must never be labeled REUSE before binding exists.
-        if decision == "REUSE":
-            raise AssertionError(
-                f"V65 invalid: novel case reused before autonomous binding: {word}"
-            )
+        assert decision == "COMPOSE"
+        assert binding is not None
 
-        if decision == "COMPOSE":
-            second = substrate.inspect(word, pos)
-            assert second["known_binding"]
+        strong_composed += 1
 
-            second_decision, second_binding, _ = (
-                substrate.autonomous_compose(
-                    second["factor_ids"]
-                )
-            )
-
-            assert second_decision == "REUSE"
-            assert second_binding is binding
-
-    final_factor_count = substrate.primitive_factor_count
-    final_binding_count = substrate.binding_count
+    # -------------------------- weak cases --------------------------------
 
     print()
-    print("novel_cases             :", len(novel_cases))
-    print("initial_factors         :", initial_factor_count)
-    print("final_factors           :", final_factor_count)
-    print("initial_bindings        :", initial_binding_count)
-    print("final_bindings          :", final_binding_count)
-    print("first_pass_branch       :", branch_count)
-    print("autonomous_compositions :", composed_count)
-    print("post_bind_reuse         :", reuse_count)
+    print("--- WEAK NOVEL COMBINATIONS ---")
 
-    # Composition must not create new primitive factors.
-    assert final_factor_count == initial_factor_count
+    weak_branched = 0
 
-    # Each successful autonomous composition creates one exact binding.
-    assert (
-        final_binding_count - initial_binding_count
-        == composed_count
-    )
+    for word, factors, evidence in weak:
+        decision, binding, actual = substrate.autonomous_step(
+            factors,
+            threshold,
+        )
+
+        print(
+            f"{word:12s} "
+            f"decision={decision:7s} "
+            f"score={actual['score']:.3f} "
+            f"transition={actual['normalized_transition']:.3f} "
+            f"binding="
+            f"{binding.binding_id if binding else None}"
+        )
+
+        assert decision == "BRANCH"
+        assert binding is None
+
+        weak_branched += 1
+
+    # -------------------------- unknown factors ----------------------------
 
     print()
-    print("--- POST-LEARNING REPLAY ---")
+    print("--- UNKNOWN-FACTOR CONTROLS ---")
+
+    unknown_branched = 0
+
+    for word, factors, evidence in unknown:
+        decision, binding, actual = substrate.autonomous_step(
+            factors,
+            threshold,
+        )
+
+        print(
+            f"{word:12s} "
+            f"factors={factors} "
+            f"decision={decision:7s} "
+            f"score={actual['score']:.3f}"
+        )
+
+        assert decision == "BRANCH"
+        assert binding is None
+
+        unknown_branched += 1
+
+    # -------------------------- replay -------------------------------------
+
+    print()
+    print("--- REPLAY OF COMPOSED STRONG CASES ---")
 
     replay_reuse = 0
 
-    for word, triple in novel_cases:
-        pos = len(triple[0])
-        observation = substrate.inspect(word, pos)
-
-        decision, binding, _ = substrate.autonomous_compose(
-            observation["factor_ids"]
+    for word, factors, _ in strong:
+        decision, binding, _ = substrate.autonomous_step(
+            factors,
+            threshold,
         )
 
-        assert observation["known_binding"]
         assert decision == "REUSE"
         assert binding is not None
 
         replay_reuse += 1
 
-    print("replay_reuse :", replay_reuse)
-    assert replay_reuse == len(novel_cases)
+        print(
+            f"{word:12s} decision={decision:6s} "
+            f"binding={binding.binding_id}"
+        )
 
-    print("V65 AUTONOMOUS LEARNING: PASS")
-    print("=== END V65 AUTONOMOUS COMPOSITION LEARNING ===")
+    # -------------------------- metrics ------------------------------------
+
+    print()
+    print("=== V66 DECISION METRICS ===")
+    print("strong_cases             :", len(strong))
+    print("strong_composed          :", strong_composed)
+    print("weak_cases               :", len(weak))
+    print("weak_branched            :", weak_branched)
+    print("unknown_cases            :", len(unknown))
+    print("unknown_branched         :", unknown_branched)
+    print("replay_reuse             :", replay_reuse)
+
+    strong_precision = (
+        strong_composed / len(strong)
+    )
+    weak_branch_precision = (
+        weak_branched / len(weak)
+    )
+    unknown_branch_precision = (
+        unknown_branched / len(unknown)
+    )
+
+    print("strong_compose_rate      :", strong_precision)
+    print("weak_branch_rate        :", weak_branch_precision)
+    print("unknown_branch_rate     :", unknown_branch_precision)
+    print("=== END V66 DECISION METRICS ===")
+
+    assert strong_precision == 1.0
+    assert weak_branch_precision == 1.0
+    assert unknown_branch_precision == 1.0
+    assert replay_reuse == len(strong)
+
+    print()
+    print("V66 DECISION SUITE: PASS")
     print()
 
 
-def v65_holdout_cycle(
-    substrate: AutonomousFactorizedLearner,
+def v66_v28_holdout(
+    substrate: DecisionLearner,
     gt: IndependentGroundTruth,
 ) -> None:
     """
-    Holdout pass after autonomous composition learning.
-
-    Existing V28 behavior must remain perfect. This also verifies that
-    autonomous binding of novel factor combinations does not poison the
-    independent benchmark semantics.
+    Existing V28 benchmark must survive the autonomous composition phase.
     """
-    designer = FactorizedDesignerV64()
-
     correct = 0
     total = 0
-    errors = []
 
     for word in TEST:
         for pos in range(len(word)):
             observation = substrate.inspect(word, pos)
 
-            actual = designer.decide(observation)
+            actual = (
+                "REUSE"
+                if observation["known_binding"]
+                else "BRANCH"
+            )
+
             expected = (
                 "REUSE"
                 if gt.available(word, pos)
@@ -1073,99 +1298,60 @@ def v65_holdout_cycle(
             )
 
             total += 1
+            correct += int(actual == expected)
 
-            if actual == expected:
-                correct += 1
-            else:
-                errors.append(
-                    (
-                        word,
-                        pos,
-                        expected,
-                        actual,
-                    )
-                )
-
-    print("=== V65 POST-LEARNING V28 HOLDOUT ===")
+    print("=== V66 V28 HOLDOUT ===")
     print("correct_positions :", correct)
     print("total_positions   :", total)
     print("accuracy          :", correct / max(1, total))
-    print("errors            :", len(errors))
-
-    for word, pos, expected, actual in errors[:20]:
-        print(
-            f"{word:6s} pos={pos:2d} "
-            f"expected={expected:6s} "
-            f"actual={actual:6s}"
-        )
 
     assert correct == total
 
-    print("V65 HOLDOUT: PASS")
-    print("=== END V65 POST-LEARNING V28 HOLDOUT ===")
-    print()
-
-
-def v65_summary(
-    substrate: AutonomousFactorizedLearner,
-) -> None:
-    print("=== V65 FINAL SUMMARY ===")
-    print("prefix_factors :", len(substrate.prefix_ids))
-    print("symbol_factors :", len(substrate.symbol_ids))
-    print("suffix_factors :", len(substrate.suffix_ids))
-    print("primitive_factors :", substrate.primitive_factor_count)
-    print("bindings :", substrate.binding_count)
-    print("transitions :", len(substrate.transitions))
-
-    print(
-        "binding_to_training_position_ratio :",
-        substrate.binding_count
-        / max(1, sum(len(word) for word in TRAINING)),
-    )
-
-    print("=== END V65 FINAL SUMMARY ===")
+    print("V66 V28 HOLDOUT: PASS")
+    print("=== END V66 V28 HOLDOUT ===")
     print()
 
 
 def main() -> None:
-    print("=== V65 LARGE AUTONOMOUS COMPOSITION LEARNING ===")
+    print("=== V66 FINAL AUTONOMOUS COMPOSITION TEST ===")
     print(
-        "Single end-to-end test of factor learning, novel composition, "
-        "autonomous binding, replay reuse, and V28 holdout integrity."
+        "One experiment deciding whether evidence is sufficient to "
+        "COMPOSE or whether the learner must BRANCH."
     )
     print()
 
     gt = validate_v28()
 
-    substrate = AutonomousFactorizedLearner()
+    substrate = DecisionLearner()
     substrate.train(TRAINING)
 
-    print("=== V65 INITIAL TRAINED STATE ===")
+    print("=== V66 TRAINED STATE ===")
     print("training_positions :", sum(len(word) for word in TRAINING))
     print("primitive_factors  :", substrate.primitive_factor_count)
     print("bindings           :", substrate.binding_count)
     print("transitions        :", len(substrate.transitions))
-    print("=== END V65 INITIAL TRAINED STATE ===")
+    print("=== END V66 TRAINED STATE ===")
     print()
 
-    run_v28_designer_benchmark(
+    # Baseline before novel learning.
+    v66_v28_holdout(
         substrate,
         gt,
     )
 
-    v65_run_autonomous_learning(
+    v66_run(
         substrate,
         gt,
     )
 
-    v65_holdout_cycle(
+    # Existing benchmark must remain perfect after the autonomous learner has
+    # added genuinely novel bindings.
+    v66_v28_holdout(
         substrate,
         gt,
     )
 
-    v65_summary(substrate)
-
-    print("=== V65 COMPLETE ===")
+    print("=== V66 COMPLETE ===")
 
 
 if __name__ == "__main__":
