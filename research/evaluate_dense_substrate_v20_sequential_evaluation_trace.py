@@ -376,6 +376,67 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         return context, fired
 
+
+    def exact_eval_trace(self, word, pos):
+        """Mirror the real designer path and expose its exact substrate evidence."""
+        n = self.net
+        dg = n.designer_genome
+
+        self.reset_designer_transient_state()
+        n._reset_designer_input()
+
+        fired = self.activate_substrate(
+            word,
+            pos,
+            learn=False,
+        )
+
+        activity = min(
+            1.0,
+            len(fired) / max(1, self.cell_count),
+        )
+
+        root = n.cells[n.designer_root]
+        reuse = n.cells[n.reuse_cell]
+        branch = n.cells[n.branch_cell]
+
+        root.potential += dg["input_gain"]
+
+        if activity > 0.20:
+            reuse.potential += dg["match_gain"] * activity
+        else:
+            branch.potential += dg["branch_bias"]
+
+        if root.potential >= dg["threshold"]:
+            root.potential = 0.0
+            root.spikes += 1
+            n.designer_spikes += 1
+
+            reuse.potential += n.synapses[
+                (n.designer_root, n.reuse_cell)
+            ].weight
+            branch.potential += n.synapses[
+                (n.designer_root, n.branch_cell)
+            ].weight
+
+        threshold = dg["threshold"]
+
+        if reuse.potential >= threshold:
+            branch.inhibition += n.inhibition_genome["strength"]
+            branch.potential -= n.inhibition_genome["strength"]
+            reuse.spikes += 1
+            n.designer_spikes += 1
+
+        if branch.potential >= threshold:
+            reuse.inhibition += n.inhibition_genome["strength"]
+            reuse.potential -= n.inhibition_genome["strength"]
+            branch.spikes += 1
+            n.designer_spikes += 1
+
+        action = n.designer_signal(None, "")
+
+        return list(fired), activity, action
+
     def evaluate_frozen(self, words):
         print()
         print("=== DENSE SUBSTRATE FROZEN TEST ===")
@@ -397,15 +458,16 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             for pos in range(len(word)):
                 expected = self.available(word, pos)
 
-                print("TRACE designer_from_dense_activity call:")
-
-                print("  word =", word)
-
-                print("  pos =", pos)
-
-                action = self.designer_from_dense_activity(
+                fired, activity, action = self.exact_eval_trace(
                     word,
                     pos,
+                )
+
+                print(
+                    f"TRACE exact_eval word={word} pos={pos} "
+                    f"symbol={word[pos]} fired={len(fired)} "
+                    f"cells={fired} activity={activity:.6f} "
+                    f"action={action}"
                 )
 
                 if action == "REUSE":
@@ -482,7 +544,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V19 - EVALUATION PATH TRACE ===")
+    print("=== DENSE SUBSTRATE V20 - SEQUENTIAL EVALUATION TRACE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -531,22 +593,7 @@ def run():
 
     net.evaluate_frozen(TEST)
 
-    print()
-    print("=== V19 SUBSTRATE INPUT COMPARISON ===")
 
-    for word, pos in [
-        ("CAT", 1),
-        ("CAD", 1),
-        ("BOAT", 0),
-        ("BOARD", 3),
-    ]:
-        context, fired = net.trace_substrate_input(word, pos)
-        print(
-            f"{word} pos={pos} symbol={word[pos]} "
-            f"context={context} fired={fired}"
-        )
-
-    print("=== END V19 SUBSTRATE INPUT COMPARISON ===")
 
 
 if __name__ == "__main__":
