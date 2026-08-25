@@ -138,11 +138,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
     def activate_substrate(self, word, pos, learn=False):
         """
-        Dense coincidence substrate.
+        Dense coincidence substrate with competitive allocation.
 
         Prefix and suffix are independent inputs. Coincidence is computed
-        first and directly drives plasticity. Spiking is a later consequence
-        of the learned receptive fields.
+        for every generic cell, but only the strongest few cells are allowed
+        to learn from that event.
 
         There are no explicit edge cells and no boundary lookup.
         """
@@ -158,7 +158,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         prefix_active = prefix_node is not None
         suffix_active = suffix_node is not None
 
-        fired = []
+        candidates = []
 
         for i, cell in enumerate(self.cells):
             p_phase = (
@@ -179,26 +179,44 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
             coincidence = prefix_drive * suffix_drive
 
-            # IMPORTANT: coincidence learning happens independently of
-            # whether this generic neuron spikes.
-            if learn and prefix_active and suffix_active:
+            # Learned receptive fields create a persistent preference.
+            learned_gain = (
+                self.prefix_weights[i]
+                * self.suffix_weights[i]
+            )
+
+            score = coincidence * (1.0 + learned_gain)
+
+            candidates.append(
+                (score, coincidence, i, prefix_drive, suffix_drive)
+            )
+
+        # Competitive allocation: only the top four generic cells learn.
+        candidates.sort(
+            key=lambda item: (-item[0], item[2])
+        )
+        winners = candidates[:4]
+
+        fired = []
+
+        if learn and prefix_active and suffix_active:
+            for score, coincidence, i, prefix_drive, suffix_drive in winners:
+                delta = self.learning_rate * coincidence
+
                 before_p = self.prefix_weights[i]
                 before_s = self.suffix_weights[i]
 
-                delta = self.learning_rate * coincidence
-
                 self.prefix_weights[i] = min(
                     1.0,
-                    self.prefix_weights[i] + delta,
+                    before_p + delta,
                 )
                 self.suffix_weights[i] = min(
                     1.0,
-                    self.suffix_weights[i] + delta,
+                    before_s + delta,
                 )
 
                 self.learning_events += 1
 
-                # Capture only the first few events so output stays readable.
                 if len(self.learning_debug) < 12:
                     self.learning_debug.append({
                         "cell": i,
@@ -213,7 +231,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                         "suffix_after": self.suffix_weights[i],
                     })
 
-            # Learned receptive fields now amplify the same coincidence.
+        # Recompute activation after learning. Competition determines which
+        # cells are allowed to express the learned representation.
+        for score, coincidence, i, prefix_drive, suffix_drive in winners:
             learned_drive = (
                 self.prefix_weights[i]
                 * self.suffix_weights[i]
@@ -226,7 +246,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                 + learned_drive
             )
 
-            if cell.stimulate(drive):
+            if self.cells[i].stimulate(drive):
                 fired.append(i)
 
         return fired
@@ -476,7 +496,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V9 - COINCIDENCE DIAGNOSTIC ===")
+    print("=== DENSE SUBSTRATE V10 - COINCIDENCE + COMPETITION ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
