@@ -1,52 +1,52 @@
 from __future__ import annotations
 
 """
-V123 — RELATION-SPECIFIC CANDIDATE TEACHER
+V124 — CLEAN RELATION-SPECIFIC CANDIDATE ONTOLOGY
 
-V122 exposed a key failure:
-    candidate retrieval was useful,
-    but the tiny LLM mostly ignored the requested relation and repeatedly
-    selected the same candidate numbers.
+V123 showed a large improvement for ACTION / USE / PART / RELATION when the
+candidate vocabulary was relation-specific, but CATEGORY and PROPERTY were
+still contaminated by generic concepts.
 
-V123 moves the relation constraint OUT OF the LLM.
+V124 keeps the exact same selection benchmark while making the relation
+candidate pools substantially cleaner and more explicit.
 
-For each relation we first build a relation-specific candidate vocabulary from
-the human semantic seed corpus:
+Important:
+    * Frozen SmolLM2-360M-Instruct
+    * No graph mutation
+    * No free-form semantic generation
+    * LLM returns candidate NUMBERS only
+    * semantics-large.csv supplies seed vocabulary + evaluation gold
+    * Same dictionary and same 6 typed relations
+
+Relation pools are built from the semantic corpus using POS information when
+available, plus transparent lexical heuristics:
 
     CATEGORY
+        noun-like class/entity concepts and broad class vocabulary
+
     PROPERTY
+        adjective-like / descriptive concepts
+
     ACTION
+        verb-like concepts
+
     USE
+        verb/action concepts associated with function, plus functional nouns
+
     PART
+        body/object-part vocabulary and noun-like components
+
     RELATION
+        broad relation/connective concepts
 
-The LLM then performs only one operation:
-
-    choose candidate numbers
-
-It never has to infer what CATEGORY vs ACTION means from a generic mixed
-candidate pool.
-
-The human semantic corpus therefore plays two roles:
-    1. seed candidate ontology / relation-specific candidate pools
-    2. evaluation gold
-
-The model remains frozen.
-
-No graph mutation of V111.
+The key goal is NOT perfect ontology induction. It is to remove the worst
+cross-relation contamination so the frozen selector can actually use the
+typed query.
 
 Outputs:
-    * relation-specific candidate coverage
-    * LLM selection accuracy / F1
-    * invalid selector rate
-    * repeated-selector rate
-    * per-relation results
-    * typed graph built from the selections
+    v124_clean_relation_candidate_ontology.json
 
-The key question:
-
-    Does relation-specific candidate conditioning make the frozen 360M model
-    perform meaningful typed semantic selection?
+No V111/V122/V123 graph is modified.
 """
 
 import csv
@@ -63,38 +63,36 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 ROOT = Path(__file__).resolve().parents[1]
 
-MODEL_PATH = (
-    ROOT / "llm" / "SmolLM2-360M-Instruct"
-)
-
-DICTIONARY_PATH = (
-    ROOT / "data" / "dictionary.csv"
-)
-
-SEMANTICS_PATH = (
-    ROOT / "data" / "semantics-large.csv"
-)
+MODEL_PATH = ROOT / "llm" / "SmolLM2-360M-Instruct"
+DICTIONARY_PATH = ROOT / "data" / "dictionary.csv"
+SEMANTICS_PATH = ROOT / "data" / "semantics-large.csv"
 
 OUTPUT_GRAPH = (
-    ROOT / "results" / "v123_relation_specific_typed_graph.json"
+    ROOT / "results" / "v124_clean_typed_semantic_graph.json"
 )
-
 OUTPUT_REPORT = (
-    ROOT / "results" / "v123_relation_specific_teacher.json"
+    ROOT / "results" / "v124_clean_relation_candidate_ontology.json"
 )
 
 EVAL_WORDS = 512
-
 BATCH_SIZE = 128
 
 CANDIDATE_LIMIT = 32
-
 MAX_SELECTED = 4
 
 MAX_INPUT_TOKENS = 224
 MAX_NEW_TOKENS = 12
 
 PRINT_EVERY = 128
+
+RELATIONS = (
+    "CATEGORY",
+    "PROPERTY",
+    "ACTION",
+    "USE",
+    "PART",
+    "RELATION",
+)
 
 TRACE_WORDS = {
     "hello",
@@ -109,23 +107,92 @@ TRACE_WORDS = {
     "car",
 }
 
-RELATIONS = (
-    "CATEGORY",
-    "PROPERTY",
-    "ACTION",
-    "USE",
-    "PART",
-    "RELATION",
-)
+# Transparent broad semantic seeds used only to improve candidate-pool purity.
+CATEGORY_SEEDS = {
+    "animal",
+    "person",
+    "people",
+    "human",
+    "object",
+    "thing",
+    "tool",
+    "device",
+    "vehicle",
+    "place",
+    "food",
+    "plant",
+    "body",
+    "material",
+    "substance",
+    "group",
+    "organization",
+    "building",
+    "part",
+}
+
+USE_SEEDS = {
+    "use",
+    "work",
+    "transport",
+    "carry",
+    "clean",
+    "cook",
+    "wear",
+    "play",
+    "store",
+    "hold",
+    "help",
+    "protect",
+    "move",
+}
+
+PART_SEEDS = {
+    "part",
+    "piece",
+    "body",
+    "head",
+    "hand",
+    "arm",
+    "leg",
+    "foot",
+    "face",
+    "eye",
+    "ear",
+    "mouth",
+    "finger",
+    "side",
+    "top",
+    "bottom",
+    "front",
+    "back",
+    "inside",
+    "outside",
+}
+
+RELATION_SEEDS = {
+    "cause",
+    "effect",
+    "relation",
+    "relationship",
+    "similar",
+    "opposite",
+    "same",
+    "different",
+    "type",
+    "kind",
+    "part",
+    "whole",
+    "person",
+    "place",
+    "thing",
+}
 
 
 # ---------------------------------------------------------------------------
 # Dictionary
 # ---------------------------------------------------------------------------
 
-def load_dictionary(
-    path: Path,
-) -> list[str]:
+def load_dictionary(path: Path) -> list[str]:
     words = set()
 
     with path.open(
@@ -135,39 +202,32 @@ def load_dictionary(
     ) as handle:
         for raw in handle:
             word = raw.strip().lower()
-
             if word and word.isalpha():
                 words.add(word)
 
     result = sorted(words)[:EVAL_WORDS]
 
     if not result:
-        raise RuntimeError(
-            "No dictionary words found."
-        )
+        raise RuntimeError("No dictionary words found.")
 
     return result
 
 
 # ---------------------------------------------------------------------------
-# Semantic seed
+# Semantic corpus
 # ---------------------------------------------------------------------------
 
 class SemanticSeed:
     def __init__(self) -> None:
-        self.cue_features: dict[
-            str,
-            Counter[str],
-        ] = defaultdict(Counter)
-
+        self.cue_features: dict[str, Counter[str]] = defaultdict(Counter)
         self.feature_weight: Counter[str] = Counter()
 
-        self.features: set[str] = set()
+        # feature -> observed POS distribution from the corpus
+        self.feature_pos: dict[str, Counter[str]] = defaultdict(Counter)
 
-    def load(
-        self,
-        path: Path,
-    ) -> None:
+        self.pos_feature_weight: dict[str, Counter[str]] = defaultdict(Counter)
+
+    def load(self, path: Path) -> None:
         with path.open(
             "r",
             encoding="utf-8",
@@ -176,16 +236,11 @@ class SemanticSeed:
         ) as handle:
             reader = csv.DictReader(handle)
 
-            for row in reader:
-                cue = row.get(
-                    "cue",
-                    "",
-                ).strip().lower()
+            fields = set(reader.fieldnames or [])
 
-                feature = row.get(
-                    "translated",
-                    "",
-                ).strip().lower()
+            for row in reader:
+                cue = row.get("cue", "").strip().lower()
+                feature = row.get("translated", "").strip().lower()
 
                 if not cue or not feature:
                     continue
@@ -197,10 +252,7 @@ class SemanticSeed:
                             0.0,
                         )
                     )
-                except (
-                    TypeError,
-                    ValueError,
-                ):
+                except (TypeError, ValueError):
                     weight = 0.0
 
                 if weight <= 0.0:
@@ -211,59 +263,35 @@ class SemanticSeed:
                                 0.0,
                             )
                         )
-
-                        n = float(
-                            row.get(
-                                "n",
-                                0.0,
-                            )
-                        )
-
-                        if n > 0.0:
+                        n = float(row.get("n", 0.0))
+                        if n > 0:
                             weight = frequency / n
-                    except (
-                        TypeError,
-                        ValueError,
-                    ):
+                    except (TypeError, ValueError):
                         weight = 0.0
 
                 if weight <= 0.0:
                     continue
 
-                self.cue_features[
-                    cue
-                ][feature] += weight
+                self.cue_features[cue][feature] += weight
+                self.feature_weight[feature] += weight
 
-                self.feature_weight[
-                    feature
-                ] += weight
+                # Semantics-large contains POS columns in the corpus used for
+                # the previous experiments. Use whichever exists.
+                pos = (
+                    row.get("pos_feature")
+                    or row.get("pos_translated")
+                    or ""
+                ).strip().lower()
 
-                self.features.add(
-                    feature
-                )
+                if pos:
+                    self.feature_pos[feature][pos] += weight
+                    self.pos_feature_weight[pos][feature] += weight
 
-        print(
-            "semantic_cues:",
-            len(self.cue_features),
-        )
-
-        print(
-            "semantic_concepts:",
-            len(self.features),
-        )
-
-    def gold(
-        self,
-        word: str,
-        limit: int = 8,
-    ) -> set[str]:
+    def gold(self, word: str, limit: int = 8) -> set[str]:
         return {
             feature
             for feature, _weight
-            in self.cue_features.get(
-                word,
-                Counter(),
-            ).most_common(limit)
+            in self.cue_features.get(word, Counter()).most_common(limit)
         }
 
 
@@ -271,201 +299,293 @@ class SemanticSeed:
 # Relation-specific candidate pools
 # ---------------------------------------------------------------------------
 
+def pos_score(
+    seed: SemanticSeed,
+    concept: str,
+    allowed: set[str],
+) -> float:
+    if concept in allowed:
+        return 8.0
+
+    score = 0.0
+    observed = seed.feature_pos.get(
+        concept,
+        Counter(),
+    )
+
+    for pos, weight in observed.items():
+        if pos in allowed:
+            score += 2.0 * math.log1p(max(0.0, weight))
+
+    return score
+
+
+def lexical_property_score(
+    concept: str,
+) -> float:
+    score = 0.0
+
+    for suffix in (
+        "y",
+        "ful",
+        "less",
+        "ous",
+        "ive",
+        "al",
+        "ic",
+        "able",
+        "ible",
+        "ary",
+        "ish",
+        "ed",
+        "ing",
+    ):
+        if concept.endswith(suffix):
+            score += 1.5
+
+    return score
+
+
+def lexical_action_score(
+    concept: str,
+) -> float:
+    score = 0.0
+
+    for suffix in (
+        "ate",
+        "ify",
+        "ise",
+        "ize",
+        "en",
+        "ing",
+    ):
+        if concept.endswith(suffix):
+            score += 1.2
+
+    # Common atomic actions.
+    if concept in {
+        "act",
+        "move",
+        "eat",
+        "give",
+        "take",
+        "hold",
+        "leave",
+        "go",
+        "run",
+        "walk",
+        "make",
+        "build",
+        "play",
+        "wear",
+        "clean",
+        "carry",
+        "use",
+        "work",
+        "help",
+        "protect",
+        "open",
+        "close",
+        "cut",
+        "push",
+        "pull",
+    }:
+        score += 4.0
+
+    return score
+
+
 def build_relation_pools(
     seed: SemanticSeed,
 ) -> dict[str, list[str]]:
-    """
-    We do not ask the tiny model to infer semantic relation types.
-
-    Instead we derive a conservative relation-specific seed vocabulary using
-    corpus statistics and interpretable lexical heuristics.
-
-    CATEGORY:
-        concepts that frequently behave like broad classes / entity classes.
-
-    PROPERTY:
-        concepts that tend to occur as descriptors and are often relatively
-        low-document-frequency.
-
-    ACTION:
-        concepts associated with verb-like lexical cues in the corpus where POS
-        columns exist.
-
-    USE:
-        concepts frequently co-occurring with functional / activity language.
-
-    PART:
-        concepts strongly associated with body/object-part vocabulary.
-
-    RELATION:
-        broad relational vocabulary.
-
-    If POS columns are unavailable, the heuristic falls back to corpus-global
-    statistics. This is intentionally transparent rather than pretending the
-    relation labels are ground truth.
-    """
     pools: dict[str, Counter[str]] = {
         relation: Counter()
         for relation in RELATIONS
     }
 
-    # We can use the cue -> feature graph itself to construct candidate
-    # namespaces, but not the gold answer of the current query.
-    for cue, features in seed.cue_features.items():
-        cue_tokens = set(
-            cue.lower().split()
-        )
+    all_features = list(seed.feature_weight)
 
-        for feature, weight in features.items():
-            f = feature.lower()
+    # POS aliases used by the corpus.
+    noun_pos = {
+        "noun",
+        "proper_noun",
+    }
 
-            # Broad candidate classes.
-            if any(
-                token in f
-                for token in (
-                    "animal",
-                    "person",
-                    "object",
-                    "tool",
-                    "place",
-                    "food",
-                    "vehicle",
-                    "plant",
-                    "body",
-                    "group",
-                    "thing",
-                )
-            ):
-                pools["CATEGORY"][f] += weight
+    adjective_pos = {
+        "adjective",
+    }
 
-            # Descriptor-like candidates.
-            if any(
-                suffix in f
-                for suffix in (
-                    "ful",
-                    "less",
-                    "ous",
-                    "ive",
-                    "al",
-                    "ic",
-                    "ary",
-                )
-            ):
-                pools["PROPERTY"][f] += weight
+    verb_pos = {
+        "verb",
+    }
 
-            # Action-like lexical concepts.
-            if any(
-                token in f.split()
-                for token in (
-                    "eat",
-                    "move",
-                    "hold",
-                    "make",
-                    "take",
-                    "give",
-                    "leave",
-                    "use",
-                    "wear",
-                    "build",
-                    "play",
-                    "work",
-                    "run",
-                    "walk",
-                    "act",
-                    "go",
-                )
-            ):
-                pools["ACTION"][f] += weight
-
-            # Functional / use concepts.
-            if any(
-                token in f.split()
-                for token in (
-                    "work",
-                    "use",
-                    "help",
-                    "carry",
-                    "transport",
-                    "clean",
-                    "cook",
-                    "wear",
-                    "play",
-                    "store",
-                )
-            ):
-                pools["USE"][f] += weight
-
-            # Part-like concepts.
-            if any(
-                token in f.split()
-                for token in (
-                    "hand",
-                    "head",
-                    "leg",
-                    "arm",
-                    "foot",
-                    "body",
-                    "part",
-                    "piece",
-                    "side",
-                    "front",
-                    "back",
-                    "top",
-                    "bottom",
-                )
-            ):
-                pools["PART"][f] += weight
-
-            # Broad relation vocabulary.
-            pools["RELATION"][f] += (
-                0.35 * weight
+    for concept in all_features:
+        base = math.log1p(
+            max(
+                0.0,
+                seed.feature_weight.get(
+                    concept,
+                    0.0,
+                ),
             )
-
-    # Ensure every pool has a deterministic fallback.
-    global_top = [
-        feature
-        for feature, _weight
-        in seed.feature_weight.most_common(
-            CANDIDATE_LIMIT
         )
-    ]
+
+        pos = seed.feature_pos.get(
+            concept,
+            Counter(),
+        )
+
+        noun_signal = sum(
+            weight
+            for label, weight
+            in pos.items()
+            if label in noun_pos
+        )
+
+        adjective_signal = sum(
+            weight
+            for label, weight
+            in pos.items()
+            if label in adjective_pos
+        )
+
+        verb_signal = sum(
+            weight
+            for label, weight
+            in pos.items()
+            if label in verb_pos
+        )
+
+        # CATEGORY:
+        # noun-heavy + explicit class seeds, but explicitly suppress obvious
+        # action-only terms.
+        category_score = (
+            base
+            + 1.5 * math.log1p(noun_signal)
+            + (7.0 if concept in CATEGORY_SEEDS else 0.0)
+        )
+
+        if concept in {
+            "eat",
+            "move",
+            "give",
+            "take",
+            "act",
+            "hold",
+            "leave",
+            "wear",
+        }:
+            category_score -= 10.0
+
+        pools["CATEGORY"][concept] = category_score
+
+        # PROPERTY:
+        property_score = (
+            base
+            + 2.0 * math.log1p(adjective_signal)
+            + lexical_property_score(concept)
+        )
+
+        # Suppress obvious physical objects / actions from PROPERTY.
+        if concept in CATEGORY_SEEDS:
+            property_score -= 6.0
+
+        pools["PROPERTY"][concept] = property_score
+
+        # ACTION:
+        action_score = (
+            base
+            + 2.2 * math.log1p(verb_signal)
+            + lexical_action_score(concept)
+        )
+
+        pools["ACTION"][concept] = action_score
+
+        # USE:
+        use_score = (
+            0.7 * base
+            + 1.0 * math.log1p(verb_signal)
+            + (
+                6.0
+                if concept in USE_SEEDS
+                else 0.0
+            )
+        )
+
+        # Things can also be uses / functions.
+        if concept in {
+            "food",
+            "transport",
+            "work",
+            "cleaning",
+            "cooking",
+            "play",
+            "storage",
+        }:
+            use_score += 3.0
+
+        pools["USE"][concept] = use_score
+
+        # PART:
+        part_score = (
+            base
+            + 1.8 * math.log1p(noun_signal)
+            + (
+                7.0
+                if concept in PART_SEEDS
+                else 0.0
+            )
+        )
+
+        pools["PART"][concept] = part_score
+
+        # RELATION:
+        relation_score = (
+            0.5 * base
+            + (
+                6.0
+                if concept in RELATION_SEEDS
+                else 0.0
+            )
+        )
+
+        pools["RELATION"][concept] = relation_score
 
     result = {}
 
     for relation in RELATIONS:
         ranked = [
-            feature
-            for feature, _score
+            concept
+            for concept, _score
             in pools[relation].most_common(
                 CANDIDATE_LIMIT
             )
         ]
 
-        for feature in global_top:
-            if len(ranked) >= CANDIDATE_LIMIT:
-                break
+        # Ensure deterministic minimum vocabulary size.
+        if len(ranked) < CANDIDATE_LIMIT:
+            for concept in seed.feature_weight.most_common():
+                feature = concept[0]
+                if feature not in ranked:
+                    ranked.append(feature)
+                if len(ranked) >= CANDIDATE_LIMIT:
+                    break
 
-            if feature not in ranked:
-                ranked.append(feature)
-
-        result[relation] = ranked[
-            :CANDIDATE_LIMIT
-        ]
+        result[relation] = ranked[:CANDIDATE_LIMIT]
 
     return result
 
 
-def retrieve_relation_candidates(
+def relation_candidates_for_word(
     word: str,
     relation: str,
     seed: SemanticSeed,
-    relation_pool: list[str],
+    pool: list[str],
 ) -> list[str]:
     """
-    Candidate ranking for this word within ONE relation-specific vocabulary.
+    Rank ONLY inside the relation-specific pool.
 
-    Direct cue evidence is strongest; otherwise use the pre-built relation
-    pool.
+    This is the same basic protocol as V123, so the comparison is clean.
     """
     scores = Counter()
 
@@ -475,33 +595,30 @@ def retrieve_relation_candidates(
     )
 
     for concept, weight in direct.items():
-        if concept in relation_pool:
-            scores[
-                concept
-            ] += (
-                4.0
-                + math.log1p(
-                    max(
-                        0.0,
-                        weight,
-                    )
+        if concept not in pool:
+            continue
+
+        scores[concept] += (
+            4.0
+            + math.log1p(
+                max(
+                    0.0,
+                    weight,
                 )
             )
+        )
 
-    for concept in relation_pool:
-        scores[
-            concept
-        ] += 0.1
+    # Keep the relation-specific vocabulary even when no direct match exists.
+    for concept in pool:
+        scores[concept] += 0.1
 
-    ranked = [
+    return [
         concept
         for concept, _score
         in scores.most_common(
             CANDIDATE_LIMIT
         )
     ]
-
-    return ranked
 
 
 # ---------------------------------------------------------------------------
@@ -524,12 +641,10 @@ def load_model():
     if tokenizer.pad_token_id is None:
         if tokenizer.eos_token_id is None:
             raise RuntimeError(
-                "Tokenizer has no PAD/EOS."
+                "Tokenizer has no PAD/EOS token."
             )
 
-        tokenizer.pad_token = (
-            tokenizer.eos_token
-        )
+        tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
         str(MODEL_PATH),
@@ -553,11 +668,7 @@ def load_model():
             flush=True,
         )
 
-    return (
-        tokenizer,
-        model,
-        device,
-    )
+    return tokenizer, model, device
 
 
 def apply_chat(
@@ -592,14 +703,40 @@ def apply_chat(
 
 
 # ---------------------------------------------------------------------------
-# Prompt
+# Selector
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = (
-    "You are a strict candidate selector. "
-    "Choose ONLY candidate numbers. "
+    "You are a strict semantic candidate selector. "
+    "Select only candidate numbers. "
     "Return numbers only."
 )
+
+
+def relation_question(
+    word: str,
+    relation: str,
+) -> str:
+    return {
+        "CATEGORY": (
+            f"What category does {word} belong to?"
+        ),
+        "PROPERTY": (
+            f"What property or quality describes {word}?"
+        ),
+        "ACTION": (
+            f"What action or behavior is associated with {word}?"
+        ),
+        "USE": (
+            f"What is {word} used for?"
+        ),
+        "PART": (
+            f"What part or component is associated with {word}?"
+        ),
+        "RELATION": (
+            f"What concept is {word} related to?"
+        ),
+    }[relation]
 
 
 def make_prompt(
@@ -624,20 +761,22 @@ WORD:
 RELATION:
 {relation}
 
-CANDIDATE VOCABULARY FOR THIS RELATION:
+QUESTION:
+{relation_question(word, relation)}
+
+CANDIDATE VOCABULARY:
 {numbered}
 
-Select up to {MAX_SELECTED} candidate numbers.
+Select up to {MAX_SELECTED} candidates.
 
-Return ONLY space-separated numbers.
+Return ONLY space-separated candidate numbers.
 Example:
-1 4 9
+2 7 13
 
-Rules:
-- Every number must refer to a candidate above.
-- Never output words.
-- Never explain.
-- If none fit, output 0.
+If none fit, return 0.
+
+Never output candidate words.
+Never explain.
 """.strip(),
     )
 
@@ -645,43 +784,6 @@ Rules:
 # ---------------------------------------------------------------------------
 # Inference
 # ---------------------------------------------------------------------------
-
-def parse_indices(
-    text: str,
-    candidate_count: int,
-) -> list[int]:
-    numbers = re.findall(
-        r"\b\d+\b",
-        text,
-    )
-
-    result = []
-
-    for raw in numbers:
-        index = int(raw)
-
-        if index == 0:
-            continue
-
-        if not (
-            1 <= index <= candidate_count
-        ):
-            continue
-
-        zero_based = (
-            index - 1
-        )
-
-        if zero_based not in result:
-            result.append(
-                zero_based
-            )
-
-        if len(result) >= MAX_SELECTED:
-            break
-
-    return result
-
 
 @torch.inference_mode()
 def generate_batch(
@@ -739,6 +841,41 @@ def generate_batch(
     return results
 
 
+def parse_indices(
+    text: str,
+    candidate_count: int,
+) -> list[int]:
+    numbers = re.findall(
+        r"\b\d+\b",
+        text,
+    )
+
+    result = []
+
+    for raw in numbers:
+        index = int(raw)
+
+        if index == 0:
+            continue
+
+        if not (
+            1 <= index <= candidate_count
+        ):
+            continue
+
+        zero_based = index - 1
+
+        if zero_based not in result:
+            result.append(
+                zero_based
+            )
+
+        if len(result) >= MAX_SELECTED:
+            break
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
@@ -784,7 +921,7 @@ def main() -> None:
     started = time.perf_counter()
 
     print(
-        "=== V123 RELATION-SPECIFIC CANDIDATE TEACHER ==="
+        "=== V124 CLEAN RELATION-SPECIFIC CANDIDATE ONTOLOGY ==="
     )
 
     words = load_dictionary(
@@ -792,7 +929,6 @@ def main() -> None:
     )
 
     seed = SemanticSeed()
-
     seed.load(
         SEMANTICS_PATH
     )
@@ -814,33 +950,43 @@ def main() -> None:
     )
 
     print()
-
     print(
-        "=== RELATION POOLS ==="
+        "=== CLEAN RELATION POOLS ==="
     )
 
+    pool_stats = {}
+
     for relation in RELATIONS:
+        pool = relation_pools[relation]
+
+        pool_stats[relation] = {
+            "size": len(pool),
+            "items": pool,
+        }
+
         print(
             relation,
-            "->",
-            relation_pools[relation],
+            "=>",
+            pool,
         )
 
     # ---------------------------------------------------------------
-    # Build relation-specific jobs.
+    # Prepare jobs.
     # ---------------------------------------------------------------
 
     jobs = []
 
     for word in words:
         for relation in RELATIONS:
-            candidates = (
-                retrieve_relation_candidates(
-                    word,
-                    relation,
-                    seed,
-                    relation_pools[relation],
-                )
+            pool = relation_pools[
+                relation
+            ]
+
+            candidates = relation_candidates_for_word(
+                word,
+                relation,
+                seed,
+                pool,
             )
 
             jobs.append(
@@ -851,21 +997,15 @@ def main() -> None:
                 )
             )
 
-    total_queries = len(jobs)
+    predictions = {}
 
-    predictions: dict[
-        tuple[str, str],
-        list[str],
-    ] = {}
-
-    relation_stats = {
+    stats = {
         relation: {
             "queries": 0,
             "accepted": 0,
             "invalid": 0,
             "selected": 0,
             "gold_hits": 0,
-            "gold_items": 0,
         }
         for relation in RELATIONS
     }
@@ -875,6 +1015,8 @@ def main() -> None:
     # ---------------------------------------------------------------
     # Batched selection.
     # ---------------------------------------------------------------
+
+    total_queries = len(jobs)
 
     for start in range(
         0,
@@ -910,11 +1052,11 @@ def main() -> None:
             batch,
             raw_outputs,
         ):
-            stats = relation_stats[
+            relation_stat = stats[
                 relation
             ]
 
-            stats["queries"] += 1
+            relation_stat["queries"] += 1
 
             indices = parse_indices(
                 raw,
@@ -934,23 +1076,18 @@ def main() -> None:
             ] = selected
 
             if selected:
-                stats["accepted"] += 1
+                relation_stat["accepted"] += 1
+                relation_stat["selected"] += len(
+                    selected
+                )
             else:
-                stats["invalid"] += 1
-
-            stats["selected"] += len(
-                selected
-            )
+                relation_stat["invalid"] += 1
 
             gold = seed.gold(
                 word
             )
 
-            stats["gold_items"] += len(
-                gold
-            )
-
-            stats["gold_hits"] += len(
+            relation_stat["gold_hits"] += len(
                 set(selected)
                 & gold
             )
@@ -965,7 +1102,8 @@ def main() -> None:
                         "selected": selected,
                         "gold": sorted(gold),
                         "hits": sorted(
-                            set(selected) & gold
+                            set(selected)
+                            & gold
                         ),
                     }
                 )
@@ -987,7 +1125,7 @@ def main() -> None:
             )
 
     # ---------------------------------------------------------------
-    # Score per relation.
+    # Relation scores.
     # ---------------------------------------------------------------
 
     relation_scores = {}
@@ -1078,8 +1216,8 @@ def main() -> None:
             ),
         }
 
-    # Flat union across relations.
-    flat_f1s = []
+    # Flat union.
+    flat_scores = []
 
     for word in words:
         predicted = set()
@@ -1102,7 +1240,7 @@ def main() -> None:
         if not gold:
             continue
 
-        flat_f1s.append(
+        flat_scores.append(
             f1(
                 predicted,
                 gold,
@@ -1110,10 +1248,10 @@ def main() -> None:
         )
 
     overall_f1 = (
-        sum(flat_f1s)
+        sum(flat_scores)
         / max(
             1,
-            len(flat_f1s),
+            len(flat_scores),
         )
     )
 
@@ -1126,7 +1264,7 @@ def main() -> None:
         lambda: defaultdict(list)
     )
 
-    def concept_id(
+    def get_id(
         concept: str,
     ) -> int:
         if concept not in concept_id_by_name:
@@ -1147,25 +1285,27 @@ def main() -> None:
         relation,
     ), selected in predictions.items():
         for concept in selected:
-            identifier = concept_id(
+            identifier = get_id(
                 concept
             )
 
-            target = edges[
+            if identifier not in edges[
                 word
             ][
                 relation
-            ]
-
-            if identifier not in target:
-                target.append(
+            ]:
+                edges[
+                    word
+                ][
+                    relation
+                ].append(
                     identifier
                 )
                 edge_count += 1
 
     graph_payload = {
         "experiment": (
-            "V123 relation-specific candidate teacher"
+            "V124 clean relation-specific candidate ontology"
         ),
         "relations": RELATIONS,
         "concept_id_by_name": concept_id_by_name,
@@ -1192,14 +1332,14 @@ def main() -> None:
 
     report = {
         "experiment": (
-            "V123 relation-specific candidate teacher"
+            "V124 clean relation-specific candidate ontology"
         ),
         "evaluation_words": words,
         "relations": RELATIONS,
         "candidate_limit": CANDIDATE_LIMIT,
         "max_selected": MAX_SELECTED,
-        "relation_pools": relation_pools,
-        "relation_stats": relation_stats,
+        "pool_stats": pool_stats,
+        "relation_stats": stats,
         "relation_scores": relation_scores,
         "overall_flat_f1": overall_f1,
         "graph_concepts": len(
@@ -1224,7 +1364,17 @@ def main() -> None:
 
     print()
     print(
-        "=== V123 SUMMARY ==="
+        "=== V124 SUMMARY ==="
+    )
+
+    print(
+        "relation_scores:",
+        relation_scores,
+    )
+
+    print(
+        "overall_flat_f1:",
+        overall_f1,
     )
 
     print(
@@ -1239,18 +1389,7 @@ def main() -> None:
         edge_count,
     )
 
-    print(
-        "relation_scores:",
-        relation_scores,
-    )
-
-    print(
-        "overall_flat_f1:",
-        overall_f1,
-    )
-
     print()
-
     print(
         "=== TRACE ==="
     )
@@ -1264,7 +1403,6 @@ def main() -> None:
         )
 
     print()
-
     print(
         "saved_graph:",
         OUTPUT_GRAPH,
@@ -1281,7 +1419,7 @@ def main() -> None:
     )
 
     print(
-        "=== V123 COMPLETE ==="
+        "=== V124 COMPLETE ==="
     )
 
 
