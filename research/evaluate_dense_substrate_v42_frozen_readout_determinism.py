@@ -118,6 +118,57 @@ class DenseCell:
 
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
+
+    def _v42_state_fingerprint(self):
+        """Stable fingerprint for frozen-readout determinism diagnostics."""
+        import hashlib
+        import json
+
+        def norm(value):
+            if isinstance(value, float):
+                return round(value, 12)
+            if isinstance(value, dict):
+                return {
+                    str(k): norm(v)
+                    for k, v in sorted(
+                        value.items(),
+                        key=lambda item: str(item[0]),
+                    )
+                }
+            if isinstance(value, (list, tuple)):
+                return [norm(v) for v in value]
+            if isinstance(value, set):
+                return sorted(
+                    (norm(v) for v in value),
+                    key=lambda item: repr(item),
+                )
+            return value
+
+        payload = {
+            "weights": norm(self.weights),
+            "last_dense_trace": norm(
+                getattr(self, "last_dense_trace", None)
+            ),
+            "assembly_history": norm(
+                getattr(self, "_assembly_history", None)
+            ),
+            "boundary_history": norm(
+                getattr(self, "_boundary_history", None)
+            ),
+            "frozen_boundary_memory": norm(
+                getattr(self, "_frozen_boundary_memory", None)
+            ),
+        }
+
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+
+        return hashlib.sha256(encoded).hexdigest()
+
     """
     Control experiment:
 
@@ -260,6 +311,30 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                 f"active_spikes={active:4d} "
                 f"strong_connections={strong:4d}"
             )
+
+
+    def v42_activation_snapshot(self, word, pos):
+        """Run one frozen activation and return deterministic audit data."""
+        before = self._v42_state_fingerprint()
+
+        fired = self.activate_substrate(
+            word,
+            pos,
+            learn=False,
+        )
+
+        after = self._v42_state_fingerprint()
+
+        return {
+            "word": word,
+            "pos": pos,
+            "fired": list(fired),
+            "before_fingerprint": before,
+            "after_fingerprint": after,
+            "trace": dict(
+                getattr(self, "last_dense_trace", {})
+            ),
+        }
 
     def designer_from_dense_activity(self, word, pos):
         """
@@ -588,7 +663,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V41 - PURE TOPOLOGY COMPETITION ===")
+    print("=== DENSE SUBSTRATE V42 - FROZEN READOUT DETERMINISM ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -782,33 +857,145 @@ def run():
 
 
     print()
-    print("=== V41 PURE TOPOLOGY COMPETITION AUDIT ===")
+    print("=== V42 FROZEN READOUT AUDIT ===")
 
     def probe_candidates(words, limit=20):
+        print()
+        print("=== V42 FROZEN CANDIDATE READOUT ===")
+
         count = 0
         for word in words:
             for pos in range(len(word)):
-                net.designer_from_dense_activity(word, pos)
-                trace = net.last_dense_trace
+                snapshot = net.v42_activation_snapshot(word, pos)
+
                 print(
                     f"{word:6s} pos={pos} "
-                    f"cells={len(trace['fired']):2d} "
-                    f"edges={trace['strong_outgoing']:2d} "
-                    f"dest={trace['destination_count']:2d} "
-                    f"concentration={trace['concentration']:.3f} "
-                    f"support={trace['support_fraction']:.3f} "
-                    f"margin={trace['competition_margin']:.3f} "
-                    f"evidence={trace['topology_evidence']:.3f}"
+                    f"fired={snapshot['fired']} "
+                    f"before={snapshot['before_fingerprint'][:16]} "
+                    f"after={snapshot['after_fingerprint'][:16]}"
                 )
+
                 count += 1
                 if count >= limit:
+                    print("=== END V42 FROZEN CANDIDATE READOUT ===")
+                    print()
                     return
 
-    probe_candidates(TRAINING)
+        print("=== END V42 FROZEN CANDIDATE READOUT ===")
+        print()
+
+    def v42_print_snapshot(label, snapshot):
+        print(
+            f"{label}: "
+            f"fired={snapshot['fired']} "
+            f"before={snapshot['before_fingerprint'][:16]} "
+            f"after={snapshot['after_fingerprint'][:16]}"
+        )
+
+    def v42_determinism_probe():
+        print()
+        print("=== V42 FROZEN READOUT DETERMINISM ===")
+
+        sequences = [
+            (
+                "REPEAT CAT",
+                [
+                    ("CAT", 1),
+                    ("CAT", 1),
+                    ("CAT", 1),
+                    ("CAT", 1),
+                    ("CAT", 1),
+                ],
+            ),
+            (
+                "A/B/A",
+                [
+                    ("CAT", 1),
+                    ("CAD", 1),
+                    ("CAT", 1),
+                ],
+            ),
+            (
+                "MIXED/RETURN",
+                [
+                    ("CAT", 1),
+                    ("CAR", 1),
+                    ("BOAT", 0),
+                    ("BOARD", 3),
+                    ("CAT", 1),
+                ],
+            ),
+        ]
+
+        for label, sequence in sequences:
+            print()
+            print(f"--- {label} ---")
+
+            snapshots = []
+
+            for index, (word, pos) in enumerate(sequence):
+                snapshot = net.v42_activation_snapshot(word, pos)
+                snapshots.append(snapshot)
+                v42_print_snapshot(
+                    f"{index:02d} {word}:{pos}",
+                    snapshot,
+                )
+
+            if snapshots:
+                first = snapshots[0]
+
+                stable = all(
+                    snapshot["fired"] == first["fired"]
+                    and snapshot["after_fingerprint"]
+                    == first["after_fingerprint"]
+                    for snapshot in snapshots
+                    if (
+                        snapshot["word"] == first["word"]
+                        and snapshot["pos"] == first["pos"]
+                    )
+                )
+
+                print(
+                    f"same-input stable={stable}"
+                )
+
+        print()
+        print("=== V42 EXACT READOUT EQUIVALENCE ===")
+
+        pairs = [
+            ("CAT", 1),
+            ("CAD", 1),
+            ("BOAT", 0),
+            ("BOARD", 3),
+        ]
+
+        for word, pos in pairs:
+            first = net.v42_activation_snapshot(word, pos)
+            second = net.v42_activation_snapshot(word, pos)
+
+            same_fired = first["fired"] == second["fired"]
+            same_after = (
+                first["after_fingerprint"]
+                == second["after_fingerprint"]
+            )
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"same_fired={same_fired} "
+                f"same_state={same_after} "
+                f"first={first['fired']} "
+                f"second={second['fired']}"
+            )
+
+        print()
+        print("=== END V42 FROZEN READOUT DETERMINISM ===")
+        print()
+
+    v42_determinism_probe()
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V41 PURE TOPOLOGY COMPETITION AUDIT ===")
+    print("=== END V42 FROZEN READOUT AUDIT ===")
     print()
 
 
