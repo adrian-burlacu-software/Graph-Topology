@@ -326,7 +326,7 @@ class FactorizedDesignerV62:
 
 
 # ---------------------------------------------------------------------------
-# Evaluation
+# V63 NOVEL COMBINATION TEST
 # ---------------------------------------------------------------------------
 
 def validate_v28() -> IndependentGroundTruth:
@@ -334,34 +334,32 @@ def validate_v28() -> IndependentGroundTruth:
 
     gt = IndependentGroundTruth(REUSE_TRAINING)
 
-    train_reuse = []
-    train_branch = []
-    test_reuse = []
-    test_branch = []
+    train_reuse = 0
+    train_branch = 0
+    test_reuse = 0
+    test_branch = 0
 
     for word in TRAINING:
         for pos in range(len(word)):
-            row = (word, pos, word[pos])
             if gt.available(word, pos):
-                train_reuse.append(row)
+                train_reuse += 1
             else:
-                train_branch.append(row)
+                train_branch += 1
 
     for word in TEST:
         for pos in range(len(word)):
-            row = (word, pos, word[pos])
             if gt.available(word, pos):
-                test_reuse.append(row)
+                test_reuse += 1
             else:
-                test_branch.append(row)
+                test_branch += 1
 
     print(
-        f"TRAINING positions={len(train_reuse) + len(train_branch)} "
-        f"reuse={len(train_reuse)} branch={len(train_branch)}"
+        f"TRAINING positions={train_reuse + train_branch} "
+        f"reuse={train_reuse} branch={train_branch}"
     )
     print(
-        f"TEST positions={len(test_reuse) + len(test_branch)} "
-        f"reuse={len(test_reuse)} branch={len(test_branch)}"
+        f"TEST positions={test_reuse + test_branch} "
+        f"reuse={test_reuse} branch={test_branch}"
     )
     print(
         f"REUSE_TRAINING words={len(REUSE_TRAINING)} "
@@ -380,137 +378,204 @@ def validate_v28() -> IndependentGroundTruth:
     return gt
 
 
-def v62_capacity_report(
+def v63_factor_pools():
+    prefixes = sorted({
+        word[:pos]
+        for word in TRAINING
+        for pos in range(len(word))
+    })
+    symbols = sorted({
+        word[pos]
+        for word in TRAINING
+        for pos in range(len(word))
+    })
+    suffixes = sorted({
+        word[pos + 1:]
+        for word in TRAINING
+        for pos in range(len(word))
+    })
+    return prefixes, symbols, suffixes
+
+
+def v63_build_novel_compositions(limit=12):
+    """
+    Generate exact (prefix, symbol, suffix) triples that:
+      1. use only factors already observed during training;
+      2. never occurred as an exact triple during training.
+    """
+    training_compositions = {
+        (
+            word[:pos],
+            word[pos],
+            word[pos + 1:],
+        )
+        for word in TRAINING
+        for pos in range(len(word))
+    }
+
+    prefixes, symbols, suffixes = v63_factor_pools()
+    candidates = []
+
+    for prefix in prefixes:
+        for symbol in symbols:
+            for suffix in suffixes:
+                triple = (prefix, symbol, suffix)
+
+                if triple in training_compositions:
+                    continue
+
+                if not prefix and not suffix:
+                    continue
+
+                word = prefix + symbol + suffix
+                if not word:
+                    continue
+
+                candidates.append((triple, word))
+
+    candidates.sort(
+        key=lambda row: (
+            len(row[0][0]) + len(row[0][2]),
+            row[0][0],
+            row[0][1],
+            row[0][2],
+        )
+    )
+
+    selected = candidates[:limit]
+
+    assert selected, "V63 invalid: no novel factor combinations found."
+
+    for triple, word in selected:
+        assert triple not in training_compositions
+        assert word == triple[0] + triple[1] + triple[2]
+
+    return selected
+
+
+def v63_factor_availability(
     substrate: FactorizedSubstrateV62,
-    gt: IndependentGroundTruth,
-) -> None:
-    reuse_known = 0
-    branch_novel = 0
-    total_reuse = 0
-    total_branch = 0
+    word: str,
+    pos: int,
+) -> dict:
+    prefix, symbol, suffix = substrate.composition(word, pos)
 
-    for word in TEST:
-        for pos in range(len(word)):
-            obs = substrate.frozen_observation(word, pos)
-            expected_reuse = gt.available(word, pos)
+    prefix_key = ComponentKey("prefix", prefix)
+    symbol_key = ComponentKey("symbol", symbol)
+    suffix_key = ComponentKey("suffix", suffix)
 
-            if expected_reuse:
-                total_reuse += 1
-                reuse_known += int(obs["known_binding"])
-            else:
-                total_branch += 1
-                branch_novel += int(not obs["known_binding"])
+    prefix_known = prefix_key in substrate.components
+    symbol_known = symbol_key in substrate.components
+    suffix_known = suffix_key in substrate.components
 
-    print("=== V62 FACTORIZED CAPACITY ===")
-    print("component_count      :", len(substrate.component_by_id))
-    print("binding_count        :", len(substrate.bindings))
-    print("transition_count     :", len(substrate.transitions))
-    print("reuse_known          :", reuse_known)
-    print("reuse_total          :", total_reuse)
-    print("branch_novel         :", branch_novel)
-    print("branch_total         :", total_branch)
-    print(
-        "reuse_binding_rate   :",
-        reuse_known / max(1, total_reuse),
-    )
-    print(
-        "branch_novelty_rate  :",
-        branch_novel / max(1, total_branch),
-    )
-    print("=== END V62 FACTORIZED CAPACITY ===")
-    print()
+    exact_known = False
+
+    if prefix_known and symbol_known and suffix_known:
+        key = (
+            substrate.components[prefix_key],
+            substrate.components[symbol_key],
+            substrate.components[suffix_key],
+        )
+        exact_known = key in substrate.bindings
+
+    return {
+        "prefix": prefix,
+        "symbol": symbol,
+        "suffix": suffix,
+        "prefix_known": prefix_known,
+        "symbol_known": symbol_known,
+        "suffix_known": suffix_known,
+        "all_factors_known": (
+            prefix_known and symbol_known and suffix_known
+        ),
+        "exact_binding_known": exact_known,
+    }
 
 
-def v62_designer_eval(
-    substrate: FactorizedSubstrateV62,
-    gt: IndependentGroundTruth,
-) -> None:
-    designer = FactorizedDesignerV62(substrate)
-
-    correct = 0
-    total = 0
-
-    print("=== V62 DECOUPLED DESIGNER ===")
-
-    for word in TEST:
-        for pos in range(len(word)):
-            obs = substrate.frozen_observation(word, pos)
-            actual = designer.decide(obs)
-
-            expected = (
-                "REUSE"
-                if gt.available(word, pos)
-                else "BRANCH"
-            )
-
-            total += 1
-            correct += int(actual == expected)
-
-            print(
-                f"{word:6s} pos={pos} "
-                f"components="
-                f"{obs['prefix_id']}/"
-                f"{obs['symbol_id']}/"
-                f"{obs['suffix_id']} "
-                f"binding={obs['binding_strength']:.1f} "
-                f"actual={actual:6s} "
-                f"expected={expected:6s}"
-            )
-
-    print()
-    print("correct_positions :", correct)
-    print("total_positions   :", total)
-    print("accuracy          :", correct / max(1, total))
-    print("=== END V62 DECOUPLED DESIGNER ===")
-    print()
-
-
-def v62_factor_reuse_report(
+def v63_run_novel_combination_test(
     substrate: FactorizedSubstrateV62,
 ) -> None:
-    print("=== V62 FACTORIZATION ===")
+    generated = v63_build_novel_compositions()
 
-    compositions = len(substrate.bindings)
-    prefixes = sum(
-        1
-        for key in substrate.component_by_id.values()
-        if key.kind == "prefix"
-    )
-    symbols = sum(
-        1
-        for key in substrate.component_by_id.values()
-        if key.kind == "symbol"
-    )
-    suffixes = sum(
-        1
-        for key in substrate.component_by_id.values()
-        if key.kind == "suffix"
-    )
+    print("=== V63 NOVEL COMBINATION TEST ===")
+    print("generated_positions :", len(generated))
 
-    print("prefix_components :", prefixes)
-    print("symbol_components :", symbols)
-    print("suffix_components :", suffixes)
-    print("composition_bindings :", compositions)
+    all_factors_known = 0
+    exact_binding_known = 0
+    exact_binding_novel = 0
+
+    for triple, word in generated:
+        prefix, symbol, suffix = triple
+        pos = len(prefix)
+
+        actual = substrate.composition(word, pos)
+        assert actual == triple
+
+        evidence = v63_factor_availability(
+            substrate,
+            word,
+            pos,
+        )
+
+        all_factors_known += int(evidence["all_factors_known"])
+        exact_binding_known += int(
+            evidence["exact_binding_known"]
+        )
+        exact_binding_novel += int(
+            not evidence["exact_binding_known"]
+        )
+
+        print(
+            f"{word:16s} pos={pos:2d} "
+            f"composition={actual!r} "
+            f"factors_known={evidence['all_factors_known']} "
+            f"exact_binding={evidence['exact_binding_known']}"
+        )
 
     print()
-    print(
-        "This ratio is the important comparison against V61's "
-        "one-cell-per-composition representation."
-    )
-    print(
-        "component_count / binding_count =",
-        len(substrate.component_by_id) / max(1, compositions),
-    )
+    print("all_factors_known   :", all_factors_known)
+    print("exact_binding_known :", exact_binding_known)
+    print("exact_binding_novel :", exact_binding_novel)
 
-    print("=== END V62 FACTORIZATION ===")
+    assert all_factors_known == len(generated), (
+        "V63 invalid: not all factors were learned"
+    )
+    assert exact_binding_known == 0, (
+        "V63 invalid: generated test contains an exact training binding"
+    )
+    assert exact_binding_novel == len(generated)
+
+    print("V63 TEST CONSTRUCTION ASSERTIONS: PASS")
+    print("=== END V63 NOVEL COMBINATION TEST ===")
+    print()
+
+
+def v63_generalization_probe(
+    substrate: FactorizedSubstrateV62,
+) -> None:
+    print("=== V63 FACTOR GENERALIZATION PROBE ===")
+
+    for triple, word in v63_build_novel_compositions():
+        pos = len(triple[0])
+        obs = substrate.frozen_observation(word, pos)
+
+        print(
+            f"{word:16s} pos={pos:2d} "
+            f"components="
+            f"{obs['prefix_id']}/"
+            f"{obs['symbol_id']}/"
+            f"{obs['suffix_id']} "
+            f"binding={obs['binding'] is not None}"
+        )
+
+    print("=== END V63 FACTOR GENERALIZATION PROBE ===")
     print()
 
 
 def main() -> None:
-    print("=== V62 FACTORIZED STRUCTURED SUBSTRATE ===")
+    print("=== V63 FACTORIZED SUBSTRATE — NOVEL COMBINATION GENERALIZATION ===")
     print(
-        "CAT/CAR/CAN and CAB/CAP/CAG are treated as the same structural "
-        "shape with different symbol components."
+        "Known factors are recombined into exact triples never seen in training."
     )
     print()
 
@@ -519,17 +584,16 @@ def main() -> None:
     substrate = FactorizedSubstrateV62()
     substrate.train(TRAINING)
 
-    print("=== V62 TRAINING ===")
-    print("training_positions :", sum(len(w) for w in TRAINING))
-    print("components          :", len(substrate.component_by_id))
-    print("bindings            :", len(substrate.bindings))
+    print("=== V63 TRAINED SUBSTRATE ===")
+    print("components :", len(substrate.components))
+    print("bindings   :", len(substrate.bindings))
+    print("transitions:", len(substrate.transitions))
     print()
 
-    v62_factor_reuse_report(substrate)
-    v62_capacity_report(substrate, gt)
-    v62_designer_eval(substrate, gt)
+    v63_run_novel_combination_test(substrate)
+    v63_generalization_probe(substrate)
 
-    print("=== V62 COMPLETE ===")
+    print("=== V63 COMPLETE ===")
 
 
 if __name__ == "__main__":
