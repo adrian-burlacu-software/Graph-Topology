@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from copy import deepcopy
 
 from genome import GENOME
@@ -18,48 +19,93 @@ TEST = [
 ]
 
 
-class ActivityDrivenV1(DualVocabularyV6):
+class EdgeCellV1(DualVocabularyV6):
     """
-    V1 removes the evaluator-level "exact boundary exists" signal from
-    the designer.
+    Edge-cell associative memory.
 
-    The two directional vocabularies generate structural activity.
-    A boundary candidate is represented by coincident prefix/suffix
-    activity for the same boundary symbol.
+    The two directional vocabularies provide the endpoints of a local
+    composition. The edge memory binds those endpoints together.
 
-    The exact boundary graph remains the learned structural memory, but
-    it is NOT passed into designer_action as a Boolean answer.
+        prefix node ----\
+                         > edge cell ---> designer
+        suffix node ----/
+
+    The designer never receives BoundaryGraph.has().
+
+    The BoundaryGraph remains the long-term structural ground truth and
+    is used only to record learned composition and evaluate correctness.
     """
 
-    def boundary_activity(self, word, pos):
+    def __init__(self, genome):
+        super().__init__(genome)
+
+        # One associative cell per learned boundary relation.
+        # Key: (prefix_node, boundary_symbol, suffix_node)
+        self.edge_cells = {}
+        self.edge_activity = defaultdict(float)
+
+    def ensure_edge_cell(self, prefix_node, symbol, suffix_node):
+        key = (prefix_node, symbol, suffix_node)
+
+        if key not in self.edge_cells:
+            self.edge_cells[key] = {
+                "strength": 0.0,
+                "spikes": 0,
+            }
+
+        return self.edge_cells[key]
+
+    def learn_edge(self, word, pos):
+        prefix_node = self.prefix.lookup(word[:pos])
+        suffix_node = self.suffix.lookup(word[pos + 1:])
+        symbol = word[pos]
+
+        if prefix_node is None or suffix_node is None:
+            return
+
+        cell = self.ensure_edge_cell(
+            prefix_node,
+            symbol,
+            suffix_node,
+        )
+
+        cell["strength"] = min(
+            1.0,
+            cell["strength"] + 0.5,
+        )
+
+        self.boundaries.add(
+            prefix_node,
+            symbol,
+            suffix_node,
+        )
+
+    def edge_signal(self, word, pos):
         """
-        Return local structural activity from the two vocabularies.
+        Produce associative activity from the actual endpoint pair.
 
-        Prefix activity:
-            path for word[:pos]
-
-        Suffix activity:
-            reverse path for word[pos+1:]
-
-        The designer sees only whether the two paths exist and the
-        corresponding node IDs/symbol, not the BoundaryGraph lookup.
+        No boolean availability is passed to the designer.
         """
         prefix_node = self.prefix.lookup(word[:pos])
         suffix_node = self.suffix.lookup(word[pos + 1:])
+        symbol = word[pos]
 
-        return {
-            "prefix": prefix_node,
-            "suffix": suffix_node,
-            "symbol": word[pos],
-            "prefix_active": prefix_node is not None,
-            "suffix_active": suffix_node is not None,
-        }
+        if prefix_node is None or suffix_node is None:
+            return 0.0
 
-    def designer_from_activity(self, activity, learn=False):
+        key = (prefix_node, symbol, suffix_node)
+        cell = self.edge_cells.get(key)
+
+        if cell is None:
+            return 0.0
+
+        return cell["strength"]
+
+    def designer_from_edge_activity(self, word, pos, learn=False):
         """
-        Convert directional vocabulary activity into designer input.
+        Feed the designer only associative edge activity.
 
-        Importantly, this does NOT call BoundaryGraph.has().
+        The exact boundary answer is NOT passed in.
         """
         n = self.net
         dg = n.designer_genome
@@ -67,27 +113,25 @@ class ActivityDrivenV1(DualVocabularyV6):
         self.reset_designer_transient_state()
         n._reset_designer_input()
 
+        edge = self.edge_signal(word, pos)
+
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
         branch = n.cells[n.branch_cell]
 
         root.potential += dg["input_gain"]
 
-        prefix_active = activity["prefix_active"]
-        suffix_active = activity["suffix_active"]
-
-        # Both directional memories must be active for the designer to
-        # receive the strongest structural coincidence.
-        if prefix_active and suffix_active:
-            reuse.potential += dg["match_gain"]
-        elif prefix_active or suffix_active:
-            reuse.potential += dg["context_gain"]
-            branch.potential += dg["branch_bias"]
+        if edge > 0.0:
+            reuse.potential += (
+                dg["match_gain"] * edge
+            )
         else:
             branch.potential += dg["branch_bias"]
 
-        # The designer must infer the final competition from activity.
-        # There is no exact-edge Boolean here.
+            # Explicit negative evidence remains local to the decision.
+            reuse.inhibition += n.inhibition_genome["strength"]
+            reuse.potential -= n.inhibition_genome["strength"]
+
         if root.potential >= dg["threshold"]:
             root.potential = 0.0
             root.spikes += 1
@@ -115,12 +159,10 @@ class ActivityDrivenV1(DualVocabularyV6):
             branch.spikes += 1
             n.designer_spikes += 1
 
-        # Ask the existing designer for its action without supplying the
-        # structural answer.
         return n.designer_signal(None, "")
 
-    def train_activity(self, words, epochs=5):
-        print("=== ACTIVITY-DRIVEN TRAINING ===")
+    def train_edges(self, words, epochs=5):
+        print("=== EDGE-CELL TRAINING ===")
         print()
 
         for epoch in range(1, epochs + 1):
@@ -128,37 +170,42 @@ class ActivityDrivenV1(DualVocabularyV6):
             branch = 0
 
             for word in words:
+                # First establish directional vocabulary paths.
                 for pos in range(len(word)):
-                    activity = self.boundary_activity(word, pos)
+                    self.prefix.ensure_path(word[:pos])
+                    self.suffix.ensure_path(word[pos + 1:])
 
-                    action = self.designer_from_activity(
-                        activity,
+                # Then bind each pair through an edge cell.
+                for pos in range(len(word)):
+                    self.learn_edge(word, pos)
+
+                    action = self.designer_from_edge_activity(
+                        word,
+                        pos,
                         learn=False,
                     )
 
-                    # Structural learning happens independently of the
-                    # designer's action.
                     if action == "REUSE":
                         reuse += 1
                     else:
                         branch += 1
 
-                self.learn_structure(word)
-
             print(
                 f"epoch={epoch:3d} "
                 f"reuse={reuse:3d} "
                 f"branch={branch:3d} "
+                f"edge_cells={len(self.edge_cells):3d} "
                 f"links={len(self.boundaries.links):3d}"
             )
 
-    def evaluate(self, words):
+    def evaluate_frozen(self, words):
         print()
-        print("=== ACTIVITY-DRIVEN FROZEN TEST ===")
+        print("=== EDGE-CELL FROZEN TEST ===")
 
         links_before = len(self.boundaries.links)
         prefix_before = self.prefix.next_id
         suffix_before = self.suffix.next_id
+        edge_before = len(self.edge_cells)
 
         exact_words = 0
         correct_positions = 0
@@ -172,10 +219,7 @@ class ActivityDrivenV1(DualVocabularyV6):
             exact = True
 
             for pos in range(len(word)):
-                activity = self.boundary_activity(word, pos)
-
-                # This is ONLY for measuring ground truth.
-                # It is never passed to the designer.
+                # Ground truth is used ONLY for scoring.
                 expected = self.available(word, pos)
 
                 if expected:
@@ -183,8 +227,9 @@ class ActivityDrivenV1(DualVocabularyV6):
                 else:
                     expected_branch += 1
 
-                action = self.designer_from_activity(
-                    activity,
+                action = self.designer_from_edge_activity(
+                    word,
+                    pos,
                     learn=False,
                 )
 
@@ -235,21 +280,32 @@ class ActivityDrivenV1(DualVocabularyV6):
         print(f"prefix_nodes_after    : {self.prefix.next_id}")
         print(f"suffix_nodes_before   : {suffix_before}")
         print(f"suffix_nodes_after    : {self.suffix.next_id}")
+        print(f"edge_cells_before     : {edge_before}")
+        print(f"edge_cells_after      : {len(self.edge_cells)}")
 
 
 def run():
-    genome = deepcopy(GENOME)
+    net = EdgeCellV1(deepcopy(GENOME))
 
-    net = ActivityDrivenV1(genome)
-
-    print("=== ACTIVITY-DRIVEN DUAL VOCABULARY V1 ===")
+    print("=== EDGE-CELL V1 ===")
     print()
-    print("Designer does NOT receive BoundaryGraph.has().")
-    print("Designer receives only directional vocabulary activity.")
+    print("Two directional memories + associative edge cells + one designer.")
+    print("Designer receives edge activity, not BoundaryGraph.has().")
     print()
 
-    net.train_activity(TRAINING, epochs=5)
-    net.evaluate(TEST)
+    net.train_edges(TRAINING, epochs=5)
+    net.evaluate_frozen(TEST)
+
+    print()
+    print("=== EDGE MEMORY ===")
+
+    for key, cell in sorted(net.edge_cells.items()):
+        prefix_node, symbol, suffix_node = key
+        print(
+            f"({prefix_node}, {symbol}, {suffix_node}) "
+            f"strength={cell['strength']:.3f} "
+            f"spikes={cell['spikes']}"
+        )
 
 
 if __name__ == "__main__":
