@@ -71,7 +71,7 @@ DICTIONARY_PATH = ROOT / "data" / "dictionary.csv"
 SEMANTICS_PATH = ROOT / "data" / "semantics.csv"
 
 OUTPUT_DIR = ROOT / "results"
-PT_PATH = OUTPUT_DIR / "v100_smol_probe.pt"
+PT_PATH = OUTPUT_DIR / "v101_smol_probe_float32.pt"
 
 # Keep this small for the introductory run.
 MAX_WORDS = 1000
@@ -314,6 +314,7 @@ def load_model():
     model = AutoModelForCausalLM.from_pretrained(
         str(MODEL_PATH),
         local_files_only=True,
+        torch_dtype=torch.float32,
     )
 
     model.eval()
@@ -387,6 +388,49 @@ def tokenization_probe(
 # ---------------------------------------------------------------------------
 # Probe 2 — hidden states
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Activation diagnostics
+# ---------------------------------------------------------------------------
+
+def activation_stats(
+    tensor: torch.Tensor,
+) -> dict[str, object]:
+    values = tensor.detach().float()
+
+    finite = torch.isfinite(values)
+
+    if not bool(finite.all()):
+        finite_values = values[finite]
+    else:
+        finite_values = values
+
+    if finite_values.numel() == 0:
+        return {
+            "dtype": str(tensor.dtype),
+            "finite": False,
+            "min": float("nan"),
+            "max": float("nan"),
+            "mean": float("nan"),
+            "std": float("nan"),
+            "norm_mean": float("nan"),
+        }
+
+    return {
+        "dtype": str(tensor.dtype),
+        "finite": bool(finite.all()),
+        "min": float(finite_values.min().item()),
+        "max": float(finite_values.max().item()),
+        "mean": float(finite_values.mean().item()),
+        "std": float(finite_values.std().item()),
+        "norm_mean": float(
+            torch.linalg.vector_norm(
+                finite_values.reshape(-1)
+            ).item()
+            / max(1, finite_values.numel())
+        ),
+    }
+
+
 
 @torch.no_grad()
 def extract_hidden_states(
@@ -422,6 +466,18 @@ def extract_hidden_states(
         attention_mask=dry_mask,
         output_hidden_states=True,
         use_cache=False,
+    )
+
+    print(
+        "native_hidden_dtype:",
+        dry_output.hidden_states[0].dtype,
+    )
+
+    print(
+        "native_embedding_stats:",
+        activation_stats(
+            dry_output.hidden_states[0]
+        ),
     )
 
     hidden_count = len(
@@ -489,8 +545,28 @@ def extract_hidden_states(
         for level, hidden in enumerate(
             output.hidden_states
         ):
+            # Convert immediately to float32 before any pooling, normalization,
+            # similarity, or disk serialization.
+            hidden_f32 = hidden.float()
+
+            if start == 0:
+                stats = activation_stats(
+                    hidden_f32
+                )
+
+                print(
+                    f"layer={level:2d} "
+                    f"dtype={stats['dtype']} "
+                    f"finite={stats['finite']} "
+                    f"min={stats['min']:+.5e} "
+                    f"max={stats['max']:+.5e} "
+                    f"mean={stats['mean']:+.5e} "
+                    f"std={stats['std']:+.5e}",
+                    flush=True,
+                )
+
             pooled = mean_pool(
-                hidden,
+                hidden_f32,
                 attention_mask,
             )
 
@@ -894,6 +970,38 @@ def main() -> None:
             words,
         )
     )
+
+    print(
+        "=== V101 NUMERICAL SANITY ==="
+    )
+
+    for level, vectors in enumerate(
+        layer_vectors
+    ):
+        flat = vectors.float()
+
+        if flat.shape[0] >= 2:
+            a = flat[0]
+            b = flat[1]
+
+            cosine = torch.nn.functional.cosine_similarity(
+                a.unsqueeze(0),
+                b.unsqueeze(0),
+            ).item()
+        else:
+            cosine = float("nan")
+
+        print(
+            f"layer={level:2d} "
+            f"dtype={flat.dtype} "
+            f"min={float(flat.min().item()):+.5e} "
+            f"max={float(flat.max().item()):+.5e} "
+            f"mean={float(flat.mean().item()):+.5e} "
+            f"std={float(flat.std().item()):+.5e} "
+            f"pair01_cosine={cosine:+.6f}"
+        )
+
+    print()
 
     print(
         "=== V100 HIDDEN STATE SUMMARY ==="
