@@ -135,14 +135,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         """
         Dense coincidence substrate.
 
-        Every generic cell has two independent receptive fields:
-        one for prefix context and one for suffix context.
+        Prefix and suffix are independent inputs. Coincidence is computed
+        first and directly drives plasticity. Spiking is a later consequence
+        of the learned receptive fields.
 
-        The useful evidence is multiplicative:
-
-            coincidence = prefix_drive * suffix_drive
-
-        Plasticity is gated by that coincidence.
+        There are no explicit edge cells and no boundary lookup.
         """
         context = self.context_vector(word, pos)
         prefix_node, symbol, suffix_node = context
@@ -177,17 +174,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
             coincidence = prefix_drive * suffix_drive
 
-            # Initial coincidence is deliberately enough to be a learning
-            # event, while the learned receptive fields determine whether
-            # the generic neuron eventually spikes.
-            drive = 0.10 * (
-                prefix_drive + suffix_drive
-            ) + 0.50 * coincidence
-
-            # Coincidence directly drives plasticity. A spike is an
-            # output consequence, not a prerequisite for learning.
+            # IMPORTANT: coincidence learning happens independently of
+            # whether this generic neuron spikes.
             if learn and prefix_active and suffix_active:
                 delta = self.learning_rate * coincidence
+
                 self.prefix_weights[i] = min(
                     1.0,
                     self.prefix_weights[i] + delta,
@@ -197,19 +188,24 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                     self.suffix_weights[i] + delta,
                 )
 
-            # Learned receptive fields amplify later activation.
+            # Learned receptive fields now amplify the same coincidence.
             learned_drive = (
                 self.prefix_weights[i]
                 * self.suffix_weights[i]
                 * coincidence
             )
 
-            total_drive = drive + learned_drive
+            drive = (
+                0.10 * (prefix_drive + suffix_drive)
+                + 0.50 * coincidence
+                + learned_drive
+            )
 
-            if cell.stimulate(total_drive):
+            if cell.stimulate(drive):
                 fired.append(i)
 
         return fired
+
     def train_dense(self, words, epochs=5):
         print("=== DENSE SUBSTRATE TRAINING ===")
         print()
