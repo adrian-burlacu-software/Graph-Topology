@@ -455,7 +455,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V28 - BALANCED COMPOSITIONAL TRAINING ===")
+    print("=== DENSE SUBSTRATE V29 - SUBSTRATE REPRESENTATION AUDIT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -583,6 +583,144 @@ def run():
     print("strong_before_prune :", strong_before_prune)
     print("connections_after   :", remaining)
     print("strong_after_prune  :", strong_after_prune)
+
+
+    print()
+    print("=== V29 SUBSTRATE REPRESENTATION AUDIT ===")
+
+    def gt(word, pos):
+        return net.ground_truth.available(word, pos)
+
+    def snapshot(words):
+        rows = []
+        for word in words:
+            for pos in range(len(word)):
+                # Use the exact frozen path: no learning and no designer.
+                for cell in net.cells:
+                    cell.reset()
+
+                fired = net.activate_substrate(word, pos, learn=False)
+                fired_set = set(fired)
+                activity = len(fired_set) / max(1, net.cell_count)
+
+                rows.append({
+                    "word": word,
+                    "pos": pos,
+                    "expected": "REUSE" if gt(word, pos) else "BRANCH",
+                    "fired": fired_set,
+                    "activity": activity,
+                })
+        return rows
+
+    train_rows = snapshot(TRAINING)
+    test_rows = snapshot(TEST)
+
+    def summarize(name, rows):
+        reuse = [r for r in rows if r["expected"] == "REUSE"]
+        branch = [r for r in rows if r["expected"] == "BRANCH"]
+
+        def mean(xs):
+            return sum(xs) / len(xs) if xs else 0.0
+
+        print()
+        print(f"--- {name} ---")
+        print("reuse_rows  :", len(reuse))
+        print("branch_rows :", len(branch))
+
+        print(
+            "reuse_activity_mean  :",
+            f"{mean([r['activity'] for r in reuse]):.6f}",
+        )
+        print(
+            "branch_activity_mean :",
+            f"{mean([r['activity'] for r in branch]):.6f}",
+        )
+
+        print(
+            "reuse_activity_range :",
+            (
+                f"{min(r['activity'] for r in reuse):.6f}"
+                f"..{max(r['activity'] for r in reuse):.6f}"
+                if reuse else "NONE"
+            ),
+        )
+        print(
+            "branch_activity_range:",
+            (
+                f"{min(r['activity'] for r in branch):.6f}"
+                f"..{max(r['activity'] for r in branch):.6f}"
+                if branch else "NONE"
+            ),
+        )
+
+        # Nearest opposite-class overlap: maximum Jaccard similarity.
+        max_cross = 0.0
+        for a in reuse:
+            for b in branch:
+                union = len(a["fired"] | b["fired"])
+                if union:
+                    max_cross = max(
+                        max_cross,
+                        len(a["fired"] & b["fired"]) / union,
+                    )
+
+        print("max_cross_class_jaccard:", f"{max_cross:.6f}")
+
+    summarize("TRAINING", train_rows)
+    summarize("HELD-OUT TEST", test_rows)
+
+    print()
+    print("--- SAMPLE REPRESENTATIONS ---")
+    for row in train_rows[:6] + test_rows[:6]:
+        print(
+            f"{row['word']:6s} pos={row['pos']} "
+            f"expected={row['expected']:6s} "
+            f"activity={row['activity']:.6f} "
+            f"fired={sorted(row['fired'])}"
+        )
+
+    # Measure whether activity alone could separate the classes. This is a
+    # diagnostic, not a replacement classifier: find the best threshold on
+    # TRAINING and report it on TEST without changing the network.
+    candidates = sorted({r["activity"] for r in train_rows} | {0.0, 1.0})
+    best = None
+
+    for threshold in candidates:
+        correct = sum(
+            ("REUSE" if r["activity"] >= threshold else "BRANCH")
+            == r["expected"]
+            for r in train_rows
+        )
+        key = (correct, -threshold)
+        if best is None or key > best[0]:
+            best = (key, threshold)
+
+    threshold = best[1]
+
+    def threshold_score(rows):
+        return sum(
+            ("REUSE" if r["activity"] >= threshold else "BRANCH")
+            == r["expected"]
+            for r in rows
+        )
+
+    train_correct = threshold_score(train_rows)
+    test_correct = threshold_score(test_rows)
+
+    print()
+    print("=== ACTIVITY-ONLY DIAGNOSTIC ===")
+    print("chosen_training_threshold:", f"{threshold:.6f}")
+    print(
+        "training_accuracy:",
+        f"{train_correct}/{len(train_rows)} "
+        f"({train_correct / max(1, len(train_rows)):.4f})",
+    )
+    print(
+        "heldout_accuracy :",
+        f"{test_correct}/{len(test_rows)} "
+        f"({test_correct / max(1, len(test_rows)):.4f})",
+    )
+    print("=== END V29 SUBSTRATE REPRESENTATION AUDIT ===")
 
     net.evaluate_frozen(TEST)
 
