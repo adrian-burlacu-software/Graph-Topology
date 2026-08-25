@@ -151,6 +151,60 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         return fired
 
+
+    def debug_position(self, word, pos, top_k=8):
+        """Return frozen substrate evidence for one position."""
+        context = self.context_vector(word, pos)
+        prefix_node, symbol, suffix_node = context
+
+        p = 0 if prefix_node is None else prefix_node + 1
+        s = 0 if suffix_node is None else suffix_node + 1
+
+        hp = (p * 73856093) ^ (ord(symbol) * 19349663)
+        hs = (s * 83492791) ^ (ord(symbol) * 2654435761)
+
+        rows = []
+
+        for i, cell in enumerate(self.cells):
+            p_phase = ((hp ^ (i * 2246822519)) & 0xFFFF) / 65535.0
+            s_phase = ((hs ^ (i * 3266489917)) & 0xFFFF) / 65535.0
+
+            prefix_drive = (
+                0.35 + 0.25 * p_phase
+                if prefix_node is not None else 0.0
+            )
+            suffix_drive = (
+                0.35 + 0.25 * s_phase
+                if suffix_node is not None else 0.0
+            )
+            coincidence = prefix_drive * suffix_drive
+
+            learned_drive = sum(
+                max(0.0, weight)
+                for (source, target), weight in self.weights.items()
+                if source == i
+            )
+
+            drive = (
+                0.10 * (prefix_drive + suffix_drive)
+                + 0.50 * coincidence
+                + 0.01 * learned_drive
+            )
+
+            rows.append(
+                (
+                    drive,
+                    i,
+                    prefix_drive,
+                    suffix_drive,
+                    coincidence,
+                    learned_drive,
+                )
+            )
+
+        rows.sort(key=lambda row: (-row[0], row[1]))
+        return context, rows[:top_k]
+
     def train_dense(self, words, epochs=5):
         print("=== DENSE SUBSTRATE TRAINING ===")
         print()
@@ -363,6 +417,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         print("=== END ERROR ANALYSIS ===")
 
         print()
+        print()
+
+
         print("=== GENERALIZATION ===")
         print(f"test_words        : {len(words)}")
         print(f"exact_words       : {exact_words}/{len(words)}")
@@ -378,7 +435,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V13 - DENSE BASELINE ERROR ANALYSIS ===")
+    print("=== DENSE SUBSTRATE V14 - ERROR AUTOPSY ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -426,6 +483,38 @@ def run():
     print("strong_after_prune  :", strong_after_prune)
 
     net.evaluate_frozen(TEST)
+
+    print()
+    print("=== ACTIVATION / EVIDENCE AUTOPSY ===")
+
+    for word, pos in [("CAT", 1), ("BOAT", 0), ("BOARD", 3)]:
+        context, rows = net.debug_position(word, pos, top_k=8)
+
+        print()
+        print(
+            f"{word} pos={pos} symbol={word[pos]} "
+            f"context={context}"
+        )
+
+        for (
+            drive,
+            cell_id,
+            prefix_drive,
+            suffix_drive,
+            coincidence,
+            learned_drive,
+        ) in rows:
+            print(
+                f"  cell={cell_id:2d} "
+                f"drive={drive:.6f} "
+                f"prefix={prefix_drive:.6f} "
+                f"suffix={suffix_drive:.6f} "
+                f"coincidence={coincidence:.6f} "
+                f"learned={learned_drive:.6f}"
+            )
+
+    print()
+    print("=== END ACTIVATION / EVIDENCE AUTOPSY ===")
 
 
 if __name__ == "__main__":
