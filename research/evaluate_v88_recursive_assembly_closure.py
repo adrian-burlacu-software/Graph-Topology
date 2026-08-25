@@ -607,190 +607,397 @@ class BindingAssemblyNetwork(Network):
 
 
 # ---------------------------------------------------------------------------
-# V82 — MULTI-BINDING ASSEMBLY DEPTH / COMPRESSION
+# V83 — RECURSIVE ASSEMBLY CLOSURE
 # ---------------------------------------------------------------------------
 
-ASSEMBLY_DEPTHS = (2, 3, 4)
+@dataclass(frozen=True)
+class Unit:
+    """
+    A reusable graph unit.
+
+    At level 0 this is a binding cell.
+    At later levels this is an assembly cell.
+
+    The discovery operator does not care which level produced the unit.
+    """
+    unit_id: int
+    level: int
 
 
-def binding_sequence_for_word(
+def collect_binding_units(
     network: BindingAssemblyNetwork,
-    word: str,
-) -> list[int]:
-    sequence = []
-
-    for pos in range(len(word)):
-        factors = network.factorize(
-            word,
-            pos,
-            learn=False,
-        )
-
-        binding = network.binding_by_key.get(
-            factors
-        )
-
-        if binding is not None:
-            sequence.append(binding)
-
-    return sequence
-
-
-def count_subsequences(
     words: list[str],
-    network: BindingAssemblyNetwork,
-    depth: int,
-) -> Counter[tuple[int, ...]]:
-    counts = Counter()
+) -> list[int]:
+    units = set()
 
     for word in words:
-        bindings = binding_sequence_for_word(
-            network,
-            word,
-        )
+        sequence = []
 
-        if len(bindings) < depth:
-            continue
-
-        for start in range(
-            0,
-            len(bindings) - depth + 1,
-        ):
-            seq = tuple(
-                bindings[start:start + depth]
+        for pos in range(len(word)):
+            factors = network.factorize(
+                word,
+                pos,
+                learn=False,
             )
-            counts[seq] += 1
 
-    return counts
+            binding = network.binding_by_key.get(
+                factors
+            )
+
+            if binding is not None:
+                sequence.append(binding)
+
+        units.update(sequence)
+
+    return sorted(units)
 
 
-def discover_depth_assemblies(
+def discover_recursive_level(
     network: BindingAssemblyNetwork,
-    sequences: Counter[tuple[int, ...]],
-    depth: int,
+    units: list[int],
+    level: int,
     min_occurrences: int = 2,
-) -> dict[str, int]:
+) -> tuple[list[int], dict[str, int]]:
     """
-    Discover one real assembly cell for each recurring binding sequence.
+    Generic discovery operator.
 
-    This is intentionally separate from V81's pairwise assembly cache.
-    A depth-D assembly represents D binding cells, so compression can finally
-    become < 1 when multiple occurrences reuse the same multi-binding pattern.
+    Input:
+        an ordered stream of reusable units
+
+    Operation:
+        count adjacent unit transitions
+        repeated transition -> one reusable assembly unit
+
+    Output:
+        newly discovered assembly units
+
+    This function does not know whether `units` are bindings or assemblies.
+    The same operator is reused at every level.
     """
-    discovered = 0
+    if len(units) < 2:
+        return [], {
+            "candidate_transitions": 0,
+            "recurring_transitions": 0,
+            "new_assemblies": 0,
+            "reused_assemblies": 0,
+        }
+
+    transitions = Counter(
+        zip(
+            units,
+            units[1:],
+        )
+    )
+
+    candidate_count = len(transitions)
+
+    recurring = {
+        transition: count
+        for transition, count in transitions.items()
+        if count >= min_occurrences
+    }
+
+    new_units = []
     reused = 0
 
-    registry: dict[tuple[int, ...], int] = {}
+    for transition, count in sorted(
+        recurring.items()
+    ):
+        assembly = network.assembly_by_transition.get(
+            transition
+        )
 
-    for sequence, count in sequences.items():
-        if count < min_occurrences:
-            continue
-
-        existing = registry.get(sequence)
-
-        if existing is None:
-            assembly_id = network.create_cell(
-                f"v82_assembly_d{depth}"
+        if assembly is None:
+            assembly = network.create_cell(
+                f"v83_assembly_level_{level}"
             )
-            registry[sequence] = assembly_id
 
-            for binding_id in sequence:
+            network.assembly_by_transition[
+                transition
+            ] = assembly
+
+            previous, current = transition
+
+            network.connect(
+                previous,
+                assembly,
+                f"V83_ASSEMBLY_MEMBER_L{level}",
+                1.0,
+            )
+
+            network.connect(
+                current,
+                assembly,
+                f"V83_ASSEMBLY_MEMBER_L{level}",
+                1.0,
+            )
+
+            new_units.append(
+                assembly
+            )
+
+        else:
+            reused += count
+
+    return new_units, {
+        "candidate_transitions": candidate_count,
+        "recurring_transitions": len(recurring),
+        "new_assemblies": len(new_units),
+        "reused_assemblies": reused,
+    }
+
+
+def stream_units(
+    network: BindingAssemblyNetwork,
+    words: list[str],
+    previous_units_by_binding: dict[int, list[int]],
+    assembly_maps: dict[int, dict[int, list[int]]],
+) -> None:
+    """
+    Build reusable unit streams for every word.
+
+    Level 0 = binding IDs.
+
+    For each higher level, an assembly unit replaces each adjacent pair of
+    lower-level units whenever that assembly exists.
+
+    This allows discovered assemblies to become inputs to the same operator.
+    """
+    # Store level-0 unit sequences.
+    for word in words:
+        binding_sequence = []
+
+        for pos in range(len(word)):
+            factors = network.factorize(
+                word,
+                pos,
+                learn=False,
+            )
+
+            binding = network.binding_by_key.get(
+                factors
+            )
+
+            if binding is not None:
+                binding_sequence.append(binding)
+
+        previous_units_by_binding[
+            hash(word)
+        ] = binding_sequence
+
+
+def compress_sequence_once(
+    network: BindingAssemblyNetwork,
+    sequence: list[int],
+) -> list[int]:
+    """
+    Apply the same learned assembly dictionary once.
+
+    For adjacent units A,B:
+        known assembly(A,B) -> assembly unit
+        otherwise keep A
+
+    The final singleton unit is carried forward.
+    """
+    if len(sequence) < 2:
+        return sequence[:]
+
+    result = []
+    i = 0
+
+    while i < len(sequence):
+        if i + 1 < len(sequence):
+            key = (
+                sequence[i],
+                sequence[i + 1],
+            )
+
+            assembly = (
+                network.assembly_by_transition.get(
+                    key
+                )
+            )
+
+            if assembly is not None:
+                result.append(assembly)
+                i += 2
+                continue
+
+        result.append(sequence[i])
+        i += 1
+
+    return result
+
+
+def run_recursive_closure(
+    network: BindingAssemblyNetwork,
+    words: list[str],
+    max_levels: int = 12,
+) -> list[dict[str, int]]:
+    """
+    Run the SAME discovery/compression operator repeatedly.
+
+    Stop when a level creates zero new assemblies.
+
+    No code path changes between levels.
+    """
+    # Build initial unit streams.
+    streams: list[list[int]] = []
+
+    for word in words:
+        sequence = []
+
+        for pos in range(len(word)):
+            factors = network.factorize(
+                word,
+                pos,
+                learn=False,
+            )
+
+            binding = network.binding_by_key.get(
+                factors
+            )
+
+            if binding is not None:
+                sequence.append(binding)
+
+        streams.append(sequence)
+
+    results = []
+
+    for level in range(1, max_levels + 1):
+        all_sequences = []
+
+        for sequence in streams:
+            if len(sequence) >= 2:
+                all_sequences.extend(
+                    zip(
+                        sequence,
+                        sequence[1:],
+                    )
+                )
+
+        transition_counts = Counter(
+            all_sequences
+        )
+
+        recurring = {
+            key: count
+            for key, count
+            in transition_counts.items()
+            if count >= 2
+        }
+
+        new_units = []
+
+        for transition in sorted(recurring):
+            assembly = (
+                network.assembly_by_transition.get(
+                    transition
+                )
+            )
+
+            if assembly is None:
+                assembly = network.create_cell(
+                    f"v83_assembly_level_{level}"
+                )
+
+                network.assembly_by_transition[
+                    transition
+                ] = assembly
+
+                previous, current = transition
+
                 network.connect(
-                    binding_id,
-                    assembly_id,
-                    "V82_ASSEMBLY_MEMBER",
+                    previous,
+                    assembly,
+                    f"V83_ASSEMBLY_MEMBER_L{level}",
                     1.0,
                 )
 
-            discovered += 1
-        else:
-            reused += count - 1
+                network.connect(
+                    current,
+                    assembly,
+                    f"V83_ASSEMBLY_MEMBER_L{level}",
+                    1.0,
+                )
 
-    total_recurrent_occurrences = sum(
-        count
-        for count in sequences.values()
-        if count >= min_occurrences
-    )
+                new_units.append(
+                    assembly
+                )
 
-    return {
-        "candidate_sequences": len(sequences),
-        "recurring_sequences": sum(
-            count >= min_occurrences
-            for count in sequences.values()
-        ),
-        "discovered_assemblies": discovered,
-        "reused_occurrences": reused,
-        "recurrent_occurrences": (
-            total_recurrent_occurrences
-        ),
-    }
+        # Now feed the newly available assembly dictionary back through the
+        # SAME compression operator.
+        compressed_streams = []
 
-
-def run_depth(
-    network: BindingAssemblyNetwork,
-    words: list[str],
-    depth: int,
-) -> dict[str, float]:
-    sequences = count_subsequences(
-        words,
-        network,
-        depth,
-    )
-
-    stats = discover_depth_assemblies(
-        network,
-        sequences,
-        depth,
-    )
-
-    recurring = stats[
-        "recurring_sequences"
-    ]
-    assemblies = stats[
-        "discovered_assemblies"
-    ]
-
-    # Number of recurring sequences represented by assembly cells.
-    # With one assembly per recurring sequence this is currently 1.0, but the
-    # useful signal is whether the SAME sequence is repeatedly reused.
-    compression = (
-        assemblies
-        / max(1, recurring)
-    )
-
-    return {
-        "depth": float(depth),
-        "candidate_sequences": float(
-            stats["candidate_sequences"]
-        ),
-        "recurring_sequences": float(
-            recurring
-        ),
-        "discovered_assemblies": float(
-            assemblies
-        ),
-        "reused_occurrences": float(
-            stats["reused_occurrences"]
-        ),
-        "compression": compression,
-        "max_sequence_frequency": float(
-            max(
-                sequences.values(),
-                default=0,
+        for sequence in streams:
+            compressed = compress_sequence_once(
+                network,
+                sequence,
             )
-        ),
-    }
+
+            compressed_streams.append(
+                compressed
+            )
+
+        old_total = sum(
+            len(sequence)
+            for sequence in streams
+        )
+
+        new_total = sum(
+            len(sequence)
+            for sequence in compressed_streams
+        )
+
+        results.append(
+            {
+                "level": level,
+                "input_units": old_total,
+                "output_units": new_total,
+                "candidate_transitions": len(
+                    transition_counts
+                ),
+                "recurring_transitions": len(
+                    recurring
+                ),
+                "new_assemblies": len(
+                    new_units
+                ),
+                "assembly_cells_total": sum(
+                    cell.kind.startswith(
+                        "v83_assembly_level_"
+                    )
+                    for cell in network.cells.values()
+                ),
+            }
+        )
+
+        streams = compressed_streams
+
+        print(
+            f"level={level:2d} "
+            f"input_units={old_total:7d} "
+            f"output_units={new_total:7d} "
+            f"candidates={len(transition_counts):7d} "
+            f"recurring={len(recurring):7d} "
+            f"new_assemblies={len(new_units):7d}"
+        )
+
+        if not new_units:
+            break
+
+    return results
 
 
 def main() -> None:
     total_start = time.perf_counter()
 
     print(
-        "=== V82 MULTI-BINDING ASSEMBLY DEPTH ==="
+        "=== V83 RECURSIVE ASSEMBLY CLOSURE ==="
     )
     print(
-        "Question: do recurring sequences of reusable binding cells "
-        "form compact multi-binding assemblies?"
+        "One operator, repeatedly applied to its own discovered outputs."
     )
     print(
         "corpus:",
@@ -824,7 +1031,6 @@ def main() -> None:
         "real Network training complete"
     )
 
-    # Freeze the width-1 binding substrate first.
     network.stream(
         train,
         "TRAIN_BINDINGS",
@@ -836,78 +1042,60 @@ def main() -> None:
         "binding_cells :",
         network.counts()["binding_cells"],
     )
+    print()
 
-    # The depth experiment is intentionally run on validation + test rather
-    # than inventing a tiny synthetic corpus.
+    # The complete stream is intentionally included. The question is whether
+    # recursion remains productive on real corpus structure.
     evaluation_words = (
         validation + test
     )
 
-    results = []
-
-    for depth in ASSEMBLY_DEPTHS:
-        result = run_depth(
-            network,
-            evaluation_words,
-            depth,
-        )
-        results.append(result)
-
-        print(
-            f"depth={depth} "
-            f"candidates={result['candidate_sequences']:.0f} "
-            f"recurring={result['recurring_sequences']:.0f} "
-            f"assemblies={result['discovered_assemblies']:.0f} "
-            f"reused={result['reused_occurrences']:.0f} "
-            f"max_freq={result['max_sequence_frequency']:.0f}"
-        )
+    results = run_recursive_closure(
+        network,
+        evaluation_words,
+        max_levels=12,
+    )
 
     print()
     print(
-        "=== V82 DEPTH SUMMARY ==="
-    )
-    print(
-        "depth | "
-        "candidate_sequences | "
-        "recurring_sequences | "
-        "assemblies | "
-        "reused_occurrences | "
-        "max_frequency"
+        "=== V83 CLOSURE SUMMARY ==="
     )
 
     for row in results:
         print(
-            f"{int(row['depth']):5d} | "
-            f"{int(row['candidate_sequences']):19d} | "
-            f"{int(row['recurring_sequences']):19d} | "
-            f"{int(row['discovered_assemblies']):10d} | "
-            f"{int(row['reused_occurrences']):19d} | "
-            f"{int(row['max_sequence_frequency']):13d}"
+            f"level={row['level']:2d} "
+            f"input={row['input_units']:7d} "
+            f"output={row['output_units']:7d} "
+            f"candidates={row['candidate_transitions']:7d} "
+            f"recurring={row['recurring_transitions']:7d} "
+            f"new={row['new_assemblies']:7d} "
+            f"total_assemblies={row['assembly_cells_total']:7d}"
         )
 
     print()
-    print(
-        "Interpretation:"
-    )
-    print(
-        "  recurring_sequences > 0 means the corpus contains reusable "
-        "multi-binding motifs at that depth."
-    )
-    print(
-        "  max_frequency > 1 confirms genuine repeated sequence structure."
-    )
-    print(
-        "  The important next signal is whether longer depths still recur, "
-        "rather than merely having pairwise transitions."
-    )
 
-    print()
+    if results:
+        final = results[-1]
+        print(
+            "fixed_point_reached :",
+            final["new_assemblies"] == 0,
+        )
+        print(
+            "final_level         :",
+            final["level"],
+        )
+        print(
+            "total_assemblies    :",
+            final["assembly_cells_total"],
+        )
+
     print(
         "elapsed_seconds :",
         f"{time.perf_counter() - total_start:.2f}",
     )
+
     print(
-        "=== V82 COMPLETE ==="
+        "=== V83 COMPLETE ==="
     )
 
 
