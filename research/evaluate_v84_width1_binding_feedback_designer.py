@@ -332,16 +332,16 @@ class V80BindingFeedbackNetwork(Network):
         factors: tuple[int, int, int],
     ) -> float:
         """
-        Convert binding-cell state into ordinary membrane activity.
+        Convert binding-cell state into ordinary designer-root activity.
 
-        The designer does not receive:
-            binding_exists = True
+        IMPORTANT:
+            binding existence is NOT a REUSE vote.
 
-        It receives activity through a real graph cell/synapse.
+        The binding cell only contributes a learned input to the existing
+        designer root. The designer's own learned root -> REUSE / BRANCH
+        synapses determine the downstream action.
         """
-        binding_id = self.exact_binding(
-            factors
-        )
+        binding_id = self.exact_binding(factors)
 
         self.active_binding = binding_id
 
@@ -371,11 +371,12 @@ class V80BindingFeedbackNetwork(Network):
         if feedback is None:
             return 0.0
 
-        # Make the activity real graph propagation rather than injecting a
-        # privileged scalar directly into reuse/branch populations.
-        self.cells[
+        # Root input only. Do NOT inject directly into reuse.potential.
+        root = self.cells[
             self.designer_root
-        ].potential += feedback.weight
+        ]
+
+        root.potential += feedback.weight
 
         return feedback.weight
 
@@ -390,10 +391,10 @@ class V80BindingFeedbackNetwork(Network):
         factors: tuple[int, int, int],
     ) -> None:
         """
-        Existing designer path + V80 binding-cell feedback.
+        Existing designer activity plus V80 binding-cell feedback.
 
-        The original _stimulate_local_context() remains responsible for
-        vocabulary/context activity. V80 adds binding-cell activity on top.
+        The binding signal is treated as another learned input source. It is
+        intentionally not interpreted as "REUSE".
         """
         match_activity, context_activity = (
             self._stimulate_local_context(
@@ -422,6 +423,7 @@ class V80BindingFeedbackNetwork(Network):
             "input_gain"
         ]
 
+        # Existing context input remains unchanged.
         root.potential += input_gain
 
         reuse.potential += (
@@ -429,11 +431,12 @@ class V80BindingFeedbackNetwork(Network):
             * self.designer_genome["match_gain"]
         )
 
-        # Binding feedback is a separate real graph signal.
-        reuse.potential += (
-            binding_activity
-            * self.designer_genome["match_gain"]
-        )
+        # IMPORTANT:
+        # binding_activity is NOT added to reuse.potential.
+        #
+        # The only effect of a binding cell is the root input performed by
+        # _stimulate_binding_context(). This leaves interpretation to the
+        # learned designer dynamics.
 
         branch.potential += (
             self.designer_genome["branch_bias"]
@@ -699,6 +702,22 @@ class V80BindingFeedbackNetwork(Network):
     # Metrics
     # ------------------------------------------------------------------
 
+    def v80_designer_synapse_weights(self) -> dict[str, float]:
+        return {
+            "root_to_reuse": self.synapses[
+                (
+                    self.designer_root,
+                    self.reuse_cell,
+                )
+            ].weight,
+            "root_to_branch": self.synapses[
+                (
+                    self.designer_root,
+                    self.branch_cell,
+                )
+            ].weight,
+        }
+
     def v80_counts(self) -> dict[str, int]:
         return {
             "factor_cells": sum(
@@ -927,6 +946,14 @@ def main() -> None:
     print(
         "designer_spikes   :",
         network.designer_spikes,
+    )
+    print(
+        "root_to_reuse     :",
+        network.v80_designer_synapse_weights()["root_to_reuse"],
+    )
+    print(
+        "root_to_branch    :",
+        network.v80_designer_synapse_weights()["root_to_branch"],
     )
     print()
 
