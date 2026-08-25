@@ -252,6 +252,65 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
     def activate_substrate(self, word, pos, learn=False):
 
 
+        # V45: surgical per-cell decision trace.
+
+        # This records the state at the exact moment each cell is considered.
+
+        self._v45_cell_trace = []
+
+    
+
+        def v45_record_cell(cell_id, cell_obj, score=None, threshold=None, fired=None):
+
+            def safe(value):
+
+                if isinstance(value, float):
+
+                    return round(value, 15)
+
+                if isinstance(value, (int, str, bool, type(None))):
+
+                    return value
+
+                if isinstance(value, (list, tuple)):
+
+                    return [safe(v) for v in value]
+
+                if isinstance(value, dict):
+
+                    return {
+
+                        str(k): safe(v)
+
+                        for k, v in value.items()
+
+                    }
+
+                return repr(value)
+
+    
+
+            row = {
+
+                "cell_id": cell_id,
+
+                "potential": safe(getattr(cell_obj, "potential", None)),
+
+                "activation": safe(getattr(cell_obj, "activation", None)),
+
+                "score": safe(score),
+
+                "threshold": safe(threshold),
+
+                "fires": safe(getattr(cell_obj, "fires", None)),
+
+                "fired": safe(fired),
+
+            }
+
+            self._v45_cell_trace.append(row)
+
+
         # V44 source-level audit: capture locals at every return so the
 
         # actual activation scores/candidates can be compared between
@@ -291,6 +350,8 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                             1.0,
                             self.weights[key] + self.learning_rate,
                         )
+
+        self._v45_cell_trace.append({'stage': 'return', 'fired': repr(locals().get('fired', None))})
 
         self._v44_activation_audit['returns'].append({'value': fired, 'locals': {k: repr(v) for k, v in locals().items() if k not in ('self', 'word')}})
 
@@ -680,7 +741,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V44 - SCORE SELECTION AUTOPSY ===")
+    print("=== DENSE SUBSTRATE V45 - FIRST CELL DIVERGENCE AUTOPSY ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -899,6 +960,119 @@ def run():
                     return
 
         print("=== END V42 FROZEN CANDIDATE READOUT ===")
+        print()
+
+
+    def v45_first_divergence_autopsy():
+
+        print()
+
+        print("=== V45 FIRST CELL DIVERGENCE AUTOPSY ===")
+
+    
+
+        probes = [
+
+            ("CAT", 1),
+
+            ("CAD", 1),
+
+            ("BOAT", 0),
+
+            ("BOARD", 3),
+
+        ]
+
+    
+
+        for word, pos in probes:
+
+            net.v42_activation_snapshot(word, pos)
+
+            first = list(getattr(net, "_v45_cell_trace", []))
+
+    
+
+            net.v42_activation_snapshot(word, pos)
+
+            second = list(getattr(net, "_v45_cell_trace", []))
+
+    
+
+            first_map = {
+
+                (row.get("cell_id"), index): row
+
+                for index, row in enumerate(first)
+
+            }
+
+            second_map = {
+
+                (row.get("cell_id"), index): row
+
+                for index, row in enumerate(second)
+
+            }
+
+    
+
+            divergence = None
+
+            max_len = max(len(first), len(second))
+
+    
+
+            for index in range(max_len):
+
+                a = first[index] if index < len(first) else None
+
+                b = second[index] if index < len(second) else None
+
+                if a != b:
+
+                    divergence = index
+
+                    break
+
+    
+
+            print()
+
+            print(
+
+                f"{word:6s} pos={pos} "
+
+                f"first_len={len(first)} "
+
+                f"second_len={len(second)} "
+
+                f"first_divergence={divergence}"
+
+            )
+
+    
+
+            if divergence is not None:
+
+                a = first[divergence] if divergence < len(first) else None
+
+                b = second[divergence] if divergence < len(second) else None
+
+                print("  FIRST :", a)
+
+                print("  SECOND:", b)
+
+            else:
+
+                print("  No per-cell divergence recorded.")
+
+    
+
+        print()
+
+        print("=== END V45 FIRST CELL DIVERGENCE AUTOPSY ===")
+
         print()
 
 
@@ -1126,6 +1300,8 @@ def run():
     v42_determinism_probe()
 
     v44_score_selection_autopsy()
+
+    v45_first_divergence_autopsy()
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
