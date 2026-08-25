@@ -49,6 +49,11 @@ TEST = TEST_REUSE + TEST_BRANCH
 
 
 
+
+print("=== V54 START ===")
+print("V54_CODE_LOADED = TRUE")
+print()
+
 class IndependentGroundTruth:
     """
     Ground truth is built independently from the dense substrate.
@@ -1333,7 +1338,83 @@ def v53_run_topology_projection_experiment(net, training, test):
     print("=== END V53 CAUSAL TOPOLOGY PROJECTION ===")
     print()
 
+
+def v54_run_guaranteed_projection(net, training, test):
+    print("=== V54 GUARANTEED TOPOLOGY PROJECTION ===")
+    if net is None:
+        raise RuntimeError("V54 net was not initialized")
+    print("V54_EXECUTED = TRUE")
+    print("source: exact V53 implementation")
+    print()
+
+    probes = [
+        ("CAT", 1),
+        ("CAD", 1),
+        ("BOAT", 0),
+        ("BOARD", 3),
+    ]
+
+    print("--- PROBES ---")
+    for word, pos in probes:
+        first = net.v53_topology_projected_evidence(word, pos)
+        second = net.v53_topology_projected_evidence(word, pos)
+
+        print(
+            f"{word:6s} pos={pos} "
+            f"same_projection="
+            f"{first['projected_destinations'] == second['projected_destinations']} "
+            f"same_mass={first['total_mass'] == second['total_mass']} "
+            f"dest={first['destination_count']} "
+            f"mass={first['total_mass']:.6f} "
+            f"convergent={first['convergent_destinations']}"
+        )
+        print(
+            f"  fired={list(first['fired'])}"
+        )
+        print(
+            f"  top={list(first['projected_destinations'][:10])}"
+        )
+
+    print()
+    print("--- TRAINING SUMMARY ---")
+    signatures = {}
+    total = 0
+
+    for word in training:
+        for pos in range(len(word)):
+            e = net.v53_topology_projected_evidence(word, pos)
+            signature = tuple(
+                (int(dst), round(float(mass), 6))
+                for dst, mass in e["projected_destinations"]
+            )
+            signatures[signature] = signatures.get(signature, 0) + 1
+            total += 1
+
+    print("training_positions =", total)
+    print("unique_projections  =", len(signatures))
+
+    print()
+    print("--- TEST SUMMARY ---")
+    test_total = 0
+    test_with_projection = 0
+
+    for word in test:
+        for pos in range(len(word)):
+            e = net.v53_topology_projected_evidence(word, pos)
+            test_total += 1
+            if e["destination_count"] > 0:
+                test_with_projection += 1
+
+    print("test_positions       =", test_total)
+    print("test_with_projection =", test_with_projection)
+
+    print()
+    print("V54_EXECUTED = TRUE")
+    print("=== END V54 GUARANTEED TOPOLOGY PROJECTION ===")
+    print()
+
 def run():
+
     print("=== DENSE SUBSTRATE V53 - CAUSAL TOPOLOGY PROJECTION ===")
     print()
     print(
@@ -1351,6 +1432,9 @@ def run():
         cell_count=32,
         seed=29,
     )
+    print("V54_NET_READY = TRUE")
+    v54_run_guaranteed_projection(net, TRAINING, TEST)
+
 
     net.train_dense(TRAINING, epochs=5)
     # Independent ground truth: no calls to net.learn_structure(), no access
@@ -2256,6 +2340,9 @@ def run():
     print()
     net.evaluate_frozen(TEST)
 
+
+
+print("V54_FILE_READY = TRUE")
 
 if __name__ == "__main__":
     run()
