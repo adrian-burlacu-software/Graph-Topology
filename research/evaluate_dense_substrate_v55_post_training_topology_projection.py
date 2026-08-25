@@ -50,8 +50,8 @@ TEST = TEST_REUSE + TEST_BRANCH
 
 
 
-print("=== V54 START ===")
-print("V54_CODE_LOADED = TRUE")
+print("=== V55 START ===")
+print("V55_CODE_LOADED = TRUE")
 print()
 
 class IndependentGroundTruth:
@@ -1340,11 +1340,11 @@ def v53_run_topology_projection_experiment(net, training, test):
 
 
 def v54_run_guaranteed_projection(net, training, test):
-    print("=== V54 GUARANTEED TOPOLOGY PROJECTION ===")
+    print("=== V55 POST-TRAINING TOPOLOGY PROJECTION ===")
     if net is None:
         raise RuntimeError("V54 net was not initialized")
-    print("V54_EXECUTED = TRUE")
-    print("source: exact V53 implementation")
+    print("V55_EXECUTED = TRUE")
+    print("source: exact V54b implementation, executed after training")
     print()
 
     probes = [
@@ -1409,7 +1409,7 @@ def v54_run_guaranteed_projection(net, training, test):
     print("test_with_projection =", test_with_projection)
 
     print()
-    print("V54_EXECUTED = TRUE")
+    print("V55_EXECUTED = TRUE")
     print("=== END V54 GUARANTEED TOPOLOGY PROJECTION ===")
     print()
 
@@ -1433,7 +1433,6 @@ def run():
         seed=29,
     )
     print("V54_NET_READY = TRUE")
-    v54_run_guaranteed_projection(net, TRAINING, TEST)
 
 
     net.train_dense(TRAINING, epochs=5)
@@ -1493,6 +1492,10 @@ def run():
                 train_reuse += 1
             else:
                 train_branch += 1
+
+
+    print("V55_TRAINING_COMPLETE = TRUE")
+    v54_run_guaranteed_projection(net, TRAINING, TEST)
 
     test_reuse = 0
     test_branch = 0
@@ -2342,7 +2345,7 @@ def run():
 
 
 
-print("V54_FILE_READY = TRUE")
+print("V55_FILE_READY = TRUE")
 
 if __name__ == "__main__":
     run()
