@@ -391,10 +391,16 @@ class V80BindingFeedbackNetwork(Network):
         factors: tuple[int, int, int],
     ) -> None:
         """
-        Existing designer activity plus V80 binding-cell feedback.
+        Final V80b designer integration.
 
-        The binding signal is treated as another learned input source. It is
-        intentionally not interpreted as "REUSE".
+        Binding activity is NEUTRAL evidence:
+            binding cell -> designer root/context
+
+        It does not directly excite REUSE or BRANCH.
+
+        The existing vocabulary/context signals still provide the ordinary
+        path information, and the existing reward/plasticity loop learns how
+        to interpret the additional binding activity.
         """
         match_activity, context_activity = (
             self._stimulate_local_context(
@@ -419,34 +425,53 @@ class V80BindingFeedbackNetwork(Network):
             self.branch_cell
         ]
 
+        threshold = self.designer_genome[
+            "threshold"
+        ]
+
         input_gain = self.designer_genome[
             "input_gain"
         ]
 
-        # Existing context input remains unchanged.
+        context_gain = self.designer_genome[
+            "context_gain"
+        ]
+
+        match_gain = self.designer_genome[
+            "match_gain"
+        ]
+
+        # Existing sensory/context inputs.
         root.potential += input_gain
 
+        # Vocabulary-match evidence remains what it was in the original
+        # designer. This is the sequential path signal.
         reuse.potential += (
             match_activity
-            * self.designer_genome["match_gain"]
+            * match_gain
         )
 
-        # IMPORTANT:
-        # binding_activity is NOT added to reuse.potential.
+        # V80 binding activity is NEUTRAL: it only reaches the common root.
+        # We add a small symmetric context contribution to both downstream
+        # populations only through the SAME learned context channel.
         #
-        # The only effect of a binding cell is the root input performed by
-        # _stimulate_binding_context(). This leaves interpretation to the
-        # learned designer dynamics.
+        # This avoids turning "binding exists" into an implicit REUSE label.
+        neutral_binding = (
+            binding_activity
+            * context_gain
+        )
+
+        root.potential += neutral_binding
 
         branch.potential += (
             self.designer_genome["branch_bias"]
             + context_activity
-            * self.designer_genome["context_gain"]
+            * context_gain
         )
 
-        if root.potential >= self.designer_genome[
-            "threshold"
-        ]:
+        # Existing root readout is unchanged: root activation recruits both
+        # action populations and their learned competition decides the winner.
+        if root.potential >= threshold:
             root.potential = 0.0
             root.spikes += 1
             self.designer_spikes += 1
@@ -465,10 +490,7 @@ class V80BindingFeedbackNetwork(Network):
                 )
             ].weight
 
-        threshold = self.designer_genome[
-            "threshold"
-        ]
-
+        # Existing mutual inhibition remains the decision mechanism.
         if reuse.potential >= threshold:
             branch.inhibition += (
                 self.inhibition_genome["strength"]
