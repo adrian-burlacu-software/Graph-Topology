@@ -456,15 +456,202 @@ class PlasticWidth1Network(Network):
 # Run
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    start = time.perf_counter()
+
+# ---------------------------------------------------------------------------
+# V79 — PRESENTATION ORDER STABILITY
+# ---------------------------------------------------------------------------
+
+ORDER_SEEDS = (0, 1, 2, 3, 4)
+
+
+def deterministic_permutation(
+    words: list[str],
+    seed: int,
+) -> list[str]:
+    """
+    Deterministic pseudo-random ordering without external dependencies.
+    """
+    ranked = []
+
+    for word in words:
+        digest = hashlib.sha256(
+            f"{seed}:{word}".encode("utf-8")
+        ).hexdigest()
+
+        ranked.append(
+            (digest, word)
+        )
+
+    ranked.sort()
+
+    return [
+        word
+        for _, word in ranked
+    ]
+
+
+def run_order(
+    train: list[str],
+    validation: list[str],
+    seed: int,
+) -> dict[str, float]:
+    network = PlasticWidth1Network()
+
+    # Existing graph learning.
+    network.train(
+        train,
+        epochs=1,
+    )
+
+    ordered_train = deterministic_permutation(
+        train,
+        seed,
+    )
+
+    train_result = network.train_words(
+        ordered_train,
+        f"ORDER-{seed} TRAIN",
+    )
+
+    train_counts = network.counts()
+    train_stats = network.binding_activation_stats()
+
+    # Validation is streamed after training, using the SAME order policy.
+    ordered_validation = deterministic_permutation(
+        validation,
+        seed + 1000,
+    )
+
+    validation_result = network.train_words(
+        ordered_validation,
+        f"ORDER-{seed} VALIDATION",
+    )
+
+    validation_counts = network.counts()
+    validation_stats = network.binding_activation_stats()
+
+    # Replay the exact same validation order. It must add no bindings.
+    replay_before = network.counts()
+
+    replay_result = network.train_words(
+        ordered_validation,
+        f"ORDER-{seed} REPLAY",
+    )
+
+    replay_after = network.counts()
+
+    assert replay_result["created"] == 0
+    assert (
+        replay_after["binding_cells"]
+        == replay_before["binding_cells"]
+    )
+
+    return {
+        "seed": float(seed),
+        "train_created": float(
+            train_result["created"]
+        ),
+        "train_reused": float(
+            train_result["reused"]
+        ),
+        "train_bindings": float(
+            train_counts["binding_cells"]
+        ),
+        "validation_created": float(
+            validation_result["created"]
+        ),
+        "validation_reused": float(
+            validation_result["reused"]
+        ),
+        "final_bindings": float(
+            validation_counts["binding_cells"]
+        ),
+        "factor_cells": float(
+            validation_counts["factor_cells"]
+        ),
+        "mean_activation": float(
+            validation_stats["mean"]
+        ),
+        "max_activation": float(
+            validation_stats["max"]
+        ),
+        "reused_bindings": float(
+            validation_stats["reused_bindings"]
+        ),
+    }
+
+
+def summarize_orders(
+    rows: list[dict[str, float]],
+) -> None:
+    print("=== V79 ORDER STABILITY SUMMARY ===")
+
+    keys = (
+        "train_bindings",
+        "validation_created",
+        "validation_reused",
+        "final_bindings",
+        "factor_cells",
+        "mean_activation",
+        "max_activation",
+        "reused_bindings",
+    )
+
+    for key in keys:
+        values = [
+            row[key]
+            for row in rows
+        ]
+
+        minimum = min(values)
+        maximum = max(values)
+        mean = sum(values) / len(values)
+
+        print(
+            f"{key:24s} "
+            f"min={minimum:10.3f} "
+            f"max={maximum:10.3f} "
+            f"mean={mean:10.3f} "
+            f"range={maximum - minimum:10.3f}"
+        )
+
+    # Strong invariants:
+    # 1. factor vocabulary should not depend on presentation order.
+    factor_counts = {
+        row["factor_cells"]
+        for row in rows
+    }
+
+    assert len(factor_counts) == 1
+
+    # 2. replay idempotence was checked inside each run.
+    # 3. All runs should produce the same number of unique binding types when
+    #    they have seen exactly the same train + validation word sets.
+    final_binding_counts = {
+        row["final_bindings"]
+        for row in rows
+    }
+
+    assert len(final_binding_counts) == 1
 
     print(
-        "=== V78 WIDTH-1 BINDING PLASTICITY ==="
+        "factor_count_order_invariant : PASS"
     )
     print(
-        "corpus:",
-        CORPUS_PATH,
+        "binding_count_order_invariant: PASS"
+    )
+
+    print("=== END V79 ORDER STABILITY SUMMARY ===")
+    print()
+
+
+def main() -> None:
+    total_start = time.perf_counter()
+
+    print("=== V79 WIDTH-1 PRESENTATION ORDER STABILITY ===")
+    print(
+        "Question: does the learned local topology depend materially "
+        "on corpus presentation order?"
     )
     print()
 
@@ -472,204 +659,65 @@ def main() -> None:
         CORPUS_PATH
     )
 
-    train, validation, test = split_words(
+    train, validation, _test = split_words(
         words
     )
 
-    print("corpus_words :", len(words))
-    print("train_words  :", len(train))
-    print("validation   :", len(validation))
-    print("test         :", len(test))
-    print()
-
-    network = PlasticWidth1Network()
-
-    # Real Graph-Topology learning remains in place.
-    network.train(
-        train,
-        epochs=1,
-    )
-
     print(
-        f"[{time.perf_counter() - start:.2f}s] "
-        "real Network training complete"
+        "corpus_words :",
+        len(words),
     )
-
-    # ------------------------------------------------------------------
-    # Pass 1: build reusable binding graph from TRAIN.
-    # ------------------------------------------------------------------
-
-    first = network.train_words(
-        train,
-        "TRAIN",
-    )
-
-    after_train = network.counts()
-
-    print()
-    print("=== AFTER TRAIN ===")
-    print(after_train)
-    print("train_created :", first["created"])
-    print("train_reused  :", first["reused"])
     print(
-        "binding_stats :",
-        network.binding_activation_stats(),
+        "train_words  :",
+        len(train),
+    )
+    print(
+        "validation   :",
+        len(validation),
     )
     print()
 
-    # ------------------------------------------------------------------
-    # Pass 2: validation grows the same graph.
-    #
-    # This is intentionally online rather than frozen. The question is:
-    # do new local structures get created only once and then reused?
-    # ------------------------------------------------------------------
+    rows = []
 
-    validation_before = network.counts()
-
-    validation_result = network.train_words(
-        validation,
-        "VALIDATION",
-    )
-
-    validation_after = network.counts()
-
-    print()
-    print("=== VALIDATION GROWTH ===")
-    print(
-        "created :",
-        validation_result["created"],
-    )
-    print(
-        "reused  :",
-        validation_result["reused"],
-    )
-    print(
-        "new_binding_cells :",
-        validation_after["binding_cells"]
-        - validation_before["binding_cells"],
-    )
-    print(
-        "binding_stats :",
-        network.binding_activation_stats(),
-    )
-    print()
-
-    # ------------------------------------------------------------------
-    # Pass 3: replay VALIDATION.
-    #
-    # The crucial plasticity test:
-    # same words / same local structures must now create ZERO new bindings.
-    # ------------------------------------------------------------------
-
-    before_replay = network.counts()
-
-    replay_result = network.train_words(
-        validation,
-        "VALIDATION_REPLAY",
-    )
-
-    after_replay = network.counts()
-
-    print()
-    print("=== VALIDATION REPLAY ===")
-    print(
-        "created :",
-        replay_result["created"],
-    )
-    print(
-        "reused  :",
-        replay_result["reused"],
-    )
-    print(
-        "new_binding_cells :",
-        after_replay["binding_cells"]
-        - before_replay["binding_cells"],
-    )
-
-    assert replay_result["created"] == 0
-    assert (
-        after_replay["binding_cells"]
-        == before_replay["binding_cells"]
-    )
-
-    print("REPLAY IDEMPOTENCE: PASS")
-    print()
-
-    # ------------------------------------------------------------------
-    # Pass 4: TEST remains an online stream in this experiment.
-    #
-    # We report how much genuinely new local structure the corpus introduces.
-    # ------------------------------------------------------------------
-
-    test_before = network.counts()
-
-    test_result = network.train_words(
-        test,
-        "TEST",
-    )
-
-    test_after = network.counts()
-
-    print()
-    print("=== TEST GROWTH ===")
-    print(
-        "created :",
-        test_result["created"],
-    )
-    print(
-        "reused  :",
-        test_result["reused"],
-    )
-    print(
-        "new_binding_cells :",
-        test_after["binding_cells"]
-        - test_before["binding_cells"],
-    )
-    print()
-
-    # ------------------------------------------------------------------
-    # Final accounting.
-    # ------------------------------------------------------------------
-
-    print("=== V78 FINAL GRAPH ===")
-
-    for key, value in network.counts().items():
+    for seed in ORDER_SEEDS:
+        print()
         print(
-            f"{key:20s}: {value}"
+            f"================ ORDER SEED {seed} ================"
         )
 
-    stats = network.binding_activation_stats()
+        start = time.perf_counter()
 
-    for key, value in stats.items():
-        print(
-            f"{key:20s}: {value}"
+        result = run_order(
+            train,
+            validation,
+            seed,
         )
 
-    total_positions = sum(
-        len(word)
-        for word in words
-    )
+        rows.append(result)
+
+        print()
+        print(
+            f"ORDER {seed} RESULT"
+        )
+
+        for key, value in result.items():
+            print(
+                f"{key:24s}: {value}"
+            )
+
+        print(
+            f"elapsed={time.perf_counter() - start:.2f}s"
+        )
 
     print()
-    print(
-        "binding_cells / corpus_positions :",
-        network.binding_cells
-        / max(1, total_positions)
-        if hasattr(network, "binding_cells")
-        else (
-            network.counts()["binding_cells"]
-            / max(1, total_positions)
-        ),
-    )
-
-    print()
-    print(
-        "elapsed_seconds :",
-        f"{time.perf_counter() - start:.2f}",
-    )
+    summarize_orders(rows)
 
     print(
-        "=== V78 COMPLETE ==="
+        "total_seconds :",
+        f"{time.perf_counter() - total_start:.2f}",
+    )
+    print(
+        "=== V79 COMPLETE ==="
     )
 
 
