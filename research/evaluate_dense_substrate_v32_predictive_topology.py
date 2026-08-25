@@ -278,49 +278,74 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             learn=False,
         )
 
-        # V31: topology-aware structural evidence.
-        # The old readout reduced the learned substrate to len(fired).
-        # Here the designer receives evidence from learned strong edges
-        # reachable from the currently active cells. Ground truth is never
-        # consulted.
         fired_set = set(fired)
 
-        strong_edges = [
-            (src, dst, weight)
-            for (src, dst), weight in self.weights.items()
-            if src in fired_set and weight >= 0.50
-        ]
+        # V32: predictive topology.
+        #
+        # The current position activates a population P. Strong learned
+        # outgoing edges from P define a predicted population Q. We compare
+        # Q with the population that is actually activated by the continuation
+        # symbol at the next position. This is a topology/prediction test,
+        # not a connectivity-density test.
+        predicted = set()
+        strong_edges = []
 
-        learned_mass = sum(weight for _, _, weight in strong_edges)
-        strong_outgoing = len(strong_edges)
+        for (src, dst), weight in self.weights.items():
+            if src in fired_set and weight >= 0.50:
+                predicted.add(dst)
+                strong_edges.append((src, dst, weight))
 
-        reachable = {dst for _, dst, _ in strong_edges}
+        # Build the actual continuation population without learning.
+        continuation = set()
+        if pos + 1 < len(word):
+            continuation = set(
+                self.activate_substrate(
+                    word,
+                    pos + 1,
+                    learn=False,
+                )
+            )
 
-        edge_set = {(src, dst) for src, dst, _ in strong_edges}
-        reciprocal_edges = sum(
-            1
-            for src, dst in edge_set
-            if (dst, src) in edge_set
-        ) // 2
+        intersection = predicted & continuation
+        union = predicted | continuation
 
+        predictive_overlap = (
+            len(intersection) / len(union)
+            if union else 0.0
+        )
+
+        predictive_recall = (
+            len(intersection) / len(continuation)
+            if continuation else 0.0
+        )
+
+        predictive_precision = (
+            len(intersection) / len(predicted)
+            if predicted else 0.0
+        )
+
+        # Keep the activation population itself visible for diagnostics.
         activity = len(fired_set) / max(1, self.cell_count)
-
-        # Normalize topology evidence by active-cell count so firing
-        # population alone does not determine the answer.
-        topology_evidence = learned_mass / max(1, len(fired_set))
+        learned_mass = sum(weight for _, _, weight in strong_edges)
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
-            "fired": list(fired),
+            "fired": sorted(fired_set),
             "activity": activity,
+            "predicted": sorted(predicted),
+            "continuation": sorted(continuation),
+            "intersection": sorted(intersection),
+            "predictive_overlap": predictive_overlap,
+            "predictive_precision": predictive_precision,
+            "predictive_recall": predictive_recall,
             "learned_mass": learned_mass,
-            "strong_outgoing": strong_outgoing,
-            "reachable": sorted(reachable),
-            "reachable_count": len(reachable),
-            "reciprocal_edges": reciprocal_edges,
-            "topology_evidence": topology_evidence,
+            "strong_outgoing": len(strong_edges),
         }
+
+        # At the final character there is no continuation to predict.
+        # Do not manufacture a signal: terminal positions remain BRANCH.
+        predictive_evidence = predictive_overlap if continuation else 0.0
 
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
@@ -328,11 +353,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        topology_threshold = dg.get("topology_threshold", 0.50)
+        predictive_threshold = dg.get("predictive_threshold", 0.20)
 
-        if topology_evidence > topology_threshold:
+        if predictive_evidence >= predictive_threshold:
             reuse.potential += (
-                dg["match_gain"] * min(1.0, topology_evidence)
+                dg["match_gain"] * predictive_evidence
             )
         else:
             branch.potential += dg["branch_bias"]
@@ -495,7 +520,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V31 - TOPOLOGY AWARE READOUT ===")
+    print("=== DENSE SUBSTRATE V32 - PREDICTIVE TOPOLOGY ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -681,11 +706,10 @@ def run():
     # The current readout computes its structural evidence from len(fired)
     # only; learned_mass/strong_outgoing are diagnostic measurements.
     print()
-    print("=== V30 READOUT DEPENDENCY ===")
-    print("decision_activity_source : len(fired) / cell_count")
-    print("learned_weight_source    : topology-aware decision input")
-    print("decision_signal          : learned_mass / active_cells")
-    print("=== END V30 EXACT FROZEN READOUT AUDIT ===")
+    print("=== V32 PREDICTIVE READOUT ===")
+    print("decision_signal : learned outgoing prediction vs continuation overlap")
+    print("prediction_metric : Jaccard overlap")
+    print("=== END V32 PREDICTIVE READOUT ===")
     print()
 
     net.evaluate_frozen(TEST)
