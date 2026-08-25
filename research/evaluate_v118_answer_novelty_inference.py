@@ -1,55 +1,53 @@
 from __future__ import annotations
 
 """
-V115 — TASK-DRIVEN SEMANTIC LEARNING
+V117 — DETERMINISTIC SLOT INQUIRY
 
-This replaces V114's failed "are you uncertain?" metacognition test.
+This is the direct fix to V116.
 
-Instead of asking a frozen 360M model to decide whether it knows enough, we
-give it a concrete semantic task with explicit required slots.
+The LLM does NOT generate the question.
 
-Task:
-    describe a word using four roles:
+For every target word, we force a constrained semantic reconstruction over
+four explicit slots:
 
-        CATEGORY
-        PROPERTY
-        USE
-        RELATION
+    CATEGORY
+    PROPERTY
+    USE
+    RELATION
 
-For every slot the model must return either:
-    an existing concept
-    or
-    GAP:<short question>
+The LLM may ONLY answer a slot with an exact concept from the current graph
+context. Anything else is discarded by the program.
 
-A GAP is therefore produced by failure to complete a required task, not by
-asking the model to introspect about uncertainty.
+Therefore:
 
-Then:
+    valid answer in slot   -> slot satisfied
+    invalid / missing      -> mechanical semantic GAP
 
-    GAP
-      ↓
-    LLM answers the generated question
-      ↓
-    existing concepts / NEW:<concept>
-      ↓
-    graph consolidation
-      ↓
-    task repeated
+The program then asks a deterministic question for the missing slot:
 
-The graph is the only source of memory during learning.
+    CATEGORY  -> "What kind of thing is X?"
+    PROPERTY  -> "What property describes X?"
+    USE       -> "What is X used for?"
+    RELATION  -> "What is X related to?"
 
-semantics-large.csv is evaluation-only.
+The frozen LLM answers ONLY that question.
 
-The run starts from V111 memory, writes a new V115 memory file, and never
-modifies V111.
+The graph stores:
+    existing concept
+    or NEW:<concept>
 
-This is a full-corpus experiment:
-    4925 words
-    2 task/inquiry rounds
-    batch size 128
+No LLM-generated question is used.
 
-No hidden-state inference.
-No PT activation artifact.
+The semantic corpus is evaluation-only.
+
+This is the experiment that isolates:
+    GAP DETECTION  = program
+    QUESTION       = program
+    ANSWER         = frozen LLM
+    MEMORY         = Graph-Topology
+
+Starts from V111 memory.
+Does not modify V111.
 """
 
 import csv
@@ -60,32 +58,49 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import torch
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 MODEL_PATH = ROOT / "llm" / "SmolLM2-360M-Instruct"
-MEMORY_INPUT_PATH = ROOT / "results" / "v111_compact_semantic_memory.json"
-MEMORY_OUTPUT_PATH = ROOT / "results" / "v115_task_driven_memory.json"
+
+INPUT_MEMORY = ROOT / "results" / "v111_compact_semantic_memory.json"
+
+OUTPUT_MEMORY = ROOT / "results" / "v117_deterministic_slot_memory.json"
+
+OUTPUT_REPORT = ROOT / "results" / "v117_deterministic_slot_inquiry.json"
 
 DICTIONARY_PATH = ROOT / "data" / "dictionary.csv"
+
 SEMANTICS_PATH = ROOT / "data" / "semantics-large.csv"
 
 BATCH_SIZE = 128
+
 ROUNDS = 2
 
 MAX_INPUT_TOKENS = 256
-MAX_NEW_TOKENS = 32
+MAX_NEW_TOKENS = 20
 
 CANDIDATE_LIMIT = 32
-MAX_CONCEPTS_PER_ANSWER = 8
+
+# How many slots need valid existing concepts before we regard the current
+# representation as satisfactory.
+MIN_SATISFIED_SLOTS = 4
 
 PRINT_EVERY = 128
-CHECKPOINT_EVERY = 512
+
+TRACE_WORDS = {
+    "hello",
+    "greeting",
+    "ability",
+    "abandon",
+    "water",
+    "music",
+    "animal",
+    "chair",
+    "car",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +124,7 @@ def load_dictionary(path: Path) -> list[str]:
     result = sorted(words)
 
     if not result:
-        raise RuntimeError("dictionary.csv contained no words")
+        raise RuntimeError("No dictionary words found.")
 
     return result
 
@@ -147,7 +162,7 @@ def build_lexical_index(
 
 
 # ---------------------------------------------------------------------------
-# Evaluation-only human semantic gold
+# Human gold — evaluation only
 # ---------------------------------------------------------------------------
 
 class HumanGold:
@@ -189,6 +204,7 @@ class HumanGold:
                             )
                         )
                         n = float(row.get("n", 0.0))
+
                         if n > 0.0:
                             weight = frequency / n
                     except (TypeError, ValueError):
@@ -213,7 +229,7 @@ class HumanGold:
 
 
 # ---------------------------------------------------------------------------
-# Learned graph memory
+# Learned memory
 # ---------------------------------------------------------------------------
 
 class LearnedMemory:
@@ -249,8 +265,7 @@ class LearnedMemory:
                 int(identifier)
                 for identifier in ids
             ]
-            for word, ids
-            in payload.get(
+            for word, ids in payload.get(
                 "word_concepts",
                 {},
             ).items()
@@ -263,10 +278,7 @@ class LearnedMemory:
                 self.words_by_concept[identifier].add(word)
 
         self.learner_generated = set(
-            payload.get(
-                "learner_generated",
-                [],
-            )
+            payload.get("learner_generated", [])
         )
 
         self.co_usage: dict[int, Counter[int]] = defaultdict(Counter)
@@ -283,12 +295,75 @@ class LearnedMemory:
                     self.co_usage[left][right] += 1
                     self.co_usage[right][left] += 1
 
+    def concepts_for_word(self, word: str) -> list[str]:
+        return [
+            self.concept_name_by_id[identifier]
+            for identifier in self.word_concepts.get(word, [])
+            if identifier in self.concept_name_by_id
+        ]
+
+    def top_used(self, limit: int) -> list[str]:
+        ranked = sorted(
+            self.usage.items(),
+            key=lambda item: (
+                -item[1],
+                self.concept_name_by_id[item[0]],
+            ),
+        )
+
+        return [
+            self.concept_name_by_id[identifier]
+            for identifier, _count in ranked[:limit]
+        ]
+
+    def retrieve_context(
+        self,
+        word: str,
+        lexical_index: dict[str, list[str]],
+    ) -> list[str]:
+        scores = Counter()
+
+        for neighbor in lexical_index.get(word, []):
+            for identifier in self.word_concepts.get(neighbor, []):
+                scores[identifier] += 1.0
+
+        for identifier, _score in scores.most_common(16):
+            for related, count in self.co_usage.get(
+                identifier,
+                Counter(),
+            ).most_common(8):
+                scores[related] += 0.25 * count
+
+        target_ids = set(
+            self.word_concepts.get(word, [])
+        )
+
+        for identifier in target_ids:
+            scores.pop(identifier, None)
+
+        for concept in self.top_used(16):
+            identifier = self.concept_id_by_name.get(concept)
+
+            if (
+                identifier is not None
+                and identifier not in target_ids
+            ):
+                scores[identifier] += 0.5
+
+        return [
+            self.concept_name_by_id[identifier]
+            for identifier, _score in scores.most_common(
+                CANDIDATE_LIMIT
+            )
+        ]
+
     def add_concepts(
         self,
         word: str,
         concepts: list[str],
     ) -> int:
         created = 0
+
         ids = list(
             self.word_concepts.get(
                 word,
@@ -314,29 +389,18 @@ class LearnedMemory:
             if not concept:
                 continue
 
-            identifier = self.concept_id_by_name.get(
-                concept
-            )
+            identifier = self.concept_id_by_name.get(concept)
 
             if identifier is None:
-                identifier = len(
-                    self.concept_id_by_name
-                )
+                identifier = len(self.concept_id_by_name)
 
-                self.concept_id_by_name[
-                    concept
-                ] = identifier
-
-                self.concept_name_by_id[
-                    identifier
-                ] = concept
+                self.concept_id_by_name[concept] = identifier
+                self.concept_name_by_id[identifier] = concept
 
                 created += 1
 
                 if learner_new:
-                    self.learner_generated.add(
-                        concept
-                    )
+                    self.learner_generated.add(concept)
 
             if identifier not in ids:
                 ids.append(identifier)
@@ -348,103 +412,7 @@ class LearnedMemory:
 
         return created
 
-    def concepts_for_word(
-        self,
-        word: str,
-    ) -> list[str]:
-        return [
-            self.concept_name_by_id[
-                identifier
-            ]
-            for identifier
-            in self.word_concepts.get(
-                word,
-                [],
-            )
-            if identifier in self.concept_name_by_id
-        ]
-
-    def top_used(
-        self,
-        limit: int,
-    ) -> list[str]:
-        ranked = sorted(
-            self.usage.items(),
-            key=lambda item: (
-                -item[1],
-                self.concept_name_by_id[item[0]],
-            ),
-        )
-
-        return [
-            self.concept_name_by_id[identifier]
-            for identifier, _count
-            in ranked[:limit]
-        ]
-
-    def retrieve_context(
-        self,
-        word: str,
-        lexical_index: dict[str, list[str]],
-    ) -> list[str]:
-        """
-        Graph-only context with the target word's own edges masked.
-        """
-        scores = Counter()
-
-        for neighbor in lexical_index.get(
-            word,
-            [],
-        ):
-            for identifier in self.word_concepts.get(
-                neighbor,
-                [],
-            ):
-                scores[identifier] += 1.0
-
-        for identifier, _score in scores.most_common(16):
-            for related, count in self.co_usage.get(
-                identifier,
-                Counter(),
-            ).most_common(8):
-                scores[related] += 0.25 * count
-
-        target_ids = set(
-            self.word_concepts.get(
-                word,
-                [],
-            )
-        )
-
-        for identifier in target_ids:
-            scores.pop(
-                identifier,
-                None,
-            )
-
-        for concept in self.top_used(16):
-            identifier = self.concept_id_by_name.get(
-                concept
-            )
-
-            if (
-                identifier is not None
-                and identifier not in target_ids
-            ):
-                scores[identifier] += 0.5
-
-        return [
-            self.concept_name_by_id[identifier]
-            for identifier, _score
-            in scores.most_common(
-                CANDIDATE_LIMIT
-            )
-        ]
-
-    def save(
-        self,
-        path: Path,
-    ) -> None:
+    def save(self, path: Path) -> None:
         payload = {
             "concept_id_by_name": self.concept_id_by_name,
             "usage": {
@@ -507,11 +475,7 @@ def load_model():
     model.eval()
     model.to(device)
 
-    print(
-        "device:",
-        device,
-        flush=True,
-    )
+    print("device:", device, flush=True)
 
     if device.type == "cuda":
         print(
@@ -555,93 +519,104 @@ def apply_chat(
 
 
 # ---------------------------------------------------------------------------
-# Task prompts
+# Prompts
 # ---------------------------------------------------------------------------
 
-TASK_SYSTEM = (
-    "You are a semantic learner using an external concept memory. "
-    "Complete the requested semantic task. "
-    "For every required slot, output an existing concept or GAP:<question>. "
-    "Return only the requested lines."
+SLOT_SYSTEM = (
+    "You are a strict semantic classifier. "
+    "For each slot choose EXACTLY ONE concept from the supplied vocabulary. "
+    "If no supplied concept fits, write UNKNOWN. "
+    "Never invent a concept. "
+    "Return exactly four labeled lines."
 )
 
 
-def task_prompt(
+def slot_prompt(
     tokenizer,
     word: str,
     context: list[str],
 ) -> str:
-    context_text = (
-        ", ".join(context)
-        if context
-        else "(none)"
-    )
-
     return apply_chat(
         tokenizer,
-        TASK_SYSTEM,
+        SLOT_SYSTEM,
         f"""
-TARGET WORD:
+TARGET:
 {word}
 
-CURRENT GRAPH CONTEXT:
-{context_text}
+VOCABULARY:
+{", ".join(context) if context else "(none)"}
 
-Complete these FOUR slots:
+Return EXACTLY:
 
-CATEGORY=
-PROPERTY=
-USE=
-RELATION=
-
-For each slot write exactly one of:
-    an existing concept from CURRENT GRAPH CONTEXT
-    GAP:<one short question>
+CATEGORY=<one vocabulary item or UNKNOWN>
+PROPERTY=<one vocabulary item or UNKNOWN>
+USE=<one vocabulary item or UNKNOWN>
+RELATION=<one vocabulary item or UNKNOWN>
 
 Rules:
-- Do not use the target word as an answer.
-- Prefer an existing concept when it fits.
-- Use GAP only when the slot cannot be completed from the current context.
-- The GAP question must be specific and reusable.
-- No explanation outside the four lines.
+- The value after = must be EXACTLY one item from VOCABULARY or UNKNOWN.
+- Never use the target word.
+- No explanation.
 """.strip(),
+    )
+
+
+QUESTION_SYSTEM = (
+    "You generate deterministic semantic questions. "
+    "Answer only with one short question."
+)
+
+
+QUESTION_TEMPLATES = {
+    "CATEGORY": "What kind of thing is {word}?",
+    "PROPERTY": "What property best describes {word}?",
+    "USE": "What is {word} used for?",
+    "RELATION": "What is {word} related to?",
+}
+
+
+def deterministic_question(
+    slot: str,
+    word: str,
+) -> str:
+    return QUESTION_TEMPLATES[slot].format(
+        word=word
     )
 
 
 def answer_prompt(
     tokenizer,
     word: str,
+    slot: str,
     question: str,
     context: list[str],
 ) -> str:
-    context_text = (
-        ", ".join(context)
-        if context
-        else "(none)"
-    )
-
     return apply_chat(
         tokenizer,
         (
-            "You answer a semantic learning question for a compact external "
-            "memory. Reuse known concepts where possible. "
-            "Return only comma-separated concepts."
+            "You answer one semantic question for an external memory. "
+            "Reuse known concepts when possible. "
+            "If the answer requires a missing concept, output NEW:<short concept>. "
+            "Return exactly one concept."
         ),
         f"""
-TARGET WORD:
+TARGET:
 {word}
+
+SLOT:
+{slot}
 
 QUESTION:
 {question}
 
 KNOWN CONCEPTS:
-{context_text}
+{", ".join(context) if context else "(none)"}
 
-Return up to {MAX_CONCEPTS_PER_ANSWER} concepts.
+Return exactly ONE concept.
 
 Rules:
-- Existing concepts may be returned exactly.
-- A genuinely missing concept may be returned as NEW:<short concept>.
+- Existing concept must match KNOWN CONCEPTS exactly.
+- Otherwise use NEW:<short concept>.
 - No explanation.
 """.strip(),
     )
@@ -651,7 +626,7 @@ Rules:
 # Parsing
 # ---------------------------------------------------------------------------
 
-def clean_concept(
+def normalize(
     value: str,
 ) -> str | None:
     value = value.strip().lower()
@@ -661,6 +636,10 @@ def clean_concept(
         "",
         value,
         flags=re.IGNORECASE,
+    )
+
+    value = value.strip(
+        " \t\r\n.,;:!?\"'`()[]{}"
     )
 
     value = re.sub(
@@ -681,15 +660,21 @@ def clean_concept(
     if len(value) > 48:
         return None
 
-    if len(value.split()) > 5:
+    # Keep short concepts, not whole generated explanations.
+    if len(value.split()) > 4:
         return None
 
     banned = (
         "the answer",
         "the word",
-        "because",
         "explanation",
-        "memory system",
+        "because",
+        "description",
+        "assistant",
+        "return exactly",
+        "no explanation",
+        "known concepts",
+        "vocabulary",
     )
 
     if any(
@@ -701,11 +686,17 @@ def clean_concept(
     return value
 
 
-def parse_task(
+def parse_slots(
     text: str,
-    context: set[str],
-) -> dict[str, str]:
-    result = {}
+    allowed: set[str],
+    target: str,
+) -> dict[str, str | None]:
+    result = {
+        "CATEGORY": None,
+        "PROPERTY": None,
+        "USE": None,
+        "RELATION": None,
+    }
 
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -720,83 +711,111 @@ def parse_task(
             continue
 
         slot = match.group(1).upper()
-        value = match.group(2).strip()
+        raw_value = match.group(2).strip()
 
-        if value.upper().startswith("GAP:"):
-            question = value[4:].strip()
-
-            if question:
-                result[slot] = (
-                    "GAP:",
-                    question,
-                )
+        if raw_value.upper() == "UNKNOWN":
+            result[slot] = None
             continue
 
-        concept = clean_concept(
-            value
+        value = normalize(
+            raw_value
         )
 
         if (
-            concept is not None
-            and concept in context
+            value is not None
+            and value != target
+            and value in allowed
         ):
-            result[slot] = concept
+            result[slot] = value
+        else:
+            result[slot] = None
 
     return result
 
 
 def parse_answer(
     text: str,
-    context: set[str],
+    allowed: set[str],
     target: str,
-) -> list[str]:
-    result = []
+) -> str | None:
+    """
+    Mechanically interpret the model's one-concept answer.
 
-    for part in re.split(
-        r",|;|\n|\|",
-        text,
-    ):
-        raw = part.strip().lower()
+    The model does NOT have to emit NEW:.
 
-        if not raw:
-            continue
+        known concept          -> reuse
+        short unknown concept  -> NEW:<concept>
+        obvious meta/junk      -> reject
 
-        learner_new = raw.startswith(
-            "new:"
+    This is the key V118 change.
+    """
+    if not text:
+        return None
+
+    # Prefer the first non-empty line and first comma/semicolon-separated item.
+    line = next(
+        (
+            item.strip()
+            for item in text.splitlines()
+            if item.strip()
+        ),
+        "",
+    )
+
+    if not line:
+        return None
+
+    line = re.split(
+        r"[,;|]",
+        line,
+        maxsplit=1,
+    )[0].strip()
+
+    # Strip common labels the tiny instruction model may echo.
+    line = re.sub(
+        r"^(answer|concept|response|result)\s*:\s*",
+        "",
+        line,
+        flags=re.IGNORECASE,
+    )
+
+    explicit_new = line.lower().startswith(
+        "new:"
+    )
+
+    raw_value = (
+        line[4:].strip()
+        if explicit_new
+        else line
+    )
+
+    value = normalize(
+        raw_value
+    )
+
+    if value is None:
+        return None
+
+    if value == target:
+        return None
+
+    # Exact reuse.
+    if value in allowed:
+        return value
+
+    # The model doesn't need to understand the NEW protocol. The program
+    # infers novelty from the vocabulary boundary.
+    if explicit_new or value not in allowed:
+        return (
+            "NEW:"
+            + value
         )
 
-        concept = clean_concept(
-            raw
-        )
-
-        if concept is None:
-            continue
-
-        if concept == target:
-            continue
-
-        if learner_new:
-            value = (
-                "NEW:"
-                + concept
-            )
-        else:
-            if concept not in context:
-                continue
-
-            value = concept
-
-        if value not in result:
-            result.append(value)
-
-        if len(result) >= MAX_CONCEPTS_PER_ANSWER:
-            break
-
-    return result
+    return None
 
 
 # ---------------------------------------------------------------------------
-# Generation
+# Inference
 # ---------------------------------------------------------------------------
 
 @torch.inference_mode()
@@ -865,14 +884,19 @@ def f1(
         predicted & gold
     )
 
-    precision = hits / len(predicted)
-    recall = hits / len(gold)
+    precision = hits / len(
+        predicted
+    )
 
-    if precision + recall == 0.0:
+    recall = hits / len(
+        gold
+    )
+
+    if precision + recall == 0:
         return 0.0
 
     return (
-        2.0
+        2
         * precision
         * recall
         / (
@@ -895,13 +919,13 @@ def semantic_f1(
         if not gold_set:
             continue
 
-        predicted = set(
-            memory.concepts_for_word(word)
-        )
-
         values.append(
             f1(
-                predicted,
+                set(
+                    memory.concepts_for_word(
+                        word
+                    )
+                ),
                 gold_set,
             )
         )
@@ -923,7 +947,7 @@ def main() -> None:
     started = time.perf_counter()
 
     print(
-        "=== V115 TASK-DRIVEN SEMANTIC LEARNING ==="
+        "=== V117 DETERMINISTIC SLOT INQUIRY ==="
     )
 
     words = load_dictionary(
@@ -947,7 +971,7 @@ def main() -> None:
     )
 
     memory = LearnedMemory(
-        MEMORY_INPUT_PATH
+        INPUT_MEMORY
     )
 
     gold = HumanGold()
@@ -955,7 +979,9 @@ def main() -> None:
         SEMANTICS_PATH
     )
 
-    tokenizer, model, device = load_model()
+    tokenizer, model, device = (
+        load_model()
+    )
 
     initial_concepts = len(
         memory.concept_id_by_name
@@ -970,38 +996,40 @@ def main() -> None:
     print(
         "initial_concepts:",
         initial_concepts,
-        flush=True,
     )
 
     print(
         "initial_semantic_f1:",
         initial_f1,
-        flush=True,
     )
 
     total_gaps = 0
     total_questions = 0
     total_answer_calls = 0
     total_created = 0
-    task_successes = 0
-    task_failures = 0
+    total_reused_answers = 0
+    total_rejected_answers = 0
 
-    trace: list[dict] = []
+    slot_gap_counts = Counter()
+    successful_slot_answers = Counter()
 
-    # -----------------------------------------------------------------------
-    # Main task-learning loop.
-    # -----------------------------------------------------------------------
+    trace = []
 
     for round_index in range(
         1,
         ROUNDS + 1,
     ):
+        print()
         print(
-            f"\n=== TASK ROUND {round_index}/{ROUNDS} ===",
+            f"=== ROUND {round_index}/{ROUNDS} ===",
             flush=True,
         )
 
-        task_jobs = []
+        # ---------------------------------------------------------------
+        # Phase 1 — strict slot classification.
+        # ---------------------------------------------------------------
+
+        answer_jobs = []
 
         for start in range(
             0,
@@ -1012,108 +1040,91 @@ def main() -> None:
                 start:start + BATCH_SIZE
             ]
 
-            batch_prompts = []
-            batch_contexts = []
-
-            for word in batch_words:
-                context = memory.retrieve_context(
+            contexts = [
+                memory.retrieve_context(
                     word,
                     lexical_index,
                 )
+                for word in batch_words
+            ]
 
-                batch_contexts.append(
-                    context
+            prompts = [
+                slot_prompt(
+                    tokenizer,
+                    word,
+                    context,
                 )
-
-                batch_prompts.append(
-                    task_prompt(
-                        tokenizer,
-                        word,
-                        context,
-                    )
+                for word, context in zip(
+                    batch_words,
+                    contexts,
                 )
+            ]
 
-            raw_tasks = generate_batch(
+            raw_outputs = generate_batch(
                 tokenizer,
                 model,
                 device,
-                batch_prompts,
+                prompts,
             )
 
-            for word, context, raw in zip(
+            for (
+                word,
+                context,
+                raw,
+            ) in zip(
                 batch_words,
-                batch_contexts,
-                raw_tasks,
+                contexts,
+                raw_outputs,
             ):
-                parsed = parse_task(
+                parsed = parse_slots(
                     raw,
                     set(context),
+                    word,
                 )
 
-                gaps = [
-                    value[1]
-                    for value in parsed.values()
-                    if isinstance(value, tuple)
-                    and value
-                    and value[0] == "GAP:"
+                missing = [
+                    slot
+                    for slot, value
+                    in parsed.items()
+                    if value is None
                 ]
 
-                known = [
-                    value
-                    for value in parsed.values()
-                    if isinstance(value, str)
-                ]
+                for slot in missing:
+                    slot_gap_counts[
+                        slot
+                    ] += 1
 
-                if gaps:
-                    task_failures += 1
-                else:
-                    task_successes += 1
+                    question = deterministic_question(
+                        slot,
+                        word,
+                    )
 
-                total_gaps += len(gaps)
-                total_questions += len(gaps)
+                    answer_jobs.append(
+                        (
+                            word,
+                            slot,
+                            question,
+                            context,
+                        )
+                    )
 
-                if word in {
-                    "hello",
-                    "greeting",
-                    "ability",
-                    "abandon",
-                    "water",
-                    "music",
-                }:
+                for slot, value in parsed.items():
+                    if value is not None:
+                        successful_slot_answers[
+                            slot
+                        ] += 1
+
+                if word in TRACE_WORDS:
                     trace.append(
                         {
+                            "phase": "SLOTS",
                             "round": round_index,
                             "word": word,
                             "context": context,
-                            "raw_task": raw,
-                            "parsed": {
-                                key: (
-                                    list(value)
-                                    if isinstance(value, tuple)
-                                    else value
-                                )
-                                for key, value
-                                in parsed.items()
-                            },
-                            "gaps": gaps,
-                            "known": known,
+                            "raw": raw,
+                            "parsed": parsed,
+                            "missing": missing,
                         }
-                    )
-
-                for question in gaps:
-                    answer_context = list(
-                        dict.fromkeys(
-                            context
-                            + memory.top_used(16)
-                        )
-                    )[:CANDIDATE_LIMIT]
-
-                    task_jobs.append(
-                        (
-                            word,
-                            question,
-                            set(answer_context),
-                        )
                     )
 
             processed = min(
@@ -1126,36 +1137,43 @@ def main() -> None:
                 or processed % PRINT_EVERY == 0
                 or processed == len(words)
             ):
+                total_current_gaps = sum(
+                    slot_gap_counts.values()
+                )
+
                 print(
-                    f"TASK round={round_index} "
+                    f"SLOTS "
+                    f"round={round_index} "
                     f"{processed:4d}/{len(words):4d} "
-                    f"questions={total_questions} "
-                    f"failures={task_failures} "
-                    f"concepts={len(memory.concept_id_by_name)}",
+                    f"gaps={total_current_gaps} "
+                    f"memory={len(memory.concept_id_by_name)}",
                     flush=True,
                 )
 
+        total_gaps += len(answer_jobs)
+
         # ---------------------------------------------------------------
-        # Answer all mechanically generated gaps.
+        # Phase 2 — deterministic question + single concept answer.
         # ---------------------------------------------------------------
 
         for start in range(
             0,
-            len(task_jobs),
+            len(answer_jobs),
             BATCH_SIZE,
         ):
-            batch_jobs = task_jobs[
+            batch_jobs = answer_jobs[
                 start:start + BATCH_SIZE
             ]
 
-            answer_prompts = [
+            prompts = [
                 answer_prompt(
                     tokenizer,
                     word,
+                    slot,
                     question,
-                    list(context),
+                    context,
                 )
-                for word, question, context
+                for word, slot, question, context
                 in batch_jobs
             ]
 
@@ -1163,48 +1181,50 @@ def main() -> None:
                 tokenizer,
                 model,
                 device,
-                answer_prompts,
+                prompts,
             )
 
             for (
-                word,
-                question,
-                context,
-            ), raw_answer in zip(
+                (word, slot, question, context),
+                raw_answer,
+            ) in zip(
                 batch_jobs,
                 raw_answers,
             ):
-                allowed = set(context)
+                total_answer_calls += 1
 
-                concepts = parse_answer(
+                parsed = parse_answer(
                     raw_answer,
-                    allowed,
+                    set(context),
                     word,
                 )
+
+                if parsed is None:
+                    total_rejected_answers += 1
+                    continue
+
+                if parsed.startswith("NEW:"):
+                    total_created += 1
+                else:
+                    total_reused_answers += 1
 
                 created = memory.add_concepts(
                     word,
-                    concepts,
+                    [parsed],
                 )
 
-                total_answer_calls += 1
-                total_created += created
+                total_questions += 1
 
-                if word in {
-                    "hello",
-                    "greeting",
-                    "ability",
-                    "abandon",
-                    "water",
-                    "music",
-                }:
+                if word in TRACE_WORDS:
                     trace.append(
                         {
+                            "phase": "ANSWER",
                             "round": round_index,
                             "word": word,
+                            "slot": slot,
                             "question": question,
-                            "answer_raw": raw_answer,
-                            "answer_concepts": concepts,
+                            "raw_answer": raw_answer,
+                            "parsed": parsed,
                             "created": created,
                             "after": memory.concepts_for_word(
                                 word
@@ -1214,18 +1234,19 @@ def main() -> None:
 
             processed = min(
                 start + BATCH_SIZE,
-                len(task_jobs),
+                len(answer_jobs),
             )
 
             if (
                 processed <= BATCH_SIZE
                 or processed % PRINT_EVERY == 0
-                or processed == len(task_jobs)
+                or processed == len(answer_jobs)
             ):
                 print(
-                    f"ANSWER round={round_index} "
-                    f"{processed:4d}/{len(task_jobs):4d} "
-                    f"new_concepts={total_created} "
+                    f"ANSWERS "
+                    f"round={round_index} "
+                    f"{processed:4d}/{len(answer_jobs):4d} "
+                    f"created={total_created} "
                     f"memory={len(memory.concept_id_by_name)}",
                     flush=True,
                 )
@@ -1240,8 +1261,8 @@ def main() -> None:
 
         print(
             f"ROUND {round_index} COMPLETE "
-            f"questions={total_questions} "
-            f"answers={total_answer_calls} "
+            f"gaps={len(answer_jobs)} "
+            f"answered={total_questions} "
             f"new={total_created} "
             f"concepts={len(memory.concept_id_by_name)} "
             f"semantic_f1={round_f1:.4f}",
@@ -1249,7 +1270,7 @@ def main() -> None:
         )
 
         memory.save(
-            MEMORY_OUTPUT_PATH
+            OUTPUT_MEMORY
         )
 
     final_f1 = semantic_f1(
@@ -1260,7 +1281,7 @@ def main() -> None:
 
     print()
     print(
-        "=== V115 SUMMARY ==="
+        "=== V117 SUMMARY ==="
     )
 
     print(
@@ -1280,13 +1301,8 @@ def main() -> None:
     )
 
     print(
-        "task_successes:",
-        task_successes,
-    )
-
-    print(
-        "task_failures:",
-        task_failures,
+        "total_gaps:",
+        total_gaps,
     )
 
     print(
@@ -1305,6 +1321,16 @@ def main() -> None:
     )
 
     print(
+        "reused_answers:",
+        total_reused_answers,
+    )
+
+    print(
+        "rejected_answers:",
+        total_rejected_answers,
+    )
+
+    print(
         "semantic_f1_before:",
         initial_f1,
     )
@@ -1320,12 +1346,22 @@ def main() -> None:
     )
 
     print()
+    print(
+        "slot_gaps:",
+        dict(slot_gap_counts),
+    )
 
+    print(
+        "slot_successes:",
+        dict(successful_slot_answers),
+    )
+
+    print()
     print(
         "=== TRACE ==="
     )
 
-    for item in trace[:50]:
+    for item in trace[:120]:
         print(
             json.dumps(
                 item,
@@ -1333,8 +1369,10 @@ def main() -> None:
             )
         )
 
-    payload = {
-        "experiment": "V115 task-driven semantic learning",
+    report = {
+        "experiment": (
+            "V117 deterministic slot inquiry"
+        ),
         "initial_concepts": initial_concepts,
         "final_concepts": len(
             memory.concept_id_by_name
@@ -1343,16 +1381,19 @@ def main() -> None:
             len(memory.concept_id_by_name)
             - initial_concepts
         ),
-        "task_successes": task_successes,
-        "task_failures": task_failures,
+        "total_gaps": total_gaps,
         "questions_generated": total_questions,
         "answer_calls": total_answer_calls,
         "new_concepts": total_created,
+        "reused_answers": total_reused_answers,
+        "rejected_answers": total_rejected_answers,
         "semantic_f1_before": initial_f1,
         "semantic_f1_after": final_f1,
         "semantic_f1_delta": (
             final_f1 - initial_f1
         ),
+        "slot_gaps": dict(slot_gap_counts),
+        "slot_successes": dict(successful_slot_answers),
         "trace": trace,
         "word_concepts": memory.word_concepts,
         "concept_id_by_name": memory.concept_id_by_name,
@@ -1367,15 +1408,9 @@ def main() -> None:
         ),
     }
 
-    report_path = (
-        ROOT
-        / "results"
-        / "v115_task_driven_semantic_learning.json"
-    )
-
-    report_path.write_text(
+    OUTPUT_REPORT.write_text(
         json.dumps(
-            payload,
+            report,
             indent=2,
             ensure_ascii=False,
         ),
@@ -1383,22 +1418,27 @@ def main() -> None:
     )
 
     memory.save(
-        MEMORY_OUTPUT_PATH
+        OUTPUT_MEMORY
     )
 
     print()
     print(
         "saved_memory:",
-        MEMORY_OUTPUT_PATH,
+        OUTPUT_MEMORY,
     )
 
     print(
         "saved_report:",
-        report_path,
+        OUTPUT_REPORT,
     )
 
     print(
-        "=== V115 COMPLETE ==="
+        "elapsed_seconds:",
+        f"{time.perf_counter() - started:.2f}",
+    )
+
+    print(
+        "=== V117 COMPLETE ==="
     )
 
 
