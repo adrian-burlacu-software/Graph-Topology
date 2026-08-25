@@ -1,63 +1,72 @@
 from __future__ import annotations
 
 """
-V94 — FULL LEXICON + DUAL-LEVEL FORM/SEMANTICS TRANSFER
+V95 — FULL LEXICON + LEARNED SEMANTIC GATE
 
-Why this version
-----------------
-V93 showed:
+One serious attempt at the missing architectural layer.
 
-    recursive lexical structure > shuffled control
+Problem exposed by V93/V94:
+    * full recursive lexical graph is structurally useful
+    * recursive-only semantic transfer loses coverage
+    * dual-level exposure restores coverage but does not beat width-1
 
-but:
+Hypothesis:
+    the semantic interface should NOT consume every lexical unit equally.
 
-    recursive lexical structure < width-1
+V95 adds one learned selector / gate:
 
-The main reason was coverage:
-    width-1 units covered ~53.6% of held-out lexical representations
-    recursive units covered ~19.4%
+    lexical substrate
+       |
+       +-- primitive width-1 units
+       |
+       +-- recursive assemblies
+                |
+                v
+        semantic feature gate
+                |
+                v
+        selected form->feature links
 
-So V94 does NOT throw away the compressed hierarchy.
+The gate is learned ONLY from TRAIN semantic anchors.
 
-It exposes BOTH levels to the semantic learner:
+For each lexical unit u and semantic feature f, estimate whether f is more
+strongly associated with u than its corpus-wide feature prior would predict.
 
-    primitive width-1 units
-            +
-    recursively discovered lexical assemblies
-            ↓
-    semantic feature predictor
+Score:
+    association(u,f)
+        = P(f | u) / P(f)
 
-The lexical substrate is still learned from ALL 4,925 dictionary words.
+A unit is allowed to contribute to a feature when its association clears a
+training-derived gate.
 
-Semantic supervision is still limited to the independently observed concepts
-present in semantics.csv. We never invent labels for the remaining dictionary.
+This is NOT a hand-coded semantic rule:
+    * the lexical graph still comes from ALL dictionary words
+    * semantic features are human-elicited
+    * the selector is learned from train anchors
+    * test is concept-disjoint
+    * one shuffled-control model uses exactly the same machinery
 
-This tests the more natural architecture:
+Representations compared:
+    1. WIDTH1
+    2. RECURSIVE
+    3. GATED-DUAL
+    4. SHUFFLED GATED-DUAL
 
-    raw local structure
-           \
-            +--> semantic interface
-           /
-    compressed reusable structure
+The gated dual model exposes both primitive and recursive lexical units, but
+lets learned association strength decide which units actually participate in
+predicting a feature.
 
-instead of forcing semantics to consume only the maximally compressed form.
+Primary outcome:
+    Does GATED-DUAL beat both WIDTH1 and the shuffled control on held-out
+    semantic feature prediction?
 
-Controls
---------
-    1. width-1 only
-    2. recursive only
-    3. dual-level (width-1 + recursive)
-    4. shuffled dual-level
-
-The single primary comparison:
-    dual-level vs width-1
-    dual-level vs shuffled
-
-All semantic evaluation remains concept-disjoint.
+This is intended as a "one serious shot" at the semantic interface, not another
+ladder of tiny representation tweaks.
 """
 
 import csv
 import hashlib
+import math
 import random
 import time
 from collections import Counter, defaultdict
@@ -76,8 +85,10 @@ VALID_FRACTION = 0.15
 TOP_K = 10
 SEED = 9173
 
-MIN_OCCURRENCES = 2
-MAX_LEXICAL_LEVELS = 10
+# Learned gate controls.
+MIN_UNIT_ANCHORS = 2
+ASSOCIATION_FLOOR = 1.0
+MAX_SELECTED_UNITS = 24
 
 
 # ---------------------------------------------------------------------------
@@ -189,9 +200,11 @@ def split_records(
     )
 
     n = len(ordered)
+
     train_end = int(
         n * TRAIN_FRACTION
     )
+
     validation_end = (
         train_end
         + int(n * VALID_FRACTION)
@@ -199,13 +212,17 @@ def split_records(
 
     return (
         ordered[:train_end],
-        ordered[train_end:validation_end],
-        ordered[validation_end:],
+        ordered[
+            train_end:validation_end
+        ],
+        ordered[
+            validation_end:
+        ],
     )
 
 
 # ---------------------------------------------------------------------------
-# Lexical recursive substrate
+# Lexical substrate
 # ---------------------------------------------------------------------------
 
 def width1_units(
@@ -223,9 +240,13 @@ def width1_units(
 
 class FullLexicalSubstrate:
     """
-    Entire dictionary is learned here.
+    Entire dictionary builds lexical structure.
 
-    No semantic information enters this stage.
+    Level 0:
+        width-1 local units
+
+    Higher levels:
+        recursively discovered reusable assemblies
     """
 
     def __init__(self) -> None:
@@ -279,10 +300,7 @@ class FullLexicalSubstrate:
             flush=True,
         )
 
-        for level in range(
-            1,
-            MAX_LEXICAL_LEVELS + 1,
-        ):
+        for level in range(1, 10 + 1):
             occurrences = Counter()
 
             for stream in streams:
@@ -296,8 +314,9 @@ class FullLexicalSubstrate:
 
             recurring = {
                 key
-                for key, count in occurrences.items()
-                if count >= MIN_OCCURRENCES
+                for key, count
+                in occurrences.items()
+                if count >= 2
             }
 
             created = 0
@@ -325,13 +344,17 @@ class FullLexicalSubstrate:
                             )
                         )
 
-                        assembly = self.assembly_ids.get(key)
+                        assembly = self.assembly_ids.get(
+                            key
+                        )
 
                         if (
                             assembly is not None
                             and key in recurring
                         ):
-                            output.append(assembly)
+                            output.append(
+                                assembly
+                            )
                             i += 2
                             continue
 
@@ -373,7 +396,9 @@ class FullLexicalSubstrate:
                         )
                     )
 
-                    assembly = self.assembly_ids.get(key)
+                    assembly = self.assembly_ids.get(
+                        key
+                    )
 
                     if assembly is not None:
                         output.append(assembly)
@@ -395,11 +420,14 @@ class FullLexicalSubstrate:
         self,
         word: str,
     ) -> list[int]:
-        # Keep BOTH representations. This restores semantic coverage while
-        # preserving the information in reusable higher-order assemblies.
-        primitive = self.base_stream(word)
-        recursive = self.recursive_units(word)
-        return list(set(primitive) | set(recursive))
+        return list(
+            set(
+                self.base_stream(word)
+            )
+            | set(
+                self.recursive_units(word)
+            )
+        )
 
     def stats(self) -> dict[str, int]:
         return {
@@ -414,23 +442,35 @@ class FullLexicalSubstrate:
 
 
 # ---------------------------------------------------------------------------
-# Cross-modal learner
+# Learned semantic gate
 # ---------------------------------------------------------------------------
 
-class SemanticAssociator:
+class LearnedSemanticGate:
     """
-    One learner over one chosen lexical interface.
+    Learns lexical-unit -> feature association using train anchors.
 
-    mode:
-        width1
-        recursive
-        dual
+    The gate is learned from the SAME evidence used by the predictor.
+
+    For each unit:
+        unit_count = number of training anchors containing the unit
+
+    For each unit/feature pair:
+        co_count = number of training anchors containing both
+
+    Global feature prior:
+        P(feature)
+
+    Association:
+        P(feature | unit) / P(feature)
+
+    Only units with enough anchor coverage are permitted to vote.
     """
 
     def __init__(
         self,
         substrate: FullLexicalSubstrate,
         mode: str,
+        use_gate: bool,
     ) -> None:
         if mode not in {
             "width1",
@@ -441,16 +481,27 @@ class SemanticAssociator:
 
         self.substrate = substrate
         self.mode = mode
+        self.use_gate = use_gate
 
         self.feature_ids: dict[str, int] = {}
         self.feature_names: dict[int, str] = {}
 
-        self.unit_feature_counts: dict[
+        self.feature_anchor_count: Counter[int] = Counter()
+        self.unit_anchor_count: Counter[int] = Counter()
+
+        self.unit_feature_count: dict[
             int,
             Counter[int],
         ] = defaultdict(Counter)
 
-        self.unit_anchor_counts: Counter[int] = Counter()
+        self.selected_units: dict[
+            int,
+            set[int],
+        ] = defaultdict(set)
+
+        self.total_anchors = 0
+
+        self.selection_count = 0
 
     def representation(
         self,
@@ -473,7 +524,9 @@ class SemanticAssociator:
         if existing is not None:
             return existing
 
-        identifier = len(self.feature_ids)
+        identifier = len(
+            self.feature_ids
+        )
 
         self.feature_ids[feature] = identifier
         self.feature_names[identifier] = feature
@@ -484,10 +537,17 @@ class SemanticAssociator:
         self,
         record: ConceptRecord,
     ) -> None:
-        feature_ids = [
+        self.total_anchors += 1
+
+        feature_ids = {
             self.feature_id(feature)
             for feature in record.features
-        ]
+        }
+
+        for feature_id in feature_ids:
+            self.feature_anchor_count[
+                feature_id
+            ] += 1
 
         units = set(
             self.representation(
@@ -496,40 +556,179 @@ class SemanticAssociator:
         )
 
         for unit_id in units:
-            self.unit_anchor_counts[
+            self.unit_anchor_count[
                 unit_id
             ] += 1
 
             for feature_id in feature_ids:
-                self.unit_feature_counts[
+                self.unit_feature_count[
                     unit_id
                 ][feature_id] += 1
+
+    def finalize_gate(self) -> None:
+        """
+        Learn which unit-feature links deserve semantic participation.
+
+        A positive association above 1.0 means:
+            feature is more prevalent in this unit's anchors than globally.
+
+        The strongest links are retained per unit, bounded by
+        MAX_SELECTED_UNITS only on the unit side at prediction time.
+        """
+        if not self.use_gate:
+            return
+
+        for unit_id, feature_counts in (
+            self.unit_feature_count.items()
+        ):
+            if (
+                self.unit_anchor_count[unit_id]
+                < MIN_UNIT_ANCHORS
+            ):
+                continue
+
+            scored = []
+
+            unit_total = self.unit_anchor_count[
+                unit_id
+            ]
+
+            for feature_id, co_count in feature_counts.items():
+                feature_prior = (
+                    self.feature_anchor_count[
+                        feature_id
+                    ]
+                    / max(
+                        1,
+                        self.total_anchors,
+                    )
+                )
+
+                conditional = (
+                    co_count
+                    / unit_total
+                )
+
+                association = (
+                    conditional
+                    / max(
+                        1e-9,
+                        feature_prior,
+                    )
+                )
+
+                if association >= ASSOCIATION_FLOOR:
+                    scored.append(
+                        (
+                            association,
+                            feature_id,
+                        )
+                    )
+
+            scored.sort(
+                reverse=True
+            )
+
+            self.selected_units[
+                unit_id
+            ] = {
+                feature_id
+                for _score, feature_id
+                in scored
+            }
+
+            self.selection_count += len(
+                self.selected_units[
+                    unit_id
+                ]
+            )
 
     def score(
         self,
         word: str,
     ) -> Counter[int]:
-        scores = Counter()
+        units = list(
+            set(
+                self.representation(word)
+            )
+        )
 
-        for unit_id in set(
-            self.representation(word)
-        ):
-            denominator = max(
-                1,
-                self.unit_anchor_counts.get(
+        # Prefer units with learned semantic coverage.
+        units.sort(
+            key=lambda unit_id: (
+                -self.unit_anchor_count.get(
                     unit_id,
                     0,
                 ),
+                unit_id,
+            )
+        )
+
+        units = units[:MAX_SELECTED_UNITS]
+
+        scores = Counter()
+
+        for unit_id in units:
+            unit_total = self.unit_anchor_count.get(
+                unit_id,
+                0,
             )
 
-            for feature_id, count in (
-                self.unit_feature_counts.get(
+            if unit_total == 0:
+                continue
+
+            allowed = None
+
+            if self.use_gate:
+                allowed = self.selected_units.get(
+                    unit_id,
+                    set(),
+                )
+
+                if not allowed:
+                    continue
+
+            for feature_id, co_count in (
+                self.unit_feature_count.get(
                     unit_id,
                     Counter(),
                 ).items()
             ):
-                scores[feature_id] += (
-                    count / denominator
+                if (
+                    allowed is not None
+                    and feature_id not in allowed
+                ):
+                    continue
+
+                feature_prior = (
+                    self.feature_anchor_count[
+                        feature_id
+                    ]
+                    / max(
+                        1,
+                        self.total_anchors,
+                    )
+                )
+
+                conditional = (
+                    co_count
+                    / unit_total
+                )
+
+                association = (
+                    conditional
+                    / max(
+                        1e-9,
+                        feature_prior,
+                    )
+                )
+
+                # Log association behaves like a compact evidence score.
+                scores[feature_id] += math.log(
+                    max(
+                        1.0,
+                        association,
+                    )
                 )
 
         return scores
@@ -549,7 +748,8 @@ class SemanticAssociator:
 
         return [
             self.feature_names[feature_id]
-            for feature_id, _score in ranked[:k]
+            for feature_id, _score
+            in ranked[:k]
         ]
 
     def coverage(
@@ -560,19 +760,23 @@ class SemanticAssociator:
             self.representation(word)
         )
 
-        known = sum(
-            unit_id in self.unit_anchor_counts
+        covered = sum(
+            self.unit_anchor_count.get(
+                unit_id,
+                0,
+            )
+            > 0
             for unit_id in units
         )
 
-        return known / max(
+        return covered / max(
             1,
             len(units),
         )
 
 
 # ---------------------------------------------------------------------------
-# Metrics
+# Evaluation
 # ---------------------------------------------------------------------------
 
 def prf(
@@ -600,7 +804,7 @@ def prf(
         f1 = 0.0
     else:
         f1 = (
-            2
+            2.0
             * precision
             * recall
             / (precision + recall)
@@ -610,14 +814,14 @@ def prf(
 
 
 def evaluate(
-    model: SemanticAssociator,
+    model: LearnedSemanticGate,
     records: list[ConceptRecord],
     label: str,
 ) -> dict[str, float]:
-    p = []
-    r = []
-    f = []
-    c = []
+    precisions = []
+    recalls = []
+    f1s = []
+    coverages = []
 
     for record in records:
         predicted = model.predict(
@@ -630,33 +834,53 @@ def evaluate(
             record.features,
         )
 
-        p.append(precision)
-        r.append(recall)
-        f.append(f1)
-        c.append(
+        precisions.append(precision)
+        recalls.append(recall)
+        f1s.append(f1)
+        coverages.append(
             model.coverage(
                 record.concept
             )
         )
 
     result = {
-        "precision_at_k": sum(p)
-        / max(1, len(p)),
-        "recall_at_k": sum(r)
-        / max(1, len(r)),
-        "f1_at_k": sum(f)
-        / max(1, len(f)),
-        "coverage": sum(c)
-        / max(1, len(c)),
+        "precision_at_k": sum(
+            precisions
+        )
+        / max(
+            1,
+            len(precisions),
+        ),
+        "recall_at_k": sum(
+            recalls
+        )
+        / max(
+            1,
+            len(recalls),
+        ),
+        "f1_at_k": sum(
+            f1s
+        )
+        / max(
+            1,
+            len(f1s),
+        ),
+        "coverage": sum(
+            coverages
+        )
+        / max(
+            1,
+            len(coverages),
+        ),
     }
 
     print(
-        f"=== V94 {label} ==="
+        f"=== V95 {label} ==="
     )
 
     for key, value in result.items():
         print(
-            f"{key:26s}: {value}"
+            f"{key:24s}: {value}"
         )
 
     print()
@@ -664,16 +888,14 @@ def evaluate(
     return result
 
 
-def shuffle_training(
+def shuffled_records(
     records: list[ConceptRecord],
     seed: int,
 ) -> list[ConceptRecord]:
     rng = random.Random(seed)
 
     feature_sets = [
-        frozenset(
-            record.features
-        )
+        frozenset(record.features)
         for record in records
     ]
 
@@ -702,10 +924,13 @@ def main() -> None:
     start = time.perf_counter()
 
     print(
-        "=== V94 FULL LEXICON DUAL-LEVEL SEMANTIC TRANSFER ==="
+        "=== V95 FULL LEXICON LEARNED SEMANTIC GATE ==="
     )
     print(
-        "ASCII-safe Windows output."
+        "One-shot attempt at the semantic interface."
+    )
+    print(
+        "Full dictionary -> recursive lexical graph -> learned semantic gate."
     )
     print()
 
@@ -740,25 +965,21 @@ def main() -> None:
         len(anchors),
     )
     print(
-        "unmatched_semantics:",
-        len(semantic_map) - len(anchors),
-    )
-    print(
-        "train_anchors:",
+        "train:",
         len(train),
     )
     print(
-        "validation_anchors:",
+        "validation:",
         len(validation),
     )
     print(
-        "test_anchors:",
+        "test:",
         len(test),
     )
     print()
 
     # ---------------------------------------------------------------
-    # BIG LEXICON
+    # Full lexical substrate.
     # ---------------------------------------------------------------
 
     substrate = FullLexicalSubstrate()
@@ -777,7 +998,7 @@ def main() -> None:
 
     print()
     print(
-        "=== FULL LEXICAL GRAPH ==="
+        "=== FULL LEXICAL SUBSTRATE ==="
     )
 
     for key, value in substrate.stats().items():
@@ -788,80 +1009,107 @@ def main() -> None:
     print()
 
     # ---------------------------------------------------------------
-    # THREE INTERFACES
+    # Four semantic interfaces.
     # ---------------------------------------------------------------
 
-    models = {
-        "width1": SemanticAssociator(
-            substrate,
-            "width1",
-        ),
-        "recursive": SemanticAssociator(
-            substrate,
-            "recursive",
-        ),
-        "dual": SemanticAssociator(
-            substrate,
-            "dual",
-        ),
-    }
-
-    for record in train:
-        for model in models.values():
-            model.learn(record)
-
-    # ---------------------------------------------------------------
-    # TEST
-    # ---------------------------------------------------------------
-
-    results = {}
-
-    for name, model in models.items():
-        results[
-            f"{name}_validation"
-        ] = evaluate(
-            model,
-            validation,
-            f"{name.upper()} VALIDATION",
-        )
-
-        results[
-            f"{name}_test"
-        ] = evaluate(
-            model,
-            test,
-            f"{name.upper()} TEST",
-        )
-
-    # ---------------------------------------------------------------
-    # SHUFFLED DUAL CONTROL
-    # ---------------------------------------------------------------
-
-    shuffled_model = SemanticAssociator(
+    width1 = LearnedSemanticGate(
         substrate,
-        "dual",
+        mode="width1",
+        use_gate=False,
     )
 
-    for record in shuffle_training(
+    recursive = LearnedSemanticGate(
+        substrate,
+        mode="recursive",
+        use_gate=False,
+    )
+
+    gated_dual = LearnedSemanticGate(
+        substrate,
+        mode="dual",
+        use_gate=True,
+    )
+
+    shuffled_dual = LearnedSemanticGate(
+        substrate,
+        mode="dual",
+        use_gate=True,
+    )
+
+    for record in train:
+        width1.learn(record)
+        recursive.learn(record)
+        gated_dual.learn(record)
+        shuffled_dual.learn(record)
+
+    gated_dual.finalize_gate()
+
+    for record in shuffled_records(
         train,
         SEED,
     ):
-        shuffled_model.learn(record)
+        # Replace the shuffled model's learned counts by clearing and
+        # retraining it from the permuted semantic anchors.
+        pass
 
-    results[
-        "shuffled_test"
-    ] = evaluate(
-        shuffled_model,
+    # Build the shuffled model independently so the real model is untouched.
+    shuffled_dual = LearnedSemanticGate(
+        substrate,
+        mode="dual",
+        use_gate=True,
+    )
+
+    shuffled_train = shuffled_records(
+        train,
+        SEED,
+    )
+
+    for record in shuffled_train:
+        shuffled_dual.learn(record)
+
+    shuffled_dual.finalize_gate()
+
+    # ---------------------------------------------------------------
+    # Evaluate.
+    # ---------------------------------------------------------------
+
+    width1_test = evaluate(
+        width1,
         test,
-        "DUAL SHUFFLED TEST",
+        "WIDTH1 TEST",
+    )
+
+    recursive_test = evaluate(
+        recursive,
+        test,
+        "RECURSIVE TEST",
+    )
+
+    dual_test = evaluate(
+        gated_dual,
+        test,
+        "GATED-DUAL TEST",
+    )
+
+    shuffled_test = evaluate(
+        shuffled_dual,
+        test,
+        "SHUFFLED GATED-DUAL TEST",
+    )
+
+    # Validation is included as a sanity check but test is the headline.
+    evaluate(
+        gated_dual,
+        validation,
+        "GATED-DUAL VALIDATION",
     )
 
     # ---------------------------------------------------------------
-    # COMPARISON
+    # Final comparison.
     # ---------------------------------------------------------------
 
     print(
-        "=== V94 CROSS-MODAL COMPARISON ==="
+        "=== V95 COMPARISON ==="
     )
 
     for metric in (
@@ -869,72 +1117,62 @@ def main() -> None:
         "recall_at_k",
         "f1_at_k",
     ):
-        w = results[
-            "width1_test"
-        ][metric]
-
-        r = results[
-            "recursive_test"
-        ][metric]
-
-        d = results[
-            "dual_test"
-        ][metric]
-
-        s = results[
-            "shuffled_test"
-        ][metric]
+        w = width1_test[metric]
+        r = recursive_test[metric]
+        d = dual_test[metric]
+        s = shuffled_test[metric]
 
         print(
             f"{metric:18s} "
             f"width1={w:.6f} "
             f"recursive={r:.6f} "
-            f"dual={d:.6f} "
-            f"shuffle={s:.6f}"
+            f"gated_dual={d:.6f} "
+            f"shuffled={s:.6f}"
         )
 
         print(
             f"{'':18s}"
-            f" dual-width1={d-w:+.6f} "
-            f" dual-shuffle={d-s:+.6f} "
+            f" gated-width1={d-w:+.6f} "
+            f" gated-shuffle={d-s:+.6f} "
             f"lift={d/max(1e-9,s):.3f}x"
         )
 
     print()
     print(
-        "=== V94 COVERAGE ==="
+        "gate_selected_links:",
+        gated_dual.selection_count,
     )
 
-    for name in (
-        "width1_test",
-        "recursive_test",
-        "dual_test",
-        "shuffled_test",
-    ):
-        print(
-            f"{name:20s}:",
-            results[name]["coverage"],
-        )
+    print(
+        "width1_coverage:",
+        width1_test["coverage"],
+    )
+    print(
+        "recursive_coverage:",
+        recursive_test["coverage"],
+    )
+    print(
+        "gated_dual_coverage:",
+        dual_test["coverage"],
+    )
 
     print()
     print(
-        "=== V94 INTERPRETATION ==="
+        "=== V95 INTERPRETATION ==="
     )
     print(
-        "All dictionary words participate in the lexical graph."
+        "The lexical substrate was learned from the entire dictionary."
     )
     print(
-        "Semantic training is limited to independently observed matched anchors."
+        "The semantic gate learned which lexical units are useful from TRAIN anchors."
     )
     print(
-        "Dual-level asks whether semantics benefits from BOTH raw local "
-        "coverage and recursive reusable structure."
+        "GATED-DUAL > WIDTH1 means the selector successfully extracts "
+        "useful higher-order lexical structure without sacrificing all local coverage."
     )
     print(
-        "Dual > shuffled is the form->feature signal."
-    )
-    print(
-        "Dual > width1 is the higher-order structural gain."
+        "GATED-DUAL > SHUFFLED means the selected form->feature associations "
+        "generalize beyond random word/feature alignment."
     )
 
     print()
@@ -942,8 +1180,9 @@ def main() -> None:
         "elapsed_seconds:",
         f"{time.perf_counter() - start:.2f}",
     )
+
     print(
-        "=== V94 COMPLETE ==="
+        "=== V95 COMPLETE ==="
     )
 
 
