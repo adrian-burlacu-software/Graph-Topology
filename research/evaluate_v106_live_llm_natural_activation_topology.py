@@ -1,50 +1,60 @@
 from __future__ import annotations
 
 """
-V104B — LIVE SmolLM2 ACTIVATION -> PROTOTYPE GRAPH
+V105 — LIVE LLM NATURAL ACTIVATION TOPOLOGY
 
-This version does NOT read v102_smol_representation_geometry.pt.
+This is the "stop forcing the hierarchy" experiment.
 
-It loads the local model directly from:
+Input:
     ./llm/SmolLM2-360M
 
-Pipeline
---------
-ALL dictionary words
-    ↓
-SmolLM2-360M
-    ↓
-layer 3 hidden states
-    ↓
-mean-center across all words
-    ↓
-remove top common component
-    ↓
-512 cosine-space activation prototypes
-    ↓
-recursive prototype hierarchy
-    ↓
-semantic coherence check
+Data:
+    ALL words in data/dictionary.csv
+    semantics-large.csv for independent semantic validation
 
-This is the same representation selected by V102, but computed live.
+Representation:
+    SmolLM2 layer 3
+    mean-centered
+    top common component removed
 
-The purpose is to validate the activation->prototype graph independently of
-the saved PT artifact.
+What is different from V104B:
+    We do NOT impose 512 -> 128 -> 32 -> 8 -> 4.
 
-No Graph-Topology semantic labels are used to build the prototypes.
-The semantic corpus is only used for evaluation after the prototype graph is
-constructed.
+Instead:
+    1. discover activation prototypes using an adaptive radius
+    2. require reuse (prototype must represent >= MIN_CLUSTER_SIZE words)
+    3. recursively compress only when the next level produces genuine reuse
+    4. stop automatically at a fixed point
 
-Dependencies:
-    torch
-    transformers
+Prototype discovery:
+    greedy cosine-radius covering
+
+For each unassigned activation vector:
+    make it the seed of a prototype
+    absorb all remaining vectors whose cosine similarity exceeds the radius
+    keep prototypes that are genuinely reused
+    otherwise the residual vector stays as a singleton prototype
+
+This gives an observed natural prototype vocabulary rather than an externally
+chosen K.
+
+The recursive level operates on prototype centroids using the same natural
+radius rule.
+
+Primary outputs:
+    natural prototype count
+    singleton count
+    reuse distribution
+    actual compression
+    fixed-point level
+    semantic coherence
+    activation->semantic correlation
 """
 
 import csv
 import math
 import time
 from collections import Counter
-from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -78,27 +88,26 @@ SEMANTICS_PATH = (
 OUTPUT_PATH = (
     ROOT
     / "results"
-    / "v104b_live_activation_prototype_graph.pt"
+    / "v105_live_llm_natural_activation_topology.pt"
 )
 
-# Full lexical corpus.
-MAX_WORDS = None
-
-# Chosen from V102.
 TARGET_LAYER = 3
 REMOVE_TOP_COMPONENTS = 1
 
-# Prototype hierarchy.
-BASE_PROTOTYPES = 512
-HIERARCHY_RATIO = 4
-KMEANS_ITERS = 10
-
 BATCH_SIZE = 16
+
+# Natural topology controls.
+# These are not counts of prototypes.
+COSINE_RADIUS = 0.92
+MIN_CLUSTER_SIZE = 2
+
+MAX_LEVELS = 12
+
 SEMANTIC_NEIGHBORS = 20
 
 
 # ---------------------------------------------------------------------------
-# Loading
+# Model / corpus
 # ---------------------------------------------------------------------------
 
 def choose_device() -> torch.device:
@@ -134,12 +143,9 @@ def load_words(
 
     result = sorted(words)
 
-    if MAX_WORDS is not None:
-        result = result[:MAX_WORDS]
-
     if not result:
         raise RuntimeError(
-            "No dictionary words found."
+            "No dictionary words."
         )
 
     return result
@@ -232,25 +238,12 @@ def load_semantics(
     return records
 
 
-# ---------------------------------------------------------------------------
-# Representation extraction
-# ---------------------------------------------------------------------------
-
 def load_model():
     device = choose_device()
 
-    print(
-        "MODEL:",
-        MODEL_PATH,
-    )
-    print(
-        "DEVICE:",
-        device,
-    )
-
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
-            f"Missing model directory: {MODEL_PATH}"
+            MODEL_PATH
         )
 
     tokenizer = AutoTokenizer.from_pretrained(
@@ -275,48 +268,16 @@ def load_model():
 
         tokenizer.pad_token = tokenizer.eos_token
 
-    layers = getattr(
-        model.config,
-        "num_hidden_layers",
-        None,
-    )
-
-    if layers is None:
-        raise RuntimeError(
-            "Could not determine transformer layer count."
-        )
-
-    if TARGET_LAYER > layers:
-        raise RuntimeError(
-            f"TARGET_LAYER={TARGET_LAYER} exceeds model depth={layers}"
-        )
-
-    print(
-        "TARGET_LAYER:",
-        TARGET_LAYER,
-    )
-    print(
-        "HIDDEN_SIZE:",
-        getattr(
-            model.config,
-            "hidden_size",
-            "unknown",
-        ),
-    )
-
     return tokenizer, model, device
 
 
 @torch.no_grad()
-def extract_target_layer(
+def extract_layer3(
     tokenizer,
     model,
     device,
     words: list[str],
 ) -> torch.Tensor:
-    """
-    Extract mean-pooled TARGET_LAYER activations as float32 CPU tensors.
-    """
     batches = []
 
     for start in range(
@@ -384,36 +345,16 @@ def extract_target_layer(
                 flush=True,
             )
 
-    return torch.cat(
+    raw = torch.cat(
         batches,
         dim=0,
     ).float()
 
-
-# ---------------------------------------------------------------------------
-# V102 representation normalization
-# ---------------------------------------------------------------------------
-
-def clean_representation(
-    vectors: torch.Tensor,
-) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-]:
-    """
-    Reproduce the V102-selected representation:
-        raw
-        -> mean centered
-        -> top-1 common component removed
-    """
-    x = vectors.float()
-
-    mean = x.mean(
+    mean = raw.mean(
         dim=0
     )
 
-    centered = x - mean
+    centered = raw - mean
 
     work = centered.cpu()
 
@@ -424,17 +365,7 @@ def clean_representation(
     )
 
     if q <= 0:
-        return (
-            centered,
-            mean,
-            torch.empty(
-                (
-                    0,
-                    work.shape[1],
-                ),
-                dtype=work.dtype,
-            ),
-        )
+        return centered
 
     _, _, v = torch.pca_lowrank(
         work,
@@ -461,179 +392,11 @@ def clean_representation(
         @ components
     )
 
-    return (
-        corrected,
-        mean,
-        components,
-    )
+    return corrected.float()
 
 
 # ---------------------------------------------------------------------------
-# Spherical k-means
-# ---------------------------------------------------------------------------
-
-def initialize_centroids(
-    vectors: torch.Tensor,
-    k: int,
-) -> torch.Tensor:
-    x = F.normalize(
-        vectors.float(),
-        dim=1,
-    )
-
-    n = x.shape[0]
-
-    if k >= n:
-        return x.clone()
-
-    selected = [0]
-
-    distances = (
-        1.0
-        - (
-            x @ x[0]
-        )
-    )
-
-    for _ in range(
-        1,
-        k,
-    ):
-        index = int(
-            torch.argmax(
-                distances
-            ).item()
-        )
-
-        selected.append(
-            index
-        )
-
-        next_distance = (
-            1.0
-            - (
-                x @ x[index]
-            )
-        )
-
-        distances = torch.minimum(
-            distances,
-            next_distance,
-        )
-
-    return x[
-        torch.tensor(
-            selected,
-            dtype=torch.long,
-        )
-    ]
-
-
-def spherical_kmeans(
-    vectors: torch.Tensor,
-    k: int,
-) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-]:
-    x = F.normalize(
-        vectors.float(),
-        dim=1,
-    )
-
-    k = max(
-        1,
-        min(
-            k,
-            x.shape[0],
-        ),
-    )
-
-    centroids = initialize_centroids(
-        x,
-        k,
-    )
-
-    for iteration in range(
-        KMEANS_ITERS
-    ):
-        similarities = (
-            x @ centroids.T
-        )
-
-        assignments = torch.argmax(
-            similarities,
-            dim=1,
-        )
-
-        new_centroids = torch.zeros_like(
-            centroids
-        )
-
-        for cluster_id in range(k):
-            mask = (
-                assignments
-                == cluster_id
-            )
-
-            if not bool(
-                mask.any()
-            ):
-                # Replace empty clusters with the least-covered observation.
-                nearest = similarities.max(
-                    dim=1
-                ).values
-
-                replacement = int(
-                    torch.argmin(
-                        nearest
-                    ).item()
-                )
-
-                new_centroids[
-                    cluster_id
-                ] = x[replacement]
-            else:
-                mean = x[mask].mean(
-                    dim=0
-                )
-
-                new_centroids[
-                    cluster_id
-                ] = F.normalize(
-                    mean.unsqueeze(0),
-                    dim=1,
-                )[0]
-
-        if torch.allclose(
-            new_centroids,
-            centroids,
-            atol=1e-5,
-            rtol=1e-5,
-        ):
-            centroids = new_centroids
-            break
-
-        centroids = new_centroids
-
-        print(
-            f"      kmeans {iteration + 1}/{KMEANS_ITERS}",
-            flush=True,
-        )
-
-    assignments = torch.argmax(
-        x @ centroids.T,
-        dim=1,
-    )
-
-    return (
-        assignments,
-        centroids,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Semantic evaluation
+# Semantic helpers
 # ---------------------------------------------------------------------------
 
 def weighted_jaccard(
@@ -645,85 +408,212 @@ def weighted_jaccard(
     if not keys:
         return 0.0
 
-    num = 0.0
-    den = 0.0
+    numerator = 0.0
+    denominator = 0.0
 
     for key in keys:
         av = a.get(key, 0.0)
         bv = b.get(key, 0.0)
 
-        num += min(
-            av,
-            bv,
-        )
-        den += max(
-            av,
-            bv,
-        )
+        numerator += min(av, bv)
+        denominator += max(av, bv)
 
-    return num / max(
+    return numerator / max(
         1e-12,
-        den,
+        denominator,
     )
 
 
-def semantic_cluster_coherence(
+# ---------------------------------------------------------------------------
+# Natural prototype discovery
+# ---------------------------------------------------------------------------
+
+def natural_cover(
+    vectors: torch.Tensor,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """
+    Greedy cosine-radius covering.
+
+    Returns:
+        assignments [N]
+        normalized centroids [K,D]
+        cluster counts [K]
+
+    No target K is given.
+    """
+    x = F.normalize(
+        vectors.float(),
+        dim=1,
+    )
+
+    n = x.shape[0]
+
+    unassigned = torch.ones(
+        n,
+        dtype=torch.bool,
+    )
+
+    assignments = torch.full(
+        (n,),
+        -1,
+        dtype=torch.long,
+    )
+
+    centroids = []
+    counts = []
+
+    cluster_id = 0
+
+    while bool(
+        unassigned.any()
+    ):
+        remaining = torch.where(
+            unassigned
+        )[0]
+
+        seed = int(
+            remaining[0].item()
+        )
+
+        seed_vector = x[seed]
+
+        similarities = (
+            x[remaining]
+            @ seed_vector
+        )
+
+        selected = remaining[
+            similarities
+            >= COSINE_RADIUS
+        ]
+
+        # Guarantee at least the seed.
+        if len(selected) == 0:
+            selected = remaining[:1]
+
+        centroid = x[
+            selected
+        ].mean(
+            dim=0
+        )
+
+        centroid = F.normalize(
+            centroid.unsqueeze(0),
+            dim=1,
+        )[0]
+
+        size = len(selected)
+
+        for index in selected:
+            assignments[
+                index
+            ] = cluster_id
+
+        unassigned[
+            selected
+        ] = False
+
+        centroids.append(
+            centroid
+        )
+
+        counts.append(
+            size
+        )
+
+        cluster_id += 1
+
+        if (
+            cluster_id % 250 == 0
+            or not bool(
+                unassigned.any()
+            )
+        ):
+            print(
+                f"      prototypes={cluster_id:5d} "
+                f"remaining={int(unassigned.sum().item()):5d}",
+                flush=True,
+            )
+
+    centroids_tensor = torch.stack(
+        centroids
+    )
+
+    counts_tensor = torch.tensor(
+        counts,
+        dtype=torch.long,
+    )
+
+    return (
+        assignments,
+        centroids_tensor,
+        counts_tensor,
+    )
+
+
+def hierarchy_step(
+    vectors: torch.Tensor,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    return natural_cover(
+        vectors
+    )
+
+
+# ---------------------------------------------------------------------------
+# Semantic evaluation
+# ---------------------------------------------------------------------------
+
+def semantic_coherence(
     words: list[str],
     assignments: torch.Tensor,
     semantics: dict[str, dict[str, float]],
 ) -> float:
-    word_to_index = {
-        word: index
-        for index, word in enumerate(words)
-    }
-
     values = []
 
-    cluster_count = int(
-        assignments.max().item()
-    ) + 1
-
-    for cluster_id in range(
-        cluster_count
-    ):
+    for cluster_id in torch.unique(
+        assignments
+    ).tolist():
         member_indices = torch.where(
-            assignments
-            == cluster_id
+            assignments == cluster_id
         )[0].tolist()
 
-        semantic_members = [
+        members = [
             words[index]
             for index in member_indices
             if words[index] in semantics
         ]
 
-        if len(semantic_members) < 2:
+        if len(members) < 2:
             continue
 
-        pair_values = []
+        cluster_scores = []
 
         for i in range(
-            len(semantic_members)
+            len(members)
         ):
             for j in range(
                 i + 1,
-                len(semantic_members),
+                len(members),
             ):
-                pair_values.append(
+                cluster_scores.append(
                     weighted_jaccard(
-                        semantics[
-                            semantic_members[i]
-                        ],
-                        semantics[
-                            semantic_members[j]
-                        ],
+                        semantics[members[i]],
+                        semantics[members[j]],
                     )
                 )
 
-        if pair_values:
+        if cluster_scores:
             values.append(
-                sum(pair_values)
-                / len(pair_values)
+                sum(cluster_scores)
+                / len(cluster_scores)
             )
 
     if not values:
@@ -735,26 +625,26 @@ def semantic_cluster_coherence(
     )
 
 
-def semantic_pair_correlation(
+def semantic_rank_corr(
     words: list[str],
     vectors: torch.Tensor,
     semantics: dict[str, dict[str, float]],
 ) -> float:
-    word_to_index = {
-        word: index
-        for index, word in enumerate(words)
+    index = {
+        word: i
+        for i, word in enumerate(words)
     }
 
     anchors = [
         word
         for word in semantics
-        if word in word_to_index
+        if word in index
     ]
 
     if len(anchors) < 20:
         return 0.0
 
-    normalized = F.normalize(
+    x = F.normalize(
         vectors.float(),
         dim=1,
     )
@@ -762,29 +652,24 @@ def semantic_pair_correlation(
     predicted = []
     target = []
 
-    for i, word in enumerate(
-        anchors
-    ):
-        index = word_to_index[word]
+    for word in anchors:
+        i = index[word]
 
-        scores = (
-            normalized
-            @ normalized[index]
-        )
+        scores = x @ x[i]
 
         order = torch.argsort(
             scores,
             descending=True,
         )
 
-        taken = 0
+        used = 0
 
-        for j_tensor in order:
+        for candidate in order:
             j = int(
-                j_tensor.item()
+                candidate.item()
             )
 
-            if j == index:
+            if j == i:
                 continue
 
             other = words[j]
@@ -805,9 +690,9 @@ def semantic_pair_correlation(
                 )
             )
 
-            taken += 1
+            used += 1
 
-            if taken >= SEMANTIC_NEIGHBORS:
+            if used >= SEMANTIC_NEIGHBORS:
                 break
 
     if len(predicted) < 20:
@@ -870,14 +755,19 @@ def main() -> None:
     started = time.perf_counter()
 
     print(
-        "=== V104B LIVE SmolLM2 ACTIVATION PROTOTYPE GRAPH ==="
+        "=== V105 LIVE LLM NATURAL ACTIVATION TOPOLOGY ==="
     )
     print(
-        "No v102 PT file is used."
+        "No PT artifact."
     )
     print(
-        "Model:",
-        MODEL_PATH,
+        "No target prototype count."
+    )
+    print(
+        f"cosine_radius={COSINE_RADIUS}"
+    )
+    print(
+        f"min_cluster_size={MIN_CLUSTER_SIZE}"
     )
     print()
 
@@ -905,7 +795,7 @@ def main() -> None:
         load_model()
     )
 
-    raw_vectors = extract_target_layer(
+    raw = extract_layer3(
         tokenizer,
         model,
         device,
@@ -914,132 +804,72 @@ def main() -> None:
 
     print()
     print(
-        "RAW ACTIVATIONS:",
-        tuple(raw_vectors.shape),
-    )
-
-    cleaned, mean, components = (
-        clean_representation(
-            raw_vectors
-        )
-    )
-
-    print(
-        "CLEANED ACTIVATIONS:",
-        tuple(cleaned.shape),
-    )
-
-    print(
-        "COMMON_COMPONENTS_REMOVED:",
-        components.shape[0],
-    )
-
-    print()
-
-    # ---------------------------------------------------------------
-    # Base semantic geometry.
-    # ---------------------------------------------------------------
-
-    baseline_corr = (
-        semantic_pair_correlation(
-            words,
-            cleaned,
-            semantics,
-        )
-    )
-
-    print(
-        "raw_activation_semantic_spearman:",
-        baseline_corr,
+        "activation_shape:",
+        tuple(raw.shape),
     )
 
     # ---------------------------------------------------------------
-    # Prototype hierarchy.
+    # Natural recursive hierarchy.
     # ---------------------------------------------------------------
 
-    current_vectors = cleaned
-
+    current = raw
     hierarchy = []
 
-    target_k = min(
-        BASE_PROTOTYPES,
-        current_vectors.shape[0],
-    )
-
-    level = 0
-
-    while True:
+    for level in range(
+        MAX_LEVELS
+    ):
         print()
         print(
-            f"=== PROTOTYPE LEVEL {level} "
-            f"input={current_vectors.shape[0]} "
-            f"k={target_k} ==="
+            f"=== NATURAL LEVEL {level} "
+            f"input_units={current.shape[0]} ==="
         )
 
-        assignments, centroids = (
-            spherical_kmeans(
-                current_vectors,
-                target_k,
-            )
-        )
-
-        counts = torch.bincount(
+        (
             assignments,
-            minlength=centroids.shape[0],
+            centroids,
+            counts,
+        ) = hierarchy_step(
+            current
         )
 
-        actual_k = centroids.shape[0]
+        units = centroids.shape[0]
+
+        singleton_count = int(
+            (counts == 1).sum().item()
+        )
+
+        reused_count = units - singleton_count
 
         reduction = (
             1.0
             - (
-                actual_k
+                units
                 / max(
                     1,
-                    current_vectors.shape[0],
+                    current.shape[0],
                 )
             )
         )
 
-        coherence = (
-            semantic_cluster_coherence(
-                words,
-                assignments,
-                semantics,
-            )
-            if level == 0
-            else 0.0
-        )
-
         print(
             "prototype_units:",
-            actual_k,
+            units,
         )
 
         print(
-            "reduction_this_level:",
+            "reused_prototypes:",
+            reused_count,
+        )
+
+        print(
+            "singleton_prototypes:",
+            singleton_count,
+        )
+
+        print(
+            "reduction:",
             reduction,
         )
-
-        print(
-            "mean_cluster_size:",
-            float(
-                counts.float().mean()
-            ),
-        )
-
-        print(
-            "max_cluster_size:",
-            int(
-                counts.max().item()
-            ),
-        )
-
-        if level == 0:
-            print(
-                "semantic_cluster_coherence:",
-                coherence,
-            )
 
         hierarchy.append(
             {
@@ -1047,34 +877,79 @@ def main() -> None:
                 "assignments": assignments,
                 "centroids": centroids,
                 "counts": counts,
-                "semantic_cluster_coherence": coherence,
+                "input_units": current.shape[0],
+                "prototype_units": units,
+                "reused_prototypes": reused_count,
+                "singleton_prototypes": singleton_count,
+                "reduction": reduction,
             }
         )
 
-        if actual_k <= 4:
+        # Only the actually reused prototype centroids should continue upward.
+        # A hierarchy level is interesting only if the learned representation
+        # genuinely contracts.
+        if units >= current.shape[0]:
+            print(
+                "FIXED POINT: no contraction.",
+            )
             break
 
-        next_k = max(
-            4,
-            actual_k // HIERARCHY_RATIO,
-        )
-
-        if next_k >= actual_k:
+        if reused_count == 0:
+            print(
+                "FIXED POINT: no reusable prototype.",
+            )
             break
 
-        current_vectors = centroids
-        target_k = next_k
-        level += 1
+        if units <= 1:
+            print(
+                "FIXED POINT: single prototype.",
+            )
+            break
+
+        current = centroids
 
     # ---------------------------------------------------------------
-    # Final report.
+    # Semantic checks.
+    # ---------------------------------------------------------------
+
+    print()
+    print(
+        "=== SEMANTIC VALIDATION ==="
+    )
+
+    base_corr = semantic_rank_corr(
+        words,
+        raw,
+        semantics,
+    )
+
+    print(
+        "activation_semantic_spearman:",
+        base_corr,
+    )
+
+    first = hierarchy[0]
+
+    first_coherence = semantic_coherence(
+        words,
+        first["assignments"],
+        semantics,
+    )
+
+    print(
+        "level0_semantic_cluster_coherence:",
+        first_coherence,
+    )
+
+    # ---------------------------------------------------------------
+    # Summary.
     # ---------------------------------------------------------------
 
     final_units = hierarchy[-1][
-        "centroids"
-    ].shape[0]
+        "prototype_units"
+    ]
 
-    overall_reduction = (
+    total_reduction = (
         1.0
         - (
             final_units
@@ -1087,7 +962,7 @@ def main() -> None:
 
     print()
     print(
-        "=== V104B SUMMARY ==="
+        "=== V105 SUMMARY ==="
     )
 
     print(
@@ -1096,52 +971,72 @@ def main() -> None:
     )
 
     print(
-        "final_prototype_units:",
+        "final_units:",
         final_units,
     )
 
     print(
-        "raw_to_final_reduction:",
-        overall_reduction,
+        "total_reduction:",
+        total_reduction,
     )
 
     print(
-        "activation_semantic_spearman:",
-        baseline_corr,
+        "levels:",
+        len(hierarchy),
     )
 
     for item in hierarchy:
         print(
-            f"level={item['level']} "
-            f"units={item['centroids'].shape[0]} "
-            f"coherence={item['semantic_cluster_coherence']:.6f}"
+            f"level={item['level']:2d} "
+            f"input={item['input_units']:6d} "
+            f"units={item['prototype_units']:6d} "
+            f"reused={item['reused_prototypes']:6d} "
+            f"singletons={item['singleton_prototypes']:6d} "
+            f"reduction={item['reduction']:.6f}"
         )
 
-    # ---------------------------------------------------------------
-    # Save only AFTER successful computation.
-    # ---------------------------------------------------------------
+    print()
+    print(
+        "=== V105 INTERPRETATION ==="
+    )
+
+    print(
+        "This hierarchy does not choose K."
+    )
+
+    print(
+        "A unit exists because multiple activation observations "
+        "fall inside the learned cosine radius."
+    )
+
+    print(
+        "Recursion continues only while the representation contracts."
+    )
+
+    print(
+        "The semantic corpus is evaluation-only."
+    )
+
+    print()
 
     torch.save(
         {
             "words": words,
-            "cleaned_vectors": cleaned,
-            "raw_vectors": raw_vectors,
-            "mean": mean,
-            "removed_components": components,
+            "raw_activations": raw,
             "hierarchy": hierarchy,
-            "activation_semantic_spearman": baseline_corr,
+            "semantic_spearman": base_corr,
+            "level0_semantic_coherence": first_coherence,
             "config": {
                 "target_layer": TARGET_LAYER,
                 "remove_top_components": REMOVE_TOP_COMPONENTS,
-                "base_prototypes": BASE_PROTOTYPES,
-                "hierarchy_ratio": HIERARCHY_RATIO,
-                "kmeans_iterations": KMEANS_ITERS,
+                "cosine_radius": COSINE_RADIUS,
+                "min_cluster_size": MIN_CLUSTER_SIZE,
+                "max_levels": MAX_LEVELS,
             },
         },
         OUTPUT_PATH,
     )
 
-    print()
     print(
         "saved:",
         OUTPUT_PATH,
@@ -1153,7 +1048,7 @@ def main() -> None:
     )
 
     print(
-        "=== V104B COMPLETE ==="
+        "=== V105 COMPLETE ==="
     )
 
 
