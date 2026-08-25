@@ -97,6 +97,10 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         self.prefix_weights = [0.10 for _ in range(cell_count)]
         self.suffix_weights = [0.10 for _ in range(cell_count)]
 
+        # Pair-specific coincidence memory. Each generic cell can learn a
+        # conjunction without becoming an explicit edge cell.
+        self.pair_memory = {}
+
         # Stronger learning is intentional here: V3 demonstrated that the
         # coincidence signal existed, but never became a learned topology.
         self.learning_rate = max(
@@ -138,13 +142,12 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
     def activate_substrate(self, word, pos, learn=False):
         """
-        Dense coincidence substrate with competitive allocation.
+        Dense coincidence substrate with competitive pair binding.
 
-        Prefix and suffix are independent inputs. Coincidence is computed
-        for every generic cell, but only the strongest few cells are allowed
-        to learn from that event.
+        Prefix and suffix remain independently represented, but plasticity
+        stores their conjunction as (prefix_id, suffix_id) -> generic cells.
 
-        There are no explicit edge cells and no boundary lookup.
+        No explicit edge cells are allocated.
         """
         context = self.context_vector(word, pos)
         prefix_node, symbol, suffix_node = context
@@ -157,6 +160,8 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         prefix_active = prefix_node is not None
         suffix_active = suffix_node is not None
+
+        pair_key = (prefix_node, suffix_node)
 
         candidates = []
 
@@ -179,42 +184,41 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
             coincidence = prefix_drive * suffix_drive
 
-            # Learned receptive fields create a persistent preference.
-            learned_gain = (
-                self.prefix_weights[i]
-                * self.suffix_weights[i]
+            learned_pair = self.pair_memory.get(
+                (pair_key, i),
+                0.0,
             )
 
-            score = coincidence * (1.0 + learned_gain)
+            # Pair memory is the persistent conjunction. It contributes to
+            # the score only for this exact prefix/suffix pair.
+            score = coincidence + learned_pair
 
             candidates.append(
-                (score, coincidence, i, prefix_drive, suffix_drive)
+                (score, coincidence, learned_pair, i,
+                 prefix_drive, suffix_drive)
             )
 
-        # Competitive allocation: only the top four generic cells learn.
         candidates.sort(
-            key=lambda item: (-item[0], item[2])
+            key=lambda item: (-item[0], item[3])
         )
         winners = candidates[:4]
 
-        fired = []
-
         if learn and prefix_active and suffix_active:
-            for score, coincidence, i, prefix_drive, suffix_drive in winners:
+            for (
+                score,
+                coincidence,
+                learned_pair,
+                i,
+                prefix_drive,
+                suffix_drive,
+            ) in winners:
+                key = (pair_key, i)
+                before = self.pair_memory.get(key, 0.0)
+
                 delta = self.learning_rate * coincidence
+                after = min(1.0, before + delta)
 
-                before_p = self.prefix_weights[i]
-                before_s = self.suffix_weights[i]
-
-                self.prefix_weights[i] = min(
-                    1.0,
-                    before_p + delta,
-                )
-                self.suffix_weights[i] = min(
-                    1.0,
-                    before_s + delta,
-                )
-
+                self.pair_memory[key] = after
                 self.learning_events += 1
 
                 if len(self.learning_debug) < 12:
@@ -225,25 +229,30 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                         "coincidence": coincidence,
                         "learning_rate": self.learning_rate,
                         "delta": delta,
-                        "prefix_before": before_p,
-                        "prefix_after": self.prefix_weights[i],
-                        "suffix_before": before_s,
-                        "suffix_after": self.suffix_weights[i],
+                        "pair_before": before,
+                        "pair_after": after,
+                        "pair_key": pair_key,
                     })
 
-        # Recompute activation after learning. Competition determines which
-        # cells are allowed to express the learned representation.
-        for score, coincidence, i, prefix_drive, suffix_drive in winners:
-            learned_drive = (
-                self.prefix_weights[i]
-                * self.suffix_weights[i]
-                * coincidence
+        fired = []
+
+        for (
+            score,
+            coincidence,
+            learned_pair,
+            i,
+            prefix_drive,
+            suffix_drive,
+        ) in winners:
+            current_pair = self.pair_memory.get(
+                (pair_key, i),
+                0.0,
             )
 
             drive = (
                 0.10 * (prefix_drive + suffix_drive)
                 + 0.50 * coincidence
-                + learned_drive
+                + current_pair
             )
 
             if self.cells[i].stimulate(drive):
@@ -496,7 +505,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V10 - COINCIDENCE + COMPETITION ===")
+    print("=== DENSE SUBSTRATE V11 - COINCIDENCE + PAIR BINDING ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -528,13 +537,13 @@ def run():
         for event in net.learning_debug:
             print(
                 "cell={cell} "
+                "pair={pair_key} "
                 "prefix_active={prefix_active} "
                 "suffix_active={suffix_active} "
                 "coincidence={coincidence:.6f} "
                 "lr={learning_rate:.6f} "
                 "delta={delta:.6f} "
-                "prefix={prefix_before:.6f}->{prefix_after:.6f} "
-                "suffix={suffix_before:.6f}->{suffix_after:.6f}".format(
+                "pair={pair_before:.6f}->{pair_after:.6f}".format(
                     **event
                 )
             )
@@ -567,8 +576,13 @@ def run():
         for weight in net.weights.values()
         if weight >= 0.50
     )
+    pair_entries = len(net.pair_memory)
+    pair_strength = sum(net.pair_memory.values())
+
     print("potential_connections :", len(net.weights))
     print("strong_connections    :", strong)
+    print("pair_memory_entries   :", pair_entries)
+    print("pair_memory_strength  :", f"{pair_strength:.4f}")
 
     # No pruning in this experiment. We want the effect of coincidence
     # learning in isolation.
