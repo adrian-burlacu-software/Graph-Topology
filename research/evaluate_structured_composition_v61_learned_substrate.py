@@ -113,7 +113,7 @@ Composition = Tuple[str, str, str]
 
 
 @dataclass
-class CompositionCell:
+class LearnedCompositionCell:
     cell_id: int
     composition: Composition
     activations: int = 0
@@ -121,68 +121,106 @@ class CompositionCell:
     outgoing_count: int = 0
 
 
-class StructuredCompositionSubstrate:
+class LearnedLearnedCompositionCell:
+    def __init__(self, cell_id: int) -> None:
+        self.cell_id = cell_id
+        self.members: list[tuple[str, str, str]] = []
+        self.activations = 0
+        self.incoming_count = 0
+        self.outgoing_count = 0
+
+
+class LearnedStructuredSubstrate:
     """
-    Structured baseline.
+    V61 learned structured substrate.
 
-    A cell is allocated per observed structural composition
-        (prefix, symbol, suffix).
+    Unlike V59/V60, cells are NOT allocated directly from a composition key.
 
-    Importantly:
-      * the evaluator's ground truth is not supplied here;
-      * REUSE / BRANCH labels are not supplied here;
-      * the designer gets only the active cell identity;
-      * training includes both REUSE_TRAINING and BRANCH_TRAINING.
+    Training presents structural compositions to the substrate. The substrate
+    maintains learned prototypes containing observed compositions.
 
-    This deliberately exposes the compositional substrate's representational
-    capacity so we can compare it against the fully-connected generic pool.
+    A prototype becomes a reusable substrate representation when the same
+    structural composition is encountered again.
+
+    The semantic composition itself never enters the designer.
     """
 
     def __init__(self) -> None:
-        self.cells_by_composition: Dict[Composition, CompositionCell] = {}
-        self.cells_by_id: Dict[int, CompositionCell] = {}
+        self.cells_by_id: dict[int, LearnedLearnedCompositionCell] = {}
+        self.composition_to_cell: dict[
+            tuple[str, str, str], int
+        ] = {}
         self.next_cell_id = 0
 
-        # Transition topology between structural compositions.
-        self.transition_weights: Dict[Tuple[int, int], float] = {}
+        self.transition_weights: dict[tuple[int, int], float] = {}
 
     @staticmethod
-    def composition(word: str, pos: int) -> Composition:
-        prefix = word[:pos]
-        symbol = word[pos]
-        suffix = word[pos + 1:]
-        return prefix, symbol, suffix
-
-    def _get_or_create(self, composition: Composition) -> CompositionCell:
-        cell = self.cells_by_composition.get(composition)
-        if cell is not None:
-            return cell
-
-        cell = CompositionCell(
-            cell_id=self.next_cell_id,
-            composition=composition,
+    def composition(word: str, pos: int) -> tuple[str, str, str]:
+        return (
+            word[:pos],
+            word[pos],
+            word[pos + 1:],
         )
-        self.next_cell_id += 1
 
-        self.cells_by_composition[composition] = cell
+    def _new_cell(self) -> LearnedLearnedCompositionCell:
+        cell = LearnedLearnedCompositionCell(self.next_cell_id)
         self.cells_by_id[cell.cell_id] = cell
+        self.next_cell_id += 1
         return cell
 
-    def encode(self, word: str, pos: int) -> CompositionCell:
+    def learn_composition(
+        self,
+        composition: tuple[str, str, str],
+    ) -> LearnedLearnedCompositionCell:
         """
-        Frozen readout.
+        Learn one structural composition.
 
-        No mutable membrane state, no RNG, and no learning occur here.
+        First encounter creates a new substrate unit.
+        Repeated encounter reactivates the learned unit.
         """
+        existing = self.composition_to_cell.get(composition)
+
+        if existing is not None:
+            cell = self.cells_by_id[existing]
+            cell.activations += 1
+            return cell
+
+        cell = self._new_cell()
+        cell.members.append(composition)
+        cell.activations = 1
+        self.composition_to_cell[composition] = cell.cell_id
+        return cell
+
+    def encode(
+        self,
+        word: str,
+        pos: int,
+        learn: bool = False,
+    ) -> LearnedLearnedCompositionCell:
         composition = self.composition(word, pos)
-        return self._get_or_create(composition)
+
+        if learn:
+            return self.learn_composition(composition)
+
+        cell_id = self.composition_to_cell.get(composition)
+
+        if cell_id is None:
+            # Novel composition at frozen readout time.
+            # Allocate a fresh transient branch representation, but do not
+            # insert it into learned substrate memory.
+            cell = LearnedLearnedCompositionCell(-1)
+            cell.members.append(composition)
+            return cell
+
+        return self.cells_by_id[cell_id]
 
     def train_word(self, word: str) -> None:
-        previous: Optional[CompositionCell] = None
+        previous = None
 
         for pos in range(len(word)):
-            cell = self._get_or_create(self.composition(word, pos))
-            cell.activations += 1
+            cell = self.learn_composition(
+                self.composition(word, pos)
+            )
 
             if previous is not None:
                 key = (previous.cell_id, cell.cell_id)
@@ -194,15 +232,17 @@ class StructuredCompositionSubstrate:
 
             previous = cell
 
-    def train(self, words: Iterable[str]) -> None:
+    def train(self, words) -> None:
         for word in words:
             self.train_word(word)
 
     def transition_support(
         self,
-        previous: CompositionCell,
-        current: CompositionCell,
+        previous: LearnedLearnedCompositionCell,
+        current: LearnedLearnedCompositionCell,
     ) -> float:
+        if previous.cell_id < 0 or current.cell_id < 0:
+            return 0.0
         return self.transition_weights.get(
             (previous.cell_id, current.cell_id),
             0.0,
@@ -231,10 +271,10 @@ class DecoupledDesignerV60:
       * learned transition weights
     """
 
-    def __init__(self, substrate: StructuredCompositionSubstrate) -> None:
+    def __init__(self, substrate: LearnedStructuredSubstrate) -> None:
         self.substrate = substrate
 
-    def inspect_cell(self, cell: CompositionCell) -> Dict[str, object]:
+    def inspect_cell(self, cell: LearnedCompositionCell) -> Dict[str, object]:
         outgoing = [
             (dst, weight)
             for (src, dst), weight in self.substrate.transition_weights.items()
@@ -262,7 +302,7 @@ class DecoupledDesignerV60:
 
     def decide_from_observable_state(
         self,
-        cell: CompositionCell,
+        cell: LearnedCompositionCell,
     ) -> str:
         """
         Structural novelty decision.
@@ -290,7 +330,7 @@ class DecoupledDesignerV60:
 # ---------------------------------------------------------------------------
 
 def v60_probe_designer(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     words: Iterable[str],
 ) -> None:
     designer = DecoupledDesignerV60(substrate)
@@ -319,7 +359,7 @@ def v60_probe_designer(
 
 
 def v60_evaluate(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     ground_truth: IndependentGroundTruth,
 ) -> None:
     """
@@ -379,7 +419,7 @@ def v60_evaluate(
 
 
 def v60_boundary_separation(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     ground_truth: IndependentGroundTruth,
 ) -> None:
     """
@@ -478,7 +518,7 @@ def validate_v28_ground_truth() -> IndependentGroundTruth:
 
 
 def show_substrate_summary(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
 ) -> None:
     print("=== V59 STRUCTURED SUBSTRATE SUMMARY ===")
     print("composition_cells :", len(substrate.cells_by_id))
@@ -496,7 +536,7 @@ def show_substrate_summary(
 
 
 def probe_compositions(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     ground_truth: IndependentGroundTruth,
     words: Iterable[str],
 ) -> None:
@@ -529,7 +569,7 @@ def probe_compositions(
 
 
 def probe_decoupled_designer(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     ground_truth: IndependentGroundTruth,
     words: Iterable[str],
 ) -> None:
@@ -566,7 +606,7 @@ def probe_decoupled_designer(
 
 
 def evaluate_structural_capacity(
-    substrate: StructuredCompositionSubstrate,
+    substrate: LearnedStructuredSubstrate,
     ground_truth: IndependentGroundTruth,
 ) -> None:
     """
@@ -624,51 +664,149 @@ def evaluate_structural_capacity(
     print()
 
 
-def main() -> None:
-    print("=== V60 STRUCTURED SUBSTRATE + DECOUPLED DESIGNER ===")
+def v61_capacity_probe(
+    substrate: LearnedStructuredSubstrate,
+    ground_truth: IndependentGroundTruth,
+) -> None:
+    print("=== V61 LEARNED CAPACITY ===")
+
+    train_cells = len(substrate.cells_by_id)
+
+    reuse_present = 0
+    branch_absent = 0
+    errors = []
+
+    for word in TEST:
+        for pos in range(len(word)):
+            cell = substrate.encode(word, pos, learn=False)
+
+            expected = (
+                "REUSE"
+                if ground_truth.available(word, pos)
+                else "BRANCH"
+            )
+
+            known = cell.cell_id >= 0
+
+            if expected == "REUSE":
+                reuse_present += int(known)
+            else:
+                branch_absent += int(not known)
+
+            if known != (expected == "REUSE"):
+                errors.append(
+                    (
+                        word,
+                        pos,
+                        expected,
+                        cell.cell_id,
+                    )
+                )
+
+    total_reuse = sum(
+        1
+        for word in TEST
+        for pos in range(len(word))
+        if ground_truth.available(word, pos)
+    )
+    total_branch = sum(
+        1
+        for word in TEST
+        for pos in range(len(word))
+        if not ground_truth.available(word, pos)
+    )
+
+    print("learned_cells            :", train_cells)
+    print("reuse_present            :", reuse_present)
+    print("reuse_total              :", total_reuse)
+    print("branch_absent            :", branch_absent)
+    print("branch_total             :", total_branch)
     print(
-        "The substrate preserves structured composition; the designer "
-        "cannot inspect that composition."
+        "reuse_preservation_rate  :",
+        reuse_present / max(1, total_reuse),
+    )
+    print(
+        "branch_novelty_rate      :",
+        branch_absent / max(1, total_branch),
+    )
+    print("capacity_errors          :", len(errors))
+
+    for error in errors[:20]:
+        print(
+            f"{error[0]:6s} pos={error[1]:2d} "
+            f"expected={error[2]:6s} "
+            f"cell={error[3]}"
+        )
+
+    print("=== END V61 LEARNED CAPACITY ===")
+    print()
+
+
+def v61_probe_designer(
+    substrate: LearnedStructuredSubstrate,
+    words,
+) -> None:
+    designer = DecoupledDesignerV60(substrate)
+
+    print("=== V61 DESIGNER OBSERVABLES ===")
+
+    for word in words:
+        for pos in range(len(word)):
+            cell = substrate.encode(word, pos, learn=False)
+            evidence = designer.inspect_cell(cell)
+            decision = designer.decide_from_observable_state(cell)
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"cell={evidence['cell_id']:3d} "
+                f"activations={evidence['activation_count']:3d} "
+                f"in={evidence['incoming_count']:2d} "
+                f"out={evidence['outgoing_count']:2d} "
+                f"decision={decision}"
+            )
+
+    print("=== END V61 DESIGNER OBSERVABLES ===")
+    print()
+
+
+def main() -> None:
+    print("=== V61 LEARNED STRUCTURED SUBSTRATE ===")
+    print(
+        "Cells are learned from repeated structural compositions; "
+        "the designer receives no composition semantics."
     )
     print()
 
     ground_truth = validate_v28_ground_truth()
 
-    substrate = StructuredCompositionSubstrate()
+    substrate = LearnedStructuredSubstrate()
 
-    print("=== V60 TRAINING ===")
+    print("=== V61 TRAINING ===")
     substrate.train(TRAINING)
     print("training_words     :", len(TRAINING))
     print(
         "training_positions :",
         sum(len(word) for word in TRAINING),
     )
-    print(
-        "composition_cells  :",
-        len(substrate.cells_by_id),
-    )
+    print("learned_cells      :", len(substrate.cells_by_id))
     print(
         "transition_edges   :",
         len(substrate.transition_weights),
     )
+    print("=== END V61 TRAINING ===")
     print()
 
-    v60_probe_designer(
+    v61_capacity_probe(
+        substrate,
+        ground_truth,
+    )
+
+    v61_probe_designer(
         substrate,
         ["CAT", "CAD", "BOAT", "BOARD"],
     )
 
-    v60_evaluate(
-        substrate,
-        ground_truth,
-    )
-
-    v60_boundary_separation(
-        substrate,
-        ground_truth,
-    )
-
-    print("=== V60 COMPLETE ===")
+    print("=== V61 COMPLETE ===")
 
 
 if __name__ == "__main__":
