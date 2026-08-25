@@ -280,18 +280,25 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V34: prototype-based continuation competition.
+        # V35: learned transition prototypes.
         #
-        # Do not assume dense cells carry symbol metadata. Instead, construct
-        # a frozen activity prototype for each symbol from the substrate's
-        # own representation. The prototype is learned/collected once from
-        # the training vocabulary and then used only for frozen readout.
+        # V34 compared a predicted population against isolated symbol
+        # prototypes. That loses the compositional relation we care about.
         #
-        # The current context activates population P. Learned strong outgoing
-        # topology predicts population Q. Candidate symbols compete by how
-        # closely Q matches each symbol's learned substrate prototype.
+        # Here each training occurrence contributes a frozen transition
+        # prototype:
         #
-        # Ground truth is not consulted for the decision.
+        #       current-position population
+        #                 |
+        #          learned strong edges
+        #                 v
+        #       next-position population
+        #
+        # At evaluation, the current population produces a predicted
+        # population. Candidate transition prototypes compete by similarity
+        # to that prediction.
+        #
+        # Ground truth is never consulted by this readout.
 
         strong_edges = [
             (src, dst, weight)
@@ -301,49 +308,57 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         predicted = set(dst for _, dst, _ in strong_edges)
 
-        # Build/retrieve frozen symbol prototypes lazily from training
-        # representations. This uses only symbol -> substrate activity.
-        if not hasattr(self, "_symbol_prototypes"):
-            self._symbol_prototypes = {}
+        if not hasattr(self, "_transition_prototypes"):
+            self._transition_prototypes = {}
 
-        symbol_set = sorted(
-            {
-                ch
-                for word0 in TRAINING
-                for ch in word0
-            }
-        )
+        # Build transition prototypes from TRAINING only, once, after
+        # training/pruning. The prototype key is the observed pair of
+        # symbols, not REUSE/BRANCH ground truth.
+        if not self._transition_prototypes:
+            for word0 in TRAINING:
+                for p0 in range(len(word0) - 1):
+                    left = word0[p0]
+                    right = word0[p0 + 1]
 
-        if not self._symbol_prototypes:
-            saved = getattr(self, "_learning_enabled", None)
-
-            for symbol in symbol_set:
-                # Find a training occurrence of this symbol and obtain its
-                # normal substrate representation without learning.
-                found = None
-                for word0 in TRAINING:
-                    p0 = word0.find(symbol)
-                    if p0 >= 0:
-                        found = (word0, p0)
-                        break
-
-                if found is not None:
-                    w0, p0 = found
-                    proto = set(
+                    current = set(
                         self.activate_substrate(
-                            w0,
+                            word0,
                             p0,
                             learn=False,
                         )
                     )
-                    self._symbol_prototypes[symbol] = proto
+                    following = set(
+                        self.activate_substrate(
+                            word0,
+                            p0 + 1,
+                            learn=False,
+                        )
+                    )
 
-            if saved is not None:
-                self._learning_enabled = saved
+                    key = (left, right)
+                    bucket = self._transition_prototypes.setdefault(
+                        key,
+                        {
+                            "current": set(),
+                            "following": set(),
+                            "count": 0,
+                        },
+                    )
 
+                    # Union is deliberate: repeated observations strengthen
+                    # the same compositional transition without introducing
+                    # labels from the independent ground truth.
+                    bucket["current"].update(current)
+                    bucket["following"].update(following)
+                    bucket["count"] += 1
+
+        # Score each learned symbol transition by how well its expected
+        # next-position population matches the topology prediction.
         candidate_scores = []
 
-        for symbol, prototype in self._symbol_prototypes.items():
+        for (left, right), proto in self._transition_prototypes.items():
+            prototype = proto["following"]
+
             union = predicted | prototype
             intersection = predicted & prototype
 
@@ -353,37 +368,50 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                 else 0.0
             )
 
-            candidate_scores.append((symbol, score))
+            # Also require the current population to resemble the transition
+            # source. This prevents a transition from winning solely because
+            # its destination happens to be common.
+            current_proto = proto["current"]
+            current_union = fired_set | current_proto
+            current_intersection = fired_set & current_proto
+
+            source_score = (
+                len(current_intersection) / len(current_union)
+                if current_union
+                else 0.0
+            )
+
+            combined_score = 0.5 * source_score + 0.5 * score
+
+            candidate_scores.append(
+                (
+                    (left, right),
+                    combined_score,
+                    source_score,
+                    score,
+                    proto["count"],
+                )
+            )
 
         candidate_scores.sort(
-            key=lambda item: item[1],
+            key=lambda row: row[1],
             reverse=True,
         )
 
-        best_symbol = (
-            candidate_scores[0][0]
-            if candidate_scores
-            else None
-        )
-        best_score = (
-            candidate_scores[0][1]
-            if candidate_scores
-            else 0.0
-        )
-        second_score = (
-            candidate_scores[1][1]
-            if len(candidate_scores) > 1
-            else 0.0
-        )
+        best = candidate_scores[0] if candidate_scores else None
+        second = candidate_scores[1] if len(candidate_scores) > 1 else None
+
+        best_transition = best[0] if best else None
+        best_score = best[1] if best else 0.0
+        second_score = second[1] if second else 0.0
         margin = best_score - second_score
 
-        actual_next = (
-            word[pos + 1]
+        actual_transition = (
+            (word[pos], word[pos + 1])
             if pos + 1 < len(word)
             else None
         )
 
-        # A selective continuation prediction is the reusable signal.
         predictive_threshold = dg.get(
             "predictive_threshold",
             0.20,
@@ -393,8 +421,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             0.05,
         )
 
+        # A transition prediction is useful only when it is selective.
         selective_prediction = (
-            predicted
+            best is not None
             and best_score >= predictive_threshold
             and margin >= margin_threshold
         )
@@ -407,9 +436,20 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
             "predicted": sorted(predicted),
-            "actual_next": actual_next,
-            "candidate_scores": candidate_scores[:8],
-            "best_symbol": best_symbol,
+            "actual_transition": actual_transition,
+            # Compatibility field for the inherited audit printer.
+            "actual_next": (
+                actual_transition[1]
+                if actual_transition is not None
+                else None
+            ),
+            "best_transition": best_transition,
+            # Compatibility field for the inherited V33/V34 audit printer.
+            "best_symbol": (
+                best_transition[1]
+                if best_transition is not None
+                else None
+            ),
             "best_score": best_score,
             "second_score": second_score,
             "margin": margin,
@@ -417,10 +457,10 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             "selective_prediction": bool(selective_prediction),
             "strong_outgoing": len(strong_edges),
             "learned_mass": sum(weight for _, _, weight in strong_edges),
-            "prototype_sizes": {
-                symbol: len(proto)
-                for symbol, proto in self._symbol_prototypes.items()
-            },
+            "transition_prototype_count": len(
+                self._transition_prototypes
+            ),
+            "candidate_scores": candidate_scores[:10],
         }
 
         root = n.cells[n.designer_root]
@@ -594,7 +634,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V34 - PROTOTYPE CONTINUATION COMPETITION ===")
+    print("=== DENSE SUBSTRATE V35 - LEARNED TRANSITION PROTOTYPES ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -788,7 +828,7 @@ def run():
 
 
     print()
-    print("=== V34 PROTOTYPE CONTINUATION COMPETITION AUDIT ===")
+    print("=== V35 LEARNED TRANSITION PROTOTYPE AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -814,7 +854,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V34 PROTOTYPE CONTINUATION COMPETITION AUDIT ===")
+    print("=== END V35 LEARNED TRANSITION PROTOTYPE AUDIT ===")
     print()
 
     net.evaluate_frozen(TEST)
