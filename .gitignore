@@ -22,4 +22,4 @@
 hs_err_pid*
 research/__pycache__/
 llm/
-results/v103_llm_activation_graph.pt
+results/v104b_live_activation_prototype_graph.pt
