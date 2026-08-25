@@ -278,22 +278,36 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             learn=False,
         )
 
-        # V30 instrumentation: capture exactly what the existing designer
-        # receives. Do not reset cells or reproduce the activation path here.
-        activity = min(
-            1.0,
-            len(fired) / max(1, self.cell_count),
-        )
-
+        # V31: topology-aware structural evidence.
+        # The old readout reduced the learned substrate to len(fired).
+        # Here the designer receives evidence from learned strong edges
+        # reachable from the currently active cells. Ground truth is never
+        # consulted.
         fired_set = set(fired)
-        learned_mass = 0.0
-        strong_outgoing = 0
 
-        for i in fired_set:
-            for (src, dst), weight in self.weights.items():
-                if src == i and weight >= 0.50:
-                    learned_mass += weight
-                    strong_outgoing += 1
+        strong_edges = [
+            (src, dst, weight)
+            for (src, dst), weight in self.weights.items()
+            if src in fired_set and weight >= 0.50
+        ]
+
+        learned_mass = sum(weight for _, _, weight in strong_edges)
+        strong_outgoing = len(strong_edges)
+
+        reachable = {dst for _, dst, _ in strong_edges}
+
+        edge_set = {(src, dst) for src, dst, _ in strong_edges}
+        reciprocal_edges = sum(
+            1
+            for src, dst in edge_set
+            if (dst, src) in edge_set
+        ) // 2
+
+        activity = len(fired_set) / max(1, self.cell_count)
+
+        # Normalize topology evidence by active-cell count so firing
+        # population alone does not determine the answer.
+        topology_evidence = learned_mass / max(1, len(fired_set))
 
         self.last_dense_trace = {
             "word": word,
@@ -302,6 +316,10 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             "activity": activity,
             "learned_mass": learned_mass,
             "strong_outgoing": strong_outgoing,
+            "reachable": sorted(reachable),
+            "reachable_count": len(reachable),
+            "reciprocal_edges": reciprocal_edges,
+            "topology_evidence": topology_evidence,
         }
 
         root = n.cells[n.designer_root]
@@ -310,9 +328,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        if activity > 0.20:
+        topology_threshold = dg.get("topology_threshold", 0.50)
+
+        if topology_evidence > topology_threshold:
             reuse.potential += (
-                dg["match_gain"] * activity
+                dg["match_gain"] * min(1.0, topology_evidence)
             )
         else:
             branch.potential += dg["branch_bias"]
@@ -475,7 +495,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V30 - EXACT FROZEN READOUT AUDIT ===")
+    print("=== DENSE SUBSTRATE V31 - TOPOLOGY AWARE READOUT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -663,11 +683,8 @@ def run():
     print()
     print("=== V30 READOUT DEPENDENCY ===")
     print("decision_activity_source : len(fired) / cell_count")
-    print("learned_weight_source    : diagnostic only")
-    print(
-        "learned topology affects designer decision:",
-        "NO (under current readout)"
-    )
+    print("learned_weight_source    : topology-aware decision input")
+    print("decision_signal          : learned_mass / active_cells")
     print("=== END V30 EXACT FROZEN READOUT AUDIT ===")
     print()
 
