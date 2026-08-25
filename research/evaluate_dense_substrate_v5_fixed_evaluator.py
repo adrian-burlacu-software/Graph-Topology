@@ -332,7 +332,25 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         return len(kept)
 
-    def evaluate_frozen(self, words):
+    def build_ground_truth(self, training_words):
+        """
+        Build evaluation truth independently from the dense substrate.
+
+        This graph is evaluator-only. It is never attached to the network
+        and is never consulted by designer_from_dense_activity().
+        """
+        truth = set()
+
+        for word in training_words:
+            for pos in range(len(word)):
+                prefix = word[:pos]
+                symbol = word[pos]
+                suffix = word[pos + 1:]
+                truth.add((prefix, symbol, suffix))
+
+        return truth
+
+    def evaluate_frozen(self, words, ground_truth):
         print()
         print("=== DENSE SUBSTRATE FROZEN TEST ===")
 
@@ -350,7 +368,11 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             branch = 0
 
             for pos in range(len(word)):
-                expected = self.available(word, pos)
+                expected = (
+                    word[:pos],
+                    word[pos],
+                    word[pos + 1:],
+                ) in ground_truth
 
                 action = self.designer_from_dense_activity(
                     word,
@@ -401,7 +423,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V4 - COINCIDENCE PLASTICITY ===")
+    print("=== DENSE SUBSTRATE V5 - COINCIDENCE + VALID EVALUATION ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -437,7 +459,19 @@ def run():
 
     # No pruning in this experiment. We want the effect of coincidence
     # learning in isolation.
-    net.evaluate_frozen(TEST)
+    # IMPORTANT: evaluator-only truth. This is constructed separately
+    # from the dense substrate so an empty BoundaryGraph cannot create
+    # false 100% scores.
+    ground_truth = net.build_ground_truth(TRAINING)
+
+    print()
+    print("=== INDEPENDENT GROUND TRUTH ===")
+    print(f"training_compositions : {len(ground_truth)}")
+
+    net.evaluate_frozen(
+        TEST,
+        ground_truth,
+    )
 
 
 if __name__ == "__main__":
