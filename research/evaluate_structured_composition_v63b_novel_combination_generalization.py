@@ -399,9 +399,18 @@ def v63_factor_pools():
 
 def v63_build_novel_compositions(limit=12):
     """
-    Generate exact (prefix, symbol, suffix) triples that:
-      1. use only factors already observed during training;
-      2. never occurred as an exact triple during training.
+    Generate linguistically shaped novel triples.
+
+    Constraints:
+      * exact triple absent from TRAINING;
+      * prefix is non-empty;
+      * suffix is non-empty;
+      * prefix/suffix lengths must match lengths that actually occur in
+        training positions;
+      * every individual factor must have been observed in training.
+
+    This avoids trivial empty-prefix/empty-suffix combinations such as
+    one-character or two-character synthetic words.
     """
     training_compositions = {
         (
@@ -413,42 +422,101 @@ def v63_build_novel_compositions(limit=12):
         for pos in range(len(word))
     }
 
-    prefixes, symbols, suffixes = v63_factor_pools()
+    training_prefixes = {
+        word[:pos]
+        for word in TRAINING
+        for pos in range(len(word))
+        if word[:pos]
+    }
+
+    training_symbols = {
+        word[pos]
+        for word in TRAINING
+        for pos in range(len(word))
+    }
+
+    training_suffixes = {
+        word[pos + 1:]
+        for word in TRAINING
+        for pos in range(len(word))
+        if word[pos + 1:]
+    }
+
+    observed_prefix_lengths = {
+        len(prefix)
+        for prefix in training_prefixes
+    }
+
+    observed_suffix_lengths = {
+        len(suffix)
+        for suffix in training_suffixes
+    }
+
     candidates = []
 
-    for prefix in prefixes:
-        for symbol in symbols:
-            for suffix in suffixes:
+    for prefix in sorted(training_prefixes):
+        for symbol in sorted(training_symbols):
+            for suffix in sorted(training_suffixes):
+                if len(prefix) not in observed_prefix_lengths:
+                    continue
+                if len(suffix) not in observed_suffix_lengths:
+                    continue
+
                 triple = (prefix, symbol, suffix)
 
                 if triple in training_compositions:
                     continue
 
-                if not prefix and not suffix:
-                    continue
-
                 word = prefix + symbol + suffix
-                if not word:
+
+                # Keep only words with the same basic scale as the benchmark.
+                if len(word) < 3 or len(word) > 5:
                     continue
 
                 candidates.append((triple, word))
 
+    # Prefer 3–5 character words and longer contexts first, so the generated
+    # set looks like the real benchmark rather than synthetic trivial cases.
     candidates.sort(
         key=lambda row: (
-            len(row[0][0]) + len(row[0][2]),
+            -len(row[1]),
+            -(len(row[0][0]) + len(row[0][2])),
             row[0][0],
             row[0][1],
             row[0][2],
         )
     )
 
-    selected = candidates[:limit]
+    # Deduplicate exact generated words while preserving deterministic order.
+    selected = []
+    seen_words = set()
 
-    assert selected, "V63 invalid: no novel factor combinations found."
+    for triple, word in candidates:
+        if word in seen_words:
+            continue
+
+        seen_words.add(word)
+        selected.append((triple, word))
+
+        if len(selected) >= limit:
+            break
+
+    if not selected:
+        raise AssertionError(
+            "V63 invalid: could not construct non-trivial novel combinations"
+        )
 
     for triple, word in selected:
+        prefix, symbol, suffix = triple
+
+        assert prefix
+        assert suffix
         assert triple not in training_compositions
-        assert word == triple[0] + triple[1] + triple[2]
+        assert prefix in training_prefixes
+        assert symbol in training_symbols
+        assert suffix in training_suffixes
+        assert word == prefix + symbol + suffix
+        assert 3 <= len(word) <= 5
 
     return selected
 
@@ -497,7 +565,7 @@ def v63_run_novel_combination_test(
 ) -> None:
     generated = v63_build_novel_compositions()
 
-    print("=== V63 NOVEL COMBINATION TEST ===")
+    print("=== V63E NOVEL COMBINATION TEST ===")
     print("generated_positions :", len(generated))
 
     all_factors_known = 0
@@ -546,7 +614,7 @@ def v63_run_novel_combination_test(
     assert exact_binding_novel == len(generated)
 
     print("V63 TEST CONSTRUCTION ASSERTIONS: PASS")
-    print("=== END V63 NOVEL COMBINATION TEST ===")
+    print("=== END V63E NOVEL COMBINATION TEST ===")
     print()
 
 
@@ -573,7 +641,7 @@ def v63_generalization_probe(
 
 
 def main() -> None:
-    print("=== V63 FACTORIZED SUBSTRATE — NOVEL COMBINATION GENERALIZATION ===")
+    print("=== V63E FACTORIZED SUBSTRATE — NON-TRIVIAL NOVEL COMBINATIONS ===")
     print(
         "Known factors are recombined into exact triples never seen in training."
     )
