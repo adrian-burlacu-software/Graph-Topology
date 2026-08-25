@@ -351,6 +351,39 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         return len(kept)
 
 
+
+    def state_probe(self, word, pos):
+        """Probe one frozen position while snapshotting/restoring cell state."""
+        snapshot = [
+            (
+                cell.potential,
+                getattr(cell, "activation", None),
+                getattr(cell, "spike", None),
+            )
+            for cell in self.cells
+        ]
+
+        context = self.context_vector(word, pos)
+        fired = list(self.activate_substrate(word, pos, learn=False))
+
+        after = [
+            (
+                cell.potential,
+                getattr(cell, "activation", None),
+                getattr(cell, "spike", None),
+            )
+            for cell in self.cells
+        ]
+
+        for cell, state in zip(self.cells, snapshot):
+            cell.potential = state[0]
+            if hasattr(cell, "activation") and state[1] is not None:
+                cell.activation = state[1]
+            if hasattr(cell, "spike") and state[2] is not None:
+                cell.spike = state[2]
+
+        return context, fired, after
+
     def debug_decision(self, word, pos):
         """Trace the exact frozen decision inputs for one position."""
         context = self.context_vector(word, pos)
@@ -364,8 +397,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         # Search the class for the existing decision routine's scoring
         # semantics by invoking it in frozen mode and recording the result.
-        decision = None
-
+        decision = self.designer_decide(word, pos, learn=False)
 
         return {
             "word": word,
@@ -478,7 +510,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V17 - FROZEN DECISION TRACE ===")
+    print("=== DENSE SUBSTRATE V18 - STATE ISOLATION PROBE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -528,53 +560,41 @@ def run():
     net.evaluate_frozen(TEST)
 
     print()
-    print("=== V16 FROZEN DECISION TRACE ===")
+    print("=== V18 STATE-ISOLATION PROBE ===")
 
-    diagnostic_positions = [
+    probes = [
         ("CAT", 1),
         ("CAD", 1),
-        ("BOAT", 0),
-        ("BOARD", 3),
+        ("CAT", 1),
     ]
 
-    traces = []
+    results = []
 
-    for word, pos in diagnostic_positions:
-        trace = net.debug_decision(word, pos)
-        traces.append(trace)
+    for word, pos in probes:
+        context, fired, after = net.state_probe(word, pos)
+        results.append((word, pos, context, fired))
 
         print()
         print(
             f"{word} pos={pos} symbol={word[pos]} "
-            f"context={trace['context']} "
-            f"fired={trace['fired']} "
-            f"decision={trace['decision']}"
+            f"context={context} fired={fired}"
         )
 
     print()
-    print("=== DUPLICATE CONTEXT CHECK ===")
+    print("=== A/B/A CONSISTENCY ===")
 
-    groups = {}
-    for trace in traces:
-        key = (
-            trace["context"],
-            tuple(trace["fired"]),
-        )
-        groups.setdefault(key, []).append(trace)
+    cat_first = results[0][3]
+    cad = results[1][3]
+    cat_second = results[2][3]
 
-    for key, group in groups.items():
-        if len(group) > 1:
-            labels = [
-                f"{t['word']}[{t['pos']}]={t['decision']}"
-                for t in group
-            ]
-            print(
-                f"context={key[0]} fired={key[1]} -> "
-                + ", ".join(labels)
-            )
+    print(f"CAT first : {cat_first}")
+    print(f"CAD       : {cad}")
+    print(f"CAT second: {cat_second}")
+    print(f"CAT stable: {cat_first == cat_second}")
+    print(f"CAT differs from CAD: {cat_first != cad}")
 
     print()
-    print("=== END V16 FROZEN DECISION TRACE ===")
+    print("=== END V18 STATE-ISOLATION PROBE ===")
 
 
 if __name__ == "__main__":
