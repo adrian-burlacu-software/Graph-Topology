@@ -280,72 +280,111 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V32: predictive topology.
+        # V33: continuation competition.
         #
-        # The current position activates a population P. Strong learned
-        # outgoing edges from P define a predicted population Q. We compare
-        # Q with the population that is actually activated by the continuation
-        # symbol at the next position. This is a topology/prediction test,
-        # not a connectivity-density test.
-        predicted = set()
-        strong_edges = []
+        # We do not ask whether the current activation is merely dense, nor
+        # whether it overlaps the actual next-symbol activation. Instead,
+        # learned outgoing topology votes for candidate continuation cells.
+        #
+        # Candidate symbols are the symbols represented by the substrate's
+        # existing vocabulary cells. No independent ground truth is consulted.
 
-        for (src, dst), weight in self.weights.items():
-            if src in fired_set and weight >= 0.50:
-                predicted.add(dst)
-                strong_edges.append((src, dst, weight))
+        strong_edges = [
+            (src, dst, weight)
+            for (src, dst), weight in self.weights.items()
+            if src in fired_set and weight >= 0.50
+        ]
 
-        # Build the actual continuation population without learning.
-        continuation = set()
-        if pos + 1 < len(word):
-            continuation = set(
-                self.activate_substrate(
-                    word,
-                    pos + 1,
-                    learn=False,
-                )
+        votes_by_destination = {}
+        for _, dst, weight in strong_edges:
+            votes_by_destination[dst] = (
+                votes_by_destination.get(dst, 0.0) + weight
             )
 
-        intersection = predicted & continuation
-        union = predicted | continuation
+        # Recover candidate symbols from the substrate cell labels.
+        # Prefer an explicit symbol attribute when available; otherwise use
+        # the cell's existing label/name representation.
+        symbol_cells = {}
+        for cell in self.cells:
+            symbol = getattr(cell, "symbol", None)
+            if symbol is None:
+                symbol = getattr(cell, "label", None)
+            if symbol is None:
+                symbol = getattr(cell, "value", None)
 
-        predictive_overlap = (
-            len(intersection) / len(union)
-            if union else 0.0
+            if isinstance(symbol, str) and len(symbol) == 1:
+                symbol_cells.setdefault(symbol, set()).add(cell.id)
+
+        candidate_scores = {}
+        for symbol, cell_ids in symbol_cells.items():
+            score = sum(
+                votes_by_destination.get(cell_id, 0.0)
+                for cell_id in cell_ids
+            )
+            candidate_scores[symbol] = score
+
+        # The actual next symbol is diagnostic only. It is NOT used to make
+        # the decision. At the terminal position there is no continuation
+        # candidate, so leave the prediction signal at zero.
+        actual_next = (
+            word[pos + 1]
+            if pos + 1 < len(word)
+            else None
         )
 
-        predictive_recall = (
-            len(intersection) / len(continuation)
-            if continuation else 0.0
+        ranked_candidates = sorted(
+            candidate_scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
         )
 
-        predictive_precision = (
-            len(intersection) / len(predicted)
-            if predicted else 0.0
+        best_symbol = (
+            ranked_candidates[0][0]
+            if ranked_candidates and ranked_candidates[0][1] > 0.0
+            else None
+        )
+        best_score = (
+            ranked_candidates[0][1]
+            if ranked_candidates
+            else 0.0
         )
 
-        # Keep the activation population itself visible for diagnostics.
-        activity = len(fired_set) / max(1, self.cell_count)
-        learned_mass = sum(weight for _, _, weight in strong_edges)
+        second_score = (
+            ranked_candidates[1][1]
+            if len(ranked_candidates) > 1
+            else 0.0
+        )
+
+        margin = best_score - second_score
+
+        # A reusable boundary should produce a strong, selective
+        # continuation preference. The margin prevents total connectivity
+        # from automatically becoming REUSE.
+        predictive_threshold = dg.get("predictive_threshold", 0.50)
+        margin_threshold = dg.get("prediction_margin_threshold", 0.10)
+
+        predictive_evidence = min(1.0, best_score / max(1.0, len(fired_set)))
+        selective_prediction = (
+            best_score >= predictive_threshold
+            and margin >= margin_threshold
+        )
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
             "fired": sorted(fired_set),
-            "activity": activity,
-            "predicted": sorted(predicted),
-            "continuation": sorted(continuation),
-            "intersection": sorted(intersection),
-            "predictive_overlap": predictive_overlap,
-            "predictive_precision": predictive_precision,
-            "predictive_recall": predictive_recall,
-            "learned_mass": learned_mass,
+            "activity": len(fired_set) / max(1, self.cell_count),
+            "actual_next": actual_next,
+            "candidate_scores": ranked_candidates[:8],
+            "best_symbol": best_symbol,
+            "best_score": best_score,
+            "second_score": second_score,
+            "margin": margin,
+            "predictive_evidence": predictive_evidence,
+            "selective_prediction": selective_prediction,
             "strong_outgoing": len(strong_edges),
+            "learned_mass": sum(weight for _, _, weight in strong_edges),
         }
-
-        # At the final character there is no continuation to predict.
-        # Do not manufacture a signal: terminal positions remain BRANCH.
-        predictive_evidence = predictive_overlap if continuation else 0.0
 
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
@@ -353,11 +392,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        predictive_threshold = dg.get("predictive_threshold", 0.20)
-
-        if predictive_evidence >= predictive_threshold:
+        if selective_prediction:
             reuse.potential += (
-                dg["match_gain"] * predictive_evidence
+                dg["match_gain"] * min(1.0, predictive_evidence)
             )
         else:
             branch.potential += dg["branch_bias"]
@@ -520,7 +557,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V32 - PREDICTIVE TOPOLOGY ===")
+    print("=== DENSE SUBSTRATE V33 - CONTINUATION COMPETITION ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -707,9 +744,40 @@ def run():
     # only; learned_mass/strong_outgoing are diagnostic measurements.
     print()
     print("=== V32 PREDICTIVE READOUT ===")
-    print("decision_signal : learned outgoing prediction vs continuation overlap")
-    print("prediction_metric : Jaccard overlap")
+    print("decision_signal : learned outgoing topology votes for candidate symbols")
+    print("prediction_metric : best-score + winner margin")
     print("=== END V32 PREDICTIVE READOUT ===")
+    print()
+
+
+    print()
+    print("=== V33 CONTINUATION COMPETITION AUDIT ===")
+
+    def probe_candidates(words, limit=20):
+        count = 0
+        for word in words:
+            for pos in range(len(word)):
+                action = net.designer_from_dense_activity(word, pos)
+                trace = net.last_dense_trace
+                print(
+                    f"{word:6s} pos={pos} actual_next={str(trace['actual_next']):>2s} "
+                    f"decision={action:6s} "
+                    f"best={str(trace['best_symbol']):>2s} "
+                    f"score={trace['best_score']:.3f} "
+                    f"second={trace['second_score']:.3f} "
+                    f"margin={trace['margin']:.3f} "
+                    f"selective={trace['selective_prediction']} "
+                    f"candidates={trace['candidate_scores'][:5]}"
+                )
+                count += 1
+                if count >= limit:
+                    return
+
+    probe_candidates(TRAINING)
+    print("--- HELD-OUT ---")
+    probe_candidates(TEST)
+
+    print("=== END V33 CONTINUATION COMPETITION AUDIT ===")
     print()
 
     net.evaluate_frozen(TEST)
