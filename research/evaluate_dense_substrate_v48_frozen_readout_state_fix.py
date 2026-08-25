@@ -353,6 +353,74 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         }
 
 
+
+    def activate_substrate_frozen(self, word, pos):
+
+
+        """
+
+
+        Execute one readout without changing substrate cell state.
+
+
+    
+
+
+        The original activate_substrate() carries DenseCell.potential across
+
+
+        calls even when learn=False:
+
+
+            potential = potential * leak + input_amount
+
+
+        That makes repeated frozen probes stateful. This wrapper snapshots
+
+
+        the mutable cell state, performs the exact activation, then restores
+
+
+        it. The returned fired set is therefore a pure function of the
+
+
+        pre-call substrate state and input.
+
+
+        """
+
+
+        cell_state = [
+
+
+            (cell.potential, cell.spikes)
+
+
+            for cell in self.cells
+
+
+        ]
+
+
+        try:
+
+
+            return self.activate_substrate(word, pos, learn=False)
+
+
+        finally:
+
+
+            for cell, (potential, spikes) in zip(self.cells, cell_state):
+
+
+                cell.potential = potential
+
+
+                cell.spikes = spikes
+
+
+
     def activate_substrate(self, word, pos, learn=False):
 
 
@@ -501,15 +569,21 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             )
 
 
+    def v42_cell_state_snapshot(self):
+        """Capture the mutable DenseCell state that V42 previously omitted."""
+        return [
+            {
+                "potential": round(cell.potential, 15),
+                "spikes": cell.spikes,
+            }
+            for cell in self.cells
+        ]
+
     def v42_activation_snapshot(self, word, pos):
-        """Run one frozen activation and return deterministic audit data."""
+        """Run one genuinely frozen activation and return deterministic audit data."""
         before = self._v42_state_fingerprint()
 
-        fired = self.activate_substrate(
-            word,
-            pos,
-            learn=False,
-        )
+        fired = self.activate_substrate_frozen(word, pos)
 
         after = self._v42_state_fingerprint()
 
@@ -851,7 +925,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V47 - SUBSTRATE INPUT VECTOR AUTOPSY ===")
+    print("=== DENSE SUBSTRATE V48 - FROZEN READOUT STATE FIX ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1575,6 +1649,61 @@ def run():
             f"after={snapshot['after_fingerprint'][:16]}"
         )
 
+
+    def v48_frozen_state_proof():
+
+        print()
+
+        print("=== V48 FROZEN STATE PROOF ===")
+
+        probes = [
+
+            ("CAT", 1),
+
+            ("CAD", 1),
+
+            ("BOAT", 0),
+
+            ("BOARD", 3),
+
+        ]
+
+    
+
+        for word, pos in probes:
+
+            before = net.v42_cell_state_snapshot()
+
+            first = net.v42_activation_snapshot(word, pos)
+
+            after_first = net.v42_cell_state_snapshot()
+
+            second = net.v42_activation_snapshot(word, pos)
+
+            after_second = net.v42_cell_state_snapshot()
+
+    
+
+            print(
+
+                f"{word:6s} pos={pos} "
+
+                f"same_fired={first['fired'] == second['fired']} "
+
+                f"state_unchanged={before == after_first == after_second}"
+
+            )
+
+            print(f"  first : {first['fired']}")
+
+            print(f"  second: {second['fired']}")
+
+    
+
+        print("=== END V48 FROZEN STATE PROOF ===")
+
+        print()
+
     def v42_determinism_probe():
         print()
         print("=== V42 FROZEN READOUT DETERMINISM ===")
@@ -1673,6 +1802,8 @@ def run():
         print()
         print("=== END V42 FROZEN READOUT DETERMINISM ===")
         print()
+
+    v48_frozen_state_proof()
 
     v42_determinism_probe()
 
