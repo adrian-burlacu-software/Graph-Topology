@@ -22,4 +22,4 @@
 hs_err_pid*
 research/__pycache__/
 llm/
-results/v102_smol_representation_geometry.pt
+results/v103_llm_activation_graph.pt
