@@ -54,10 +54,9 @@ class AssociativeEdgeCell:
 
         if learn and coincidence > 0.0:
             # Hebbian-style association strengthening.
-            self.strength += (
-                self.learning_rate
-                * coincidence
-                * (1.0 - self.strength)
+            self.strength = min(
+                1.0,
+                self.strength + self.learning_rate * coincidence,
             )
 
         if self.potential >= self.threshold:
@@ -92,9 +91,15 @@ class EdgeCellV2(DualVocabularyV6):
         dg = self.net.designer_genome
         pg = self.net.plasticity_genome
 
-        self.edge_learning_rate = pg["weight_learning_rate"]
+        self.edge_learning_rate = max(
+            0.25,
+            pg["weight_learning_rate"],
+        )
         self.edge_decay = dg["leak"]
-        self.edge_threshold = dg["threshold"]
+        self.edge_threshold = min(
+            0.75,
+            dg["threshold"],
+        )
 
         self.edge_cells = {}
 
@@ -243,7 +248,7 @@ class EdgeCellV2(DualVocabularyV6):
         return n.designer_signal(None, "")
 
     def train_edges(self, words, epochs=5):
-        print("=== EDGECELL V2 TRAINING ===")
+        print("=== EDGECELL V3 TRAINING ===")
         print()
 
         for epoch in range(1, epochs + 1):
@@ -289,7 +294,7 @@ class EdgeCellV2(DualVocabularyV6):
 
     def evaluate_frozen(self, words):
         print()
-        print("=== EDGECELL V2 FROZEN TEST ===")
+        print("=== EDGECELL V3 FROZEN TEST ===")
 
         links_before = len(self.boundaries.links)
         prefix_before = self.prefix.next_id
@@ -374,7 +379,7 @@ class EdgeCellV2(DualVocabularyV6):
 
     def print_edge_cells(self):
         print()
-        print("=== ASSOCIATIVE EDGE CELLS ===")
+        print("=== ASSOCIATIVE EDGE CELLS V3 ===")
 
         for key, cell in sorted(self.edge_cells.items()):
             prefix_node, symbol, suffix_node = key
@@ -391,10 +396,11 @@ class EdgeCellV2(DualVocabularyV6):
 def run():
     net = EdgeCellV2(deepcopy(GENOME))
 
-    print("=== EDGECELL V2 ===")
+    print("=== EDGECELL V3 ===")
     print()
     print("Two directional memories + real associative edge neurons + designer.")
     print("The designer receives edge spikes, not BoundaryGraph.has().")
+    print("Edge learning is direct bounded accumulation; threshold is 0.75.")
     print()
 
     net.train_edges(TRAINING, epochs=5)
