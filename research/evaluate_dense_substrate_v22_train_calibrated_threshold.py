@@ -544,7 +544,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V21 - ACTIVITY THRESHOLD SWEEP ===")
+    print("=== DENSE SUBSTRATE V22 - TRAIN-CALIBRATED THRESHOLD ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -592,6 +592,115 @@ def run():
     print("strong_after_prune  :", strong_after_prune)
 
     net.evaluate_frozen(TEST)
+    print()
+    print("=== V22 TRAIN-CALIBRATED ACTIVITY THRESHOLD ===")
+
+    def collect_activity(words):
+        rows = []
+        for word in words:
+            for pos in range(len(word)):
+                expected = "REUSE" if net.available(word, pos) else "BRANCH"
+                context, fired = net.trace_substrate_input(word, pos)
+                activity = len(fired) / max(1, net.cell_count)
+                rows.append((word, pos, activity, expected))
+        return rows
+
+    calibration = collect_activity(TRAINING)
+    held_out = collect_activity(TEST)
+
+    # Choose the threshold using calibration data ONLY.
+    candidates = sorted(
+        {activity for _, _, activity, _ in calibration}
+        | {0.0, 1.0}
+    )
+
+    best = None
+    for threshold in candidates:
+        correct = sum(
+            ("REUSE" if activity >= threshold else "BRANCH") == expected
+            for _, _, activity, expected in calibration
+        )
+        score = correct / max(1, len(calibration))
+
+        # Prefer the highest calibration accuracy; on ties choose the
+        # threshold with the widest conservative branch/reuse separation.
+        branch_values = [
+            activity for _, _, activity, expected in calibration
+            if expected == "BRANCH"
+        ]
+        reuse_values = [
+            activity for _, _, activity, expected in calibration
+            if expected == "REUSE"
+        ]
+
+        gap = (
+            min(reuse_values) - max(branch_values)
+            if branch_values and reuse_values
+            else float("-inf")
+        )
+
+        key = (score, gap, -threshold)
+        if best is None or key > best[0]:
+            best = (key, threshold, correct)
+
+    _, threshold, calibration_correct = best
+
+    def score_rows(rows):
+        correct = 0
+        false_reuse = 0
+        false_branch = 0
+
+        for _, _, activity, expected in rows:
+            predicted = "REUSE" if activity >= threshold else "BRANCH"
+            if predicted == expected:
+                correct += 1
+            elif predicted == "REUSE":
+                false_reuse += 1
+            else:
+                false_branch += 1
+
+        total = len(rows)
+        return correct, false_reuse, false_branch, correct / max(1, total)
+
+    cal_correct, cal_fr, cal_fb, cal_acc = score_rows(calibration)
+    test_correct, test_fr, test_fb, test_acc = score_rows(held_out)
+
+    branch_cal = [
+        activity for _, _, activity, expected in calibration
+        if expected == "BRANCH"
+    ]
+    reuse_cal = [
+        activity for _, _, activity, expected in calibration
+        if expected == "REUSE"
+    ]
+
+    print("calibration_positions :", len(calibration))
+    print("held_out_positions    :", len(held_out))
+    print("chosen_threshold      :", f"{threshold:.6f}")
+
+    print()
+    print("=== CALIBRATION ===")
+    print("correct               :", f"{cal_correct}/{len(calibration)}")
+    print("accuracy              :", f"{cal_acc:.4f}")
+    print("false_reuse            :", cal_fr)
+    print("false_branch           :", cal_fb)
+
+    if branch_cal and reuse_cal:
+        print("max_branch_activity   :", f"{max(branch_cal):.6f}")
+        print("min_reuse_activity    :", f"{min(reuse_cal):.6f}")
+        print(
+            "calibration_gap       :",
+            f"{min(reuse_cal) - max(branch_cal):.6f}",
+        )
+
+    print()
+    print("=== HELD-OUT TEST ===")
+    print("correct               :", f"{test_correct}/{len(held_out)}")
+    print("accuracy              :", f"{test_acc:.4f}")
+    print("false_reuse           :", test_fr)
+    print("false_branch          :", test_fb)
+    print("=== END V22 TRAIN-CALIBRATED ACTIVITY THRESHOLD ===")
+
     print()
     print("=== V21 ACTIVITY THRESHOLD SWEEP ===")
 
