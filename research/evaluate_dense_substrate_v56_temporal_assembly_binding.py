@@ -50,8 +50,8 @@ TEST = TEST_REUSE + TEST_BRANCH
 
 
 
-print("=== V55 START ===")
-print("V55_CODE_LOADED = TRUE")
+print("=== V56 START ===")
+print("V56_CODE_LOADED = TRUE")
 print()
 
 class IndependentGroundTruth:
@@ -123,6 +123,75 @@ class DenseCell:
 
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
+
+    def v56_reset_transition_memory(self):
+        self._v56_transition_weights = {}
+        self._v56_last_signature = None
+        self._v56_transition_count = 0
+
+    def v56_signature(self, fired):
+        return tuple(sorted(set(fired)))
+
+    def v56_observe_transition(self, previous_fired, current_fired):
+        """Hebbian-style transition binding between actual fired cells."""
+        previous = self.v56_signature(previous_fired)
+        current = self.v56_signature(current_fired)
+
+        if not previous or not current:
+            self._v56_last_signature = current
+            return
+
+        for src_id in previous:
+            for dst_id in current:
+                key = (src_id, dst_id)
+                self._v56_transition_weights[key] = (
+                    self._v56_transition_weights.get(key, 0.0)
+                    + 1.0
+                )
+
+        self._v56_transition_count += 1
+        self._v56_last_signature = current
+
+    def v56_transition_projection(self, previous_fired, current_fired):
+        """Measure learned support for the current assembly given the prior."""
+        previous = self.v56_signature(previous_fired)
+        current = set(current_fired)
+
+        supported = 0.0
+        possible = 0.0
+        edge_count = 0
+
+        for src_id in previous:
+            for dst_id in current:
+                possible += 1.0
+                weight = self._v56_transition_weights.get(
+                    (src_id, dst_id),
+                    0.0,
+                )
+                if weight > 0.0:
+                    supported += weight
+                    edge_count += 1
+
+        density = (
+            edge_count / possible
+            if possible > 0.0
+            else 0.0
+        )
+
+        return {
+            "previous": previous,
+            "current": tuple(sorted(current)),
+            "support": supported,
+            "possible": possible,
+            "density": density,
+            "edge_count": edge_count,
+        }
+
+    def v56_frozen_step(self, word, pos):
+        """Frozen dense step with no membrane-state leakage."""
+        fired = self.activate_substrate_frozen(word, pos)
+        return tuple(sorted(fired))
+
 
     def v53_topology_projection(self, fired, minimum_strength=0.50):
         """One-hop propagation through the learned graph."""
@@ -1413,6 +1482,125 @@ def v54_run_guaranteed_projection(net, training, test):
     print("=== END V54 GUARANTEED TOPOLOGY PROJECTION ===")
     print()
 
+
+def v56_run_temporal_binding_experiment(net, training, test):
+    print()
+    print("=== V56 TEMPORAL ASSEMBLY BINDING ===")
+    print(
+        "Transitions are learned only between consecutive frozen "
+        "substrate assemblies."
+    )
+    print(
+        "No vocabulary list, assembly list, labels, ground truth, "
+        "or BoundaryGraph is used."
+    )
+    print()
+
+    net.v56_reset_transition_memory()
+
+    # TRAINING: learn temporal transitions in the natural sequence of the
+    # existing training corpus.
+    previous = None
+    train_steps = 0
+
+    print("--- TRAINING TRANSITIONS ---")
+
+    for word in training:
+        for pos in range(len(word)):
+            current = net.v56_frozen_step(word, pos)
+
+            if previous is not None:
+                net.v56_observe_transition(previous, current)
+                train_steps += 1
+
+            previous = current
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"assembly={list(current)}"
+            )
+
+    print()
+    print("training_transition_steps =", train_steps)
+    print(
+        "learned_transition_edges =",
+        len(net._v56_transition_weights),
+    )
+
+    print()
+    print("--- HELD-OUT TRANSITION SUPPORT ---")
+
+    # Evaluate each test word internally as a sequence. The transition memory
+    # is FROZEN during test: no test transition is learned.
+    reuse_like = 0
+    unsupported = 0
+    test_steps = 0
+
+    for word in test:
+        previous = None
+
+        for pos in range(len(word)):
+            current = net.v56_frozen_step(word, pos)
+
+            if previous is not None:
+                e = net.v56_transition_projection(
+                    previous,
+                    current,
+                )
+
+                test_steps += 1
+
+                if e["density"] > 0.0:
+                    reuse_like += 1
+                else:
+                    unsupported += 1
+
+                print(
+                    f"{word:6s} transition={pos-1}->{pos} "
+                    f"prev={list(e['previous'])} "
+                    f"curr={list(e['current'])} "
+                    f"support={e['support']:.1f} "
+                    f"density={e['density']:.3f} "
+                    f"edges={e['edge_count']}"
+                )
+
+            previous = current
+
+    print()
+    print("test_transition_steps =", test_steps)
+    print("supported_transitions =", reuse_like)
+    print("unsupported_transitions =", unsupported)
+
+    print()
+    print("--- TRANSITION DETERMINISM ---")
+
+    probes = [
+        ("CAT", 1, 2),
+        ("CAD", 1, 2),
+        ("BOAT", 0, 1),
+        ("BOARD", 1, 2),
+    ]
+
+    for word, a_pos, b_pos in probes:
+        a1 = net.v56_frozen_step(word, a_pos)
+        b1 = net.v56_frozen_step(word, b_pos)
+        e1 = net.v56_transition_projection(a1, b1)
+
+        a2 = net.v56_frozen_step(word, a_pos)
+        b2 = net.v56_frozen_step(word, b_pos)
+        e2 = net.v56_transition_projection(a2, b2)
+
+        print(
+            f"{word:6s} {a_pos}->{b_pos} "
+            f"same_current={b1 == b2} "
+            f"same_support={e1['support'] == e2['support']} "
+            f"density={e1['density']:.3f}"
+        )
+
+    print()
+    print("=== END V56 TEMPORAL ASSEMBLY BINDING ===")
+    print()
+
 def run():
 
     print("=== DENSE SUBSTRATE V53 - CAUSAL TOPOLOGY PROJECTION ===")
@@ -1495,6 +1683,8 @@ def run():
 
 
     print("V55_TRAINING_COMPLETE = TRUE")
+    v56_run_temporal_binding_experiment(net, TRAINING, TEST)
+
     v54_run_guaranteed_projection(net, TRAINING, TEST)
 
     test_reuse = 0
@@ -2345,7 +2535,7 @@ def run():
 
 
 
-print("V55_FILE_READY = TRUE")
+print("V56_FILE_READY = TRUE")
 
 if __name__ == "__main__":
     run()
