@@ -1,0 +1,1362 @@
+{
+  "experiment": "V128 semantic program -> sentence",
+  "dictionary_words": 256,
+  "programs": 145,
+  "program_counts": {
+    "IsA+CapableOf": 40,
+    "IsA": 83,
+    "CapableOf": 7,
+    "IsA+UsedFor": 3,
+    "IsA+HasA": 2,
+    "IsA+HasProperty": 8,
+    "UsedFor": 1,
+    "HasA": 1
+  },
+  "frames": [
+    "IsA",
+    "IsA+CapableOf",
+    "IsA+HasProperty",
+    "IsA+UsedFor",
+    "HasA",
+    "IsA+HasA",
+    "CapableOf",
+    "UsedFor"
+  ],
+  "results": {
+    "IsA": {
+      "jobs": 83,
+      "generation_seconds": 2.617854099997203,
+      "sentences_per_second": 31.705357452918665,
+      "clean_sentence_rate": 0.7349397590361446,
+      "target_presence_rate": 0.7831325301204819,
+      "instruction_leak_rate": 0.04819277108433735,
+      "mean_fact_hits": 0.6506024096385542,
+      "sentences": {
+        "abandon": "The target is to be abandoned.",
+        "ability": "The ability to think is a fundamental aspect of cognition.",
+        "above": "The target is above.",
+        "absence": "Absence is a lack.",
+        "absolute": "The target is an abstraction.",
+        "abstract": "The summary is a type of abstract.",
+        "absurd": "The situation is absurd.",
+        "abundance": "The quantity of abundance is abundant.",
+        "abuse": "The program \"abuse\" is a type of disrespect.",
+        "academic": "Academic is a type of thing.",
+        "academy": "assistant Academy",
+        "accent": "The diacritical mark is a type of accent.",
+        "accept": "A firewall program accepts input.",
+        "acceptance": "The target is acceptance.",
+        "access": "The target is to access.",
+        "accordance": "The target is to give.",
+        "accountability": "Accountability is a responsibility.",
+        "accumulation": "The accumulation of goods is a natural phenomenon.",
+        "accuracy": "The target is to achieve high quality.",
+        "accusation": "The accused is being accused.",
+        "acquisition": "Acquisition is a type of acquisition.",
+        "acre": "The target is an area unit.",
+        "activation": "The activation is a natural expression.",
+        "active": "The person is active.",
+        "ad": "The target is a promotion.",
+        "adaptation": "The adaptation is a type of alteration.",
+        "address": "The target is the address.",
+        "adjustment": "Adjusting the calibration is the goal.",
+        "administration": "The administration is the target of the program.",
+        "admission": "The program \"admission\" is an acknowledgment.",
+        "adoption": "assistant \"Blessing is a form of adoption.\"",
+        "advance": "The target is to increase.",
+        "advantage": "The target has an advantage.",
+        "adventure": "The adventure is a type of undertaking.",
+        "advice": "The advice is given.",
+        "aesthetic": "Aesthetic is a philosophical doctrine.",
+        "affect": "The feeling of being affected is a natural emotion.",
+        "affection": "The target has a feeling.",
+        "aftermath": "The aftermath of a disaster is a critical period for recovery.",
+        "afternoon": "The afternoon is a day.",
+        "aged": "The target is an age group.",
+        "agenda": "The agenda is a list.",
+        "aggression": "Aggression is a type of action.",
+        "agriculture": "Agriculture is a type of farming.",
+        "aid": "The activity is a form of aid.",
+        "aim": "The goal is to achieve the target.",
+        "airline": "assistant Airline",
+        "alert": "The program \"alert\" is ready to be activated.",
+        "alignment": "The alignment is a type of adjustment.",
+        "allegation": "An accusation is a statement made against someone.",
+        "alliance": "Alliance is a coalition.",
+        "allocation": "The allocation of resources is a fundamental concept in computer science.",
+        "allowance": "The allowance is a discrepancy.",
+        "ally": "The target is an associate.",
+        "always": "Always.",
+        "amateur": "The target is an amateur.",
+        "ambition": "Ambition is a desire.",
+        "amendment": "The correction is needed.",
+        "amount": "assistant Amount",
+        "amusing": "The event is amusing.",
+        "analogy": "The target is an analogy.",
+        "analysis": "The analysis of calculus is a fundamental concept in mathematics.",
+        "ancestor": "The ancestor is a relative.",
+        "anchor": "The anchor is a type of hook.",
+        "ancient": "The ancient person is a target.",
+        "angel": "The angel is a patron.",
+        "angle": "The European Union has a specific angle.",
+        "ankle": "The ankle is a gliding joint.",
+        "anniversary": "The anniversary is a special day.",
+        "announcement": "The announcement is made.",
+        "annual": "The annual plant is a type of plant.",
+        "anonymous": "The mysterious object is an anonymous.",
+        "answer": "The pleading is a type of document.",
+        "anxiety": "Anxiety is a feeling of worry or nervousness.",
+        "any": "Any pastime is a minority.",
+        "apparently": "Apparently, the target is probably.",
+        "appearance": "The target is an appearance.",
+        "appetite": "The hunger is a craving.",
+        "application": "The target is an action.",
+        "appointment": "The appointment is scheduled.",
+        "appreciation": "I appreciate you.",
+        "approach": "Approach.",
+        "approval": "Approval is a type of acceptance."
+      },
+      "quality": {
+        "abandon": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "ability": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "above": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "absence": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "absolute": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "abstract": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "absurd": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "abundance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "abuse": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "academic": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "academy": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 0,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "accent": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "accept": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "acceptance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "access": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "accordance": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "accountability": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "accumulation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "accuracy": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "accusation": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "acquisition": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "acre": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "activation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "active": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "ad": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "adaptation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "address": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "adjustment": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "administration": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "admission": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "adoption": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "advance": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "advantage": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "adventure": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "advice": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "aesthetic": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "affect": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "affection": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "aftermath": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "afternoon": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aged": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "agenda": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aggression": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "agriculture": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "aid": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aim": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "airline": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 0,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "alert": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "alignment": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "allegation": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "alliance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "allocation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "allowance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "ally": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "always": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "amateur": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "ambition": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "amendment": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "amount": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 0,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "amusing": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "analogy": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "analysis": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "ancestor": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "anchor": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "ancient": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "angel": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "angle": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "ankle": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "anniversary": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "announcement": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "annual": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "anonymous": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "answer": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "anxiety": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "any": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "apparently": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "appearance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "appetite": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "application": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "appointment": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "appreciation": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "approach": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "approval": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        }
+      }
+    },
+    "IsA+CapableOf": {
+      "jobs": 40,
+      "generation_seconds": 1.5150261999951908,
+      "sentences_per_second": 26.402183671890935,
+      "clean_sentence_rate": 0.775,
+      "target_presence_rate": 0.825,
+      "instruction_leak_rate": 0.075,
+      "mean_fact_hits": 1.35,
+      "sentences": {
+        "a": "Blood group can be used to store and transport blood.",
+        "abortion": "Abortion is a termination capability that can be used to kill a fetus.",
+        "accident": "The accident is slow traffic.",
+        "accomplishment": "The accomplishment requires hard work.",
+        "accountant": "The accountant can cook books.",
+        "accused": "The accused is accused of lying to the court.",
+        "acid": "The acid can burn the skin.",
+        "action": "The action can cause change.",
+        "activist": "The activist is a person who fights against multinational corporations.",
+        "activity": "The activity can be done near the end.",
+        "actor": "The actor can be a star in a movie.",
+        "actress": "The actress can act in movies.",
+        "administrator": "The administrator can head the research group.",
+        "adolescent": "The adolescent can act childish.",
+        "adult": "The animal can help children.",
+        "advertising": "The advertising industry can increase demand for their products.",
+        "advocate": "A lawyer can advocate for someone.",
+        "affair": "The relationship can be destroyed.",
+        "age": "The best beauty is a period of existence.",
+        "agency": "The fine company can fine the agency.",
+        "agent": "The agent can book a nightclub act.",
+        "aide": "An assistant can offer to help.",
+        "air": "The gas can blow hard.",
+        "aircraft": "The aircraft can drop bombs.",
+        "alarm": "The device can trigger a siren alarm.",
+        "alcohol": "Alcohol is a beverage that can be cloud judged.",
+        "alcoholic": "Drunkards can bottom out.",
+        "alien": "The alien can look scary.",
+        "all": "All hope for better is impermanent.",
+        "ambassador": "A diplomat can be a political agreement.",
+        "ambulance": "The ambulance can drive to the hospital.",
+        "analyst": "The analyst can study whether geography.",
+        "anger": "The program is capable of feeling anger.",
+        "animal": "The animal can move itself about.",
+        "animation": "The animation can draw attention.",
+        "apartment": "The apartment belongs to the tenant.",
+        "apology": "assistant The program \"apology\" can be expressed as \"an acknowledgment that is right to dispute.\"",
+        "appeal": "The target is appealing.",
+        "apple": "Apple tree can fall from a tree.",
+        "applicant": "The applicant is capable of a land job."
+      },
+      "quality": {
+        "a": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "abortion": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "accident": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "accomplishment": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "accountant": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "accused": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "acid": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "action": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "activist": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "activity": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "actor": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "actress": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "administrator": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "adolescent": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "adult": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "advertising": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "advocate": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "affair": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "age": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "agency": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "agent": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aide": {
+          "has_target": false,
+          "instruction_leak": true,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "air": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "aircraft": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "alarm": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "alcohol": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "alcoholic": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "alien": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "all": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "ambassador": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "ambulance": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "analyst": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "anger": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "animal": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "animation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "apartment": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "apology": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "appeal": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "apple": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "applicant": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        }
+      }
+    },
+    "IsA+HasProperty": {
+      "jobs": 8,
+      "generation_seconds": 0.6057920999883208,
+      "sentences_per_second": 13.205850654299113,
+      "clean_sentence_rate": 0.875,
+      "target_presence_rate": 0.875,
+      "instruction_leak_rate": 0.0,
+      "mean_fact_hits": 1.5,
+      "sentences": {
+        "accounting": "Accounting is a type of logical property.",
+        "act": "The dramatic composition is bold.",
+        "addiction": "The program \"addiction\" has the property \"bad\" and is a type of award.",
+        "addition": "The addition operation is commutative.",
+        "agreement": "The agreement is good.",
+        "aids": "Aids are fatal diseases.",
+        "airport": "Airport is next to a field.",
+        "aluminium": "Aluminium is a light metal."
+      },
+      "quality": {
+        "accounting": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "act": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        },
+        "addiction": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "addition": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "agreement": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aids": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        },
+        "airport": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "aluminium": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": true
+        }
+      }
+    },
+    "IsA+UsedFor": {
+      "jobs": 3,
+      "generation_seconds": 0.24774649999744724,
+      "sentences_per_second": 12.109151895307953,
+      "clean_sentence_rate": 0.6666666666666666,
+      "target_presence_rate": 1.0,
+      "instruction_leak_rate": 0.3333333333333333,
+      "mean_fact_hits": 1.0,
+      "sentences": {
+        "accommodation": "The accommodation is used for staying in.",
+        "album": "The album is used for storing photographs.",
+        "apparatus": "The apparatus is used for performing."
+      },
+      "quality": {
+        "accommodation": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "album": {
+          "has_target": true,
+          "instruction_leak": true,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "apparatus": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        }
+      }
+    },
+    "HasA": {
+      "jobs": 1,
+      "generation_seconds": 0.24539119999099057,
+      "sentences_per_second": 4.07512575853052,
+      "clean_sentence_rate": 0.0,
+      "target_presence_rate": 0.0,
+      "instruction_leak_rate": 0.0,
+      "mean_fact_hits": 1.0,
+      "sentences": {
+        "and": "The target has 31 days."
+      },
+      "quality": {
+        "and": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        }
+      }
+    },
+    "IsA+HasA": {
+      "jobs": 2,
+      "generation_seconds": 0.2881303000031039,
+      "sentences_per_second": 6.94130398635081,
+      "clean_sentence_rate": 0.0,
+      "target_presence_rate": 0.0,
+      "instruction_leak_rate": 0.0,
+      "mean_fact_hits": 1.0,
+      "sentences": {
+        "account": "only.",
+        "april": "The Gregorian calendar month has 30 days."
+      },
+      "quality": {
+        "account": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": false
+        },
+        "april": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 2,
+          "clean": false
+        }
+      }
+    },
+    "CapableOf": {
+      "jobs": 7,
+      "generation_seconds": 0.270996399995056,
+      "sentences_per_second": 25.83060144019517,
+      "clean_sentence_rate": 0.7142857142857143,
+      "target_presence_rate": 0.7142857142857143,
+      "instruction_leak_rate": 0.0,
+      "mean_fact_hits": 0.5714285714285714,
+      "sentences": {
+        "absent": "The target is absent.",
+        "afraid": "The program can be afraid.",
+        "alive": "The program can grow.",
+        "almost": "The program can become president.",
+        "anybody": "Anybody can forget.",
+        "anyone": "ANYONE CAN.",
+        "anything": "Anything can fall down."
+      },
+      "quality": {
+        "absent": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "afraid": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "alive": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "almost": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        },
+        "anybody": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        },
+        "anyone": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 0,
+          "clean": true
+        },
+        "anything": {
+          "has_target": true,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": true
+        }
+      }
+    },
+    "UsedFor": {
+      "jobs": 1,
+      "generation_seconds": 0.22765990000334568,
+      "sentences_per_second": 4.392517083532515,
+      "clean_sentence_rate": 0.0,
+      "target_presence_rate": 0.0,
+      "instruction_leak_rate": 0.0,
+      "mean_fact_hits": 1.0,
+      "sentences": {
+        "advertisement": "The target is to sell the product."
+      },
+      "quality": {
+        "advertisement": {
+          "has_target": false,
+          "instruction_leak": false,
+          "sentence_count": 1,
+          "fact_hits": 1,
+          "clean": false
+        }
+      }
+    }
+  },
+  "trace": [
+    {
+      "word": "abandon",
+      "frame": "IsA",
+      "facts": [
+        [
+          "IsA",
+          "unrestraint",
+          2.0
+        ]
+      ],
+      "semantic_program": "TYPE = unrestraint",
+      "raw": "assistant\nThe target is to be abandoned.",
+      "sentence": "The target is to be abandoned.",
+      "quality": {
+        "has_target": true,
+        "instruction_leak": false,
+        "sentence_count": 1,
+        "fact_hits": 0,
+        "clean": true
+      }
+    },
+    {
+      "word": "ability",
+      "frame": "IsA",
+      "facts": [
+        [
+          "IsA",
+          "cognition",
+          2.0
+        ]
+      ],
+      "semantic_program": "TYPE = cognition",
+      "raw": "assistant\nThe ability to think is a fundamental aspect of cognition.",
+      "sentence": "The ability to think is a fundamental aspect of cognition.",
+      "quality": {
+        "has_target": true,
+        "instruction_leak": false,
+        "sentence_count": 1,
+        "fact_hits": 1,
+        "clean": true
+      }
+    },
+    {
+      "word": "animal",
+      "frame": "IsA+CapableOf",
+      "facts": [
+        [
+          "IsA",
+          "organism",
+          2.0
+        ],
+        [
+          "CapableOf",
+          "move itself about",
+          4.0
+        ]
+      ],
+      "semantic_program": "TYPE = organism\nCAN = move itself about",
+      "raw": "assistant\nThe animal can move itself about.",
+      "sentence": "The animal can move itself about.",
+      "quality": {
+        "has_target": true,
+        "instruction_leak": false,
+        "sentence_count": 1,
+        "fact_hits": 1,
+        "clean": true
+      }
+    }
+  ],
+  "elapsed_seconds": 7.105952200014144
+}
