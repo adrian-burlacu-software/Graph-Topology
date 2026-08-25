@@ -1,202 +1,201 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from simulator import Network, Config, REUSE, BRANCH
-from genome import clone_genome, genome_summary
+from genome import clone_genome
 
 TRAINING = [
     "CAT", "CAR", "CAN", "CARD", "CART", "DOG", "DOT", "BAT",
 ]
 
 TEST = [
-    "BAT", "BAR", "BOAT", "BOAR", "BOATD", "CAB", "COAT", "COAR",
-    "CART", "CARTD", "BART", "BARD", "BOARD",
+    "BAT", "BAR", "BOAT", "BOAR", "BOATD",
+    "CAB", "COAT", "COAR", "CART", "CARTD",
+    "BART", "BARD", "BOARD",
 ]
 
+def suffix_matches(net: Network, cid: int, suffix: str) -> bool:
+    """True only if cid can represent the complete remaining suffix."""
+    node = net.cells[cid]
+    if not suffix:
+        return True
+    for ch in suffix:
+        nxt = None
+        for child_id in node.outgoing:
+            child = net.cells[child_id]
+            if child.kind == "vocabulary" and child.symbol == ch:
+                nxt = child_id
+                break
+        if nxt is None:
+            return False
+        node = net.cells[nxt]
+    return True
 
-class DoubleSidedNetwork(Network):
-    """Experimental bidirectional vocabulary graph.
-
-    Forward evidence comes from the current parent -> symbol edge.
-    Reverse evidence comes from an already-known suffix beginning at the
-    current symbol.  When reverse evidence exists, REUSE may attach that
-    existing node to the current parent, turning the vocabulary structure
-    into a DAG rather than duplicating the suffix.
+class DoubleSidedV2(Network):
+    """
+    Experimental v2:
+      * forward lookup remains authoritative;
+      * if a local edge is missing, search globally for the symbol;
+      * a remote candidate is usable only when its complete forward suffix
+        matches the remaining word;
+      * when a remote candidate is used, splice the current node to it.
     """
 
-    def __init__(self, config=None):
-        super().__init__(config)
-        self._remaining = ""
-        self.reverse_matches = 0
-        self.remote_reuses = 0
-        self.remote_branches = 0
-
-    def find_suffix_candidate(self, suffix: str):
-        """Return an existing node matching the complete suffix, or None."""
-        if len(suffix) < 2:
-            return None
-
-        for cell in self.vocabulary_cells():
-            if cell.symbol != suffix[0]:
-                continue
-
-            current = cell.id
-            ok = True
-            for symbol in suffix[1:]:
-                child = None
-                for cid in self.cells[current].outgoing:
-                    c = self.cells[cid]
-                    if c.kind == "vocabulary" and c.symbol == symbol:
-                        child = cid
-                        break
-                if child is None:
-                    ok = False
-                    break
-                current = child
-
-            if ok:
-                return cell.id
-
+    def remote_suffix_candidate(self, symbol: str, suffix: str):
+        candidates = [
+            c for c in self.vocabulary_cells()
+            if c.symbol == symbol
+        ]
+        candidates.sort(key=lambda c: (c.order, c.id))
+        for c in candidates:
+            if suffix_matches(self, c.id, suffix):
+                return c.id
         return None
 
-    def reverse_candidate(self, symbol: str):
-        return self.find_suffix_candidate(self._remaining)
+    def find_child_for_experiment(self, parent_id, symbol, suffix):
+        local = super().find_child(parent_id, symbol)
+        if local is not None:
+            return local, "LOCAL"
 
-    def _stimulate_local_context(self, current_id, symbol):
-        match_activity, context_activity = super()._stimulate_local_context(
-            current_id, symbol
-        )
+        # Root symbols are still structural. Never remote-splice a root.
+        if parent_id is None:
+            return None, "NONE"
 
-        candidate = self.reverse_candidate(symbol)
-        if candidate is not None:
-            # Reverse/suffix evidence is another sensory signal from the graph.
-            # It is not a privileged boolean; it is activity from an existing
-            # downstream path.
-            match_activity += 1.0
-            self.reverse_matches += 1
-            self.cells[candidate].potential += self.designer_genome["match_gain"]
+        remote = self.remote_suffix_candidate(symbol, suffix)
+        if remote is not None:
+            return remote, "REMOTE"
 
-        return match_activity, context_activity
-
-    def _apply_decision(self, current_id, symbol, order, action):
-        # Normal local edge wins first.
-        existing = self.find_child(current_id, symbol)
-        if existing is not None:
-            return super()._apply_decision(
-                current_id, symbol, order, action
-            )
-
-        # No local edge.  If the remaining suffix already exists elsewhere,
-        # reuse its starting node and connect the current parent to it.
-        candidate = self.reverse_candidate(symbol)
-        if candidate is not None and action == REUSE:
-            if current_id is not None:
-                self.connect(
-                    current_id,
-                    candidate,
-                    "EXCITE",
-                    self.config.excite_weight,
-                )
-            self.remote_reuses += 1
-            return (
-                candidate,
-                0,
-                1,
-                self.config.reward_correct_reuse,
-            )
-
-        if candidate is not None and action == BRANCH:
-            # Preserve the existing graph; don't duplicate a known suffix.
-            self.remote_branches += 1
-            return (
-                candidate,
-                0,
-                0,
-                self.config.reward_wrong_branch + self.config.branch_cost,
-            )
-
-        return super()._apply_decision(
-            current_id, symbol, order, action
-        )
+        return None, "NONE"
 
     def process_word(self, word: str, learn: bool = True):
-        # Keep the base implementation's exact counters/learning behavior,
-        # but expose the unconsumed suffix to the reverse sensory system.
         current_id = None
-        created = 0
-        reused = 0
-        branched = 0
+        created = reused = branched = remote_reuses = remote_branches = 0
+        diagnostics = []
 
         for order, symbol in enumerate(word):
-            self._remaining = word[order:]
+            suffix = word[order + 1:]
 
-            existing = self.find_child(current_id, symbol)
-            reverse = self.reverse_candidate(symbol)
-            correct = REUSE if existing is not None or reverse is not None else BRANCH
+            existing, mode = self.find_child_for_experiment(
+                current_id, symbol, suffix
+            )
+
+            # The action target is based on the v2 structural candidate.
+            correct = REUSE if existing is not None else BRANCH
 
             self._reset_designer_input()
             self.spike_designer(current_id, symbol)
             action = self.designer_signal(current_id, symbol)
 
-            new_id, made, reused_now, reward = self._apply_decision(
-                current_id, symbol, order, action
-            )
-            current_id = new_id
+            # For the experiment, a structurally valid remote candidate is
+            # treated as reusable. If absent, branch normally.
+            if existing is not None and action == REUSE:
+                new_id = existing
+                made = 0
+                reused_now = 1
+                reward = self.config.reward_correct_reuse
+                if mode == "REMOTE":
+                    remote_reuses += 1
 
-            created += made
-            reused += reused_now
-            if action == BRANCH:
+                # Splice only when the remote node is not already local.
+                if (
+                    current_id is not None
+                    and new_id not in self.cells[current_id].outgoing
+                ):
+                    self.connect(
+                        current_id,
+                        new_id,
+                        kind="EXCITE",
+                        weight=self.config.excite_weight,
+                    )
+
+            elif existing is None and action == BRANCH:
+                new_id = self.create_vocabulary_cell(
+                    symbol, current_id, order
+                )
+                made = 1
+                reused_now = 0
                 branched += 1
+                reward = (
+                    self.config.reward_correct_branch
+                    + self.config.branch_cost
+                )
+                remote_branches += 1
+
+            elif existing is not None and action == BRANCH:
+                new_id = existing
+                made = 0
+                reused_now = 0
+                branched += 1
+                reward = (
+                    self.config.reward_wrong_branch
+                    + self.config.branch_cost
+                )
+
+            else:
+                # Wrong reuse: repair structurally with a local cell.
+                new_id = self.create_vocabulary_cell(
+                    symbol, current_id, order
+                )
+                made = 1
+                reused_now = 0
+                reward = self.config.reward_wrong_reuse
+
+            if action == REUSE:
+                self.action_reuse += 1
+            else:
+                self.action_branch += 1
+
             if made:
                 self.total_create += made
+                created += made
             if reused_now:
                 self.total_reuse += reused_now
+                reused += reused_now
 
             if learn:
                 self.learn_designer(action, correct, reward)
 
-        self._remaining = ""
+            diagnostics.append({
+                "pos": order,
+                "symbol": symbol,
+                "suffix": suffix,
+                "mode": mode,
+                "candidate": new_id,
+                "action": action,
+            })
+            current_id = new_id
+
         return {
             "word": word,
             "created": created,
             "reused": reused,
             "branched": branched,
+            "remote_reuses": remote_reuses,
+            "remote_branches": remote_branches,
+            "diagnostics": diagnostics,
         }
 
-
-def expected_for_word(network, word):
-    """Expected behavior under the double-sided graph rule."""
-    reuse = 0
-    create = 0
+def expected_for_word(net, word):
+    # Baseline expectation: current graph, before mutation, with ordinary
+    # forward edges only. This keeps the benchmark comparable to prior runs.
+    reuse = create = 0
     current = None
-
-    for i, symbol in enumerate(word):
-        local = network.find_child(current, symbol)
-        suffix = word[i:]
-        reverse = network.find_suffix_candidate(suffix)
-
-        if local is not None or reverse is not None:
-            reuse += 1
-            current = local if local is not None else reverse
-        else:
+    for ch in word:
+        existing = Network.find_child(net, current, ch)
+        if existing is None:
             create += 1
-            current = None  # expectation only; actual path will create below
-            # For expectation, a newly-created node becomes the current node.
-            # We don't have an id, so this sentinel is sufficient only until
-            # the next symbol; recompute using a virtual path instead below.
-
-    # The simple pass above cannot represent newly-created edges, so use the
-    # same structural process on a temporary copy is overkill.  The experiment
-    # reports actual behavior; exact comparison uses expected totals supplied
-    # by the known target set below.
+            current = None
+        else:
+            reuse += 1
+            current = existing
     return reuse, create
-
 
 def run():
     genome = clone_genome()
-    net = DoubleSidedNetwork(Config(genome=genome))
+    net = DoubleSidedV2(Config(genome=genome))
 
-    print("=== DOUBLE-SIDED EXPERIMENT ===")
-    print("genome:", genome_summary(genome))
+    print("=== DOUBLE-SIDED V2 ===")
+    print("suffix-constrained remote reuse + graph splicing")
     print()
     print("=== TRAINING ===")
     net.train(TRAINING, epochs=5)
@@ -207,51 +206,54 @@ def run():
     print()
     print("=== FREEZE ===")
     print("No learning after training.")
-    print()
-    print("=== NOVEL TEST ===")
 
-    expected = {
-        "BAT": (3, 0), "BAR": (2, 1), "BOAT": (3, 1), "BOAR": (3, 1),
-        "BOATD": (3, 2), "CAB": (2, 1), "COAT": (3, 1), "COAR": (3, 1),
-        "CART": (4, 0), "CARTD": (4, 1), "BART": (3, 1), "BARD": (3, 1),
-        "BOARD": (3, 2),
-    }
+    print()
+    print("=== NASTY TEST ===")
 
     exact = 0
-    total_reuse = 0
-    total_create = 0
+    total_reuse = total_create = 0
+    before = len(net.cells)
 
     for word in TEST:
-        rb = net.total_reuse
-        cb = net.total_create
+        er, ec = expected_for_word(net, word)
+        rb, cb = net.total_reuse, net.total_create
+
         result = net.process_word(word, learn=False)
-        reuse = net.total_reuse - rb
-        create = net.total_create - cb
-        er, ec = expected[word]
-        ok = reuse == er and create == ec
-        exact += int(ok)
-        total_reuse += reuse
-        total_create += create
+
+        wr = net.total_reuse - rb
+        wc = net.total_create - cb
+        ok = wr == er and wc == ec
+        exact += ok
+        total_reuse += wr
+        total_create += wc
+
         print(
-            f"{word:5s} reuse={reuse:2d} create={create:2d} "
-            f"expected_reuse={er:2d} expected_create={ec:2d} exact={ok} "
-            f"result={result}"
+            f"{word:6s} "
+            f"reuse={wr:2d} create={wc:2d} "
+            f"expected_reuse={er:2d} expected_create={ec:2d} "
+            f"exact={ok}"
         )
+        for d in result["diagnostics"]:
+            if d["mode"] == "REMOTE":
+                print(
+                    f"  remote pos={d['pos']} symbol={d['symbol']} "
+                    f"suffix={d['suffix'] or '-'} -> {d['candidate']} "
+                    f"action={d['action']}"
+                )
 
     print()
     print("=== GENERALIZATION ===")
     print(f"test_words           : {len(TEST)}")
+    print(f"exact_words          : {exact}/{len(TEST)}")
     print(f"test_reuse           : {total_reuse}")
     print(f"test_create          : {total_create}")
-    print(f"exact_words          : {exact}/{len(TEST)}")
-    print(f"reverse_matches      : {net.reverse_matches}")
-    print(f"remote_reuses        : {net.remote_reuses}")
-    print(f"remote_branches      : {net.remote_branches}")
+    print(f"cells_before_test    : {before}")
+    print(f"cells_after_test     : {len(net.cells)}")
+    print(f"new_cells            : {len(net.cells) - before}")
+
     print()
     print("=== LEARNED NETWORK ===")
     net.print_summary()
-    net.print_vocabulary_tree()
-
 
 if __name__ == "__main__":
     run()
