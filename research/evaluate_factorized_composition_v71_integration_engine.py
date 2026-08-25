@@ -540,31 +540,119 @@ def regression_smoke() -> None:
 # V70 SPECIFIC COMPOSITION EVIDENCE
 # ---------------------------------------------------------------------------
 
-class SpecificCompositionEngine(FactorizedCompositionEngine):
-    """
-    V70 refinement.
 
-    In addition to the primitive-factor transition graph inherited from V68,
-    learn a pairwise support table for the exact role combinations:
+# ---------------------------------------------------------------------------
+# V71 INTEGRATION ENGINE
+# ---------------------------------------------------------------------------
 
-        (prefix_id, symbol_id)
-        (symbol_id, suffix_id)
-        (prefix_id, suffix_id)
+from dataclasses import dataclass
+from typing import Iterable
 
-    A novel triple is eligible for COMPOSE only when the specific triple has
-    sufficient pairwise support.
 
-    This deliberately avoids treating generic factor popularity as evidence
-    that an arbitrary combination is meaningful.
-    """
+@dataclass(frozen=True)
+class FactorBinding:
+    prefix_id: int
+    symbol_id: int
+    suffix_id: int
 
+
+@dataclass
+class BindingNode:
+    binding_id: int
+    factors: FactorBinding
+    activations: int = 0
+
+
+class PrimitiveFactorStore:
     def __init__(self) -> None:
-        super().__init__()
+        self._tables: dict[str, dict[str, int]] = {
+            "prefix": {},
+            "symbol": {},
+            "suffix": {},
+        }
 
+    def learn(self, kind: str, value: str) -> int:
+        table = self._tables[kind]
+        if value in table:
+            return table[value]
+
+        value_id = len(table)
+        table[value] = value_id
+        return value_id
+
+    def lookup(self, kind: str, value: str) -> int:
+        return self._tables[kind].get(value, -1)
+
+    @property
+    def count(self) -> int:
+        return sum(len(table) for table in self._tables.values())
+
+    @property
+    def counts(self) -> dict[str, int]:
+        return {
+            kind: len(table)
+            for kind, table in self._tables.items()
+        }
+
+
+class BindingGraph:
+    def __init__(self) -> None:
+        self.nodes: dict[FactorBinding, BindingNode] = {}
+        self.by_id: dict[int, BindingNode] = {}
+        self.next_id = 0
+
+        # Exact role-pair support learned from observed bindings.
         self.pair_support: dict[
             tuple[str, int, int],
             float,
         ] = {}
+
+        # Binding-to-binding / factor transition support.
+        self.transitions: dict[tuple[int, int], float] = {}
+
+    def lookup(
+        self,
+        factors: FactorBinding,
+    ) -> BindingNode | None:
+        return self.nodes.get(factors)
+
+    def bind(
+        self,
+        factors: FactorBinding,
+    ) -> BindingNode:
+        existing = self.nodes.get(factors)
+
+        if existing is not None:
+            existing.activations += 1
+            return existing
+
+        node = BindingNode(
+            binding_id=self.next_id,
+            factors=factors,
+            activations=1,
+        )
+        self.next_id += 1
+
+        self.nodes[factors] = node
+        self.by_id[node.binding_id] = node
+
+        self._reinforce_pair(
+            "ps",
+            factors.prefix_id,
+            factors.symbol_id,
+        )
+        self._reinforce_pair(
+            "ss",
+            factors.symbol_id,
+            factors.suffix_id,
+        )
+        self._reinforce_pair(
+            "px",
+            factors.prefix_id,
+            factors.suffix_id,
+        )
+
+        return node
 
     def _reinforce_pair(
         self,
@@ -577,41 +665,20 @@ class SpecificCompositionEngine(FactorizedCompositionEngine):
             self.pair_support.get(key, 0.0) + 1.0
         )
 
-    def observe(self, factors: BindingRef) -> BindingNode:
-        node = super().observe(factors)
-
-        self._reinforce_pair(
-            "ps",
-            factors.prefix,
-            factors.symbol,
-        )
-        self._reinforce_pair(
-            "ss",
-            factors.symbol,
-            factors.suffix,
-        )
-        self._reinforce_pair(
-            "px",
-            factors.prefix,
-            factors.suffix,
-        )
-
-        return node
-
     def pair_evidence(
         self,
-        factors: BindingRef,
+        factors: FactorBinding,
     ) -> dict[str, float]:
         ps = self.pair_support.get(
-            ("ps", factors.prefix, factors.symbol),
+            ("ps", factors.prefix_id, factors.symbol_id),
             0.0,
         )
         ss = self.pair_support.get(
-            ("ss", factors.symbol, factors.suffix),
+            ("ss", factors.symbol_id, factors.suffix_id),
             0.0,
         )
         px = self.pair_support.get(
-            ("px", factors.prefix, factors.suffix),
+            ("px", factors.prefix_id, factors.suffix_id),
             0.0,
         )
 
@@ -623,289 +690,390 @@ class SpecificCompositionEngine(FactorizedCompositionEngine):
             "sum": ps + ss + px,
         }
 
-    def calibrate_specific_threshold(self) -> float:
-        """
-        Calibrate from learned exact bindings.
+    def reinforce_transition(
+        self,
+        previous: BindingNode,
+        current: BindingNode,
+    ) -> None:
+        previous_ids = (
+            previous.factors.prefix_id,
+            previous.factors.symbol_id,
+            previous.factors.suffix_id,
+        )
+        current_ids = (
+            current.factors.prefix_id,
+            current.factors.symbol_id,
+            current.factors.suffix_id,
+        )
 
-        Use the minimum pairwise support among observed training bindings.
-        A novel triple must meet at least this level across all three pairings.
-        """
+        for source in previous_ids:
+            for target in current_ids:
+                key = (source, target)
+                self.transitions[key] = (
+                    self.transitions.get(key, 0.0) + 1.0
+                )
+
+    @property
+    def count(self) -> int:
+        return len(self.nodes)
+
+
+class FactorizedCompositionEngineV71:
+    """
+    Runtime integration surface.
+
+    The engine learns reusable primitive factors and exact bindings.
+    Specific pair-support is the evidence used for autonomous composition.
+
+    Baseline:
+        known exact binding -> REUSE
+        otherwise           -> BRANCH
+
+    Autonomous:
+        known factors + sufficient specific pair evidence -> COMPOSE
+        otherwise                                      -> BRANCH
+    """
+
+    def __init__(self) -> None:
+        self.factors = PrimitiveFactorStore()
+        self.graph = BindingGraph()
+
+        self._compose_threshold = 1.0
+
+    # ------------------------------------------------------------------
+    # Factorization
+    # ------------------------------------------------------------------
+
+    def factorize(
+        self,
+        prefix: str,
+        symbol: str,
+        suffix: str,
+        *,
+        learn: bool = False,
+    ) -> FactorBinding:
+        def resolve(kind: str, value: str) -> int:
+            if learn:
+                return self.factors.learn(kind, value)
+            return self.factors.lookup(kind, value)
+
+        return FactorBinding(
+            prefix_id=resolve("prefix", prefix),
+            symbol_id=resolve("symbol", symbol),
+            suffix_id=resolve("suffix", suffix),
+        )
+
+    def factorize_position(
+        self,
+        word: str,
+        pos: int,
+        *,
+        learn: bool = False,
+    ) -> FactorBinding:
+        if not 0 <= pos < len(word):
+            raise IndexError(
+                f"position={pos} out of range for length={len(word)}"
+            )
+
+        return self.factorize(
+            word[:pos],
+            word[pos],
+            word[pos + 1:],
+            learn=learn,
+        )
+
+    # ------------------------------------------------------------------
+    # Training
+    # ------------------------------------------------------------------
+
+    def observe(
+        self,
+        factors: FactorBinding,
+    ) -> BindingNode:
+        if min(
+            factors.prefix_id,
+            factors.symbol_id,
+            factors.suffix_id,
+        ) < 0:
+            raise ValueError(
+                "Cannot observe unknown primitive factors."
+            )
+
+        return self.graph.bind(factors)
+
+    def train_word(self, word: str) -> None:
+        previous: BindingNode | None = None
+
+        for pos in range(len(word)):
+            current_factors = self.factorize_position(
+                word,
+                pos,
+                learn=True,
+            )
+            current = self.observe(current_factors)
+
+            if previous is not None:
+                self.graph.reinforce_transition(
+                    previous,
+                    current,
+                )
+
+            previous = current
+
+    def train(
+        self,
+        words: Iterable[str],
+    ) -> None:
+        for word in words:
+            self.train_word(word)
+
+    # ------------------------------------------------------------------
+    # Calibration
+    # ------------------------------------------------------------------
+
+    def calibrate_compose_threshold(self) -> float:
         observed = []
 
-        for factors in self.bindings.nodes:
-            evidence = self.pair_evidence(factors)
+        for factors in self.graph.nodes:
+            evidence = self.graph.pair_evidence(factors)
             observed.append(evidence["minimum"])
 
-        self._calibration_threshold = (
+        self._compose_threshold = (
             min(observed)
             if observed
             else 1.0
         )
 
-        return self._calibration_threshold
+        return self._compose_threshold
 
-    def specific_autonomous_readout(
+    @property
+    def compose_threshold(self) -> float:
+        return self._compose_threshold
+
+    # ------------------------------------------------------------------
+    # Stable readout
+    # ------------------------------------------------------------------
+
+    def baseline_readout(
         self,
-        factors: BindingRef,
-    ) -> tuple[str, BindingNode | None, dict[str, float]]:
+        factors: FactorBinding,
+    ) -> tuple[str, BindingNode | None]:
+        """
+        Stable external readout.
+
+        This path never composes. A composition is REUSE only after its exact
+        binding exists.
+        """
         if min(
-            factors.prefix,
-            factors.symbol,
-            factors.suffix,
+            factors.prefix_id,
+            factors.symbol_id,
+            factors.suffix_id,
+        ) < 0:
+            return "BRANCH", None
+
+        binding = self.graph.lookup(factors)
+
+        if binding is None:
+            return "BRANCH", None
+
+        binding.activations += 1
+        return "REUSE", binding
+
+    # ------------------------------------------------------------------
+    # Autonomous composition
+    # ------------------------------------------------------------------
+
+    def autonomous_readout(
+        self,
+        factors: FactorBinding,
+    ) -> tuple[
+        str,
+        BindingNode | None,
+        dict[str, float],
+    ]:
+        """
+        Decide whether a novel combination has enough SPECIFIC evidence to
+        compose.
+
+        Generic factor popularity is not enough. All three pair roles are
+        considered and the minimum support is the gate.
+        """
+        if min(
+            factors.prefix_id,
+            factors.symbol_id,
+            factors.suffix_id,
         ) < 0:
             return "BRANCH", None, {
-                "minimum_pair_support": 0.0,
-                "pair_sum": 0.0,
+                "prefix_symbol": 0.0,
+                "symbol_suffix": 0.0,
+                "prefix_suffix": 0.0,
+                "minimum": 0.0,
+                "sum": 0.0,
             }
 
-        existing = self.bindings.lookup(factors)
+        existing = self.graph.lookup(factors)
 
         if existing is not None:
             existing.activations += 1
+            return "REUSE", existing, (
+                self.graph.pair_evidence(factors)
+            )
 
-            evidence = self.pair_evidence(factors)
-            return "REUSE", existing, evidence
+        evidence = self.graph.pair_evidence(factors)
 
-        evidence = self.pair_evidence(factors)
-
-        if (
-            evidence["minimum"]
-            >= self._calibration_threshold
-        ):
-            node = self.bindings.bind(factors)
+        if evidence["minimum"] >= self._compose_threshold:
+            node = self.graph.bind(factors)
             return "COMPOSE", node, evidence
 
         return "BRANCH", None, evidence
 
+    # ------------------------------------------------------------------
+    # Designer-safe observable state
+    # ------------------------------------------------------------------
+
+    def observable_state(
+        self,
+        factors: FactorBinding,
+    ) -> dict[str, object]:
+        binding = self.graph.lookup(factors)
+
+        return {
+            "factor_ids": (
+                factors.prefix_id,
+                factors.symbol_id,
+                factors.suffix_id,
+            ),
+            "known_factors": min(
+                factors.prefix_id,
+                factors.symbol_id,
+                factors.suffix_id,
+            ) >= 0,
+            "binding_known": binding is not None,
+            "binding_id": (
+                binding.binding_id
+                if binding is not None
+                else None
+            ),
+            "pair_evidence": self.graph.pair_evidence(
+                factors
+            ),
+        }
+
+
+class DecoupledDesignerV71:
+    """
+    Designer-facing interface.
+
+    It receives IDs and learned evidence only.
+    It never receives raw structural strings.
+    """
+
+    @staticmethod
+    def baseline(
+        observable: dict[str, object],
+    ) -> str:
+        if not observable["known_factors"]:
+            return "BRANCH"
+
+        return (
+            "REUSE"
+            if observable["binding_known"]
+            else "BRANCH"
+        )
+
+    @staticmethod
+    def autonomous(
+        observable: dict[str, object],
+        compose_threshold: float,
+    ) -> str:
+        if not observable["known_factors"]:
+            return "BRANCH"
+
+        if observable["binding_known"]:
+            return "REUSE"
+
+        evidence = observable["pair_evidence"]
+
+        if (
+            isinstance(evidence, dict)
+            and float(evidence["minimum"]) >= compose_threshold
+        ):
+            return "COMPOSE"
+
+        return "BRANCH"
+
 
 # ---------------------------------------------------------------------------
-# V70 focused case selection
+# Example integration contract
 # ---------------------------------------------------------------------------
 
-def v70_case_pool(
-    engine: SpecificCompositionEngine,
-):
-    prefixes = sorted(
-        engine.factors._tables["prefix"].keys()
-    )
-    symbols = sorted(
-        engine.factors._tables["symbol"].keys()
-    )
-    suffixes = sorted(
-        engine.factors._tables["suffix"].keys()
-    )
+def smoke_test_v71() -> None:
+    engine = FactorizedCompositionEngineV71()
+    designer = DecoupledDesignerV71()
 
-    known = set(engine.bindings.nodes.keys())
+    engine.train([
+        "CAT",
+        "CAR",
+        "CAN",
+        "BOAT",
+    ])
 
-    cases = []
+    engine.calibrate_compose_threshold()
 
-    for prefix in prefixes:
-        for symbol in symbols:
-            for suffix in suffixes:
-                if not prefix or not suffix:
-                    continue
-
-                factors = engine.factorize(
-                    prefix,
-                    symbol,
-                    suffix,
-                    learn=False,
-                )
-
-                if min(
-                    factors.prefix,
-                    factors.symbol,
-                    factors.suffix,
-                ) < 0:
-                    continue
-
-                if factors in known:
-                    continue
-
-                evidence = engine.pair_evidence(factors)
-
-                cases.append(
-                    (
-                        prefix + symbol + suffix,
-                        factors,
-                        evidence,
-                    )
-                )
-
-    return cases
-
-
-def v70_run_specificity_test(
-    engine: SpecificCompositionEngine,
-) -> None:
-    print("=== V70 SPECIFIC COMPOSITION SELECTIVITY ===")
-
-    threshold = engine.calibrate_specific_threshold()
-
-    cases = v70_case_pool(engine)
-
-    # Split by minimum pairwise support. We want both strongly supported and
-    # unsupported novel combinations where the corpus allows them.
-    supported = [
-        row for row in cases
-        if row[2]["minimum"] >= threshold
-    ]
-
-    unsupported = [
-        row for row in cases
-        if row[2]["minimum"] < threshold
-    ]
-
-    supported.sort(
-        key=lambda row: (
-            -row[2]["minimum"],
-            row[0],
-        )
-    )
-    unsupported.sort(
-        key=lambda row: (
-            row[2]["minimum"],
-            row[0],
-        )
+    # Known exact composition.
+    known = engine.factorize(
+        "CA",
+        "T",
+        "",
+        learn=False,
     )
 
-    supported = supported[:12]
-    unsupported = unsupported[:12]
+    observable = engine.observable_state(known)
 
-    print("calibrated_pair_threshold :", threshold)
-    print("supported_novel_cases     :", len(supported))
-    print("unsupported_novel_cases   :", len(unsupported))
+    assert designer.baseline(observable) == "REUSE"
 
-    assert supported, (
-        "V70 needs at least one structurally supported novel combination"
-    )
-    assert unsupported, (
-        "V70 needs at least one structurally unsupported novel combination"
+    # Known factors, novel exact combination. Baseline remains BRANCH.
+    novel = engine.factorize(
+        "CA",
+        "D",
+        "AT",
+        learn=False,
     )
 
-    print()
-    print("--- SUPPORTED NOVEL COMBINATIONS ---")
+    observable = engine.observable_state(novel)
 
-    supported_composed = 0
+    assert observable["known_factors"]
+    assert designer.baseline(observable) == "BRANCH"
 
-    for word, factors, evidence in supported:
-        decision, binding, _ = (
-            engine.specific_autonomous_readout(factors)
-        )
+    # Autonomous policy may compose if specific evidence is sufficient.
+    decision, node, _ = engine.autonomous_readout(novel)
 
-        print(
-            f"{word:12s} "
-            f"decision={decision:7s} "
-            f"ps={evidence['prefix_symbol']:.1f} "
-            f"ss={evidence['symbol_suffix']:.1f} "
-            f"px={evidence['prefix_suffix']:.1f} "
-            f"min={evidence['minimum']:.1f}"
-        )
+    assert decision in {"COMPOSE", "BRANCH"}
 
-        assert decision == "COMPOSE"
-        assert binding is not None
-        supported_composed += 1
+    if decision == "COMPOSE":
+        assert node is not None
 
-    print()
-    print("--- UNSUPPORTED NOVEL COMBINATIONS ---")
+        after = engine.observable_state(novel)
+        assert designer.baseline(after) == "REUSE"
 
-    unsupported_branched = 0
-
-    for word, factors, evidence in unsupported:
-        decision, binding, _ = (
-            engine.specific_autonomous_readout(factors)
-        )
-
-        print(
-            f"{word:12s} "
-            f"decision={decision:7s} "
-            f"ps={evidence['prefix_symbol']:.1f} "
-            f"ss={evidence['symbol_suffix']:.1f} "
-            f"px={evidence['prefix_suffix']:.1f} "
-            f"min={evidence['minimum']:.1f}"
-        )
-
-        assert decision == "BRANCH"
-        assert binding is None
-        unsupported_branched += 1
-
-    print()
-    print("supported_composed   :", supported_composed)
-    print("unsupported_branched  :", unsupported_branched)
-
-    assert supported_composed == len(supported)
-    assert unsupported_branched == len(unsupported)
-
-    print("V70 SPECIFIC SELECTIVITY: PASS")
-    print()
-
-
-def v70_v28_regression(
-    engine: SpecificCompositionEngine,
-) -> None:
-    """
-    Stable baseline: exact known bindings are REUSE; novel test positions
-    remain BRANCH. This does not use autonomous composition during the test.
-    """
-    gt = v70_independent_ground_truth()
-
-    correct = 0
-    total = 0
-
-    for word in V70_TEST:
-        for pos in range(len(word)):
-            factors = engine.factorize_position(
-                word,
-                pos,
-                learn=False,
-            )
-
-            action = (
-                "REUSE"
-                if engine.bindings.lookup(factors)
-                is not None
-                else "BRANCH"
-            )
-
-            expected = (
-                "REUSE"
-                if gt[(word, pos)]
-                else "BRANCH"
-            )
-
-            total += 1
-            correct += int(action == expected)
-
-    print("V70 baseline accuracy :", f"{correct}/{total}")
-    assert correct == total
-
-    print("V70 BASELINE REGRESSION: PASS")
-    print()
-
-
-def main() -> None:
-    print("=== V70 SPECIFIC COMPOSITION EVIDENCE ===")
-    print(
-        "Novel bindings must be supported by the specific factor pairings, "
-        "not generic factor transition mass."
+    # Unknown primitive factor must remain BRANCH.
+    unknown = engine.factorize(
+        "ZZ",
+        "Z",
+        "ZZ",
+        learn=False,
     )
-    print()
 
-    engine = SpecificCompositionEngine()
-    engine.train(V70_TRAINING)
+    observable = engine.observable_state(unknown)
 
-    print("=== V70 TRAINED STATE ===")
-    print("primitive_factors :", engine.factors.count)
-    print("bindings          :", engine.bindings.count)
-    print("transitions       :", len(engine.bindings.transition_weights))
-    print("pair_support      :", len(engine.pair_support))
-    print()
+    assert designer.baseline(observable) == "BRANCH"
+    assert designer.autonomous(
+        observable,
+        engine.compose_threshold,
+    ) == "BRANCH"
 
-    v70_v28_regression(engine)
-    v70_run_specificity_test(engine)
-
-    print("=== V70 COMPLETE ===")
+    print("V71 SMOKE TEST: PASS")
 
 
 if __name__ == "__main__":
-    main()
+    smoke_test_v71()
