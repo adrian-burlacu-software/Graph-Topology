@@ -78,7 +78,7 @@ class BoundaryGraph:
         return (prefix_node, symbol, suffix_node) in self.links
 
 
-class DualVocabularyV4:
+class DualVocabularyV5:
     """
     One designer, two vocabularies, exact structural availability.
 
@@ -155,14 +155,21 @@ class DualVocabularyV4:
         reuse = n.cells[n.reuse_cell]
         branch = n.cells[n.branch_cell]
 
-        # Structural availability is an input signal, NOT the answer.
-        # Exact links strongly excite reuse; their absence excites branch.
+        # Structural availability is an input signal, NOT a privileged
+        # answer. V5 adds an explicit negative signal: when the exact
+        # boundary does not exist, REUSE is actively inhibited.
         root.potential += dg["input_gain"]
 
         if available:
             reuse.potential += dg["match_gain"]
         else:
             branch.potential += dg["branch_bias"]
+
+            # Negative evidence is deliberately stronger than merely
+            # exciting BRANCH. This is the experiment: can the designer
+            # learn that "no exact edge" is meaningful?
+            reuse.inhibition += n.inhibition_genome["strength"]
+            reuse.potential -= n.inhibition_genome["strength"]
 
         if root.potential >= dg["threshold"]:
             root.potential = 0.0
@@ -341,6 +348,11 @@ class DualVocabularyV4:
         print(f"designer_wrong_positions      : {designer_wrong}")
 
         print()
+        print("=== NEGATIVE GATING ===")
+        print("When exact boundary is absent, REUSE receives explicit inhibition.")
+        print("When exact boundary exists, no negative REUSE gate is applied.")
+
+        print()
         print("=== FROZEN INVARIANTS ===")
         print(f"boundary_links_before         : {links_before}")
         print(f"boundary_links_after          : {len(self.boundaries.links)}")
@@ -386,7 +398,7 @@ class DualVocabularyV4:
 
 
 def run():
-    net = DualVocabularyV4(GENOME)
+    net = DualVocabularyV5(GENOME)
 
     print("=== TRAINING ===")
     net.train(TRAINING, epochs=5)
