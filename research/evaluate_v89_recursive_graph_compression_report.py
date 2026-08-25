@@ -990,14 +990,184 @@ def run_recursive_closure(
     return results
 
 
+
+# ---------------------------------------------------------------------------
+# V84 — RECURSIVE GRAPH COMPRESSION REPORT
+# ---------------------------------------------------------------------------
+
+def build_binding_streams(
+    network: BindingAssemblyNetwork,
+    words: list[str],
+) -> list[list[int]]:
+    streams = []
+
+    for word in words:
+        sequence = []
+
+        for pos in range(len(word)):
+            factors = network.factorize(
+                word,
+                pos,
+                learn=False,
+            )
+
+            binding = network.binding_by_key.get(
+                factors
+            )
+
+            if binding is not None:
+                sequence.append(binding)
+
+        if sequence:
+            streams.append(sequence)
+
+    return streams
+
+
+def observe_unique_transitions(
+    streams: list[list[int]],
+) -> int:
+    unique = set()
+
+    for sequence in streams:
+        unique.update(
+            zip(
+                sequence,
+                sequence[1:],
+            )
+        )
+
+    return len(unique)
+
+
+def compress_streams(
+    network: BindingAssemblyNetwork,
+    streams: list[list[int]],
+) -> tuple[list[list[int]], int]:
+    compressed = []
+    replacements = 0
+
+    for sequence in streams:
+        result = []
+        i = 0
+
+        while i < len(sequence):
+            if i + 1 < len(sequence):
+                key = (
+                    sequence[i],
+                    sequence[i + 1],
+                )
+
+                assembly = (
+                    network.assembly_by_transition.get(
+                        key
+                    )
+                )
+
+                if assembly is not None:
+                    result.append(assembly)
+                    replacements += 1
+                    i += 2
+                    continue
+
+            result.append(sequence[i])
+            i += 1
+
+        compressed.append(result)
+
+    return compressed, replacements
+
+
+def discover_level(
+    network: BindingAssemblyNetwork,
+    streams: list[list[int]],
+    level: int,
+    min_occurrences: int = 2,
+) -> dict[str, object]:
+    transitions = Counter()
+
+    for sequence in streams:
+        transitions.update(
+            zip(
+                sequence,
+                sequence[1:],
+            )
+        )
+
+    recurring = {
+        key: count
+        for key, count in transitions.items()
+        if count >= min_occurrences
+    }
+
+    new_assemblies = 0
+
+    for key in sorted(recurring):
+        if (
+            key
+            not in network.assembly_by_transition
+        ):
+            assembly = network.create_cell(
+                f"v84_assembly_level_{level}"
+            )
+
+            network.assembly_by_transition[
+                key
+            ] = assembly
+
+            previous, current = key
+
+            network.connect(
+                previous,
+                assembly,
+                f"V84_MEMBER_L{level}",
+                1.0,
+            )
+            network.connect(
+                current,
+                assembly,
+                f"V84_MEMBER_L{level}",
+                1.0,
+            )
+
+            new_assemblies += 1
+
+    compressed, replacements = compress_streams(
+        network,
+        streams,
+    )
+
+    input_units = sum(
+        len(sequence)
+        for sequence in streams
+    )
+
+    output_units = sum(
+        len(sequence)
+        for sequence in compressed
+    )
+
+    return {
+        "level": level,
+        "input_units": input_units,
+        "output_units": output_units,
+        "candidate_transitions": len(transitions),
+        "recurring_transitions": len(recurring),
+        "new_assemblies": new_assemblies,
+        "replacements": replacements,
+        "compressed_streams": compressed,
+    }
+
+
 def main() -> None:
     total_start = time.perf_counter()
 
     print(
-        "=== V83 RECURSIVE ASSEMBLY CLOSURE ==="
+        "=== V84 RECURSIVE GRAPH COMPRESSION REPORT ==="
     )
     print(
-        "One operator, repeatedly applied to its own discovered outputs."
+        "Objective: measure recursive compression of repeated "
+        "adjacent lexical structure."
     )
     print(
         "corpus:",
@@ -1026,76 +1196,154 @@ def main() -> None:
         epochs=1,
     )
 
-    print(
-        f"[{time.perf_counter() - total_start:.2f}s] "
-        "real Network training complete"
-    )
-
     network.stream(
         train,
         "TRAIN_BINDINGS",
         learn=True,
     )
 
-    print()
-    print(
-        "binding_cells :",
-        network.counts()["binding_cells"],
-    )
-    print()
+    # Evaluate compression on the complete held-out lexicon without adding
+    # new binding cells. The discovered assembly dictionary is learned from
+    # the training stream only.
+    eval_words = validation + test
 
-    # The complete stream is intentionally included. The question is whether
-    # recursion remains productive on real corpus structure.
-    evaluation_words = (
-        validation + test
-    )
-
-    results = run_recursive_closure(
+    streams = build_binding_streams(
         network,
-        evaluation_words,
-        max_levels=12,
+        eval_words,
     )
+
+    initial_units = sum(
+        len(sequence)
+        for sequence in streams
+    )
+
+    initial_unique_transitions = observe_unique_transitions(
+        streams
+    )
+
+    print("=== INITIAL REPRESENTATION ===")
+    print("evaluation_words :", len(eval_words))
+    print("binding_units    :", initial_units)
+    print(
+        "unique_transitions:",
+        initial_unique_transitions,
+    )
+    print(
+        "training_assemblies:",
+        network.counts()["assembly_cells"],
+    )
+    print()
+
+    rows = []
+
+    level = 1
+
+    while level <= 16 and streams:
+        result = discover_level(
+            network,
+            streams,
+            level,
+        )
+
+        compressed = result.pop(
+            "compressed_streams"
+        )
+
+        rows.append(result)
+
+        print(
+            f"level={level:2d} "
+            f"input={result['input_units']:7d} "
+            f"output={result['output_units']:7d} "
+            f"transitions={result['candidate_transitions']:7d} "
+            f"recurring={result['recurring_transitions']:7d} "
+            f"new_assemblies={result['new_assemblies']:7d} "
+            f"replacements={result['replacements']:7d}"
+        )
+
+        streams = compressed
+
+        if result["new_assemblies"] == 0:
+            break
+
+        level += 1
+
+    final_units = sum(
+        len(sequence)
+        for sequence in streams
+    )
+
+    total_compression = (
+        final_units
+        / max(1, initial_units)
+    )
+
+    reduction = (
+        1.0
+        - total_compression
+    )
+
+    print()
+    print("=== V84 COMPRESSION SUMMARY ===")
+    print(
+        "initial_units       :",
+        initial_units,
+    )
+    print(
+        "final_units         :",
+        final_units,
+    )
+    print(
+        "compression_ratio   :",
+        total_compression,
+    )
+    print(
+        "reduction_fraction  :",
+        reduction,
+    )
+    print(
+        "levels_executed     :",
+        len(rows),
+    )
+    print(
+        "final_assembly_cells:",
+        network.counts()["assembly_cells"],
+    )
+    print()
+
+    print(
+        "level | input_units | output_units | "
+        "new_assemblies | replacements"
+    )
+
+    for row in rows:
+        print(
+            f"{row['level']:5d} | "
+            f"{row['input_units']:11d} | "
+            f"{row['output_units']:12d} | "
+            f"{row['new_assemblies']:14d} | "
+            f"{row['replacements']:12d}"
+        )
 
     print()
     print(
-        "=== V83 CLOSURE SUMMARY ==="
+        "=== V84 INTERPRETATION ==="
+    )
+    print(
+        "A lower final_units / initial_units ratio means the graph "
+        "represents the held-out lexical stream with fewer reusable units."
+    )
+    print(
+        "No semantic labels are used. This measures structural compression only."
     )
 
-    for row in results:
-        print(
-            f"level={row['level']:2d} "
-            f"input={row['input_units']:7d} "
-            f"output={row['output_units']:7d} "
-            f"candidates={row['candidate_transitions']:7d} "
-            f"recurring={row['recurring_transitions']:7d} "
-            f"new={row['new_assemblies']:7d} "
-            f"total_assemblies={row['assembly_cells_total']:7d}"
-        )
-
     print()
-
-    if results:
-        final = results[-1]
-        print(
-            "fixed_point_reached :",
-            final["new_assemblies"] == 0,
-        )
-        print(
-            "final_level         :",
-            final["level"],
-        )
-        print(
-            "total_assemblies    :",
-            final["assembly_cells_total"],
-        )
-
     print(
         "elapsed_seconds :",
         f"{time.perf_counter() - total_start:.2f}",
     )
-
     print(
-        "=== V83 COMPLETE ==="
+        "=== V84 COMPLETE ==="
     )
 
 
