@@ -609,11 +609,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         self.reset_designer_transient_state()
         n._reset_designer_input()
 
-        fired = self.activate_substrate(
-            word,
-            pos,
-            learn=False,
-        )
+        # Frozen readout: inference must not carry DenseCell membrane
+        # potential from one queried position into the next.
+        fired = self.activate_substrate_frozen(word, pos)
 
         fired_set = set(fired)
 
@@ -925,7 +923,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V48 - FROZEN READOUT STATE FIX ===")
+    print("=== DENSE SUBSTRATE V49 - FROZEN DESIGNER READOUT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1650,6 +1648,91 @@ def run():
         )
 
 
+
+    def v49_designer_readout_determinism():
+
+
+        print()
+
+
+        print("=== V49 DESIGNER READOUT DETERMINISM ===")
+
+
+    
+
+
+        probes = [
+
+
+            ("CAT", 1),
+
+
+            ("CAD", 1),
+
+
+            ("BOAT", 0),
+
+
+            ("BOARD", 3),
+
+
+        ]
+
+
+    
+
+
+        for word, pos in probes:
+
+
+            before = net.v42_cell_state_snapshot()
+
+
+            first = net.designer_from_dense_activity(word, pos)
+
+
+            state_after_first = net.v42_cell_state_snapshot()
+
+
+    
+
+
+            second = net.designer_from_dense_activity(word, pos)
+
+
+            state_after_second = net.v42_cell_state_snapshot()
+
+
+    
+
+
+            print(
+
+
+                f"{word:6s} pos={pos} "
+
+
+                f"same_action={first == second} "
+
+
+                f"state_unchanged={before == state_after_first == state_after_second} "
+
+
+                f"first={first} second={second}"
+
+
+            )
+
+
+    
+
+
+        print("=== END V49 DESIGNER READOUT DETERMINISM ===")
+
+
+        print()
+
+
     def v48_frozen_state_proof():
 
         print()
@@ -1804,6 +1887,8 @@ def run():
         print()
 
     v48_frozen_state_proof()
+
+    v49_designer_readout_determinism()
 
     v42_determinism_probe()
 
