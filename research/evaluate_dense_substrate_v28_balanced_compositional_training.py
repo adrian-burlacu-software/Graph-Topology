@@ -7,16 +7,45 @@ from genome import GENOME
 from evaluate_dual_vocabulary_v6 import DualVocabularyV6
 
 
-TRAINING = [
-    "CAT", "CAR", "CAN", "CARD", "CART", "DOG", "DOT", "BAT",
+# === V28 BALANCED COMPOSITIONAL TRAINING ===
+#
+# REUSE_TRAINING defines the independent composition memory.
+# BRANCH_TRAINING is presented to the dense substrate as negative examples,
+# but is NOT inserted into the independent reuse graph.
+#
+# This distinction is essential: otherwise every position in every training
+# word becomes REUSE by definition.
+#
+# TEST contains both known-composition REUSE examples and non-compositional
+# BRANCH examples.
+
+REUSE_TRAINING = [
+    "CAT", "CAR", "CAN", "CARD", "CART",
+    "CAD", "COD", "COT", "BAD", "BAR",
+    "BARD", "BAN", "DART", "DAT", "BOT",
+    "BOAT",
 ]
 
-TEST = [
-    "CAT", "CAR", "CAN", "CARD", "CART",
-    "CAD", "COD", "COT", "BAD", "BAR", "BARD", "BAN",
-    "DART", "DAT", "BOT", "BOAT", "CARTD",
-    "COARD", "BAND", "BOARD",
+BRANCH_TRAINING = [
+    "CAB", "CAP", "CAG", "COB", "COR",
+    "DAB", "DAG", "DAN", "BAT", "BAG",
+    "DOA", "DOG", "BOD", "BOR", "CARTB",
 ]
+
+# The dense substrate sees both positive and negative sequences.
+TRAINING = REUSE_TRAINING + BRANCH_TRAINING
+
+TEST_REUSE = [
+    "CAT", "CAR", "CAN", "CARD", "CART",
+    "CAD", "COD", "COT", "BAD", "BAR",
+]
+
+TEST_BRANCH = [
+    "CABD", "CAPT", "CAGD", "COBD", "CORD",
+    "DABD", "DAGT", "DANT", "BATD", "BAGT",
+]
+
+TEST = TEST_REUSE + TEST_BRANCH
 
 
 
@@ -426,7 +455,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V26C - REUSE EVIDENCE TRACE ===")
+    print("=== DENSE SUBSTRATE V28 - BALANCED COMPOSITIONAL TRAINING ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -447,7 +476,48 @@ def run():
     net.train_dense(TRAINING, epochs=5)
     # Independent ground truth: no calls to net.learn_structure(), no access
     # from the designer, and no dependence on DensePlasticSubstrateV1 state.
-    net.ground_truth = IndependentGroundTruth(TRAINING)
+    net.ground_truth = IndependentGroundTruth(REUSE_TRAINING)
+
+    print()
+    print("=== V28 GROUND-TRUTH BALANCE ===")
+
+    def gt_rows(words):
+        reuse = []
+        branch = []
+        for word in words:
+            for pos in range(len(word)):
+                row = (word, pos, word[pos])
+                if net.ground_truth.available(word, pos):
+                    reuse.append(row)
+                else:
+                    branch.append(row)
+        return reuse, branch
+
+    train_reuse, train_branch = gt_rows(TRAINING)
+    test_reuse, test_branch = gt_rows(TEST)
+
+    print(
+        f"TRAINING positions={len(train_reuse) + len(train_branch)} "
+        f"reuse={len(train_reuse)} branch={len(train_branch)}"
+    )
+    print(
+        f"TEST positions={len(test_reuse) + len(test_branch)} "
+        f"reuse={len(test_reuse)} branch={len(test_branch)}"
+    )
+    print(
+        f"REUSE_TRAINING words={len(REUSE_TRAINING)} "
+        f"BRANCH_TRAINING words={len(BRANCH_TRAINING)}"
+    )
+
+    assert train_reuse, "V28 invalid: training has zero REUSE positions"
+    assert train_branch, "V28 invalid: training has zero BRANCH positions"
+    assert test_reuse, "V28 invalid: test has zero REUSE positions"
+    assert test_branch, "V28 invalid: test has zero BRANCH positions"
+
+    print("GROUND TRUTH BALANCE ASSERTIONS: PASS")
+    print("=== END V28 GROUND-TRUTH BALANCE ===")
+    print()
+
 
     print()
     print("=== V25 INDEPENDENT GROUND TRUTH ===")
@@ -513,66 +583,6 @@ def run():
     print("strong_before_prune :", strong_before_prune)
     print("connections_after   :", remaining)
     print("strong_after_prune  :", strong_after_prune)
-
-
-    print()
-    print("=== V26C REUSE EVIDENCE TRACE ===")
-
-    def independent_ground_truth(word, pos):
-        return net.ground_truth.available(word, pos)
-
-    def ground_truth_rows(words):
-        rows = []
-        for word in words:
-            for pos in range(len(word)):
-                expected = (
-                    "REUSE"
-                    if independent_ground_truth(word, pos)
-                    else "BRANCH"
-                )
-                rows.append((word, pos, expected))
-        return rows
-
-    train_positive = [
-        row for row in ground_truth_rows(TRAINING)
-        if row[2] == "REUSE"
-    ]
-    test_positive = [
-        row for row in ground_truth_rows(TEST)
-        if row[2] == "REUSE"
-    ]
-
-    print("training_reuse_positions :", len(train_positive))
-    print("heldout_reuse_positions  :", len(test_positive))
-
-    def probe_rows(label, rows):
-        print()
-        print(f"--- {label} ---")
-
-        for word, pos, expected in rows[:12]:
-            # Reset transient substrate state before each independent probe.
-            for cell in net.cells:
-                cell.reset()
-
-            activity = net.activate_substrate(word, pos, learn=False)
-
-            # V25's activate_substrate returns the substrate activity used by
-            # designer_from_dense_activity(). Keep the exact returned value.
-            if isinstance(activity, tuple):
-                summary = repr(activity)
-            else:
-                summary = f"{activity!r}"
-
-            print(
-                f"{word:6s} pos={pos} symbol={word[pos]} "
-                f"expected={expected} activity={summary}"
-            )
-
-    probe_rows("TRAINING REUSE", train_positive)
-    probe_rows("HELD-OUT REUSE", test_positive)
-
-    print()
-    print("=== END V26C REUSE EVIDENCE TRACE ===")
 
     net.evaluate_frozen(TEST)
 
