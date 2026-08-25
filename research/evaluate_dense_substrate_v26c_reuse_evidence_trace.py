@@ -426,7 +426,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V25 - INDEPENDENT GROUND TRUTH ===")
+    print("=== DENSE SUBSTRATE V26C - REUSE EVIDENCE TRACE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -513,6 +513,66 @@ def run():
     print("strong_before_prune :", strong_before_prune)
     print("connections_after   :", remaining)
     print("strong_after_prune  :", strong_after_prune)
+
+
+    print()
+    print("=== V26C REUSE EVIDENCE TRACE ===")
+
+    def independent_ground_truth(word, pos):
+        return net.ground_truth.available(word, pos)
+
+    def ground_truth_rows(words):
+        rows = []
+        for word in words:
+            for pos in range(len(word)):
+                expected = (
+                    "REUSE"
+                    if independent_ground_truth(word, pos)
+                    else "BRANCH"
+                )
+                rows.append((word, pos, expected))
+        return rows
+
+    train_positive = [
+        row for row in ground_truth_rows(TRAINING)
+        if row[2] == "REUSE"
+    ]
+    test_positive = [
+        row for row in ground_truth_rows(TEST)
+        if row[2] == "REUSE"
+    ]
+
+    print("training_reuse_positions :", len(train_positive))
+    print("heldout_reuse_positions  :", len(test_positive))
+
+    def probe_rows(label, rows):
+        print()
+        print(f"--- {label} ---")
+
+        for word, pos, expected in rows[:12]:
+            # Reset transient substrate state before each independent probe.
+            for cell in net.cells:
+                cell.reset()
+
+            activity = net.activate_substrate(word, pos, learn=False)
+
+            # V25's activate_substrate returns the substrate activity used by
+            # designer_from_dense_activity(). Keep the exact returned value.
+            if isinstance(activity, tuple):
+                summary = repr(activity)
+            else:
+                summary = f"{activity!r}"
+
+            print(
+                f"{word:6s} pos={pos} symbol={word[pos]} "
+                f"expected={expected} activity={summary}"
+            )
+
+    probe_rows("TRAINING REUSE", train_positive)
+    probe_rows("HELD-OUT REUSE", test_positive)
+
+    print()
+    print("=== END V26C REUSE EVIDENCE TRACE ===")
 
     net.evaluate_frozen(TEST)
 
