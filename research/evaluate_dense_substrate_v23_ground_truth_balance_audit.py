@@ -544,7 +544,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V22 - TRAIN-CALIBRATED THRESHOLD ===")
+    print("=== DENSE SUBSTRATE V23 - GROUND-TRUTH BALANCE AUDIT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -592,6 +592,73 @@ def run():
     print("strong_after_prune  :", strong_after_prune)
 
     net.evaluate_frozen(TEST)
+    print()
+    print("=== V23 GROUND-TRUTH BALANCE AUDIT ===")
+
+    def audit_split(name, words):
+        reuse_rows = []
+        branch_rows = []
+
+        for word in words:
+            for pos in range(len(word)):
+                expected = "REUSE" if net.available(word, pos) else "BRANCH"
+                row = (word, pos, word[pos], expected)
+
+                if expected == "REUSE":
+                    reuse_rows.append(row)
+                else:
+                    branch_rows.append(row)
+
+        print()
+        print(f"--- {name} ---")
+        print("words          :", len(words))
+        print("positions      :", len(reuse_rows) + len(branch_rows))
+        print("reuse_positions:", len(reuse_rows))
+        print("branch_positions:", len(branch_rows))
+
+        print("reuse_examples:")
+        if reuse_rows:
+            for word, pos, symbol, _ in reuse_rows:
+                print(f"  {word} pos={pos} symbol={symbol}")
+        else:
+            print("  NONE")
+
+        print("branch_examples:")
+        if branch_rows:
+            for word, pos, symbol, _ in branch_rows[:20]:
+                print(f"  {word} pos={pos} symbol={symbol}")
+            if len(branch_rows) > 20:
+                print(f"  ... {len(branch_rows) - 20} more")
+        else:
+            print("  NONE")
+
+        return reuse_rows, branch_rows
+
+    train_reuse, train_branch = audit_split("TRAINING", TRAINING)
+    test_reuse, test_branch = audit_split("TEST", TEST)
+
+    print()
+    print("=== BALANCE SUMMARY ===")
+    print(
+        "TRAIN reuse/branch :",
+        len(train_reuse),
+        "/",
+        len(train_branch),
+    )
+    print(
+        "TEST  reuse/branch :",
+        len(test_reuse),
+        "/",
+        len(test_branch),
+    )
+
+    if not test_reuse:
+        print("WARNING: TEST CONTAINS ZERO REUSE POSITIONS")
+    if not train_reuse:
+        print("WARNING: TRAINING CONTAINS ZERO REUSE POSITIONS")
+
+    print("=== END V23 GROUND-TRUTH BALANCE AUDIT ===")
+
     print()
     print("=== V22 TRAIN-CALIBRATED ACTIVITY THRESHOLD ===")
 
