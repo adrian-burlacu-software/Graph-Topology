@@ -280,132 +280,126 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V39: frozen trajectory continuation diagnostic.
+        # V40: learned assembly coherence / closure.
         #
-        # This is deliberately diagnostic-first. We no longer classify from
-        # snapshot recurrence. Starting from the current substrate state, we
-        # repeatedly follow strong learned edges and compare the predicted
-        # trajectory with the actual frozen substrate trajectory.
+        # V39 showed that the learned topology is not a forward transition
+        # model. Stop treating it as one.
         #
-        # No ground truth is consulted. No test state is added to memory.
+        # Instead, ask whether the CURRENT active population forms a coherent
+        # learned structure:
         #
-        # The diagnostic reports:
-        #   step_1_overlap, step_2_overlap, ...
-        #   trajectory_overlap
-        #   trajectory_divergence
+        #   active cells
+        #       |
+        #       +--> strong learned edges staying inside assembly
+        #       |
+        #       +--> strong learned edges leaving assembly
         #
-        # The existing designer competition is left in place only so the
-        # benchmark remains runnable; the trajectory evidence is the new
-        # object of study.
+        # Diagnostics:
+        #   internal_edge_fraction
+        #   internal_weight_fraction
+        #   assembly_coherence
+        #   outgoing_entropy
+        #
+        # No prototypes, no temporal prediction, no ground truth.
 
-        def strong_out(cells):
-            return {
-                dst
-                for (src, dst), weight in self.weights.items()
-                if src in cells and weight >= 0.50
-            }
+        outgoing = []
 
-        def actual_trajectory(word0, pos0, horizon):
-            states = []
-            current = set(
-                self.activate_substrate(
-                    word0,
-                    pos0,
-                    learn=False,
-                )
-            )
+        for (src, dst), weight in self.weights.items():
+            if src in fired_set and weight >= 0.50:
+                outgoing.append((src, dst, weight))
 
-            for step in range(horizon + 1):
-                states.append(set(current))
+        internal = [
+            (src, dst, weight)
+            for src, dst, weight in outgoing
+            if dst in fired_set
+        ]
 
-                if pos0 + step + 1 >= len(word0):
-                    break
+        external = [
+            (src, dst, weight)
+            for src, dst, weight in outgoing
+            if dst not in fired_set
+        ]
 
-                current = set(
-                    self.activate_substrate(
-                        word0,
-                        pos0 + step + 1,
-                        learn=False,
-                    )
-                )
+        edge_count = len(outgoing)
+        internal_edge_count = len(internal)
 
-            return states
+        total_weight = sum(weight for _, _, weight in outgoing)
+        internal_weight = sum(weight for _, _, weight in internal)
 
-        def predicted_trajectory(initial, horizon):
-            states = []
-            current = set(initial)
-
-            for _ in range(horizon + 1):
-                states.append(set(current))
-
-                if not current:
-                    break
-
-                current = strong_out(current)
-
-            return states
-
-        max_horizon = 3
-        actual = actual_trajectory(word, pos, max_horizon)
-        predicted = predicted_trajectory(fired_set, max_horizon)
-
-        step_overlaps = []
-
-        for step in range(1, max_horizon + 1):
-            if step >= len(actual) or step >= len(predicted):
-                step_overlaps.append(0.0)
-                continue
-
-            expected_state = actual[step]
-            predicted_state = predicted[step]
-
-            union = expected_state | predicted_state
-            intersection = expected_state & predicted_state
-
-            overlap = (
-                len(intersection) / len(union)
-                if union else 0.0
-            )
-
-            step_overlaps.append(overlap)
-
-        available_steps = len(step_overlaps)
-
-        trajectory_overlap = (
-            sum(step_overlaps) / available_steps
-            if available_steps
-            else 0.0
+        internal_edge_fraction = (
+            internal_edge_count / edge_count
+            if edge_count else 0.0
         )
 
-        trajectory_divergence = 1.0 - trajectory_overlap
+        internal_weight_fraction = (
+            internal_weight / total_weight
+            if total_weight else 0.0
+        )
+
+        # Coherence is deliberately conservative: both topology count and
+        # topology weight must agree.
+        assembly_coherence = (
+            0.5 * internal_edge_fraction
+            + 0.5 * internal_weight_fraction
+        )
+
+        # Measure how concentrated learned outgoing weight is across
+        # destinations. High entropy means diffuse/external connectivity;
+        # low entropy means concentrated connectivity.
+        destination_mass = {}
+
+        for _, dst, weight in outgoing:
+            destination_mass[dst] = (
+                destination_mass.get(dst, 0.0)
+                + weight
+            )
+
+        outgoing_entropy = 0.0
+
+        if destination_mass and total_weight > 0.0:
+            import math
+
+            for mass in destination_mass.values():
+                p = mass / total_weight
+                if p > 0.0:
+                    outgoing_entropy -= p * math.log(p)
+
+        # Normalize entropy by the number of destinations when possible.
+        if len(destination_mass) > 1:
+            import math
+
+            max_entropy = math.log(len(destination_mass))
+            normalized_entropy = (
+                outgoing_entropy / max_entropy
+                if max_entropy > 0.0
+                else 0.0
+            )
+        else:
+            normalized_entropy = 0.0
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
-            "learned_mass": sum(
-                weight
-                for (src, dst), weight in self.weights.items()
-                if src in fired_set and weight >= 0.50
+            "learned_mass": total_weight,
+            "strong_outgoing": edge_count,
+            "internal_edge_count": internal_edge_count,
+            "external_edge_count": len(external),
+            "internal_weight": internal_weight,
+            "external_weight": (
+                total_weight - internal_weight
             ),
-            "strong_outgoing": len(strong_out(fired_set)),
-            "trajectory_horizon": max_horizon,
-            "step_overlaps": step_overlaps,
-            "trajectory_overlap": trajectory_overlap,
-            "trajectory_divergence": trajectory_divergence,
-            "predicted_sizes": [
-                len(state)
-                for state in predicted
-            ],
-            "actual_sizes": [
-                len(state)
-                for state in actual
-            ],
+            "internal_edge_fraction": internal_edge_fraction,
+            "internal_weight_fraction": internal_weight_fraction,
+            "assembly_coherence": assembly_coherence,
+            "outgoing_entropy": outgoing_entropy,
+            "normalized_outgoing_entropy": normalized_entropy,
+            "destination_count": len(destination_mass),
         }
 
-        # Keep the old designer path operational, but make its evidence
-        # neutral. V39's primary result is the trajectory diagnostic.
+        # V40 is diagnostic-first. Do not turn coherence into a classifier
+        # until the metric is shown to separate the independent classes.
         recurrent = False
         predictive_evidence = 0.0
 
@@ -415,8 +409,8 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        # V39 is diagnostic-only: do not turn trajectory overlap into a
-        # classifier until the diagnostic itself demonstrates separation.
+        # V40 diagnostic-only: leave the designer neutral while measuring
+        # assembly coherence.
         branch.potential += dg["branch_bias"]
 
         if root.potential >= dg["threshold"]:
@@ -577,7 +571,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V39 - TRAJECTORY CONTINUATION DIAGNOSTIC ===")
+    print("=== DENSE SUBSTRATE V40 - LEARNED ASSEMBLY COHERENCE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -771,7 +765,7 @@ def run():
 
 
     print()
-    print("=== V39 TRAJECTORY CONTINUATION AUDIT ===")
+    print("=== V40 LEARNED ASSEMBLY COHERENCE AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -779,17 +773,15 @@ def run():
             for pos in range(len(word)):
                 net.designer_from_dense_activity(word, pos)
                 trace = net.last_dense_trace
-                overlaps = ", ".join(
-                    f"{value:.3f}"
-                    for value in trace["step_overlaps"]
-                )
                 print(
                     f"{word:6s} pos={pos} "
-                    f"steps=[{overlaps}] "
-                    f"trajectory={trace['trajectory_overlap']:.3f} "
-                    f"divergence={trace['trajectory_divergence']:.3f} "
-                    f"pred_sizes={trace['predicted_sizes']} "
-                    f"actual_sizes={trace['actual_sizes']}"
+                    f"cells={len(trace['fired']):2d} "
+                    f"edges={trace['strong_outgoing']:2d} "
+                    f"internal_edges={trace['internal_edge_count']:2d} "
+                    f"edge_frac={trace['internal_edge_fraction']:.3f} "
+                    f"weight_frac={trace['internal_weight_fraction']:.3f} "
+                    f"coherence={trace['assembly_coherence']:.3f} "
+                    f"entropy={trace['normalized_outgoing_entropy']:.3f}"
                 )
                 count += 1
                 if count >= limit:
@@ -799,7 +791,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V39 TRAJECTORY CONTINUATION AUDIT ===")
+    print("=== END V40 LEARNED ASSEMBLY COHERENCE AUDIT ===")
     print()
 
 
@@ -807,6 +799,12 @@ def run():
     print("=== V39 TRAJECTORY DIAGNOSTIC SUMMARY ===")
     print("Trajectory overlap is diagnostic only; it does not drive REUSE.")
     print("=== END V39 TRAJECTORY DIAGNOSTIC SUMMARY ===")
+    print()
+
+    print()
+    print("=== V40 COHERENCE DIAGNOSTIC ===")
+    print("Assembly coherence is diagnostic only; it does not drive REUSE.")
+    print("=== END V40 COHERENCE DIAGNOSTIC ===")
     print()
     net.evaluate_frozen(TEST)
 
