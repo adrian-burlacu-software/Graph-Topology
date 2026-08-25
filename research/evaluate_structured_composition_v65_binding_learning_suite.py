@@ -787,30 +787,365 @@ def run_invariant_checks(
     print()
 
 
+
 # ---------------------------------------------------------------------------
-# Main
+# V65 AUTONOMOUS COMPOSITION LEARNING
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    print("=== V64 FACTORIZED BINDING LIFECYCLE SUITE ===")
+class AutonomousFactorizedLearner(FactorizedSubstrateV64):
+    """
+    Large end-to-end experiment.
+
+    Training:
+      * learn primitive factors;
+      * learn exact bindings for observed training positions;
+      * learn factor-to-factor transition statistics.
+
+    Novel-combination phase:
+      * receive a novel composition built from already-known primitive factors;
+      * inspect only factor IDs and learned transition evidence;
+      * decide whether there is enough structural evidence to create a binding;
+      * create the binding internally when confidence is sufficient.
+
+    No explicit compose() call is made by the experiment driver.
+    """
+
+    def factor_familiarity(self, factor_ids: tuple[int, int, int]) -> float:
+        known = sum(value >= 0 for value in factor_ids)
+        return known / 3.0
+
+    def transition_support_for_factors(
+        self,
+        factor_ids: tuple[int, int, int],
+    ) -> float:
+        known = [value for value in factor_ids if value >= 0]
+
+        if not known:
+            return 0.0
+
+        total = 0.0
+        count = 0
+
+        for src in known:
+            for dst in known:
+                total += self.transitions.get((src, dst), 0.0)
+                count += 1
+
+        return total / max(1, count)
+
+    def autonomous_compose(
+        self,
+        factor_ids: tuple[int, int, int],
+        threshold: float = 0.05,
+    ) -> tuple[str, FactorizedBinding | None, dict[str, float]]:
+        """
+        Autonomous branch/compose decision.
+
+        This is deliberately simple and interpretable.
+
+        The learner can bind a novel exact combination iff:
+          * all three primitive factors already exist; and
+          * learned factor-transition evidence exceeds threshold.
+
+        The mechanism never receives the raw composition.
+        """
+        familiarity = self.factor_familiarity(factor_ids)
+        transition_support = self.transition_support_for_factors(
+            factor_ids
+        )
+
+        score = familiarity * min(1.0, transition_support / 5.0)
+
+        evidence = {
+            "factor_familiarity": familiarity,
+            "transition_support": transition_support,
+            "composition_score": score,
+        }
+
+        existing = self.lookup_binding(factor_ids)
+
+        if existing is not None:
+            existing.activations += 1
+            return "REUSE", existing, evidence
+
+        if (
+            familiarity == 1.0
+            and score >= threshold
+        ):
+            binding = self.learn_binding_from_factors(factor_ids)
+            return "COMPOSE", binding, evidence
+
+        return "BRANCH", None, evidence
+
+
+def v65_generate_novel_cases(
+    substrate: FactorizedSubstrateV64,
+    limit: int = 24,
+) -> list[tuple[str, tuple[str, str, str]]]:
+    known = training_compositions()
+
+    prefixes, symbols, suffixes = factor_pools_from_training()
+
+    candidates = []
+
+    for prefix in sorted(prefixes):
+        for symbol in sorted(symbols):
+            for suffix in sorted(suffixes):
+                if not prefix or not suffix:
+                    continue
+
+                triple = (prefix, symbol, suffix)
+
+                if triple in known:
+                    continue
+
+                word = prefix + symbol + suffix
+
+                if 3 <= len(word) <= 5:
+                    candidates.append((word, triple))
+
+    # Diverse deterministic selection.
+    candidates.sort(
+        key=lambda row: (
+            len(row[0]),
+            len(row[1][0]) + len(row[1][2]),
+            row[1],
+        )
+    )
+
+    selected = candidates[:limit]
+
+    assert selected
+
+    for word, triple in selected:
+        assert triple not in known
+        assert word == "".join(triple)
+
+        factors = substrate.factor_ids(
+            word,
+            len(triple[0]),
+            learn_factors=False,
+        )
+
+        assert all(value >= 0 for value in factors)
+
+    return selected
+
+
+def v65_run_autonomous_learning(
+    substrate: AutonomousFactorizedLearner,
+    gt: IndependentGroundTruth,
+) -> None:
+    print("=== V65 AUTONOMOUS COMPOSITION LEARNING ===")
+
+    novel_cases = v65_generate_novel_cases(substrate, limit=24)
+
+    initial_factor_count = substrate.primitive_factor_count
+    initial_binding_count = substrate.binding_count
+
+    branch_count = 0
+    composed_count = 0
+    reuse_count = 0
+
+    print()
+    print("--- NOVEL CASE AUTONOMOUS DECISIONS ---")
+
+    for word, triple in novel_cases:
+        pos = len(triple[0])
+
+        observation = substrate.inspect(word, pos)
+        decision, binding, evidence = substrate.autonomous_compose(
+            observation["factor_ids"]
+        )
+
+        if decision == "BRANCH":
+            branch_count += 1
+        elif decision == "COMPOSE":
+            composed_count += 1
+        elif decision == "REUSE":
+            reuse_count += 1
+
+        print(
+            f"{word:16s} "
+            f"decision={decision:7s} "
+            f"familiarity={evidence['factor_familiarity']:.3f} "
+            f"transition={evidence['transition_support']:.3f} "
+            f"score={evidence['composition_score']:.3f} "
+            f"binding="
+            f"{binding.binding_id if binding else None}"
+        )
+
+        # First presentation must be either a genuine branch or autonomous
+        # composition. It must never be labeled REUSE before binding exists.
+        if decision == "REUSE":
+            raise AssertionError(
+                f"V65 invalid: novel case reused before autonomous binding: {word}"
+            )
+
+        if decision == "COMPOSE":
+            second = substrate.inspect(word, pos)
+            assert second["known_binding"]
+
+            second_decision, second_binding, _ = (
+                substrate.autonomous_compose(
+                    second["factor_ids"]
+                )
+            )
+
+            assert second_decision == "REUSE"
+            assert second_binding is binding
+
+    final_factor_count = substrate.primitive_factor_count
+    final_binding_count = substrate.binding_count
+
+    print()
+    print("novel_cases             :", len(novel_cases))
+    print("initial_factors         :", initial_factor_count)
+    print("final_factors           :", final_factor_count)
+    print("initial_bindings        :", initial_binding_count)
+    print("final_bindings          :", final_binding_count)
+    print("first_pass_branch       :", branch_count)
+    print("autonomous_compositions :", composed_count)
+    print("post_bind_reuse         :", reuse_count)
+
+    # Composition must not create new primitive factors.
+    assert final_factor_count == initial_factor_count
+
+    # Each successful autonomous composition creates one exact binding.
+    assert (
+        final_binding_count - initial_binding_count
+        == composed_count
+    )
+
+    print()
+    print("--- POST-LEARNING REPLAY ---")
+
+    replay_reuse = 0
+
+    for word, triple in novel_cases:
+        pos = len(triple[0])
+        observation = substrate.inspect(word, pos)
+
+        decision, binding, _ = substrate.autonomous_compose(
+            observation["factor_ids"]
+        )
+
+        assert observation["known_binding"]
+        assert decision == "REUSE"
+        assert binding is not None
+
+        replay_reuse += 1
+
+    print("replay_reuse :", replay_reuse)
+    assert replay_reuse == len(novel_cases)
+
+    print("V65 AUTONOMOUS LEARNING: PASS")
+    print("=== END V65 AUTONOMOUS COMPOSITION LEARNING ===")
+    print()
+
+
+def v65_holdout_cycle(
+    substrate: AutonomousFactorizedLearner,
+    gt: IndependentGroundTruth,
+) -> None:
+    """
+    Holdout pass after autonomous composition learning.
+
+    Existing V28 behavior must remain perfect. This also verifies that
+    autonomous binding of novel factor combinations does not poison the
+    independent benchmark semantics.
+    """
+    designer = FactorizedDesignerV64()
+
+    correct = 0
+    total = 0
+    errors = []
+
+    for word in TEST:
+        for pos in range(len(word)):
+            observation = substrate.inspect(word, pos)
+
+            actual = designer.decide(observation)
+            expected = (
+                "REUSE"
+                if gt.available(word, pos)
+                else "BRANCH"
+            )
+
+            total += 1
+
+            if actual == expected:
+                correct += 1
+            else:
+                errors.append(
+                    (
+                        word,
+                        pos,
+                        expected,
+                        actual,
+                    )
+                )
+
+    print("=== V65 POST-LEARNING V28 HOLDOUT ===")
+    print("correct_positions :", correct)
+    print("total_positions   :", total)
+    print("accuracy          :", correct / max(1, total))
+    print("errors            :", len(errors))
+
+    for word, pos, expected, actual in errors[:20]:
+        print(
+            f"{word:6s} pos={pos:2d} "
+            f"expected={expected:6s} "
+            f"actual={actual:6s}"
+        )
+
+    assert correct == total
+
+    print("V65 HOLDOUT: PASS")
+    print("=== END V65 POST-LEARNING V28 HOLDOUT ===")
+    print()
+
+
+def v65_summary(
+    substrate: AutonomousFactorizedLearner,
+) -> None:
+    print("=== V65 FINAL SUMMARY ===")
+    print("prefix_factors :", len(substrate.prefix_ids))
+    print("symbol_factors :", len(substrate.symbol_ids))
+    print("suffix_factors :", len(substrate.suffix_ids))
+    print("primitive_factors :", substrate.primitive_factor_count)
+    print("bindings :", substrate.binding_count)
+    print("transitions :", len(substrate.transitions))
+
     print(
-        "One comprehensive run: exact reuse, novel branch, "
-        "factor-based composition, post-composition reuse, "
-        "idempotence, compression, and invariants."
+        "binding_to_training_position_ratio :",
+        substrate.binding_count
+        / max(1, sum(len(word) for word in TRAINING)),
+    )
+
+    print("=== END V65 FINAL SUMMARY ===")
+    print()
+
+
+def main() -> None:
+    print("=== V65 LARGE AUTONOMOUS COMPOSITION LEARNING ===")
+    print(
+        "Single end-to-end test of factor learning, novel composition, "
+        "autonomous binding, replay reuse, and V28 holdout integrity."
     )
     print()
 
     gt = validate_v28()
 
-    substrate = FactorizedSubstrateV64()
+    substrate = AutonomousFactorizedLearner()
     substrate.train(TRAINING)
 
-    print("=== V64 TRAINED SUBSTRATE ===")
+    print("=== V65 INITIAL TRAINED STATE ===")
     print("training_positions :", sum(len(word) for word in TRAINING))
     print("primitive_factors  :", substrate.primitive_factor_count)
-    print("exact_bindings     :", substrate.binding_count)
+    print("bindings           :", substrate.binding_count)
     print("transitions        :", len(substrate.transitions))
-    print("=== END V64 TRAINED SUBSTRATE ===")
+    print("=== END V65 INITIAL TRAINED STATE ===")
     print()
 
     run_v28_designer_benchmark(
@@ -818,19 +1153,19 @@ def main() -> None:
         gt,
     )
 
-    run_novel_binding_lifecycle(
+    v65_run_autonomous_learning(
         substrate,
+        gt,
     )
 
-    run_factor_reuse_report(
+    v65_holdout_cycle(
         substrate,
+        gt,
     )
 
-    run_invariant_checks(
-        substrate,
-    )
+    v65_summary(substrate)
 
-    print("=== V64 COMPLETE ===")
+    print("=== V65 COMPLETE ===")
 
 
 if __name__ == "__main__":
