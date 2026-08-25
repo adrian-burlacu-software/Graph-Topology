@@ -119,35 +119,117 @@ class DenseCell:
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
 
-    def v51_topology_signature(self, fired):
-        """Return a topology-only signature for the currently firing cells."""
+    def v52_topology_signature(self, fired):
+        """Read the actual learned (src, dst) weight graph."""
         fired_set = set(fired)
         signatures = []
 
-        weights = getattr(self, "weights", None)
-        if weights is None:
-            weights = getattr(self, "connections", None)
+        for source in sorted(fired_set):
+            outgoing = []
+            for (src_id, dst_id), weight in self.weights.items():
+                if src_id != source:
+                    continue
+                if weight >= 0.50:
+                    outgoing.append(
+                        (dst_id, round(float(weight), 12))
+                    )
 
-        if isinstance(weights, dict):
-            for source in sorted(fired_set, key=str):
-                outgoing = weights.get(source, {})
-                if isinstance(outgoing, dict):
-                    strong = []
-                    for target, weight in outgoing.items():
-                        try:
-                            w = float(weight)
-                        except (TypeError, ValueError):
-                            continue
-                        if w > 0:
-                            strong.append((target, round(w, 12)))
-                    strong.sort(
-                        key=lambda item: (-item[1], str(item[0]))
-                    )
-                    signatures.append(
-                        (source, tuple(str(target) for target, _ in strong))
-                    )
+            outgoing.sort(
+                key=lambda item: (-item[1], item[0])
+            )
+
+            signatures.append(
+                (source, tuple(dst for dst, _ in outgoing))
+            )
 
         return tuple(signatures)
+
+    def v52_topology_evidence(self, word, pos):
+        """Derive structural evidence directly from learned topology."""
+        fired = self.activate_substrate_frozen(word, pos)
+        fired_set = set(fired)
+
+        outgoing = []
+        for (src_id, dst_id), weight in self.weights.items():
+            if src_id in fired_set and weight >= 0.50:
+                outgoing.append((src_id, dst_id, float(weight)))
+
+        destination_sources = {}
+        destination_mass = {}
+
+        for src_id, dst_id, weight in outgoing:
+            destination_sources.setdefault(dst_id, set()).add(src_id)
+            destination_mass[dst_id] = (
+                destination_mass.get(dst_id, 0.0) + weight
+            )
+
+        total_mass = sum(weight for _, _, weight in outgoing)
+
+        source_count = len(fired_set)
+        supported_destinations = {
+            dst: len(sources)
+            for dst, sources in destination_sources.items()
+        }
+
+        support_mass = 0.0
+        if source_count:
+            for src_id, dst_id, weight in outgoing:
+                support_mass += (
+                    weight
+                    * len(destination_sources[dst_id])
+                    / source_count
+                )
+
+        support_fraction = (
+            support_mass / total_mass
+            if total_mass > 0.0
+            else 0.0
+        )
+
+        masses = sorted(
+            destination_mass.values(),
+            reverse=True,
+        )
+
+        strongest = masses[0] if masses else 0.0
+        second = masses[1] if len(masses) > 1 else 0.0
+
+        concentration = (
+            strongest / total_mass
+            if total_mass > 0.0
+            else 0.0
+        )
+
+        margin = (
+            (strongest - second) / total_mass
+            if total_mass > 0.0
+            else 0.0
+        )
+
+        # Structural signal only. No learned assembly dictionary.
+        topology_evidence = (
+            0.4 * concentration
+            + 0.4 * support_fraction
+            + 0.2 * margin
+        )
+
+        return {
+            "word": word,
+            "pos": pos,
+            "fired": tuple(sorted(fired)),
+            "topology_signature": self.v52_topology_signature(fired),
+            "strong_outgoing": len(outgoing),
+            "destination_count": len(destination_mass),
+            "learned_mass": total_mass,
+            "support_fraction": support_fraction,
+            "concentration": concentration,
+            "competition_margin": margin,
+            "topology_evidence": topology_evidence,
+            "supported_destinations": sorted(
+                supported_destinations.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:12],
+        }
 
     def v51_topology_evidence(self, word, pos):
         """Compute recurrence evidence solely from learned topology."""
@@ -995,60 +1077,65 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 
-def v51_run_topology_native_experiment(net, training, test):
+def v52_run_topology_native_experiment(net, training, test):
     print()
-    print("=== V51 TOPOLOGY-NATIVE RECURRENCE ===")
+    print("=== V52 ACTUAL LEARNED TOPOLOGY AUDIT ===")
     print(
-        "No assembly list, vocabulary memory, labels, ground truth, "
-        "or BoundaryGraph is supplied."
+        "Topology is read directly from self.weights[(src, dst)]. "
+        "No assembly memory is created."
     )
-    print("Evidence comes only from learned outgoing topology.")
     print()
 
-    print("--- TRAINING TOPOLOGY SIGNATURES ---")
+    print("--- TRAINING ---")
     train_signatures = {}
 
     for word in training:
         for pos in range(len(word)):
-            evidence = net.v51_topology_evidence(word, pos)
-            signature = evidence["topology_signature"]
-            train_signatures[signature] = (
-                train_signatures.get(signature, 0) + 1
-            )
+            e = net.v52_topology_evidence(word, pos)
+            sig = e["topology_signature"]
+            train_signatures[sig] = train_signatures.get(sig, 0) + 1
 
             print(
                 f"{word:6s} pos={pos} "
-                f"fired={list(evidence['fired'])} "
-                f"active_sources={evidence['active_sources']} "
-                f"strong_edges={evidence['strong_edges']}"
+                f"fired={list(e['fired'])} "
+                f"strong_out={e['strong_outgoing']:3d} "
+                f"dest={e['destination_count']:2d} "
+                f"mass={e['learned_mass']:.3f} "
+                f"support={e['support_fraction']:.3f} "
+                f"conc={e['concentration']:.3f} "
+                f"margin={e['competition_margin']:.3f}"
             )
 
     print()
     print(
-        "unique_topology_signatures :",
+        "unique_actual_topology_signatures :",
         len(train_signatures),
     )
     print(
-        "training_positions         :",
+        "training_positions                :",
         sum(train_signatures.values()),
     )
 
     print()
-    print("--- TEST TOPOLOGY EVIDENCE ---")
+    print("--- HELD-OUT ---")
 
     for word in test:
         for pos in range(len(word)):
-            evidence = net.v51_topology_evidence(word, pos)
+            e = net.v52_topology_evidence(word, pos)
 
             print(
                 f"{word:6s} pos={pos} "
-                f"fired={list(evidence['fired'])} "
-                f"active_sources={evidence['active_sources']} "
-                f"strong_edges={evidence['strong_edges']}"
+                f"fired={list(e['fired'])} "
+                f"strong_out={e['strong_outgoing']:3d} "
+                f"dest={e['destination_count']:2d} "
+                f"mass={e['learned_mass']:.3f} "
+                f"support={e['support_fraction']:.3f} "
+                f"conc={e['concentration']:.3f} "
+                f"margin={e['competition_margin']:.3f}"
             )
 
     print()
-    print("--- TOPOLOGY SIGNATURE REPEATABILITY ---")
+    print("--- SAME-INPUT TOPOLOGY DETERMINISM ---")
 
     for word, pos in (
         ("CAT", 1),
@@ -1056,22 +1143,25 @@ def v51_run_topology_native_experiment(net, training, test):
         ("BOAT", 0),
         ("BOARD", 3),
     ):
-        first = net.v51_topology_evidence(word, pos)
-        second = net.v51_topology_evidence(word, pos)
+        a = net.v52_topology_evidence(word, pos)
+        b = net.v52_topology_evidence(word, pos)
 
         print(
             f"{word:6s} pos={pos} "
-            f"same_fired={first['fired'] == second['fired']} "
+            f"same_fired={a['fired'] == b['fired']} "
             f"same_topology="
-            f"{first['topology_signature'] == second['topology_signature']}"
+            f"{a['topology_signature'] == b['topology_signature']} "
+            f"same_evidence="
+            f"{a['topology_evidence'] == b['topology_evidence']}"
         )
 
     print()
-    print("=== END V51 TOPOLOGY-NATIVE RECURRENCE ===")
+    print("=== END V52 ACTUAL LEARNED TOPOLOGY AUDIT ===")
     print()
 
+
 def run():
-    print("=== DENSE SUBSTRATE V51 - TOPOLOGY-NATIVE RECURRENCE ===")
+    print("=== DENSE SUBSTRATE V52 - ACTUAL LEARNED TOPOLOGY AUDIT ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1243,7 +1333,7 @@ def run():
                     return rows
         return rows
 
-    v51_run_topology_native_experiment(net, TRAINING, TEST)
+    v52_run_topology_native_experiment(net, TRAINING, TEST)
 
     probe_exact_path(
         "TRAINING MIXED",
