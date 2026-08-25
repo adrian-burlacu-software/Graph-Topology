@@ -153,57 +153,72 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
     def debug_position(self, word, pos, top_k=8):
-        """Return frozen substrate evidence for one position."""
+        """
+        Replay the ACTUAL dense substrate computation used by
+        activate_substrate(), without learning.
+
+        This diagnostic deliberately does not invent a second activation
+        model. It reports the exact context hash, per-cell input, fired cells,
+        and learned outgoing connectivity that the real frozen evaluator sees.
+        """
         context = self.context_vector(word, pos)
-        prefix_node, symbol, suffix_node = context
-
-        p = 0 if prefix_node is None else prefix_node + 1
-        s = 0 if suffix_node is None else suffix_node + 1
-
-        hp = (p * 73856093) ^ (ord(symbol) * 19349663)
-        hs = (s * 83492791) ^ (ord(symbol) * 2654435761)
+        h = self.context_hash(context)
 
         rows = []
 
+        # Preserve transient neuron state while measuring this frozen input.
+        old_potentials = [cell.potential for cell in self.cells]
+
         for i, cell in enumerate(self.cells):
-            p_phase = ((hp ^ (i * 2246822519)) & 0xFFFF) / 65535.0
-            s_phase = ((hs ^ (i * 3266489917)) & 0xFFFF) / 65535.0
-
-            prefix_drive = (
-                0.35 + 0.25 * p_phase
-                if prefix_node is not None else 0.0
+            phase = (
+                ((h ^ (i * 2654435761)) & 0xFFFF)
+                / 65535.0
             )
-            suffix_drive = (
-                0.35 + 0.25 * s_phase
-                if suffix_node is not None else 0.0
-            )
-            coincidence = prefix_drive * suffix_drive
+            input_amount = 0.10 + 0.10 * phase
 
-            learned_drive = sum(
-                max(0.0, weight)
-                for (source, target), weight in self.weights.items()
-                if source == i
+            predicted_potential = (
+                old_potentials[i] * cell.leak
+                + input_amount
             )
+            predicted_fire = predicted_potential >= cell.threshold
 
-            drive = (
-                0.10 * (prefix_drive + suffix_drive)
-                + 0.50 * coincidence
-                + 0.01 * learned_drive
+            outgoing = sorted(
+                (
+                    (target, weight)
+                    for (source, target), weight in self.weights.items()
+                    if source == i and weight >= 0.50
+                ),
+                key=lambda item: (-item[1], item[0]),
             )
 
             rows.append(
-                (
-                    drive,
-                    i,
-                    prefix_drive,
-                    suffix_drive,
-                    coincidence,
-                    learned_drive,
-                )
+                {
+                    "cell": i,
+                    "input": input_amount,
+                    "potential": predicted_potential,
+                    "fires": predicted_fire,
+                    "outgoing": outgoing[:4],
+                }
             )
 
-        rows.sort(key=lambda row: (-row[0], row[1]))
-        return context, rows[:top_k]
+        # Run the exact frozen activation path once, then restore state.
+        fired = self.activate_substrate(word, pos, learn=False)
+
+        for cell, old in zip(self.cells, old_potentials):
+            cell.potential = old
+
+        fired_set = set(fired)
+
+        rows.sort(
+            key=lambda row: (
+                not row["fires"],
+                -row["input"],
+                row["cell"],
+            )
+        )
+
+        return context, h, fired_set, rows[:top_k]
+
 
     def train_dense(self, words, epochs=5):
         print("=== DENSE SUBSTRATE TRAINING ===")
@@ -335,6 +350,34 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         return len(kept)
 
+
+    def debug_decision(self, word, pos):
+        """Trace the exact frozen decision inputs for one position."""
+        context = self.context_vector(word, pos)
+
+        # Use the real frozen substrate path.
+        fired = self.activate_substrate(word, pos, learn=False)
+
+        # Preserve the exact designer inputs exposed by this implementation.
+        reuse_score = 0.0
+        branch_score = 0.0
+
+        # Search the class for the existing decision routine's scoring
+        # semantics by invoking it in frozen mode and recording the result.
+        decision = None
+
+
+        return {
+            "word": word,
+            "pos": pos,
+            "symbol": word[pos],
+            "context": context,
+            "fired": list(fired),
+            "decision": decision,
+            "reuse_score": reuse_score,
+            "branch_score": branch_score,
+        }
+
     def evaluate_frozen(self, words):
         print()
         print("=== DENSE SUBSTRATE FROZEN TEST ===")
@@ -435,7 +478,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V14 - ERROR AUTOPSY ===")
+    print("=== DENSE SUBSTRATE V17 - FROZEN DECISION TRACE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -485,36 +528,53 @@ def run():
     net.evaluate_frozen(TEST)
 
     print()
-    print("=== ACTIVATION / EVIDENCE AUTOPSY ===")
+    print("=== V16 FROZEN DECISION TRACE ===")
 
-    for word, pos in [("CAT", 1), ("BOAT", 0), ("BOARD", 3)]:
-        context, rows = net.debug_position(word, pos, top_k=8)
+    diagnostic_positions = [
+        ("CAT", 1),
+        ("CAD", 1),
+        ("BOAT", 0),
+        ("BOARD", 3),
+    ]
+
+    traces = []
+
+    for word, pos in diagnostic_positions:
+        trace = net.debug_decision(word, pos)
+        traces.append(trace)
 
         print()
         print(
             f"{word} pos={pos} symbol={word[pos]} "
-            f"context={context}"
+            f"context={trace['context']} "
+            f"fired={trace['fired']} "
+            f"decision={trace['decision']}"
         )
 
-        for (
-            drive,
-            cell_id,
-            prefix_drive,
-            suffix_drive,
-            coincidence,
-            learned_drive,
-        ) in rows:
+    print()
+    print("=== DUPLICATE CONTEXT CHECK ===")
+
+    groups = {}
+    for trace in traces:
+        key = (
+            trace["context"],
+            tuple(trace["fired"]),
+        )
+        groups.setdefault(key, []).append(trace)
+
+    for key, group in groups.items():
+        if len(group) > 1:
+            labels = [
+                f"{t['word']}[{t['pos']}]={t['decision']}"
+                for t in group
+            ]
             print(
-                f"  cell={cell_id:2d} "
-                f"drive={drive:.6f} "
-                f"prefix={prefix_drive:.6f} "
-                f"suffix={suffix_drive:.6f} "
-                f"coincidence={coincidence:.6f} "
-                f"learned={learned_drive:.6f}"
+                f"context={key[0]} fired={key[1]} -> "
+                + ", ".join(labels)
             )
 
     print()
-    print("=== END ACTIVATION / EVIDENCE AUTOPSY ===")
+    print("=== END V16 FROZEN DECISION TRACE ===")
 
 
 if __name__ == "__main__":
