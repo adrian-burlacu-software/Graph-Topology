@@ -403,17 +403,230 @@ def print_score_distribution(
 # Main
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# V77 — HELD-OUT RECURRENCE VALIDATION
+# ---------------------------------------------------------------------------
+
+def collect_test_recurrence(
+    network: Width1CompositionNetwork,
+    test: list[str],
+) -> list[tuple[tuple[int, int, int], float, int, str, int]]:
+    """
+    For every unique, training-novel, known-factor local triple in TEST:
+
+        score  = learned minimum pair support
+        count  = number of TEST positions where the same local triple occurs
+
+    This is independent of the V76 threshold. We only ask whether higher
+    learned support corresponds to actual recurrence in held-out data.
+    """
+    rows = {}
+    total_positions = {}
+
+    for word in test:
+        for pos in range(len(word)):
+            factors = network.factorize(
+                word,
+                pos,
+                learn=False,
+            )
+
+            if min(factors) < 0:
+                continue
+
+            if network.exact_binding(factors) is not None:
+                continue
+
+            key = factors
+
+            if key not in rows:
+                rows[key] = {
+                    "score": network.pair_evidence(
+                        factors
+                    )["minimum"],
+                    "words": set(),
+                    "positions": 0,
+                }
+
+            rows[key]["words"].add(word)
+            rows[key]["positions"] += 1
+
+    result = []
+
+    for factors, data in rows.items():
+        result.append(
+            (
+                factors,
+                float(data["score"]),
+                int(data["positions"]),
+                min(data["words"]),
+                len(data["words"]),
+            )
+        )
+
+    result.sort(
+        key=lambda row: (
+            row[1],
+            row[2],
+            row[3],
+        )
+    )
+
+    return result
+
+
+def summarize_recurrence(
+    rows,
+) -> None:
+    print("=== V77 HELD-OUT RECURRENCE ===")
+
+    if not rows:
+        print("No novel known-factor test triples found.")
+        print()
+        return
+
+    total = len(rows)
+    recurrent = [
+        row for row in rows
+        if row[2] >= 2
+    ]
+    singleton = [
+        row for row in rows
+        if row[2] == 1
+    ]
+
+    print("unique_novel_triples :", total)
+    print("recurrent_triples    :", len(recurrent))
+    print("singleton_triples    :", len(singleton))
+    print(
+        "recurrent_rate       :",
+        len(recurrent) / max(1, total),
+    )
+
+    # Simple score bins. No threshold is selected here.
+    bins = {
+        "score=0": [],
+        "0<score<1": [],
+        "score>=1": [],
+    }
+
+    for row in rows:
+        score = row[1]
+
+        if score <= 0.0:
+            bins["score=0"].append(row)
+        elif score < 1.0:
+            bins["0<score<1"].append(row)
+        else:
+            bins["score>=1"].append(row)
+
+    print()
+    print(
+        "score_bin       triples recurrent recurrence_rate"
+    )
+
+    for name in (
+        "score=0",
+        "0<score<1",
+        "score>=1",
+    ):
+        group = bins[name]
+        recurrent_count = sum(
+            row[2] >= 2
+            for row in group
+        )
+
+        print(
+            f"{name:14s} "
+            f"{len(group):7d} "
+            f"{recurrent_count:10d} "
+            f"{recurrent_count / max(1, len(group)):.4f}"
+        )
+
+    # Mean recurrence by score bin, useful without inventing a classifier.
+    print()
+    print(
+        "score_bin       mean_occurrences"
+    )
+
+    for name in (
+        "score=0",
+        "0<score<1",
+        "score>=1",
+    ):
+        group = bins[name]
+        mean_occurrence = (
+            sum(row[2] for row in group)
+            / max(1, len(group))
+        )
+
+        print(
+            f"{name:14s} "
+            f"{mean_occurrence:.4f}"
+        )
+
+    # Show a few strongest recurring motifs and strongest singleton motifs.
+    strongest_recurrent = sorted(
+        recurrent,
+        key=lambda row: (
+            -row[1],
+            -row[2],
+            row[3],
+        ),
+    )[:10]
+
+    strongest_singletons = sorted(
+        singleton,
+        key=lambda row: (
+            -row[1],
+            row[3],
+        ),
+    )[:10]
+
+    print()
+    print("--- HIGH-SCORE RECURRING ---")
+    for factors, score, count, example, word_count in strongest_recurrent:
+        print(
+            f"score={score:5.1f} "
+            f"occurrences={count:3d} "
+            f"words={word_count:3d} "
+            f"example={example:12s} "
+            f"factors={factors}"
+        )
+
+    print()
+    print("--- HIGH-SCORE SINGLETON ---")
+    for factors, score, count, example, word_count in strongest_singletons:
+        print(
+            f"score={score:5.1f} "
+            f"occurrences={count:3d} "
+            f"words={word_count:3d} "
+            f"example={example:12s} "
+            f"factors={factors}"
+        )
+
+    print("=== END V77 HELD-OUT RECURRENCE ===")
+    print()
+
+
 def main() -> None:
     total_start = time.perf_counter()
 
-    print("=== V76 WIDTH-1 BLIND COMPOSITION POLICY ===")
-    print("threshold source: VALIDATION ONLY")
-    print("test set: untouched until policy application")
-    print("corpus:", CORPUS_PATH)
+    print("=== V77 WIDTH-1 HELD-OUT RECURRENCE TEST ===")
+    print(
+        "Single question: does learned pair support correlate with "
+        "repetition of novel local triples in unseen words?"
+    )
     print()
 
-    words = load_dictionary(CORPUS_PATH)
-    train, validation, test = split_words(words)
+    words = load_dictionary(
+        CORPUS_PATH
+    )
+
+    train, validation, test = split_words(
+        words
+    )
 
     print("corpus_words :", len(words))
     print("train_words  :", len(train))
@@ -423,109 +636,65 @@ def main() -> None:
 
     network = Width1CompositionNetwork()
 
-    t = time.perf_counter()
-
-    network.train(train, epochs=1)
-    print(
-        f"[{time.perf_counter() - t:.2f}s] "
-        "real Network training complete"
+    network.train(
+        train,
+        epochs=1,
     )
 
-    network.train_local(train)
-    print(
-        f"[{time.perf_counter() - t:.2f}s] "
-        "width-1 factor/binding training complete"
+    network.train_local(
+        train
     )
 
+    print(
+        "trained_factor_cells :",
+        network.graph_counts()["factor_cells"],
+    )
+    print(
+        "trained_binding_cells:",
+        network.graph_counts()["binding_cells"],
+    )
+    print()
+
+    # Validation is used only to establish the same operating statistic used
+    # in V76. V77 does not choose a new threshold.
     validation_rows = build_novel_rows(
         network,
         validation,
     )
 
-    test_rows = build_novel_rows(
+    threshold, calibration = (
+        network.calibrate_from_validation(
+            validation_rows
+        )
+    )
+
+    print("validation_threshold :", threshold)
+    print(
+        "validation_candidates :",
+        calibration["validation_candidates"],
+    )
+    print()
+
+    test_rows = collect_test_recurrence(
         network,
         test,
     )
 
-    threshold, calibration = network.calibrate_from_validation(
-        validation_rows
-    )
-
-    print("=== V76 VALIDATION CALIBRATION ===")
-    for key, value in calibration.items():
-        print(f"{key:30s}: {value}")
-    print()
-
-    print_score_distribution(
-        validation_rows,
-        threshold,
-        "VALIDATION",
-    )
-
-    print_score_distribution(
-        test_rows,
-        threshold,
-        "TEST",
-    )
-
-    # Count the untouched test distribution before committing anything.
-    test_compose = sum(
-        evidence["minimum"] >= threshold
-        for _word, _pos, _factors, evidence in test_rows
-    )
-    test_branch = len(test_rows) - test_compose
-
-    print("=== V76 BLIND TEST POLICY ===")
-    print("test_novel_cases :", len(test_rows))
-    print("test_compose     :", test_compose)
-    print("test_branch      :", test_branch)
     print(
-        "test_compose_rate:",
-        test_compose / max(1, len(test_rows)),
-    )
-    print(
-        "test_branch_rate :",
-        test_branch / max(1, len(test_rows)),
+        "test_novel_known_factor_triples :",
+        len(test_rows),
     )
     print()
 
-    # Apply the frozen validation-derived threshold to TEST exactly once.
-    before_bindings = len(network.binding_by_key)
-
-    committed_compose = 0
-    committed_branch = 0
-
-    for _word, _pos, factors, evidence in test_rows[:MAX_NOVEL_PROBES]:
-        assert network.baseline(factors) == BRANCH
-
-        if evidence["minimum"] >= threshold:
-            network.bind(factors)
-            committed_compose += 1
-        else:
-            committed_branch += 1
-
-    after_bindings = len(network.binding_by_key)
-
-    assert after_bindings - before_bindings == committed_compose
-
-    print("=== V76 COMMIT SAMPLE ===")
-    print("probe_limit       :", min(MAX_NOVEL_PROBES, len(test_rows)))
-    print("committed_compose  :", committed_compose)
-    print("committed_branch   :", committed_branch)
-    print("new_bindings       :", after_bindings - before_bindings)
-    print()
-
-    print("=== V76 FINAL GRAPH ===")
-    for key, value in network.graph_counts().items():
-        print(f"{key:24s}: {value}")
-    print("compose_threshold      :", network.compose_threshold)
-    print()
+    summarize_recurrence(
+        test_rows
+    )
 
     print(
         "total_seconds :",
         f"{time.perf_counter() - total_start:.2f}",
     )
-    print("=== V76 COMPLETE ===")
+    print("=== V77 COMPLETE ===")
 
 
 if __name__ == "__main__":
