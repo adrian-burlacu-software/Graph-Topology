@@ -252,63 +252,19 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
     def activate_substrate(self, word, pos, learn=False):
 
 
-        import hashlib
+        # V44 source-level audit: capture locals at every return so the
 
-        import json
+        # actual activation scores/candidates can be compared between
 
-        v43_trace = []
+        # identical frozen calls.
 
-    
+        self._v44_activation_audit = {
 
-        def v43_record(stage, candidates=None, scores=None, selected=None):
+            "locals": {},
 
-            def canon(value):
+            "returns": [],
 
-                if isinstance(value, dict):
-
-                    return {
-
-                        str(k): canon(v)
-
-                        for k, v in sorted(value.items(), key=lambda item: str(item[0]))
-
-                    }
-
-                if isinstance(value, (set, frozenset)):
-
-                    return sorted((canon(v) for v in value), key=repr)
-
-                if isinstance(value, (list, tuple)):
-
-                    return [canon(v) for v in value]
-
-                if isinstance(value, float):
-
-                    return round(value, 12)
-
-                return value
-
-    
-
-            row = {
-
-                "stage": stage,
-
-                "candidates": canon(candidates),
-
-                "scores": canon(scores),
-
-                "selected": canon(selected),
-
-            }
-
-            blob = json.dumps(row, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
-
-            row["fingerprint"] = hashlib.sha256(blob).hexdigest()[:16]
-
-            v43_trace.append(row)
-
-    
+        }
         context = self.context_vector(word, pos)
         h = self.context_hash(context)
 
@@ -336,7 +292,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                             self.weights[key] + self.learning_rate,
                         )
 
-        self._v43_activation_trace = v43_trace
+        self._v44_activation_audit['returns'].append({'value': fired, 'locals': {k: repr(v) for k, v in locals().items() if k not in ('self', 'word')}})
 
         return fired
 
@@ -724,7 +680,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V43 - ACTIVATION DETERMINISM AUTOPSY ===")
+    print("=== DENSE SUBSTRATE V44 - SCORE SELECTION AUTOPSY ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -946,11 +902,11 @@ def run():
         print()
 
 
-    def v43_activation_autopsy():
+    def v44_score_selection_autopsy():
 
         print()
 
-        print("=== V43 ACTIVATION DETERMINISM AUTOPSY ===")
+        print("=== V44 SCORE / SELECTION AUTOPSY ===")
 
     
 
@@ -972,39 +928,33 @@ def run():
 
             first = net.v42_activation_snapshot(word, pos)
 
-            first_trace = list(getattr(net, "_v43_activation_trace", []))
+            audit_first = getattr(
+
+                net, "_v44_activation_audit", {}
+
+            )
+
+    
 
             second = net.v42_activation_snapshot(word, pos)
 
-            second_trace = list(getattr(net, "_v43_activation_trace", []))
+            audit_second = getattr(
+
+                net, "_v44_activation_audit", {}
+
+            )
 
     
 
             same_fired = first["fired"] == second["fired"]
 
-            same_trace = first_trace == second_trace
+            same_locals = (
 
-    
+                audit_first.get("returns")
 
-            first_stages = [(r.get("stage"), r.get("fingerprint")) for r in first_trace]
+                == audit_second.get("returns")
 
-            second_stages = [(r.get("stage"), r.get("fingerprint")) for r in second_trace]
-
-    
-
-            divergence = None
-
-            for index, (a, b) in enumerate(zip(first_stages, second_stages)):
-
-                if a != b:
-
-                    divergence = index
-
-                    break
-
-            if divergence is None and len(first_stages) != len(second_stages):
-
-                divergence = min(len(first_stages), len(second_stages))
+            )
 
     
 
@@ -1016,9 +966,7 @@ def run():
 
                 f"same_fired={same_fired} "
 
-                f"same_trace={same_trace} "
-
-                f"divergence_stage={divergence}"
+                f"same_activation_locals={same_locals}"
 
             )
 
@@ -1026,23 +974,45 @@ def run():
 
             print(f"  second fired: {second['fired']}")
 
-            print("  first stages:")
+    
 
-            for index, row in enumerate(first_trace):
+            first_returns = audit_first.get("returns", [])
 
-                print(f"    {index:02d} {row.get('stage')} {row.get('fingerprint')}")
+            second_returns = audit_second.get("returns", [])
 
-            print("  second stages:")
+    
 
-            for index, row in enumerate(second_trace):
+            print(f"  first return snapshots : {len(first_returns)}")
 
-                print(f"    {index:02d} {row.get('stage')} {row.get('fingerprint')}")
+            for index, row in enumerate(first_returns):
+
+                print(
+
+                    f"    {index:02d} value={row.get('value')} "
+
+                    f"locals={row.get('locals')}"
+
+                )
+
+    
+
+            print(f"  second return snapshots: {len(second_returns)}")
+
+            for index, row in enumerate(second_returns):
+
+                print(
+
+                    f"    {index:02d} value={row.get('value')} "
+
+                    f"locals={row.get('locals')}"
+
+                )
 
     
 
         print()
 
-        print("=== END V43 ACTIVATION DETERMINISM AUTOPSY ===")
+        print("=== END V44 SCORE / SELECTION AUTOPSY ===")
 
         print()
 
@@ -1155,7 +1125,7 @@ def run():
 
     v42_determinism_probe()
 
-    v43_activation_autopsy()
+    v44_score_selection_autopsy()
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
