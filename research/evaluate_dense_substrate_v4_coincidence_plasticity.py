@@ -87,6 +87,18 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         self.active_edges = set()
 
+        # Distributed receptive fields. Every generic cell has both
+        # channels; no cell is assigned to a particular composition.
+        self.prefix_weights = [0.10 for _ in range(cell_count)]
+        self.suffix_weights = [0.10 for _ in range(cell_count)]
+
+        # Stronger learning is intentional here: V3 demonstrated that the
+        # coincidence signal existed, but never became a learned topology.
+        self.learning_rate = max(
+            0.25,
+            self.learning_rate,
+        )
+
     def context_vector(self, word, pos):
         """
         Encode the two directional structural contexts separately.
@@ -106,48 +118,40 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
     def context_hash(self, context):
         """
         Deterministic projection of arbitrary structural context into the
-        dense cell pool. This is deliberately many-to-many: every cell
-        remains a potential participant.
+        dense cell pool.
         """
         prefix_node, symbol, suffix_node = context
 
         p = 0 if prefix_node is None else prefix_node
         s = 0 if suffix_node is None else suffix_node
 
-        value = (
-            (p + 1) * 73856093
+        return (
+            ((p + 1) * 73856093)
             ^ (ord(symbol) * 19349663)
             ^ ((s + 1) * 83492791)
         )
 
-        return value
-
     def activate_substrate(self, word, pos, learn=False):
         """
-        Two-channel coincidence learning.
+        Dense coincidence substrate.
 
-        Prefix and suffix are separate input populations. A generic cell
-        can become strongly connected only when both channels are active
-        in the same local event.
+        Every generic cell has two independent receptive fields:
+        one for prefix context and one for suffix context.
 
-        No BoundaryGraph lookup and no explicit edge-cell allocation.
+        The useful evidence is multiplicative:
+
+            coincidence = prefix_drive * suffix_drive
+
+        Plasticity is gated by that coincidence.
         """
         context = self.context_vector(word, pos)
         prefix_node, symbol, suffix_node = context
 
-        h_prefix = (
-            0
-            if prefix_node is None
-            else (prefix_node + 1) * 73856093
-        )
+        p = 0 if prefix_node is None else prefix_node + 1
+        s = 0 if suffix_node is None else suffix_node + 1
 
-        h_suffix = (
-            0
-            if suffix_node is None
-            else (suffix_node + 1) * 83492791
-        )
-
-        h_symbol = ord(symbol) * 19349663
+        hp = (p * 73856093) ^ (ord(symbol) * 19349663)
+        hs = (s * 83492791) ^ (ord(symbol) * 2654435761)
 
         prefix_active = prefix_node is not None
         suffix_active = suffix_node is not None
@@ -155,64 +159,41 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         fired = []
 
         for i, cell in enumerate(self.cells):
-            # Distinct projections from the two structural memories.
             p_phase = (
-                ((h_prefix ^ (i * 2654435761)) & 0xFFFF)
-                / 65535.0
+                ((hp ^ (i * 2246822519)) & 0xFFFF) / 65535.0
             )
-
             s_phase = (
-                ((h_suffix ^ (i * 2246822519)) & 0xFFFF)
-                / 65535.0
-            )
-
-            symbol_phase = (
-                ((h_symbol ^ (i * 3266489917)) & 0xFFFF)
-                / 65535.0
+                ((hs ^ (i * 3266489917)) & 0xFFFF) / 65535.0
             )
 
             prefix_drive = (
-                0.12 + 0.10 * p_phase
+                0.35 + 0.25 * p_phase
                 if prefix_active else 0.0
             )
-
             suffix_drive = (
-                0.12 + 0.10 * s_phase
+                0.35 + 0.25 * s_phase
                 if suffix_active else 0.0
             )
 
-            # Additive membrane integration is deliberately weaker than
-            # multiplicative coincidence. The latter is the plasticity
-            # gate.
-            total_drive = (
-                prefix_drive
-                + suffix_drive
-                + 0.04 * symbol_phase
-            )
+            coincidence = prefix_drive * suffix_drive
+            drive = 0.15 * (prefix_drive + suffix_drive) + coincidence
 
-            if cell.stimulate(total_drive):
+            if cell.stimulate(drive):
                 fired.append(i)
 
-            if learn and prefix_active and suffix_active:
-                coincidence = prefix_drive * suffix_drive
-
-                if coincidence > 0.0:
-                    # Coincidence selectively strengthens the active
-                    # pathway. The product makes both sides necessary.
-                    for j in range(self.cell_count):
-                        if j == i:
-                            continue
-
-                        key = (i, j)
-
-                        self.weights[key] = min(
-                            1.0,
-                            self.weights[key]
-                            + self.learning_rate * coincidence,
-                        )
+                if learn and prefix_active and suffix_active:
+                    self.prefix_weights[i] = min(
+                        1.0,
+                        self.prefix_weights[i]
+                        + self.learning_rate * coincidence,
+                    )
+                    self.suffix_weights[i] = min(
+                        1.0,
+                        self.suffix_weights[i]
+                        + self.learning_rate * coincidence,
+                    )
 
         return fired
-
     def train_dense(self, words, epochs=5):
         print("=== DENSE SUBSTRATE TRAINING ===")
         print()
@@ -265,9 +246,16 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         # Structural evidence is distributed activity. The designer still
         # receives no exact-boundary Boolean.
+        # Activity remains distributed. The learned receptive fields
+        # provide the persistent memory trace used by the designer.
+        learned_activity = sum(
+            self.prefix_weights[i] * self.suffix_weights[i]
+            for i in fired
+        )
+
         activity = min(
             1.0,
-            len(fired) / max(1, self.cell_count),
+            learned_activity / max(1, self.cell_count),
         )
 
         root = n.cells[n.designer_root]
@@ -413,7 +401,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V3 - COINCIDENCE ===")
+    print("=== DENSE SUBSTRATE V4 - COINCIDENCE PLASTICITY ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -435,6 +423,10 @@ def run():
 
     print()
     print("=== COINCIDENCE TOPOLOGY ===")
+    print(
+        "distributed_receptive_strength : "
+        f"{sum(p * s for p, s in zip(net.prefix_weights, net.suffix_weights)):.4f}"
+    )
     strong = sum(
         1
         for weight in net.weights.values()
