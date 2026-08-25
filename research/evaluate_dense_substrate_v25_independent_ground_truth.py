@@ -7,30 +7,64 @@ from genome import GENOME
 from evaluate_dual_vocabulary_v6 import DualVocabularyV6
 
 
-# === V24 BALANCED BENCHMARK ===
-# This benchmark explicitly contains both classes.
-#
-# REUSE examples are compositions represented in the learned boundary graph.
-# BRANCH examples are non-compositions.
-#
-# The substrate itself is unchanged.
-
 TRAINING = [
-    "CAT", "CAR", "CAN", "CARD", "CART",
-    "CAD", "COD", "COT", "BAD", "BAR",
-    "BARD", "BAN", "DART", "DAT", "BOT",
-    "BOAT",
+    "CAT", "CAR", "CAN", "CARD", "CART", "DOG", "DOT", "BAT",
 ]
 
 TEST = [
-    # REUSE
     "CAT", "CAR", "CAN", "CARD", "CART",
-    "BAD", "BAR", "BARD", "BAN", "DART",
-
-    # BRANCH
-    "CAB", "CAP", "CAPD", "CARTB", "COB",
-    "CAG", "BOD", "BOR", "DAN", "DAB",
+    "CAD", "COD", "COT", "BAD", "BAR", "BARD", "BAN",
+    "DART", "DAT", "BOT", "BOAT", "CARTD",
+    "COARD", "BAND", "BOARD",
 ]
+
+
+
+class IndependentGroundTruth:
+    """
+    Ground truth is built independently from the dense substrate.
+
+    A position is REUSE iff the exact (prefix, symbol, suffix) composition
+    occurred in TRAINING. The dense substrate never receives this graph.
+    """
+
+    def __init__(self, training_words):
+        self.prefix = {}
+        self.suffix = {}
+        self.next_prefix = 0
+        self.next_suffix = 0
+        self.links = set()
+
+        self._ensure_prefix("")
+        self._ensure_suffix("")
+
+        for word in training_words:
+            self.learn(word)
+
+    def _ensure_prefix(self, text):
+        if text not in self.prefix:
+            self.prefix[text] = self.next_prefix
+            self.next_prefix += 1
+        return self.prefix[text]
+
+    def _ensure_suffix(self, text):
+        if text not in self.suffix:
+            self.suffix[text] = self.next_suffix
+            self.next_suffix += 1
+        return self.suffix[text]
+
+    def learn(self, word):
+        for pos, symbol in enumerate(word):
+            p = self._ensure_prefix(word[:pos])
+            s = self._ensure_suffix(word[pos + 1:])
+            self.links.add((p, symbol, s))
+
+    def available(self, word, pos):
+        p = self.prefix.get(word[:pos])
+        s = self.suffix.get(word[pos + 1:])
+        if p is None or s is None:
+            return False
+        return (p, word[pos], s) in self.links
 
 
 class DenseCell:
@@ -314,7 +348,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             branch = 0
 
             for pos in range(len(word)):
-                expected = self.available(word, pos)
+                expected = self.ground_truth.available(word, pos)
 
                 action = self.designer_from_dense_activity(
                     word,
@@ -392,7 +426,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V24 - BALANCED HELD-OUT BENCHMARK ===")
+    print("=== DENSE SUBSTRATE V25 - INDEPENDENT GROUND TRUTH ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -411,6 +445,47 @@ def run():
     )
 
     net.train_dense(TRAINING, epochs=5)
+    # Independent ground truth: no calls to net.learn_structure(), no access
+    # from the designer, and no dependence on DensePlasticSubstrateV1 state.
+    net.ground_truth = IndependentGroundTruth(TRAINING)
+
+    print()
+    print("=== V25 INDEPENDENT GROUND TRUTH ===")
+
+    train_reuse = 0
+    train_branch = 0
+    for word in TRAINING:
+        for pos in range(len(word)):
+            if net.ground_truth.available(word, pos):
+                train_reuse += 1
+            else:
+                train_branch += 1
+
+    test_reuse = 0
+    test_branch = 0
+    for word in TEST:
+        for pos in range(len(word)):
+            if net.ground_truth.available(word, pos):
+                test_reuse += 1
+            else:
+                test_branch += 1
+
+    print(
+        f"TRAINING: positions={train_reuse + train_branch} "
+        f"reuse={train_reuse} branch={train_branch}"
+    )
+    print(
+        f"TEST: positions={test_reuse + test_branch} "
+        f"reuse={test_reuse} branch={test_branch}"
+    )
+
+    assert train_reuse > 0, "Ground truth has no REUSE training positions"
+    assert test_reuse > 0, "Ground truth has no REUSE test positions"
+    assert test_branch > 0, "Ground truth has no BRANCH test positions"
+
+    print("GROUND TRUTH ASSERTIONS: PASS")
+    print("=== END V25 INDEPENDENT GROUND TRUTH ===")
+
 
     strong_before_prune = sum(
         1
@@ -438,31 +513,6 @@ def run():
     print("strong_before_prune :", strong_before_prune)
     print("connections_after   :", remaining)
     print("strong_after_prune  :", strong_after_prune)
-
-
-    print()
-    print("=== V24 BALANCED GROUND TRUTH ===")
-
-    def class_rows(words):
-        rows = []
-        for word in words:
-            for pos in range(len(word)):
-                expected = "REUSE" if net.available(word, pos) else "BRANCH"
-                rows.append((word, pos, expected))
-        return rows
-
-    train_rows = class_rows(TRAINING)
-    test_rows = class_rows(TEST)
-
-    for name, rows in [("TRAINING", train_rows), ("TEST", test_rows)]:
-        reuse = [r for r in rows if r[2] == "REUSE"]
-        branch = [r for r in rows if r[2] == "BRANCH"]
-        print(
-            f"{name}: positions={len(rows)} "
-            f"reuse={len(reuse)} branch={len(branch)}"
-        )
-
-    print("=== END V24 BALANCED GROUND TRUTH ===")
 
     net.evaluate_frozen(TEST)
 
