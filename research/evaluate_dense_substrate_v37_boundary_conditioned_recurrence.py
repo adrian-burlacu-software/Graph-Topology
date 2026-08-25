@@ -280,100 +280,144 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V36: assembly recurrence.
+        # V37: boundary-conditioned assembly recurrence.
         #
-        # No symbol prototypes, transition prototypes, thresholds learned from
-        # ground truth, or BoundaryGraph queries. We ask whether the current
-        # substrate assembly resembles assemblies previously observed in the
-        # same frozen run.
+        # V36 showed that isolated assembly recurrence is too permissive:
+        # unrelated contexts can reuse the same cells/topology. The missing
+        # object is the learned transition between assemblies.
         #
-        # Two independent recurrence signals are measured:
-        #   1. assembly overlap: active-cell population recurrence
-        #   2. topology overlap: strong outgoing-edge recurrence
+        # We therefore measure:
+        #   1. current assembly recurrence
+        #   2. current -> next assembly transition recurrence
+        #   3. transition novelty
         #
-        # The combined recurrence is diagnostic first. The designer uses it
-        # only as an unlabeled structural signal.
+        # This is an evidence experiment. No independent ground truth is
+        # consulted by the substrate readout.
 
         def topology_signature(cells):
-            edges = {
+            return {
                 (src, dst)
                 for (src, dst), weight in self.weights.items()
                 if src in cells and weight >= 0.50
             }
-            return edges
 
         current_edges = topology_signature(fired_set)
 
-        if not hasattr(self, "_assembly_history"):
-            self._assembly_history = []
+        next_cells = set()
+        next_edges = set()
 
-        best_assembly_overlap = 0.0
-        best_topology_overlap = 0.0
-        best_combined_overlap = 0.0
+        if pos + 1 < len(word):
+            next_cells = set(
+                self.activate_substrate(
+                    word,
+                    pos + 1,
+                    learn=False,
+                )
+            )
+            next_edges = topology_signature(next_cells)
+
+        if not hasattr(self, "_boundary_history"):
+            self._boundary_history = []
+
+        best_assembly = 0.0
+        best_transition = 0.0
+        best_combined = 0.0
         best_history_index = None
 
-        for index, previous in enumerate(self._assembly_history):
-            previous_cells = previous["cells"]
-            previous_edges = previous["edges"]
+        for index, previous in enumerate(self._boundary_history):
+            previous_current = previous["current"]
+            previous_next = previous["next"]
+            previous_edges = previous["current_edges"]
+            previous_next_edges = previous["next_edges"]
 
-            cell_union = fired_set | previous_cells
-            cell_intersection = fired_set & previous_cells
+            current_union = fired_set | previous_current
+            current_intersection = fired_set & previous_current
             assembly_overlap = (
-                len(cell_intersection) / len(cell_union)
-                if cell_union else 0.0
+                len(current_intersection) / len(current_union)
+                if current_union else 0.0
+            )
+
+            # Compare the boundary as a pair of assemblies.
+            next_union = next_cells | previous_next
+            next_intersection = next_cells & previous_next
+            next_overlap = (
+                len(next_intersection) / len(next_union)
+                if next_union else 0.0
             )
 
             edge_union = current_edges | previous_edges
             edge_intersection = current_edges & previous_edges
-            topology_overlap = (
+            current_topology_overlap = (
                 len(edge_intersection) / len(edge_union)
                 if edge_union else 0.0
             )
 
-            combined = (
-                0.5 * assembly_overlap
-                + 0.5 * topology_overlap
+            next_edge_union = next_edges | previous_next_edges
+            next_edge_intersection = next_edges & previous_next_edges
+            next_topology_overlap = (
+                len(next_edge_intersection) / len(next_edge_union)
+                if next_edge_union else 0.0
             )
 
-            if combined > best_combined_overlap:
-                best_combined_overlap = combined
-                best_assembly_overlap = assembly_overlap
-                best_topology_overlap = topology_overlap
+            transition_overlap = (
+                0.25 * assembly_overlap
+                + 0.25 * next_overlap
+                + 0.25 * current_topology_overlap
+                + 0.25 * next_topology_overlap
+            )
+
+            if transition_overlap > best_combined:
+                best_combined = transition_overlap
+                best_assembly = assembly_overlap
+                best_transition = transition_overlap
                 best_history_index = index
 
-        # Record only after comparing, so the current position never matches
-        # itself.
-        self._assembly_history.append(
+        # Record the boundary after comparing so it cannot match itself.
+        self._boundary_history.append(
             {
                 "word": word,
                 "pos": pos,
-                "cells": set(fired_set),
-                "edges": set(current_edges),
+                "current": set(fired_set),
+                "next": set(next_cells),
+                "current_edges": set(current_edges),
+                "next_edges": set(next_edges),
             }
         )
 
-        recurrence_threshold = dg.get(
-            "recurrence_threshold",
-            0.25,
+        transition_threshold = dg.get(
+            "transition_recurrence_threshold",
+            0.50,
         )
 
-        recurrent = best_combined_overlap >= recurrence_threshold
+        recurrent_transition = (
+            pos + 1 < len(word)
+            and best_combined >= transition_threshold
+        )
+
+        transition_novelty = 1.0 - best_combined
+
+        # This is deliberately NOT a ground-truth-aware decision. It simply
+        # exposes whether a boundary has a structurally recurring transition.
+        recurrent = recurrent_transition
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
-            "strong_outgoing": len(current_edges),
             "learned_mass": sum(
                 weight
                 for (src, dst), weight in self.weights.items()
                 if src in fired_set and weight >= 0.50
             ),
-            "assembly_overlap": best_assembly_overlap,
-            "topology_overlap": best_topology_overlap,
-            "combined_recurrence": best_combined_overlap,
+            "strong_outgoing": len(current_edges),
+            "next_fired": sorted(next_cells),
+            "assembly_overlap": best_assembly,
+            "transition_overlap": best_transition,
+            "combined_recurrence": best_combined,
+            "transition_novelty": transition_novelty,
             "best_history_index": best_history_index,
+            "recurrent_transition": recurrent_transition,
             "recurrent": recurrent,
         }
 
@@ -383,9 +427,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        if recurrent:
+        if recurrent_transition:
             reuse.potential += (
-                dg["match_gain"] * min(1.0, best_combined_overlap)
+                dg["match_gain"] * min(1.0, best_combined)
             )
         else:
             branch.potential += dg["branch_bias"]
@@ -548,7 +592,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V36 - ASSEMBLY RECURRENCE ===")
+    print("=== DENSE SUBSTRATE V37 - BOUNDARY CONDITIONED RECURRENCE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -742,7 +786,7 @@ def run():
 
 
     print()
-    print("=== V36 ASSEMBLY RECURRENCE AUDIT ===")
+    print("=== V37 BOUNDARY CONDITIONED RECURRENCE AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -753,12 +797,10 @@ def run():
                 print(
                     f"{word:6s} pos={pos} "
                     f"decision={action:6s} "
-                    f"cells={len(trace['fired']):2d} "
-                    f"edges={trace['strong_outgoing']:2d} "
                     f"assembly={trace['assembly_overlap']:.3f} "
-                    f"topology={trace['topology_overlap']:.3f} "
-                    f"combined={trace['combined_recurrence']:.3f} "
-                    f"recurrent={trace['recurrent']} "
+                    f"transition={trace['transition_overlap']:.3f} "
+                    f"novelty={trace['transition_novelty']:.3f} "
+                    f"recurrent={trace['recurrent_transition']} "
                     f"match={trace['best_history_index']}"
                 )
                 count += 1
@@ -769,7 +811,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V36 ASSEMBLY RECURRENCE AUDIT ===")
+    print("=== END V37 BOUNDARY CONDITIONED RECURRENCE AUDIT ===")
     print()
 
     net.evaluate_frozen(TEST)
