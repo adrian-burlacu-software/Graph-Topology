@@ -161,7 +161,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
         prefix_active = prefix_node is not None
         suffix_active = suffix_node is not None
 
-        pair_key = (prefix_node, suffix_node)
+        pair_key = (prefix_node, symbol, suffix_node)
 
         candidates = []
 
@@ -328,11 +328,18 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         # Structural evidence is distributed activity. The designer still
         # receives no exact-boundary Boolean.
-        # Activity remains distributed. The learned receptive fields
-        # provide the persistent memory trace used by the designer.
+
+        prefix_node, symbol, suffix_node = self.context_vector(
+            word,
+            pos,
+        )
+        pair_key = (prefix_node, symbol, suffix_node)
+
+        # The learned conjunction is the memory signal. Novel combinations
+        # have no pair-memory entries; learned combinations do.
         learned_activity = sum(
-            self.prefix_weights[i] * self.suffix_weights[i]
-            for i in fired
+            self.pair_memory.get((pair_key, i), 0.0)
+            for i in range(self.cell_count)
         )
 
         activity = min(
@@ -505,7 +512,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V11 - COINCIDENCE + PAIR BINDING ===")
+    print("=== DENSE SUBSTRATE V12 - PAIR BINDING TO DESIGNER ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -590,6 +597,11 @@ def run():
     # from the dense substrate so an empty BoundaryGraph cannot create
     # false 100% scores.
     ground_truth = net.build_ground_truth(TRAINING)
+
+    print()
+    print("=== PAIR MEMORY ===")
+    print(f"pair_memory_entries   : {len(net.pair_memory)}")
+    print(f"pair_memory_strength  : {sum(net.pair_memory.values()):.4f}")
 
     print()
     print("=== INDEPENDENT GROUND TRUTH ===")
