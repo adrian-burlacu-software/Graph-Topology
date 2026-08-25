@@ -1,69 +1,59 @@
 from __future__ import annotations
 
 """
-V93 — FULL LEXICON + SEMANTIC ANCHOR TRANSFER
+V94 — FULL LEXICON + DUAL-LEVEL FORM/SEMANTICS TRANSFER
 
-This is the big-jump version.
+Why this version
+----------------
+V93 showed:
 
-The COMPLETE dictionary is used to build the lexical substrate:
-    data/dictionary.csv  (~4925 words)
+    recursive lexical structure > shuffled control
 
-The COMPLETE semantic corpus is used as an independently observed semantic
-anchor set:
-    data/semantics.csv
+but:
 
-We do NOT restrict lexical learning to the exact semantic intersection.
+    recursive lexical structure < width-1
 
-Architecture
-------------
-ALL DICTIONARY WORDS
-    ↓
-width-1 lexical units
-    ↓
-recursive lexical assemblies
-    ↓
-full lexical graph
+The main reason was coverage:
+    width-1 units covered ~53.6% of held-out lexical representations
+    recursive units covered ~19.4%
 
-SEMANTIC ANCHORS
-    ↓
-human-elicited feature sets
-    ↓
-cross-modal links from lexical units / assemblies
-       to semantic features
+So V94 does NOT throw away the compressed hierarchy.
 
-Evaluation
-----------
-Only semantic concepts that have an exact spelling match in the dictionary
-can be direct anchors for form -> feature supervision.
+It exposes BOTH levels to the semantic learner:
 
-That is a limitation of the available paired data, but the lexical substrate
-is still learned from the ENTIRE dictionary, so semantic prediction is being
-performed against a much richer lexical graph than V92.
+    primitive width-1 units
+            +
+    recursively discovered lexical assemblies
+            ↓
+    semantic feature predictor
 
-We compare:
+The lexical substrate is still learned from ALL 4,925 dictionary words.
 
-    A) width-1 lexical representation
-    B) recursively discovered lexical representation
-    C) shuffled word <-> semantic-anchor alignment
+Semantic supervision is still limited to the independently observed concepts
+present in semantics.csv. We never invent labels for the remaining dictionary.
 
-We also evaluate:
+This tests the more natural architecture:
 
-    * feature precision / recall / F1
-    * semantic-neighborhood coherence
-    * lexical reuse coverage
-    * recursive vs width-1 delta
-    * real vs shuffled lift
+    raw local structure
+           \
+            +--> semantic interface
+           /
+    compressed reusable structure
 
-The main question is NOT:
-    "Does spelling inherently determine meaning?"
+instead of forcing semantics to consume only the maximally compressed form.
 
-It is:
-    "Does a recursively compressed lexical topology contain reusable
-     structure that transfers statistically to independently elicited
-     semantic features better than local lexical fragments or chance
-     alignment?"
+Controls
+--------
+    1. width-1 only
+    2. recursive only
+    3. dual-level (width-1 + recursive)
+    4. shuffled dual-level
 
-No semantic labels are synthesized.
+The single primary comparison:
+    dual-level vs width-1
+    dual-level vs shuffled
+
+All semantic evaluation remains concept-disjoint.
 """
 
 import csv
@@ -187,7 +177,7 @@ def stable_rank(value: str) -> str:
     ).hexdigest()
 
 
-def split_anchor_records(
+def split_records(
     records: list[ConceptRecord],
 ):
     ordered = sorted(
@@ -215,7 +205,7 @@ def split_anchor_records(
 
 
 # ---------------------------------------------------------------------------
-# Lexical representation
+# Lexical recursive substrate
 # ---------------------------------------------------------------------------
 
 def width1_units(
@@ -231,17 +221,11 @@ def width1_units(
     ]
 
 
-class FullLexiconSubstrate:
+class FullLexicalSubstrate:
     """
-    Learns lexical structure from ALL dictionary words.
+    Entire dictionary is learned here.
 
-    Level 0:
-        width-1 local units.
-
-    Higher levels:
-        recursively discovered unordered pair assemblies.
-
-    The semantic corpus is completely absent from this stage.
+    No semantic information enters this stage.
     """
 
     def __init__(self) -> None:
@@ -254,8 +238,6 @@ class FullLexiconSubstrate:
             frozenset[int],
             int,
         ] = {}
-
-        self.unit_level: dict[int, int] = {}
 
         self.next_id = 0
 
@@ -270,10 +252,7 @@ class FullLexiconSubstrate:
 
         identifier = self.next_id
         self.next_id += 1
-
         self.primitive_ids[unit] = identifier
-        self.unit_level[identifier] = 0
-
         return identifier
 
     def base_stream(
@@ -285,80 +264,6 @@ class FullLexiconSubstrate:
             for unit in width1_units(word)
         ]
 
-    def discover_level(
-        self,
-        streams: list[list[int]],
-        level: int,
-    ) -> tuple[list[list[int]], int, int]:
-        """
-        Discover recurring unordered adjacent transitions.
-
-        The entire dictionary contributes evidence.
-        """
-        occurrences = Counter()
-
-        for stream in streams:
-            for left, right in zip(
-                stream,
-                stream[1:],
-            ):
-                occurrences[
-                    frozenset((left, right))
-                ] += 1
-
-        recurring = {
-            key
-            for key, count in occurrences.items()
-            if count >= MIN_OCCURRENCES
-        }
-
-        created = 0
-
-        for key in recurring:
-            if key in self.assembly_ids:
-                continue
-
-            identifier = self.next_id
-            self.next_id += 1
-
-            self.assembly_ids[key] = identifier
-            self.unit_level[identifier] = level
-
-            created += 1
-
-        next_streams = []
-
-        for stream in streams:
-            output = []
-            i = 0
-
-            while i < len(stream):
-                if i + 1 < len(stream):
-                    key = frozenset(
-                        (
-                            stream[i],
-                            stream[i + 1],
-                        )
-                    )
-
-                    assembly = self.assembly_ids.get(key)
-
-                    if assembly is not None and key in recurring:
-                        output.append(assembly)
-                        i += 2
-                        continue
-
-                output.append(stream[i])
-                i += 1
-
-            next_streams.append(output)
-
-        return (
-            next_streams,
-            created,
-            len(recurring),
-        )
-
     def train(
         self,
         words: list[str],
@@ -369,7 +274,7 @@ class FullLexiconSubstrate:
         ]
 
         print(
-            "FULL LEXICON LEVEL 0 "
+            "LEXICAL level=0 "
             f"primitive_units={len(self.primitive_ids)}",
             flush=True,
         )
@@ -378,16 +283,68 @@ class FullLexiconSubstrate:
             1,
             MAX_LEXICAL_LEVELS + 1,
         ):
-            streams, created, recurring = (
-                self.discover_level(
-                    streams,
-                    level,
-                )
-            )
+            occurrences = Counter()
+
+            for stream in streams:
+                for left, right in zip(
+                    stream,
+                    stream[1:],
+                ):
+                    occurrences[
+                        frozenset((left, right))
+                    ] += 1
+
+            recurring = {
+                key
+                for key, count in occurrences.items()
+                if count >= MIN_OCCURRENCES
+            }
+
+            created = 0
+
+            for key in recurring:
+                if key in self.assembly_ids:
+                    continue
+
+                self.assembly_ids[key] = self.next_id
+                self.next_id += 1
+                created += 1
+
+            next_streams = []
+
+            for stream in streams:
+                output = []
+                i = 0
+
+                while i < len(stream):
+                    if i + 1 < len(stream):
+                        key = frozenset(
+                            (
+                                stream[i],
+                                stream[i + 1],
+                            )
+                        )
+
+                        assembly = self.assembly_ids.get(key)
+
+                        if (
+                            assembly is not None
+                            and key in recurring
+                        ):
+                            output.append(assembly)
+                            i += 2
+                            continue
+
+                    output.append(stream[i])
+                    i += 1
+
+                next_streams.append(output)
+
+            streams = next_streams
 
             print(
-                f"FULL LEXICON level={level:2d} "
-                f"recurring={recurring:6d} "
+                f"LEXICAL level={level:2d} "
+                f"recurring={len(recurring):6d} "
                 f"new_units={created:6d} "
                 f"stream_units={sum(len(s) for s in streams):7d}",
                 flush=True,
@@ -396,19 +353,16 @@ class FullLexiconSubstrate:
             if created == 0:
                 break
 
-    def frozen_recursive_units(
+    def recursive_units(
         self,
         word: str,
     ) -> list[int]:
-        """
-        Apply the trained lexical hierarchy without creating anything new.
-        """
         stream = self.base_stream(word)
 
         while True:
             output = []
-            i = 0
             changed = False
+            i = 0
 
             while i < len(stream):
                 if i + 1 < len(stream):
@@ -437,28 +391,59 @@ class FullLexiconSubstrate:
 
         return stream
 
+    def dual_units(
+        self,
+        word: str,
+    ) -> list[int]:
+        # Keep BOTH representations. This restores semantic coverage while
+        # preserving the information in reusable higher-order assemblies.
+        primitive = self.base_stream(word)
+        recursive = self.recursive_units(word)
+        return list(set(primitive) | set(recursive))
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "primitive_units": len(
+                self.primitive_ids
+            ),
+            "recursive_assemblies": len(
+                self.assembly_ids
+            ),
+            "all_units": self.next_id,
+        }
+
 
 # ---------------------------------------------------------------------------
-# Cross-modal mapping
+# Cross-modal learner
 # ---------------------------------------------------------------------------
 
-class FormFeatureAssociator:
+class SemanticAssociator:
     """
-    Learn lexical-unit -> semantic-feature evidence from semantic anchors.
+    One learner over one chosen lexical interface.
 
-    The lexical substrate itself was trained on ALL dictionary words.
+    mode:
+        width1
+        recursive
+        dual
     """
 
     def __init__(
         self,
-        substrate: FullLexiconSubstrate,
-        recursive: bool,
+        substrate: FullLexicalSubstrate,
+        mode: str,
     ) -> None:
+        if mode not in {
+            "width1",
+            "recursive",
+            "dual",
+        }:
+            raise ValueError(mode)
+
         self.substrate = substrate
-        self.recursive = recursive
+        self.mode = mode
 
         self.feature_ids: dict[str, int] = {}
-        self.feature_by_id: dict[int, str] = {}
+        self.feature_names: dict[int, str] = {}
 
         self.unit_feature_counts: dict[
             int,
@@ -466,6 +451,18 @@ class FormFeatureAssociator:
         ] = defaultdict(Counter)
 
         self.unit_anchor_counts: Counter[int] = Counter()
+
+    def representation(
+        self,
+        word: str,
+    ) -> list[int]:
+        if self.mode == "width1":
+            return self.substrate.base_stream(word)
+
+        if self.mode == "recursive":
+            return self.substrate.recursive_units(word)
+
+        return self.substrate.dual_units(word)
 
     def feature_id(
         self,
@@ -479,24 +476,15 @@ class FormFeatureAssociator:
         identifier = len(self.feature_ids)
 
         self.feature_ids[feature] = identifier
-        self.feature_by_id[identifier] = feature
+        self.feature_names[identifier] = feature
 
         return identifier
-
-    def representation(
-        self,
-        word: str,
-    ) -> list[int]:
-        if self.recursive:
-            return self.substrate.frozen_recursive_units(word)
-
-        return self.substrate.base_stream(word)
 
     def learn(
         self,
         record: ConceptRecord,
     ) -> None:
-        features = [
+        feature_ids = [
             self.feature_id(feature)
             for feature in record.features
         ]
@@ -512,7 +500,7 @@ class FormFeatureAssociator:
                 unit_id
             ] += 1
 
-            for feature_id in features:
+            for feature_id in feature_ids:
                 self.unit_feature_counts[
                     unit_id
                 ][feature_id] += 1
@@ -526,7 +514,7 @@ class FormFeatureAssociator:
         for unit_id in set(
             self.representation(word)
         ):
-            total_anchors = max(
+            denominator = max(
                 1,
                 self.unit_anchor_counts.get(
                     unit_id,
@@ -541,7 +529,7 @@ class FormFeatureAssociator:
                 ).items()
             ):
                 scores[feature_id] += (
-                    count / total_anchors
+                    count / denominator
                 )
 
         return scores
@@ -551,10 +539,8 @@ class FormFeatureAssociator:
         word: str,
         k: int,
     ) -> list[str]:
-        scores = self.score(word)
-
         ranked = sorted(
-            scores.items(),
+            self.score(word).items(),
             key=lambda item: (
                 -item[1],
                 item[0],
@@ -562,11 +548,11 @@ class FormFeatureAssociator:
         )
 
         return [
-            self.feature_by_id[feature_id]
+            self.feature_names[feature_id]
             for feature_id, _score in ranked[:k]
         ]
 
-    def representation_coverage(
+    def coverage(
         self,
         word: str,
     ) -> float:
@@ -575,19 +561,18 @@ class FormFeatureAssociator:
         )
 
         known = sum(
-            unit_id
-            in self.unit_anchor_counts
+            unit_id in self.unit_anchor_counts
             for unit_id in units
         )
 
-        return (
-            known
-            / max(1, len(units))
+        return known / max(
+            1,
+            len(units),
         )
 
 
 # ---------------------------------------------------------------------------
-# Evaluation
+# Metrics
 # ---------------------------------------------------------------------------
 
 def prf(
@@ -604,41 +589,35 @@ def prf(
     )
 
     precision = (
-        tp
-        / len(predicted_set)
+        tp / len(predicted_set)
     )
 
     recall = (
-        tp
-        / max(
-            1,
-            len(actual),
-        )
+        tp / max(1, len(actual))
     )
 
-    f1 = (
-        0.0
-        if precision + recall == 0
-        else (
+    if precision + recall == 0:
+        f1 = 0.0
+    else:
+        f1 = (
             2
             * precision
             * recall
             / (precision + recall)
         )
-    )
 
     return precision, recall, f1
 
 
 def evaluate(
-    model: FormFeatureAssociator,
+    model: SemanticAssociator,
     records: list[ConceptRecord],
     label: str,
 ) -> dict[str, float]:
-    p_values = []
-    r_values = []
-    f1_values = []
-    coverage = []
+    p = []
+    r = []
+    f = []
+    c = []
 
     for record in records:
         predicted = model.predict(
@@ -646,39 +625,38 @@ def evaluate(
             TOP_K,
         )
 
-        p, r, f1 = prf(
+        precision, recall, f1 = prf(
             predicted,
             record.features,
         )
 
-        p_values.append(p)
-        r_values.append(r)
-        f1_values.append(f1)
-        coverage.append(
-            model.representation_coverage(
+        p.append(precision)
+        r.append(recall)
+        f.append(f1)
+        c.append(
+            model.coverage(
                 record.concept
             )
         )
 
     result = {
-        "concepts": float(len(records)),
-        "precision_at_k": sum(p_values)
-        / max(1, len(p_values)),
-        "recall_at_k": sum(r_values)
-        / max(1, len(r_values)),
-        "f1_at_k": sum(f1_values)
-        / max(1, len(f1_values)),
-        "representation_coverage": sum(coverage)
-        / max(1, len(coverage)),
+        "precision_at_k": sum(p)
+        / max(1, len(p)),
+        "recall_at_k": sum(r)
+        / max(1, len(r)),
+        "f1_at_k": sum(f)
+        / max(1, len(f)),
+        "coverage": sum(c)
+        / max(1, len(c)),
     }
 
     print(
-        f"=== V93 {label} ==="
+        f"=== V94 {label} ==="
     )
 
     for key, value in result.items():
         print(
-            f"{key:28s}: {value}"
+            f"{key:26s}: {value}"
         )
 
     print()
@@ -686,18 +664,22 @@ def evaluate(
     return result
 
 
-def shuffled_training(
+def shuffle_training(
     records: list[ConceptRecord],
     seed: int,
 ) -> list[ConceptRecord]:
     rng = random.Random(seed)
 
     feature_sets = [
-        frozenset(record.features)
+        frozenset(
+            record.features
+        )
         for record in records
     ]
 
-    rng.shuffle(feature_sets)
+    rng.shuffle(
+        feature_sets
+    )
 
     return [
         ConceptRecord(
@@ -720,13 +702,10 @@ def main() -> None:
     start = time.perf_counter()
 
     print(
-        "=== V93 FULL LEXICON SEMANTIC ANCHOR TRANSFER ==="
+        "=== V94 FULL LEXICON DUAL-LEVEL SEMANTIC TRANSFER ==="
     )
     print(
-        "Full dictionary builds lexical structure."
-    )
-    print(
-        "Semantic concepts supply independent feature anchors."
+        "ASCII-safe Windows output."
     )
     print()
 
@@ -734,58 +713,55 @@ def main() -> None:
         DICTIONARY_PATH
     )
 
-    semantics = load_semantics(
+    semantic_map = load_semantics(
         SEMANTICS_PATH
     )
 
-    matched = [
+    anchors = [
         record
-        for record in semantics.values()
+        for record in semantic_map.values()
         if record.concept in dictionary
     ]
 
-    train, validation, test = (
-        split_anchor_records(
-            matched
-        )
+    train, validation, test = split_records(
+        anchors
     )
 
     print(
-        "dictionary_words      :",
+        "dictionary_words:",
         len(dictionary),
     )
     print(
-        "semantic_concepts     :",
-        len(semantics),
+        "semantic_concepts:",
+        len(semantic_map),
     )
     print(
-        "exact_anchor_matches  :",
-        len(matched),
+        "matched_anchors:",
+        len(anchors),
     )
     print(
-        "unmatched_semantics   :",
-        len(semantics) - len(matched),
+        "unmatched_semantics:",
+        len(semantic_map) - len(anchors),
     )
     print(
-        "train_anchors         :",
+        "train_anchors:",
         len(train),
     )
     print(
-        "validation_anchors    :",
+        "validation_anchors:",
         len(validation),
     )
     print(
-        "test_anchors          :",
+        "test_anchors:",
         len(test),
     )
     print()
 
     # ---------------------------------------------------------------
-    # BIG LEAP:
-    # Build lexical substrate from ALL dictionary words.
+    # BIG LEXICON
     # ---------------------------------------------------------------
 
-    substrate = FullLexiconSubstrate()
+    substrate = FullLexicalSubstrate()
 
     all_words = sorted(
         dictionary,
@@ -801,111 +777,91 @@ def main() -> None:
 
     print()
     print(
-        "=== FULL LEXICAL SUBSTRATE ==="
+        "=== FULL LEXICAL GRAPH ==="
     )
-    print(
-        "dictionary_words :",
-        len(all_words),
-    )
-    print(
-        "primitive_units  :",
-        len(substrate.primitive_ids),
-    )
-    print(
-        "all_units        :",
-        substrate.next_id,
-    )
+
+    for key, value in substrate.stats().items():
+        print(
+            f"{key:24s}: {value}"
+        )
+
     print()
 
     # ---------------------------------------------------------------
-    # Train width-1 and recursive cross-modal associators on TRAIN anchors.
+    # THREE INTERFACES
     # ---------------------------------------------------------------
 
-    width1 = FormFeatureAssociator(
-        substrate,
-        recursive=False,
-    )
-
-    recursive = FormFeatureAssociator(
-        substrate,
-        recursive=True,
-    )
+    models = {
+        "width1": SemanticAssociator(
+            substrate,
+            "width1",
+        ),
+        "recursive": SemanticAssociator(
+            substrate,
+            "recursive",
+        ),
+        "dual": SemanticAssociator(
+            substrate,
+            "dual",
+        ),
+    }
 
     for record in train:
-        width1.learn(record)
-        recursive.learn(record)
-
-    print(
-        "semantic_train_anchors:",
-        len(train),
-    )
-    print(
-        "width1_feature_vocab  :",
-        len(width1.feature_ids),
-    )
-    print(
-        "recursive_feature_vocab:",
-        len(recursive.feature_ids),
-    )
-    print()
+        for model in models.values():
+            model.learn(record)
 
     # ---------------------------------------------------------------
-    # REAL TEST
+    # TEST
     # ---------------------------------------------------------------
 
-    width1_validation = evaluate(
-        width1,
-        validation,
-        "WIDTH1 VALIDATION",
-    )
+    results = {}
 
-    width1_test = evaluate(
-        width1,
-        test,
-        "WIDTH1 TEST",
-    )
+    for name, model in models.items():
+        results[
+            f"{name}_validation"
+        ] = evaluate(
+            model,
+            validation,
+            f"{name.upper()} VALIDATION",
+        )
 
-    recursive_validation = evaluate(
-        recursive,
-        validation,
-        "RECURSIVE VALIDATION",
-    )
-
-    recursive_test = evaluate(
-        recursive,
-        test,
-        "RECURSIVE TEST",
-    )
+        results[
+            f"{name}_test"
+        ] = evaluate(
+            model,
+            test,
+            f"{name.upper()} TEST",
+        )
 
     # ---------------------------------------------------------------
-    # SHUFFLED CONTROL
+    # SHUFFLED DUAL CONTROL
     # ---------------------------------------------------------------
 
-    shuffled_records = shuffled_training(
+    shuffled_model = SemanticAssociator(
+        substrate,
+        "dual",
+    )
+
+    for record in shuffle_training(
         train,
         SEED,
-    )
+    ):
+        shuffled_model.learn(record)
 
-    shuffled = FormFeatureAssociator(
-        substrate,
-        recursive=True,
-    )
-
-    for record in shuffled_records:
-        shuffled.learn(record)
-
-    shuffled_test = evaluate(
-        shuffled,
+    results[
+        "shuffled_test"
+    ] = evaluate(
+        shuffled_model,
         test,
-        "RECURSIVE SHUFFLED TEST",
+        "DUAL SHUFFLED TEST",
     )
 
     # ---------------------------------------------------------------
-    # BIG COMPARISON
+    # COMPARISON
     # ---------------------------------------------------------------
 
     print(
-        "=== V93 CROSS-MODAL COMPARISON ==="
+        "=== V94 CROSS-MODAL COMPARISON ==="
     )
 
     for metric in (
@@ -913,49 +869,72 @@ def main() -> None:
         "recall_at_k",
         "f1_at_k",
     ):
-        w = width1_test[metric]
-        r = recursive_test[metric]
-        s = shuffled_test[metric]
+        w = results[
+            "width1_test"
+        ][metric]
+
+        r = results[
+            "recursive_test"
+        ][metric]
+
+        d = results[
+            "dual_test"
+        ][metric]
+
+        s = results[
+            "shuffled_test"
+        ][metric]
 
         print(
-            f"{metric:20s} "
+            f"{metric:18s} "
             f"width1={w:.6f} "
             f"recursive={r:.6f} "
-            f"shuffled={s:.6f} "
-            f"rec-vs-width={r - w:+.6f} "
-            f"rec-vs-shuffle={r - s:+.6f} "
-            f"lift={r / max(1e-9, s):.3f}x"
+            f"dual={d:.6f} "
+            f"shuffle={s:.6f}"
+        )
+
+        print(
+            f"{'':18s}"
+            f" dual-width1={d-w:+.6f} "
+            f" dual-shuffle={d-s:+.6f} "
+            f"lift={d/max(1e-9,s):.3f}x"
         )
 
     print()
     print(
-        "width1_representation_coverage:",
-        width1_test[
-            "representation_coverage"
-        ],
+        "=== V94 COVERAGE ==="
     )
-    print(
-        "recursive_representation_coverage:",
-        recursive_test[
-            "representation_coverage"
-        ],
-    )
+
+    for name in (
+        "width1_test",
+        "recursive_test",
+        "dual_test",
+        "shuffled_test",
+    ):
+        print(
+            f"{name:20s}:",
+            results[name]["coverage"],
+        )
 
     print()
     print(
-        "=== V93 INTERPRETATION ==="
+        "=== V94 INTERPRETATION ==="
     )
     print(
-        "The lexical graph was trained on ALL dictionary words, "
-        "not merely semantic matches."
+        "All dictionary words participate in the lexical graph."
     )
     print(
-        "Real recursive > shuffled supports reusable form->feature "
-        "information beyond random word/feature alignment."
+        "Semantic training is limited to independently observed matched anchors."
     )
     print(
-        "Recursive > width1 indicates higher-order lexical structure "
-        "adds information beyond isolated local units."
+        "Dual-level asks whether semantics benefits from BOTH raw local "
+        "coverage and recursive reusable structure."
+    )
+    print(
+        "Dual > shuffled is the form->feature signal."
+    )
+    print(
+        "Dual > width1 is the higher-order structural gain."
     )
 
     print()
@@ -964,7 +943,7 @@ def main() -> None:
         f"{time.perf_counter() - start:.2f}",
     )
     print(
-        "=== V93 COMPLETE ==="
+        "=== V94 COMPLETE ==="
     )
 
 
