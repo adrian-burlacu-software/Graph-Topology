@@ -24,3 +24,4 @@ research/__pycache__/
 llm/
 results/v106_llm_activation_trajectory_motifs.pt
 data/assertions.csv
+data/conceptnet_compact.db
