@@ -1,73 +1,41 @@
 from __future__ import annotations
 
 """
-V109 — FROZEN SmolLM2-360M-INSTRUCT + HUMAN SEMANTIC VOCABULARY MEMORY
+END-TO-END V110 BENCHMARK
 
-This is the cleaned-up version of V108.
+Benchmarks the ACTUAL pipeline rather than generation alone.
 
-The human semantic corpus is now the canonical concept vocabulary.
+Stages measured separately:
 
-Inputs:
-    ./llm/SmolLM2-360M-Instruct
-    ./data/dictionary.csv
-    ./data/semantics-large.csv
+    1. semantic CSV indexing
+    2. lexical candidate-index construction
+    3. candidate retrieval for all dictionary words
+    4. prompt construction
+    5. tokenizer/batching
+    6. GPU generation
+    7. full end-to-end candidate retrieval + generation
 
-The semantic vocabulary is built from:
-    translated
-    weighted by normalized_translated
+This is intentionally a small representative run, so it is safe to execute
+before committing to a full 4925-word run.
 
-Architecture
-------------
-SEMANTICS-LARGE
-    ↓
-canonical human feature vocabulary
-    ↓
-seed external memory
+It also prints progress during every CPU stage so there is no silent
+"nothing happening for two minutes" period.
 
-DICTIONARY WORD
-    ↓
-frozen LLM
-    ↓
-select reusable human concepts
-    ↓
-graph stores concept IDs
-    ↓
-NEW:<concept> only when needed
-    ↓
-memory grows
+Generation batch sizes:
+    32, 64, 128
 
-We run TWO passes:
+The end-to-end benchmark uses the same prompt shape as V110:
+    ~32 candidates
+    ~128 memory concepts
 
-PASS 1
-    The LLM selects from the human semantic vocabulary.
-
-PASS 2
-    The LLM sees the most-used concepts in the growing memory and is strongly
-    encouraged to reuse them.
-
-The important difference from V108:
-    the model is no longer inventing the basic semantic vocabulary freely.
-
-The persistent graph can therefore measure:
-    * canonical concept reuse
-    * novel concept creation
-    * compression of word->concept mappings
-    * concepts per word
-    * coverage of the human semantic vocabulary
-    * frequency-weighted reuse
-
-No LLM weights are trained.
-No hidden states are used.
-No PT activation artifact is used.
+No semantic memory is mutated.
 """
 
 import csv
-import json
-import re
+import math
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Optional
 
 import torch
 from transformers import (
@@ -75,10 +43,6 @@ from transformers import (
     AutoTokenizer,
 )
 
-
-# ---------------------------------------------------------------------------
-# Paths / configuration
-# ---------------------------------------------------------------------------
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,43 +64,44 @@ SEMANTICS_PATH = (
     / "semantics-large.csv"
 )
 
-OUTPUT_PATH = (
-    ROOT
-    / "results"
-    / "v109_semantic_vocab_memory.json"
-)
+TEST_WORDS = 512
 
-BATCH_SIZE = 32
-MAX_NEW_TOKENS = 48
-MAX_INPUT_TOKENS = 768
+BATCH_SIZES = [32, 64, 128]
 
-MAX_CONCEPTS_PER_WORD = 8
+CANDIDATE_LIMIT = 32
+MEMORY_VOCAB_LIMIT = 0
 
-# The full semantic corpus can contain thousands of distinct translated
-# concepts. We expose a frequency-ranked working vocabulary to the small LLM.
-SEED_VOCAB_SIZE = 512
+MAX_NEW_TOKENS = 24
+MAX_INPUT_TOKENS = 256
 
-# Memory vocabulary appended to the prompt in pass 2.
-MEMORY_VOCAB_SIZE = 128
-
-# Full dictionary.
-MAX_WORDS = None
-
-CHECKPOINT_EVERY = 250
-
-DO_SAMPLE = False
+# Number of retrieval rounds to benchmark separately.
+RETRIEVAL_REPEATS = 2
 
 
 # ---------------------------------------------------------------------------
-# Corpus loading
+# Timing helper
 # ---------------------------------------------------------------------------
 
-def load_dictionary(
-    path: Path,
-) -> list[str]:
+def now() -> float:
+    return time.perf_counter()
+
+
+def elapsed(
+    start: float,
+) -> float:
+    return time.perf_counter() - start
+
+
+# ---------------------------------------------------------------------------
+# Dictionary
+# ---------------------------------------------------------------------------
+
+def load_dictionary() -> list[str]:
+    started = now()
+
     words = set()
 
-    with path.open(
+    with DICTIONARY_PATH.open(
         "r",
         encoding="utf-8",
         errors="replace",
@@ -147,158 +112,421 @@ def load_dictionary(
             if word and word.isalpha():
                 words.add(word)
 
-    result = sorted(words)
+    result = sorted(words)[:TEST_WORDS]
 
-    if MAX_WORDS is not None:
-        result = result[:MAX_WORDS]
-
-    if not result:
-        raise RuntimeError(
-            "dictionary.csv produced zero usable words."
-        )
+    print(
+        f"[CPU] dictionary loaded: {len(result)} words "
+        f"in {elapsed(started):.3f}s",
+        flush=True,
+    )
 
     return result
 
 
-def load_semantic_vocabulary(
-    path: Path,
-) -> tuple[list[str], dict[str, float]]:
-    """
-    Build a canonical concept vocabulary from semantics-large.csv.
+# ---------------------------------------------------------------------------
+# Semantic index
+# ---------------------------------------------------------------------------
 
-    Canonical concept:
-        translated
+class HumanSemanticIndex:
+    def __init__(self) -> None:
+        self.feature_weight = Counter()
 
-    Weight:
-        sum(normalized_translated)
-
-    This retains the human-derived vocabulary while collapsing morphological
-    variants such as:
-        muscle
-        muscles
-        musculature
-    into the canonical `muscle`.
-    """
-    weights = Counter()
-
-    with path.open(
-        "r",
-        encoding="utf-8",
-        newline="",
-    ) as handle:
-        reader = csv.DictReader(handle)
-
-        required = {
-            "translated",
-            "normalized_translated",
-            "frequency_translated",
-            "n",
-        }
-
-        missing = required - set(
-            reader.fieldnames or []
+        self.cue_features = defaultdict(
+            Counter
         )
 
-        if missing:
-            raise RuntimeError(
-                "semantics-large.csv missing: "
-                + ", ".join(sorted(missing))
-            )
+    def load(self, path: Path) -> None:
+        started = now()
 
-        for row in reader:
-            concept = row[
-                "translated"
-            ].strip().lower()
+        with path.open(
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as handle:
+            reader = csv.DictReader(handle)
 
-            if not concept:
-                continue
+            for row in reader:
+                cue = row[
+                    "cue"
+                ].strip().lower()
 
-            try:
-                weight = float(
-                    row[
-                        "normalized_translated"
-                    ]
-                )
-            except (
-                TypeError,
-                ValueError,
-            ):
-                weight = 0.0
+                feature = row[
+                    "translated"
+                ].strip().lower()
 
-            if weight <= 0.0:
+                if not cue or not feature:
+                    continue
+
                 try:
-                    frequency = float(
+                    weight = float(
                         row[
-                            "frequency_translated"
+                            "normalized_translated"
                         ]
-                    )
-
-                    n = int(
-                        row["n"]
                     )
                 except (
                     TypeError,
                     ValueError,
                 ):
-                    frequency = 0.0
-                    n = 0
+                    weight = 0.0
 
-                if n > 0:
-                    weight = (
-                        frequency / n
+                if weight <= 0.0:
+                    try:
+                        frequency = float(
+                            row[
+                                "frequency_translated"
+                            ]
+                        )
+
+                        n = int(
+                            row["n"]
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                    ):
+                        frequency = 0.0
+                        n = 0
+
+                    if n > 0:
+                        weight = frequency / n
+
+                if weight <= 0.0:
+                    continue
+
+                self.cue_features[
+                    cue
+                ][feature] += weight
+
+                self.feature_weight[
+                    feature
+                ] += weight
+
+        print(
+            f"[CPU] semantic index loaded: "
+            f"{len(self.feature_weight)} concepts, "
+            f"{len(self.cue_features)} cues "
+            f"in {elapsed(started):.3f}s",
+            flush=True,
+        )
+
+    def global_top(
+        self,
+        limit: int,
+    ) -> list[str]:
+        return [
+            feature
+            for feature, _weight
+            in self.feature_weight.most_common(
+                limit
+            )
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Fast lexical retrieval index
+# ---------------------------------------------------------------------------
+
+def build_fast_lexical_index(
+    words: list[str],
+) -> dict[str, list[str]]:
+    """
+    Deliberately avoids Levenshtein.
+
+    Build:
+        prefix -> words
+        suffix -> words
+
+    Then produce a small deterministic neighborhood for each word.
+    """
+    started = now()
+
+    prefix_buckets = defaultdict(list)
+    suffix_buckets = defaultdict(list)
+
+    for word in words:
+        prefix_buckets[
+            word[:3]
+        ].append(word)
+
+        suffix_buckets[
+            word[-3:]
+        ].append(word)
+
+    neighbors = {}
+
+    for index, word in enumerate(words):
+        candidates = set()
+
+        candidates.update(
+            prefix_buckets[
+                word[:3]
+            ]
+        )
+
+        candidates.update(
+            suffix_buckets[
+                word[-3:]
+            ]
+        )
+
+        candidates.discard(word)
+
+        # No edit-distance calculation here.
+        ranked = sorted(
+            candidates,
+            key=lambda other: (
+                not other.startswith(
+                    word[:3]
+                ),
+                not other.endswith(
+                    word[-3:]
+                ),
+                abs(
+                    len(other)
+                    - len(word)
+                ),
+                other,
+            ),
+        )
+
+        neighbors[word] = ranked[:12]
+
+        if (
+            index < 5
+            or (index + 1) % 100 == 0
+            or index + 1 == len(words)
+        ):
+            print(
+                f"[CPU] lexical index "
+                f"{index + 1:4d}/{len(words):4d}",
+                flush=True,
+            )
+
+    print(
+        f"[CPU] lexical index complete in "
+        f"{elapsed(started):.3f}s",
+        flush=True,
+    )
+
+    return neighbors
+
+
+# ---------------------------------------------------------------------------
+# Candidate retrieval
+# ---------------------------------------------------------------------------
+
+def retrieve_candidates(
+    word: str,
+    semantic_index: HumanSemanticIndex,
+    lexical_neighbors: dict[str, list[str]],
+    memory_concepts: list[str],
+) -> list[str]:
+    scores = Counter()
+
+    # Direct human cue associations.
+    for feature, weight in (
+        semantic_index.cue_features.get(
+            word,
+            Counter(),
+        ).items()
+    ):
+        scores[feature] += (
+            2.0
+            + math.log1p(
+                max(
+                    0.0,
+                    weight,
+                )
+            )
+        )
+
+    # Neighbor cue associations.
+    for neighbor in lexical_neighbors.get(
+        word,
+        [],
+    ):
+        for feature, weight in (
+            semantic_index.cue_features.get(
+                neighbor,
+                Counter(),
+            ).most_common(8)
+        ):
+            scores[feature] += (
+                1.0
+                + 0.25
+                * math.log1p(
+                    max(
+                        0.0,
+                        weight,
                     )
+                )
+            )
 
-            if weight > 0.0:
-                weights[concept] += weight
+    # Current memory vocabulary gets a substantial preference.
+    for concept in memory_concepts:
+        scores[concept] += 4.0
+
+    # Global fallback.
+    for feature, weight in (
+        semantic_index.feature_weight.most_common(
+            16
+        )
+    ):
+        scores[feature] += (
+            0.5
+            * math.log1p(
+                max(
+                    0.0,
+                    weight,
+                )
+            )
+        )
 
     ranked = sorted(
-        weights.items(),
+        scores.items(),
         key=lambda item: (
             -item[1],
             item[0],
         ),
     )
 
-    vocabulary = [
-        concept
-        for concept, _weight
+    result = [
+        feature
+        for feature, _score
         in ranked[
-            :SEED_VOCAB_SIZE
+            :CANDIDATE_LIMIT
         ]
     ]
 
-    return (
-        vocabulary,
-        dict(weights),
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Prompting
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT = (
+    "You are a semantic annotator. "
+    "Choose concepts from the supplied candidate vocabulary. "
+    "Return only a comma-separated list. "
+    "Never explain."
+)
+
+
+def build_prompt(
+    tokenizer,
+    word: str,
+    candidates: list[str],
+    memory_concepts: list[str],
+) -> str:
+    # IMPORTANT:
+    # Do not place the entire memory vocabulary into the prompt.
+    # Candidate retrieval has already compressed the search space to ~32
+    # concepts. Memory influences retrieval scores, not prompt length.
+
+    user = f"""
+TARGET: {word}
+
+CANDIDATES:
+{", ".join(candidates)}
+
+Choose up to 8 concepts.
+Prefer exact candidate concepts.
+If an important concept is missing, you may write NEW:<short concept>.
+Never use the target word.
+Return one comma-separated line.
+No explanation.
+""".strip()
+
+    messages = [
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT,
+        },
+        {
+            "role": "user",
+            "content": user,
+        },
+    ]
+
+    try:
+        return tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    except Exception:
+        return (
+            SYSTEM_PROMPT
+            + "\n\n"
+            + user
+            + "\n\nAssistant:"
+        )
+
+
+def build_all_prompts(
+    tokenizer,
+    words: list[str],
+    semantic_index: HumanSemanticIndex,
+    lexical_neighbors: dict[str, list[str]],
+    memory_concepts: list[str],
+) -> list[str]:
+    started = now()
+
+    prompts = []
+
+    for index, word in enumerate(words):
+        candidates = retrieve_candidates(
+            word,
+            semantic_index,
+            lexical_neighbors,
+            memory_concepts,
+        )
+
+        prompts.append(
+            build_prompt(
+                tokenizer,
+                word,
+                candidates,
+                memory_concepts,
+            )
+        )
+
+        if (
+            index < 5
+            or (index + 1) % 100 == 0
+            or index + 1 == len(words)
+        ):
+            print(
+                f"[CPU] prompts "
+                f"{index + 1:4d}/{len(words):4d}",
+                flush=True,
+            )
+
+    print(
+        f"[CPU] prompt/retrieval complete in "
+        f"{elapsed(started):.3f}s",
+        flush=True,
     )
+
+    return prompts
 
 
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
 
-def choose_device() -> torch.device:
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-
-    if getattr(
-        torch.backends,
-        "mps",
-        None,
-    ) is not None:
-        if torch.backends.mps.is_available():
-            return torch.device("mps")
-
-    return torch.device("cpu")
-
-
 def load_model():
-    device = choose_device()
+    device = (
+        torch.device("cuda")
+        if torch.cuda.is_available()
+        else torch.device("cpu")
+    )
 
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(
-            MODEL_PATH
-        )
+    print(
+        "loading model...",
+        flush=True,
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(
         str(MODEL_PATH),
@@ -318,10 +546,23 @@ def load_model():
     if tokenizer.pad_token_id is None:
         if tokenizer.eos_token_id is None:
             raise RuntimeError(
-                "Tokenizer has neither pad_token_id nor eos_token_id."
+                "Tokenizer has no pad/eos token."
             )
 
         tokenizer.pad_token = tokenizer.eos_token
+
+    print(
+        "model ready:",
+        device,
+        flush=True,
+    )
+
+    if device.type == "cuda":
+        print(
+            "gpu:",
+            torch.cuda.get_device_name(0),
+            flush=True,
+        )
 
     return (
         tokenizer,
@@ -331,795 +572,156 @@ def load_model():
 
 
 # ---------------------------------------------------------------------------
-# Prompting
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT = """
-You are a compact semantic annotator.
-
-Use the supplied human-derived semantic vocabulary.
-Do not invent a general ontology.
-Choose existing concepts whenever possible.
-
-Your output is machine parsed.
-Return ONLY:
-    concept, concept, concept
-
-or:
-    NEW:concept, concept
-
-No explanations.
-No sentences.
-""".strip()
-
-
-def make_prompt(
-    word: str,
-    seed_vocabulary: list[str],
-    memory_vocabulary: list[str],
-) -> str:
-    seed_text = ", ".join(
-        seed_vocabulary
-    )
-
-    memory_text = ", ".join(
-        memory_vocabulary
-    )
-
-    return f"""
-Target word:
-{word}
-
-Human semantic vocabulary:
-{seed_text}
-
-Already-used memory concepts:
-{memory_text if memory_text else "(none)"}
-
-Rules:
-1. Return at most {MAX_CONCEPTS_PER_WORD} items.
-2. Each item must be either:
-       an exact existing vocabulary concept
-       OR NEW:<short concept>
-3. Prefer existing concepts, especially already-used memory concepts.
-4. A NEW concept should be used only when no existing concept is adequate.
-5. Never include the target word.
-6. Use exact vocabulary spelling when reusing a concept.
-7. Return one comma-separated line only.
-8. Do not explain anything.
-""".strip()
-
-
-def build_prompt(
-    tokenizer,
-    word: str,
-    seed_vocabulary: list[str],
-    memory_vocabulary: list[str],
-) -> str:
-    messages = [
-        {
-            "role": "system",
-            "content": SYSTEM_PROMPT,
-        },
-        {
-            "role": "user",
-            "content": make_prompt(
-                word,
-                seed_vocabulary,
-                memory_vocabulary,
-            ),
-        },
-    ]
-
-    try:
-        return tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-    except Exception:
-        return (
-            SYSTEM_PROMPT
-            + "\n\n"
-            + messages[1]["content"]
-            + "\n\nAssistant:"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Parsing
-# ---------------------------------------------------------------------------
-
-def normalize_new_concept(
-    text: str,
-) -> Optional[str]:
-    value = text.strip().lower()
-
-    value = re.sub(
-        r"^new\s*:\s*",
-        "",
-        value,
-        flags=re.IGNORECASE,
-    )
-
-    value = re.sub(
-        r"[^a-z0-9 \-]",
-        " ",
-        value,
-    )
-
-    value = re.sub(
-        r"\s+",
-        " ",
-        value,
-    ).strip()
-
-    if not value:
-        return None
-
-    if len(value) > 40:
-        return None
-
-    if len(value.split()) > 4:
-        return None
-
-    # Reject model meta-talk.
-    bad = (
-        "answer",
-        "means",
-        "description",
-        "concepts",
-        "word",
-        "because",
-        "the ",
-        "a ",
-        "an ",
-    )
-
-    if any(
-        value == item
-        or value.startswith(item)
-        for item in bad
-    ):
-        return None
-
-    return value
-
-
-def parse_response(
-    response: str,
-    target_word: str,
-    allowed: set[str],
-) -> list[str]:
-    target = target_word.lower()
-
-    text = response.strip()
-
-    text = re.sub(
-        r"```(?:text|csv)?",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    text = text.replace(
-        "```",
-        "",
-    )
-
-    # Ignore obvious explanatory suffixes.
-    for marker in (
-        "\nExplanation:",
-        "\nReason:",
-        "\nWhy:",
-    ):
-        if marker in text:
-            text = text.split(
-                marker,
-                1,
-            )[0]
-
-    parts = re.split(
-        r",|;|\n|\|",
-        text,
-    )
-
-    concepts = []
-    seen = set()
-
-    for raw in parts:
-        item = raw.strip().lower()
-
-        if not item:
-            continue
-
-        # Existing vocabulary concept.
-        if (
-            item in allowed
-            and item != target
-        ):
-            if item not in seen:
-                seen.add(item)
-                concepts.append(item)
-
-            continue
-
-        # Explicit NEW: concept.
-        if item.startswith(
-            "new:"
-        ):
-            new_concept = normalize_new_concept(
-                item
-            )
-
-            if (
-                new_concept is not None
-                and new_concept != target
-                and new_concept not in seen
-            ):
-                seen.add(
-                    "new:" + new_concept
-                )
-                concepts.append(
-                    "NEW:" + new_concept
-                )
-
-        if (
-            len(concepts)
-            >= MAX_CONCEPTS_PER_WORD
-        ):
-            break
-
-    return concepts
-
-
-# ---------------------------------------------------------------------------
-# Batch generation
+# Generation
 # ---------------------------------------------------------------------------
 
 @torch.inference_mode()
-def generate_batch(
+def generate_prompts(
     tokenizer,
     model,
     device,
     prompts: list[str],
-) -> list[str]:
-    encoded = tokenizer(
-        prompts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=MAX_INPUT_TOKENS,
-    )
+    batch_size: int,
+) -> dict[str, float]:
+    started = now()
 
-    input_ids = encoded[
-        "input_ids"
-    ].to(device)
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_words = 0
 
-    attention_mask = encoded[
-        "attention_mask"
-    ].to(device)
-
-    output = model.generate(
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        max_new_tokens=MAX_NEW_TOKENS,
-        do_sample=DO_SAMPLE,
-        num_beams=1,
-        use_cache=True,
-        pad_token_id=tokenizer.pad_token_id,
-        eos_token_id=tokenizer.eos_token_id,
-    )
-
-    responses = []
-
-    for row in range(
-        output.shape[0]
-    ):
-        prompt_len = int(
-            attention_mask[row].sum().item()
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats(
+            device
         )
-
-        text = tokenizer.decode(
-            output[
-                row,
-                prompt_len:,
-            ],
-            skip_special_tokens=True,
-        ).strip()
-
-        responses.append(
-            text
-        )
-
-    return responses
-
-
-# ---------------------------------------------------------------------------
-# Persistent memory
-# ---------------------------------------------------------------------------
-
-class SemanticMemory:
-    """
-    Graph-like external memory.
-
-    The seed vocabulary comes from human semantic norms.
-
-    New concepts may still appear, but they are marked as:
-        learner_generated
-
-    so we can distinguish human-vocabulary reuse from model expansion.
-    """
-
-    def __init__(
-        self,
-        seed_weights: dict[str, float],
-    ) -> None:
-        self.seed_weights = dict(
-            seed_weights
-        )
-
-        self.seed_concepts = set(
-            seed_weights
-        )
-
-        self.concept_id_by_name: dict[
-            str,
-            int,
-        ] = {}
-
-        self.concept_name_by_id: dict[
-            int,
-            str,
-        ] = {}
-
-        self.usage: Counter[int] = Counter()
-
-        self.words_by_concept: dict[
-            int,
-            set[str],
-        ] = defaultdict(set)
-
-        self.word_concepts: dict[
-            str,
-            list[int],
-        ] = {}
-
-        self.next_id = 0
-
-        # Seed the graph with the human vocabulary.
-        for concept in sorted(
-            seed_weights
-        ):
-            self._create(
-                concept
-            )
-
-    def _create(
-        self,
-        concept: str,
-    ) -> int:
-        identifier = self.next_id
-        self.next_id += 1
-
-        self.concept_id_by_name[
-            concept
-        ] = identifier
-
-        self.concept_name_by_id[
-            identifier
-        ] = concept
-
-        return identifier
-
-    def get_or_create(
-        self,
-        concept: str,
-    ) -> tuple[int, bool]:
-        existing = self.concept_id_by_name.get(
-            concept
-        )
-
-        if existing is not None:
-            return (
-                existing,
-                False,
-            )
-
-        return (
-            self._create(
-                concept
-            ),
-            True,
-        )
-
-    def add_word(
-        self,
-        word: str,
-        concepts: list[str],
-    ) -> dict[str, int]:
-        new_concepts = 0
-        reused_concepts = 0
-        seed_reuse = 0
-        learner_new = 0
-
-        ids = []
-
-        for concept in concepts:
-            is_new_marker = concept.startswith(
-                "NEW:"
-            )
-
-            canonical = (
-                concept[4:]
-                if is_new_marker
-                else concept
-            )
-
-            if not canonical:
-                continue
-
-            concept_id, created = (
-                self.get_or_create(
-                    canonical
-                )
-            )
-
-            if created:
-                new_concepts += 1
-                learner_new += 1
-            else:
-                reused_concepts += 1
-
-            if canonical in self.seed_concepts:
-                seed_reuse += 1
-
-            self.usage[
-                concept_id
-            ] += 1
-
-            self.words_by_concept[
-                concept_id
-            ].add(word)
-
-            ids.append(
-                concept_id
-            )
-
-        self.word_concepts[
-            word
-        ] = list(
-            dict.fromkeys(
-                ids
-            )
-        )
-
-        return {
-            "new_concepts": new_concepts,
-            "reused_concepts": reused_concepts,
-            "seed_reuse": seed_reuse,
-            "learner_new": learner_new,
-        }
-
-    def memory_vocabulary(
-        self,
-        limit: int = MEMORY_VOCAB_SIZE,
-    ) -> list[str]:
-        ranked = sorted(
-            (
-                (
-                    name,
-                    self.usage[
-                        identifier
-                    ],
-                )
-                for name, identifier
-                in self.concept_id_by_name.items()
-                if self.usage[
-                    identifier
-                ] > 0
-            ),
-            key=lambda item: (
-                -item[1],
-                item[0],
-            ),
-        )
-
-        return [
-            name
-            for name, _count
-            in ranked[:limit]
-        ]
-
-    def stats(
-        self,
-    ) -> dict[str, float]:
-        total_concepts = (
-            len(
-                self.concept_id_by_name
-            )
-        )
-
-        learner_generated = (
-            total_concepts
-            - len(
-                self.seed_concepts
-            )
-        )
-
-        used_seed = sum(
-            self.usage[
-                self.concept_id_by_name[
-                    concept
-                ]
-            ] > 0
-            for concept
-            in self.seed_concepts
-            if concept
-            in self.concept_id_by_name
-        )
-
-        used_total = sum(
-            usage > 0
-            for usage
-            in self.usage.values()
-        )
-
-        return {
-            "seed_vocab_size": float(
-                len(
-                    self.seed_concepts
-                )
-            ),
-            "total_concepts": float(
-                total_concepts
-            ),
-            "learner_generated_concepts": float(
-                learner_generated
-            ),
-            "used_seed_concepts": float(
-                used_seed
-            ),
-            "used_concepts": float(
-                used_total
-            ),
-            "seed_coverage": (
-                used_seed
-                / max(
-                    1,
-                    len(
-                        self.seed_concepts
-                    ),
-                )
-            ),
-            "mean_usage_per_used_concept": (
-                sum(
-                    usage
-                    for usage
-                    in self.usage.values()
-                    if usage > 0
-                )
-                / max(
-                    1,
-                    used_total,
-                )
-            ),
-        }
-
-    def save(
-        self,
-        path: Path,
-    ) -> None:
-        payload = {
-            "seed_concepts": sorted(
-                self.seed_concepts
-            ),
-            "seed_weights": (
-                self.seed_weights
-            ),
-            "concept_id_by_name": (
-                self.concept_id_by_name
-            ),
-            "usage": {
-                str(identifier): count
-                for identifier, count
-                in self.usage.items()
-            },
-            "words_by_concept": {
-                str(identifier): sorted(
-                    words
-                )
-                for identifier, words
-                in self.words_by_concept.items()
-            },
-            "word_concepts": (
-                self.word_concepts
-            ),
-            "next_id": self.next_id,
-        }
-
-        path.write_text(
-            json.dumps(
-                payload,
-                indent=2,
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-
-
-# ---------------------------------------------------------------------------
-# Passes
-# ---------------------------------------------------------------------------
-
-def run_pass(
-    label: str,
-    words: list[str],
-    tokenizer,
-    model,
-    device,
-    memory: SemanticMemory,
-    seed_vocabulary: list[str],
-    use_memory: bool,
-) -> list[dict[str, float]]:
-    stats = []
-
-    allowed = set(
-        seed_vocabulary
-    )
 
     for start in range(
         0,
-        len(words),
-        BATCH_SIZE,
+        len(prompts),
+        batch_size,
     ):
-        batch_words = words[
-            start:start + BATCH_SIZE
+        batch = prompts[
+            start:start + batch_size
         ]
 
-        memory_vocabulary = (
-            memory.memory_vocabulary(
-                MEMORY_VOCAB_SIZE
-            )
-            if use_memory
-            else []
+        encoded = tokenizer(
+            batch,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=MAX_INPUT_TOKENS,
         )
 
-        prompts = [
-            build_prompt(
-                tokenizer,
-                word,
-                seed_vocabulary,
-                memory_vocabulary,
-            )
-            for word in batch_words
-        ]
+        input_ids = encoded[
+            "input_ids"
+        ].to(device)
 
-        responses = generate_batch(
-            tokenizer,
-            model,
-            device,
-            prompts,
+        attention_mask = encoded[
+            "attention_mask"
+        ].to(device)
+
+        total_input_tokens += int(
+            attention_mask.sum().item()
         )
 
-        for word, response in zip(
-            batch_words,
-            responses,
+        output = model.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=MAX_NEW_TOKENS,
+            do_sample=False,
+            num_beams=1,
+            use_cache=True,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+        # Count actual newly generated positions row by row.
+        for row in range(
+            output.shape[0]
         ):
-            concepts = parse_response(
-                response,
-                word,
-                allowed,
+            prompt_len = int(
+                attention_mask[row].sum().item()
             )
 
-            result = memory.add_word(
-                word,
-                concepts,
+            total_output_tokens += max(
+                0,
+                output.shape[1]
+                - prompt_len,
             )
 
-            result[
-                "concepts_returned"
-            ] = len(
-                concepts
-            )
-
-            stats.append(
-                result
-            )
-
-        processed = min(
-            start + BATCH_SIZE,
-            len(words),
-        )
+        total_words += len(batch)
 
         if (
-            processed <= BATCH_SIZE * 2
-            or processed % 100 == 0
-            or processed == len(words)
+            total_words <= batch_size * 2
+            or total_words % 128 == 0
+            or total_words == len(prompts)
         ):
-            recent = stats[
-                max(
-                    0,
-                    len(stats)
-                    - BATCH_SIZE,
-                ):
-            ]
-
-            def avg(
-                key: str,
-            ) -> float:
-                return (
-                    sum(
-                        item[key]
-                        for item
-                        in recent
-                    )
-                    / max(
-                        1,
-                        len(recent),
-                    )
-                )
-
             print(
-                f"{label} "
-                f"{processed:4d}/{len(words):4d} "
-                f"returned={avg('concepts_returned'):.2f} "
-                f"seed_reuse={avg('seed_reuse'):.2f} "
-                f"learner_new={avg('learner_new'):.2f}",
+                f"[GPU] generated "
+                f"{total_words:4d}/{len(prompts):4d} "
+                f"(batch={batch_size})",
                 flush=True,
             )
 
-        if (
-            processed % CHECKPOINT_EVERY == 0
-            or processed == len(words)
-        ):
-            memory.save(
-                OUTPUT_PATH
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+
+        peak_mb = (
+            torch.cuda.max_memory_allocated(
+                device
             )
+            / (
+                1024 * 1024
+            )
+        )
+    else:
+        peak_mb = 0.0
 
-    return stats
-
-
-def summarize(
-    stats: list[dict[str, float]],
-    label: str,
-) -> None:
-    if not stats:
-        return
-
-    def avg(
-        key: str,
-    ) -> float:
-        return sum(
-            item[key]
-            for item in stats
-        ) / len(stats)
-
-    print(
-        f"=== {label} SUMMARY ==="
+    seconds = elapsed(
+        started
     )
 
-    print(
-        "words:",
-        len(stats),
-    )
-
-    print(
-        "mean_concepts_returned:",
-        avg("concepts_returned"),
-    )
-
-    print(
-        "mean_seed_reuse:",
-        avg("seed_reuse"),
-    )
-
-    print(
-        "mean_learner_new:",
-        avg("learner_new"),
-    )
-
-    print()
+    return {
+        "seconds": seconds,
+        "words": float(
+            len(prompts)
+        ),
+        "words_per_second": (
+            len(prompts)
+            / max(
+                1e-9,
+                seconds,
+            )
+        ),
+        "input_tokens": float(
+            total_input_tokens
+        ),
+        "output_tokens": float(
+            total_output_tokens
+        ),
+        "output_tokens_per_second": (
+            total_output_tokens
+            / max(
+                1e-9,
+                seconds,
+            )
+        ),
+        "mean_input_tokens": (
+            total_input_tokens
+            / max(
+                1,
+                len(prompts),
+            )
+        ),
+        "mean_output_tokens": (
+            total_output_tokens
+            / max(
+                1,
+                len(prompts),
+            )
+        ),
+        "peak_gpu_mb": peak_mb,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1127,167 +729,230 @@ def summarize(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    started = time.perf_counter()
-
     print(
-        "=== V109 HUMAN SEMANTIC VOCABULARY MEMORY ==="
+        "=== END-TO-END V110 BENCHMARK ==="
     )
     print(
-        "Frozen model:",
-        MODEL_PATH,
+        f"test_words={TEST_WORDS}"
+    )
+    print(
+        f"candidate_limit={CANDIDATE_LIMIT}"
+    )
+    print(
+        f"memory_vocab_limit={MEMORY_VOCAB_LIMIT}"
+    )
+    print(
+        f"max_new_tokens={MAX_NEW_TOKENS}"
     )
     print()
 
-    words = load_dictionary(
-        DICTIONARY_PATH
+    words = load_dictionary()
+
+    semantic_index = (
+        HumanSemanticIndex()
     )
 
-    seed_vocabulary, seed_weights = (
-        load_semantic_vocabulary(
-            SEMANTICS_PATH
+    semantic_index.load(
+        SEMANTICS_PATH
+    )
+
+    lexical_neighbors = (
+        build_fast_lexical_index(
+            words
         )
     )
 
-    print(
-        "dictionary_words:",
-        len(words),
+    # Representative memory vocabulary.
+    memory_concepts = (
+        semantic_index.global_top(
+            32
+        )
     )
-
-    print(
-        "human_seed_vocabulary:",
-        len(seed_vocabulary),
-    )
-
-    print(
-        "top_seed_concepts:",
-        seed_vocabulary[:30],
-    )
-
-    print()
 
     tokenizer, model, device = (
         load_model()
     )
 
-    memory = SemanticMemory(
-        seed_weights
+    # ---------------------------------------------------------------
+    # CPU candidate/prompt stage
+    # ---------------------------------------------------------------
+
+    prompts = build_all_prompts(
+        tokenizer,
+        words,
+        semantic_index,
+        lexical_neighbors,
+        memory_concepts,
     )
 
-    print(
-        "initial_memory:",
-        memory.stats(),
+    # Tokenization-only measurement.
+    started = now()
+
+    tokenized = tokenizer(
+        prompts,
+        truncation=True,
+        max_length=MAX_INPUT_TOKENS,
+        padding=True,
+    )
+
+    tokenization_seconds = elapsed(
+        started
+    )
+
+    mean_input = (
+        sum(
+            len(row)
+            for row in tokenized[
+                "input_ids"
+            ]
+        )
+        / max(
+            1,
+            len(prompts),
+        )
     )
 
     print()
-
-    # ---------------------------------------------------------------
-    # PASS 1 — canonical human vocabulary selection.
-    # ---------------------------------------------------------------
-
-    pass1 = run_pass(
-        "PASS1",
-        words,
-        tokenizer,
-        model,
-        device,
-        memory,
-        seed_vocabulary,
-        use_memory=False,
-    )
-
-    summarize(
-        pass1,
-        "V109 PASS1 CANONICAL VOCAB",
+    print(
+        "=== CPU STAGE SUMMARY ==="
     )
 
     print(
-        "after_pass1:",
-        memory.stats(),
-    )
-
-    print()
-
-    # ---------------------------------------------------------------
-    # PASS 2 — memory-conditioned reuse.
-    # ---------------------------------------------------------------
-
-    pass2 = run_pass(
-        "PASS2",
-        words,
-        tokenizer,
-        model,
-        device,
-        memory,
-        seed_vocabulary,
-        use_memory=True,
-    )
-
-    summarize(
-        pass2,
-        "V109 PASS2 MEMORY REUSE",
+        "prompt_build_seconds:",
+        "see progress timing above",
     )
 
     print(
-        "=== V109 FINAL MEMORY ==="
+        "tokenization_seconds:",
+        f"{tokenization_seconds:.3f}",
     )
 
-    final_stats = memory.stats()
+    print(
+        "mean_input_tokens:",
+        mean_input,
+    )
 
-    for key, value in final_stats.items():
+    if mean_input > 220:
         print(
-            f"{key:32s}: {value}"
+            "WARNING: prompts are still unexpectedly long.",
+            flush=True,
         )
 
     print()
 
-    print(
-        "=== TOP USED HUMAN CONCEPTS ==="
-    )
+    # ---------------------------------------------------------------
+    # GPU generation tests
+    # ---------------------------------------------------------------
 
-    ranked_seed = sorted(
-        (
-            (
-                concept,
-                memory.usage[
-                    memory.concept_id_by_name[
-                        concept
-                    ]
-                ],
+    results = []
+
+    for batch_size in BATCH_SIZES:
+        print()
+        print(
+            f"=== GENERATION batch={batch_size} ==="
+        )
+
+        try:
+            # Small warmup.
+            warmup_count = min(
+                batch_size * 2,
+                len(prompts),
             )
-            for concept
-            in memory.seed_concepts
-            if concept
-            in memory.concept_id_by_name
-        ),
-        key=lambda item: (
-            -item[1],
-            item[0],
-        ),
+
+            generate_prompts(
+                tokenizer,
+                model,
+                device,
+                prompts[
+                    :warmup_count
+                ],
+                batch_size,
+            )
+
+            result = generate_prompts(
+                tokenizer,
+                model,
+                device,
+                prompts,
+                batch_size,
+            )
+
+            result[
+                "batch_size"
+            ] = batch_size
+
+            results.append(
+                result
+            )
+
+            print(
+                f"batch={batch_size} "
+                f"seconds={result['seconds']:.3f} "
+                f"words/s={result['words_per_second']:.2f} "
+                f"out_tok/s={result['output_tokens_per_second']:.2f} "
+                f"peak_MB={result['peak_gpu_mb']:.1f}",
+                flush=True,
+            )
+
+        except torch.cuda.OutOfMemoryError:
+            print(
+                f"batch={batch_size} -> CUDA OOM",
+                flush=True,
+            )
+
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+
+    print()
+    print(
+        "=== FINAL RESULTS ==="
     )
 
-    for concept, count in ranked_seed[:50]:
+    print(
+        "batch | seconds | words/s | out_tok/s | peak_MB | in_tok | out_tok"
+    )
+
+    for result in results:
         print(
-            f"{concept:32s} usage={count:5d}"
+            f"{int(result['batch_size']):5d} | "
+            f"{result['seconds']:8.3f} | "
+            f"{result['words_per_second']:7.2f} | "
+            f"{result['output_tokens_per_second']:10.2f} | "
+            f"{result['peak_gpu_mb']:8.1f} | "
+            f"{result['mean_input_tokens']:6.1f} | "
+            f"{result['mean_output_tokens']:7.1f}"
+        )
+
+    if results:
+        fastest = max(
+            results,
+            key=lambda item: (
+                item[
+                    "words_per_second"
+                ]
+            ),
+        )
+
+        print()
+        print(
+            "=== RECOMMENDED ==="
+        )
+        print(
+            "batch_size:",
+            int(
+                fastest["batch_size"]
+            ),
+        )
+        print(
+            "words_per_second:",
+            fastest[
+                "words_per_second"
+            ],
         )
 
     print()
-
-    memory.save(
-        OUTPUT_PATH
-    )
-
     print(
-        "saved:",
-        OUTPUT_PATH,
-    )
-
-    print(
-        "elapsed_seconds:",
-        f"{time.perf_counter() - started:.2f}",
-    )
-
-    print(
-        "=== V109 COMPLETE ==="
+        "=== END-TO-END BENCH COMPLETE ==="
     )
 
 
