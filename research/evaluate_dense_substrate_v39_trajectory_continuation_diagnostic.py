@@ -280,177 +280,104 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V38: frozen training boundary memory.
+        # V39: frozen trajectory continuation diagnostic.
         #
-        # V37 allowed the recurrence history to grow while evaluating. That
-        # turns evaluation into a moving-memory classifier. V38 freezes a
-        # memory built exclusively from TRAINING boundaries after learning
-        # and pruning, then evaluates every test boundary against that fixed
-        # memory.
+        # This is deliberately diagnostic-first. We no longer classify from
+        # snapshot recurrence. Starting from the current substrate state, we
+        # repeatedly follow strong learned edges and compare the predicted
+        # trajectory with the actual frozen substrate trajectory.
         #
-        # Each boundary contains:
-        #   current assembly
-        #   next assembly
-        #   current strong topology
-        #   next strong topology
+        # No ground truth is consulted. No test state is added to memory.
         #
-        # No test boundary is ever inserted into the memory.
+        # The diagnostic reports:
+        #   step_1_overlap, step_2_overlap, ...
+        #   trajectory_overlap
+        #   trajectory_divergence
+        #
+        # The existing designer competition is left in place only so the
+        # benchmark remains runnable; the trajectory evidence is the new
+        # object of study.
 
-        def topology_signature(cells):
+        def strong_out(cells):
             return {
-                (src, dst)
+                dst
                 for (src, dst), weight in self.weights.items()
                 if src in cells and weight >= 0.50
             }
 
-        current_edges = topology_signature(fired_set)
-
-        next_cells = set()
-        next_edges = set()
-
-        if pos + 1 < len(word):
-            next_cells = set(
+        def actual_trajectory(word0, pos0, horizon):
+            states = []
+            current = set(
                 self.activate_substrate(
-                    word,
-                    pos + 1,
+                    word0,
+                    pos0,
                     learn=False,
                 )
             )
-            next_edges = topology_signature(next_cells)
 
-        # Build the frozen training memory exactly once. TRAINING is only the
-        # source of observed substrate boundaries; independent ground truth
-        # is not stored here.
-        if not hasattr(self, "_frozen_boundary_memory"):
-            memory = []
+            for step in range(horizon + 1):
+                states.append(set(current))
 
-            for train_word in TRAINING:
-                for train_pos in range(len(train_word) - 1):
-                    train_current = set(
-                        self.activate_substrate(
-                            train_word,
-                            train_pos,
-                            learn=False,
-                        )
+                if pos0 + step + 1 >= len(word0):
+                    break
+
+                current = set(
+                    self.activate_substrate(
+                        word0,
+                        pos0 + step + 1,
+                        learn=False,
                     )
-                    train_next = set(
-                        self.activate_substrate(
-                            train_word,
-                            train_pos + 1,
-                            learn=False,
-                        )
-                    )
+                )
 
-                    train_current_edges = topology_signature(train_current)
-                    train_next_edges = topology_signature(train_next)
+            return states
 
-                    memory.append(
-                        {
-                            "word": train_word,
-                            "pos": train_pos,
-                            "current": train_current,
-                            "next": train_next,
-                            "current_edges": train_current_edges,
-                            "next_edges": train_next_edges,
-                        }
-                    )
+        def predicted_trajectory(initial, horizon):
+            states = []
+            current = set(initial)
 
-            self._frozen_boundary_memory = memory
+            for _ in range(horizon + 1):
+                states.append(set(current))
 
-        best = None
+                if not current:
+                    break
 
-        for index, previous in enumerate(self._frozen_boundary_memory):
-            current_union = fired_set | previous["current"]
-            current_intersection = fired_set & previous["current"]
+                current = strong_out(current)
 
-            assembly_overlap = (
-                len(current_intersection) / len(current_union)
-                if current_union else 0.0
+            return states
+
+        max_horizon = 3
+        actual = actual_trajectory(word, pos, max_horizon)
+        predicted = predicted_trajectory(fired_set, max_horizon)
+
+        step_overlaps = []
+
+        for step in range(1, max_horizon + 1):
+            if step >= len(actual) or step >= len(predicted):
+                step_overlaps.append(0.0)
+                continue
+
+            expected_state = actual[step]
+            predicted_state = predicted[step]
+
+            union = expected_state | predicted_state
+            intersection = expected_state & predicted_state
+
+            overlap = (
+                len(intersection) / len(union)
+                if union else 0.0
             )
 
-            next_union = next_cells | previous["next"]
-            next_intersection = next_cells & previous["next"]
+            step_overlaps.append(overlap)
 
-            next_overlap = (
-                len(next_intersection) / len(next_union)
-                if next_union else 0.0
-            )
+        available_steps = len(step_overlaps)
 
-            current_edge_union = (
-                current_edges | previous["current_edges"]
-            )
-            current_edge_intersection = (
-                current_edges & previous["current_edges"]
-            )
-
-            current_topology_overlap = (
-                len(current_edge_intersection)
-                / len(current_edge_union)
-                if current_edge_union else 0.0
-            )
-
-            next_edge_union = (
-                next_edges | previous["next_edges"]
-            )
-            next_edge_intersection = (
-                next_edges & previous["next_edges"]
-            )
-
-            next_topology_overlap = (
-                len(next_edge_intersection)
-                / len(next_edge_union)
-                if next_edge_union else 0.0
-            )
-
-            transition_overlap = (
-                0.25 * assembly_overlap
-                + 0.25 * next_overlap
-                + 0.25 * current_topology_overlap
-                + 0.25 * next_topology_overlap
-            )
-
-            candidate = {
-                "index": index,
-                "word": previous["word"],
-                "pos": previous["pos"],
-                "assembly_overlap": assembly_overlap,
-                "next_overlap": next_overlap,
-                "current_topology_overlap": current_topology_overlap,
-                "next_topology_overlap": next_topology_overlap,
-                "transition_overlap": transition_overlap,
-            }
-
-            if best is None or (
-                candidate["transition_overlap"]
-                > best["transition_overlap"]
-            ):
-                best = candidate
-
-        if best is None:
-            best = {
-                "index": None,
-                "word": None,
-                "pos": None,
-                "assembly_overlap": 0.0,
-                "next_overlap": 0.0,
-                "current_topology_overlap": 0.0,
-                "next_topology_overlap": 0.0,
-                "transition_overlap": 0.0,
-            }
-
-        transition_threshold = dg.get(
-            "transition_recurrence_threshold",
-            0.50,
+        trajectory_overlap = (
+            sum(step_overlaps) / available_steps
+            if available_steps
+            else 0.0
         )
 
-        # Terminal positions have no boundary, therefore no recurrence
-        # evidence.
-        recurrent_transition = (
-            pos + 1 < len(word)
-            and best["transition_overlap"] >= transition_threshold
-        )
-
-        transition_novelty = 1.0 - best["transition_overlap"]
+        trajectory_divergence = 1.0 - trajectory_overlap
 
         self.last_dense_trace = {
             "word": word,
@@ -462,28 +389,25 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
                 for (src, dst), weight in self.weights.items()
                 if src in fired_set and weight >= 0.50
             ),
-            "strong_outgoing": len(current_edges),
-            "next_fired": sorted(next_cells),
-            "assembly_overlap": best["assembly_overlap"],
-            "next_overlap": best["next_overlap"],
-            "current_topology_overlap": (
-                best["current_topology_overlap"]
-            ),
-            "next_topology_overlap": (
-                best["next_topology_overlap"]
-            ),
-            "transition_overlap": best["transition_overlap"],
-            "combined_recurrence": best["transition_overlap"],
-            "transition_novelty": transition_novelty,
-            "best_history_index": best["index"],
-            "best_match_word": best["word"],
-            "best_match_pos": best["pos"],
-            "recurrent_transition": recurrent_transition,
-            "recurrent": recurrent_transition,
-            "frozen_memory_size": len(
-                self._frozen_boundary_memory
-            ),
+            "strong_outgoing": len(strong_out(fired_set)),
+            "trajectory_horizon": max_horizon,
+            "step_overlaps": step_overlaps,
+            "trajectory_overlap": trajectory_overlap,
+            "trajectory_divergence": trajectory_divergence,
+            "predicted_sizes": [
+                len(state)
+                for state in predicted
+            ],
+            "actual_sizes": [
+                len(state)
+                for state in actual
+            ],
         }
+
+        # Keep the old designer path operational, but make its evidence
+        # neutral. V39's primary result is the trajectory diagnostic.
+        recurrent = False
+        predictive_evidence = 0.0
 
         root = n.cells[n.designer_root]
         reuse = n.cells[n.reuse_cell]
@@ -491,13 +415,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        if recurrent_transition:
-            reuse.potential += (
-                dg["match_gain"]
-                * min(1.0, best["transition_overlap"])
-            )
-        else:
-            branch.potential += dg["branch_bias"]
+        # V39 is diagnostic-only: do not turn trajectory overlap into a
+        # classifier until the diagnostic itself demonstrates separation.
+        branch.potential += dg["branch_bias"]
 
         if root.potential >= dg["threshold"]:
             root.potential = 0.0
@@ -657,7 +577,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V38 - FROZEN TRAINING BOUNDARY MEMORY ===")
+    print("=== DENSE SUBSTRATE V39 - TRAJECTORY CONTINUATION DIAGNOSTIC ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -851,24 +771,25 @@ def run():
 
 
     print()
-    print("=== V38 FROZEN TRAINING BOUNDARY MEMORY AUDIT ===")
+    print("=== V39 TRAJECTORY CONTINUATION AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
         for word in words:
             for pos in range(len(word)):
-                action = net.designer_from_dense_activity(word, pos)
+                net.designer_from_dense_activity(word, pos)
                 trace = net.last_dense_trace
+                overlaps = ", ".join(
+                    f"{value:.3f}"
+                    for value in trace["step_overlaps"]
+                )
                 print(
                     f"{word:6s} pos={pos} "
-                    f"decision={action:6s} "
-                    f"match={trace['best_match_word']}:{trace['best_match_pos']} "
-                    f"assembly={trace['assembly_overlap']:.3f} "
-                    f"next={trace['next_overlap']:.3f} "
-                    f"transition={trace['transition_overlap']:.3f} "
-                    f"novelty={trace['transition_novelty']:.3f} "
-                    f"recurrent={trace['recurrent_transition']} "
-                    f"memory={trace['frozen_memory_size']}"
+                    f"steps=[{overlaps}] "
+                    f"trajectory={trace['trajectory_overlap']:.3f} "
+                    f"divergence={trace['trajectory_divergence']:.3f} "
+                    f"pred_sizes={trace['predicted_sizes']} "
+                    f"actual_sizes={trace['actual_sizes']}"
                 )
                 count += 1
                 if count >= limit:
@@ -878,9 +799,15 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V38 FROZEN TRAINING BOUNDARY MEMORY AUDIT ===")
+    print("=== END V39 TRAJECTORY CONTINUATION AUDIT ===")
     print()
 
+
+    print()
+    print("=== V39 TRAJECTORY DIAGNOSTIC SUMMARY ===")
+    print("Trajectory overlap is diagnostic only; it does not drive REUSE.")
+    print("=== END V39 TRAJECTORY DIAGNOSTIC SUMMARY ===")
+    print()
     net.evaluate_frozen(TEST)
 
 
