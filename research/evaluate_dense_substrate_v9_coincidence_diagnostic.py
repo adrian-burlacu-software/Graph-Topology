@@ -244,6 +244,13 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             active = 0
 
             for word in words:
+                # Populate the two directional memories as input
+                # representations. This is NOT ground truth: the dense
+                # substrate still has no boundary/edge lookup.
+                for pos in range(len(word)):
+                    self.prefix.ensure_path(word[:pos])
+                    self.suffix.ensure_path(word[pos + 1:])
+
                 for pos in range(len(word)):
                     fired = self.activate_substrate(
                         word,
@@ -469,7 +476,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V8 - COINCIDENCE DIAGNOSTIC ===")
+    print("=== DENSE SUBSTRATE V9 - COINCIDENCE DIAGNOSTIC ===")
     print()
     print(
         "Fully connected generic substrate with separate prefix/suffix "
@@ -488,6 +495,8 @@ def run():
     )
 
     net.train_dense(TRAINING, epochs=5)
+
+    print()
 
     print()
     print("=== LEARNING PATH DIAGNOSTICS ===")
