@@ -119,6 +119,87 @@ class DenseCell:
 
 class DensePlasticSubstrateV1(DualVocabularyV6):
 
+    def v53_topology_projection(self, fired, minimum_strength=0.50):
+        """One-hop propagation through the learned graph."""
+        fired_set = set(fired)
+        destination_mass = {}
+
+        for (src_id, dst_id), weight in self.weights.items():
+            if src_id in fired_set and weight >= minimum_strength:
+                destination_mass[dst_id] = (
+                    destination_mass.get(dst_id, 0.0)
+                    + float(weight)
+                )
+
+        ranked = sorted(
+            destination_mass.items(),
+            key=lambda item: (-item[1], item[0]),
+        )
+
+        return {
+            "destination_mass": destination_mass,
+            "ranked_destinations": tuple(ranked),
+            "total_mass": sum(destination_mass.values()),
+            "destination_count": len(destination_mass),
+        }
+
+    def v53_topology_projected_evidence(self, word, pos):
+        """Frozen dense activity followed by one learned-topology hop."""
+        fired = self.activate_substrate_frozen(word, pos)
+        projection = self.v53_topology_projection(fired)
+
+        masses = [
+            mass for _, mass in projection["ranked_destinations"]
+        ]
+        strongest = masses[0] if masses else 0.0
+        second = masses[1] if len(masses) > 1 else 0.0
+        total = projection["total_mass"]
+
+        concentration = (
+            strongest / total if total > 0.0 else 0.0
+        )
+        margin = (
+            (strongest - second) / total
+            if total > 0.0
+            else 0.0
+        )
+
+        # Count destinations receiving support from >=2 distinct fired
+        # sources. This is a structural convergence signal.
+        source_support = {}
+        fired_set = set(fired)
+
+        for (src_id, dst_id), weight in self.weights.items():
+            if src_id in fired_set and weight >= 0.50:
+                source_support.setdefault(dst_id, set()).add(src_id)
+
+        convergent = sum(
+            1 for sources in source_support.values()
+            if len(sources) >= 2
+        )
+
+        return {
+            "word": word,
+            "pos": pos,
+            "fired": tuple(sorted(fired)),
+            "projected_destinations": projection["ranked_destinations"],
+            "total_mass": total,
+            "destination_count": projection["destination_count"],
+            "concentration": concentration,
+            "margin": margin,
+            "convergent_destinations": convergent,
+            "source_support": tuple(
+                sorted(
+                    (
+                        dst,
+                        len(sources),
+                    )
+                    for dst, sources in source_support.items()
+                )
+            ),
+        }
+
+
     def v52_topology_signature(self, fired):
         """Read the actual learned (src, dst) weight graph."""
         fired_set = set(fired)
@@ -1160,8 +1241,100 @@ def v52_run_topology_native_experiment(net, training, test):
     print()
 
 
+
+def v53_run_topology_projection_experiment(net, training, test):
+    print()
+    print("=== V53 CAUSAL TOPOLOGY PROJECTION ===")
+    print(
+        "Dense firing is followed by one-hop propagation through the "
+        "learned self.weights graph."
+    )
+    print(
+        "No assembly memory, vocabulary list, labels, ground truth, "
+        "or BoundaryGraph is supplied to the projection."
+    )
+    print()
+
+    print("--- TRAINING PROJECTIONS ---")
+    training_signatures = {}
+
+    for word in training:
+        for pos in range(len(word)):
+            e = net.v53_topology_projected_evidence(word, pos)
+
+            # Structural signature of the projected continuation.
+            signature = tuple(
+                (dst, round(mass, 6))
+                for dst, mass in e["projected_destinations"]
+            )
+            training_signatures[signature] = (
+                training_signatures.get(signature, 0) + 1
+            )
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"fired={list(e['fired'])} "
+                f"dest={e['destination_count']:2d} "
+                f"mass={e['total_mass']:.3f} "
+                f"conc={e['concentration']:.3f} "
+                f"margin={e['margin']:.3f} "
+                f"convergent={e['convergent_destinations']:2d} "
+                f"top={list(e['projected_destinations'][:6])}"
+            )
+
+    print()
+    print(
+        "unique_projected_signatures :",
+        len(training_signatures),
+    )
+    print(
+        "training_positions          :",
+        sum(training_signatures.values()),
+    )
+
+    print()
+    print("--- HELD-OUT PROJECTIONS ---")
+
+    for word in test:
+        for pos in range(len(word)):
+            e = net.v53_topology_projected_evidence(word, pos)
+
+            print(
+                f"{word:6s} pos={pos} "
+                f"fired={list(e['fired'])} "
+                f"dest={e['destination_count']:2d} "
+                f"mass={e['total_mass']:.3f} "
+                f"conc={e['concentration']:.3f} "
+                f"margin={e['margin']:.3f} "
+                f"convergent={e['convergent_destinations']:2d} "
+                f"top={list(e['projected_destinations'][:6])}"
+            )
+
+    print()
+    print("--- TOPOLOGY PROJECTION DETERMINISM ---")
+
+    for word, pos in (
+        ("CAT", 1),
+        ("CAD", 1),
+        ("BOAT", 0),
+        ("BOARD", 3),
+    ):
+        a = net.v53_topology_projected_evidence(word, pos)
+        b = net.v53_topology_projected_evidence(word, pos)
+
+        print(
+            f"{word:6s} pos={pos} "
+            f"same_projection="
+            f"{a['projected_destinations'] == b['projected_destinations']} "
+            f"same_mass={a['total_mass'] == b['total_mass']}"
+        )
+
+    print()
+    print("=== END V53 CAUSAL TOPOLOGY PROJECTION ===")
+    print()
+
 def run():
-    print("=== DENSE SUBSTRATE V52 - ACTUAL LEARNED TOPOLOGY AUDIT ===")
+    print("=== DENSE SUBSTRATE V53 - CAUSAL TOPOLOGY PROJECTION ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1334,6 +1507,7 @@ def run():
         return rows
 
     v52_run_topology_native_experiment(net, TRAINING, TEST)
+    v53_run_topology_projection_experiment(net, TRAINING, TEST)
 
     probe_exact_path(
         "TRAINING MIXED",
