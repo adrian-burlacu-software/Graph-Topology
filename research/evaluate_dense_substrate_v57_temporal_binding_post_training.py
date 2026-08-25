@@ -54,6 +54,11 @@ print("=== V56 START ===")
 print("V56_CODE_LOADED = TRUE")
 print()
 
+
+print("=== V57 START ===")
+print("V57_CODE_LOADED = TRUE")
+print()
+
 class IndependentGroundTruth:
     """
     Ground truth is built independently from the dense substrate.
@@ -1484,6 +1489,7 @@ def v54_run_guaranteed_projection(net, training, test):
 
 
 def v56_run_temporal_binding_experiment(net, training, test):
+    print("V57_TEMPORAL_CODE_EXECUTED = TRUE")
     print()
     print("=== V56 TEMPORAL ASSEMBLY BINDING ===")
     print(
@@ -1683,7 +1689,9 @@ def run():
 
 
     print("V55_TRAINING_COMPLETE = TRUE")
+    print("V57_TRAINING_READY = TRUE")
     v56_run_temporal_binding_experiment(net, TRAINING, TEST)
+
 
     v54_run_guaranteed_projection(net, TRAINING, TEST)
 
