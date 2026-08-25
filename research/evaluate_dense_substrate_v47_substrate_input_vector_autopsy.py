@@ -356,6 +356,12 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
     def activate_substrate(self, word, pos, learn=False):
 
 
+        # V47: substrate input-vector autopsy.
+
+
+        self._v47_input_trace = []
+
+
         # V45: surgical per-cell decision trace.
 
         # This records the state at the exact moment each cell is considered.
@@ -845,7 +851,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V46 - INDEPENDENT CELL SCORE AUDIT ===")
+    print("=== DENSE SUBSTRATE V47 - SUBSTRATE INPUT VECTOR AUTOPSY ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -1064,6 +1070,178 @@ def run():
                     return
 
         print("=== END V42 FROZEN CANDIDATE READOUT ===")
+        print()
+
+
+
+    def v47_input_vector_autopsy():
+
+
+        print()
+
+
+        print("=== V47 SUBSTRATE INPUT VECTOR AUTOPSY ===")
+
+
+    
+
+
+        probes = [
+
+
+            ("CAT", 1),
+
+
+            ("CAD", 1),
+
+
+            ("BOAT", 0),
+
+
+            ("BOARD", 3),
+
+
+        ]
+
+
+    
+
+
+        for word, pos in probes:
+
+
+            net.activate_substrate(word, pos, learn=False)
+
+
+            first = list(getattr(net, "_v47_input_trace", []))
+
+
+    
+
+
+            net.activate_substrate(word, pos, learn=False)
+
+
+            second = list(getattr(net, "_v47_input_trace", []))
+
+
+    
+
+
+            print()
+
+
+            print(
+
+
+                f"{word:6s} pos={pos} "
+
+
+                f"first_rows={len(first)} "
+
+
+                f"second_rows={len(second)} "
+
+
+                f"same_vector={first == second}"
+
+
+            )
+
+
+    
+
+
+            first_cells = {
+
+
+                row.get("cell"): row
+
+
+                for row in first
+
+
+                if "cell" in row
+
+
+            }
+
+
+            second_cells = {
+
+
+                row.get("cell"): row
+
+
+                for row in second
+
+
+                if "cell" in row
+
+
+            }
+
+
+    
+
+
+            differing = []
+
+
+            for cell_id in sorted(
+
+
+                set(first_cells) | set(second_cells),
+
+
+                key=str,
+
+
+            ):
+
+
+                a = first_cells.get(cell_id)
+
+
+                b = second_cells.get(cell_id)
+
+
+                if a != b:
+
+
+                    differing.append((cell_id, a, b))
+
+
+    
+
+
+            print(f"  differing_cells={len(differing)}")
+
+
+    
+
+
+            for cell_id, a, b in differing[:8]:
+
+
+                print(f"  CELL {cell_id}")
+
+
+                print(f"    FIRST : {a}")
+
+
+                print(f"    SECOND: {b}")
+
+
+    
+
+
+        print()
+
+
+        print("=== END V47 SUBSTRATE INPUT VECTOR AUTOPSY ===")
+
+
         print()
 
 
@@ -1501,6 +1679,8 @@ def run():
     v44_score_selection_autopsy()
 
     v45_first_divergence_autopsy()
+
+    v47_input_vector_autopsy()
 
     v46_independent_score_audit()
     print("--- HELD-OUT ---")
