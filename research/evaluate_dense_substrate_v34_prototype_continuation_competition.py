@@ -280,14 +280,18 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V33: continuation competition.
+        # V34: prototype-based continuation competition.
         #
-        # We do not ask whether the current activation is merely dense, nor
-        # whether it overlaps the actual next-symbol activation. Instead,
-        # learned outgoing topology votes for candidate continuation cells.
+        # Do not assume dense cells carry symbol metadata. Instead, construct
+        # a frozen activity prototype for each symbol from the substrate's
+        # own representation. The prototype is learned/collected once from
+        # the training vocabulary and then used only for frozen readout.
         #
-        # Candidate symbols are the symbols represented by the substrate's
-        # existing vocabulary cells. No independent ground truth is consulted.
+        # The current context activates population P. Learned strong outgoing
+        # topology predicts population Q. Candidate symbols compete by how
+        # closely Q matches each symbol's learned substrate prototype.
+        #
+        # Ground truth is not consulted for the decision.
 
         strong_edges = [
             (src, dst, weight)
@@ -295,95 +299,128 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
             if src in fired_set and weight >= 0.50
         ]
 
-        votes_by_destination = {}
-        for _, dst, weight in strong_edges:
-            votes_by_destination[dst] = (
-                votes_by_destination.get(dst, 0.0) + weight
+        predicted = set(dst for _, dst, _ in strong_edges)
+
+        # Build/retrieve frozen symbol prototypes lazily from training
+        # representations. This uses only symbol -> substrate activity.
+        if not hasattr(self, "_symbol_prototypes"):
+            self._symbol_prototypes = {}
+
+        symbol_set = sorted(
+            {
+                ch
+                for word0 in TRAINING
+                for ch in word0
+            }
+        )
+
+        if not self._symbol_prototypes:
+            saved = getattr(self, "_learning_enabled", None)
+
+            for symbol in symbol_set:
+                # Find a training occurrence of this symbol and obtain its
+                # normal substrate representation without learning.
+                found = None
+                for word0 in TRAINING:
+                    p0 = word0.find(symbol)
+                    if p0 >= 0:
+                        found = (word0, p0)
+                        break
+
+                if found is not None:
+                    w0, p0 = found
+                    proto = set(
+                        self.activate_substrate(
+                            w0,
+                            p0,
+                            learn=False,
+                        )
+                    )
+                    self._symbol_prototypes[symbol] = proto
+
+            if saved is not None:
+                self._learning_enabled = saved
+
+        candidate_scores = []
+
+        for symbol, prototype in self._symbol_prototypes.items():
+            union = predicted | prototype
+            intersection = predicted & prototype
+
+            score = (
+                len(intersection) / len(union)
+                if union
+                else 0.0
             )
 
-        # Recover candidate symbols from the substrate cell labels.
-        # Prefer an explicit symbol attribute when available; otherwise use
-        # the cell's existing label/name representation.
-        symbol_cells = {}
-        for cell in self.cells:
-            symbol = getattr(cell, "symbol", None)
-            if symbol is None:
-                symbol = getattr(cell, "label", None)
-            if symbol is None:
-                symbol = getattr(cell, "value", None)
+            candidate_scores.append((symbol, score))
 
-            if isinstance(symbol, str) and len(symbol) == 1:
-                symbol_cells.setdefault(symbol, set()).add(cell.id)
+        candidate_scores.sort(
+            key=lambda item: item[1],
+            reverse=True,
+        )
 
-        candidate_scores = {}
-        for symbol, cell_ids in symbol_cells.items():
-            score = sum(
-                votes_by_destination.get(cell_id, 0.0)
-                for cell_id in cell_ids
-            )
-            candidate_scores[symbol] = score
+        best_symbol = (
+            candidate_scores[0][0]
+            if candidate_scores
+            else None
+        )
+        best_score = (
+            candidate_scores[0][1]
+            if candidate_scores
+            else 0.0
+        )
+        second_score = (
+            candidate_scores[1][1]
+            if len(candidate_scores) > 1
+            else 0.0
+        )
+        margin = best_score - second_score
 
-        # The actual next symbol is diagnostic only. It is NOT used to make
-        # the decision. At the terminal position there is no continuation
-        # candidate, so leave the prediction signal at zero.
         actual_next = (
             word[pos + 1]
             if pos + 1 < len(word)
             else None
         )
 
-        ranked_candidates = sorted(
-            candidate_scores.items(),
-            key=lambda item: item[1],
-            reverse=True,
+        # A selective continuation prediction is the reusable signal.
+        predictive_threshold = dg.get(
+            "predictive_threshold",
+            0.20,
+        )
+        margin_threshold = dg.get(
+            "prediction_margin_threshold",
+            0.05,
         )
 
-        best_symbol = (
-            ranked_candidates[0][0]
-            if ranked_candidates and ranked_candidates[0][1] > 0.0
-            else None
-        )
-        best_score = (
-            ranked_candidates[0][1]
-            if ranked_candidates
-            else 0.0
-        )
-
-        second_score = (
-            ranked_candidates[1][1]
-            if len(ranked_candidates) > 1
-            else 0.0
-        )
-
-        margin = best_score - second_score
-
-        # A reusable boundary should produce a strong, selective
-        # continuation preference. The margin prevents total connectivity
-        # from automatically becoming REUSE.
-        predictive_threshold = dg.get("predictive_threshold", 0.50)
-        margin_threshold = dg.get("prediction_margin_threshold", 0.10)
-
-        predictive_evidence = min(1.0, best_score / max(1.0, len(fired_set)))
         selective_prediction = (
-            best_score >= predictive_threshold
+            predicted
+            and best_score >= predictive_threshold
             and margin >= margin_threshold
         )
+
+        predictive_evidence = best_score
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
+            "predicted": sorted(predicted),
             "actual_next": actual_next,
-            "candidate_scores": ranked_candidates[:8],
+            "candidate_scores": candidate_scores[:8],
             "best_symbol": best_symbol,
             "best_score": best_score,
             "second_score": second_score,
             "margin": margin,
             "predictive_evidence": predictive_evidence,
-            "selective_prediction": selective_prediction,
+            "selective_prediction": bool(selective_prediction),
             "strong_outgoing": len(strong_edges),
             "learned_mass": sum(weight for _, _, weight in strong_edges),
+            "prototype_sizes": {
+                symbol: len(proto)
+                for symbol, proto in self._symbol_prototypes.items()
+            },
         }
 
         root = n.cells[n.designer_root]
@@ -557,7 +594,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V33 - CONTINUATION COMPETITION ===")
+    print("=== DENSE SUBSTRATE V34 - PROTOTYPE CONTINUATION COMPETITION ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -751,7 +788,7 @@ def run():
 
 
     print()
-    print("=== V33 CONTINUATION COMPETITION AUDIT ===")
+    print("=== V34 PROTOTYPE CONTINUATION COMPETITION AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -777,7 +814,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V33 CONTINUATION COMPETITION AUDIT ===")
+    print("=== END V34 PROTOTYPE CONTINUATION COMPETITION AUDIT ===")
     print()
 
     net.evaluate_frozen(TEST)
