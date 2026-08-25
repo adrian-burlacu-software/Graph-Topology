@@ -26,6 +26,71 @@ assembly list.
 """
 
 from dataclasses import dataclass
+
+# ---------------------------------------------------------------------------
+# V70 BENCHMARK CORPUS
+# ---------------------------------------------------------------------------
+
+V70_REUSE_TRAINING = [
+    "CAT", "CAR", "CAN", "CARD", "CART",
+    "CAD", "COD", "COT", "BAD", "BAR",
+    "BARD", "BAN", "DART", "DAT", "BOT",
+    "BOAT",
+]
+
+V70_BRANCH_TRAINING = [
+    "CAB", "CAP", "CAG", "COB", "COR",
+    "DAB", "DAG", "DAN", "BAT", "BAG",
+    "DOA", "DOG", "BOD", "BOR", "CARTB",
+]
+
+V70_TRAINING = (
+    V70_REUSE_TRAINING
+    + V70_BRANCH_TRAINING
+)
+
+V70_TEST_REUSE = [
+    "CAT", "CAR", "CAN", "CARD", "CART",
+    "CAD", "COD", "COT", "BAD", "BAR",
+]
+
+V70_TEST_BRANCH = [
+    "CABD", "CAPT", "CAGD", "COBD", "CORD",
+    "DABD", "DAGT", "DANT", "BATD", "BAGT",
+]
+
+V70_TEST = V70_TEST_REUSE + V70_TEST_BRANCH
+
+
+def v70_independent_ground_truth() -> dict[tuple[str, int], bool]:
+    known = set()
+
+    for word in V70_REUSE_TRAINING:
+        for pos in range(len(word)):
+            known.add(
+                (
+                    word[:pos],
+                    word[pos],
+                    word[pos + 1:],
+                )
+            )
+
+    result = {}
+
+    for word in V70_TEST:
+        for pos in range(len(word)):
+            result[(word, pos)] = (
+                (
+                    word[:pos],
+                    word[pos],
+                    word[pos + 1:],
+                )
+                in known
+            )
+
+    return result
+
+
 from typing import Iterable
 
 
@@ -470,106 +535,156 @@ def regression_smoke() -> None:
 
 
 
+
 # ---------------------------------------------------------------------------
-# V69 INTEGRATION HARNESS
+# V70 SPECIFIC COMPOSITION EVIDENCE
 # ---------------------------------------------------------------------------
 
-V69_REUSE_TRAINING = [
-    "CAT", "CAR", "CAN", "CARD", "CART",
-    "CAD", "COD", "COT", "BAD", "BAR",
-    "BARD", "BAN", "DART", "DAT", "BOT",
-    "BOAT",
-]
-
-V69_TRAINING = V69_REUSE_TRAINING + [
-    "CAB", "CAP", "CAG", "COB", "COR",
-    "DAB", "DAG", "DAN", "BAT", "BAG",
-    "DOA", "DOG", "BOD", "BOR", "CARTB",
-]
-
-
-class V69Harness:
+class SpecificCompositionEngine(FactorizedCompositionEngine):
     """
-    Integration-level harness around FactorizedCompositionEngine.
+    V70 refinement.
 
-    It deliberately separates:
-      * substrate learning
-      * stable readout
-      * autonomous composition
-      * post-composition replay
+    In addition to the primitive-factor transition graph inherited from V68,
+    learn a pairwise support table for the exact role combinations:
 
-    The harness itself knows the raw strings. The DecoupledDesigner does not.
+        (prefix_id, symbol_id)
+        (symbol_id, suffix_id)
+        (prefix_id, suffix_id)
+
+    A novel triple is eligible for COMPOSE only when the specific triple has
+    sufficient pairwise support.
+
+    This deliberately avoids treating generic factor popularity as evidence
+    that an arbitrary combination is meaningful.
     """
 
     def __init__(self) -> None:
-        self.engine = FactorizedCompositionEngine()
-        self.designer = DecoupledDesigner()
+        super().__init__()
 
-    def train(self) -> None:
-        self.engine.train(V69_TRAINING)
-        self.engine.calibrate_autonomous_threshold()
+        self.pair_support: dict[
+            tuple[str, int, int],
+            float,
+        ] = {}
 
-    def exact_binding(
+    def _reinforce_pair(
         self,
-        word: str,
-        pos: int,
-    ) -> BindingRef:
-        return self.engine.factorize_position(
-            word,
-            pos,
-            learn=False,
+        kind: str,
+        left: int,
+        right: int,
+    ) -> None:
+        key = (kind, left, right)
+        self.pair_support[key] = (
+            self.pair_support.get(key, 0.0) + 1.0
         )
 
-    def baseline(
+    def observe(self, factors: BindingRef) -> BindingNode:
+        node = super().observe(factors)
+
+        self._reinforce_pair(
+            "ps",
+            factors.prefix,
+            factors.symbol,
+        )
+        self._reinforce_pair(
+            "ss",
+            factors.symbol,
+            factors.suffix,
+        )
+        self._reinforce_pair(
+            "px",
+            factors.prefix,
+            factors.suffix,
+        )
+
+        return node
+
+    def pair_evidence(
         self,
-        word: str,
-        pos: int,
-    ) -> str:
-        factors = self.exact_binding(word, pos)
-        observable = self.engine.observable_state(factors)
-        return self.designer.decide(observable)
+        factors: BindingRef,
+    ) -> dict[str, float]:
+        ps = self.pair_support.get(
+            ("ps", factors.prefix, factors.symbol),
+            0.0,
+        )
+        ss = self.pair_support.get(
+            ("ss", factors.symbol, factors.suffix),
+            0.0,
+        )
+        px = self.pair_support.get(
+            ("px", factors.prefix, factors.suffix),
+            0.0,
+        )
 
-    def autonomous(
+        return {
+            "prefix_symbol": ps,
+            "symbol_suffix": ss,
+            "prefix_suffix": px,
+            "minimum": min(ps, ss, px),
+            "sum": ps + ss + px,
+        }
+
+    def calibrate_specific_threshold(self) -> float:
+        """
+        Calibrate from learned exact bindings.
+
+        Use the minimum pairwise support among observed training bindings.
+        A novel triple must meet at least this level across all three pairings.
+        """
+        observed = []
+
+        for factors in self.bindings.nodes:
+            evidence = self.pair_evidence(factors)
+            observed.append(evidence["minimum"])
+
+        self._calibration_threshold = (
+            min(observed)
+            if observed
+            else 1.0
+        )
+
+        return self._calibration_threshold
+
+    def specific_autonomous_readout(
         self,
-        word: str,
-        pos: int,
-    ) -> tuple[str, dict[str, float]]:
-        factors = self.exact_binding(word, pos)
-        decision, _, evidence = self.engine.autonomous_readout(factors)
-        return decision, evidence
+        factors: BindingRef,
+    ) -> tuple[str, BindingNode | None, dict[str, float]]:
+        if min(
+            factors.prefix,
+            factors.symbol,
+            factors.suffix,
+        ) < 0:
+            return "BRANCH", None, {
+                "minimum_pair_support": 0.0,
+                "pair_sum": 0.0,
+            }
+
+        existing = self.bindings.lookup(factors)
+
+        if existing is not None:
+            existing.activations += 1
+
+            evidence = self.pair_evidence(factors)
+            return "REUSE", existing, evidence
+
+        evidence = self.pair_evidence(factors)
+
+        if (
+            evidence["minimum"]
+            >= self._calibration_threshold
+        ):
+            node = self.bindings.bind(factors)
+            return "COMPOSE", node, evidence
+
+        return "BRANCH", None, evidence
 
 
-def v69_validate_known_reuse(harness: V69Harness) -> None:
-    print("=== V69 KNOWN REUSE ===")
+# ---------------------------------------------------------------------------
+# V70 focused case selection
+# ---------------------------------------------------------------------------
 
-    total = 0
-    correct = 0
-
-    for word in V69_REUSE_TRAINING:
-        for pos in range(len(word)):
-            action = harness.baseline(word, pos)
-            total += 1
-            correct += int(action == "REUSE")
-
-            print(
-                f"{word:6s} pos={pos} "
-                f"baseline={action}"
-            )
-
-    print("known_positions :", total)
-    print("reuse_correct   :", correct)
-
-    assert correct == total
-    print("V69 KNOWN REUSE: PASS")
-    print()
-
-
-def v69_find_novel_combinations(
-    harness: V69Harness,
-    limit: int = 24,
-) -> list[tuple[str, int, BindingRef]]:
-    engine = harness.engine
-
+def v70_case_pool(
+    engine: SpecificCompositionEngine,
+):
     prefixes = sorted(
         engine.factors._tables["prefix"].keys()
     )
@@ -581,7 +696,8 @@ def v69_find_novel_combinations(
     )
 
     known = set(engine.bindings.nodes.keys())
-    candidates = []
+
+    cases = []
 
     for prefix in prefixes:
         for symbol in symbols:
@@ -606,316 +722,189 @@ def v69_find_novel_combinations(
                 if factors in known:
                     continue
 
-                word = prefix + symbol + suffix
-                pos = len(prefix)
+                evidence = engine.pair_evidence(factors)
 
-                if 3 <= len(word) <= 5:
-                    candidates.append(
-                        (word, pos, factors)
+                cases.append(
+                    (
+                        prefix + symbol + suffix,
+                        factors,
+                        evidence,
                     )
+                )
 
-    candidates.sort(
+    return cases
+
+
+def v70_run_specificity_test(
+    engine: SpecificCompositionEngine,
+) -> None:
+    print("=== V70 SPECIFIC COMPOSITION SELECTIVITY ===")
+
+    threshold = engine.calibrate_specific_threshold()
+
+    cases = v70_case_pool(engine)
+
+    # Split by minimum pairwise support. We want both strongly supported and
+    # unsupported novel combinations where the corpus allows them.
+    supported = [
+        row for row in cases
+        if row[2]["minimum"] >= threshold
+    ]
+
+    unsupported = [
+        row for row in cases
+        if row[2]["minimum"] < threshold
+    ]
+
+    supported.sort(
         key=lambda row: (
-            len(row[0]),
+            -row[2]["minimum"],
+            row[0],
+        )
+    )
+    unsupported.sort(
+        key=lambda row: (
+            row[2]["minimum"],
             row[0],
         )
     )
 
-    return candidates[:limit]
+    supported = supported[:12]
+    unsupported = unsupported[:12]
 
+    print("calibrated_pair_threshold :", threshold)
+    print("supported_novel_cases     :", len(supported))
+    print("unsupported_novel_cases   :", len(unsupported))
 
-def v69_validate_novel_branch(
-    harness: V69Harness,
-    novel: list[tuple[str, int, BindingRef]],
-) -> None:
-    print("=== V69 NOVEL BASELINE BRANCH ===")
+    assert supported, (
+        "V70 needs at least one structurally supported novel combination"
+    )
+    assert unsupported, (
+        "V70 needs at least one structurally unsupported novel combination"
+    )
 
-    for word, pos, factors in novel:
-        observable = harness.engine.observable_state(factors)
-        action = harness.designer.decide(observable)
-
-        print(
-            f"{word:6s} pos={pos} "
-            f"baseline={action}"
-        )
-
-        assert action == "BRANCH"
-
-    print("novel_cases :", len(novel))
-    print("V69 NOVEL BASELINE BRANCH: PASS")
     print()
+    print("--- SUPPORTED NOVEL COMBINATIONS ---")
 
+    supported_composed = 0
 
-def v69_autonomous_compose(
-    harness: V69Harness,
-    novel: list[tuple[str, int, BindingRef]],
-) -> int:
-    print("=== V69 AUTONOMOUS COMPOSITION ===")
-
-    composed = 0
-    branched = 0
-
-    for word, pos, factors in novel:
-        decision, _, evidence = (
-            harness.engine.autonomous_readout(
-                factors
-            )
+    for word, factors, evidence in supported:
+        decision, binding, _ = (
+            engine.specific_autonomous_readout(factors)
         )
 
         print(
-            f"{word:6s} pos={pos} "
+            f"{word:12s} "
             f"decision={decision:7s} "
-            f"score={evidence['score']:.3f} "
-            f"transition={evidence['transition']:.3f}"
+            f"ps={evidence['prefix_symbol']:.1f} "
+            f"ss={evidence['symbol_suffix']:.1f} "
+            f"px={evidence['prefix_suffix']:.1f} "
+            f"min={evidence['minimum']:.1f}"
         )
 
-        if decision == "COMPOSE":
-            composed += 1
-        elif decision == "BRANCH":
-            branched += 1
-        else:
-            raise AssertionError(
-                f"Novel case returned unexpected {decision!r}"
-            )
+        assert decision == "COMPOSE"
+        assert binding is not None
+        supported_composed += 1
 
-    assert composed + branched == len(novel)
-
-    print("composed :", composed)
-    print("branched :", branched)
-    print("V69 AUTONOMOUS COMPOSITION: PASS")
     print()
+    print("--- UNSUPPORTED NOVEL COMBINATIONS ---")
 
-    return composed
+    unsupported_branched = 0
 
-
-def v69_replay(
-    harness: V69Harness,
-    novel: list[tuple[str, int, BindingRef]],
-) -> None:
-    print("=== V69 REPLAY ===")
-
-    replay_reuse = 0
-
-    for word, pos, factors in novel:
-        observable = harness.engine.observable_state(factors)
-
-        action = harness.designer.decide(observable)
+    for word, factors, evidence in unsupported:
+        decision, binding, _ = (
+            engine.specific_autonomous_readout(factors)
+        )
 
         print(
-            f"{word:6s} pos={pos} "
-            f"replay={action}"
+            f"{word:12s} "
+            f"decision={decision:7s} "
+            f"ps={evidence['prefix_symbol']:.1f} "
+            f"ss={evidence['symbol_suffix']:.1f} "
+            f"px={evidence['prefix_suffix']:.1f} "
+            f"min={evidence['minimum']:.1f}"
         )
 
-        if observable["binding_known"]:
-            assert action == "REUSE"
-            replay_reuse += 1
+        assert decision == "BRANCH"
+        assert binding is None
+        unsupported_branched += 1
 
-    print("replay_reuse :", replay_reuse)
-    print("V69 REPLAY: PASS")
+    print()
+    print("supported_composed   :", supported_composed)
+    print("unsupported_branched  :", unsupported_branched)
+
+    assert supported_composed == len(supported)
+    assert unsupported_branched == len(unsupported)
+
+    print("V70 SPECIFIC SELECTIVITY: PASS")
     print()
 
 
-def v69_unknown_factor_controls(
-    harness: V69Harness,
+def v70_v28_regression(
+    engine: SpecificCompositionEngine,
 ) -> None:
-    print("=== V69 UNKNOWN FACTOR CONTROLS ===")
+    """
+    Stable baseline: exact known bindings are REUSE; novel test positions
+    remain BRANCH. This does not use autonomous composition during the test.
+    """
+    gt = v70_independent_ground_truth()
 
-    unknown_cases = [
-        ("ZZZ", 1),
-        ("QZQ", 1),
-        ("ZZAZ", 2),
-        ("KZK", 1),
-    ]
-
-    for word, pos in unknown_cases:
-        factors = harness.engine.factorize_position(
-            word,
-            pos,
-            learn=False,
-        )
-
-        observable = harness.engine.observable_state(factors)
-        action = harness.designer.decide(observable)
-
-        print(
-            f"{word:6s} pos={pos} "
-            f"factor_ids={observable['factor_ids']} "
-            f"decision={action}"
-        )
-
-        assert action == "BRANCH"
-        assert not observable["known_factors"]
-
-    print("unknown_cases :", len(unknown_cases))
-    print("V69 UNKNOWN FACTORS: PASS")
-    print()
-
-
-def v69_transition_holdout(
-    harness: V69Harness,
-) -> None:
-    print("=== V69 NOVEL TRANSITION CHECK ===")
-
-    # These words combine already-known factors in sequences that are
-    # deliberately different from the exact training-word sequences.
-    holdout = [
-        "BART",
-        "CAND",
-        "CORD",
-        "DART",
-    ]
-
+    correct = 0
     total = 0
-    observed = 0
 
-    for word in holdout:
-        previous = None
-
+    for word in V70_TEST:
         for pos in range(len(word)):
-            factors = harness.engine.factorize_position(
+            factors = engine.factorize_position(
                 word,
                 pos,
                 learn=False,
             )
 
-            if min(
-                factors.prefix,
-                factors.symbol,
-                factors.suffix,
-            ) < 0:
-                previous = factors
-                continue
+            action = (
+                "REUSE"
+                if engine.bindings.lookup(factors)
+                is not None
+                else "BRANCH"
+            )
 
-            evidence = (
-                harness.engine.bindings
-                .transition_evidence(factors)
+            expected = (
+                "REUSE"
+                if gt[(word, pos)]
+                else "BRANCH"
             )
 
             total += 1
-            observed += int(evidence >= 0.0)
+            correct += int(action == expected)
 
-            print(
-                f"{word:6s} pos={pos} "
-                f"transition_evidence={evidence:.3f}"
-            )
+    print("V70 baseline accuracy :", f"{correct}/{total}")
+    assert correct == total
 
-            previous = factors
-
-    assert observed == total
-    print("transition_positions :", total)
-    print("V69 NOVEL TRANSITIONS: PASS")
-    print()
-
-
-def v69_invariants(
-    harness: V69Harness,
-) -> None:
-    print("=== V69 INVARIANTS ===")
-
-    engine = harness.engine
-
-    primitive_count_before = engine.factors.count
-    binding_count_before = engine.bindings.count
-
-    # Compose a novel factor combination if one is available.
-    novel = v69_find_novel_combinations(
-        harness,
-        limit=1,
-    )
-
-    if novel:
-        word, pos, factors = novel[0]
-
-        decision, binding, _ = (
-            engine.autonomous_readout(factors)
-        )
-
-        if decision == "COMPOSE":
-            assert binding is not None
-
-            # Composition may increase binding count but must not create new
-            # primitive factors.
-            assert (
-                engine.factors.count
-                == primitive_count_before
-            )
-
-    print(
-        "primitive_factor_count :",
-        engine.factors.count,
-    )
-    print(
-        "binding_count          :",
-        engine.bindings.count,
-    )
-
-    assert engine.factors.count == primitive_count_before
-    assert engine.bindings.count >= binding_count_before
-
-    print("V69 INVARIANTS: PASS")
+    print("V70 BASELINE REGRESSION: PASS")
     print()
 
 
 def main() -> None:
-    print("=== V69 FACTORIZED COMPOSITION INTEGRATION HARNESS ===")
+    print("=== V70 SPECIFIC COMPOSITION EVIDENCE ===")
     print(
-        "Single integration pass for known reuse, novel branch, "
-        "autonomous composition, replay, unknown factors, transitions, "
-        "and invariants."
+        "Novel bindings must be supported by the specific factor pairings, "
+        "not generic factor transition mass."
     )
     print()
 
-    harness = V69Harness()
-    harness.train()
+    engine = SpecificCompositionEngine()
+    engine.train(V70_TRAINING)
 
-    print("=== V69 INITIAL STATE ===")
-    print(
-        "primitive_factors :",
-        harness.engine.factors.count,
-    )
-    print(
-        "bindings          :",
-        harness.engine.bindings.count,
-    )
-    print(
-        "transitions       :",
-        len(harness.engine.bindings.transition_weights),
-    )
+    print("=== V70 TRAINED STATE ===")
+    print("primitive_factors :", engine.factors.count)
+    print("bindings          :", engine.bindings.count)
+    print("transitions       :", len(engine.bindings.transition_weights))
+    print("pair_support      :", len(engine.pair_support))
     print()
 
-    v69_validate_known_reuse(harness)
+    v70_v28_regression(engine)
+    v70_run_specificity_test(engine)
 
-    novel = v69_find_novel_combinations(harness)
-
-    assert novel
-    v69_validate_novel_branch(
-        harness,
-        novel,
-    )
-
-    v69_autonomous_compose(
-        harness,
-        novel,
-    )
-
-    v69_replay(
-        harness,
-        novel,
-    )
-
-    v69_unknown_factor_controls(
-        harness,
-    )
-
-    v69_transition_holdout(
-        harness,
-    )
-
-    v69_invariants(
-        harness,
-    )
-
-    print("=== V69 COMPLETE ===")
+    print("=== V70 COMPLETE ===")
 
 
 if __name__ == "__main__":
