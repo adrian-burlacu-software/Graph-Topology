@@ -280,187 +280,101 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         fired_set = set(fired)
 
-        # V35: learned transition prototypes.
+        # V36: assembly recurrence.
         #
-        # V34 compared a predicted population against isolated symbol
-        # prototypes. That loses the compositional relation we care about.
+        # No symbol prototypes, transition prototypes, thresholds learned from
+        # ground truth, or BoundaryGraph queries. We ask whether the current
+        # substrate assembly resembles assemblies previously observed in the
+        # same frozen run.
         #
-        # Here each training occurrence contributes a frozen transition
-        # prototype:
+        # Two independent recurrence signals are measured:
+        #   1. assembly overlap: active-cell population recurrence
+        #   2. topology overlap: strong outgoing-edge recurrence
         #
-        #       current-position population
-        #                 |
-        #          learned strong edges
-        #                 v
-        #       next-position population
-        #
-        # At evaluation, the current population produces a predicted
-        # population. Candidate transition prototypes compete by similarity
-        # to that prediction.
-        #
-        # Ground truth is never consulted by this readout.
+        # The combined recurrence is diagnostic first. The designer uses it
+        # only as an unlabeled structural signal.
 
-        strong_edges = [
-            (src, dst, weight)
-            for (src, dst), weight in self.weights.items()
-            if src in fired_set and weight >= 0.50
-        ]
+        def topology_signature(cells):
+            edges = {
+                (src, dst)
+                for (src, dst), weight in self.weights.items()
+                if src in cells and weight >= 0.50
+            }
+            return edges
 
-        predicted = set(dst for _, dst, _ in strong_edges)
+        current_edges = topology_signature(fired_set)
 
-        if not hasattr(self, "_transition_prototypes"):
-            self._transition_prototypes = {}
+        if not hasattr(self, "_assembly_history"):
+            self._assembly_history = []
 
-        # Build transition prototypes from TRAINING only, once, after
-        # training/pruning. The prototype key is the observed pair of
-        # symbols, not REUSE/BRANCH ground truth.
-        if not self._transition_prototypes:
-            for word0 in TRAINING:
-                for p0 in range(len(word0) - 1):
-                    left = word0[p0]
-                    right = word0[p0 + 1]
+        best_assembly_overlap = 0.0
+        best_topology_overlap = 0.0
+        best_combined_overlap = 0.0
+        best_history_index = None
 
-                    current = set(
-                        self.activate_substrate(
-                            word0,
-                            p0,
-                            learn=False,
-                        )
-                    )
-                    following = set(
-                        self.activate_substrate(
-                            word0,
-                            p0 + 1,
-                            learn=False,
-                        )
-                    )
+        for index, previous in enumerate(self._assembly_history):
+            previous_cells = previous["cells"]
+            previous_edges = previous["edges"]
 
-                    key = (left, right)
-                    bucket = self._transition_prototypes.setdefault(
-                        key,
-                        {
-                            "current": set(),
-                            "following": set(),
-                            "count": 0,
-                        },
-                    )
-
-                    # Union is deliberate: repeated observations strengthen
-                    # the same compositional transition without introducing
-                    # labels from the independent ground truth.
-                    bucket["current"].update(current)
-                    bucket["following"].update(following)
-                    bucket["count"] += 1
-
-        # Score each learned symbol transition by how well its expected
-        # next-position population matches the topology prediction.
-        candidate_scores = []
-
-        for (left, right), proto in self._transition_prototypes.items():
-            prototype = proto["following"]
-
-            union = predicted | prototype
-            intersection = predicted & prototype
-
-            score = (
-                len(intersection) / len(union)
-                if union
-                else 0.0
+            cell_union = fired_set | previous_cells
+            cell_intersection = fired_set & previous_cells
+            assembly_overlap = (
+                len(cell_intersection) / len(cell_union)
+                if cell_union else 0.0
             )
 
-            # Also require the current population to resemble the transition
-            # source. This prevents a transition from winning solely because
-            # its destination happens to be common.
-            current_proto = proto["current"]
-            current_union = fired_set | current_proto
-            current_intersection = fired_set & current_proto
-
-            source_score = (
-                len(current_intersection) / len(current_union)
-                if current_union
-                else 0.0
+            edge_union = current_edges | previous_edges
+            edge_intersection = current_edges & previous_edges
+            topology_overlap = (
+                len(edge_intersection) / len(edge_union)
+                if edge_union else 0.0
             )
 
-            combined_score = 0.5 * source_score + 0.5 * score
-
-            candidate_scores.append(
-                (
-                    (left, right),
-                    combined_score,
-                    source_score,
-                    score,
-                    proto["count"],
-                )
+            combined = (
+                0.5 * assembly_overlap
+                + 0.5 * topology_overlap
             )
 
-        candidate_scores.sort(
-            key=lambda row: row[1],
-            reverse=True,
+            if combined > best_combined_overlap:
+                best_combined_overlap = combined
+                best_assembly_overlap = assembly_overlap
+                best_topology_overlap = topology_overlap
+                best_history_index = index
+
+        # Record only after comparing, so the current position never matches
+        # itself.
+        self._assembly_history.append(
+            {
+                "word": word,
+                "pos": pos,
+                "cells": set(fired_set),
+                "edges": set(current_edges),
+            }
         )
 
-        best = candidate_scores[0] if candidate_scores else None
-        second = candidate_scores[1] if len(candidate_scores) > 1 else None
-
-        best_transition = best[0] if best else None
-        best_score = best[1] if best else 0.0
-        second_score = second[1] if second else 0.0
-        margin = best_score - second_score
-
-        actual_transition = (
-            (word[pos], word[pos + 1])
-            if pos + 1 < len(word)
-            else None
+        recurrence_threshold = dg.get(
+            "recurrence_threshold",
+            0.25,
         )
 
-        predictive_threshold = dg.get(
-            "predictive_threshold",
-            0.20,
-        )
-        margin_threshold = dg.get(
-            "prediction_margin_threshold",
-            0.05,
-        )
-
-        # A transition prediction is useful only when it is selective.
-        selective_prediction = (
-            best is not None
-            and best_score >= predictive_threshold
-            and margin >= margin_threshold
-        )
-
-        predictive_evidence = best_score
+        recurrent = best_combined_overlap >= recurrence_threshold
 
         self.last_dense_trace = {
             "word": word,
             "pos": pos,
             "fired": sorted(fired_set),
             "activity": len(fired_set) / max(1, self.cell_count),
-            "predicted": sorted(predicted),
-            "actual_transition": actual_transition,
-            # Compatibility field for the inherited audit printer.
-            "actual_next": (
-                actual_transition[1]
-                if actual_transition is not None
-                else None
+            "strong_outgoing": len(current_edges),
+            "learned_mass": sum(
+                weight
+                for (src, dst), weight in self.weights.items()
+                if src in fired_set and weight >= 0.50
             ),
-            "best_transition": best_transition,
-            # Compatibility field for the inherited V33/V34 audit printer.
-            "best_symbol": (
-                best_transition[1]
-                if best_transition is not None
-                else None
-            ),
-            "best_score": best_score,
-            "second_score": second_score,
-            "margin": margin,
-            "predictive_evidence": predictive_evidence,
-            "selective_prediction": bool(selective_prediction),
-            "strong_outgoing": len(strong_edges),
-            "learned_mass": sum(weight for _, _, weight in strong_edges),
-            "transition_prototype_count": len(
-                self._transition_prototypes
-            ),
-            "candidate_scores": candidate_scores[:10],
+            "assembly_overlap": best_assembly_overlap,
+            "topology_overlap": best_topology_overlap,
+            "combined_recurrence": best_combined_overlap,
+            "best_history_index": best_history_index,
+            "recurrent": recurrent,
         }
 
         root = n.cells[n.designer_root]
@@ -469,9 +383,9 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
         root.potential += dg["input_gain"]
 
-        if selective_prediction:
+        if recurrent:
             reuse.potential += (
-                dg["match_gain"] * min(1.0, predictive_evidence)
+                dg["match_gain"] * min(1.0, best_combined_overlap)
             )
         else:
             branch.potential += dg["branch_bias"]
@@ -634,7 +548,7 @@ class DensePlasticSubstrateV1(DualVocabularyV6):
 
 
 def run():
-    print("=== DENSE SUBSTRATE V35 - LEARNED TRANSITION PROTOTYPES ===")
+    print("=== DENSE SUBSTRATE V36 - ASSEMBLY RECURRENCE ===")
     print()
     print(
         "Control experiment: fully connected generic substrate, "
@@ -828,7 +742,7 @@ def run():
 
 
     print()
-    print("=== V35 LEARNED TRANSITION PROTOTYPE AUDIT ===")
+    print("=== V36 ASSEMBLY RECURRENCE AUDIT ===")
 
     def probe_candidates(words, limit=20):
         count = 0
@@ -837,14 +751,15 @@ def run():
                 action = net.designer_from_dense_activity(word, pos)
                 trace = net.last_dense_trace
                 print(
-                    f"{word:6s} pos={pos} actual_next={str(trace['actual_next']):>2s} "
+                    f"{word:6s} pos={pos} "
                     f"decision={action:6s} "
-                    f"best={str(trace['best_symbol']):>2s} "
-                    f"score={trace['best_score']:.3f} "
-                    f"second={trace['second_score']:.3f} "
-                    f"margin={trace['margin']:.3f} "
-                    f"selective={trace['selective_prediction']} "
-                    f"candidates={trace['candidate_scores'][:5]}"
+                    f"cells={len(trace['fired']):2d} "
+                    f"edges={trace['strong_outgoing']:2d} "
+                    f"assembly={trace['assembly_overlap']:.3f} "
+                    f"topology={trace['topology_overlap']:.3f} "
+                    f"combined={trace['combined_recurrence']:.3f} "
+                    f"recurrent={trace['recurrent']} "
+                    f"match={trace['best_history_index']}"
                 )
                 count += 1
                 if count >= limit:
@@ -854,7 +769,7 @@ def run():
     print("--- HELD-OUT ---")
     probe_candidates(TEST)
 
-    print("=== END V35 LEARNED TRANSITION PROTOTYPE AUDIT ===")
+    print("=== END V36 ASSEMBLY RECURRENCE AUDIT ===")
     print()
 
     net.evaluate_frozen(TEST)
