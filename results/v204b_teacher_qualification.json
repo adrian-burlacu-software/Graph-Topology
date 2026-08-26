@@ -1,0 +1,32 @@
+{
+  "experiment": "V204B comprehensive SmolLM2 teacher qualification",
+  "model_dir": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\llm\\SmolLM2-1.7B-Instruct",
+  "device": "cuda",
+  "case_counts": {
+    "relation": 50,
+    "single": 50,
+    "multi": 30,
+    "trajectory": 20,
+    "total": 150
+  },
+  "relation": {
+    "accuracy": 0.52
+  },
+  "graph": {
+    "parse_success": 0.9875,
+    "node_precision": 0.6889952153110048,
+    "node_recall": 0.663594470046083,
+    "node_f1": 0.676056338028169,
+    "edge_precision": 0.3142857142857143,
+    "edge_recall": 0.3,
+    "edge_f1": 0.3069767441860465,
+    "hallucinated_edge_rate": 0.6857142857142857,
+    "missed_edge_rate": 0.7
+  },
+  "trajectory": {
+    "parse_success": 1.0,
+    "edge_hit_rate": 0.75
+  },
+  "elapsed_seconds": 99.58897790001356,
+  "responses_path": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v204b_teacher_responses.jsonl"
+}
