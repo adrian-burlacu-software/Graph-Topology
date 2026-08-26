@@ -28,6 +28,10 @@ data/conceptnet_compact.db
 **/__pycache__/
 results/v131_long_term_memory_after.json
 
+#DB files
+data/conceptnet_compact.db-shm
+data/conceptnet_compact.db-wal
+
 # Checkpoint files
 results/v200_graph_transformer.pt
 results/v201_self_supervised.pt
