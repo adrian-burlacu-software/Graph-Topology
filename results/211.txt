@@ -1,0 +1,21 @@
+=== V209 DETERMINISTIC ORACLE TRAINING ===
+device: cuda
+gpu: NVIDIA GeForce RTX 4060 Laptop GPU
+dataset_size: 500
+action_counts: {'NOOP': 72, 'REUSE': 72, 'CREATE': 72, 'BRANCH': 71, 'INHIBIT': 71, 'BIND': 71, 'COMMIT': 71}
+dataset_saved: C:\Users\adria\Desktop\dev\Graph-Topology\results\v211_deterministic_oracle_dataset.jsonl
+train_size: 430
+valid_size: 70
+v203_compatible_tensors: 73
+EPOCH 1 train_loss=2.3337 train_action=0.8837 train_att=0.4791 train_att_p=0.6774 train_att_r=0.7674 train_src=0.9674 train_tgt=0.6977 train_rel=0.3326 valid_loss=0.7835 valid_action=1.0000 valid_att=0.5714 valid_att_p=0.7726 valid_att_r=1.0000 valid_src=1.0000 valid_tgt=0.7143 valid_rel=0.9143 valid_next=0.0138
+checkpoint_saved: C:\Users\adria\Desktop\dev\Graph-Topology\results\v211_deterministic_cognitive.pt exists= True
+EPOCH 2 train_loss=0.4742 train_action=1.0000 train_att=0.7419 train_att_p=0.8748 train_att_r=0.9581 train_src=1.0000 train_tgt=0.7116 train_rel=0.9860 valid_loss=0.3943 valid_action=1.0000 valid_att=0.7429 valid_att_p=0.8833 valid_att_r=0.9857 valid_src=1.0000 valid_tgt=0.7143 valid_rel=1.0000 valid_next=0.0102
+checkpoint_saved: C:\Users\adria\Desktop\dev\Graph-Topology\results\v211_deterministic_cognitive.pt exists= True
+EPOCH 3 train_loss=0.3470 train_action=1.0000 train_att=0.7860 train_att_p=0.9016 train_att_r=0.9651 train_src=1.0000 train_tgt=0.7140 train_rel=1.0000 valid_loss=0.3854 valid_action=1.0000 valid_att=0.7857 valid_att_p=0.9000 valid_att_r=0.9571 valid_src=1.0000 valid_tgt=0.7143 valid_rel=1.0000 valid_next=0.0107
+checkpoint_saved: C:\Users\adria\Desktop\dev\Graph-Topology\results\v211_deterministic_cognitive.pt exists= True
+EPOCH 4 train_loss=0.3000 train_action=1.0000 train_att=0.8163 train_att_p=0.9190 train_att_r=0.9605 train_src=1.0000 train_tgt=0.7372 train_rel=1.0000 valid_loss=0.3939 valid_action=1.0000 valid_att=0.8000 valid_att_p=0.9048 valid_att_r=0.9500 valid_src=1.0000 valid_tgt=0.7143 valid_rel=1.0000 valid_next=0.0098
+EPOCH 5 train_loss=0.2552 train_action=1.0000 train_att=0.8605 train_att_p=0.9384 train_att_r=0.9674 train_src=1.0000 train_tgt=0.7907 train_rel=1.0000 valid_loss=0.5536 valid_action=1.0000 valid_att=0.8143 valid_att_p=0.9095 valid_att_r=0.9000 valid_src=1.0000 valid_tgt=0.6571 valid_rel=1.0000 valid_next=0.0126
+EPOCH 6 train_loss=0.1785 train_action=1.0000 train_att=0.9163 train_att_p=0.9593 train_att_r=0.9721 train_src=1.0000 train_tgt=0.8651 train_rel=1.0000 valid_loss=0.6279 valid_action=1.0000 valid_att=0.8000 valid_att_p=0.8881 valid_att_r=0.9071 valid_src=1.0000 valid_tgt=0.6571 valid_rel=1.0000 valid_next=0.0127
+EPOCH 7 train_loss=0.1205 train_action=1.0000 train_att=0.9326 train_att_p=0.9721 train_att_r=0.9849 train_src=1.0000 train_tgt=0.9093 train_rel=1.0000 valid_loss=0.9300 valid_action=1.0000 valid_att=0.7714 valid_att_p=0.8833 valid_att_r=0.8714 valid_src=1.0000 valid_tgt=0.6429 valid_rel=1.0000 valid_next=0.0156
+EPOCH 8 train_loss=0.0642 train_action=1.0000 train_att=0.9651 train_att_p=0.9857 train_att_r=0.9919 train_src=1.0000 train_tgt=0.9651 train_rel=1.0000 valid_loss=1.0503 valid_action=1.0000 valid_att=0.8000 valid_att_p=0.8595 valid_att_r=0.8643 valid_src=1.0000 valid_tgt=0.6286 valid_rel=1.0000 valid_next=0.0153
+FINAL_CHECKPOINT: C:\Users\adria\Desktop\dev\Graph-Topology\results\v211_deterministic_cognitive.pt
