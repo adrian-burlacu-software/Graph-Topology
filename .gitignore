@@ -26,3 +26,4 @@ results/v106_llm_activation_trajectory_motifs.pt
 data/assertions.csv
 data/conceptnet_compact.db
 **/__pycache__/
+results/v131_long_term_memory_after.json
