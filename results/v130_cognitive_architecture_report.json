@@ -1,0 +1,6412 @@
+{
+  "experiment": "V130 whole-system cognitive architecture",
+  "episodes": 24,
+  "memory": {
+    "nodes": 46733,
+    "edges": 145883,
+    "relation_counts": {
+      "CapableOf": 4626,
+      "PartOf": 1342,
+      "RelatedTo": 73649,
+      "HasContext": 11898,
+      "IsA": 14150,
+      "Synonym": 16486,
+      "AtLocation": 5584,
+      "HasProperty": 917,
+      "Antonym": 2519,
+      "ReceivesAction": 639,
+      "SimilarTo": 5814,
+      "DefinedAs": 237,
+      "UsedFor": 3527,
+      "MotivatedByGoal": 482,
+      "HasA": 507,
+      "CausesDesire": 641,
+      "HasPrerequisite": 1341,
+      "Causes": 906,
+      "HasFirstSubevent": 256,
+      "HasLastSubevent": 242,
+      "MadeOf": 120
+    },
+    "reinforced_edges": 24
+  },
+  "attention": {
+    "decay": 0.6,
+    "propagation_scale": 0.65,
+    "max_active": 24
+  },
+  "summary": {
+    "mean_activation_coverage": 0.7291666666666666,
+    "mean_binding_coverage": 1.0,
+    "reuse_events": 246,
+    "bind_events": 44,
+    "accumulate_events": 32
+  },
+  "episodes_detail": [
+    {
+      "case": 1,
+      "sentence": "The dog is an animal.",
+      "cues": [
+        "the",
+        "dog",
+        "animal"
+      ],
+      "active": [
+        [
+          "pet",
+          19.229036542053837
+        ],
+        [
+          "animal",
+          16.532068209408813
+        ],
+        [
+          "house",
+          14.814383281031912
+        ],
+        [
+          "companionship",
+          14.038306583386742
+        ],
+        [
+          "zoo",
+          10.068104260259766
+        ],
+        [
+          "cat",
+          8.650746782057494
+        ],
+        [
+          "shelter",
+          8.245690519146475
+        ],
+        [
+          "roof",
+          7.793819356319033
+        ],
+        [
+          "petting",
+          7.710206687837594
+        ],
+        [
+          "building",
+          7.552834791953546
+        ],
+        [
+          "family",
+          6.886886024972659
+        ],
+        [
+          "four legs",
+          6.610012845763124
+        ],
+        [
+          "dog",
+          6.523377889097646
+        ],
+        [
+          "drink water",
+          6.282459664896408
+        ],
+        [
+          "darling",
+          6.085445205070664
+        ],
+        [
+          "rooms",
+          5.857794626249424
+        ],
+        [
+          "bark",
+          5.774806639749868
+        ],
+        [
+          "park",
+          5.692628131958108
+        ],
+        [
+          "living",
+          5.545697406671897
+        ],
+        [
+          "live",
+          5.442968527767464
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "dog": 6.523377889097646,
+        "animal": 16.532068209408813
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "pet",
+            "activation": 19.229036542053837,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 16.532068209408813,
+            "source": "long_term"
+          },
+          {
+            "value": "house",
+            "activation": 14.814383281031912,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 14.038306583386742,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 10.068104260259766,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 8.650746782057494,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 8.245690519146475,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 7.793819356319033,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 19.229036542053837
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 16.532068209408813
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 14.814383281031912
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 14.038306583386742
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 10.068104260259766
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 8.650746782057494
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 8.245690519146475
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 7.793819356319033
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 2,
+      "sentence": "The dog can bark.",
+      "cues": [
+        "the",
+        "dog",
+        "can"
+      ],
+      "active": [
+        [
+          "house",
+          9.542614636263588
+        ],
+        [
+          "pet",
+          9.34563765810302
+        ],
+        [
+          "animal",
+          7.968649316610891
+        ],
+        [
+          "shelter",
+          7.763009640423538
+        ],
+        [
+          "building",
+          7.158377577842803
+        ],
+        [
+          "companionship",
+          6.965615950978551
+        ],
+        [
+          "family",
+          5.933978838333072
+        ],
+        [
+          "roof",
+          5.8172306866381875
+        ],
+        [
+          "zoo",
+          5.406083393237288
+        ],
+        [
+          "dwelling",
+          4.774140780940497
+        ],
+        [
+          "rooms",
+          4.753868974792747
+        ],
+        [
+          "cat",
+          4.365748206935663
+        ],
+        [
+          "live",
+          4.199784058591831
+        ],
+        [
+          "living",
+          3.96338234229707
+        ],
+        [
+          "petting",
+          3.7514671768338053
+        ],
+        [
+          "home",
+          3.708646534050323
+        ],
+        [
+          "windows",
+          3.5903823228307044
+        ],
+        [
+          "dog",
+          3.419292864182597
+        ],
+        [
+          "floor",
+          3.403145128749056
+        ],
+        [
+          "move itself about",
+          3.367936791043497
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "dog": 3.419292864182597
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "house",
+            "activation": 9.542614636263588,
+            "source": "long_term"
+          },
+          {
+            "value": "pet",
+            "activation": 9.34563765810302,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 7.968649316610891,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 7.763009640423538,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 7.158377577842803,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 6.965615950978551,
+            "source": "long_term"
+          },
+          {
+            "value": "family",
+            "activation": 5.933978838333072,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 5.8172306866381875,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "bark",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 9.542614636263588
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 9.34563765810302
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 7.968649316610891
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 7.763009640423538
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 7.158377577842803
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 6.965615950978551
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "family",
+            "activation": 5.933978838333072
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 5.8172306866381875
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bark",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 3,
+      "sentence": "The dog has fur.",
+      "cues": [
+        "the",
+        "dog",
+        "fur"
+      ],
+      "active": [
+        [
+          "pet",
+          10.516776230062558
+        ],
+        [
+          "animal",
+          9.061086743151115
+        ],
+        [
+          "house",
+          8.649822053513699
+        ],
+        [
+          "companionship",
+          7.892661427784212
+        ],
+        [
+          "shelter",
+          7.388532174757811
+        ],
+        [
+          "zoo",
+          6.063561935358751
+        ],
+        [
+          "building",
+          5.988466119391593
+        ],
+        [
+          "roof",
+          5.979811829401505
+        ],
+        [
+          "family",
+          5.521238019933618
+        ],
+        [
+          "cat",
+          4.9246787139720105
+        ],
+        [
+          "rooms",
+          4.696212233821534
+        ],
+        [
+          "living",
+          4.28868682107542
+        ],
+        [
+          "dwelling",
+          4.275539222960829
+        ],
+        [
+          "petting",
+          4.225352691958111
+        ],
+        [
+          "live",
+          4.188666018741683
+        ],
+        [
+          "dog",
+          3.8454613201222596
+        ],
+        [
+          "move itself about",
+          3.7594085415909406
+        ],
+        [
+          "windows",
+          3.7514120434931204
+        ],
+        [
+          "alive",
+          3.696751732564425
+        ],
+        [
+          "organism",
+          3.690542624493723
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "dog": 3.8454613201222596
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "pet",
+            "activation": 10.516776230062558,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 9.061086743151115,
+            "source": "long_term"
+          },
+          {
+            "value": "house",
+            "activation": 8.649822053513699,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 7.892661427784212,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 7.388532174757811,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 6.063561935358751,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 5.988466119391593,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 5.979811829401505,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "fur",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "HasA",
+            "target": "fur",
+            "confidence": 0.8
+          },
+          {
+            "source": "dog",
+            "relation": "HasProperty",
+            "target": "fur",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 10.516776230062558
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 9.061086743151115
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 8.649822053513699
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 7.892661427784212
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 7.388532174757811
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 6.063561935358751
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 5.988466119391593
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 5.979811829401505
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "HasA",
+            "target": "fur",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fur",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "HasProperty",
+            "target": "fur",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "HasA",
+            "target": "fur",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "HasProperty",
+            "target": "fur",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 4,
+      "sentence": "A cat is an animal.",
+      "cues": [
+        "a",
+        "cat",
+        "animal"
+      ],
+      "active": [
+        [
+          "house",
+          6.625086983031775
+        ],
+        [
+          "animal",
+          6.017105951648086
+        ],
+        [
+          "zoo",
+          5.619244892925661
+        ],
+        [
+          "shelter",
+          5.404249545276529
+        ],
+        [
+          "pet",
+          4.948706116782763
+        ],
+        [
+          "companionship",
+          4.7780385222713475
+        ],
+        [
+          "building",
+          4.487435310315342
+        ],
+        [
+          "roof",
+          4.467234494716104
+        ],
+        [
+          "place",
+          4.2016774596680095
+        ],
+        [
+          "family",
+          3.905412470796697
+        ],
+        [
+          "petting",
+          3.608822101342437
+        ],
+        [
+          "rooms",
+          3.3218357472107574
+        ],
+        [
+          "move itself about",
+          3.2262205323322752
+        ],
+        [
+          "feline",
+          3.0876939407431854
+        ],
+        [
+          "home",
+          3.049498088557466
+        ],
+        [
+          "dwelling",
+          3.024275378175491
+        ],
+        [
+          "living",
+          2.9027005643426174
+        ],
+        [
+          "live",
+          2.8172574710883413
+        ],
+        [
+          "cat",
+          2.728303979167738
+        ],
+        [
+          "windows",
+          2.653537363334157
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "cat": 2.728303979167738,
+        "animal": 6.017105951648086
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "house",
+            "activation": 6.625086983031775,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 6.017105951648086,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 5.619244892925661,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 5.404249545276529,
+            "source": "long_term"
+          },
+          {
+            "value": "pet",
+            "activation": 4.948706116782763,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 4.7780385222713475,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 4.487435310315342,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 4.467234494716104,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "cat",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 6.625086983031775
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 6.017105951648086
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 5.619244892925661
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 5.404249545276529
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 4.948706116782763
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 4.7780385222713475
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 4.487435310315342
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 4.467234494716104
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "cat",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "cat",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 5,
+      "sentence": "A cat can meow.",
+      "cues": [
+        "a",
+        "cat",
+        "can"
+      ],
+      "active": [
+        [
+          "building",
+          5.733965047092871
+        ],
+        [
+          "shelter",
+          5.000372546825352
+        ],
+        [
+          "house",
+          4.186023397858925
+        ],
+        [
+          "family",
+          3.4963881689393874
+        ],
+        [
+          "rooms",
+          3.2945723473343693
+        ],
+        [
+          "roof",
+          3.23937995013059
+        ],
+        [
+          "dwelling",
+          3.1254751746391127
+        ],
+        [
+          "place",
+          2.8959386320675984
+        ],
+        [
+          "protection from elements",
+          2.667120952286977
+        ],
+        [
+          "home",
+          2.4884308322790436
+        ],
+        [
+          "location",
+          2.376555027479186
+        ],
+        [
+          "kitchen",
+          2.283071489512184
+        ],
+        [
+          "structure",
+          2.206694059609338
+        ],
+        [
+          "living",
+          2.087862443898558
+        ],
+        [
+          "weather storm",
+          2.0557484426661703
+        ],
+        [
+          "windows",
+          1.9623336783320937
+        ],
+        [
+          "room",
+          1.9397706236377035
+        ],
+        [
+          "live",
+          1.9209088768746971
+        ],
+        [
+          "door",
+          1.7912158206567395
+        ],
+        [
+          "area",
+          1.714374946150027
+        ]
+      ],
+      "activation_coverage": 0.0,
+      "activation_hits": {},
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "building",
+            "activation": 5.733965047092871,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 5.000372546825352,
+            "source": "long_term"
+          },
+          {
+            "value": "house",
+            "activation": 4.186023397858925,
+            "source": "long_term"
+          },
+          {
+            "value": "family",
+            "activation": 3.4963881689393874,
+            "source": "long_term"
+          },
+          {
+            "value": "rooms",
+            "activation": 3.2945723473343693,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 3.23937995013059,
+            "source": "long_term"
+          },
+          {
+            "value": "dwelling",
+            "activation": 3.1254751746391127,
+            "source": "long_term"
+          },
+          {
+            "value": "place",
+            "activation": 2.8959386320675984,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "meow",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "cat",
+            "relation": "CapableOf",
+            "target": "meow",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 5.733965047092871
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 5.000372546825352
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 4.186023397858925
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "family",
+            "activation": 3.4963881689393874
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "rooms",
+            "activation": 3.2945723473343693
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 3.23937995013059
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dwelling",
+            "activation": 3.1254751746391127
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "place",
+            "activation": 2.8959386320675984
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "cat",
+            "relation": "CapableOf",
+            "target": "meow",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "meow",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "cat",
+            "relation": "CapableOf",
+            "target": "meow",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "cat",
+            "relation": "CapableOf",
+            "target": "meow",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 6,
+      "sentence": "The dog chased the cat.",
+      "cues": [
+        "the",
+        "dog",
+        "the",
+        "cat"
+      ],
+      "active": [
+        [
+          "house",
+          16.17561314919296
+        ],
+        [
+          "pet",
+          15.857670075078998
+        ],
+        [
+          "animal",
+          13.086468582446464
+        ],
+        [
+          "shelter",
+          12.370833004861408
+        ],
+        [
+          "building",
+          11.764918546279265
+        ],
+        [
+          "companionship",
+          11.319781743672927
+        ],
+        [
+          "zoo",
+          9.738839950676802
+        ],
+        [
+          "roof",
+          9.299256850132833
+        ],
+        [
+          "family",
+          9.271107004590544
+        ],
+        [
+          "rooms",
+          7.316095600960637
+        ],
+        [
+          "cat",
+          7.289520651681887
+        ],
+        [
+          "dwelling",
+          7.277100433041933
+        ],
+        [
+          "petting",
+          7.211761317379933
+        ],
+        [
+          "live",
+          6.606900539425717
+        ],
+        [
+          "living",
+          6.0930380319920445
+        ],
+        [
+          "home",
+          5.991437377013469
+        ],
+        [
+          "dog",
+          5.571564724439691
+        ],
+        [
+          "floor",
+          5.512991347993895
+        ],
+        [
+          "windows",
+          5.444506594151059
+        ],
+        [
+          "four legs",
+          5.433789740042337
+        ]
+      ],
+      "activation_coverage": 0.6666666666666666,
+      "activation_hits": {
+        "dog": 5.571564724439691,
+        "cat": 7.289520651681887
+      },
+      "binding_hits": 2,
+      "binding_total": 2,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "house",
+            "activation": 16.17561314919296,
+            "source": "long_term"
+          },
+          {
+            "value": "pet",
+            "activation": 15.857670075078998,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 13.086468582446464,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 12.370833004861408,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 11.764918546279265,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 11.319781743672927,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 9.738839950676802,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 9.299256850132833,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "chased",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "the",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "chase",
+            "activation": 1.0,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "SUBJECT",
+            "target": "chased",
+            "confidence": 0.8
+          },
+          {
+            "source": "chased",
+            "relation": "OBJECT",
+            "target": "the",
+            "confidence": 0.8
+          },
+          {
+            "source": "dog",
+            "relation": "SUBJECT",
+            "target": "chase",
+            "confidence": 0.95
+          },
+          {
+            "source": "chase",
+            "relation": "OBJECT",
+            "target": "cat",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 16.17561314919296
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 15.857670075078998
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 13.086468582446464
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 12.370833004861408
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 11.764918546279265
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 11.319781743672927
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 9.738839950676802
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 9.299256850132833
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "SUBJECT",
+            "target": "chased",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chased",
+            "relation": "OBJECT",
+            "target": "the",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chase",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "SUBJECT",
+            "target": "chase",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chase",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chase",
+            "relation": "OBJECT",
+            "target": "cat",
+            "confidence": 0.95
+          }
+        }
+      ]
+    },
+    {
+      "case": 7,
+      "sentence": "The cat chased the dog.",
+      "cues": [
+        "the",
+        "cat",
+        "the",
+        "dog"
+      ],
+      "active": [
+        [
+          "house",
+          16.17561314919296
+        ],
+        [
+          "pet",
+          15.857670075078998
+        ],
+        [
+          "animal",
+          13.086468582446464
+        ],
+        [
+          "shelter",
+          12.370833004861408
+        ],
+        [
+          "building",
+          11.764918546279265
+        ],
+        [
+          "companionship",
+          11.319781743672927
+        ],
+        [
+          "zoo",
+          9.738839950676802
+        ],
+        [
+          "roof",
+          9.299256850132833
+        ],
+        [
+          "family",
+          9.271107004590544
+        ],
+        [
+          "rooms",
+          7.316095600960637
+        ],
+        [
+          "cat",
+          7.289520651681887
+        ],
+        [
+          "dwelling",
+          7.277100433041933
+        ],
+        [
+          "petting",
+          7.211761317379933
+        ],
+        [
+          "live",
+          6.606900539425717
+        ],
+        [
+          "living",
+          6.0930380319920445
+        ],
+        [
+          "home",
+          5.991437377013469
+        ],
+        [
+          "dog",
+          5.571564724439691
+        ],
+        [
+          "floor",
+          5.512991347993895
+        ],
+        [
+          "windows",
+          5.444506594151059
+        ],
+        [
+          "four legs",
+          5.433789740042337
+        ]
+      ],
+      "activation_coverage": 0.6666666666666666,
+      "activation_hits": {
+        "cat": 7.289520651681887,
+        "dog": 5.571564724439691
+      },
+      "binding_hits": 2,
+      "binding_total": 2,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "house",
+            "activation": 16.17561314919296,
+            "source": "long_term"
+          },
+          {
+            "value": "pet",
+            "activation": 15.857670075078998,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 13.086468582446464,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 12.370833004861408,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 11.764918546279265,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 11.319781743672927,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 9.738839950676802,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 9.299256850132833,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "chased",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "the",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "chase",
+            "activation": 1.0,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "cat",
+            "relation": "SUBJECT",
+            "target": "chased",
+            "confidence": 0.8
+          },
+          {
+            "source": "chased",
+            "relation": "OBJECT",
+            "target": "the",
+            "confidence": 0.8
+          },
+          {
+            "source": "cat",
+            "relation": "SUBJECT",
+            "target": "chase",
+            "confidence": 0.95
+          },
+          {
+            "source": "chase",
+            "relation": "OBJECT",
+            "target": "dog",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 16.17561314919296
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 15.857670075078998
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 13.086468582446464
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 12.370833004861408
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 11.764918546279265
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 11.319781743672927
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 9.738839950676802
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 9.299256850132833
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "cat",
+            "relation": "SUBJECT",
+            "target": "chased",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chased",
+            "relation": "OBJECT",
+            "target": "the",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chase",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "cat",
+            "relation": "SUBJECT",
+            "target": "chase",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chase",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chase",
+            "relation": "OBJECT",
+            "target": "dog",
+            "confidence": 0.95
+          }
+        }
+      ]
+    },
+    {
+      "case": 8,
+      "sentence": "Water is a liquid.",
+      "cues": [
+        "water",
+        "a",
+        "liquid"
+      ],
+      "active": [
+        [
+          "liquid",
+          28.57315054934633
+        ],
+        [
+          "water",
+          18.18568723766655
+        ],
+        [
+          "fluid",
+          15.327876456884994
+        ],
+        [
+          "drink",
+          14.31509296068037
+        ],
+        [
+          "flow",
+          13.44185561942178
+        ],
+        [
+          "substance",
+          11.17143095413414
+        ],
+        [
+          "ocean",
+          10.704228908209913
+        ],
+        [
+          "drinking",
+          8.633064064541577
+        ],
+        [
+          "stream",
+          8.47226197646824
+        ],
+        [
+          "lake",
+          8.280609414705655
+        ],
+        [
+          "swimming",
+          8.206304519492715
+        ],
+        [
+          "body of water",
+          8.176523683885879
+        ],
+        [
+          "container",
+          8.155660629871521
+        ],
+        [
+          "clear",
+          8.084588835231049
+        ],
+        [
+          "transparent",
+          8.078670008824023
+        ],
+        [
+          "river",
+          7.972392268892548
+        ],
+        [
+          "swallow",
+          7.872979306163529
+        ],
+        [
+          "freeze",
+          7.6477220325964375
+        ],
+        [
+          "fluent",
+          6.882603900140163
+        ],
+        [
+          "waterfall",
+          6.752459319944494
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "water": 18.18568723766655,
+        "liquid": 28.57315054934633
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "liquid",
+            "activation": 28.57315054934633,
+            "source": "long_term"
+          },
+          {
+            "value": "water",
+            "activation": 18.18568723766655,
+            "source": "long_term"
+          },
+          {
+            "value": "fluid",
+            "activation": 15.327876456884994,
+            "source": "long_term"
+          },
+          {
+            "value": "drink",
+            "activation": 14.31509296068037,
+            "source": "long_term"
+          },
+          {
+            "value": "flow",
+            "activation": 13.44185561942178,
+            "source": "long_term"
+          },
+          {
+            "value": "substance",
+            "activation": 11.17143095413414,
+            "source": "long_term"
+          },
+          {
+            "value": "ocean",
+            "activation": 10.704228908209913,
+            "source": "long_term"
+          },
+          {
+            "value": "drinking",
+            "activation": 8.633064064541577,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "water",
+            "relation": "IsA",
+            "target": "liquid",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "liquid",
+            "activation": 28.57315054934633
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "water",
+            "activation": 18.18568723766655
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fluid",
+            "activation": 15.327876456884994
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "drink",
+            "activation": 14.31509296068037
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "flow",
+            "activation": 13.44185561942178
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "substance",
+            "activation": 11.17143095413414
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "ocean",
+            "activation": 10.704228908209913
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "drinking",
+            "activation": 8.633064064541577
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "water",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "liquid",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "water",
+            "relation": "IsA",
+            "target": "liquid",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "water",
+            "relation": "IsA",
+            "target": "liquid",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 9,
+      "sentence": "Water is used for drinking.",
+      "cues": [
+        "water",
+        "used",
+        "for"
+      ],
+      "active": [
+        [
+          "liquid",
+          20.00827272378267
+        ],
+        [
+          "drink",
+          11.478738164394795
+        ],
+        [
+          "water",
+          10.941475288870283
+        ],
+        [
+          "fluid",
+          10.251487674464645
+        ],
+        [
+          "flow",
+          9.115698280376668
+        ],
+        [
+          "ocean",
+          8.915721640700554
+        ],
+        [
+          "drinking",
+          7.505879107247599
+        ],
+        [
+          "substance",
+          6.768676312739643
+        ],
+        [
+          "swallow",
+          6.394344433323505
+        ],
+        [
+          "freeze",
+          6.128084978505137
+        ],
+        [
+          "oxygen",
+          6.075788888503945
+        ],
+        [
+          "reflective surface",
+          5.640257902730401
+        ],
+        [
+          "lake",
+          5.550046465759166
+        ],
+        [
+          "transparent",
+          5.511028357514936
+        ],
+        [
+          "river",
+          5.4289069040623925
+        ],
+        [
+          "blue",
+          5.408941642829217
+        ],
+        [
+          "body of water",
+          4.920346920144187
+        ],
+        [
+          "pool",
+          4.866736988502796
+        ],
+        [
+          "gas",
+          4.765810495818572
+        ],
+        [
+          "thin paint",
+          4.729393216615667
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "water": 10.941475288870283,
+        "drink": 11.478738164394795
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "liquid",
+            "activation": 20.00827272378267,
+            "source": "long_term"
+          },
+          {
+            "value": "drink",
+            "activation": 11.478738164394795,
+            "source": "long_term"
+          },
+          {
+            "value": "water",
+            "activation": 10.941475288870283,
+            "source": "long_term"
+          },
+          {
+            "value": "fluid",
+            "activation": 10.251487674464645,
+            "source": "long_term"
+          },
+          {
+            "value": "flow",
+            "activation": 9.115698280376668,
+            "source": "long_term"
+          },
+          {
+            "value": "ocean",
+            "activation": 8.915721640700554,
+            "source": "long_term"
+          },
+          {
+            "value": "drinking",
+            "activation": 7.505879107247599,
+            "source": "long_term"
+          },
+          {
+            "value": "substance",
+            "activation": 6.768676312739643,
+            "source": "long_term"
+          },
+          {
+            "value": "is",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "confidence": 0.8
+          },
+          {
+            "source": "water",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "liquid",
+            "activation": 20.00827272378267
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "drink",
+            "activation": 11.478738164394795
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "water",
+            "activation": 10.941475288870283
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fluid",
+            "activation": 10.251487674464645
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "flow",
+            "activation": 9.115698280376668
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "ocean",
+            "activation": 8.915721640700554
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "drinking",
+            "activation": 7.505879107247599
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "substance",
+            "activation": 6.768676312739643
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "water",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "drinking",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "water",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "water",
+            "relation": "UsedFor",
+            "target": "drinking",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 10,
+      "sentence": "A car is a vehicle.",
+      "cues": [
+        "a",
+        "car",
+        "a",
+        "vehicle"
+      ],
+      "active": [
+        [
+          "substance",
+          5.419893789231677
+        ],
+        [
+          "travel",
+          4.950377029262929
+        ],
+        [
+          "conveyance",
+          3.7483506487181346
+        ],
+        [
+          "vehicle",
+          3.3023322802960635
+        ],
+        [
+          "machine",
+          3.1951794697882923
+        ],
+        [
+          "crash",
+          3.1745127569173808
+        ],
+        [
+          "slow down",
+          3.0909230355367514
+        ],
+        [
+          "freeway",
+          2.7098562869825056
+        ],
+        [
+          "transport",
+          2.687385398154213
+        ],
+        [
+          "medium",
+          2.669435949658918
+        ],
+        [
+          "pack",
+          2.460958913832455
+        ],
+        [
+          "device",
+          2.4091720064405657
+        ],
+        [
+          "transportation",
+          2.3527863058768017
+        ],
+        [
+          "city",
+          2.2928696275093143
+        ],
+        [
+          "car",
+          2.2870556158273496
+        ],
+        [
+          "place",
+          2.14598360317817
+        ],
+        [
+          "go fast",
+          2.127510581998087
+        ],
+        [
+          "carry",
+          2.0891908216850714
+        ],
+        [
+          "roll over",
+          1.965097652556143
+        ],
+        [
+          "seats",
+          1.9502180334982464
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "car": 2.2870556158273496,
+        "vehicle": 3.3023322802960635
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "substance",
+            "activation": 5.419893789231677,
+            "source": "long_term"
+          },
+          {
+            "value": "travel",
+            "activation": 4.950377029262929,
+            "source": "long_term"
+          },
+          {
+            "value": "conveyance",
+            "activation": 3.7483506487181346,
+            "source": "long_term"
+          },
+          {
+            "value": "vehicle",
+            "activation": 3.3023322802960635,
+            "source": "long_term"
+          },
+          {
+            "value": "machine",
+            "activation": 3.1951794697882923,
+            "source": "long_term"
+          },
+          {
+            "value": "crash",
+            "activation": 3.1745127569173808,
+            "source": "long_term"
+          },
+          {
+            "value": "slow down",
+            "activation": 3.0909230355367514,
+            "source": "long_term"
+          },
+          {
+            "value": "freeway",
+            "activation": 2.7098562869825056,
+            "source": "long_term"
+          },
+          {
+            "value": "car",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "car",
+            "relation": "IsA",
+            "target": "vehicle",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "substance",
+            "activation": 5.419893789231677
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "travel",
+            "activation": 4.950377029262929
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "conveyance",
+            "activation": 3.7483506487181346
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "vehicle",
+            "activation": 3.3023322802960635
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "machine",
+            "activation": 3.1951794697882923
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "crash",
+            "activation": 3.1745127569173808
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "slow down",
+            "activation": 3.0909230355367514
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "freeway",
+            "activation": 2.7098562869825056
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "car",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "vehicle",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "car",
+            "relation": "IsA",
+            "target": "vehicle",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "car",
+            "relation": "IsA",
+            "target": "vehicle",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 11,
+      "sentence": "A car is used for transport.",
+      "cues": [
+        "a",
+        "car",
+        "used",
+        "for",
+        "transport"
+      ],
+      "active": [
+        [
+          "conveyance",
+          4.136917889650866
+        ],
+        [
+          "transport",
+          3.24803957244609
+        ],
+        [
+          "substance",
+          3.0010836446511227
+        ],
+        [
+          "transportation",
+          2.8501345800662423
+        ],
+        [
+          "travel",
+          2.7204518821728665
+        ],
+        [
+          "carry",
+          1.9169462053328274
+        ],
+        [
+          "medium",
+          1.9073305942879886
+        ],
+        [
+          "place",
+          1.8866677936287743
+        ],
+        [
+          "color",
+          1.6538402397642171
+        ],
+        [
+          "crash",
+          1.6142628307807945
+        ],
+        [
+          "machine",
+          1.602177234662399
+        ],
+        [
+          "location",
+          1.5212778767718291
+        ],
+        [
+          "slow down",
+          1.4516762268071284
+        ],
+        [
+          "vehicle",
+          1.4348241722193498
+        ],
+        [
+          "device",
+          1.2772940914049877
+        ],
+        [
+          "movement",
+          1.2749063876126352
+        ],
+        [
+          "freeway",
+          1.2181155347759982
+        ],
+        [
+          "pack",
+          1.2135037129998338
+        ],
+        [
+          "state",
+          1.1983314117796229
+        ],
+        [
+          "hit",
+          1.1144322027715219
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "transport": 3.24803957244609
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "conveyance",
+            "activation": 4.136917889650866,
+            "source": "long_term"
+          },
+          {
+            "value": "transport",
+            "activation": 3.24803957244609,
+            "source": "long_term"
+          },
+          {
+            "value": "substance",
+            "activation": 3.0010836446511227,
+            "source": "long_term"
+          },
+          {
+            "value": "transportation",
+            "activation": 2.8501345800662423,
+            "source": "long_term"
+          },
+          {
+            "value": "travel",
+            "activation": 2.7204518821728665,
+            "source": "long_term"
+          },
+          {
+            "value": "carry",
+            "activation": 1.9169462053328274,
+            "source": "long_term"
+          },
+          {
+            "value": "medium",
+            "activation": 1.9073305942879886,
+            "source": "long_term"
+          },
+          {
+            "value": "place",
+            "activation": 1.8866677936287743,
+            "source": "long_term"
+          },
+          {
+            "value": "is",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "car",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "transport",
+            "confidence": 0.8
+          },
+          {
+            "source": "car",
+            "relation": "UsedFor",
+            "target": "transport",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "conveyance",
+            "activation": 4.136917889650866
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "transport",
+            "activation": 3.24803957244609
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "substance",
+            "activation": 3.0010836446511227
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "transportation",
+            "activation": 2.8501345800662423
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "travel",
+            "activation": 2.7204518821728665
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "carry",
+            "activation": 1.9169462053328274
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "medium",
+            "activation": 1.9073305942879886
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "place",
+            "activation": 1.8866677936287743
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "transport",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "car",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "transport",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "car",
+            "relation": "UsedFor",
+            "target": "transport",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "transport",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "car",
+            "relation": "UsedFor",
+            "target": "transport",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 12,
+      "sentence": "A chair is an object.",
+      "cues": [
+        "a",
+        "chair",
+        "object"
+      ],
+      "active": [
+        [
+          "seat",
+          8.51008539469461
+        ],
+        [
+          "furniture",
+          6.990953834314414
+        ],
+        [
+          "work",
+          6.50434560295763
+        ],
+        [
+          "place",
+          6.125298051615799
+        ],
+        [
+          "location",
+          5.543772883297308
+        ],
+        [
+          "space",
+          5.1079258192318875
+        ],
+        [
+          "room",
+          4.913269357710368
+        ],
+        [
+          "sit",
+          4.905726157107957
+        ],
+        [
+          "chair",
+          4.864343862553684
+        ],
+        [
+          "building",
+          4.854201024254299
+        ],
+        [
+          "office",
+          4.795189873612513
+        ],
+        [
+          "desk",
+          4.183521285053754
+        ],
+        [
+          "sitting",
+          4.087368694229077
+        ],
+        [
+          "table",
+          3.279201631092953
+        ],
+        [
+          "sit on",
+          3.2281938849393215
+        ],
+        [
+          "area",
+          3.1006343158895
+        ],
+        [
+          "show",
+          3.092655979437545
+        ],
+        [
+          "theater",
+          3.0431922811227
+        ],
+        [
+          "working",
+          2.991797914638338
+        ],
+        [
+          "house",
+          2.8385314316630024
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "chair": 4.864343862553684
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "seat",
+            "activation": 8.51008539469461,
+            "source": "long_term"
+          },
+          {
+            "value": "furniture",
+            "activation": 6.990953834314414,
+            "source": "long_term"
+          },
+          {
+            "value": "work",
+            "activation": 6.50434560295763,
+            "source": "long_term"
+          },
+          {
+            "value": "place",
+            "activation": 6.125298051615799,
+            "source": "long_term"
+          },
+          {
+            "value": "location",
+            "activation": 5.543772883297308,
+            "source": "long_term"
+          },
+          {
+            "value": "space",
+            "activation": 5.1079258192318875,
+            "source": "long_term"
+          },
+          {
+            "value": "room",
+            "activation": 4.913269357710368,
+            "source": "long_term"
+          },
+          {
+            "value": "sit",
+            "activation": 4.905726157107957,
+            "source": "long_term"
+          },
+          {
+            "value": "chair",
+            "activation": 1.0,
+            "source": "long_term"
+          },
+          {
+            "value": "object",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "chair",
+            "relation": "IsA",
+            "target": "object",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "seat",
+            "activation": 8.51008539469461
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "furniture",
+            "activation": 6.990953834314414
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "work",
+            "activation": 6.50434560295763
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "place",
+            "activation": 6.125298051615799
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "location",
+            "activation": 5.543772883297308
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "space",
+            "activation": 5.1079258192318875
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "room",
+            "activation": 4.913269357710368
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sit",
+            "activation": 4.905726157107957
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chair",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "object",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chair",
+            "relation": "IsA",
+            "target": "object",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "chair",
+            "relation": "IsA",
+            "target": "object",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 13,
+      "sentence": "A chair is used for sitting.",
+      "cues": [
+        "a",
+        "chair",
+        "used",
+        "for"
+      ],
+      "active": [
+        [
+          "seat",
+          8.726218247792273
+        ],
+        [
+          "furniture",
+          6.990953834314414
+        ],
+        [
+          "place",
+          6.760291313445042
+        ],
+        [
+          "work",
+          6.639037125657796
+        ],
+        [
+          "location",
+          6.275918296083418
+        ],
+        [
+          "space",
+          5.498780559683835
+        ],
+        [
+          "building",
+          5.490690763586468
+        ],
+        [
+          "room",
+          5.118169133915381
+        ],
+        [
+          "office",
+          4.922792368802144
+        ],
+        [
+          "sit",
+          4.905726157107957
+        ],
+        [
+          "chair",
+          4.864343862553684
+        ],
+        [
+          "desk",
+          4.183521285053754
+        ],
+        [
+          "sitting",
+          4.087368694229077
+        ],
+        [
+          "area",
+          3.722880423314222
+        ],
+        [
+          "table",
+          3.279201631092953
+        ],
+        [
+          "sit on",
+          3.2281938849393215
+        ],
+        [
+          "show",
+          3.092655979437545
+        ],
+        [
+          "house",
+          3.053032089995786
+        ],
+        [
+          "theater",
+          3.0431922811227
+        ],
+        [
+          "working",
+          2.991797914638338
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "chair": 4.864343862553684,
+        "sitting": 4.087368694229077
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "seat",
+            "activation": 8.726218247792273,
+            "source": "long_term"
+          },
+          {
+            "value": "furniture",
+            "activation": 6.990953834314414,
+            "source": "long_term"
+          },
+          {
+            "value": "place",
+            "activation": 6.760291313445042,
+            "source": "long_term"
+          },
+          {
+            "value": "work",
+            "activation": 6.639037125657796,
+            "source": "long_term"
+          },
+          {
+            "value": "location",
+            "activation": 6.275918296083418,
+            "source": "long_term"
+          },
+          {
+            "value": "space",
+            "activation": 5.498780559683835,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 5.490690763586468,
+            "source": "long_term"
+          },
+          {
+            "value": "room",
+            "activation": 5.118169133915381,
+            "source": "long_term"
+          },
+          {
+            "value": "is",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "sitting",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "chair",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "confidence": 0.8
+          },
+          {
+            "source": "chair",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "seat",
+            "activation": 8.726218247792273
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "furniture",
+            "activation": 6.990953834314414
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "place",
+            "activation": 6.760291313445042
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "work",
+            "activation": 6.639037125657796
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "location",
+            "activation": 6.275918296083418
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "space",
+            "activation": 5.498780559683835
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 5.490690763586468
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "room",
+            "activation": 5.118169133915381
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "chair",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sitting",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "chair",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "is",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "chair",
+            "relation": "UsedFor",
+            "target": "sitting",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 14,
+      "sentence": "Music is related to sound.",
+      "cues": [
+        "music",
+        "related",
+        "to",
+        "sound"
+      ],
+      "active": [
+        [
+          "sound",
+          27.393272884712104
+        ],
+        [
+          "music",
+          14.329668763773803
+        ],
+        [
+          "wave",
+          12.274085214151388
+        ],
+        [
+          "noise",
+          11.951578540759424
+        ],
+        [
+          "voice",
+          9.155769713123245
+        ],
+        [
+          "audio",
+          9.106296794115663
+        ],
+        [
+          "singing",
+          8.31929406878615
+        ],
+        [
+          "activity",
+          7.723113809745826
+        ],
+        [
+          "vibrations in air",
+          7.627087256395641
+        ],
+        [
+          "loud",
+          7.582351794978808
+        ],
+        [
+          "communicate",
+          7.448272712297623
+        ],
+        [
+          "movement",
+          7.008064284930547
+        ],
+        [
+          "pleasure",
+          6.945982491045028
+        ],
+        [
+          "healthy",
+          6.721089693938359
+        ],
+        [
+          "action",
+          6.264142428609929
+        ],
+        [
+          "heard",
+          6.071345600718379
+        ],
+        [
+          "opera",
+          6.0208984707715
+        ],
+        [
+          "soothing",
+          5.654047556766356
+        ],
+        [
+          "motion",
+          5.499262641856481
+        ],
+        [
+          "happening",
+          5.433064798361005
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "music": 14.329668763773803,
+        "sound": 27.393272884712104
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "sound",
+            "activation": 27.393272884712104,
+            "source": "long_term"
+          },
+          {
+            "value": "music",
+            "activation": 14.329668763773803,
+            "source": "long_term"
+          },
+          {
+            "value": "wave",
+            "activation": 12.274085214151388,
+            "source": "long_term"
+          },
+          {
+            "value": "noise",
+            "activation": 11.951578540759424,
+            "source": "long_term"
+          },
+          {
+            "value": "voice",
+            "activation": 9.155769713123245,
+            "source": "long_term"
+          },
+          {
+            "value": "audio",
+            "activation": 9.106296794115663,
+            "source": "long_term"
+          },
+          {
+            "value": "singing",
+            "activation": 8.31929406878615,
+            "source": "long_term"
+          },
+          {
+            "value": "activity",
+            "activation": 7.723113809745826,
+            "source": "long_term"
+          },
+          {
+            "value": "is",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "is",
+            "relation": "RelatedTo",
+            "target": "sound",
+            "confidence": 0.8
+          },
+          {
+            "source": "music",
+            "relation": "RelatedTo",
+            "target": "sound",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sound",
+            "activation": 27.393272884712104
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "music",
+            "activation": 14.329668763773803
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wave",
+            "activation": 12.274085214151388
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "noise",
+            "activation": 11.951578540759424
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "voice",
+            "activation": 9.155769713123245
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "audio",
+            "activation": 9.106296794115663
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "singing",
+            "activation": 8.31929406878615
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "activity",
+            "activation": 7.723113809745826
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "is",
+            "relation": "RelatedTo",
+            "target": "sound",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "music",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sound",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "music",
+            "relation": "RelatedTo",
+            "target": "sound",
+            "confidence": 0.95
+          }
+        }
+      ]
+    },
+    {
+      "case": 15,
+      "sentence": "A bird is an animal.",
+      "cues": [
+        "a",
+        "bird",
+        "animal"
+      ],
+      "active": [
+        [
+          "animal",
+          9.298396649018414
+        ],
+        [
+          "air",
+          7.104843204604162
+        ],
+        [
+          "zoo",
+          6.8392377391526615
+        ],
+        [
+          "sky",
+          6.578715564977807
+        ],
+        [
+          "eating",
+          6.414072974522413
+        ],
+        [
+          "food",
+          5.653256423170658
+        ],
+        [
+          "atmosphere",
+          5.377311398882547
+        ],
+        [
+          "fly",
+          5.344995074578499
+        ],
+        [
+          "house",
+          5.117099773254227
+        ],
+        [
+          "wings",
+          4.862179997462639
+        ],
+        [
+          "alive",
+          4.84064363216787
+        ],
+        [
+          "pet",
+          4.726188493617223
+        ],
+        [
+          "living",
+          4.6489941733336515
+        ],
+        [
+          "move itself about",
+          4.192653816522913
+        ],
+        [
+          "organism",
+          4.115851589004482
+        ],
+        [
+          "gas",
+          4.077049077071676
+        ],
+        [
+          "petting",
+          4.059967547503361
+        ],
+        [
+          "bird",
+          4.044869294061471
+        ],
+        [
+          "creature",
+          3.857525907012099
+        ],
+        [
+          "live",
+          3.466540236654918
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "bird": 4.044869294061471,
+        "animal": 9.298396649018414
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "animal",
+            "activation": 9.298396649018414,
+            "source": "long_term"
+          },
+          {
+            "value": "air",
+            "activation": 7.104843204604162,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 6.8392377391526615,
+            "source": "long_term"
+          },
+          {
+            "value": "sky",
+            "activation": 6.578715564977807,
+            "source": "long_term"
+          },
+          {
+            "value": "eating",
+            "activation": 6.414072974522413,
+            "source": "long_term"
+          },
+          {
+            "value": "food",
+            "activation": 5.653256423170658,
+            "source": "long_term"
+          },
+          {
+            "value": "atmosphere",
+            "activation": 5.377311398882547,
+            "source": "long_term"
+          },
+          {
+            "value": "fly",
+            "activation": 5.344995074578499,
+            "source": "long_term"
+          },
+          {
+            "value": "bird",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "bird",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 9.298396649018414
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "air",
+            "activation": 7.104843204604162
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 6.8392377391526615
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sky",
+            "activation": 6.578715564977807
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "eating",
+            "activation": 6.414072974522413
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "food",
+            "activation": 5.653256423170658
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "atmosphere",
+            "activation": 5.377311398882547
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fly",
+            "activation": 5.344995074578499
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bird",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "bird",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "bird",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 16,
+      "sentence": "A bird can fly.",
+      "cues": [
+        "a",
+        "bird",
+        "can",
+        "fly"
+      ],
+      "active": [
+        [
+          "sky",
+          11.790284857117127
+        ],
+        [
+          "air",
+          11.631192065683404
+        ],
+        [
+          "fly",
+          9.727343182600947
+        ],
+        [
+          "insect",
+          9.549507296655555
+        ],
+        [
+          "atmosphere",
+          8.826001546781164
+        ],
+        [
+          "wings",
+          8.301043031556816
+        ],
+        [
+          "gas",
+          8.056445886417944
+        ],
+        [
+          "bird",
+          6.04067970408198
+        ],
+        [
+          "animal",
+          5.052881087786629
+        ],
+        [
+          "bug",
+          4.93957575539162
+        ],
+        [
+          "blue",
+          4.752299447029399
+        ],
+        [
+          "small",
+          4.309527677337126
+        ],
+        [
+          "oxygen",
+          4.073288153649891
+        ],
+        [
+          "sing",
+          3.934148318380231
+        ],
+        [
+          "nest",
+          3.9282666872088203
+        ],
+        [
+          "tree",
+          3.632737466408273
+        ],
+        [
+          "creature",
+          3.6321034957646496
+        ],
+        [
+          "birds",
+          3.6142216140335393
+        ],
+        [
+          "house",
+          3.555795061565079
+        ],
+        [
+          "earth",
+          3.40427309871381
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "bird": 6.04067970408198,
+        "fly": 9.727343182600947
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "sky",
+            "activation": 11.790284857117127,
+            "source": "long_term"
+          },
+          {
+            "value": "air",
+            "activation": 11.631192065683404,
+            "source": "long_term"
+          },
+          {
+            "value": "fly",
+            "activation": 9.727343182600947,
+            "source": "long_term"
+          },
+          {
+            "value": "insect",
+            "activation": 9.549507296655555,
+            "source": "long_term"
+          },
+          {
+            "value": "atmosphere",
+            "activation": 8.826001546781164,
+            "source": "long_term"
+          },
+          {
+            "value": "wings",
+            "activation": 8.301043031556816,
+            "source": "long_term"
+          },
+          {
+            "value": "gas",
+            "activation": 8.056445886417944,
+            "source": "long_term"
+          },
+          {
+            "value": "bird",
+            "activation": 6.04067970408198,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "bird",
+            "relation": "CapableOf",
+            "target": "fly",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sky",
+            "activation": 11.790284857117127
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "air",
+            "activation": 11.631192065683404
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fly",
+            "activation": 9.727343182600947
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "insect",
+            "activation": 9.549507296655555
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "atmosphere",
+            "activation": 8.826001546781164
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wings",
+            "activation": 8.301043031556816
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "gas",
+            "activation": 8.056445886417944
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bird",
+            "activation": 6.04067970408198
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "bird",
+            "relation": "CapableOf",
+            "target": "fly",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bird",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fly",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "bird",
+            "relation": "CapableOf",
+            "target": "fly",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "bird",
+            "relation": "CapableOf",
+            "target": "fly",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 17,
+      "sentence": "The bird has wings.",
+      "cues": [
+        "the",
+        "bird"
+      ],
+      "active": [
+        [
+          "air",
+          7.150080975813478
+        ],
+        [
+          "sky",
+          6.651072334321711
+        ],
+        [
+          "fly",
+          5.5384630408841105
+        ],
+        [
+          "animal",
+          5.527184169891395
+        ],
+        [
+          "atmosphere",
+          5.386056680354773
+        ],
+        [
+          "gas",
+          4.994591076502936
+        ],
+        [
+          "wings",
+          4.957607467802122
+        ],
+        [
+          "bird",
+          4.096206539108446
+        ],
+        [
+          "insect",
+          3.8276550445958204
+        ],
+        [
+          "forest",
+          3.778714848579593
+        ],
+        [
+          "house",
+          3.5820341469070365
+        ],
+        [
+          "wood",
+          3.386955051565333
+        ],
+        [
+          "pet",
+          3.2599491972462067
+        ],
+        [
+          "tree",
+          3.2542741199804537
+        ],
+        [
+          "sing",
+          2.8984649536956346
+        ],
+        [
+          "nest",
+          2.894131690066185
+        ],
+        [
+          "earth",
+          2.6794507796692333
+        ],
+        [
+          "alive",
+          2.636040785147993
+        ],
+        [
+          "oxygen",
+          2.4778250689660224
+        ],
+        [
+          "meat",
+          2.4234431619412224
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "bird": 4.096206539108446
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "air",
+            "activation": 7.150080975813478,
+            "source": "long_term"
+          },
+          {
+            "value": "sky",
+            "activation": 6.651072334321711,
+            "source": "long_term"
+          },
+          {
+            "value": "fly",
+            "activation": 5.5384630408841105,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 5.527184169891395,
+            "source": "long_term"
+          },
+          {
+            "value": "atmosphere",
+            "activation": 5.386056680354773,
+            "source": "long_term"
+          },
+          {
+            "value": "gas",
+            "activation": 4.994591076502936,
+            "source": "long_term"
+          },
+          {
+            "value": "wings",
+            "activation": 4.957607467802122,
+            "source": "long_term"
+          },
+          {
+            "value": "bird",
+            "activation": 4.096206539108446,
+            "source": "long_term"
+          },
+          {
+            "value": "wing",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wings",
+            "confidence": 0.8
+          },
+          {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wing",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "air",
+            "activation": 7.150080975813478
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "sky",
+            "activation": 6.651072334321711
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fly",
+            "activation": 5.5384630408841105
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 5.527184169891395
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "atmosphere",
+            "activation": 5.386056680354773
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "gas",
+            "activation": 4.994591076502936
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wings",
+            "activation": 4.957607467802122
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bird",
+            "activation": 4.096206539108446
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wings",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bird",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wing",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wing",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wings",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "bird",
+            "relation": "HasA",
+            "target": "wing",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 18,
+      "sentence": "A child is a person.",
+      "cues": [
+        "a",
+        "child",
+        "a",
+        "person"
+      ],
+      "active": [
+        [
+          "laugh at joke",
+          3.9691819764935943
+        ],
+        [
+          "cross street",
+          3.1153258962084065
+        ],
+        [
+          "thank another person",
+          3.0582680198680325
+        ],
+        [
+          "voice opinion",
+          3.0582680198680325
+        ],
+        [
+          "wind clock",
+          3.0582680198680325
+        ],
+        [
+          "board plane",
+          2.7675575961713124
+        ],
+        [
+          "water plant",
+          2.7675575961713124
+        ],
+        [
+          "catch cold",
+          2.6705104466621883
+        ],
+        [
+          "iron shirt",
+          2.6705104466621883
+        ],
+        [
+          "wave to friend",
+          2.6705104466621883
+        ],
+        [
+          "captain ship",
+          2.557449522282412
+        ],
+        [
+          "deal drugs",
+          2.557449522282412
+        ],
+        [
+          "leave house",
+          2.557449522282412
+        ],
+        [
+          "plant tree",
+          2.557449522282412
+        ],
+        [
+          "shoulder burden",
+          2.557449522282412
+        ],
+        [
+          "smoke cigar",
+          2.557449522282412
+        ],
+        [
+          "taste food",
+          2.557449522282412
+        ],
+        [
+          "society",
+          2.53692779649037
+        ],
+        [
+          "butter bread",
+          2.1505583209007155
+        ],
+        [
+          "enter house",
+          2.1505583209007155
+        ]
+      ],
+      "activation_coverage": 0.0,
+      "activation_hits": {},
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "laugh at joke",
+            "activation": 3.9691819764935943,
+            "source": "long_term"
+          },
+          {
+            "value": "cross street",
+            "activation": 3.1153258962084065,
+            "source": "long_term"
+          },
+          {
+            "value": "thank another person",
+            "activation": 3.0582680198680325,
+            "source": "long_term"
+          },
+          {
+            "value": "voice opinion",
+            "activation": 3.0582680198680325,
+            "source": "long_term"
+          },
+          {
+            "value": "wind clock",
+            "activation": 3.0582680198680325,
+            "source": "long_term"
+          },
+          {
+            "value": "board plane",
+            "activation": 2.7675575961713124,
+            "source": "long_term"
+          },
+          {
+            "value": "water plant",
+            "activation": 2.7675575961713124,
+            "source": "long_term"
+          },
+          {
+            "value": "catch cold",
+            "activation": 2.6705104466621883,
+            "source": "long_term"
+          },
+          {
+            "value": "child",
+            "activation": 1.0,
+            "source": "long_term"
+          },
+          {
+            "value": "person",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "child",
+            "relation": "IsA",
+            "target": "person",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "laugh at joke",
+            "activation": 3.9691819764935943
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cross street",
+            "activation": 3.1153258962084065
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "thank another person",
+            "activation": 3.0582680198680325
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "voice opinion",
+            "activation": 3.0582680198680325
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wind clock",
+            "activation": 3.0582680198680325
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "board plane",
+            "activation": 2.7675575961713124
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "water plant",
+            "activation": 2.7675575961713124
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "catch cold",
+            "activation": 2.6705104466621883
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "child",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "person",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "child",
+            "relation": "IsA",
+            "target": "person",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "child",
+            "relation": "IsA",
+            "target": "person",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 19,
+      "sentence": "A child can play.",
+      "cues": [
+        "a",
+        "child",
+        "can",
+        "play"
+      ],
+      "active": [
+        [
+          "activity",
+          7.1517743196356935
+        ],
+        [
+          "action",
+          6.737852904160016
+        ],
+        [
+          "work",
+          5.5763887992009655
+        ],
+        [
+          "person",
+          5.15755795299642
+        ],
+        [
+          "fun",
+          5.140637752130176
+        ],
+        [
+          "entertainment",
+          4.4287717511952325
+        ],
+        [
+          "diversion",
+          4.255020761315773
+        ],
+        [
+          "theater",
+          4.151071032131529
+        ],
+        [
+          "have fun",
+          4.103702301040027
+        ],
+        [
+          "enjoyable",
+          3.8652623516494935
+        ],
+        [
+          "theatre",
+          3.511522706764328
+        ],
+        [
+          "play",
+          3.2874692682549034
+        ],
+        [
+          "human",
+          3.280716106755299
+        ],
+        [
+          "show",
+          3.1955578091710986
+        ],
+        [
+          "act",
+          3.094398482527933
+        ],
+        [
+          "school",
+          3.019681880702706
+        ],
+        [
+          "child",
+          2.913436746496619
+        ],
+        [
+          "kid",
+          2.894860178707689
+        ],
+        [
+          "laugh at joke",
+          2.7505368092007316
+        ],
+        [
+          "offspring",
+          2.6511521991756855
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "child": 2.913436746496619,
+        "play": 3.2874692682549034
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "activity",
+            "activation": 7.1517743196356935,
+            "source": "long_term"
+          },
+          {
+            "value": "action",
+            "activation": 6.737852904160016,
+            "source": "long_term"
+          },
+          {
+            "value": "work",
+            "activation": 5.5763887992009655,
+            "source": "long_term"
+          },
+          {
+            "value": "person",
+            "activation": 5.15755795299642,
+            "source": "long_term"
+          },
+          {
+            "value": "fun",
+            "activation": 5.140637752130176,
+            "source": "long_term"
+          },
+          {
+            "value": "entertainment",
+            "activation": 4.4287717511952325,
+            "source": "long_term"
+          },
+          {
+            "value": "diversion",
+            "activation": 4.255020761315773,
+            "source": "long_term"
+          },
+          {
+            "value": "theater",
+            "activation": 4.151071032131529,
+            "source": "long_term"
+          },
+          {
+            "value": "child",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "play",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "child",
+            "relation": "CapableOf",
+            "target": "play",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "activity",
+            "activation": 7.1517743196356935
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "action",
+            "activation": 6.737852904160016
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "work",
+            "activation": 5.5763887992009655
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "person",
+            "activation": 5.15755795299642
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fun",
+            "activation": 5.140637752130176
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "entertainment",
+            "activation": 4.4287717511952325
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "diversion",
+            "activation": 4.255020761315773
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "theater",
+            "activation": 4.151071032131529
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "child",
+            "relation": "CapableOf",
+            "target": "play",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "child",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "play",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "child",
+            "relation": "CapableOf",
+            "target": "play",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "child",
+            "relation": "CapableOf",
+            "target": "play",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 20,
+      "sentence": "A knife is a tool.",
+      "cues": [
+        "a",
+        "knife",
+        "a",
+        "tool"
+      ],
+      "active": [
+        [
+          "cut",
+          2.9485241939986073
+        ],
+        [
+          "music",
+          2.7537712632332134
+        ],
+        [
+          "injury",
+          2.746862604434831
+        ],
+        [
+          "wound",
+          2.468470329349224
+        ],
+        [
+          "object",
+          2.3598247842026034
+        ],
+        [
+          "device",
+          2.329950197915915
+        ],
+        [
+          "building",
+          2.1925939902840996
+        ],
+        [
+          "kitchen",
+          2.1900305551713974
+        ],
+        [
+          "repair shop",
+          2.165646218820753
+        ],
+        [
+          "tool",
+          2.13238036174237
+        ],
+        [
+          "hurt",
+          2.0613357673598283
+        ],
+        [
+          "building things",
+          2.0585534841107083
+        ],
+        [
+          "spread butter",
+          1.9175814076877091
+        ],
+        [
+          "fashion",
+          1.8597810657430456
+        ],
+        [
+          "fixing things",
+          1.8119610834623665
+        ],
+        [
+          "garage",
+          1.8090260408308962
+        ],
+        [
+          "cutting food",
+          1.7735820209854163
+        ],
+        [
+          "slashed",
+          1.6738029591687411
+        ],
+        [
+          "sound",
+          1.6396159423430734
+        ],
+        [
+          "making things",
+          1.625801334111753
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "tool": 2.13238036174237
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "cut",
+            "activation": 2.9485241939986073,
+            "source": "long_term"
+          },
+          {
+            "value": "music",
+            "activation": 2.7537712632332134,
+            "source": "long_term"
+          },
+          {
+            "value": "injury",
+            "activation": 2.746862604434831,
+            "source": "long_term"
+          },
+          {
+            "value": "wound",
+            "activation": 2.468470329349224,
+            "source": "long_term"
+          },
+          {
+            "value": "object",
+            "activation": 2.3598247842026034,
+            "source": "long_term"
+          },
+          {
+            "value": "device",
+            "activation": 2.329950197915915,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 2.1925939902840996,
+            "source": "long_term"
+          },
+          {
+            "value": "kitchen",
+            "activation": 2.1900305551713974,
+            "source": "long_term"
+          },
+          {
+            "value": "knife",
+            "activation": 1.0,
+            "source": "long_term"
+          },
+          {
+            "value": "tool",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "knife",
+            "relation": "IsA",
+            "target": "tool",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cut",
+            "activation": 2.9485241939986073
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "music",
+            "activation": 2.7537712632332134
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "injury",
+            "activation": 2.746862604434831
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wound",
+            "activation": 2.468470329349224
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "object",
+            "activation": 2.3598247842026034
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "device",
+            "activation": 2.329950197915915
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 2.1925939902840996
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "kitchen",
+            "activation": 2.1900305551713974
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "knife",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "tool",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "knife",
+            "relation": "IsA",
+            "target": "tool",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "knife",
+            "relation": "IsA",
+            "target": "tool",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 21,
+      "sentence": "A knife can cut.",
+      "cues": [
+        "a",
+        "knife",
+        "can",
+        "cut"
+      ],
+      "active": [
+        [
+          "injury",
+          7.970142123004235
+        ],
+        [
+          "wound",
+          6.9721410616675366
+        ],
+        [
+          "hurt",
+          5.428594151903079
+        ],
+        [
+          "cut",
+          5.391547129322831
+        ],
+        [
+          "damage",
+          4.8489988156248955
+        ],
+        [
+          "food",
+          4.6939055847664735
+        ],
+        [
+          "pain",
+          4.17203416001131
+        ],
+        [
+          "fashion",
+          3.845460455403992
+        ],
+        [
+          "kitchen",
+          3.7599519978701488
+        ],
+        [
+          "refrigerator",
+          3.663011886596905
+        ],
+        [
+          "slashed",
+          3.460914409863593
+        ],
+        [
+          "spread butter",
+          3.0146374591562037
+        ],
+        [
+          "accident",
+          2.8354849423925588
+        ],
+        [
+          "cutting food",
+          2.7882554429831785
+        ],
+        [
+          "knife",
+          2.713515116640405
+        ],
+        [
+          "meat",
+          2.67342366525808
+        ],
+        [
+          "hospital",
+          2.5962935940838645
+        ],
+        [
+          "yellow",
+          2.581482583359444
+        ],
+        [
+          "spread peanut butter",
+          2.506953314280883
+        ],
+        [
+          "detriment",
+          2.4590275075832
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "knife": 2.713515116640405,
+        "cut": 5.391547129322831
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "injury",
+            "activation": 7.970142123004235,
+            "source": "long_term"
+          },
+          {
+            "value": "wound",
+            "activation": 6.9721410616675366,
+            "source": "long_term"
+          },
+          {
+            "value": "hurt",
+            "activation": 5.428594151903079,
+            "source": "long_term"
+          },
+          {
+            "value": "cut",
+            "activation": 5.391547129322831,
+            "source": "long_term"
+          },
+          {
+            "value": "damage",
+            "activation": 4.8489988156248955,
+            "source": "long_term"
+          },
+          {
+            "value": "food",
+            "activation": 4.6939055847664735,
+            "source": "long_term"
+          },
+          {
+            "value": "pain",
+            "activation": 4.17203416001131,
+            "source": "long_term"
+          },
+          {
+            "value": "fashion",
+            "activation": 3.845460455403992,
+            "source": "long_term"
+          },
+          {
+            "value": "knife",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "knife",
+            "relation": "CapableOf",
+            "target": "cut",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "injury",
+            "activation": 7.970142123004235
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "wound",
+            "activation": 6.9721410616675366
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "hurt",
+            "activation": 5.428594151903079
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cut",
+            "activation": 5.391547129322831
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "damage",
+            "activation": 4.8489988156248955
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "food",
+            "activation": 4.6939055847664735
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pain",
+            "activation": 4.17203416001131
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "fashion",
+            "activation": 3.845460455403992
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "knife",
+            "relation": "CapableOf",
+            "target": "cut",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "knife",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cut",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "knife",
+            "relation": "CapableOf",
+            "target": "cut",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "knife",
+            "relation": "CapableOf",
+            "target": "cut",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 22,
+      "sentence": "The dog is an animal.",
+      "cues": [
+        "the",
+        "dog",
+        "animal"
+      ],
+      "active": [
+        [
+          "pet",
+          19.25499986553029
+        ],
+        [
+          "animal",
+          16.595266178809645
+        ],
+        [
+          "house",
+          14.821810660733867
+        ],
+        [
+          "companionship",
+          14.046046629021676
+        ],
+        [
+          "zoo",
+          10.097366274404049
+        ],
+        [
+          "cat",
+          8.663941529323182
+        ],
+        [
+          "shelter",
+          8.245690519146475
+        ],
+        [
+          "roof",
+          7.795055591892719
+        ],
+        [
+          "petting",
+          7.7278657232507335
+        ],
+        [
+          "building",
+          7.553748434917231
+        ],
+        [
+          "family",
+          6.886886024972659
+        ],
+        [
+          "four legs",
+          6.6145607314770976
+        ],
+        [
+          "dog",
+          6.534962080594148
+        ],
+        [
+          "drink water",
+          6.287174246009028
+        ],
+        [
+          "darling",
+          6.087803252868701
+        ],
+        [
+          "rooms",
+          5.857794626249424
+        ],
+        [
+          "bark",
+          5.8494746098869985
+        ],
+        [
+          "park",
+          5.706989035810164
+        ],
+        [
+          "living",
+          5.555905989997507
+        ],
+        [
+          "live",
+          5.45432328462862
+        ]
+      ],
+      "activation_coverage": 1.0,
+      "activation_hits": {
+        "dog": 6.534962080594148,
+        "animal": 16.595266178809645
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "pet",
+            "activation": 19.25499986553029,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 16.595266178809645,
+            "source": "long_term"
+          },
+          {
+            "value": "house",
+            "activation": 14.821810660733867,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 14.046046629021676,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 10.097366274404049,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 8.663941529323182,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 8.245690519146475,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 7.795055591892719,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 19.25499986553029
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 16.595266178809645
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 14.821810660733867
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 14.046046629021676
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 10.097366274404049
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 8.663941529323182
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 8.245690519146475
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 7.795055591892719
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.05
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.019
+          }
+        }
+      ]
+    },
+    {
+      "case": 23,
+      "sentence": "The dog can bark.",
+      "cues": [
+        "the",
+        "dog",
+        "can"
+      ],
+      "active": [
+        [
+          "house",
+          9.542614636263588
+        ],
+        [
+          "pet",
+          9.349417718422998
+        ],
+        [
+          "animal",
+          7.984867879945253
+        ],
+        [
+          "shelter",
+          7.763009640423538
+        ],
+        [
+          "building",
+          7.158377577842803
+        ],
+        [
+          "companionship",
+          6.965615950978551
+        ],
+        [
+          "family",
+          5.933978838333072
+        ],
+        [
+          "roof",
+          5.8172306866381875
+        ],
+        [
+          "zoo",
+          5.413956376615902
+        ],
+        [
+          "dwelling",
+          4.774140780940497
+        ],
+        [
+          "rooms",
+          4.753868974792747
+        ],
+        [
+          "cat",
+          4.368346248287627
+        ],
+        [
+          "live",
+          4.203628187730795
+        ],
+        [
+          "living",
+          3.966838436787633
+        ],
+        [
+          "petting",
+          3.756085854025553
+        ],
+        [
+          "home",
+          3.708646534050323
+        ],
+        [
+          "windows",
+          3.5903823228307044
+        ],
+        [
+          "dog",
+          3.4221872560958078
+        ],
+        [
+          "floor",
+          3.403145128749056
+        ],
+        [
+          "move itself about",
+          3.3735683384422988
+        ]
+      ],
+      "activation_coverage": 0.5,
+      "activation_hits": {
+        "dog": 3.4221872560958078
+      },
+      "binding_hits": 1,
+      "binding_total": 1,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "house",
+            "activation": 9.542614636263588,
+            "source": "long_term"
+          },
+          {
+            "value": "pet",
+            "activation": 9.349417718422998,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 7.984867879945253,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 7.763009640423538,
+            "source": "long_term"
+          },
+          {
+            "value": "building",
+            "activation": 7.158377577842803,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 6.965615950978551,
+            "source": "long_term"
+          },
+          {
+            "value": "family",
+            "activation": 5.933978838333072,
+            "source": "long_term"
+          },
+          {
+            "value": "roof",
+            "activation": 5.8172306866381875,
+            "source": "long_term"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "bark",
+            "activation": 1.0,
+            "source": "working"
+          }
+        ],
+        "edges": [
+          {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 9.542614636263588
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 9.349417718422998
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 7.984867879945253
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 7.763009640423538
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "building",
+            "activation": 7.158377577842803
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 6.965615950978551
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "family",
+            "activation": 5.933978838333072
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "roof",
+            "activation": 5.8172306866381875
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bark",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.05
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.016
+          }
+        }
+      ]
+    },
+    {
+      "case": 24,
+      "sentence": "The dog is an animal that can bark.",
+      "cues": [
+        "the",
+        "dog",
+        "animal",
+        "that",
+        "can"
+      ],
+      "active": [
+        [
+          "pet",
+          19.256412145786058
+        ],
+        [
+          "animal",
+          16.597481869416566
+        ],
+        [
+          "house",
+          16.273452753825794
+        ],
+        [
+          "companionship",
+          14.04657073417262
+        ],
+        [
+          "zoo",
+          10.098627515043013
+        ],
+        [
+          "shelter",
+          9.278860189549427
+        ],
+        [
+          "family",
+          8.902244432288867
+        ],
+        [
+          "cat",
+          8.664597331984949
+        ],
+        [
+          "eating",
+          8.098577892492845
+        ],
+        [
+          "building",
+          7.893960595777646
+        ],
+        [
+          "living",
+          7.751073684838108
+        ],
+        [
+          "petting",
+          7.728638978015905
+        ],
+        [
+          "roof",
+          7.718671552695953
+        ],
+        [
+          "dwelling",
+          7.163672780359647
+        ],
+        [
+          "kitchen",
+          6.886876480010463
+        ],
+        [
+          "four legs",
+          6.8813637910949685
+        ],
+        [
+          "rooms",
+          6.610706905836888
+        ],
+        [
+          "dog",
+          6.535481717933932
+        ],
+        [
+          "home",
+          6.533379964848793
+        ],
+        [
+          "live",
+          6.390410870727952
+        ]
+      ],
+      "activation_coverage": 0.6666666666666666,
+      "activation_hits": {
+        "dog": 6.535481717933932,
+        "animal": 16.597481869416566
+      },
+      "binding_hits": 2,
+      "binding_total": 2,
+      "working_memory": {
+        "nodes": [
+          {
+            "value": "pet",
+            "activation": 19.256412145786058,
+            "source": "long_term"
+          },
+          {
+            "value": "animal",
+            "activation": 16.597481869416566,
+            "source": "long_term"
+          },
+          {
+            "value": "house",
+            "activation": 16.273452753825794,
+            "source": "long_term"
+          },
+          {
+            "value": "companionship",
+            "activation": 14.04657073417262,
+            "source": "long_term"
+          },
+          {
+            "value": "zoo",
+            "activation": 10.098627515043013,
+            "source": "long_term"
+          },
+          {
+            "value": "shelter",
+            "activation": 9.278860189549427,
+            "source": "long_term"
+          },
+          {
+            "value": "family",
+            "activation": 8.902244432288867,
+            "source": "long_term"
+          },
+          {
+            "value": "cat",
+            "activation": 8.664597331984949,
+            "source": "long_term"
+          },
+          {
+            "value": "that",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "bark",
+            "activation": 1.0,
+            "source": "working"
+          },
+          {
+            "value": "dog",
+            "activation": 1.0,
+            "source": "long_term"
+          }
+        ],
+        "edges": [
+          {
+            "source": "that",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          },
+          {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          },
+          {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.95
+          }
+        ]
+      },
+      "designer_events": [
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "pet",
+            "activation": 19.256412145786058
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 16.597481869416566
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "house",
+            "activation": 16.273452753825794
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "companionship",
+            "activation": 14.04657073417262
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "zoo",
+            "activation": 10.098627515043013
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "shelter",
+            "activation": 9.278860189549427
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "family",
+            "activation": 8.902244432288867
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "cat",
+            "activation": 8.664597331984949
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "that",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.8
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "animal",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "dog",
+            "activation": 0.9
+          }
+        },
+        {
+          "operation": "REUSE",
+          "details": {
+            "concept": "bark",
+            "activation": 0.7
+          }
+        },
+        {
+          "operation": "BIND",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "confidence": 0.95
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.05
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.05
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "that",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.016
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "IsA",
+            "target": "animal",
+            "amount": 0.019
+          }
+        },
+        {
+          "operation": "ACCUMULATE",
+          "details": {
+            "source": "dog",
+            "relation": "CapableOf",
+            "target": "bark",
+            "amount": 0.019
+          }
+        }
+      ]
+    }
+  ],
+  "accumulation_probe": {
+    "dog|IsA|animal": {
+      "reinforcement": 0.157,
+      "use_count": 5,
+      "effective_weight": 0.021983
+    },
+    "dog|CapableOf|bark": {
+      "reinforcement": 0.151,
+      "use_count": 5,
+      "effective_weight": 3.9132342708104457
+    }
+  },
+  "elapsed_seconds": 0.8957801999931689
+}

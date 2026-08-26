@@ -20,8 +20,9 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
-research/__pycache__/
+
 llm/
 results/v106_llm_activation_trajectory_motifs.pt
 data/assertions.csv
 data/conceptnet_compact.db
+**/__pycache__/
