@@ -39,3 +39,4 @@ results/v202_graph_state_cognitive.pt
 results/v203_multi_action_cognitive.pt
 results/v209_teacher_distilled_cognitive.pt
 results/v211_deterministic_cognitive.pt
+results/v212_deterministic_cognitive.pt
