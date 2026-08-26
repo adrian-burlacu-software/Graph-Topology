@@ -1,0 +1,466 @@
+{
+  "experiment": "V200 graph transformer evaluation",
+  "samples": 1000,
+  "relation_accuracy": 0.926,
+  "top5_accuracy": 0.991,
+  "designer_action_distribution": {
+    "BIND": 1000
+  },
+  "traces": [
+    {
+      "concepts": [
+        "cosmology",
+        "structure",
+        "astrophysics",
+        "metaphysics",
+        "cosmological",
+        "big bang theory",
+        "cosmogony",
+        "cosmologist",
+        "cosmos",
+        "dynamics",
+        "eschatology",
+        "evolution",
+        "fate",
+        "origin",
+        "physical",
+        "steady state theory",
+        "universe"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "pyrochemically",
+        "pyrochemical",
+        "pyrochemistry"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "CapableOf",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "blocking military traffic",
+        "military event",
+        "blockage of traffic",
+        "intelligent agent activity"
+      ],
+      "target_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "HasProperty",
+        "CapableOf"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "segregation",
+        "mitosis",
+        "desegregation",
+        "genetics",
+        "separation",
+        "organic process",
+        "social organization",
+        "meiosis",
+        "biology",
+        "mineralogy",
+        "politics",
+        "public policy",
+        "sociology",
+        "performing",
+        "situation",
+        "adhesive",
+        "chromatid",
+        "chromosome"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "UsedFor",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "cowcatcher",
+        "locomotive",
+        "fender",
+        "principally",
+        "rail transport",
+        "lifeguard",
+        "snowplough",
+        "pilot"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "bets",
+        "betsy",
+        "bet",
+        "betty",
+        "diminutive",
+        "elizabeth"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "AtLocation",
+        "IsA",
+        "SimilarTo",
+        "CapableOf"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "macroseta",
+        "bristle",
+        "hair"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "Antonym",
+        "AtLocation",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "torres strait islands",
+        "island",
+        "australia",
+        "new guinea",
+        "torres strait"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "CapableOf",
+        "AtLocation"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "interpore",
+        "pore",
+        "interporous"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "HasProperty",
+        "UsedFor",
+        "SimilarTo"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "porto",
+        "portal vein",
+        "portugal",
+        "anatomy",
+        "fortified wine",
+        "wine",
+        "port wine"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "plycounts",
+        "plycount"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "HasProperty",
+        "PartOf"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "cleidocostal",
+        "clavicle",
+        "adjective",
+        "rib"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "coronary thrombosis",
+        "coronary heart disease",
+        "thrombosis",
+        "heart attack",
+        "cardiology",
+        "pathology",
+        "blood clot",
+        "coronary artery",
+        "heart",
+        "myocardial infarction"
+      ],
+      "target_relation": "IsA",
+      "predicted_relation": "IsA",
+      "top5": [
+        "IsA",
+        "RelatedTo",
+        "CapableOf",
+        "Antonym",
+        "AtLocation"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "cancel",
+        "side",
+        "natural",
+        "delete",
+        "internet",
+        "printing",
+        "mathematics",
+        "media",
+        "slang",
+        "cancellation",
+        "chancel",
+        "chancellery",
+        "chancellor",
+        "chancery",
+        "boundary",
+        "control",
+        "enclosure",
+        "limit"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "CapableOf"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "sunrise",
+        "sunset",
+        "periodic event",
+        "atmospheric phenomenon",
+        "new",
+        "dawn",
+        "sea",
+        "begin day",
+        "provide comfort",
+        "opposite of sunset",
+        "localized event",
+        "time of day",
+        "moonrise",
+        "moonset",
+        "appears",
+        "change",
+        "color",
+        "day"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "UsedFor",
+        "IsA",
+        "HasProperty",
+        "SimilarTo"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "sclerometer",
+        "sclerometric",
+        "measuring instrument",
+        "diamond",
+        "hardness",
+        "pressure",
+        "sclerometry",
+        "stylus"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "UsedFor",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "same",
+        "like",
+        "equal",
+        "similar",
+        "unvaried",
+        "aforementioned",
+        "assonant",
+        "cookie cutter",
+        "corresponding",
+        "duplicate",
+        "homophonic",
+        "indistinguishable",
+        "one",
+        "selfsame",
+        "synoptical",
+        "unchanged",
+        "lapp",
+        "lapplander"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "CapableOf",
+        "Antonym"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "metron",
+        "unit of measure",
+        "physics",
+        "heim theory",
+        "measure",
+        "meter",
+        "metre",
+        "multidimensional",
+        "quantum",
+        "space",
+        "sphere of influence"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "UsedFor",
+        "SimilarTo",
+        "HasProperty"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "misidentification",
+        "instance",
+        "erroneous",
+        "identification",
+        "misidentify"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "UsedFor",
+        "AtLocation"
+      ],
+      "designer_action": "BIND"
+    },
+    {
+      "concepts": [
+        "zero sum",
+        "gain",
+        "equal",
+        "exactly",
+        "loss",
+        "offset",
+        "system"
+      ],
+      "target_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "top5": [
+        "RelatedTo",
+        "IsA",
+        "SimilarTo",
+        "AtLocation",
+        "CapableOf"
+      ],
+      "designer_action": "BIND"
+    }
+  ]
+}

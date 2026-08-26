@@ -1,0 +1,30 @@
+{
+  "version": "V200",
+  "architecture": {
+    "semantic_memory": "ConceptNet compact SQLite",
+    "working_memory": "temporary graph",
+    "attention": "sparse graph-masked multi-head attention",
+    "designer": [
+      "REUSE",
+      "CREATE",
+      "BRANCH",
+      "INHIBIT",
+      "BIND",
+      "COMMIT"
+    ],
+    "teacher": null
+  },
+  "relations": [
+    "IsA",
+    "CapableOf",
+    "HasProperty",
+    "UsedFor",
+    "HasA",
+    "PartOf",
+    "RelatedTo",
+    "SimilarTo",
+    "Antonym",
+    "Causes",
+    "AtLocation"
+  ]
+}
