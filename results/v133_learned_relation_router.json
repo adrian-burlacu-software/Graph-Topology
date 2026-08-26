@@ -1,0 +1,1272 @@
+{
+  "experiment": "V133 learned task-conditioned relation router",
+  "cases": {
+    "total": 92,
+    "train": 58,
+    "heldout": 34,
+    "paired": 12
+  },
+  "zero_shot": {
+    "count": 92,
+    "relation_accuracy": 0.10869565217391304,
+    "target_accuracy": 0.07608695652173914,
+    "binding_accuracy": 0.05434782608695652,
+    "mean_relation_margin": 0.0,
+    "relation_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "CAPABILITY": 1.0,
+      "PROPERTY": 0.0,
+      "USE": 0.0,
+      "HAS": 0.0,
+      "PART_OF": 0.0,
+      "ASSOCIATION": 0.0,
+      "SIMILARITY": 0.0,
+      "OPPOSITE": 0.0,
+      "CAUSE": 0.0,
+      "LOCATION": 0.0
+    },
+    "target_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "CAPABILITY": 0.5,
+      "PROPERTY": 0.0,
+      "USE": 0.0,
+      "HAS": 0.0,
+      "PART_OF": 0.0,
+      "ASSOCIATION": 0.125,
+      "SIMILARITY": 0.0,
+      "OPPOSITE": 0.0,
+      "CAUSE": 0.16666666666666666,
+      "LOCATION": 0.0
+    },
+    "binding_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "CAPABILITY": 0.5,
+      "PROPERTY": 0.0,
+      "USE": 0.0,
+      "HAS": 0.0,
+      "PART_OF": 0.0,
+      "ASSOCIATION": 0.0,
+      "SIMILARITY": 0.0,
+      "OPPOSITE": 0.0,
+      "CAUSE": 0.0,
+      "LOCATION": 0.0
+    }
+  },
+  "train_history": [
+    {
+      "epoch": 1,
+      "before": {
+        "count": 58,
+        "relation_accuracy": 0.10344827586206896,
+        "target_accuracy": 0.1206896551724138,
+        "binding_accuracy": 0.08620689655172414,
+        "mean_relation_margin": 0.0,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 0.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 0.0,
+          "USE": 0.0,
+          "HAS": 0.0,
+          "PART_OF": 0.0,
+          "ASSOCIATION": 0.0,
+          "SIMILARITY": 0.0,
+          "OPPOSITE": 0.0,
+          "CAUSE": 0.0,
+          "LOCATION": 0.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.0,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.0,
+          "USE": 0.0,
+          "HAS": 0.0,
+          "PART_OF": 0.0,
+          "ASSOCIATION": 0.2,
+          "SIMILARITY": 0.0,
+          "OPPOSITE": 0.0,
+          "CAUSE": 0.25,
+          "LOCATION": 0.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.0,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.0,
+          "USE": 0.0,
+          "HAS": 0.0,
+          "PART_OF": 0.0,
+          "ASSOCIATION": 0.0,
+          "SIMILARITY": 0.0,
+          "OPPOSITE": 0.0,
+          "CAUSE": 0.0,
+          "LOCATION": 0.0
+        }
+      },
+      "after": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "updates": 11
+    },
+    {
+      "epoch": 2,
+      "before": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "after": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "updates": 11
+    },
+    {
+      "epoch": 3,
+      "before": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "after": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "updates": 11
+    },
+    {
+      "epoch": 4,
+      "before": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "after": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "updates": 11
+    },
+    {
+      "epoch": 5,
+      "before": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "after": {
+        "count": 58,
+        "relation_accuracy": 1.0,
+        "target_accuracy": 0.6551724137931034,
+        "binding_accuracy": 0.6551724137931034,
+        "mean_relation_margin": 0.6444827586206896,
+        "relation_accuracy_by_task": {
+          "CATEGORY": 1.0,
+          "CAPABILITY": 1.0,
+          "PROPERTY": 1.0,
+          "USE": 1.0,
+          "HAS": 1.0,
+          "PART_OF": 1.0,
+          "ASSOCIATION": 1.0,
+          "SIMILARITY": 1.0,
+          "OPPOSITE": 1.0,
+          "CAUSE": 1.0,
+          "LOCATION": 1.0
+        },
+        "target_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        },
+        "binding_accuracy_by_task": {
+          "CATEGORY": 0.75,
+          "CAPABILITY": 0.8333333333333334,
+          "PROPERTY": 0.5,
+          "USE": 1.0,
+          "HAS": 0.0,
+          "PART_OF": 0.6,
+          "ASSOCIATION": 0.6,
+          "SIMILARITY": 0.25,
+          "OPPOSITE": 1.0,
+          "CAUSE": 0.75,
+          "LOCATION": 1.0
+        }
+      },
+      "updates": 11
+    }
+  ],
+  "heldout": {
+    "count": 34,
+    "relation_accuracy": 1.0,
+    "target_accuracy": 0.3235294117647059,
+    "binding_accuracy": 0.3235294117647059,
+    "mean_relation_margin": 0.6294117647058823,
+    "relation_accuracy_by_task": {
+      "CATEGORY": 1.0,
+      "CAPABILITY": 1.0,
+      "PROPERTY": 1.0,
+      "USE": 1.0,
+      "HAS": 1.0,
+      "PART_OF": 1.0,
+      "ASSOCIATION": 1.0,
+      "SIMILARITY": 1.0,
+      "OPPOSITE": 1.0,
+      "CAUSE": 1.0,
+      "LOCATION": 1.0
+    },
+    "target_accuracy_by_task": {
+      "CATEGORY": 0.75,
+      "CAPABILITY": 0.0,
+      "PROPERTY": 0.0,
+      "USE": 0.5,
+      "HAS": 0.0,
+      "PART_OF": 0.3333333333333333,
+      "ASSOCIATION": 0.3333333333333333,
+      "SIMILARITY": 0.0,
+      "OPPOSITE": 1.0,
+      "CAUSE": 0.5,
+      "LOCATION": 0.5
+    },
+    "binding_accuracy_by_task": {
+      "CATEGORY": 0.75,
+      "CAPABILITY": 0.0,
+      "PROPERTY": 0.0,
+      "USE": 0.5,
+      "HAS": 0.0,
+      "PART_OF": 0.3333333333333333,
+      "ASSOCIATION": 0.3333333333333333,
+      "SIMILARITY": 0.0,
+      "OPPOSITE": 1.0,
+      "CAUSE": 0.5,
+      "LOCATION": 0.5
+    }
+  },
+  "paired_zero_shot": {
+    "count": 12,
+    "relation_accuracy": 0.0,
+    "target_accuracy": 0.0,
+    "binding_accuracy": 0.0,
+    "mean_relation_margin": 0.0,
+    "relation_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "ASSOCIATION": 0.0
+    },
+    "target_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "ASSOCIATION": 0.0
+    },
+    "binding_accuracy_by_task": {
+      "CATEGORY": 0.0,
+      "ASSOCIATION": 0.0
+    }
+  },
+  "paired_learned": {
+    "count": 12,
+    "relation_accuracy": 1.0,
+    "target_accuracy": 0.75,
+    "binding_accuracy": 0.75,
+    "mean_relation_margin": 0.45166666666666666,
+    "relation_accuracy_by_task": {
+      "CATEGORY": 1.0,
+      "ASSOCIATION": 1.0
+    },
+    "target_accuracy_by_task": {
+      "CATEGORY": 0.6666666666666666,
+      "ASSOCIATION": 0.8333333333333334
+    },
+    "binding_accuracy_by_task": {
+      "CATEGORY": 0.6666666666666666,
+      "ASSOCIATION": 0.8333333333333334
+    }
+  },
+  "router": {
+    "task_weights": {
+      "CATEGORY": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": -0.6,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": 0.6,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "CAPABILITY": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.6,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": -0.6,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "PROPERTY": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": -0.6,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.6,
+        "IsA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "USE": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": -0.6,
+        "IsA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.6
+      },
+      "HAS": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.6,
+        "HasProperty": -0.6,
+        "IsA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "PART_OF": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": 0.0,
+        "PartOf": 0.6,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": -0.6
+      },
+      "ASSOCIATION": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": 0.0,
+        "PartOf": -0.6,
+        "RelatedTo": 0.6,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "SIMILARITY": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": -0.6,
+        "SimilarTo": 0.6,
+        "UsedFor": 0.0
+      },
+      "OPPOSITE": {
+        "Antonym": 0.6,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": -0.6,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "CAUSE": {
+        "Antonym": 0.0,
+        "AtLocation": 0.0,
+        "CapableOf": 0.0,
+        "Causes": 0.6,
+        "HasA": -0.6,
+        "HasProperty": 0.0,
+        "IsA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      },
+      "LOCATION": {
+        "Antonym": 0.0,
+        "AtLocation": 0.6,
+        "CapableOf": 0.0,
+        "Causes": 0.0,
+        "HasA": 0.0,
+        "HasProperty": 0.0,
+        "IsA": -0.6,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.0,
+        "UsedFor": 0.0
+      }
+    },
+    "token_weights": {
+      "is": {
+        "IsA": -0.09,
+        "CapableOf": -0.09,
+        "UsedFor": 0.0,
+        "HasProperty": -0.09,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.09,
+        "Antonym": 0.09,
+        "AtLocation": 0.09
+      },
+      "what": {
+        "IsA": -0.09,
+        "CapableOf": -0.09,
+        "HasProperty": -0.09,
+        "UsedFor": 0.0,
+        "HasA": 0.0,
+        "PartOf": 0.0,
+        "RelatedTo": 0.0,
+        "SimilarTo": 0.09,
+        "Antonym": 0.09,
+        "Causes": 0.09
+      },
+      "dog": {
+        "IsA": 0.0,
+        "CapableOf": -0.09,
+        "HasProperty": 0.09
+      },
+      "category": {
+        "IsA": 0.09,
+        "CapableOf": -0.09
+      },
+      "cat": {},
+      "bird": {
+        "HasA": 0.09,
+        "HasProperty": -0.09
+      },
+      "car": {
+        "UsedFor": 0.09,
+        "HasProperty": -0.09,
+        "SimilarTo": 0.09,
+        "RelatedTo": -0.09
+      },
+      "chair": {},
+      "knife": {},
+      "child": {},
+      "water": {},
+      "do": {
+        "CapableOf": 0.09,
+        "IsA": -0.09
+      },
+      "can": {
+        "CapableOf": 0.09,
+        "IsA": -0.09
+      },
+      "fish": {
+        "AtLocation": 0.09,
+        "IsA": -0.09
+      },
+      "have": {
+        "HasProperty": 0.0,
+        "CapableOf": -0.09,
+        "HasA": 0.09
+      },
+      "property": {
+        "HasProperty": 0.09,
+        "CapableOf": -0.09
+      },
+      "does": {
+        "HasProperty": 0.0,
+        "CapableOf": -0.09,
+        "HasA": 0.0,
+        "Causes": 0.09
+      },
+      "ice": {},
+      "fire": {
+        "Causes": 0.09,
+        "HasA": -0.09
+      },
+      "snow": {},
+      "lemon": {},
+      "used": {
+        "UsedFor": 0.09,
+        "HasProperty": -0.09
+      },
+      "for": {
+        "UsedFor": 0.09,
+        "HasProperty": -0.09
+      },
+      "phone": {},
+      "computer": {},
+      "bed": {},
+      "house": {},
+      "tree": {},
+      "part": {
+        "PartOf": 0.09,
+        "UsedFor": -0.09
+      },
+      "of": {
+        "PartOf": 0.09,
+        "UsedFor": -0.09,
+        "Antonym": 0.09,
+        "IsA": -0.09
+      },
+      "wheel": {
+        "PartOf": 0.09,
+        "UsedFor": -0.09
+      },
+      "wing": {},
+      "page": {},
+      "petal": {},
+      "branch": {},
+      "music": {
+        "RelatedTo": 0.09,
+        "PartOf": -0.09
+      },
+      "to": {
+        "RelatedTo": 0.0,
+        "PartOf": -0.09,
+        "SimilarTo": 0.09
+      },
+      "related": {
+        "RelatedTo": 0.09,
+        "PartOf": -0.09
+      },
+      "school": {},
+      "doctor": {},
+      "rain": {},
+      "similar": {
+        "SimilarTo": 0.09,
+        "RelatedTo": -0.09
+      },
+      "happy": {},
+      "small": {},
+      "the": {
+        "Antonym": 0.09,
+        "IsA": -0.09
+      },
+      "hot": {
+        "Antonym": 0.09,
+        "IsA": -0.09
+      },
+      "opposite": {
+        "Antonym": 0.09,
+        "IsA": -0.09
+      },
+      "big": {},
+      "fast": {},
+      "up": {},
+      "cause": {
+        "Causes": 0.09,
+        "HasA": -0.09
+      },
+      "exercise": {},
+      "injury": {},
+      "where": {
+        "AtLocation": 0.09,
+        "IsA": -0.09
+      },
+      "found": {
+        "AtLocation": 0.09,
+        "IsA": -0.09
+      },
+      "book": {},
+      "rose": {},
+      "apple": {},
+      "hammer": {},
+      "person": {},
+      "metal": {},
+      "glass": {},
+      "stone": {},
+      "umbrella": {},
+      "pen": {},
+      "cup": {},
+      "flower": {},
+      "room": {},
+      "finger": {},
+      "seat": {},
+      "food": {},
+      "quick": {},
+      "large": {},
+      "open": {},
+      "light": {},
+      "hunger": {},
+      "sleep": {},
+      "student": {}
+    },
+    "updates": 11
+  },
+  "heldout_confusion": {
+    "IsA->IsA": 4,
+    "CapableOf->CapableOf": 4,
+    "HasProperty->HasProperty": 4,
+    "UsedFor->UsedFor": 4,
+    "HasA->HasA": 4,
+    "PartOf->PartOf": 3,
+    "RelatedTo->RelatedTo": 3,
+    "SimilarTo->SimilarTo": 2,
+    "Antonym->Antonym": 2,
+    "Causes->Causes": 2,
+    "AtLocation->AtLocation": 2
+  },
+  "heldout_failures": [
+    {
+      "case_id": "category_10",
+      "task": "CATEGORY",
+      "source": "apple",
+      "target": "food",
+      "gold_relation": "IsA",
+      "selected_relation": "IsA",
+      "selected_target": "computer brand",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.48
+    },
+    {
+      "case_id": "capability_07",
+      "task": "CAPABILITY",
+      "source": "car",
+      "target": "move",
+      "gold_relation": "CapableOf",
+      "selected_relation": "CapableOf",
+      "selected_target": "crash",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6
+    },
+    {
+      "case_id": "capability_08",
+      "task": "CAPABILITY",
+      "source": "phone",
+      "target": "communicate",
+      "gold_relation": "CapableOf",
+      "selected_relation": "CapableOf",
+      "selected_target": "make calls",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.69
+    },
+    {
+      "case_id": "capability_09",
+      "task": "CAPABILITY",
+      "source": "computer",
+      "target": "compute",
+      "gold_relation": "CapableOf",
+      "selected_relation": "CapableOf",
+      "selected_target": "process information",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.69
+    },
+    {
+      "case_id": "capability_10",
+      "task": "CAPABILITY",
+      "source": "person",
+      "target": "walk",
+      "gold_relation": "CapableOf",
+      "selected_relation": "CapableOf",
+      "selected_target": "cross street",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.69
+    },
+    {
+      "case_id": "property_07",
+      "task": "PROPERTY",
+      "source": "metal",
+      "target": "hard",
+      "gold_relation": "HasProperty",
+      "selected_relation": "HasProperty",
+      "selected_target": "heavy",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.5599999999999999
+    },
+    {
+      "case_id": "property_08",
+      "task": "PROPERTY",
+      "source": "glass",
+      "target": "transparent",
+      "gold_relation": "HasProperty",
+      "selected_relation": "HasProperty",
+      "selected_target": "clear",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.5599999999999999
+    },
+    {
+      "case_id": "property_09",
+      "task": "PROPERTY",
+      "source": "stone",
+      "target": "hard",
+      "gold_relation": "HasProperty",
+      "selected_relation": "HasProperty",
+      "selected_target": "harder than clay",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.5599999999999999
+    },
+    {
+      "case_id": "property_10",
+      "task": "PROPERTY",
+      "source": "music",
+      "target": "pleasant",
+      "gold_relation": "HasProperty",
+      "selected_relation": "HasProperty",
+      "selected_target": "soothing",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.5599999999999999
+    },
+    {
+      "case_id": "use_07",
+      "task": "USE",
+      "source": "umbrella",
+      "target": "protection",
+      "gold_relation": "UsedFor",
+      "selected_relation": "UsedFor",
+      "selected_target": "protection from rain",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7499999999999999
+    },
+    {
+      "case_id": "use_10",
+      "task": "USE",
+      "source": "book",
+      "target": "reading",
+      "gold_relation": "UsedFor",
+      "selected_relation": "UsedFor",
+      "selected_target": "learning",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7499999999999999
+    },
+    {
+      "case_id": "has_07",
+      "task": "HAS",
+      "source": "person",
+      "target": "hand",
+      "gold_relation": "HasA",
+      "selected_relation": "HasA",
+      "selected_target": "one head",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "has_08",
+      "task": "HAS",
+      "source": "book",
+      "target": "page",
+      "gold_relation": "HasA",
+      "selected_relation": "HasA",
+      "selected_target": "knowledge",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "has_09",
+      "task": "HAS",
+      "source": "chair",
+      "target": "seat",
+      "gold_relation": "HasA",
+      "selected_relation": "HasA",
+      "selected_target": "four legs",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "has_10",
+      "task": "HAS",
+      "source": "flower",
+      "target": "petal",
+      "gold_relation": "HasA",
+      "selected_relation": "HasA",
+      "selected_target": null,
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "part_06",
+      "task": "PART_OF",
+      "source": "room",
+      "target": "house",
+      "gold_relation": "PartOf",
+      "selected_relation": "PartOf",
+      "selected_target": "building",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "part_08",
+      "task": "PART_OF",
+      "source": "seat",
+      "target": "chair",
+      "gold_relation": "PartOf",
+      "selected_relation": "PartOf",
+      "selected_target": "pair of trousers",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.6099999999999999
+    },
+    {
+      "case_id": "association_07",
+      "task": "ASSOCIATION",
+      "source": "car",
+      "target": "road",
+      "gold_relation": "RelatedTo",
+      "selected_relation": "RelatedTo",
+      "selected_target": "vehicle",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.29000000000000004
+    },
+    {
+      "case_id": "association_08",
+      "task": "ASSOCIATION",
+      "source": "food",
+      "target": "eating",
+      "gold_relation": "RelatedTo",
+      "selected_relation": "RelatedTo",
+      "selected_target": "foodstuff",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.47
+    },
+    {
+      "case_id": "similarity_05",
+      "task": "SIMILARITY",
+      "source": "quick",
+      "target": "fast",
+      "gold_relation": "SimilarTo",
+      "selected_relation": "SimilarTo",
+      "selected_target": "excitable",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7799999999999998
+    },
+    {
+      "case_id": "similarity_06",
+      "task": "SIMILARITY",
+      "source": "large",
+      "target": "big",
+      "gold_relation": "SimilarTo",
+      "selected_relation": "SimilarTo",
+      "selected_target": "astronomical",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7799999999999998
+    },
+    {
+      "case_id": "cause_06",
+      "task": "CAUSE",
+      "source": "sleep",
+      "target": "rest",
+      "gold_relation": "Causes",
+      "selected_relation": "Causes",
+      "selected_target": "improvement in health",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7199999999999999
+    },
+    {
+      "case_id": "location_05",
+      "task": "LOCATION",
+      "source": "doctor",
+      "target": "hospital",
+      "gold_relation": "AtLocation",
+      "selected_relation": "AtLocation",
+      "selected_target": "doctor's office",
+      "correct_relation": true,
+      "correct_target": false,
+      "correct_binding": false,
+      "margin": 0.7199999999999999
+    }
+  ],
+  "elapsed_seconds": 0.04794570000376552
+}
