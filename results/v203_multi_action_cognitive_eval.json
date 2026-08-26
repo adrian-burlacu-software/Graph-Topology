@@ -1,0 +1,2401 @@
+{
+  "experiment": "V203 multi-action cognitive controller",
+  "samples": 2800,
+  "action_accuracy": 0.7157142857142857,
+  "source_accuracy": 1.0,
+  "target_accuracy": 0.9971428571428571,
+  "relation_accuracy": 0.83,
+  "one_step_success": 0.395,
+  "three_step_rollout_success": 0.48214285714285715,
+  "commit_success": 0.575,
+  "noop_success": 0.45,
+  "inhibit_success": 0.98,
+  "branch_success": 0.84,
+  "create_success": 0.635,
+  "per_action_accuracy": {
+    "NOOP": 0.45,
+    "REUSE": 0.715,
+    "CREATE": 0.63,
+    "BRANCH": 0.84,
+    "INHIBIT": 0.985,
+    "BIND": 0.815,
+    "COMMIT": 0.575
+  },
+  "per_action_counts": {
+    "REUSE": 400,
+    "BIND": 400,
+    "COMMIT": 400,
+    "NOOP": 400,
+    "INHIBIT": 400,
+    "BRANCH": 400,
+    "CREATE": 400
+  },
+  "traces": [
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "CREATE",
+      "gold_relation": "PartOf",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 4,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "Causes",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "IsA",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "IsA"
+        },
+        {
+          "step": 1,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "IsA"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "IsA"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 6,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BRANCH",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 10,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 10,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 5,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 5,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "CREATE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "SimilarTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 6,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 4,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 9,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "CREATE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 6,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "COMMIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 3,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 4,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BIND",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "noop",
+      "gold_action": "NOOP",
+      "predicted_action": "COMMIT",
+      "gold_relation": "Causes",
+      "predicted_relation": "AtLocation",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "COMMIT",
+          "source": 0,
+          "target": 1,
+          "relation": "AtLocation"
+        }
+      ]
+    },
+    {
+      "scenario": "inhibit",
+      "gold_action": "INHIBIT",
+      "predicted_action": "INHIBIT",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "CREATE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 4,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "branch",
+      "gold_action": "BRANCH",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "create",
+      "gold_action": "CREATE",
+      "predicted_action": "REUSE",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BIND",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "reuse",
+      "gold_action": "REUSE",
+      "predicted_action": "REUSE",
+      "gold_relation": "IsA",
+      "predicted_relation": "RelatedTo",
+      "action_correct": true,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": false,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "REUSE",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 8,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "bind",
+      "gold_action": "BIND",
+      "predicted_action": "BRANCH",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": false,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 1,
+          "action": "INHIBIT",
+          "source": 0,
+          "target": 2,
+          "relation": "RelatedTo"
+        },
+        {
+          "step": 2,
+          "action": "BRANCH",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    },
+    {
+      "scenario": "commit",
+      "gold_action": "COMMIT",
+      "predicted_action": "NOOP",
+      "gold_relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "action_correct": false,
+      "source_correct": true,
+      "target_correct": true,
+      "relation_correct": true,
+      "one_step_success": true,
+      "rollout": [
+        {
+          "step": 0,
+          "action": "NOOP",
+          "source": 0,
+          "target": 1,
+          "relation": "RelatedTo"
+        }
+      ]
+    }
+  ]
+}
