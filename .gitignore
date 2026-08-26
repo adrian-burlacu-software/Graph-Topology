@@ -31,3 +31,4 @@ results/v131_long_term_memory_after.json
 # Checkpoint files
 results/v200_graph_transformer.pt
 results/v201_self_supervised.pt
+results/v202_graph_state_cognitive.pt
