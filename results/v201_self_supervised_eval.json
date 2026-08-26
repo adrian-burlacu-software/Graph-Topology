@@ -1,0 +1,312 @@
+{
+  "experiment": "V201 self-supervised cognitive evaluation",
+  "samples": 2000,
+  "relation_accuracy": 0.9265,
+  "binding_accuracy": 1.0,
+  "masked_node_accuracy": 0.0,
+  "mean_next_state_mse": 0.010201195457135328,
+  "mean_consistency_mse": 5.3014590859537e-16,
+  "checkpoint_best_score": 3.658939111692986,
+  "traces": [
+    {
+      "source": "phosphopurification",
+      "target": "purification",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.01485312357544899,
+      "consistency_mse": 9.597222105570125e-16
+    },
+    {
+      "source": "hole",
+      "target": "button shirt",
+      "relation": "UsedFor",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": false,
+      "binding_correct": true,
+      "next_state_mse": 0.008298559114336967,
+      "consistency_mse": 7.62465177800431e-16
+    },
+    {
+      "source": "store refrigerator",
+      "target": "storing cream",
+      "relation": "UsedFor",
+      "predicted_relation": "UsedFor",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.006052915006875992,
+      "consistency_mse": 5.322619515274463e-16
+    },
+    {
+      "source": "silla",
+      "target": "goguryeo",
+      "relation": "SimilarTo",
+      "predicted_relation": "SimilarTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.025062114000320435,
+      "consistency_mse": 2.520770051028798e-16
+    },
+    {
+      "source": "unfilled",
+      "target": "filled",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.001860674936324358,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "nanorder",
+      "target": "order",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.010541703552007675,
+      "consistency_mse": 5.049739380987017e-16
+    },
+    {
+      "source": "rhizotomist",
+      "target": "root",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.008681297302246094,
+      "consistency_mse": 5.226938673552617e-16
+    },
+    {
+      "source": "darkside",
+      "target": "distress",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.010319489985704422,
+      "consistency_mse": 7.352484210183742e-16
+    },
+    {
+      "source": "hyperparasitoid",
+      "target": "parasitoid",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.0024234133306890726,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "antipedagogic",
+      "target": "pedagogy",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.0016027537640184164,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "tape measure",
+      "target": "measure waist",
+      "relation": "CapableOf",
+      "predicted_relation": "CapableOf",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.008295189589262009,
+      "consistency_mse": 6.640958535040001e-16
+    },
+    {
+      "source": "byron",
+      "target": "california",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.008998582139611244,
+      "consistency_mse": 5.957148836721604e-16
+    },
+    {
+      "source": "permeability",
+      "target": "conductivity",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.004771795589476824,
+      "consistency_mse": 5.054821578670543e-16
+    },
+    {
+      "source": "genospecies",
+      "target": "phenospecies",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.008727453649044037,
+      "consistency_mse": 8.026725612571717e-16
+    },
+    {
+      "source": "fishhook",
+      "target": "playing card",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.009758072905242443,
+      "consistency_mse": 8.315996893179718e-16
+    },
+    {
+      "source": "plumigerous",
+      "target": "feather",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.002241190755739808,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "oidium",
+      "target": "oidial",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.011429600417613983,
+      "consistency_mse": 6.584224268232908e-16
+    },
+    {
+      "source": "blype",
+      "target": "membrane",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.008028540760278702,
+      "consistency_mse": 3.5922328479875976e-16
+    },
+    {
+      "source": "nanodroplets",
+      "target": "nanodroplet",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.0022582444362342358,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "intoxicating",
+      "target": "stimulating",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.005456403363496065,
+      "consistency_mse": 6.800311902198136e-16
+    },
+    {
+      "source": "hydrium",
+      "target": "hydrogen",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.00884962361305952,
+      "consistency_mse": 5.285485590866834e-16
+    },
+    {
+      "source": "nativism",
+      "target": "learned",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.006820675916969776,
+      "consistency_mse": 5.140473550296898e-16
+    },
+    {
+      "source": "palaeopolyploidization",
+      "target": "palaeopolyploid",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.013401594944298267,
+      "consistency_mse": 6.76975836499949e-16
+    },
+    {
+      "source": "drome",
+      "target": "aerodrome",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.009412330575287342,
+      "consistency_mse": 6.063129599082062e-16
+    },
+    {
+      "source": "appellate jurisdiction",
+      "target": "court",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.010247336700558662,
+      "consistency_mse": 4.527615566805258e-16
+    },
+    {
+      "source": "rehair",
+      "target": "string instrument",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.014442367479205132,
+      "consistency_mse": 6.948825365213785e-16
+    },
+    {
+      "source": "gynaecomastia",
+      "target": "male",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.01710592582821846,
+      "consistency_mse": 7.370558834486965e-16
+    },
+    {
+      "source": "sirach",
+      "target": "catholic",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.015665851533412933,
+      "consistency_mse": 8.760760129497558e-16
+    },
+    {
+      "source": "clintonize",
+      "target": "clintonism",
+      "relation": "RelatedTo",
+      "predicted_relation": "RelatedTo",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.0019985653925687075,
+      "consistency_mse": 0.0
+    },
+    {
+      "source": "recreational activity",
+      "target": "action",
+      "relation": "IsA",
+      "predicted_relation": "IsA",
+      "relation_correct": true,
+      "binding_correct": true,
+      "next_state_mse": 0.01309804618358612,
+      "consistency_mse": 3.19677010557351e-16
+    }
+  ]
+}
