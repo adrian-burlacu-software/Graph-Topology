@@ -1,0 +1,557 @@
+[
+  {
+    "experiment": "v224_free_d8_steps2",
+    "regime": "free",
+    "transformer_depth": 8,
+    "steps": 2,
+    "best_epoch": 2,
+    "best_valid_loss": 1.1255825672830855,
+    "best": {
+      "loss": 1.1255825672830855,
+      "action": 0.8692307692307693,
+      "source": 1.0,
+      "target": 0.45384615384615384,
+      "relation": 0.9846153846153847,
+      "hard_att_p": 0.4907692307692308,
+      "hard_att_r": 0.996875,
+      "hard_att_f1": 0.6577319587628866,
+      "generated_decisions": 120
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.15714285714285714,
+      "autonomous_exact_trajectory": 0.7571428571428571,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 0,
+      "state_diverged_fraction": 0.0,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8833333333333333,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_free_d8_steps2.pt"
+  },
+  {
+    "experiment": "v224_free_d8_steps4",
+    "regime": "free",
+    "transformer_depth": 8,
+    "steps": 4,
+    "best_epoch": 2,
+    "best_valid_loss": 1.5966196758406503,
+    "best": {
+      "loss": 1.5966196758406503,
+      "action": 0.783410138248848,
+      "source": 0.9585253456221198,
+      "target": 0.39631336405529954,
+      "relation": 0.9631336405529954,
+      "hard_att_p": 0.6359447004608295,
+      "hard_att_r": 0.9871244635193133,
+      "hard_att_f1": 0.7735426008968609,
+      "generated_decisions": 294
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.12857142857142856,
+      "autonomous_exact_trajectory": 0.2714285714285714,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 1,
+      "state_diverged_fraction": 0.014285714285714285,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8666666666666667,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.7115384615384616,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.6,
+          "node_error": 0.0012422360248447197,
+          "edge_error": 0.000865800865800865,
+          "cases": 35
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_free_d8_steps4.pt"
+  },
+  {
+    "experiment": "v224_free_d8_steps8",
+    "regime": "free",
+    "transformer_depth": 8,
+    "steps": 8,
+    "best_epoch": 4,
+    "best_valid_loss": 1.7960830739566258,
+    "best": {
+      "loss": 1.7960830739566258,
+      "action": 0.6694560669456067,
+      "source": 0.9581589958158996,
+      "target": 0.39330543933054396,
+      "relation": 0.9456066945606695,
+      "hard_att_p": 0.6694560669456067,
+      "hard_att_r": 0.963855421686747,
+      "hard_att_f1": 0.7901234567901234,
+      "generated_decisions": 338
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.14285714285714285,
+      "autonomous_exact_trajectory": 0.0,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 4,
+      "state_diverged_fraction": 0.05714285714285714,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.6,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8833333333333333,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.7307692307692307,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.5714285714285714,
+          "node_error": 0.0013605442176870763,
+          "edge_error": 0.0,
+          "cases": 35
+        },
+        {
+          "step": 5,
+          "action_accuracy": 0.11764705882352941,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 17
+        },
+        {
+          "step": 6,
+          "action_accuracy": 1.0,
+          "node_error": 0.026948051948051943,
+          "edge_error": 0.019212962962962977,
+          "cases": 5
+        },
+        {
+          "step": 7,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        },
+        {
+          "step": 8,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_free_d8_steps8.pt"
+  },
+  {
+    "experiment": "v224_scheduled_d8_steps2",
+    "regime": "scheduled",
+    "transformer_depth": 8,
+    "steps": 2,
+    "best_epoch": 2,
+    "best_valid_loss": 1.1323234677314757,
+    "best": {
+      "loss": 1.1323234677314757,
+      "action": 0.8692307692307693,
+      "source": 1.0,
+      "target": 0.45384615384615384,
+      "relation": 0.9846153846153847,
+      "hard_att_p": 0.4876923076923077,
+      "hard_att_r": 0.990625,
+      "hard_att_f1": 0.6536082474226804,
+      "generated_decisions": 29
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.15714285714285714,
+      "autonomous_exact_trajectory": 0.7571428571428571,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 0,
+      "state_diverged_fraction": 0.0,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8833333333333333,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_scheduled_d8_steps2.pt"
+  },
+  {
+    "experiment": "v224_scheduled_d8_steps4",
+    "regime": "scheduled",
+    "transformer_depth": 8,
+    "steps": 4,
+    "best_epoch": 2,
+    "best_valid_loss": 1.5514795626912798,
+    "best": {
+      "loss": 1.5514795626912798,
+      "action": 0.783410138248848,
+      "source": 0.967741935483871,
+      "target": 0.4055299539170507,
+      "relation": 0.9631336405529954,
+      "hard_att_p": 0.6350230414746544,
+      "hard_att_r": 0.9856938483547926,
+      "hard_att_f1": 0.7724215246636772,
+      "generated_decisions": 65
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.12857142857142856,
+      "autonomous_exact_trajectory": 0.2714285714285714,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 0,
+      "state_diverged_fraction": 0.0,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8666666666666667,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.7115384615384616,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.6,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 35
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_scheduled_d8_steps4.pt"
+  },
+  {
+    "experiment": "v224_scheduled_d8_steps8",
+    "regime": "scheduled",
+    "transformer_depth": 8,
+    "steps": 8,
+    "best_epoch": 2,
+    "best_valid_loss": 1.7604605419295174,
+    "best": {
+      "loss": 1.7604605419295174,
+      "action": 0.7322175732217573,
+      "source": 0.9539748953974896,
+      "target": 0.3891213389121339,
+      "relation": 0.9414225941422594,
+      "hard_att_p": 0.6702928870292887,
+      "hard_att_r": 0.9650602409638555,
+      "hard_att_f1": 0.7911111111111111,
+      "generated_decisions": 85
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.14285714285714285,
+      "autonomous_exact_trajectory": 0.0,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 3,
+      "state_diverged_fraction": 0.04285714285714286,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8666666666666667,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.7115384615384616,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.5428571428571428,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 35
+        },
+        {
+          "step": 5,
+          "action_accuracy": 0.11764705882352941,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 17
+        },
+        {
+          "step": 6,
+          "action_accuracy": 1.0,
+          "node_error": 0.026948051948051943,
+          "edge_error": 0.019212962962962977,
+          "cases": 5
+        },
+        {
+          "step": 7,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        },
+        {
+          "step": 8,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_scheduled_d8_steps8.pt"
+  },
+  {
+    "experiment": "v224_teacher_d8_steps2",
+    "regime": "teacher",
+    "transformer_depth": 8,
+    "steps": 2,
+    "best_epoch": 2,
+    "best_valid_loss": 1.118875202536583,
+    "best": {
+      "loss": 1.118875202536583,
+      "action": 0.8692307692307693,
+      "source": 1.0,
+      "target": 0.46923076923076923,
+      "relation": 0.9846153846153847,
+      "hard_att_p": 0.4907692307692308,
+      "hard_att_r": 0.996875,
+      "hard_att_f1": 0.6577319587628866,
+      "generated_decisions": 0
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.15714285714285714,
+      "autonomous_exact_trajectory": 0.7571428571428571,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 0,
+      "state_diverged_fraction": 0.0,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8833333333333333,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_teacher_d8_steps2.pt"
+  },
+  {
+    "experiment": "v224_teacher_d8_steps4",
+    "regime": "teacher",
+    "transformer_depth": 8,
+    "steps": 4,
+    "best_epoch": 2,
+    "best_valid_loss": 1.5720588735171728,
+    "best": {
+      "loss": 1.5720588735171728,
+      "action": 0.783410138248848,
+      "source": 0.9631336405529954,
+      "target": 0.4055299539170507,
+      "relation": 0.9631336405529954,
+      "hard_att_p": 0.6387096774193548,
+      "hard_att_r": 0.9914163090128756,
+      "hard_att_f1": 0.7769058295964125,
+      "generated_decisions": 0
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.14285714285714285,
+      "autonomous_exact_trajectory": 0.2857142857142857,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 1,
+      "state_diverged_fraction": 0.014285714285714285,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8571428571428571,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8666666666666667,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.6923076923076923,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.6285714285714286,
+          "node_error": 0.0012422360248447197,
+          "edge_error": 0.000865800865800865,
+          "cases": 35
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_teacher_d8_steps4.pt"
+  },
+  {
+    "experiment": "v224_teacher_d8_steps8",
+    "regime": "teacher",
+    "transformer_depth": 8,
+    "steps": 8,
+    "best_epoch": 3,
+    "best_valid_loss": 1.7468682765960692,
+    "best": {
+      "loss": 1.7468682765960692,
+      "action": 0.7405857740585774,
+      "source": 0.9623430962343096,
+      "target": 0.39330543933054396,
+      "relation": 0.9456066945606695,
+      "hard_att_p": 0.6694560669456067,
+      "hard_att_r": 0.963855421686747,
+      "hard_att_f1": 0.7901234567901234,
+      "generated_decisions": 0
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.14285714285714285,
+      "autonomous_exact_trajectory": 0.0,
+      "autonomous_cases": 70,
+      "state_diverged_cases": 4,
+      "state_diverged_fraction": 0.05714285714285714,
+      "per_step": [
+        {
+          "step": 1,
+          "action_accuracy": 0.8,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 70
+        },
+        {
+          "step": 2,
+          "action_accuracy": 0.8666666666666667,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 60
+        },
+        {
+          "step": 3,
+          "action_accuracy": 0.7307692307692307,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 52
+        },
+        {
+          "step": 4,
+          "action_accuracy": 0.6285714285714286,
+          "node_error": 0.0013605442176870763,
+          "edge_error": 0.0,
+          "cases": 35
+        },
+        {
+          "step": 5,
+          "action_accuracy": 0.23529411764705882,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 17
+        },
+        {
+          "step": 6,
+          "action_accuracy": 1.0,
+          "node_error": 0.026948051948051943,
+          "edge_error": 0.019212962962962977,
+          "cases": 5
+        },
+        {
+          "step": 7,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        },
+        {
+          "step": 8,
+          "action_accuracy": 0.0,
+          "node_error": 0.0,
+          "edge_error": 0.0,
+          "cases": 0
+        }
+      ]
+    },
+    "checkpoint": "results\\v224\\v224_teacher_d8_steps8.pt"
+  }
+]

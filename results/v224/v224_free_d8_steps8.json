@@ -1,0 +1,85 @@
+{
+  "experiment": "v224_free_d8_steps8",
+  "regime": "free",
+  "transformer_depth": 8,
+  "steps": 8,
+  "best_epoch": 4,
+  "best_valid_loss": 1.7960830739566258,
+  "best": {
+    "loss": 1.7960830739566258,
+    "action": 0.6694560669456067,
+    "source": 0.9581589958158996,
+    "target": 0.39330543933054396,
+    "relation": 0.9456066945606695,
+    "hard_att_p": 0.6694560669456067,
+    "hard_att_r": 0.963855421686747,
+    "hard_att_f1": 0.7901234567901234,
+    "generated_decisions": 338
+  },
+  "autonomous": {
+    "autonomous_final_action": 0.14285714285714285,
+    "autonomous_exact_trajectory": 0.0,
+    "autonomous_cases": 70,
+    "state_diverged_cases": 4,
+    "state_diverged_fraction": 0.05714285714285714,
+    "per_step": [
+      {
+        "step": 1,
+        "action_accuracy": 0.6,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 70
+      },
+      {
+        "step": 2,
+        "action_accuracy": 0.8833333333333333,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 60
+      },
+      {
+        "step": 3,
+        "action_accuracy": 0.7307692307692307,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 52
+      },
+      {
+        "step": 4,
+        "action_accuracy": 0.5714285714285714,
+        "node_error": 0.0013605442176870763,
+        "edge_error": 0.0,
+        "cases": 35
+      },
+      {
+        "step": 5,
+        "action_accuracy": 0.11764705882352941,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 17
+      },
+      {
+        "step": 6,
+        "action_accuracy": 1.0,
+        "node_error": 0.026948051948051943,
+        "edge_error": 0.019212962962962977,
+        "cases": 5
+      },
+      {
+        "step": 7,
+        "action_accuracy": 0.0,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 0
+      },
+      {
+        "step": 8,
+        "action_accuracy": 0.0,
+        "node_error": 0.0,
+        "edge_error": 0.0,
+        "cases": 0
+      }
+    ]
+  },
+  "checkpoint": "results\\v224\\v224_free_d8_steps8.pt"
+}
