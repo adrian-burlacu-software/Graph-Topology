@@ -82,3 +82,15 @@ results/v216/v216_iterative_d1_steps6.pt
 results/v216/v216_iterative_d1_steps8.pt
 results/v213_multihop_cognitive.pt
 results/v214_hard_attention_cognitive.pt
+results/v219/v219_both_d8_steps2.pt
+results/v219/v219_both_d8_steps4.pt
+results/v219/v219_both_d8_steps6.pt
+results/v219/v219_both_d8_steps8.pt
+results/v219/v219_depth_d2_steps1.pt
+results/v219/v219_depth_d4_steps1.pt
+results/v219/v219_depth_d6_steps1.pt
+results/v219/v219_depth_d8_steps1.pt
+results/v219/v219_iterative_d1_steps2.pt
+results/v219/v219_iterative_d1_steps4.pt
+results/v219/v219_iterative_d1_steps6.pt
+results/v219/v219_iterative_d1_steps8.pt

@@ -1,0 +1,447 @@
+[
+  {
+    "experiment": "v219_depth_d2_steps1",
+    "family": "depth",
+    "transformer_depth": 2,
+    "iterative_steps": 1,
+    "best_epoch": 3,
+    "best_valid_loss": 1.0878428070939012,
+    "best": {
+      "action": 0.8571428571428571,
+      "source": 1.0,
+      "target": 0.5857142857142857,
+      "relation": 1.0,
+      "hard_att_p": 0.3942857142857143,
+      "hard_att_r": 0.9857142857142858,
+      "hard_att_f1": 0.563265306122449,
+      "loss": 1.0878428070939012
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.8571428571428571,
+      "autonomous_exact_trajectory": 0.8571428571428571,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 60,
+        "NOOP->REUSE": 10
+      }
+    },
+    "checkpoint": "results\\v219\\v219_depth_d2_steps1.pt"
+  },
+  {
+    "experiment": "v219_depth_d4_steps1",
+    "family": "depth",
+    "transformer_depth": 4,
+    "iterative_steps": 1,
+    "best_epoch": 3,
+    "best_valid_loss": 0.9273327530494758,
+    "best": {
+      "action": 0.8571428571428571,
+      "source": 1.0,
+      "target": 0.6571428571428571,
+      "relation": 1.0,
+      "hard_att_p": 0.4,
+      "hard_att_r": 1.0,
+      "hard_att_f1": 0.5714285714285715,
+      "loss": 0.9273327530494758
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.8571428571428571,
+      "autonomous_exact_trajectory": 0.8571428571428571,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 60,
+        "NOOP->REUSE": 10
+      }
+    },
+    "checkpoint": "results\\v219\\v219_depth_d4_steps1.pt"
+  },
+  {
+    "experiment": "v219_depth_d6_steps1",
+    "family": "depth",
+    "transformer_depth": 6,
+    "iterative_steps": 1,
+    "best_epoch": 1,
+    "best_valid_loss": 0.9784756483776229,
+    "best": {
+      "action": 0.8571428571428571,
+      "source": 1.0,
+      "target": 0.7,
+      "relation": 1.0,
+      "hard_att_p": 0.3942857142857143,
+      "hard_att_r": 0.9857142857142858,
+      "hard_att_f1": 0.563265306122449,
+      "loss": 0.9784756483776229
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.8571428571428571,
+      "autonomous_exact_trajectory": 0.8571428571428571,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 60,
+        "NOOP->REUSE": 10
+      }
+    },
+    "checkpoint": "results\\v219\\v219_depth_d6_steps1.pt"
+  },
+  {
+    "experiment": "v219_depth_d8_steps1",
+    "family": "depth",
+    "transformer_depth": 8,
+    "iterative_steps": 1,
+    "best_epoch": 3,
+    "best_valid_loss": 0.9257042307672756,
+    "best": {
+      "action": 0.8571428571428571,
+      "source": 1.0,
+      "target": 0.8285714285714286,
+      "relation": 1.0,
+      "hard_att_p": 0.4,
+      "hard_att_r": 1.0,
+      "hard_att_f1": 0.5714285714285715,
+      "loss": 0.9257042307672756
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.8571428571428571,
+      "autonomous_exact_trajectory": 0.8571428571428571,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 60,
+        "NOOP->REUSE": 10
+      }
+    },
+    "checkpoint": "results\\v219\\v219_depth_d8_steps1.pt"
+  },
+  {
+    "experiment": "v219_iterative_d1_steps2",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 2,
+    "best_epoch": 2,
+    "best_valid_loss": 1.2778756324734006,
+    "best": {
+      "action": 0.8153846153846154,
+      "source": 0.9692307692307692,
+      "target": 0.3769230769230769,
+      "relation": 1.0,
+      "hard_att_p": 0.48,
+      "hard_att_r": 0.975,
+      "hard_att_f1": 0.6432989690721649,
+      "loss": 1.2778756324734006
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.6571428571428571,
+      "autonomous_exact_trajectory": 0.6571428571428571,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 45,
+        "NOOP->REUSE": 8,
+        "BIND->CREATE": 2,
+        "REUSE->CREATE": 3,
+        "CREATE->CREATE": 1,
+        "NOOP->CREATE": 2,
+        "CREATE->REUSE": 1,
+        "BIND->REUSE": 2,
+        "INHIBIT->CREATE": 3,
+        "COMMIT->CREATE": 3
+      }
+    },
+    "checkpoint": "results\\v219\\v219_iterative_d1_steps2.pt"
+  },
+  {
+    "experiment": "v219_iterative_d1_steps4",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 4,
+    "best_epoch": 2,
+    "best_valid_loss": 1.6693679460457393,
+    "best": {
+      "action": 0.7384615384615385,
+      "source": 0.9384615384615385,
+      "target": 0.36923076923076925,
+      "relation": 0.9487179487179487,
+      "hard_att_p": 0.6,
+      "hard_att_r": 0.9831932773109243,
+      "hard_att_f1": 0.7452229299363057,
+      "loss": 1.6693679460457393
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.21428571428571427,
+      "autonomous_exact_trajectory": 0.15714285714285714,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->COMMIT": 9,
+        "CREATE->COMMIT": 9,
+        "NOOP->COMMIT": 4,
+        "BRANCH->BRANCH": 4,
+        "BIND->BRANCH": 5,
+        "NOOP->BRANCH": 5,
+        "CREATE->BRANCH": 1,
+        "REUSE->REUSE": 6,
+        "INHIBIT->COMMIT": 7,
+        "COMMIT->COMMIT": 5,
+        "BRANCH->COMMIT": 1,
+        "NOOP->REUSE": 1,
+        "BIND->COMMIT": 5,
+        "INHIBIT->BRANCH": 3,
+        "REUSE->BRANCH": 2,
+        "COMMIT->BRANCH": 3
+      }
+    },
+    "checkpoint": "results\\v219\\v219_iterative_d1_steps4.pt"
+  },
+  {
+    "experiment": "v219_iterative_d1_steps6",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 6,
+    "best_epoch": 2,
+    "best_valid_loss": 1.6598388969898223,
+    "best": {
+      "action": 0.7365853658536585,
+      "source": 0.9317073170731708,
+      "target": 0.4,
+      "relation": 0.9365853658536586,
+      "hard_att_p": 0.6214634146341463,
+      "hard_att_r": 0.9754977029096478,
+      "hard_att_f1": 0.7592371871275329,
+      "loss": 1.6598388969898223
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.14285714285714285,
+      "autonomous_exact_trajectory": 0.05714285714285714,
+      "autonomous_early_stop": 0.05714285714285714,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->BRANCH": 7,
+        "CREATE->COMMIT": 6,
+        "NOOP->COMMIT": 6,
+        "BRANCH->BRANCH": 5,
+        "BRANCH->COMMIT": 5,
+        "BIND->COMMIT": 4,
+        "REUSE->COMMIT": 3,
+        "NOOP->BRANCH": 4,
+        "CREATE->BRANCH": 4,
+        "INHIBIT->BRANCH": 5,
+        "BIND->BRANCH": 6,
+        "COMMIT->COMMIT": 5,
+        "COMMIT->BRANCH": 5,
+        "INHIBIT->COMMIT": 5
+      }
+    },
+    "checkpoint": "results\\v219\\v219_iterative_d1_steps6.pt"
+  },
+  {
+    "experiment": "v219_iterative_d1_steps8",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 8,
+    "best_epoch": 3,
+    "best_valid_loss": 1.654002707345145,
+    "best": {
+      "action": 0.7414634146341463,
+      "source": 0.9317073170731708,
+      "target": 0.4195121951219512,
+      "relation": 0.9365853658536586,
+      "hard_att_p": 0.624390243902439,
+      "hard_att_r": 0.9800918836140888,
+      "hard_att_f1": 0.7628128724672228,
+      "loss": 1.654002707345145
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.18571428571428572,
+      "autonomous_exact_trajectory": 0.05714285714285714,
+      "autonomous_early_stop": 0.014285714285714285,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->BRANCH": 5,
+        "CREATE->COMMIT": 6,
+        "NOOP->COMMIT": 6,
+        "BRANCH->BRANCH": 9,
+        "BRANCH->COMMIT": 1,
+        "BIND->BRANCH": 4,
+        "REUSE->COMMIT": 5,
+        "NOOP->BRANCH": 4,
+        "CREATE->BRANCH": 4,
+        "INHIBIT->COMMIT": 6,
+        "INHIBIT->BRANCH": 4,
+        "COMMIT->COMMIT": 4,
+        "BIND->COMMIT": 6,
+        "COMMIT->BRANCH": 6
+      }
+    },
+    "checkpoint": "results\\v219\\v219_iterative_d1_steps8.pt"
+  },
+  {
+    "experiment": "v219_both_d8_steps2",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 2,
+    "best_epoch": 2,
+    "best_valid_loss": 1.1899129471608572,
+    "best": {
+      "action": 0.823076923076923,
+      "source": 1.0,
+      "target": 0.5076923076923077,
+      "relation": 1.0,
+      "hard_att_p": 0.49230769230769234,
+      "hard_att_r": 1.0,
+      "hard_att_f1": 0.6597938144329897,
+      "loss": 1.1899129471608572
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.6714285714285714,
+      "autonomous_exact_trajectory": 0.6714285714285714,
+      "autonomous_early_stop": 0.0,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->REUSE": 46,
+        "NOOP->REUSE": 10,
+        "BIND->REUSE": 3,
+        "CREATE->CREATE": 1,
+        "BIND->CREATE": 1,
+        "REUSE->CREATE": 2,
+        "CREATE->REUSE": 1,
+        "INHIBIT->CREATE": 2,
+        "COMMIT->CREATE": 2,
+        "INHIBIT->REUSE": 1,
+        "COMMIT->REUSE": 1
+      }
+    },
+    "checkpoint": "results\\v219\\v219_both_d8_steps2.pt"
+  },
+  {
+    "experiment": "v219_both_d8_steps4",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 4,
+    "best_epoch": 3,
+    "best_valid_loss": 1.610485655920846,
+    "best": {
+      "action": 0.7333333333333333,
+      "source": 0.9692307692307692,
+      "target": 0.4564102564102564,
+      "relation": 0.9487179487179487,
+      "hard_att_p": 0.6061538461538462,
+      "hard_att_r": 0.9932773109243698,
+      "hard_att_f1": 0.7528662420382166,
+      "loss": 1.610485655920846
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.2,
+      "autonomous_exact_trajectory": 0.15714285714285714,
+      "autonomous_early_stop": 0.014285714285714285,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->COMMIT": 8,
+        "CREATE->COMMIT": 7,
+        "NOOP->COMMIT": 5,
+        "BRANCH->COMMIT": 1,
+        "BIND->BRANCH": 3,
+        "NOOP->BRANCH": 4,
+        "BRANCH->BRANCH": 4,
+        "CREATE->BRANCH": 2,
+        "REUSE->REUSE": 7,
+        "INHIBIT->COMMIT": 6,
+        "COMMIT->REUSE": 1,
+        "NOOP->REUSE": 1,
+        "COMMIT->BRANCH": 4,
+        "BIND->COMMIT": 5,
+        "BIND->REUSE": 2,
+        "INHIBIT->BRANCH": 3,
+        "COMMIT->COMMIT": 3,
+        "REUSE->BRANCH": 2,
+        "INHIBIT->REUSE": 1,
+        "CREATE->REUSE": 1
+      }
+    },
+    "checkpoint": "results\\v219\\v219_both_d8_steps4.pt"
+  },
+  {
+    "experiment": "v219_both_d8_steps6",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 6,
+    "best_epoch": 3,
+    "best_valid_loss": 1.6362476416996548,
+    "best": {
+      "action": 0.7414634146341463,
+      "source": 0.9463414634146341,
+      "target": 0.4634146341463415,
+      "relation": 0.9365853658536586,
+      "hard_att_p": 0.624390243902439,
+      "hard_att_r": 0.9800918836140888,
+      "hard_att_f1": 0.7628128724672228,
+      "loss": 1.6362476416996548
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.18571428571428572,
+      "autonomous_exact_trajectory": 0.07142857142857142,
+      "autonomous_early_stop": 0.02857142857142857,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->BRANCH": 5,
+        "CREATE->COMMIT": 5,
+        "NOOP->COMMIT": 5,
+        "BRANCH->BRANCH": 8,
+        "BRANCH->COMMIT": 2,
+        "BIND->BRANCH": 4,
+        "REUSE->COMMIT": 5,
+        "NOOP->BRANCH": 5,
+        "CREATE->BRANCH": 5,
+        "INHIBIT->BRANCH": 6,
+        "COMMIT->COMMIT": 5,
+        "BIND->COMMIT": 6,
+        "COMMIT->BRANCH": 5,
+        "INHIBIT->COMMIT": 4
+      }
+    },
+    "checkpoint": "results\\v219\\v219_both_d8_steps6.pt"
+  },
+  {
+    "experiment": "v219_both_d8_steps8",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 8,
+    "best_epoch": 4,
+    "best_valid_loss": 1.6114418310778482,
+    "best": {
+      "action": 0.7317073170731707,
+      "source": 0.9512195121951219,
+      "target": 0.47317073170731705,
+      "relation": 0.9365853658536586,
+      "hard_att_p": 0.6273170731707317,
+      "hard_att_r": 0.9846860643185299,
+      "hard_att_f1": 0.7663885578069131,
+      "loss": 1.6114418310778482
+    },
+    "autonomous": {
+      "autonomous_final_action": 0.17142857142857143,
+      "autonomous_exact_trajectory": 0.05714285714285714,
+      "autonomous_early_stop": 0.014285714285714285,
+      "autonomous_cases": 70,
+      "confusion": {
+        "REUSE->BRANCH": 6,
+        "CREATE->COMMIT": 6,
+        "NOOP->COMMIT": 3,
+        "BRANCH->BRANCH": 8,
+        "BRANCH->COMMIT": 2,
+        "BIND->BRANCH": 6,
+        "REUSE->COMMIT": 4,
+        "NOOP->BRANCH": 7,
+        "CREATE->BRANCH": 4,
+        "INHIBIT->BRANCH": 5,
+        "COMMIT->COMMIT": 4,
+        "BIND->COMMIT": 4,
+        "COMMIT->BRANCH": 6,
+        "INHIBIT->COMMIT": 5
+      }
+    },
+    "checkpoint": "results\\v219\\v219_both_d8_steps8.pt"
+  }
+]
