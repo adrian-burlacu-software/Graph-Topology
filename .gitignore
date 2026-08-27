@@ -42,3 +42,15 @@ results/v211_deterministic_cognitive.pt
 results/v212_deterministic_cognitive.pt
 research/results/v213_multihop_cognitive.pt
 research/results/v214_hard_attention_cognitive.pt
+research/results/v216/v216_both_d8_steps2.pt
+research/results/v216/v216_both_d8_steps4.pt
+research/results/v216/v216_both_d8_steps6.pt
+research/results/v216/v216_both_d8_steps8.pt
+research/results/v216/v216_depth_d2_steps1.pt
+research/results/v216/v216_depth_d4_steps1.pt
+research/results/v216/v216_depth_d6_steps1.pt
+research/results/v216/v216_depth_d8_steps1.pt
+research/results/v216/v216_iterative_d1_steps2.pt
+research/results/v216/v216_iterative_d1_steps4.pt
+research/results/v216/v216_iterative_d1_steps6.pt
+research/results/v216/v216_iterative_d1_steps8.pt

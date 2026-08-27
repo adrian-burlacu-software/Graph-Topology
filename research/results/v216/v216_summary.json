@@ -1,0 +1,218 @@
+[
+  {
+    "experiment": "v216_depth_d2_steps1",
+    "family": "depth",
+    "transformer_depth": 2,
+    "iterative_steps": 1,
+    "best_epoch": 2,
+    "best_valid_loss": 2.6657076716423034,
+    "best": {
+      "loss": 2.6657076716423034,
+      "action": 0.17142857142857143,
+      "source": 0.8142857142857143,
+      "target": 0.7428571428571429,
+      "relation": 0.7714285714285715,
+      "hard_att_p": 0.7685714285714286,
+      "hard_att_r": 0.9405594405594405,
+      "hard_att_f1": 0.8459119496855345
+    }
+  },
+  {
+    "experiment": "v216_depth_d4_steps1",
+    "family": "depth",
+    "transformer_depth": 4,
+    "iterative_steps": 1,
+    "best_epoch": 2,
+    "best_valid_loss": 2.6447095257895334,
+    "best": {
+      "loss": 2.6447095257895334,
+      "action": 0.15714285714285714,
+      "source": 0.8714285714285714,
+      "target": 0.7571428571428571,
+      "relation": 0.7714285714285715,
+      "hard_att_p": 0.7571428571428571,
+      "hard_att_r": 0.9265734265734266,
+      "hard_att_f1": 0.8333333333333331
+    }
+  },
+  {
+    "experiment": "v216_depth_d6_steps1",
+    "family": "depth",
+    "transformer_depth": 6,
+    "iterative_steps": 1,
+    "best_epoch": 1,
+    "best_valid_loss": 2.631210541725159,
+    "best": {
+      "loss": 2.631210541725159,
+      "action": 0.14285714285714285,
+      "source": 0.8142857142857143,
+      "target": 0.8285714285714286,
+      "relation": 0.7714285714285715,
+      "hard_att_p": 0.7685714285714286,
+      "hard_att_r": 0.9405594405594405,
+      "hard_att_f1": 0.8459119496855345
+    }
+  },
+  {
+    "experiment": "v216_depth_d8_steps1",
+    "family": "depth",
+    "transformer_depth": 8,
+    "iterative_steps": 1,
+    "best_epoch": 2,
+    "best_valid_loss": 2.6493766699518475,
+    "best": {
+      "loss": 2.6493766699518475,
+      "action": 0.14285714285714285,
+      "source": 0.9,
+      "target": 0.7714285714285715,
+      "relation": 0.7714285714285715,
+      "hard_att_p": 0.7628571428571429,
+      "hard_att_r": 0.9335664335664335,
+      "hard_att_f1": 0.839622641509434
+    }
+  },
+  {
+    "experiment": "v216_iterative_d1_steps2",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 2,
+    "best_epoch": 3,
+    "best_valid_loss": 1.3477543975625719,
+    "best": {
+      "loss": 1.3477543975625719,
+      "action": 0.8461538461538461,
+      "source": 1.0,
+      "target": 0.38461538461538464,
+      "relation": 0.9923076923076923,
+      "hard_att_p": 0.46923076923076923,
+      "hard_att_r": 0.953125,
+      "hard_att_f1": 0.6288659793814433
+    }
+  },
+  {
+    "experiment": "v216_iterative_d1_steps4",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 4,
+    "best_epoch": 3,
+    "best_valid_loss": 1.6228675493172238,
+    "best": {
+      "loss": 1.6228675493172238,
+      "action": 0.8,
+      "source": 0.9560975609756097,
+      "target": 0.34146341463414637,
+      "relation": 0.9463414634146341,
+      "hard_att_p": 0.6048780487804878,
+      "hard_att_r": 0.9597523219814241,
+      "hard_att_f1": 0.7420706163973668
+    }
+  },
+  {
+    "experiment": "v216_iterative_d1_steps6",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 6,
+    "best_epoch": 3,
+    "best_valid_loss": 1.6955762726919992,
+    "best": {
+      "loss": 1.6955762726919992,
+      "action": 0.7389380530973452,
+      "source": 0.9336283185840708,
+      "target": 0.3584070796460177,
+      "relation": 0.9336283185840708,
+      "hard_att_p": 0.6469026548672566,
+      "hard_att_r": 0.9518229166666666,
+      "hard_att_f1": 0.7702845100105373
+    }
+  },
+  {
+    "experiment": "v216_iterative_d1_steps8",
+    "family": "iterative",
+    "transformer_depth": 1,
+    "iterative_steps": 8,
+    "best_epoch": 3,
+    "best_valid_loss": 1.6787413716316224,
+    "best": {
+      "loss": 1.6787413716316224,
+      "action": 0.7477876106194691,
+      "source": 0.9336283185840708,
+      "target": 0.37610619469026546,
+      "relation": 0.9292035398230089,
+      "hard_att_p": 0.6495575221238938,
+      "hard_att_r": 0.9557291666666666,
+      "hard_att_f1": 0.7734457323498418
+    }
+  },
+  {
+    "experiment": "v216_both_d8_steps2",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 2,
+    "best_epoch": 3,
+    "best_valid_loss": 1.2364660284348896,
+    "best": {
+      "loss": 1.2364660284348896,
+      "action": 0.8461538461538461,
+      "source": 0.9923076923076923,
+      "target": 0.5230769230769231,
+      "relation": 0.9923076923076923,
+      "hard_att_p": 0.4876923076923077,
+      "hard_att_r": 0.990625,
+      "hard_att_f1": 0.6536082474226804
+    }
+  },
+  {
+    "experiment": "v216_both_d8_steps4",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 4,
+    "best_epoch": 3,
+    "best_valid_loss": 1.5514404484203883,
+    "best": {
+      "loss": 1.5514404484203883,
+      "action": 0.7804878048780488,
+      "source": 0.9609756097560975,
+      "target": 0.4097560975609756,
+      "relation": 0.9512195121951219,
+      "hard_att_p": 0.615609756097561,
+      "hard_att_r": 0.9767801857585139,
+      "hard_att_f1": 0.7552363853979653
+    }
+  },
+  {
+    "experiment": "v216_both_d8_steps6",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 6,
+    "best_epoch": 3,
+    "best_valid_loss": 1.642515057325363,
+    "best": {
+      "loss": 1.642515057325363,
+      "action": 0.7522123893805309,
+      "source": 0.9336283185840708,
+      "target": 0.4424778761061947,
+      "relation": 0.9247787610619469,
+      "hard_att_p": 0.6601769911504425,
+      "hard_att_r": 0.9713541666666666,
+      "hard_att_f1": 0.7860906217070601
+    }
+  },
+  {
+    "experiment": "v216_both_d8_steps8",
+    "family": "both",
+    "transformer_depth": 8,
+    "iterative_steps": 8,
+    "best_epoch": 3,
+    "best_valid_loss": 1.642959748847144,
+    "best": {
+      "loss": 1.642959748847144,
+      "action": 0.7477876106194691,
+      "source": 0.9469026548672567,
+      "target": 0.4247787610619469,
+      "relation": 0.9336283185840708,
+      "hard_att_p": 0.6619469026548672,
+      "hard_att_r": 0.9739583333333334,
+      "hard_att_f1": 0.7881981032665963
+    }
+  }
+]
