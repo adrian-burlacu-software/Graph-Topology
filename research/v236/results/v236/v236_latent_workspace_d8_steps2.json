@@ -1,0 +1,38 @@
+{
+  "experiment": "v236_latent_workspace_d8_steps2",
+  "architecture": "latent_workspace",
+  "architecture_spec": {
+    "state_mode": "latent",
+    "attention_workspace": false,
+    "explicit_progress": false,
+    "direct_goal_to_workspace": false
+  },
+  "horizon": 2,
+  "train": {
+    "best_probe_loss": 0.04324744404584635,
+    "epochs": 3
+  },
+  "autonomous": {
+    "exact_trajectory": 1.0,
+    "eligible_cases": 70,
+    "validation_cases": 70,
+    "eligibility_fraction": 1.0,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 2,
+        "cases": 70,
+        "action_accuracy": 1.0
+      }
+    ]
+  },
+  "causal_probes": {
+    "working_to_action_delta": 0.26779985427856445,
+    "goal_to_action_delta": 5.5020067393779755,
+    "history_to_state_delta": 8.847564458847046e-08
+  }
+}

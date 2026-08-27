@@ -1,0 +1,68 @@
+{
+  "experiment": "v236_baseline_graph_d8_steps8",
+  "architecture": "baseline_graph",
+  "architecture_spec": {
+    "state_mode": "stateless",
+    "attention_workspace": false,
+    "explicit_progress": false,
+    "direct_goal_to_workspace": false
+  },
+  "horizon": 8,
+  "train": {
+    "best_probe_loss": 0.10039006870647427,
+    "epochs": 3
+  },
+  "autonomous": {
+    "exact_trajectory": 1.0,
+    "eligible_cases": 70,
+    "validation_cases": 70,
+    "eligibility_fraction": 1.0,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 2,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 3,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 4,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 5,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 6,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 7,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 8,
+        "cases": 70,
+        "action_accuracy": 1.0
+      }
+    ]
+  },
+  "causal_probes": {
+    "working_to_action_delta": 1.9371509552001953e-07,
+    "goal_to_action_delta": 6.172483533620834,
+    "history_to_state_delta": 0.0
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "experiment": "v236_workspace_progress_d8_steps8",
+  "architecture": "workspace_progress",
+  "architecture_spec": {
+    "state_mode": "latent",
+    "attention_workspace": true,
+    "explicit_progress": true,
+    "direct_goal_to_workspace": true
+  },
+  "horizon": 8,
+  "train": {
+    "best_probe_loss": 0.05543145340743649,
+    "epochs": 3
+  },
+  "autonomous": {
+    "exact_trajectory": 1.0,
+    "eligible_cases": 70,
+    "validation_cases": 70,
+    "eligibility_fraction": 1.0,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 2,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 3,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 4,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 5,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 6,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 7,
+        "cases": 70,
+        "action_accuracy": 1.0
+      },
+      {
+        "step": 8,
+        "cases": 70,
+        "action_accuracy": 1.0
+      }
+    ]
+  },
+  "causal_probes": {
+    "working_to_action_delta": 0.3623729646205902,
+    "goal_to_action_delta": 4.107633680105209,
+    "history_to_state_delta": 8.614733815193176e-08
+  }
+}
