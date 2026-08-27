@@ -1,0 +1,54 @@
+{
+  "experiment": "v229_stateless_free_d8_steps4",
+  "state_mode": "stateless",
+  "regime": "free",
+  "steps": 4,
+  "transformer_depth": 8,
+  "best_epoch": 2,
+  "best_valid_loss": 1.881533443927765,
+  "best": {
+    "loss": 1.881533443927765,
+    "action": 0.7914691943127962,
+    "source": 0.6153846153846154,
+    "target": 0.40437158469945356,
+    "relation": 0.95260663507109,
+    "hard_att_f1": 0.7241179872758821,
+    "hard_att_p": 0.5933649289099526,
+    "hard_att_r": 0.9287833827893175
+  },
+  "autonomous": {
+    "autonomous_exact_trajectory": 0.32857142857142857,
+    "autonomous_final_action": 0.32857142857142857,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 0.8571428571428571,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 2,
+        "cases": 60,
+        "action_accuracy": 0.8333333333333334,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 3,
+        "cases": 47,
+        "action_accuracy": 0.723404255319149,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 4,
+        "cases": 34,
+        "action_accuracy": 0.6764705882352942,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      }
+    ]
+  },
+  "checkpoint": "results\\v229\\v229_stateless_free_d8_steps4.pt"
+}

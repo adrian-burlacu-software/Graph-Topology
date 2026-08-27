@@ -1,0 +1,54 @@
+{
+  "experiment": "v229_latent_free_d8_steps4",
+  "state_mode": "latent",
+  "regime": "free",
+  "steps": 4,
+  "transformer_depth": 8,
+  "best_epoch": 3,
+  "best_valid_loss": 1.533578154018947,
+  "best": {
+    "loss": 1.533578154018947,
+    "action": 0.8009478672985783,
+    "source": 0.6153846153846154,
+    "target": 0.644808743169399,
+    "relation": 0.957345971563981,
+    "hard_att_f1": 0.7160208212839791,
+    "hard_att_p": 0.5867298578199052,
+    "hard_att_r": 0.9183976261127597
+  },
+  "autonomous": {
+    "autonomous_exact_trajectory": 0.3142857142857143,
+    "autonomous_final_action": 0.3142857142857143,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 0.8571428571428571,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 2,
+        "cases": 60,
+        "action_accuracy": 0.85,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 3,
+        "cases": 47,
+        "action_accuracy": 0.7659574468085106,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 4,
+        "cases": 34,
+        "action_accuracy": 0.6470588235294118,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      }
+    ]
+  },
+  "checkpoint": "results\\v229\\v229_latent_free_d8_steps4.pt"
+}

@@ -1,0 +1,82 @@
+{
+  "experiment": "v229_latent_free_d8_steps8",
+  "state_mode": "latent",
+  "regime": "free",
+  "steps": 8,
+  "transformer_depth": 8,
+  "best_epoch": 3,
+  "best_valid_loss": 1.800519015107836,
+  "best": {
+    "loss": 1.800519015107836,
+    "action": 0.6952789699570815,
+    "source": 0.45,
+    "target": 0.45077720207253885,
+    "relation": 0.9356223175965666,
+    "hard_att_f1": 0.7232960325534078,
+    "hard_att_p": 0.6103004291845494,
+    "hard_att_r": 0.8876404494382022
+  },
+  "autonomous": {
+    "autonomous_exact_trajectory": 0.0,
+    "autonomous_final_action": 0.0,
+    "per_step": [
+      {
+        "step": 1,
+        "cases": 70,
+        "action_accuracy": 0.7714285714285715,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 2,
+        "cases": 60,
+        "action_accuracy": 0.8166666666666667,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 3,
+        "cases": 47,
+        "action_accuracy": 0.723404255319149,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 4,
+        "cases": 34,
+        "action_accuracy": 0.5294117647058824,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 5,
+        "cases": 21,
+        "action_accuracy": 0.2857142857142857,
+        "node_error": 0.010674804836295524,
+        "edge_error": 0.0028743028743028714
+      },
+      {
+        "step": 6,
+        "cases": 1,
+        "action_accuracy": 1.0,
+        "node_error": 0.040000000000000036,
+        "edge_error": 0.032258064516129004
+      },
+      {
+        "step": 7,
+        "cases": 0,
+        "action_accuracy": 0.0,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      },
+      {
+        "step": 8,
+        "cases": 0,
+        "action_accuracy": 0.0,
+        "node_error": 0.0,
+        "edge_error": 0.0
+      }
+    ]
+  },
+  "checkpoint": "results\\v229\\v229_latent_free_d8_steps8.pt"
+}
