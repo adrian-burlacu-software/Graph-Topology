@@ -1,0 +1,64 @@
+{
+  "architecture": "slow_progress_anchor_read",
+  "parent_architecture": null,
+  "horizon": 3,
+  "train": {
+    "initial_loss": 1.9225071801079645,
+    "best_loss": 1.629697110917833,
+    "loss_ratio": 0.8476936407729371,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "aux_memory_weight": 0.0
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.16666666666666666,
+    "freeze_accuracy": 0.16666666666666666,
+    "zero_workspace_accuracy": 0.0,
+    "normal_vs_zero_drop": 0.16666666666666666,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 0.6666666666666666,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.03502937654654185,
+        "mean_slow_memory_delta": 0.8581069608529409,
+        "mean_progress_memory_delta": 0.0
+      },
+      "1": {
+        "mean_work_delta": 1.11398383975029,
+        "max_work_delta": 1.5006903409957886,
+        "mean_work_norm": 1.2841503222783406,
+        "mean_action_logit_delta": 0.49616031845410663,
+        "mean_slow_memory_delta": 0.4877329816420873,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      },
+      "2": {
+        "mean_work_delta": 0.7746899326642355,
+        "max_work_delta": 1.0618257522583008,
+        "mean_work_norm": 1.8071442246437073,
+        "mean_action_logit_delta": 0.3293711642424266,
+        "mean_slow_memory_delta": 0.3373749454816182,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 0.6954229541048724,
+        "logit_retention_vs_t1": 0.663840198403316
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.16666666666666666,
+    "swapped_correct_rate": 0.16666666666666666,
+    "workspace_swap_changes_decision_rate": 0.5833333333333334,
+    "workspace_swap_directional_rate": 0.16666666666666666,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.07282167673110962,
+    "mean_normal_vs_zero_logit_delta": 0.9184592564900717,
+    "max_normal_vs_zero_logit_delta": 1.0091782808303833
+  }
+}
