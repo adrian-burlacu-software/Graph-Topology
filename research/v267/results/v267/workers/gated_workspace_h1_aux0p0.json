@@ -1,0 +1,37 @@
+{
+  "architecture": "gated_workspace",
+  "horizon": 1,
+  "aux_memory_weight": 0.0,
+  "train": {
+    "initial_loss": 1.9484283261828952,
+    "best_loss": 1.1872353255748749,
+    "loss_ratio": 0.6093297400889005,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "aux_memory_weight": 0.0
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.6666666666666666,
+    "freeze_accuracy": 0.6666666666666666,
+    "zero_workspace_accuracy": 0.6666666666666666,
+    "normal_vs_zero_drop": 0.0,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 1.0,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.8508195678393046
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.6666666666666666,
+    "swapped_correct_rate": 0.0,
+    "workspace_swap_changes_decision_rate": 0.0,
+    "workspace_swap_directional_rate": 0.0,
+    "cases": 12
+  }
+}
