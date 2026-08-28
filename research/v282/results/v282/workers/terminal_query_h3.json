@@ -1,0 +1,64 @@
+{
+  "architecture": "terminal_query",
+  "parent_architecture": null,
+  "horizon": 3,
+  "train": {
+    "initial_loss": 1.970975809627109,
+    "best_loss": 1.6757065289550357,
+    "loss_ratio": 0.8501913218671437,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "training_mode": "terminal"
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.0,
+    "freeze_accuracy": 0.0,
+    "zero_workspace_accuracy": 0.0,
+    "normal_vs_zero_drop": 0.0,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 0.0,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.07588685055573781,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0
+      },
+      "1": {
+        "mean_work_delta": 1.0856376091639202,
+        "max_work_delta": 1.189871907234192,
+        "mean_work_norm": 1.649973173936208,
+        "mean_action_logit_delta": 0.3594185660282771,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      },
+      "2": {
+        "mean_work_delta": 0.743769238392512,
+        "max_work_delta": 0.8200552463531494,
+        "mean_work_norm": 2.7105533878008523,
+        "mean_action_logit_delta": 0.19031740725040436,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 0.6850989981503215,
+        "logit_retention_vs_t1": 0.529514680762015
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.0,
+    "swapped_correct_rate": 0.0,
+    "workspace_swap_changes_decision_rate": 0.0,
+    "workspace_swap_directional_rate": 0.0,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.05555398234476646,
+    "mean_normal_vs_zero_logit_delta": 0.6477229992548624,
+    "max_normal_vs_zero_logit_delta": 0.6752915382385254
+  }
+}
