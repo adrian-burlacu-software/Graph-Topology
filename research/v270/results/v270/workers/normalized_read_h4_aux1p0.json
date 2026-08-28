@@ -1,0 +1,66 @@
+{
+  "architecture": "normalized_read",
+  "horizon": 4,
+  "aux_memory_weight": 1.0,
+  "train": {
+    "initial_loss": 1.9560424188772838,
+    "best_loss": 1.8011365400420294,
+    "loss_ratio": 0.9208064828552306,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "aux_memory_weight": 1.0
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.08333333333333333,
+    "freeze_accuracy": 0.25,
+    "zero_workspace_accuracy": 0.16666666666666666,
+    "normal_vs_zero_drop": -0.08333333333333333,
+    "normal_vs_freeze_drop": -0.16666666666666666,
+    "pair_discrimination_rate": 0.0,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.04924785594145457
+      },
+      "1": {
+        "mean_work_delta": 0.8913139204184214,
+        "max_work_delta": 1.0998088121414185,
+        "mean_work_norm": 2.654417554537455,
+        "mean_action_logit_delta": 0.16896952440341315,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      },
+      "2": {
+        "mean_work_delta": 0.5413375993569692,
+        "max_work_delta": 0.6442115902900696,
+        "mean_work_norm": 4.339915672938029,
+        "mean_action_logit_delta": 0.06874865541855495,
+        "work_retention_vs_t1": 0.6073478568615218,
+        "logit_retention_vs_t1": 0.40687014810089767
+      },
+      "3": {
+        "mean_work_delta": 0.37630421419938404,
+        "max_work_delta": 0.4463290870189667,
+        "mean_work_norm": 5.220169107119243,
+        "mean_action_logit_delta": 0.03794810175895691,
+        "work_retention_vs_t1": 0.4221904377110261,
+        "logit_retention_vs_t1": 0.22458548009140497
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.08333333333333333,
+    "swapped_correct_rate": 0.08333333333333333,
+    "workspace_swap_changes_decision_rate": 0.0,
+    "workspace_swap_directional_rate": 0.08333333333333333,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.01879701887567838,
+    "mean_normal_vs_zero_logit_delta": 1.175776739915212,
+    "max_normal_vs_zero_logit_delta": 1.1820547580718994
+  }
+}

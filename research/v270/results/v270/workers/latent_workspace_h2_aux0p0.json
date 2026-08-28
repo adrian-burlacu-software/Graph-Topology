@@ -1,0 +1,50 @@
+{
+  "architecture": "latent_workspace",
+  "horizon": 2,
+  "aux_memory_weight": 0.0,
+  "train": {
+    "initial_loss": 1.9429977933565776,
+    "best_loss": 1.4618622097704146,
+    "loss_ratio": 0.7523746114219774,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "aux_memory_weight": 0.0
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.3333333333333333,
+    "freeze_accuracy": 0.3333333333333333,
+    "zero_workspace_accuracy": 0.08333333333333333,
+    "normal_vs_zero_drop": 0.25,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 0.5,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.053939479092756905
+      },
+      "1": {
+        "mean_work_delta": 2.1389413277308145,
+        "max_work_delta": 3.3853507041931152,
+        "mean_work_norm": 3.3582330346107483,
+        "mean_action_logit_delta": 0.39657828211784363,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.3333333333333333,
+    "swapped_correct_rate": 0.08333333333333333,
+    "workspace_swap_changes_decision_rate": 0.25,
+    "workspace_swap_directional_rate": 0.08333333333333333,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.23300504187742868,
+    "mean_normal_vs_zero_logit_delta": 0.46256721019744873,
+    "max_normal_vs_zero_logit_delta": 0.5143066048622131
+  }
+}
