@@ -1,0 +1,29 @@
+{
+  "architecture": "baseline_graph",
+  "horizon": 1,
+  "train": {
+    "initial_loss": 1.938373840517468,
+    "best_loss": 1.2141396502653758,
+    "loss_ratio": 0.6263702206903748,
+    "updates_per_epoch": 18,
+    "total_updates": 180
+  },
+  "metrics": {
+    "pairs": 6,
+    "both_correct_rate": 1.0,
+    "discrimination_rate": 1.0,
+    "normal_accuracy": 1.0,
+    "zero_workspace_accuracy": 1.0,
+    "ablation_drop": 0.0,
+    "step_diagnostics": {
+      "0": {
+        "pairs_measured": 6,
+        "mean_working_delta": 0.0,
+        "max_working_delta": 0.0,
+        "mean_working_norm": 0.0,
+        "mean_action_logit_delta": 1.0190887451171875,
+        "max_action_logit_delta": 1.5486855506896973
+      }
+    }
+  }
+}

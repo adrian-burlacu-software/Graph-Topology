@@ -1,0 +1,38 @@
+{
+  "architecture": "latent_workspace",
+  "horizon": 2,
+  "train": {
+    "initial_loss": 1.956250078148312,
+    "best_loss": 1.2274771117501788,
+    "loss_ratio": 0.6274643132088955,
+    "updates_per_epoch": 18,
+    "total_updates": 180
+  },
+  "metrics": {
+    "pairs": 6,
+    "both_correct_rate": 0.16666666666666666,
+    "discrimination_rate": 0.6666666666666666,
+    "normal_accuracy": 0.5833333333333334,
+    "zero_workspace_accuracy": 0.08333333333333333,
+    "ablation_drop": 0.5,
+    "step_diagnostics": {
+      "0": {
+        "pairs_measured": 6,
+        "mean_working_delta": 0.0,
+        "max_working_delta": 0.0,
+        "mean_working_norm": 0.0,
+        "mean_action_logit_delta": 0.08171127736568451,
+        "max_action_logit_delta": 0.0905771404504776
+      },
+      "1": {
+        "pairs_measured": 6,
+        "mean_working_delta": 2.2969127893447876,
+        "max_working_delta": 2.701803207397461,
+        "mean_working_norm": 3.812085052331289,
+        "mean_action_logit_delta": 0.6043464740117391,
+        "max_action_logit_delta": 1.0452975034713745,
+        "retention_vs_t1": 1.0
+      }
+    }
+  }
+}
