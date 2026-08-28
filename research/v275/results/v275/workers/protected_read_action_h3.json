@@ -1,0 +1,58 @@
+{
+  "architecture": "protected_read_action",
+  "parent_architecture": "protected_read",
+  "horizon": 3,
+  "train": {
+    "initial_loss": 1.9452443056636386,
+    "best_loss": 1.7905453609095678,
+    "loss_ratio": 0.9204732565962743,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "aux_memory_weight": 0.0
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 0.0,
+    "freeze_accuracy": 0.0,
+    "zero_workspace_accuracy": 0.0,
+    "normal_vs_zero_drop": 0.0,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 0.0,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.04314225912094116
+      },
+      "1": {
+        "mean_work_delta": 0.12018861745794614,
+        "max_work_delta": 0.1324363797903061,
+        "mean_work_norm": 4.196617841720581,
+        "mean_action_logit_delta": 0.011556997895240784,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      },
+      "2": {
+        "mean_work_delta": 0.05850485526025295,
+        "max_work_delta": 0.06694860756397247,
+        "mean_work_norm": 4.693628787994385,
+        "mean_action_logit_delta": 0.007272074619928996,
+        "work_retention_vs_t1": 0.4867753411068543,
+        "logit_retention_vs_t1": 0.6292356099609281
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 0.0,
+    "swapped_correct_rate": 0.0,
+    "workspace_swap_changes_decision_rate": 0.0,
+    "workspace_swap_directional_rate": 0.0,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.008805048962434133,
+    "mean_normal_vs_zero_logit_delta": 1.263372967640559,
+    "max_normal_vs_zero_logit_delta": 1.275427222251892
+  }
+}
