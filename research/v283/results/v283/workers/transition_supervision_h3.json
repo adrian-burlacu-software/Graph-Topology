@@ -1,0 +1,64 @@
+{
+  "architecture": "transition_supervision",
+  "parent_architecture": null,
+  "horizon": 3,
+  "train": {
+    "initial_loss": 1.9219179153442383,
+    "best_loss": 0.8049369164639049,
+    "loss_ratio": 0.4188196124493335,
+    "updates_per_epoch": 18,
+    "total_updates": 180,
+    "training_mode": "transition"
+  },
+  "metrics": {
+    "pairs": 6,
+    "normal_accuracy": 1.0,
+    "freeze_accuracy": 1.0,
+    "zero_workspace_accuracy": 0.0,
+    "normal_vs_zero_drop": 1.0,
+    "normal_vs_freeze_drop": 0.0,
+    "pair_discrimination_rate": 1.0,
+    "step_diagnostics": {
+      "0": {
+        "mean_work_delta": 0.0,
+        "max_work_delta": 0.0,
+        "mean_work_norm": 0.0,
+        "mean_action_logit_delta": 0.05596533169349035,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0
+      },
+      "1": {
+        "mean_work_delta": 1.3691662351290386,
+        "max_work_delta": 1.7262179851531982,
+        "mean_work_norm": 1.1731802026430767,
+        "mean_action_logit_delta": 1.8341732025146484,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 1.0,
+        "logit_retention_vs_t1": 1.0
+      },
+      "2": {
+        "mean_work_delta": 0.9551468193531036,
+        "max_work_delta": 1.3102695941925049,
+        "mean_work_norm": 1.4163148701190948,
+        "mean_action_logit_delta": 1.7833847602208455,
+        "mean_slow_memory_delta": 0.0,
+        "mean_progress_memory_delta": 0.0,
+        "work_retention_vs_t1": 0.6976120173333699,
+        "logit_retention_vs_t1": 0.972309898419532
+      }
+    }
+  },
+  "swap_probe": {
+    "normal_correct_rate": 1.0,
+    "swapped_correct_rate": 1.0,
+    "workspace_swap_changes_decision_rate": 1.0,
+    "workspace_swap_directional_rate": 1.0,
+    "cases": 12
+  },
+  "read_path": {
+    "mean_normal_vs_half_logit_delta": 0.4017347941795985,
+    "mean_normal_vs_zero_logit_delta": 1.244102656841278,
+    "max_normal_vs_zero_logit_delta": 1.5121265649795532
+  }
+}
