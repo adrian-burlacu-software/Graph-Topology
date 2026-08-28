@@ -1,0 +1,79 @@
+{
+  "architecture": "workspace_progress",
+  "horizon": 4,
+  "train": {
+    "initial_loss": 7.699585469563802,
+    "best_loss": 7.10703141424391,
+    "loss_ratio": 0.9230407847718247
+  },
+  "evaluation": {
+    "P1_memory": {
+      "cases": 6,
+      "terminal_accuracy": 0.0,
+      "sequence_exact": 0.0
+    },
+    "P2_action_context": {
+      "cases": 6,
+      "terminal_accuracy": 0.16666666666666666,
+      "sequence_exact": 0.0
+    },
+    "P3_attention": {
+      "cases": 6,
+      "terminal_accuracy": 0.3333333333333333,
+      "sequence_exact": 0.0
+    },
+    "P4_progress": {
+      "cases": 6,
+      "terminal_accuracy": 0.16666666666666666,
+      "sequence_exact": 0.0
+    },
+    "P5_action_progress": {
+      "cases": 6,
+      "terminal_accuracy": 0.0,
+      "sequence_exact": 0.0
+    }
+  },
+  "counterfactual": {
+    "P1_memory": {
+      "pairs": 3,
+      "both_correct": 0,
+      "discriminated": 0,
+      "both_correct_rate": 0.0,
+      "discrimination_rate": 0.0
+    },
+    "P2_action_context": {
+      "pairs": 3,
+      "both_correct": 0,
+      "discriminated": 0,
+      "both_correct_rate": 0.0,
+      "discrimination_rate": 0.0
+    },
+    "P3_attention": {
+      "pairs": 3,
+      "both_correct": 1,
+      "discriminated": 3,
+      "both_correct_rate": 0.3333333333333333,
+      "discrimination_rate": 1.0
+    },
+    "P4_progress": {
+      "pairs": 3,
+      "both_correct": 0,
+      "discriminated": 0,
+      "both_correct_rate": 0.0,
+      "discrimination_rate": 0.0
+    },
+    "P5_action_progress": {
+      "pairs": 3,
+      "both_correct": 0,
+      "discriminated": 0,
+      "both_correct_rate": 0.0,
+      "discrimination_rate": 0.0
+    }
+  },
+  "memory_ablation": {
+    "normal_terminal_accuracy": 0.0,
+    "zero_workspace_terminal_accuracy": 0.0,
+    "drop": 0.0,
+    "cases": 6
+  }
+}
