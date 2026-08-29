@@ -1,0 +1,97 @@
+{
+  "status": "FAIL",
+  "version": "v393",
+  "real_data": true,
+  "conceptnet": {
+    "concepts": 720544,
+    "edges": 2269365
+  },
+  "babylm": {
+    "train_sentences": 10000,
+    "heldout_sentences": 1000
+  },
+  "grammar": {
+    "rules": 4,
+    "observations": 4194
+  },
+  "explicit_representation": {
+    "tested_sentences": 100,
+    "perception_coverage": 1.0,
+    "states_with_predicates": 38,
+    "states_with_arguments": 33,
+    "states_with_grammar": 100
+  },
+  "roundtrip": {
+    "p2g_cases": 100,
+    "p2g_accuracy": 0.64,
+    "g2p_cases": 95,
+    "g2p_accuracy": 0.6736842105263158
+  },
+  "checks": {
+    "conceptnet_loaded": true,
+    "babylm_loaded": true,
+    "grammar_learned": true,
+    "explicit_states_produced": true,
+    "p2g_cases": true,
+    "g2p_cases": true,
+    "p2g_pass": false,
+    "g2p_pass": false
+  },
+  "examples": {
+    "p2g": [
+      {
+        "pass": false,
+        "input": "The",
+        "generated": "the er sophisticated the erm and the now know the people"
+      },
+      {
+        "pass": false,
+        "input": "And",
+        "generated": "the display displayed the somewhere and the display go the somewhere and the somewhere like the warehouse and the where go the round and the your go the garden and the that's illustrating the lawn and the mower something the it'll and the er spend the lot and the money packaging the lot"
+      },
+      {
+        "pass": false,
+        "input": "But",
+        "generated": ""
+      },
+      {
+        "pass": false,
+        "input": "Just",
+        "generated": "the just knowing the size and the because asked the sales and the what carry"
+      },
+      {
+        "pass": false,
+        "input": "Do",
+        "generated": "the many say the don't and the don't know"
+      }
+    ],
+    "g2p": [
+      {
+        "pass": false,
+        "generated": "the er sophisticated the erm and the now know the people",
+        "regenerated": "the er sophisticated the erm and the now know the people"
+      },
+      {
+        "pass": false,
+        "generated": "the display displayed the somewhere and the display go the somewhere and the somewhere like the warehouse and the where go the round and the your go the garden and the that's illustrating the lawn and the mower something the it'll and the er spend the lot and the money packaging the lot",
+        "regenerated": "the display displayed the somewhere and the display go the somewhere and the somewhere like the warehouse and the where go the round and the your go the garden and the that's illustrating the lawn and the mower something the it'll and the er spend the lot and the money packaging the lot"
+      },
+      {
+        "pass": false,
+        "generated": "",
+        "regenerated": ""
+      },
+      {
+        "pass": false,
+        "generated": "the just knowing the size and the because asked the sales and the what carry",
+        "regenerated": "the just knowing the size and the because asked the sales and the what carry"
+      },
+      {
+        "pass": false,
+        "generated": "the many say the don't and the don't know",
+        "regenerated": "the many say the don't and the don't know"
+      }
+    ]
+  },
+  "wall_time_seconds": 27.65516610001214
+}
