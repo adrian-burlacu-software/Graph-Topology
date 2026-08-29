@@ -1,0 +1,214 @@
+{
+  "status": "FAIL",
+  "version": "v408",
+  "methodology": {
+    "grammar_source": "UD GUM gold CoNLL-U",
+    "grammar_supervision": "UPOS/XPOS/FEATS/dependency heads+relations",
+    "semantic_source": "ConceptNet",
+    "cognitive_architecture": true,
+    "roundtrip_source": "raw GUM test sentences",
+    "generated_text_used_as_training_source": false,
+    "representation": "recursive compositional language state",
+    "independent_judge": "spaCy",
+    "independent_judge_model": "en_core_web_trf"
+  },
+  "gum": {
+    "path": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\UD_GUM",
+    "files": 3,
+    "sentences_total": 14353,
+    "train_sentences": 11314,
+    "dev_sentences": 1575,
+    "test_sentences": 1464
+  },
+  "grammar": {
+    "sentences": 11314,
+    "tokens": 200223,
+    "upos_types": 17,
+    "xpos_types": 46,
+    "dependency_types": 1367,
+    "feature_types": 63,
+    "morphology_pairs": 21558,
+    "top_dependencies": {
+      "('NOUN', 'det', 'DET')": 13823,
+      "('NOUN', 'case', 'ADP')": 12119,
+      "('VERB', 'punct', 'PUNCT')": 11491,
+      "('NOUN', 'amod', 'ADJ')": 8436,
+      "('VERB', 'nsubj', 'PRON')": 7110,
+      "('VERB', 'obj', 'NOUN')": 6265,
+      "('NOUN', 'punct', 'PUNCT')": 5455,
+      "('VERB', 'obl', 'NOUN')": 5352,
+      "('VERB', 'advmod', 'ADV')": 4974,
+      "('NOUN', 'nmod', 'NOUN')": 4783,
+      "('VERB', 'aux', 'AUX')": 4504,
+      "('NOUN', 'compound', 'NOUN')": 3281,
+      "('PROPN', 'case', 'ADP')": 2864,
+      "('VERB', 'cc', 'CCONJ')": 2721,
+      "('VERB', 'nsubj', 'NOUN')": 2679,
+      "('VERB', 'mark', 'PART')": 2626,
+      "('VERB', 'mark', 'SCONJ')": 2592,
+      "('NOUN', 'nmod:poss', 'PRON')": 2567,
+      "('PROPN', 'punct', 'PUNCT')": 2394,
+      "('NOUN', 'conj', 'NOUN')": 2344
+    }
+  },
+  "conceptnet": {
+    "concepts": 720544,
+    "edges": 2269365
+  },
+  "explicit_representation": {
+    "raw_test_sentences": 100,
+    "states": 100,
+    "syntax_relations": 1745,
+    "predicates": 191,
+    "recursive_embedded_links": 40,
+    "auxiliary_links": 54,
+    "negation_links": 0,
+    "morphology_features": 2564,
+    "cognitive_beliefs": 1698,
+    "unresolved_tokens": 147
+  },
+  "generation_evaluation": {
+    "spaCy_model": "en_core_web_trf",
+    "cases": 100,
+    "avg_lexical_recall": 0.7993969057342585,
+    "avg_dependency_recall": 0.14435841449301448,
+    "avg_pos_recall": 0.936888904891712,
+    "avg_adequacy": 0.558005309111379
+  },
+  "thresholds": {
+    "lexical": 0.8,
+    "dependency": 0.3,
+    "adequacy": 0.65
+  },
+  "checks": {
+    "gum_loaded": true,
+    "gold_ud_grammar_learned": true,
+    "dependency_grammar_learned": true,
+    "morphology_learned": true,
+    "conceptnet_loaded": true,
+    "cognitive_architecture_active": true,
+    "raw_gum_test_source_only": true,
+    "recursive_states_produced": true,
+    "predicates_present": true,
+    "spacy_judge_active": true,
+    "generation_nonempty": true,
+    "lexical_coverage_pass": false,
+    "dependency_coverage_pass": false,
+    "generation_adequacy_pass": false
+  },
+  "examples": {
+    "first_10": [
+      {
+        "lexical_recall": 1.0,
+        "dependency_recall": 0.2,
+        "pos_recall": 0.9,
+        "adequacy": 0.665,
+        "source_tokens": 10,
+        "generated_tokens": 10,
+        "source_id": null,
+        "source": "The prevalence of discrimination across racial groups in contemporary America:",
+        "generated": "the of discrimination across racial groups in contemporary America prevalence"
+      },
+      {
+        "lexical_recall": 0.875,
+        "dependency_recall": 0.0,
+        "pos_recall": 0.8571428571428571,
+        "adequacy": 0.5223214285714286,
+        "source_tokens": 8,
+        "generated_tokens": 7,
+        "source_id": null,
+        "source": "Results from a nationally representative sample of adults",
+        "generated": "from a representative of adults sample results"
+      },
+      {
+        "lexical_recall": 1.0,
+        "dependency_recall": 0.0,
+        "pos_recall": 1.0,
+        "adequacy": 0.6,
+        "source_tokens": 1,
+        "generated_tokens": 1,
+        "source_id": null,
+        "source": "Introduction.",
+        "generated": "Introduction"
+      },
+      {
+        "lexical_recall": 0.6470588235294118,
+        "dependency_recall": 0.15789473684210525,
+        "pos_recall": 0.9090909090909091,
+        "adequacy": 0.4906980016887138,
+        "source_tokens": 17,
+        "generated_tokens": 11,
+        "source_id": null,
+        "source": "Personal experiences of discrimination and bias have been the focus of much social science research. [1 - 3]",
+        "generated": "the of much social science research focus personal of discrimination experiences"
+      },
+      {
+        "lexical_recall": 0.8,
+        "dependency_recall": 0.16666666666666666,
+        "pos_recall": 1.0,
+        "adequacy": 0.5766666666666667,
+        "source_tokens": 10,
+        "generated_tokens": 8,
+        "source_id": null,
+        "source": "Sociologists have explored the adverse consequences of discrimination [3 \u2013 5];",
+        "generated": "Sociologists have explored the adverse of discrimination consequences"
+      },
+      {
+        "lexical_recall": 0.7692307692307693,
+        "dependency_recall": 0.21428571428571427,
+        "pos_recall": 1.0,
+        "adequacy": 0.5818681318681319,
+        "source_tokens": 13,
+        "generated_tokens": 10,
+        "source_id": null,
+        "source": "psychologists have examined the mental processes that underpin conscious and unconscious biases [6];",
+        "generated": "psychologists have examined the mental that underpin conscious biases processes"
+      },
+      {
+        "lexical_recall": 0.8,
+        "dependency_recall": 0.16666666666666666,
+        "pos_recall": 1.0,
+        "adequacy": 0.5766666666666667,
+        "source_tokens": 10,
+        "generated_tokens": 8,
+        "source_id": null,
+        "source": "neuroscientists have examined the neurobiological underpinnings of discrimination [7 \u2013 9];",
+        "generated": "neuroscientists have examined the neurobiological of discrimination underpinnings"
+      },
+      {
+        "lexical_recall": 0.7272727272727273,
+        "dependency_recall": 0.15384615384615385,
+        "pos_recall": 1.0,
+        "adequacy": 0.5388111888111888,
+        "source_tokens": 22,
+        "generated_tokens": 18,
+        "source_id": null,
+        "source": "and evolutionary theorists have explored the various ways that in-group / out-group biases emerged across the history of our species. [10]",
+        "generated": "evolutionary theorists have explored the various in group biases emerged across the of our's species history ways"
+      },
+      {
+        "lexical_recall": 0.75,
+        "dependency_recall": 0.13636363636363635,
+        "pos_recall": 0.9333333333333333,
+        "adequacy": 0.5320454545454546,
+        "source_tokens": 20,
+        "generated_tokens": 15,
+        "source_id": null,
+        "source": "In many respects, researchers already possess a wealth of knowledge concerning the origins and consequences of discrimination and bias. [11]",
+        "generated": "researchers possess a of concerning the of discrimination origins knowledge wealth in many respects already"
+      },
+      {
+        "lexical_recall": 0.8846153846153846,
+        "dependency_recall": 0.11538461538461539,
+        "pos_recall": 0.9166666666666666,
+        "adequacy": 0.5817307692307692,
+        "source_tokens": 26,
+        "generated_tokens": 23,
+        "source_id": null,
+        "source": "What also should not be lost in discussion of discrimination is the growing push to implement social policy aimed at reducing the occurrence of discriminatory practices.",
+        "generated": "the growing implement social aimed reducing the of discriminatory practices occurrence policy push should be lost in of discrimination discussion also not what"
+      }
+    ]
+  },
+  "wall_time_seconds": 36.07010249997256
+}
