@@ -147,12 +147,12 @@ def main():
     p.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("results/v287"),
+        default=Path("results/v288"),
     )
     p.add_argument(
         "--dataset-output",
         type=Path,
-        default=Path("results/v287_memory_read_dataset.jsonl"),
+        default=Path("results/v288_memory_read_dataset.jsonl"),
     )
     p.add_argument(
         "--seeds",
@@ -169,9 +169,9 @@ def main():
     assert seed_values
 
     if args.worker:
-        if args.architecture is None or args.horizon not in (1,2,3,4):
+        if args.architecture is None or args.horizon != 4:
             raise SystemExit(
-                "--worker requires --architecture and --horizon 1|2|3|4"
+                "--worker requires --architecture and --horizon 4"
             )
         worker(args)
         return
@@ -212,7 +212,7 @@ def main():
     )
 
     print(
-        "=== V287 MEMORY READ-PATH BENCHMARK ===",
+        "=== V288 MEMORY READ-PATH BENCHMARK ===",
         flush=True,
     )
     print(
@@ -244,7 +244,7 @@ def main():
         while pending and len(active)<pmax:
             arch,h,seed=pending.pop(0)
 
-            tag=f"{arch}_h{h}"
+            tag=f"{arch}_h{h}_s{seed}"
             output=worker_dir/f"{tag}.json"
 
             proc=subprocess.Popen(
@@ -269,7 +269,7 @@ def main():
                 ],
                 cwd=HERE,
             )
-            active[proc]=(arch,h,output)
+            active[proc]=(arch,h,seed,output)
 
             print(
                 f"LAUNCH {arch} h={h} "
@@ -279,7 +279,7 @@ def main():
 
         finished=[]
 
-        for proc,(arch,h,output) in list(active.items()):
+        for proc,(arch,h,seed,output) in list(active.items()):
             code=proc.poll()
             if code is None:
                 continue
@@ -291,15 +291,15 @@ def main():
                     if other is not proc and other.poll() is None:
                         other.terminate()
                 raise RuntimeError(
-                    f"worker failed {arch} h={h} code={code}"
+                    f"worker failed {arch} h={h} seed={seed} code={code}"
                 )
 
             if not output.exists():
                 raise RuntimeError(
-                    f"worker missing result {arch} h={h}"
+                    f"worker missing result {arch} h={h} seed={seed}"
                 )
 
-            results[(arch,h)]=json.loads(
+            results[(arch,h,seed)]=json.loads(
                 output.read_text(encoding="utf-8")
             )
 
@@ -309,9 +309,12 @@ def main():
         if not finished:
             time.sleep(0.10)
 
+    missing=[key for key in tasks if key not in results]
+    assert not missing, f"missing worker results: {missing}"
+
     ordered=[results[key] for key in tasks]
 
-    summary=args.output_dir/"v287_summary.json"
+    summary=args.output_dir/"v288_summary.json"
     summary.write_text(
         json.dumps(ordered,indent=2),
         encoding="utf-8",
@@ -322,7 +325,7 @@ def main():
         flush=True,
     )
     print(
-        "V287 MEMORY READ-PATH SUMMARY",
+        "V288 MEMORY READ-PATH SUMMARY",
         flush=True,
     )
     print(
