@@ -1,0 +1,219 @@
+{
+  "version": "v304",
+  "benchmark": "goal_competition",
+  "tasks": [
+    "delayed_memory",
+    "sequence_binding",
+    "interference",
+    "rule_change",
+    "planning",
+    "counterfactual"
+  ],
+  "seeds": [
+    304,
+    305,
+    306,
+    307,
+    308,
+    309,
+    310,
+    311,
+    312,
+    313,
+    314,
+    315
+  ],
+  "episodes": 16,
+  "horizon": 9,
+  "config_count": 4,
+  "fixed_architecture": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding",
+    "hypothesis": "fast_revision"
+  },
+  "wall_time_seconds": 2.0617722229999345,
+  "results": [
+    {
+      "competition": "goal_weak",
+      "eval_accuracy": 0.8897569444444445,
+      "first_half": 0.8836805555555555,
+      "second_half": 0.8958333333333334,
+      "learning_gain": 0.012152777777777901,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9791666666666666,
+          "first": 0.9583333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.46875,
+          "first": 0.4375,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.9166666666666666,
+          "first": 0.9583333333333334,
+          "second": 0.875
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.9739583333333334,
+          "first": 0.9479166666666666,
+          "second": 1.0
+        }
+      ]
+    },
+    {
+      "competition": "goal_balanced",
+      "eval_accuracy": 0.8897569444444445,
+      "first_half": 0.8836805555555555,
+      "second_half": 0.8958333333333334,
+      "learning_gain": 0.012152777777777901,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9791666666666666,
+          "first": 0.9583333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.46875,
+          "first": 0.4375,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.9166666666666666,
+          "first": 0.9583333333333334,
+          "second": 0.875
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.9739583333333334,
+          "first": 0.9479166666666666,
+          "second": 1.0
+        }
+      ]
+    },
+    {
+      "competition": "goal_strong",
+      "eval_accuracy": 0.8897569444444445,
+      "first_half": 0.8836805555555555,
+      "second_half": 0.8958333333333334,
+      "learning_gain": 0.012152777777777901,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9791666666666666,
+          "first": 0.9583333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.46875,
+          "first": 0.4375,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.9166666666666666,
+          "first": 0.9583333333333334,
+          "second": 0.875
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.9739583333333334,
+          "first": 0.9479166666666666,
+          "second": 1.0
+        }
+      ]
+    },
+    {
+      "competition": "goal_persistent",
+      "eval_accuracy": 0.8897569444444445,
+      "first_half": 0.8836805555555555,
+      "second_half": 0.8958333333333334,
+      "learning_gain": 0.012152777777777901,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9791666666666666,
+          "first": 0.9583333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.46875,
+          "first": 0.4375,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.9166666666666666,
+          "first": 0.9583333333333334,
+          "second": 0.875
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.9739583333333334,
+          "first": 0.9479166666666666,
+          "second": 1.0
+        }
+      ]
+    }
+  ]
+}

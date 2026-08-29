@@ -1,0 +1,46 @@
+{
+  "version": "v300",
+  "frozen_core": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding"
+  },
+  "configs": [
+    "slow_high_signal",
+    "long_trace"
+  ],
+  "train_seeds": [
+    300,
+    301,
+    302
+  ],
+  "eval_seeds": [
+    10300,
+    10301,
+    10302
+  ],
+  "episodes": 8,
+  "horizon": 7,
+  "total_episode_runs": 96,
+  "total_state_steps": 576,
+  "wall_time_seconds": 0.0039389470002788585,
+  "results": [
+    {
+      "credit": "slow_high_signal",
+      "train": 0.9166666666666666,
+      "eval": 0.8333333333333334,
+      "first": 0.6666666666666666,
+      "second": 1.0,
+      "online_gain": 0.33333333333333337
+    },
+    {
+      "credit": "long_trace",
+      "train": 0.875,
+      "eval": 0.75,
+      "first": 0.5,
+      "second": 1.0,
+      "online_gain": 0.5
+    }
+  ]
+}
