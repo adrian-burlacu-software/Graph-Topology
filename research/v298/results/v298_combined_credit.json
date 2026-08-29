@@ -1,0 +1,70 @@
+{
+  "version": "v298",
+  "frozen_core": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding"
+  },
+  "configs": [
+    "global_fast",
+    "eligibility_balanced",
+    "eligibility_long",
+    "surprise_eligibility",
+    "global_persistent"
+  ],
+  "results": [
+    {
+      "train": 1.0,
+      "eval": 0.75,
+      "first": 0.5,
+      "second": 1.0,
+      "config": "global_persistent",
+      "online_gain": 0.5
+    },
+    {
+      "train": 1.0,
+      "eval": 0.5833333333333334,
+      "first": 0.3333333333333333,
+      "second": 0.8333333333333334,
+      "config": "eligibility_balanced",
+      "online_gain": 0.5
+    },
+    {
+      "train": 1.0,
+      "eval": 0.5833333333333334,
+      "first": 0.5,
+      "second": 0.6666666666666666,
+      "config": "global_fast",
+      "online_gain": 0.16666666666666663
+    },
+    {
+      "train": 1.0,
+      "eval": 0.3333333333333333,
+      "first": 0.3333333333333333,
+      "second": 0.3333333333333333,
+      "config": "eligibility_long",
+      "online_gain": 0.0
+    },
+    {
+      "train": 1.0,
+      "eval": 0.3333333333333333,
+      "first": 0.3333333333333333,
+      "second": 0.3333333333333333,
+      "config": "surprise_eligibility",
+      "online_gain": 0.0
+    }
+  ],
+  "train_seeds": [
+    298,
+    299,
+    300
+  ],
+  "eval_seeds": [
+    10298,
+    10299,
+    10300
+  ],
+  "episodes": 8,
+  "horizon": 7
+}

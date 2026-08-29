@@ -1,0 +1,97 @@
+{
+  "version": "v297",
+  "frozen_core": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding"
+  },
+  "credits": [
+    "none",
+    "global_reward",
+    "eligibility",
+    "local_path",
+    "td_error",
+    "replay",
+    "contextual",
+    "advantage"
+  ],
+  "train_seeds": [
+    297,
+    298,
+    299
+  ],
+  "eval_seeds": [
+    10297,
+    10298,
+    10299
+  ],
+  "episodes": 8,
+  "horizon": 7,
+  "results": [
+    {
+      "train": 0.9166666666666666,
+      "eval": 0.9166666666666666,
+      "first": 0.8333333333333334,
+      "second": 1.0,
+      "credit": "global_reward",
+      "online_gain": 0.16666666666666663
+    },
+    {
+      "train": 0.8333333333333334,
+      "eval": 0.8333333333333334,
+      "first": 0.6666666666666666,
+      "second": 1.0,
+      "credit": "eligibility",
+      "online_gain": 0.33333333333333337
+    },
+    {
+      "train": 0.7916666666666666,
+      "eval": 0.7916666666666666,
+      "first": 0.6666666666666666,
+      "second": 0.9166666666666666,
+      "credit": "td_error",
+      "online_gain": 0.25
+    },
+    {
+      "train": 0.75,
+      "eval": 0.75,
+      "first": 0.5,
+      "second": 1.0,
+      "credit": "advantage",
+      "online_gain": 0.5
+    },
+    {
+      "train": 0.75,
+      "eval": 0.75,
+      "first": 0.6666666666666666,
+      "second": 0.8333333333333334,
+      "credit": "replay",
+      "online_gain": 0.16666666666666674
+    },
+    {
+      "train": 0.5833333333333334,
+      "eval": 0.5833333333333334,
+      "first": 0.5,
+      "second": 0.6666666666666666,
+      "credit": "contextual",
+      "online_gain": 0.16666666666666663
+    },
+    {
+      "train": 0.3333333333333333,
+      "eval": 0.3333333333333333,
+      "first": 0.3333333333333333,
+      "second": 0.3333333333333333,
+      "credit": "none",
+      "online_gain": 0.0
+    },
+    {
+      "train": 0.3333333333333333,
+      "eval": 0.3333333333333333,
+      "first": 0.3333333333333333,
+      "second": 0.3333333333333333,
+      "credit": "local_path",
+      "online_gain": 0.0
+    }
+  ]
+}

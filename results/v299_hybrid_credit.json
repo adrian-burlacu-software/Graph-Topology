@@ -1,0 +1,98 @@
+{
+  "version": "v299",
+  "mechanism": "global_long_eligibility",
+  "frozen_core": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding"
+  },
+  "configs": [
+    "fast_global",
+    "balanced",
+    "long_trace",
+    "long_persistent",
+    "surprise_balanced",
+    "slow_high_signal"
+  ],
+  "results": [
+    {
+      "config": "slow_high_signal",
+      "train": 0.9583333333333334,
+      "eval": 0.9479166666666666,
+      "first": 0.8958333333333334,
+      "second": 1.0,
+      "online_gain": 0.10416666666666663
+    },
+    {
+      "config": "long_trace",
+      "train": 0.9375,
+      "eval": 0.921875,
+      "first": 0.84375,
+      "second": 1.0,
+      "online_gain": 0.15625
+    },
+    {
+      "config": "long_persistent",
+      "train": 0.9375,
+      "eval": 0.921875,
+      "first": 0.84375,
+      "second": 1.0,
+      "online_gain": 0.15625
+    },
+    {
+      "config": "surprise_balanced",
+      "train": 0.9375,
+      "eval": 0.921875,
+      "first": 0.8958333333333334,
+      "second": 0.9479166666666666,
+      "online_gain": 0.05208333333333326
+    },
+    {
+      "config": "fast_global",
+      "train": 0.9166666666666666,
+      "eval": 0.8958333333333334,
+      "first": 0.8958333333333334,
+      "second": 0.8958333333333334,
+      "online_gain": 0.0
+    },
+    {
+      "config": "balanced",
+      "train": 0.9166666666666666,
+      "eval": 0.8958333333333334,
+      "first": 0.8958333333333334,
+      "second": 0.8958333333333334,
+      "online_gain": 0.0
+    }
+  ],
+  "train_seeds": [
+    299,
+    300,
+    301,
+    302,
+    303,
+    304,
+    305,
+    306,
+    307,
+    308,
+    309,
+    310
+  ],
+  "eval_seeds": [
+    10299,
+    10300,
+    10301,
+    10302,
+    10303,
+    10304,
+    10305,
+    10306,
+    10307,
+    10308,
+    10309,
+    10310
+  ],
+  "episodes": 16,
+  "horizon": 7
+}

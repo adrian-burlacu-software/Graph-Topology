@@ -1,0 +1,80 @@
+{
+  "version": "v299",
+  "mechanism": "global_long_eligibility",
+  "frozen_core": {
+    "memory": "persistent",
+    "dynamics": "transform",
+    "readout": "memory",
+    "planner": "binding"
+  },
+  "configs": [
+    "fast_global",
+    "balanced",
+    "long_trace",
+    "long_persistent",
+    "surprise_balanced",
+    "slow_high_signal"
+  ],
+  "results": [
+    {
+      "config": "balanced",
+      "train": 1.0,
+      "eval": 0.8333333333333334,
+      "first": 0.6666666666666666,
+      "second": 1.0,
+      "online_gain": 0.33333333333333337
+    },
+    {
+      "config": "surprise_balanced",
+      "train": 1.0,
+      "eval": 0.8333333333333334,
+      "first": 0.6666666666666666,
+      "second": 1.0,
+      "online_gain": 0.33333333333333337
+    },
+    {
+      "config": "slow_high_signal",
+      "train": 1.0,
+      "eval": 0.8333333333333334,
+      "first": 0.6666666666666666,
+      "second": 1.0,
+      "online_gain": 0.33333333333333337
+    },
+    {
+      "config": "fast_global",
+      "train": 1.0,
+      "eval": 0.8333333333333334,
+      "first": 0.8333333333333334,
+      "second": 0.8333333333333334,
+      "online_gain": 0.0
+    },
+    {
+      "config": "long_trace",
+      "train": 1.0,
+      "eval": 0.75,
+      "first": 0.5,
+      "second": 1.0,
+      "online_gain": 0.5
+    },
+    {
+      "config": "long_persistent",
+      "train": 1.0,
+      "eval": 0.75,
+      "first": 0.5,
+      "second": 1.0,
+      "online_gain": 0.5
+    }
+  ],
+  "train_seeds": [
+    297,
+    298,
+    299
+  ],
+  "eval_seeds": [
+    10297,
+    10298,
+    10299
+  ],
+  "episodes": 8,
+  "horizon": 7
+}
