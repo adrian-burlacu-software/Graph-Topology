@@ -28,6 +28,7 @@ data/conceptnet_compact.db
 **/__pycache__/
 results/v131_long_term_memory_after.json
 data/englishSentences.tsv
+data/UD_GUM
 
 #DB files
 data/conceptnet_compact.db-shm
