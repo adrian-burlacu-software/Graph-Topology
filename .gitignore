@@ -27,6 +27,7 @@ data/assertions.csv
 data/conceptnet_compact.db
 **/__pycache__/
 results/v131_long_term_memory_after.json
+data/englishSentences.tsv
 
 #DB files
 data/conceptnet_compact.db-shm
