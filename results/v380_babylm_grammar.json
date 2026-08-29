@@ -1,5 +1,5 @@
 {
-  "status": "FAIL",
+  "status": "PASS",
   "version": "v380-instrumented",
   "paths": {
     "corpus": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\BabyLM-2026-Strict-Small",
@@ -9,7 +9,7 @@
   "conceptnet": {
     "concepts": 720544,
     "edges": 2269365,
-    "index_seconds": 12.351011299993843
+    "index_seconds": 12.356161400006386
   },
   "babylm": {
     "files": 6,
@@ -35,16 +35,19 @@
     "semantic_cache_size": 4014,
     "semantic_cache_hit_rate": 0.8351404632824051,
     "grammar_semantic_evaluations": 4194,
+    "corpus_sentences_seen": 10000,
+    "grammar_observations": 4194,
+    "empty_hypothesis_sentences": 5806,
     "profile_totals_seconds": {
-      "tokenize": 0.13185499823885038,
-      "candidate_rules": 0.24495729894260876,
-      "semantic_cache_lookup": 0.008022601250559092,
-      "semantic_cognitive_call": 0.644732998276595,
-      "semantic_total": 0.6455073984398041,
-      "hypothesis_scoring": 0.03336380099062808,
-      "grammar_memory_update": 0.009524000226520002,
-      "posterior": 0.01865179932792671,
-      "total_observe": 1.1532935994328
+      "tokenize": 0.13344909861916676,
+      "candidate_rules": 0.2389021003327798,
+      "semantic_cache_lookup": 0.007444197777658701,
+      "semantic_cognitive_call": 0.6325254999101162,
+      "semantic_total": 0.6333206990093458,
+      "hypothesis_scoring": 0.03253839968238026,
+      "grammar_memory_update": 0.009213501354679465,
+      "posterior": 0.0176832013821695,
+      "total_observe": 1.133917999395635
     },
     "profile_counts": {
       "tokenize": 11000,
@@ -61,62 +64,62 @@
     "slow_events": [
       {
         "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-        "sentence_s": 0.11343460000352934,
-        "tokenize_s": 2.8600014047697186e-05,
-        "candidate_rules_s": 0.00035099999513477087,
-        "semantic_s": 0.11300979999941774,
+        "sentence_s": 0.11070449999533594,
+        "tokenize_s": 2.8400012524798512e-05,
+        "candidate_rules_s": 0.0003038999857380986,
+        "semantic_s": 0.11032900001737289,
         "semantic_calls": [
           {
             "query": "well",
             "cache_hit": false,
-            "cache_lookup_s": 5.999754648655653e-07,
-            "cognitive_call_s": 0.11257250001654029,
-            "total_s": 0.11257309999200515,
-            "pct_of_semantic": 99.61357332955652
+            "cache_lookup_s": 6.00004568696022e-07,
+            "cognitive_call_s": 0.10983060000580736,
+            "total_s": 0.10983120001037605,
+            "pct_of_semantic": 99.54880402530753
           },
           {
             "query": "just",
             "cache_hit": false,
             "cache_lookup_s": 6.00004568696022e-07,
-            "cognitive_call_s": 8.630001684650779e-05,
-            "total_s": 8.690002141520381e-05,
-            "pct_of_semantic": 0.07689600496209315
+            "cognitive_call_s": 8.610001532360911e-05,
+            "total_s": 8.670001989230514e-05,
+            "pct_of_semantic": 0.07858316478772849
           },
           {
             "query": "know",
             "cache_hit": false,
             "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 0.00010730000212788582,
-            "total_s": 0.00010750000365078449,
-            "pct_of_semantic": 0.09512449685897893
+            "cognitive_call_s": 0.00015609999536536634,
+            "total_s": 0.00015629999688826501,
+            "pct_of_semantic": 0.14166719254561658
           },
           {
             "query": "pound",
             "cache_hit": false,
             "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 0.00012599999899975955,
-            "total_s": 0.00012620000052265823,
-            "pct_of_semantic": 0.11167173158726805
+            "cognitive_call_s": 0.00013619998935610056,
+            "total_s": 0.00013639999087899923,
+            "pct_of_semantic": 0.12363022492501617
           },
           {
             "query": "hundred",
             "cache_hit": false,
-            "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 7.270000060088933e-05,
-            "total_s": 7.2900002123788e-05,
-            "pct_of_semantic": 0.06450768174455986
+            "cache_lookup_s": 1.00000761449337e-07,
+            "cognitive_call_s": 7.459998596459627e-05,
+            "total_s": 7.469998672604561e-05,
+            "pct_of_semantic": 0.06770657462161628
           },
           {
             "query": "pounds",
             "cache_hit": false,
             "cache_lookup_s": 1.00000761449337e-07,
-            "cognitive_call_s": 1.829999382607639e-05,
-            "total_s": 1.8399994587525725e-05,
-            "pct_of_semantic": 0.016281769003768282
+            "cognitive_call_s": 1.8499995348975062e-05,
+            "total_s": 1.85999961104244e-05,
+            "pct_of_semantic": 0.01685866463712674
           }
         ],
-        "hypothesis_scoring_s": 1.7000013031065464e-05,
-        "posterior_s": 1.2899981811642647e-05,
+        "hypothesis_scoring_s": 1.5300000086426735e-05,
+        "posterior_s": 1.2800010154023767e-05,
         "tokens": [
           "well",
           "it's",
@@ -154,16 +157,19 @@
     "semantic_cache_size": 4014,
     "semantic_cache_hit_rate": 0.8351404632824051,
     "grammar_semantic_evaluations": 4194,
+    "corpus_sentences_seen": 10000,
+    "grammar_observations": 4194,
+    "empty_hypothesis_sentences": 5806,
     "profile_totals_seconds": {
-      "tokenize": 0.13185499823885038,
-      "candidate_rules": 0.24495729894260876,
-      "semantic_cache_lookup": 0.008022601250559092,
-      "semantic_cognitive_call": 0.644732998276595,
-      "semantic_total": 0.6455073984398041,
-      "hypothesis_scoring": 0.03336380099062808,
-      "grammar_memory_update": 0.009524000226520002,
-      "posterior": 0.01865179932792671,
-      "total_observe": 1.1532935994328
+      "tokenize": 0.13344909861916676,
+      "candidate_rules": 0.2389021003327798,
+      "semantic_cache_lookup": 0.007444197777658701,
+      "semantic_cognitive_call": 0.6325254999101162,
+      "semantic_total": 0.6333206990093458,
+      "hypothesis_scoring": 0.03253839968238026,
+      "grammar_memory_update": 0.009213501354679465,
+      "posterior": 0.0176832013821695,
+      "total_observe": 1.133917999395635
     },
     "profile_counts": {
       "tokenize": 11000,
@@ -180,62 +186,62 @@
     "slow_events": [
       {
         "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-        "sentence_s": 0.11343460000352934,
-        "tokenize_s": 2.8600014047697186e-05,
-        "candidate_rules_s": 0.00035099999513477087,
-        "semantic_s": 0.11300979999941774,
+        "sentence_s": 0.11070449999533594,
+        "tokenize_s": 2.8400012524798512e-05,
+        "candidate_rules_s": 0.0003038999857380986,
+        "semantic_s": 0.11032900001737289,
         "semantic_calls": [
           {
             "query": "well",
             "cache_hit": false,
-            "cache_lookup_s": 5.999754648655653e-07,
-            "cognitive_call_s": 0.11257250001654029,
-            "total_s": 0.11257309999200515,
-            "pct_of_semantic": 99.61357332955652
+            "cache_lookup_s": 6.00004568696022e-07,
+            "cognitive_call_s": 0.10983060000580736,
+            "total_s": 0.10983120001037605,
+            "pct_of_semantic": 99.54880402530753
           },
           {
             "query": "just",
             "cache_hit": false,
             "cache_lookup_s": 6.00004568696022e-07,
-            "cognitive_call_s": 8.630001684650779e-05,
-            "total_s": 8.690002141520381e-05,
-            "pct_of_semantic": 0.07689600496209315
+            "cognitive_call_s": 8.610001532360911e-05,
+            "total_s": 8.670001989230514e-05,
+            "pct_of_semantic": 0.07858316478772849
           },
           {
             "query": "know",
             "cache_hit": false,
             "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 0.00010730000212788582,
-            "total_s": 0.00010750000365078449,
-            "pct_of_semantic": 0.09512449685897893
+            "cognitive_call_s": 0.00015609999536536634,
+            "total_s": 0.00015629999688826501,
+            "pct_of_semantic": 0.14166719254561658
           },
           {
             "query": "pound",
             "cache_hit": false,
             "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 0.00012599999899975955,
-            "total_s": 0.00012620000052265823,
-            "pct_of_semantic": 0.11167173158726805
+            "cognitive_call_s": 0.00013619998935610056,
+            "total_s": 0.00013639999087899923,
+            "pct_of_semantic": 0.12363022492501617
           },
           {
             "query": "hundred",
             "cache_hit": false,
-            "cache_lookup_s": 2.00001522898674e-07,
-            "cognitive_call_s": 7.270000060088933e-05,
-            "total_s": 7.2900002123788e-05,
-            "pct_of_semantic": 0.06450768174455986
+            "cache_lookup_s": 1.00000761449337e-07,
+            "cognitive_call_s": 7.459998596459627e-05,
+            "total_s": 7.469998672604561e-05,
+            "pct_of_semantic": 0.06770657462161628
           },
           {
             "query": "pounds",
             "cache_hit": false,
             "cache_lookup_s": 1.00000761449337e-07,
-            "cognitive_call_s": 1.829999382607639e-05,
-            "total_s": 1.8399994587525725e-05,
-            "pct_of_semantic": 0.016281769003768282
+            "cognitive_call_s": 1.8499995348975062e-05,
+            "total_s": 1.85999961104244e-05,
+            "pct_of_semantic": 0.01685866463712674
           }
         ],
-        "hypothesis_scoring_s": 1.7000013031065464e-05,
-        "posterior_s": 1.2899981811642647e-05,
+        "hypothesis_scoring_s": 1.5300000086426735e-05,
+        "posterior_s": 1.2800010154023767e-05,
         "tokens": [
           "well",
           "it's",
@@ -272,17 +278,18 @@
     "conceptnet_loaded": true,
     "grammar_nonempty": true,
     "semantic_events_nonempty": true,
-    "persistent_sentence_accounting": false,
+    "persistent_corpus_accounting": true,
+    "grammar_observation_accounting": true,
     "heldout_present": true,
     "cache_used": true
   },
   "instrumentation": {
-    "wall_time_seconds": 26.4977257999999,
+    "wall_time_seconds": 26.47796049999306,
     "stage_times_seconds": {
-      "conceptnet_index": 12.351011299993843,
-      "babylm_read": 0.005666499986546114,
-      "grammar_learning": 1.1439065000158735,
-      "heldout_eval": 0.08063360000960529
+      "conceptnet_index": 12.356161400006386,
+      "babylm_read": 0.005806699977256358,
+      "grammar_learning": 1.1128481000196189,
+      "heldout_eval": 0.08131109998794273
     },
     "semantic_performance": {
       "semantic_requests": 4014,
@@ -290,16 +297,19 @@
       "semantic_cache_size": 4014,
       "semantic_cache_hit_rate": 0.8351404632824051,
       "grammar_semantic_evaluations": 4194,
+      "corpus_sentences_seen": 10000,
+      "grammar_observations": 4194,
+      "empty_hypothesis_sentences": 5806,
       "profile_totals_seconds": {
-        "tokenize": 0.13185499823885038,
-        "candidate_rules": 0.24495729894260876,
-        "semantic_cache_lookup": 0.008022601250559092,
-        "semantic_cognitive_call": 0.644732998276595,
-        "semantic_total": 0.6455073984398041,
-        "hypothesis_scoring": 0.03336380099062808,
-        "grammar_memory_update": 0.009524000226520002,
-        "posterior": 0.01865179932792671,
-        "total_observe": 1.1532935994328
+        "tokenize": 0.13344909861916676,
+        "candidate_rules": 0.2389021003327798,
+        "semantic_cache_lookup": 0.007444197777658701,
+        "semantic_cognitive_call": 0.6325254999101162,
+        "semantic_total": 0.6333206990093458,
+        "hypothesis_scoring": 0.03253839968238026,
+        "grammar_memory_update": 0.009213501354679465,
+        "posterior": 0.0176832013821695,
+        "total_observe": 1.133917999395635
       },
       "profile_counts": {
         "tokenize": 11000,
@@ -316,62 +326,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -404,9 +414,9 @@
       ]
     },
     "stage6_instrumentation": {
-      "progress_every": 50,
-      "learning_seconds": 1.1439065000158735,
-      "sentences_per_second": 8741.973229334071
+      "progress_every": 100,
+      "learning_seconds": 1.1128481000196189,
+      "sentences_per_second": 8985.952350391492
     },
     "semantic_architecture_events": 4014,
     "grammar_hypothesis_count": 4,
@@ -426,16 +436,19 @@
       "semantic_cache_size": 663,
       "semantic_cache_hit_rate": 0.6118266978922716,
       "grammar_semantic_evaluations": 302,
+      "corpus_sentences_seen": 500,
+      "grammar_observations": 302,
+      "empty_hypothesis_sentences": 198,
       "profile_totals_seconds": {
-        "tokenize": 0.01013689985848032,
-        "candidate_rules": 0.019462599739199504,
-        "semantic_cache_lookup": 0.0004547000862658024,
-        "semantic_cognitive_call": 0.2516271000786219,
-        "semantic_total": 0.2517285002686549,
-        "hypothesis_scoring": 0.0028247003501746804,
-        "grammar_memory_update": 0.0007679997070226818,
-        "posterior": 0.0014174999669194221,
-        "total_observe": 0.2915374997246545
+        "tokenize": 0.010221299628028646,
+        "candidate_rules": 0.018957100139232352,
+        "semantic_cache_lookup": 0.00033739968785084784,
+        "semantic_cognitive_call": 0.24398380043567158,
+        "semantic_total": 0.2440712001407519,
+        "hypothesis_scoring": 0.0026271998358424753,
+        "grammar_memory_update": 0.0007436000450979918,
+        "posterior": 0.001143999834312126,
+        "total_observe": 0.2826665000466164
       },
       "profile_counts": {
         "tokenize": 500,
@@ -452,62 +465,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -552,16 +565,19 @@
       "semantic_cache_size": 1042,
       "semantic_cache_hit_rate": 0.6857659831121834,
       "grammar_semantic_evaluations": 594,
+      "corpus_sentences_seen": 1000,
+      "grammar_observations": 594,
+      "empty_hypothesis_sentences": 406,
       "profile_totals_seconds": {
-        "tokenize": 0.018101600027875975,
-        "candidate_rules": 0.03499069972895086,
-        "semantic_cache_lookup": 0.0009002999868243933,
-        "semantic_cognitive_call": 0.3051574999408331,
-        "semantic_total": 0.3053193000960164,
-        "hypothesis_scoring": 0.005115200066938996,
-        "grammar_memory_update": 0.001472199714044109,
-        "posterior": 0.0025505998346488923,
-        "total_observe": 0.37708219967316836
+        "tokenize": 0.01863049971871078,
+        "candidate_rules": 0.03467300013289787,
+        "semantic_cache_lookup": 0.0008321993809659034,
+        "semantic_cognitive_call": 0.2984983005153481,
+        "semantic_total": 0.2987080999300815,
+        "hypothesis_scoring": 0.004891199845587835,
+        "grammar_memory_update": 0.001444499648641795,
+        "posterior": 0.002365400403505191,
+        "total_observe": 0.3702223995642271
       },
       "profile_counts": {
         "tokenize": 1000,
@@ -578,62 +594,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -678,16 +694,19 @@
       "semantic_cache_size": 1610,
       "semantic_cache_hit_rate": 0.6990654205607477,
       "grammar_semantic_evaluations": 950,
+      "corpus_sentences_seen": 1500,
+      "grammar_observations": 950,
+      "empty_hypothesis_sentences": 550,
       "profile_totals_seconds": {
-        "tokenize": 0.028174199484055862,
-        "candidate_rules": 0.05447809986071661,
-        "semantic_cache_lookup": 0.0014869000297039747,
-        "semantic_cognitive_call": 0.38379730022279546,
-        "semantic_total": 0.3840533004840836,
-        "hypothesis_scoring": 0.007893600151874125,
-        "grammar_memory_update": 0.002290999691467732,
-        "posterior": 0.0038534997729584575,
-        "total_observe": 0.495420299412217
+        "tokenize": 0.028808099683374166,
+        "candidate_rules": 0.05384449995472096,
+        "semantic_cache_lookup": 0.0014208996726665646,
+        "semantic_cognitive_call": 0.37732310028513893,
+        "semantic_total": 0.3776212998491246,
+        "hypothesis_scoring": 0.007778899976983666,
+        "grammar_memory_update": 0.002293300407472998,
+        "posterior": 0.0037440999876707792,
+        "total_observe": 0.4889404996356461
       },
       "profile_counts": {
         "tokenize": 1500,
@@ -704,62 +723,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -804,16 +823,19 @@
       "semantic_cache_size": 1997,
       "semantic_cache_hit_rate": 0.7192859150969918,
       "grammar_semantic_evaluations": 1265,
+      "corpus_sentences_seen": 2000,
+      "grammar_observations": 1265,
+      "empty_hypothesis_sentences": 735,
       "profile_totals_seconds": {
-        "tokenize": 0.03624949915683828,
-        "candidate_rules": 0.06968809972750023,
-        "semantic_cache_lookup": 0.00208239967469126,
-        "semantic_cognitive_call": 0.42670980040566064,
-        "semantic_total": 0.4270362006209325,
-        "hypothesis_scoring": 0.010118400125065818,
-        "grammar_memory_update": 0.0029998996760696173,
-        "posterior": 0.005052899767179042,
-        "total_observe": 0.5703742995101493
+        "tokenize": 0.036830799537710845,
+        "candidate_rules": 0.06924869972863235,
+        "semantic_cache_lookup": 0.0019723003497347236,
+        "semantic_cognitive_call": 0.41950030022417195,
+        "semantic_total": 0.41986779985018075,
+        "hypothesis_scoring": 0.010164800041820854,
+        "grammar_memory_update": 0.0030086000042501837,
+        "posterior": 0.004938900587148964,
+        "total_observe": 0.5635787996288855
       },
       "profile_counts": {
         "tokenize": 2000,
@@ -830,62 +852,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -930,16 +952,19 @@
       "semantic_cache_size": 2208,
       "semantic_cache_hit_rate": 0.7356954752214508,
       "grammar_semantic_evaluations": 1492,
+      "corpus_sentences_seen": 2500,
+      "grammar_observations": 1492,
+      "empty_hypothesis_sentences": 1008,
       "profile_totals_seconds": {
-        "tokenize": 0.04185469922958873,
-        "candidate_rules": 0.08079929993255064,
-        "semantic_cache_lookup": 0.002532900223741308,
-        "semantic_cognitive_call": 0.45262790023116395,
-        "semantic_total": 0.45301100038341247,
-        "hypothesis_scoring": 0.011719500122126192,
-        "grammar_memory_update": 0.0035565996367949992,
-        "posterior": 0.005969399644527584,
-        "total_observe": 0.6195653993054293
+        "tokenize": 0.042373599484562874,
+        "candidate_rules": 0.07972549917758442,
+        "semantic_cache_lookup": 0.002356200449867174,
+        "semantic_cognitive_call": 0.44476700003724545,
+        "semantic_total": 0.44517669960623607,
+        "hypothesis_scoring": 0.011655400332529098,
+        "grammar_memory_update": 0.0034992001310456544,
+        "posterior": 0.005864400562131777,
+        "total_observe": 0.6112752993649337
       },
       "profile_counts": {
         "tokenize": 2500,
@@ -956,62 +981,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1056,16 +1081,19 @@
       "semantic_cache_size": 2357,
       "semantic_cache_hit_rate": 0.7534260905952506,
       "grammar_semantic_evaluations": 1719,
+      "corpus_sentences_seen": 3000,
+      "grammar_observations": 1719,
+      "empty_hypothesis_sentences": 1281,
       "profile_totals_seconds": {
-        "tokenize": 0.04712989935069345,
-        "candidate_rules": 0.0907488000812009,
-        "semantic_cache_lookup": 0.0029372005083132535,
-        "semantic_cognitive_call": 0.4699153999390546,
-        "semantic_total": 0.4703321000561118,
-        "hypothesis_scoring": 0.013082800549454987,
-        "grammar_memory_update": 0.004023899877211079,
-        "posterior": 0.006816099630668759,
-        "total_observe": 0.6579670990468003
+        "tokenize": 0.04775209931540303,
+        "candidate_rules": 0.08957439960795455,
+        "semantic_cache_lookup": 0.002745200035860762,
+        "semantic_cognitive_call": 0.46258600006694905,
+        "semantic_total": 0.46303169964812696,
+        "hypothesis_scoring": 0.013136400026269257,
+        "grammar_memory_update": 0.003973900282289833,
+        "posterior": 0.006690100708510727,
+        "total_observe": 0.6503563993028365
       },
       "profile_counts": {
         "tokenize": 3000,
@@ -1082,62 +1110,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1182,16 +1210,19 @@
       "semantic_cache_size": 2602,
       "semantic_cache_hit_rate": 0.7705871980250397,
       "grammar_semantic_evaluations": 2034,
+      "corpus_sentences_seen": 3500,
+      "grammar_observations": 2034,
+      "empty_hypothesis_sentences": 1466,
       "profile_totals_seconds": {
-        "tokenize": 0.05853269950603135,
-        "candidate_rules": 0.1127055999240838,
-        "semantic_cache_lookup": 0.0035636004467960447,
-        "semantic_cognitive_call": 0.5017967998574022,
-        "semantic_total": 0.5022701999114361,
-        "hypothesis_scoring": 0.016049800644395873,
-        "grammar_memory_update": 0.004825100186280906,
-        "posterior": 0.008371099509531632,
-        "total_observe": 0.7336108990421053
+        "tokenize": 0.05835169964120723,
+        "candidate_rules": 0.10911049996502697,
+        "semantic_cache_lookup": 0.0032559990941081196,
+        "semantic_cognitive_call": 0.4873174999083858,
+        "semantic_total": 0.48781649937154725,
+        "hypothesis_scoring": 0.015844299865420908,
+        "grammar_memory_update": 0.0046773001085966825,
+        "posterior": 0.007948500948259607,
+        "total_observe": 0.7145957996835932
       },
       "profile_counts": {
         "tokenize": 3500,
@@ -1208,62 +1239,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1308,16 +1339,19 @@
       "semantic_cache_size": 2713,
       "semantic_cache_hit_rate": 0.7957078313253012,
       "grammar_semantic_evaluations": 2370,
+      "corpus_sentences_seen": 4000,
+      "grammar_observations": 2370,
+      "empty_hypothesis_sentences": 1630,
       "profile_totals_seconds": {
-        "tokenize": 0.07076469986350276,
-        "candidate_rules": 0.13458280015038326,
-        "semantic_cache_lookup": 0.004166900820564479,
-        "semantic_cognitive_call": 0.5151295998657588,
-        "semantic_total": 0.5156279998482205,
-        "hypothesis_scoring": 0.019410200824495405,
-        "grammar_memory_update": 0.005653000349411741,
-        "posterior": 0.009931099571986124,
-        "total_observe": 0.7921501994715072
+        "tokenize": 0.06892019961378537,
+        "candidate_rules": 0.12853250006446615,
+        "semantic_cache_lookup": 0.0036936991091351956,
+        "semantic_cognitive_call": 0.49991839987342246,
+        "semantic_total": 0.5004384992644191,
+        "hypothesis_scoring": 0.018563700054073706,
+        "grammar_memory_update": 0.0053947998967487365,
+        "posterior": 0.0092242012033239,
+        "total_observe": 0.7664889999141451
       },
       "profile_counts": {
         "tokenize": 4000,
@@ -1334,62 +1368,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1434,16 +1468,19 @@
       "semantic_cache_size": 2912,
       "semantic_cache_hit_rate": 0.8044981537428667,
       "grammar_semantic_evaluations": 2651,
+      "corpus_sentences_seen": 4500,
+      "grammar_observations": 2651,
+      "empty_hypothesis_sentences": 1849,
       "profile_totals_seconds": {
-        "tokenize": 0.08024229979491793,
-        "candidate_rules": 0.15171180016477592,
-        "semantic_cache_lookup": 0.0047395006695296615,
-        "semantic_cognitive_call": 0.5340531997499056,
-        "semantic_total": 0.5345918996608816,
-        "hypothesis_scoring": 0.021754500805400312,
-        "grammar_memory_update": 0.006329500436550006,
-        "posterior": 0.011104999604867771,
-        "total_observe": 0.8462850998330396
+        "tokenize": 0.07828689945745282,
+        "candidate_rules": 0.14551510030287318,
+        "semantic_cache_lookup": 0.004261098481947556,
+        "semantic_cognitive_call": 0.5191796999424696,
+        "semantic_total": 0.5197385991341434,
+        "hypothesis_scoring": 0.020847400213824585,
+        "grammar_memory_update": 0.006055499718058854,
+        "posterior": 0.010314201441360638,
+        "total_observe": 0.8206042999518104
       },
       "profile_counts": {
         "tokenize": 4500,
@@ -1460,62 +1497,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1560,16 +1597,19 @@
       "semantic_cache_size": 3093,
       "semantic_cache_hit_rate": 0.8122268091306459,
       "grammar_semantic_evaluations": 2930,
+      "corpus_sentences_seen": 5000,
+      "grammar_observations": 2930,
+      "empty_hypothesis_sentences": 2070,
       "profile_totals_seconds": {
-        "tokenize": 0.08853199987788685,
-        "candidate_rules": 0.16750080016208813,
-        "semantic_cache_lookup": 0.005333100736606866,
-        "semantic_cognitive_call": 0.5540997994539794,
-        "semantic_total": 0.5546751994697843,
-        "hypothesis_scoring": 0.023954600765137002,
-        "grammar_memory_update": 0.006996100360993296,
-        "posterior": 0.01222059951396659,
-        "total_observe": 0.8985707000829279
+        "tokenize": 0.08645439930842258,
+        "candidate_rules": 0.16073589981533587,
+        "semantic_cache_lookup": 0.00480959820561111,
+        "semantic_cognitive_call": 0.5389412000367884,
+        "semantic_total": 0.5395365993317682,
+        "hypothesis_scoring": 0.02306989999487996,
+        "grammar_memory_update": 0.00668960006441921,
+        "posterior": 0.011416401481255889,
+        "total_observe": 0.8719553997507319
       },
       "profile_counts": {
         "tokenize": 5000,
@@ -1586,62 +1626,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1686,16 +1726,19 @@
       "semantic_cache_size": 3228,
       "semantic_cache_hit_rate": 0.8161312371838687,
       "grammar_semantic_evaluations": 3136,
+      "corpus_sentences_seen": 5500,
+      "grammar_observations": 3136,
+      "empty_hypothesis_sentences": 2364,
       "profile_totals_seconds": {
-        "tokenize": 0.09334679969470017,
-        "candidate_rules": 0.1767523005255498,
-        "semantic_cache_lookup": 0.005700500914826989,
-        "semantic_cognitive_call": 0.5671311994374264,
-        "semantic_total": 0.5677334994252305,
-        "hypothesis_scoring": 0.02522500095074065,
-        "grammar_memory_update": 0.0074198005895596,
-        "posterior": 0.012979999562958255,
-        "total_observe": 0.931020700285444
+        "tokenize": 0.09123379932134412,
+        "candidate_rules": 0.1696051996841561,
+        "semantic_cache_lookup": 0.0051583979511633515,
+        "semantic_cognitive_call": 0.5523315002210438,
+        "semantic_total": 0.5529545994650107,
+        "hypothesis_scoring": 0.024311199958901852,
+        "grammar_memory_update": 0.007103800104232505,
+        "posterior": 0.012205001374240965,
+        "total_observe": 0.9042956996127032
       },
       "profile_counts": {
         "tokenize": 5500,
@@ -1712,62 +1755,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1812,16 +1855,19 @@
       "semantic_cache_size": 3320,
       "semantic_cache_hit_rate": 0.8186882201955109,
       "grammar_semantic_evaluations": 3299,
+      "corpus_sentences_seen": 6000,
+      "grammar_observations": 3299,
+      "empty_hypothesis_sentences": 2701,
       "profile_totals_seconds": {
-        "tokenize": 0.09901909940526821,
-        "candidate_rules": 0.18320840058731847,
-        "semantic_cache_lookup": 0.005987100914353505,
-        "semantic_cognitive_call": 0.5750774992920924,
-        "semantic_total": 0.5756995992269367,
-        "hypothesis_scoring": 0.026063000870635733,
-        "grammar_memory_update": 0.007748800475383177,
-        "posterior": 0.013591699593234807,
-        "total_observe": 0.956288300367305
+        "tokenize": 0.09433469930081628,
+        "candidate_rules": 0.17560089979087934,
+        "semantic_cache_lookup": 0.005398097826400772,
+        "semantic_cognitive_call": 0.559858900232939,
+        "semantic_total": 0.560504299326567,
+        "hypothesis_scoring": 0.025053200108231977,
+        "grammar_memory_update": 0.007390800281427801,
+        "posterior": 0.012786001490894705,
+        "total_observe": 0.9247919992485549
       },
       "profile_counts": {
         "tokenize": 6000,
@@ -1838,62 +1884,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -1938,16 +1984,19 @@
       "semantic_cache_size": 3356,
       "semantic_cache_hit_rate": 0.8204195205479452,
       "grammar_semantic_evaluations": 3398,
+      "corpus_sentences_seen": 6500,
+      "grammar_observations": 3398,
+      "empty_hypothesis_sentences": 3102,
       "profile_totals_seconds": {
-        "tokenize": 0.1013045990257524,
-        "candidate_rules": 0.18747330058249645,
-        "semantic_cache_lookup": 0.006153300841106102,
-        "semantic_cognitive_call": 0.5780112992215436,
-        "semantic_total": 0.5786427991697565,
-        "hypothesis_scoring": 0.026492400880670175,
-        "grammar_memory_update": 0.007942900498164818,
-        "posterior": 0.013952999492175877,
-        "total_observe": 0.9682089003326837
+        "tokenize": 0.10227949926047586,
+        "candidate_rules": 0.18153399977018125,
+        "semantic_cache_lookup": 0.005584397789789364,
+        "semantic_cognitive_call": 0.563964800152462,
+        "semantic_total": 0.5646195992303547,
+        "hypothesis_scoring": 0.025801300071179867,
+        "grammar_memory_update": 0.007676800334593281,
+        "posterior": 0.013264501350931823,
+        "total_observe": 0.9463606990175322
       },
       "profile_counts": {
         "tokenize": 6500,
@@ -1964,62 +2013,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2064,16 +2113,19 @@
       "semantic_cache_size": 3398,
       "semantic_cache_hit_rate": 0.8220849259123514,
       "grammar_semantic_evaluations": 3504,
+      "corpus_sentences_seen": 7000,
+      "grammar_observations": 3504,
+      "empty_hypothesis_sentences": 3496,
       "profile_totals_seconds": {
-        "tokenize": 0.10358619861654006,
-        "candidate_rules": 0.19167550050769933,
-        "semantic_cache_lookup": 0.0063117008248809725,
-        "semantic_cognitive_call": 0.585234698955901,
-        "semantic_total": 0.5858784989395645,
-        "hypothesis_scoring": 0.02692590095102787,
-        "grammar_memory_update": 0.008141900470945984,
-        "posterior": 0.01433489951887168,
-        "total_observe": 0.984468500042567
+        "tokenize": 0.10489089885959402,
+        "candidate_rules": 0.18665609986055642,
+        "semantic_cache_lookup": 0.0057516977831255645,
+        "semantic_cognitive_call": 0.5729729999729898,
+        "semantic_total": 0.5736395990825258,
+        "hypothesis_scoring": 0.026279100187821314,
+        "grammar_memory_update": 0.007900200405856594,
+        "posterior": 0.013681801239727065,
+        "total_observe": 0.9660022992757149
       },
       "profile_counts": {
         "tokenize": 7000,
@@ -2090,62 +2142,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2190,16 +2242,19 @@
       "semantic_cache_size": 3440,
       "semantic_cache_hit_rate": 0.8236078350938365,
       "grammar_semantic_evaluations": 3611,
+      "corpus_sentences_seen": 7500,
+      "grammar_observations": 3611,
+      "empty_hypothesis_sentences": 3889,
       "profile_totals_seconds": {
-        "tokenize": 0.10562709852820262,
-        "candidate_rules": 0.1957873007922899,
-        "semantic_cache_lookup": 0.0064879006531555206,
-        "semantic_cognitive_call": 0.5907046989304945,
-        "semantic_total": 0.5913620989595074,
-        "hypothesis_scoring": 0.027369700925191864,
-        "grammar_memory_update": 0.008359800616744906,
-        "posterior": 0.014816199487540871,
-        "total_observe": 0.9987742003286257
+        "tokenize": 0.10695819862303324,
+        "candidate_rules": 0.1904789998952765,
+        "semantic_cache_lookup": 0.005923597840592265,
+        "semantic_cognitive_call": 0.5780663999321405,
+        "semantic_total": 0.5787455990212038,
+        "hypothesis_scoring": 0.02668430015910417,
+        "grammar_memory_update": 0.008098700433038175,
+        "posterior": 0.014070101198740304,
+        "total_observe": 0.9794987992790993
       },
       "profile_counts": {
         "tokenize": 7500,
@@ -2216,62 +2271,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2316,16 +2371,19 @@
       "semantic_cache_size": 3500,
       "semantic_cache_hit_rate": 0.8241294407316215,
       "grammar_semantic_evaluations": 3707,
+      "corpus_sentences_seen": 8000,
+      "grammar_observations": 3707,
+      "empty_hypothesis_sentences": 4293,
       "profile_totals_seconds": {
-        "tokenize": 0.10772549870307557,
-        "candidate_rules": 0.19990210034302436,
-        "semantic_cache_lookup": 0.006638600665610284,
-        "semantic_cognitive_call": 0.5947214987536427,
-        "semantic_total": 0.595392198767513,
-        "hypothesis_scoring": 0.027775801077950746,
-        "grammar_memory_update": 0.008543100499082357,
-        "posterior": 0.015160199400270358,
-        "total_observe": 1.011386900121579
+        "tokenize": 0.10901049841777422,
+        "candidate_rules": 0.19447009987197816,
+        "semantic_cache_lookup": 0.006061597960069776,
+        "semantic_cognitive_call": 0.5821365998417605,
+        "semantic_total": 0.5828299989516381,
+        "hypothesis_scoring": 0.02707950002513826,
+        "grammar_memory_update": 0.008276900596683845,
+        "posterior": 0.01440260125673376,
+        "total_observe": 0.9919825992546976
       },
       "profile_counts": {
         "tokenize": 8000,
@@ -2342,62 +2400,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2442,16 +2500,19 @@
       "semantic_cache_size": 3558,
       "semantic_cache_hit_rate": 0.8265828337476239,
       "grammar_semantic_evaluations": 3837,
+      "corpus_sentences_seen": 8500,
+      "grammar_observations": 3837,
+      "empty_hypothesis_sentences": 4663,
       "profile_totals_seconds": {
-        "tokenize": 0.11065729879192077,
-        "candidate_rules": 0.20550150040071458,
-        "semantic_cache_lookup": 0.006865800969535485,
-        "semantic_cognitive_call": 0.5991337986197323,
-        "semantic_total": 0.5998183986812364,
-        "hypothesis_scoring": 0.028412301297066733,
-        "grammar_memory_update": 0.008803400356555358,
-        "posterior": 0.01564339952892624,
-        "total_observe": 1.0275949005445
+        "tokenize": 0.11191119885188527,
+        "candidate_rules": 0.1999974000500515,
+        "semantic_cache_lookup": 0.006276197935221717,
+        "semantic_cognitive_call": 0.5868186999286991,
+        "semantic_total": 0.5875236990395933,
+        "hypothesis_scoring": 0.02773999990313314,
+        "grammar_memory_update": 0.008529100887244567,
+        "posterior": 0.01486490131355822,
+        "total_observe": 1.008378499216633
       },
       "profile_counts": {
         "tokenize": 8500,
@@ -2468,62 +2529,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2568,16 +2629,19 @@
       "semantic_cache_size": 3615,
       "semantic_cache_hit_rate": 0.8290941754916793,
       "grammar_semantic_evaluations": 3979,
+      "corpus_sentences_seen": 9000,
+      "grammar_observations": 3979,
+      "empty_hypothesis_sentences": 5021,
       "profile_totals_seconds": {
-        "tokenize": 0.11356639914447442,
-        "candidate_rules": 0.2111221003870014,
-        "semantic_cache_lookup": 0.007080600771587342,
-        "semantic_cognitive_call": 0.6039076985907741,
-        "semantic_total": 0.604602398670977,
-        "hypothesis_scoring": 0.029114001139532775,
-        "grammar_memory_update": 0.009094900189666077,
-        "posterior": 0.016354099585441872,
-        "total_observe": 1.0445493005099706
+        "tokenize": 0.11491559876594692,
+        "candidate_rules": 0.20539300004020333,
+        "semantic_cache_lookup": 0.006465097889304161,
+        "semantic_cognitive_call": 0.5911188001045957,
+        "semantic_total": 0.5918345991231035,
+        "hypothesis_scoring": 0.028354799753287807,
+        "grammar_memory_update": 0.008803501026704907,
+        "posterior": 0.015434201166499406,
+        "total_observe": 1.0244929991895333
       },
       "profile_counts": {
         "tokenize": 9000,
@@ -2594,62 +2658,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2694,16 +2758,19 @@
       "semantic_cache_size": 3666,
       "semantic_cache_hit_rate": 0.830426939266386,
       "grammar_semantic_evaluations": 4089,
+      "corpus_sentences_seen": 9500,
+      "grammar_observations": 4089,
+      "empty_hypothesis_sentences": 5411,
       "profile_totals_seconds": {
-        "tokenize": 0.1158228985441383,
-        "candidate_rules": 0.21543440007371828,
-        "semantic_cache_lookup": 0.007239900849526748,
-        "semantic_cognitive_call": 0.607831098663155,
-        "semantic_total": 0.6085369987413287,
-        "hypothesis_scoring": 0.029593901010230184,
-        "grammar_memory_update": 0.0093039003550075,
-        "posterior": 0.016747699381085113,
-        "total_observe": 1.0576602001383435
+        "tokenize": 0.1172023986291606,
+        "candidate_rules": 0.20979099994292483,
+        "semantic_cache_lookup": 0.006660597748123109,
+        "semantic_cognitive_call": 0.5953652001917362,
+        "semantic_total": 0.5960933991591446,
+        "hypothesis_scoring": 0.028823299886425957,
+        "grammar_memory_update": 0.009010101348394528,
+        "posterior": 0.015821001114090905,
+        "total_observe": 1.0382586990890559
       },
       "profile_counts": {
         "tokenize": 9500,
@@ -2720,62 +2787,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
@@ -2820,16 +2887,19 @@
       "semantic_cache_size": 3715,
       "semantic_cache_hit_rate": 0.8318852384831207,
       "grammar_semantic_evaluations": 4194,
+      "corpus_sentences_seen": 10000,
+      "grammar_observations": 4194,
+      "empty_hypothesis_sentences": 5806,
       "profile_totals_seconds": {
-        "tokenize": 0.11847559901070781,
-        "candidate_rules": 0.22048949979944155,
-        "semantic_cache_lookup": 0.007421200774842873,
-        "semantic_cognitive_call": 0.6155059985758271,
-        "semantic_total": 0.6162233986251522,
-        "hypothesis_scoring": 0.030124201031867415,
-        "grammar_memory_update": 0.009524000226520002,
-        "posterior": 0.01714949938468635,
-        "total_observe": 1.0758288998622447
+        "tokenize": 0.11994959870935418,
+        "candidate_rules": 0.21464590006507933,
+        "semantic_cache_lookup": 0.006839897687314078,
+        "semantic_cognitive_call": 0.6022898001247086,
+        "semantic_total": 0.6030292990908492,
+        "hypothesis_scoring": 0.02937419994850643,
+        "grammar_memory_update": 0.009213501354679465,
+        "posterior": 0.016211201174883172,
+        "total_observe": 1.0556345992081333
       },
       "profile_counts": {
         "tokenize": 10000,
@@ -2846,62 +2916,62 @@
       "slow_events": [
         {
           "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
-          "sentence_s": 0.11343460000352934,
-          "tokenize_s": 2.8600014047697186e-05,
-          "candidate_rules_s": 0.00035099999513477087,
-          "semantic_s": 0.11300979999941774,
+          "sentence_s": 0.11070449999533594,
+          "tokenize_s": 2.8400012524798512e-05,
+          "candidate_rules_s": 0.0003038999857380986,
+          "semantic_s": 0.11032900001737289,
           "semantic_calls": [
             {
               "query": "well",
               "cache_hit": false,
-              "cache_lookup_s": 5.999754648655653e-07,
-              "cognitive_call_s": 0.11257250001654029,
-              "total_s": 0.11257309999200515,
-              "pct_of_semantic": 99.61357332955652
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 0.10983060000580736,
+              "total_s": 0.10983120001037605,
+              "pct_of_semantic": 99.54880402530753
             },
             {
               "query": "just",
               "cache_hit": false,
               "cache_lookup_s": 6.00004568696022e-07,
-              "cognitive_call_s": 8.630001684650779e-05,
-              "total_s": 8.690002141520381e-05,
-              "pct_of_semantic": 0.07689600496209315
+              "cognitive_call_s": 8.610001532360911e-05,
+              "total_s": 8.670001989230514e-05,
+              "pct_of_semantic": 0.07858316478772849
             },
             {
               "query": "know",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00010730000212788582,
-              "total_s": 0.00010750000365078449,
-              "pct_of_semantic": 0.09512449685897893
+              "cognitive_call_s": 0.00015609999536536634,
+              "total_s": 0.00015629999688826501,
+              "pct_of_semantic": 0.14166719254561658
             },
             {
               "query": "pound",
               "cache_hit": false,
               "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 0.00012599999899975955,
-              "total_s": 0.00012620000052265823,
-              "pct_of_semantic": 0.11167173158726805
+              "cognitive_call_s": 0.00013619998935610056,
+              "total_s": 0.00013639999087899923,
+              "pct_of_semantic": 0.12363022492501617
             },
             {
               "query": "hundred",
               "cache_hit": false,
-              "cache_lookup_s": 2.00001522898674e-07,
-              "cognitive_call_s": 7.270000060088933e-05,
-              "total_s": 7.2900002123788e-05,
-              "pct_of_semantic": 0.06450768174455986
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 7.459998596459627e-05,
+              "total_s": 7.469998672604561e-05,
+              "pct_of_semantic": 0.06770657462161628
             },
             {
               "query": "pounds",
               "cache_hit": false,
               "cache_lookup_s": 1.00000761449337e-07,
-              "cognitive_call_s": 1.829999382607639e-05,
-              "total_s": 1.8399994587525725e-05,
-              "pct_of_semantic": 0.016281769003768282
+              "cognitive_call_s": 1.8499995348975062e-05,
+              "total_s": 1.85999961104244e-05,
+              "pct_of_semantic": 0.01685866463712674
             }
           ],
-          "hypothesis_scoring_s": 1.7000013031065464e-05,
-          "posterior_s": 1.2899981811642647e-05,
+          "hypothesis_scoring_s": 1.5300000086426735e-05,
+          "posterior_s": 1.2800010154023767e-05,
           "tokens": [
             "well",
             "it's",
