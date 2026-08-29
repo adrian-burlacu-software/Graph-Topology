@@ -1,0 +1,32 @@
+{
+  "version": "v295",
+  "latent_rule": 1,
+  "episodes": 10,
+  "results": {
+    "none": {
+      "accuracy": 0.0,
+      "first": 0.0,
+      "second": 0.0
+    },
+    "immediate": {
+      "accuracy": 0.9,
+      "first": 0.8,
+      "second": 1.0
+    },
+    "eligibility": {
+      "accuracy": 0.8,
+      "first": 0.6,
+      "second": 1.0
+    },
+    "delayed_window": {
+      "accuracy": 0.9,
+      "first": 0.8,
+      "second": 1.0
+    },
+    "rule_flip": {
+      "accuracy": 0.9,
+      "first": 0.8,
+      "second": 1.0
+    }
+  }
+}

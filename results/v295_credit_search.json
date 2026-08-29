@@ -1,0 +1,81 @@
+{
+  "version": "v295",
+  "credits": [
+    "none",
+    "immediate",
+    "eligibility",
+    "delayed_window",
+    "rule_flip"
+  ],
+  "train_seeds": [
+    295,
+    296,
+    297,
+    298,
+    299,
+    300,
+    301,
+    302,
+    303,
+    304,
+    305,
+    306
+  ],
+  "eval_seeds": [
+    10295,
+    10296,
+    10297,
+    10298,
+    10299,
+    10300,
+    10301,
+    10302,
+    10303,
+    10304,
+    10305,
+    10306
+  ],
+  "episodes": 16,
+  "results": [
+    {
+      "train": 0.984375,
+      "eval": 0.9739583333333334,
+      "first": 0.9479166666666666,
+      "second": 1.0,
+      "credit": "immediate",
+      "online_gain": 0.05208333333333337
+    },
+    {
+      "train": 0.984375,
+      "eval": 0.9739583333333334,
+      "first": 0.9479166666666666,
+      "second": 1.0,
+      "credit": "delayed_window",
+      "online_gain": 0.05208333333333337
+    },
+    {
+      "train": 0.984375,
+      "eval": 0.9739583333333334,
+      "first": 0.9479166666666666,
+      "second": 1.0,
+      "credit": "rule_flip",
+      "online_gain": 0.05208333333333337
+    },
+    {
+      "train": 0.96875,
+      "eval": 0.9479166666666666,
+      "first": 0.8958333333333334,
+      "second": 1.0,
+      "credit": "eligibility",
+      "online_gain": 0.10416666666666663
+    },
+    {
+      "train": 0.75,
+      "eval": 0.5833333333333334,
+      "first": 0.5833333333333334,
+      "second": 0.5833333333333334,
+      "credit": "none",
+      "online_gain": 0.0
+    }
+  ]
+}
