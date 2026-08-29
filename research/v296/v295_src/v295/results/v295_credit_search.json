@@ -1,0 +1,63 @@
+{
+  "version": "v295",
+  "credits": [
+    "none",
+    "immediate",
+    "eligibility",
+    "delayed_window",
+    "rule_flip"
+  ],
+  "train_seeds": [
+    295,
+    296,
+    297
+  ],
+  "eval_seeds": [
+    10295,
+    10296,
+    10297
+  ],
+  "episodes": 8,
+  "results": [
+    {
+      "train": 0.5,
+      "eval": 0.5,
+      "first": 0.5,
+      "second": 0.5,
+      "credit": "none",
+      "online_gain": 0.0
+    },
+    {
+      "train": 0.5,
+      "eval": 0.5,
+      "first": 0.5,
+      "second": 0.5,
+      "credit": "immediate",
+      "online_gain": 0.0
+    },
+    {
+      "train": 0.5,
+      "eval": 0.5,
+      "first": 0.5,
+      "second": 0.5,
+      "credit": "eligibility",
+      "online_gain": 0.0
+    },
+    {
+      "train": 0.5,
+      "eval": 0.5,
+      "first": 0.5,
+      "second": 0.5,
+      "credit": "rule_flip",
+      "online_gain": 0.0
+    },
+    {
+      "train": 0.4166666666666667,
+      "eval": 0.4166666666666667,
+      "first": 0.3333333333333333,
+      "second": 0.5,
+      "credit": "delayed_window",
+      "online_gain": 0.16666666666666669
+    }
+  ]
+}
