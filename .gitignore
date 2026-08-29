@@ -34,6 +34,9 @@ data/UD_GUM
 data/conceptnet_compact.db-shm
 data/conceptnet_compact.db-wal
 
+# SQLite database for cognitive language memory
+results/cognitive_language_memory.sqlite
+
 # Checkpoint files
 results/v200_graph_transformer.pt
 results/v201_self_supervised.pt
