@@ -1,0 +1,2937 @@
+{
+  "status": "FAIL",
+  "version": "v380-instrumented",
+  "paths": {
+    "corpus": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\BabyLM-2026-Strict-Small",
+    "conceptnet": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\conceptnet_compact.db",
+    "result": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v380_babylm_grammar.json"
+  },
+  "conceptnet": {
+    "concepts": 720544,
+    "edges": 2269365,
+    "index_seconds": 12.351011299993843
+  },
+  "babylm": {
+    "files": 6,
+    "train_sentences": 10000,
+    "heldout_sentences": 1000
+  },
+  "grammar": {
+    "rules": 4,
+    "sentences": 4194,
+    "tokens": 84489,
+    "rejected_tokens": 4125,
+    "revisions": 4194,
+    "commitments": 3023
+  },
+  "heldout": {
+    "sentences": 426,
+    "reusable_rule_hit_rate": 0.6549295774647887,
+    "commit_rate": 0.6549295774647887
+  },
+  "semantic_performance": {
+    "semantic_requests": 4014,
+    "semantic_cache_hits": 20334,
+    "semantic_cache_size": 4014,
+    "semantic_cache_hit_rate": 0.8351404632824051,
+    "grammar_semantic_evaluations": 4194,
+    "profile_totals_seconds": {
+      "tokenize": 0.13185499823885038,
+      "candidate_rules": 0.24495729894260876,
+      "semantic_cache_lookup": 0.008022601250559092,
+      "semantic_cognitive_call": 0.644732998276595,
+      "semantic_total": 0.6455073984398041,
+      "hypothesis_scoring": 0.03336380099062808,
+      "grammar_memory_update": 0.009524000226520002,
+      "posterior": 0.01865179932792671,
+      "total_observe": 1.1532935994328
+    },
+    "profile_counts": {
+      "tokenize": 11000,
+      "candidate_rules": 11000,
+      "semantic_cache_lookup": 24348,
+      "semantic_cognitive_call": 4014,
+      "semantic_total": 4014,
+      "hypothesis_scoring": 4620,
+      "grammar_memory_update": 8388,
+      "posterior": 4620,
+      "total_observe": 11000
+    },
+    "slow_event_count": 1,
+    "slow_events": [
+      {
+        "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+        "sentence_s": 0.11343460000352934,
+        "tokenize_s": 2.8600014047697186e-05,
+        "candidate_rules_s": 0.00035099999513477087,
+        "semantic_s": 0.11300979999941774,
+        "semantic_calls": [
+          {
+            "query": "well",
+            "cache_hit": false,
+            "cache_lookup_s": 5.999754648655653e-07,
+            "cognitive_call_s": 0.11257250001654029,
+            "total_s": 0.11257309999200515,
+            "pct_of_semantic": 99.61357332955652
+          },
+          {
+            "query": "just",
+            "cache_hit": false,
+            "cache_lookup_s": 6.00004568696022e-07,
+            "cognitive_call_s": 8.630001684650779e-05,
+            "total_s": 8.690002141520381e-05,
+            "pct_of_semantic": 0.07689600496209315
+          },
+          {
+            "query": "know",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 0.00010730000212788582,
+            "total_s": 0.00010750000365078449,
+            "pct_of_semantic": 0.09512449685897893
+          },
+          {
+            "query": "pound",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 0.00012599999899975955,
+            "total_s": 0.00012620000052265823,
+            "pct_of_semantic": 0.11167173158726805
+          },
+          {
+            "query": "hundred",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 7.270000060088933e-05,
+            "total_s": 7.2900002123788e-05,
+            "pct_of_semantic": 0.06450768174455986
+          },
+          {
+            "query": "pounds",
+            "cache_hit": false,
+            "cache_lookup_s": 1.00000761449337e-07,
+            "cognitive_call_s": 1.829999382607639e-05,
+            "total_s": 1.8399994587525725e-05,
+            "pct_of_semantic": 0.016281769003768282
+          }
+        ],
+        "hypothesis_scoring_s": 1.7000013031065464e-05,
+        "posterior_s": 1.2899981811642647e-05,
+        "tokens": [
+          "well",
+          "it's",
+          "just",
+          "that",
+          "you",
+          "know",
+          "pound",
+          "or",
+          "hundred",
+          "pounds",
+          "today",
+          "is",
+          "not",
+          "the",
+          "same",
+          "as",
+          "hundred",
+          "pounds",
+          "in",
+          "year's",
+          "time",
+          "or",
+          "two",
+          "two",
+          "years",
+          "time"
+        ]
+      }
+    ]
+  },
+  "stage6_profile": {
+    "semantic_requests": 4014,
+    "semantic_cache_hits": 20334,
+    "semantic_cache_size": 4014,
+    "semantic_cache_hit_rate": 0.8351404632824051,
+    "grammar_semantic_evaluations": 4194,
+    "profile_totals_seconds": {
+      "tokenize": 0.13185499823885038,
+      "candidate_rules": 0.24495729894260876,
+      "semantic_cache_lookup": 0.008022601250559092,
+      "semantic_cognitive_call": 0.644732998276595,
+      "semantic_total": 0.6455073984398041,
+      "hypothesis_scoring": 0.03336380099062808,
+      "grammar_memory_update": 0.009524000226520002,
+      "posterior": 0.01865179932792671,
+      "total_observe": 1.1532935994328
+    },
+    "profile_counts": {
+      "tokenize": 11000,
+      "candidate_rules": 11000,
+      "semantic_cache_lookup": 24348,
+      "semantic_cognitive_call": 4014,
+      "semantic_total": 4014,
+      "hypothesis_scoring": 4620,
+      "grammar_memory_update": 8388,
+      "posterior": 4620,
+      "total_observe": 11000
+    },
+    "slow_event_count": 1,
+    "slow_events": [
+      {
+        "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+        "sentence_s": 0.11343460000352934,
+        "tokenize_s": 2.8600014047697186e-05,
+        "candidate_rules_s": 0.00035099999513477087,
+        "semantic_s": 0.11300979999941774,
+        "semantic_calls": [
+          {
+            "query": "well",
+            "cache_hit": false,
+            "cache_lookup_s": 5.999754648655653e-07,
+            "cognitive_call_s": 0.11257250001654029,
+            "total_s": 0.11257309999200515,
+            "pct_of_semantic": 99.61357332955652
+          },
+          {
+            "query": "just",
+            "cache_hit": false,
+            "cache_lookup_s": 6.00004568696022e-07,
+            "cognitive_call_s": 8.630001684650779e-05,
+            "total_s": 8.690002141520381e-05,
+            "pct_of_semantic": 0.07689600496209315
+          },
+          {
+            "query": "know",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 0.00010730000212788582,
+            "total_s": 0.00010750000365078449,
+            "pct_of_semantic": 0.09512449685897893
+          },
+          {
+            "query": "pound",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 0.00012599999899975955,
+            "total_s": 0.00012620000052265823,
+            "pct_of_semantic": 0.11167173158726805
+          },
+          {
+            "query": "hundred",
+            "cache_hit": false,
+            "cache_lookup_s": 2.00001522898674e-07,
+            "cognitive_call_s": 7.270000060088933e-05,
+            "total_s": 7.2900002123788e-05,
+            "pct_of_semantic": 0.06450768174455986
+          },
+          {
+            "query": "pounds",
+            "cache_hit": false,
+            "cache_lookup_s": 1.00000761449337e-07,
+            "cognitive_call_s": 1.829999382607639e-05,
+            "total_s": 1.8399994587525725e-05,
+            "pct_of_semantic": 0.016281769003768282
+          }
+        ],
+        "hypothesis_scoring_s": 1.7000013031065464e-05,
+        "posterior_s": 1.2899981811642647e-05,
+        "tokens": [
+          "well",
+          "it's",
+          "just",
+          "that",
+          "you",
+          "know",
+          "pound",
+          "or",
+          "hundred",
+          "pounds",
+          "today",
+          "is",
+          "not",
+          "the",
+          "same",
+          "as",
+          "hundred",
+          "pounds",
+          "in",
+          "year's",
+          "time",
+          "or",
+          "two",
+          "two",
+          "years",
+          "time"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "babyLM_loaded": true,
+    "conceptnet_loaded": true,
+    "grammar_nonempty": true,
+    "semantic_events_nonempty": true,
+    "persistent_sentence_accounting": false,
+    "heldout_present": true,
+    "cache_used": true
+  },
+  "instrumentation": {
+    "wall_time_seconds": 26.4977257999999,
+    "stage_times_seconds": {
+      "conceptnet_index": 12.351011299993843,
+      "babylm_read": 0.005666499986546114,
+      "grammar_learning": 1.1439065000158735,
+      "heldout_eval": 0.08063360000960529
+    },
+    "semantic_performance": {
+      "semantic_requests": 4014,
+      "semantic_cache_hits": 20334,
+      "semantic_cache_size": 4014,
+      "semantic_cache_hit_rate": 0.8351404632824051,
+      "grammar_semantic_evaluations": 4194,
+      "profile_totals_seconds": {
+        "tokenize": 0.13185499823885038,
+        "candidate_rules": 0.24495729894260876,
+        "semantic_cache_lookup": 0.008022601250559092,
+        "semantic_cognitive_call": 0.644732998276595,
+        "semantic_total": 0.6455073984398041,
+        "hypothesis_scoring": 0.03336380099062808,
+        "grammar_memory_update": 0.009524000226520002,
+        "posterior": 0.01865179932792671,
+        "total_observe": 1.1532935994328
+      },
+      "profile_counts": {
+        "tokenize": 11000,
+        "candidate_rules": 11000,
+        "semantic_cache_lookup": 24348,
+        "semantic_cognitive_call": 4014,
+        "semantic_total": 4014,
+        "hypothesis_scoring": 4620,
+        "grammar_memory_update": 8388,
+        "posterior": 4620,
+        "total_observe": 11000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    "stage6_instrumentation": {
+      "progress_every": 50,
+      "learning_seconds": 1.1439065000158735,
+      "sentences_per_second": 8741.973229334071
+    },
+    "semantic_architecture_events": 4014,
+    "grammar_hypothesis_count": 4,
+    "cache_hit_rate": 0.8351404632824051
+  },
+  "checkpoints": [
+    {
+      "episode": 500,
+      "rules": 4,
+      "sentences": 302,
+      "tokens": 8355,
+      "rejected_tokens": 425,
+      "revisions": 302,
+      "commitments": 180,
+      "semantic_requests": 663,
+      "semantic_cache_hits": 1045,
+      "semantic_cache_size": 663,
+      "semantic_cache_hit_rate": 0.6118266978922716,
+      "grammar_semantic_evaluations": 302,
+      "profile_totals_seconds": {
+        "tokenize": 0.01013689985848032,
+        "candidate_rules": 0.019462599739199504,
+        "semantic_cache_lookup": 0.0004547000862658024,
+        "semantic_cognitive_call": 0.2516271000786219,
+        "semantic_total": 0.2517285002686549,
+        "hypothesis_scoring": 0.0028247003501746804,
+        "grammar_memory_update": 0.0007679997070226818,
+        "posterior": 0.0014174999669194221,
+        "total_observe": 0.2915374997246545
+      },
+      "profile_counts": {
+        "tokenize": 500,
+        "candidate_rules": 500,
+        "semantic_cache_lookup": 1708,
+        "semantic_cognitive_call": 663,
+        "semantic_total": 663,
+        "hypothesis_scoring": 302,
+        "grammar_memory_update": 604,
+        "posterior": 302,
+        "total_observe": 500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 1000,
+      "rules": 4,
+      "sentences": 594,
+      "tokens": 14923,
+      "rejected_tokens": 793,
+      "revisions": 594,
+      "commitments": 370,
+      "semantic_requests": 1042,
+      "semantic_cache_hits": 2274,
+      "semantic_cache_size": 1042,
+      "semantic_cache_hit_rate": 0.6857659831121834,
+      "grammar_semantic_evaluations": 594,
+      "profile_totals_seconds": {
+        "tokenize": 0.018101600027875975,
+        "candidate_rules": 0.03499069972895086,
+        "semantic_cache_lookup": 0.0009002999868243933,
+        "semantic_cognitive_call": 0.3051574999408331,
+        "semantic_total": 0.3053193000960164,
+        "hypothesis_scoring": 0.005115200066938996,
+        "grammar_memory_update": 0.001472199714044109,
+        "posterior": 0.0025505998346488923,
+        "total_observe": 0.37708219967316836
+      },
+      "profile_counts": {
+        "tokenize": 1000,
+        "candidate_rules": 1000,
+        "semantic_cache_lookup": 3316,
+        "semantic_cognitive_call": 1042,
+        "semantic_total": 1042,
+        "hypothesis_scoring": 594,
+        "grammar_memory_update": 1188,
+        "posterior": 594,
+        "total_observe": 1000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 1500,
+      "rules": 4,
+      "sentences": 950,
+      "tokens": 23731,
+      "rejected_tokens": 1227,
+      "revisions": 950,
+      "commitments": 594,
+      "semantic_requests": 1610,
+      "semantic_cache_hits": 3740,
+      "semantic_cache_size": 1610,
+      "semantic_cache_hit_rate": 0.6990654205607477,
+      "grammar_semantic_evaluations": 950,
+      "profile_totals_seconds": {
+        "tokenize": 0.028174199484055862,
+        "candidate_rules": 0.05447809986071661,
+        "semantic_cache_lookup": 0.0014869000297039747,
+        "semantic_cognitive_call": 0.38379730022279546,
+        "semantic_total": 0.3840533004840836,
+        "hypothesis_scoring": 0.007893600151874125,
+        "grammar_memory_update": 0.002290999691467732,
+        "posterior": 0.0038534997729584575,
+        "total_observe": 0.495420299412217
+      },
+      "profile_counts": {
+        "tokenize": 1500,
+        "candidate_rules": 1500,
+        "semantic_cache_lookup": 5350,
+        "semantic_cognitive_call": 1610,
+        "semantic_total": 1610,
+        "hypothesis_scoring": 950,
+        "grammar_memory_update": 1900,
+        "posterior": 950,
+        "total_observe": 1500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 2000,
+      "rules": 4,
+      "sentences": 1265,
+      "tokens": 30346,
+      "rejected_tokens": 1546,
+      "revisions": 1265,
+      "commitments": 823,
+      "semantic_requests": 1997,
+      "semantic_cache_hits": 5117,
+      "semantic_cache_size": 1997,
+      "semantic_cache_hit_rate": 0.7192859150969918,
+      "grammar_semantic_evaluations": 1265,
+      "profile_totals_seconds": {
+        "tokenize": 0.03624949915683828,
+        "candidate_rules": 0.06968809972750023,
+        "semantic_cache_lookup": 0.00208239967469126,
+        "semantic_cognitive_call": 0.42670980040566064,
+        "semantic_total": 0.4270362006209325,
+        "hypothesis_scoring": 0.010118400125065818,
+        "grammar_memory_update": 0.0029998996760696173,
+        "posterior": 0.005052899767179042,
+        "total_observe": 0.5703742995101493
+      },
+      "profile_counts": {
+        "tokenize": 2000,
+        "candidate_rules": 2000,
+        "semantic_cache_lookup": 7114,
+        "semantic_cognitive_call": 1997,
+        "semantic_total": 1997,
+        "hypothesis_scoring": 1265,
+        "grammar_memory_update": 2530,
+        "posterior": 1265,
+        "total_observe": 2000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 2500,
+      "rules": 4,
+      "sentences": 1492,
+      "tokens": 34302,
+      "rejected_tokens": 1778,
+      "revisions": 1492,
+      "commitments": 988,
+      "semantic_requests": 2208,
+      "semantic_cache_hits": 6146,
+      "semantic_cache_size": 2208,
+      "semantic_cache_hit_rate": 0.7356954752214508,
+      "grammar_semantic_evaluations": 1492,
+      "profile_totals_seconds": {
+        "tokenize": 0.04185469922958873,
+        "candidate_rules": 0.08079929993255064,
+        "semantic_cache_lookup": 0.002532900223741308,
+        "semantic_cognitive_call": 0.45262790023116395,
+        "semantic_total": 0.45301100038341247,
+        "hypothesis_scoring": 0.011719500122126192,
+        "grammar_memory_update": 0.0035565996367949992,
+        "posterior": 0.005969399644527584,
+        "total_observe": 0.6195653993054293
+      },
+      "profile_counts": {
+        "tokenize": 2500,
+        "candidate_rules": 2500,
+        "semantic_cache_lookup": 8354,
+        "semantic_cognitive_call": 2208,
+        "semantic_total": 2208,
+        "hypothesis_scoring": 1492,
+        "grammar_memory_update": 2984,
+        "posterior": 1492,
+        "total_observe": 2500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 3000,
+      "rules": 4,
+      "sentences": 1719,
+      "tokens": 37945,
+      "rejected_tokens": 1900,
+      "revisions": 1719,
+      "commitments": 1171,
+      "semantic_requests": 2357,
+      "semantic_cache_hits": 7202,
+      "semantic_cache_size": 2357,
+      "semantic_cache_hit_rate": 0.7534260905952506,
+      "grammar_semantic_evaluations": 1719,
+      "profile_totals_seconds": {
+        "tokenize": 0.04712989935069345,
+        "candidate_rules": 0.0907488000812009,
+        "semantic_cache_lookup": 0.0029372005083132535,
+        "semantic_cognitive_call": 0.4699153999390546,
+        "semantic_total": 0.4703321000561118,
+        "hypothesis_scoring": 0.013082800549454987,
+        "grammar_memory_update": 0.004023899877211079,
+        "posterior": 0.006816099630668759,
+        "total_observe": 0.6579670990468003
+      },
+      "profile_counts": {
+        "tokenize": 3000,
+        "candidate_rules": 3000,
+        "semantic_cache_lookup": 9559,
+        "semantic_cognitive_call": 2357,
+        "semantic_total": 2357,
+        "hypothesis_scoring": 1719,
+        "grammar_memory_update": 3438,
+        "posterior": 1719,
+        "total_observe": 3000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 3500,
+      "rules": 4,
+      "sentences": 2034,
+      "tokens": 47494,
+      "rejected_tokens": 2357,
+      "revisions": 2034,
+      "commitments": 1362,
+      "semantic_requests": 2602,
+      "semantic_cache_hits": 8740,
+      "semantic_cache_size": 2602,
+      "semantic_cache_hit_rate": 0.7705871980250397,
+      "grammar_semantic_evaluations": 2034,
+      "profile_totals_seconds": {
+        "tokenize": 0.05853269950603135,
+        "candidate_rules": 0.1127055999240838,
+        "semantic_cache_lookup": 0.0035636004467960447,
+        "semantic_cognitive_call": 0.5017967998574022,
+        "semantic_total": 0.5022701999114361,
+        "hypothesis_scoring": 0.016049800644395873,
+        "grammar_memory_update": 0.004825100186280906,
+        "posterior": 0.008371099509531632,
+        "total_observe": 0.7336108990421053
+      },
+      "profile_counts": {
+        "tokenize": 3500,
+        "candidate_rules": 3500,
+        "semantic_cache_lookup": 11342,
+        "semantic_cognitive_call": 2602,
+        "semantic_total": 2602,
+        "hypothesis_scoring": 2034,
+        "grammar_memory_update": 4068,
+        "posterior": 2034,
+        "total_observe": 3500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 4000,
+      "rules": 4,
+      "sentences": 2370,
+      "tokens": 57279,
+      "rejected_tokens": 2702,
+      "revisions": 2370,
+      "commitments": 1585,
+      "semantic_requests": 2713,
+      "semantic_cache_hits": 10567,
+      "semantic_cache_size": 2713,
+      "semantic_cache_hit_rate": 0.7957078313253012,
+      "grammar_semantic_evaluations": 2370,
+      "profile_totals_seconds": {
+        "tokenize": 0.07076469986350276,
+        "candidate_rules": 0.13458280015038326,
+        "semantic_cache_lookup": 0.004166900820564479,
+        "semantic_cognitive_call": 0.5151295998657588,
+        "semantic_total": 0.5156279998482205,
+        "hypothesis_scoring": 0.019410200824495405,
+        "grammar_memory_update": 0.005653000349411741,
+        "posterior": 0.009931099571986124,
+        "total_observe": 0.7921501994715072
+      },
+      "profile_counts": {
+        "tokenize": 4000,
+        "candidate_rules": 4000,
+        "semantic_cache_lookup": 13280,
+        "semantic_cognitive_call": 2713,
+        "semantic_total": 2713,
+        "hypothesis_scoring": 2370,
+        "grammar_memory_update": 4740,
+        "posterior": 2370,
+        "total_observe": 4000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 4500,
+      "rules": 4,
+      "sentences": 2651,
+      "tokens": 64785,
+      "rejected_tokens": 3165,
+      "revisions": 2651,
+      "commitments": 1754,
+      "semantic_requests": 2912,
+      "semantic_cache_hits": 11983,
+      "semantic_cache_size": 2912,
+      "semantic_cache_hit_rate": 0.8044981537428667,
+      "grammar_semantic_evaluations": 2651,
+      "profile_totals_seconds": {
+        "tokenize": 0.08024229979491793,
+        "candidate_rules": 0.15171180016477592,
+        "semantic_cache_lookup": 0.0047395006695296615,
+        "semantic_cognitive_call": 0.5340531997499056,
+        "semantic_total": 0.5345918996608816,
+        "hypothesis_scoring": 0.021754500805400312,
+        "grammar_memory_update": 0.006329500436550006,
+        "posterior": 0.011104999604867771,
+        "total_observe": 0.8462850998330396
+      },
+      "profile_counts": {
+        "tokenize": 4500,
+        "candidate_rules": 4500,
+        "semantic_cache_lookup": 14895,
+        "semantic_cognitive_call": 2912,
+        "semantic_total": 2912,
+        "hypothesis_scoring": 2651,
+        "grammar_memory_update": 5302,
+        "posterior": 2651,
+        "total_observe": 4500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 5000,
+      "rules": 4,
+      "sentences": 2930,
+      "tokens": 71669,
+      "rejected_tokens": 3550,
+      "revisions": 2930,
+      "commitments": 1923,
+      "semantic_requests": 3093,
+      "semantic_cache_hits": 13379,
+      "semantic_cache_size": 3093,
+      "semantic_cache_hit_rate": 0.8122268091306459,
+      "grammar_semantic_evaluations": 2930,
+      "profile_totals_seconds": {
+        "tokenize": 0.08853199987788685,
+        "candidate_rules": 0.16750080016208813,
+        "semantic_cache_lookup": 0.005333100736606866,
+        "semantic_cognitive_call": 0.5540997994539794,
+        "semantic_total": 0.5546751994697843,
+        "hypothesis_scoring": 0.023954600765137002,
+        "grammar_memory_update": 0.006996100360993296,
+        "posterior": 0.01222059951396659,
+        "total_observe": 0.8985707000829279
+      },
+      "profile_counts": {
+        "tokenize": 5000,
+        "candidate_rules": 5000,
+        "semantic_cache_lookup": 16472,
+        "semantic_cognitive_call": 3093,
+        "semantic_total": 3093,
+        "hypothesis_scoring": 2930,
+        "grammar_memory_update": 5860,
+        "posterior": 2930,
+        "total_observe": 5000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 5500,
+      "rules": 4,
+      "sentences": 3136,
+      "tokens": 75082,
+      "rejected_tokens": 3713,
+      "revisions": 3136,
+      "commitments": 2081,
+      "semantic_requests": 3228,
+      "semantic_cache_hits": 14328,
+      "semantic_cache_size": 3228,
+      "semantic_cache_hit_rate": 0.8161312371838687,
+      "grammar_semantic_evaluations": 3136,
+      "profile_totals_seconds": {
+        "tokenize": 0.09334679969470017,
+        "candidate_rules": 0.1767523005255498,
+        "semantic_cache_lookup": 0.005700500914826989,
+        "semantic_cognitive_call": 0.5671311994374264,
+        "semantic_total": 0.5677334994252305,
+        "hypothesis_scoring": 0.02522500095074065,
+        "grammar_memory_update": 0.0074198005895596,
+        "posterior": 0.012979999562958255,
+        "total_observe": 0.931020700285444
+      },
+      "profile_counts": {
+        "tokenize": 5500,
+        "candidate_rules": 5500,
+        "semantic_cache_lookup": 17556,
+        "semantic_cognitive_call": 3228,
+        "semantic_total": 3228,
+        "hypothesis_scoring": 3136,
+        "grammar_memory_update": 6272,
+        "posterior": 3136,
+        "total_observe": 5500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 6000,
+      "rules": 4,
+      "sentences": 3299,
+      "tokens": 76743,
+      "rejected_tokens": 3781,
+      "revisions": 3299,
+      "commitments": 2226,
+      "semantic_requests": 3320,
+      "semantic_cache_hits": 14991,
+      "semantic_cache_size": 3320,
+      "semantic_cache_hit_rate": 0.8186882201955109,
+      "grammar_semantic_evaluations": 3299,
+      "profile_totals_seconds": {
+        "tokenize": 0.09901909940526821,
+        "candidate_rules": 0.18320840058731847,
+        "semantic_cache_lookup": 0.005987100914353505,
+        "semantic_cognitive_call": 0.5750774992920924,
+        "semantic_total": 0.5756995992269367,
+        "hypothesis_scoring": 0.026063000870635733,
+        "grammar_memory_update": 0.007748800475383177,
+        "posterior": 0.013591699593234807,
+        "total_observe": 0.956288300367305
+      },
+      "profile_counts": {
+        "tokenize": 6000,
+        "candidate_rules": 6000,
+        "semantic_cache_lookup": 18311,
+        "semantic_cognitive_call": 3320,
+        "semantic_total": 3320,
+        "hypothesis_scoring": 3299,
+        "grammar_memory_update": 6598,
+        "posterior": 3299,
+        "total_observe": 6000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 6500,
+      "rules": 4,
+      "sentences": 3398,
+      "tokens": 77530,
+      "rejected_tokens": 3812,
+      "revisions": 3398,
+      "commitments": 2315,
+      "semantic_requests": 3356,
+      "semantic_cache_hits": 15332,
+      "semantic_cache_size": 3356,
+      "semantic_cache_hit_rate": 0.8204195205479452,
+      "grammar_semantic_evaluations": 3398,
+      "profile_totals_seconds": {
+        "tokenize": 0.1013045990257524,
+        "candidate_rules": 0.18747330058249645,
+        "semantic_cache_lookup": 0.006153300841106102,
+        "semantic_cognitive_call": 0.5780112992215436,
+        "semantic_total": 0.5786427991697565,
+        "hypothesis_scoring": 0.026492400880670175,
+        "grammar_memory_update": 0.007942900498164818,
+        "posterior": 0.013952999492175877,
+        "total_observe": 0.9682089003326837
+      },
+      "profile_counts": {
+        "tokenize": 6500,
+        "candidate_rules": 6500,
+        "semantic_cache_lookup": 18688,
+        "semantic_cognitive_call": 3356,
+        "semantic_total": 3356,
+        "hypothesis_scoring": 3398,
+        "grammar_memory_update": 6796,
+        "posterior": 3398,
+        "total_observe": 6500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 7000,
+      "rules": 4,
+      "sentences": 3504,
+      "tokens": 78263,
+      "rejected_tokens": 3845,
+      "revisions": 3504,
+      "commitments": 2416,
+      "semantic_requests": 3398,
+      "semantic_cache_hits": 15701,
+      "semantic_cache_size": 3398,
+      "semantic_cache_hit_rate": 0.8220849259123514,
+      "grammar_semantic_evaluations": 3504,
+      "profile_totals_seconds": {
+        "tokenize": 0.10358619861654006,
+        "candidate_rules": 0.19167550050769933,
+        "semantic_cache_lookup": 0.0063117008248809725,
+        "semantic_cognitive_call": 0.585234698955901,
+        "semantic_total": 0.5858784989395645,
+        "hypothesis_scoring": 0.02692590095102787,
+        "grammar_memory_update": 0.008141900470945984,
+        "posterior": 0.01433489951887168,
+        "total_observe": 0.984468500042567
+      },
+      "profile_counts": {
+        "tokenize": 7000,
+        "candidate_rules": 7000,
+        "semantic_cache_lookup": 19099,
+        "semantic_cognitive_call": 3398,
+        "semantic_total": 3398,
+        "hypothesis_scoring": 3504,
+        "grammar_memory_update": 7008,
+        "posterior": 3504,
+        "total_observe": 7000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 7500,
+      "rules": 4,
+      "sentences": 3611,
+      "tokens": 78974,
+      "rejected_tokens": 3875,
+      "revisions": 3611,
+      "commitments": 2512,
+      "semantic_requests": 3440,
+      "semantic_cache_hits": 16062,
+      "semantic_cache_size": 3440,
+      "semantic_cache_hit_rate": 0.8236078350938365,
+      "grammar_semantic_evaluations": 3611,
+      "profile_totals_seconds": {
+        "tokenize": 0.10562709852820262,
+        "candidate_rules": 0.1957873007922899,
+        "semantic_cache_lookup": 0.0064879006531555206,
+        "semantic_cognitive_call": 0.5907046989304945,
+        "semantic_total": 0.5913620989595074,
+        "hypothesis_scoring": 0.027369700925191864,
+        "grammar_memory_update": 0.008359800616744906,
+        "posterior": 0.014816199487540871,
+        "total_observe": 0.9987742003286257
+      },
+      "profile_counts": {
+        "tokenize": 7500,
+        "candidate_rules": 7500,
+        "semantic_cache_lookup": 19502,
+        "semantic_cognitive_call": 3440,
+        "semantic_total": 3440,
+        "hypothesis_scoring": 3611,
+        "grammar_memory_update": 7222,
+        "posterior": 3611,
+        "total_observe": 7500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 8000,
+      "rules": 4,
+      "sentences": 3707,
+      "tokens": 79747,
+      "rejected_tokens": 3889,
+      "revisions": 3707,
+      "commitments": 2598,
+      "semantic_requests": 3500,
+      "semantic_cache_hits": 16401,
+      "semantic_cache_size": 3500,
+      "semantic_cache_hit_rate": 0.8241294407316215,
+      "grammar_semantic_evaluations": 3707,
+      "profile_totals_seconds": {
+        "tokenize": 0.10772549870307557,
+        "candidate_rules": 0.19990210034302436,
+        "semantic_cache_lookup": 0.006638600665610284,
+        "semantic_cognitive_call": 0.5947214987536427,
+        "semantic_total": 0.595392198767513,
+        "hypothesis_scoring": 0.027775801077950746,
+        "grammar_memory_update": 0.008543100499082357,
+        "posterior": 0.015160199400270358,
+        "total_observe": 1.011386900121579
+      },
+      "profile_counts": {
+        "tokenize": 8000,
+        "candidate_rules": 8000,
+        "semantic_cache_lookup": 19901,
+        "semantic_cognitive_call": 3500,
+        "semantic_total": 3500,
+        "hypothesis_scoring": 3707,
+        "grammar_memory_update": 7414,
+        "posterior": 3707,
+        "total_observe": 8000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 8500,
+      "rules": 4,
+      "sentences": 3837,
+      "tokens": 81124,
+      "rejected_tokens": 3971,
+      "revisions": 3837,
+      "commitments": 2707,
+      "semantic_requests": 3558,
+      "semantic_cache_hits": 16959,
+      "semantic_cache_size": 3558,
+      "semantic_cache_hit_rate": 0.8265828337476239,
+      "grammar_semantic_evaluations": 3837,
+      "profile_totals_seconds": {
+        "tokenize": 0.11065729879192077,
+        "candidate_rules": 0.20550150040071458,
+        "semantic_cache_lookup": 0.006865800969535485,
+        "semantic_cognitive_call": 0.5991337986197323,
+        "semantic_total": 0.5998183986812364,
+        "hypothesis_scoring": 0.028412301297066733,
+        "grammar_memory_update": 0.008803400356555358,
+        "posterior": 0.01564339952892624,
+        "total_observe": 1.0275949005445
+      },
+      "profile_counts": {
+        "tokenize": 8500,
+        "candidate_rules": 8500,
+        "semantic_cache_lookup": 20517,
+        "semantic_cognitive_call": 3558,
+        "semantic_total": 3558,
+        "hypothesis_scoring": 3837,
+        "grammar_memory_update": 7674,
+        "posterior": 3837,
+        "total_observe": 8500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 9000,
+      "rules": 4,
+      "sentences": 3979,
+      "tokens": 82440,
+      "rejected_tokens": 4022,
+      "revisions": 3979,
+      "commitments": 2836,
+      "semantic_requests": 3615,
+      "semantic_cache_hits": 17537,
+      "semantic_cache_size": 3615,
+      "semantic_cache_hit_rate": 0.8290941754916793,
+      "grammar_semantic_evaluations": 3979,
+      "profile_totals_seconds": {
+        "tokenize": 0.11356639914447442,
+        "candidate_rules": 0.2111221003870014,
+        "semantic_cache_lookup": 0.007080600771587342,
+        "semantic_cognitive_call": 0.6039076985907741,
+        "semantic_total": 0.604602398670977,
+        "hypothesis_scoring": 0.029114001139532775,
+        "grammar_memory_update": 0.009094900189666077,
+        "posterior": 0.016354099585441872,
+        "total_observe": 1.0445493005099706
+      },
+      "profile_counts": {
+        "tokenize": 9000,
+        "candidate_rules": 9000,
+        "semantic_cache_lookup": 21152,
+        "semantic_cognitive_call": 3615,
+        "semantic_total": 3615,
+        "hypothesis_scoring": 3979,
+        "grammar_memory_update": 7958,
+        "posterior": 3979,
+        "total_observe": 9000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 9500,
+      "rules": 4,
+      "sentences": 4089,
+      "tokens": 83376,
+      "rejected_tokens": 4070,
+      "revisions": 4089,
+      "commitments": 2935,
+      "semantic_requests": 3666,
+      "semantic_cache_hits": 17953,
+      "semantic_cache_size": 3666,
+      "semantic_cache_hit_rate": 0.830426939266386,
+      "grammar_semantic_evaluations": 4089,
+      "profile_totals_seconds": {
+        "tokenize": 0.1158228985441383,
+        "candidate_rules": 0.21543440007371828,
+        "semantic_cache_lookup": 0.007239900849526748,
+        "semantic_cognitive_call": 0.607831098663155,
+        "semantic_total": 0.6085369987413287,
+        "hypothesis_scoring": 0.029593901010230184,
+        "grammar_memory_update": 0.0093039003550075,
+        "posterior": 0.016747699381085113,
+        "total_observe": 1.0576602001383435
+      },
+      "profile_counts": {
+        "tokenize": 9500,
+        "candidate_rules": 9500,
+        "semantic_cache_lookup": 21619,
+        "semantic_cognitive_call": 3666,
+        "semantic_total": 3666,
+        "hypothesis_scoring": 4089,
+        "grammar_memory_update": 8178,
+        "posterior": 4089,
+        "total_observe": 9500
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    },
+    {
+      "episode": 10000,
+      "rules": 4,
+      "sentences": 4194,
+      "tokens": 84489,
+      "rejected_tokens": 4125,
+      "revisions": 4194,
+      "commitments": 3023,
+      "semantic_requests": 3715,
+      "semantic_cache_hits": 18383,
+      "semantic_cache_size": 3715,
+      "semantic_cache_hit_rate": 0.8318852384831207,
+      "grammar_semantic_evaluations": 4194,
+      "profile_totals_seconds": {
+        "tokenize": 0.11847559901070781,
+        "candidate_rules": 0.22048949979944155,
+        "semantic_cache_lookup": 0.007421200774842873,
+        "semantic_cognitive_call": 0.6155059985758271,
+        "semantic_total": 0.6162233986251522,
+        "hypothesis_scoring": 0.030124201031867415,
+        "grammar_memory_update": 0.009524000226520002,
+        "posterior": 0.01714949938468635,
+        "total_observe": 1.0758288998622447
+      },
+      "profile_counts": {
+        "tokenize": 10000,
+        "candidate_rules": 10000,
+        "semantic_cache_lookup": 22098,
+        "semantic_cognitive_call": 3715,
+        "semantic_total": 3715,
+        "hypothesis_scoring": 4194,
+        "grammar_memory_update": 8388,
+        "posterior": 4194,
+        "total_observe": 10000
+      },
+      "slow_event_count": 1,
+      "slow_events": [
+        {
+          "sentence": "Well it's just that, you know, a pound, or a hundred pounds today, is not the same as a hundred pounds in a year's time, or two, two years' time.",
+          "sentence_s": 0.11343460000352934,
+          "tokenize_s": 2.8600014047697186e-05,
+          "candidate_rules_s": 0.00035099999513477087,
+          "semantic_s": 0.11300979999941774,
+          "semantic_calls": [
+            {
+              "query": "well",
+              "cache_hit": false,
+              "cache_lookup_s": 5.999754648655653e-07,
+              "cognitive_call_s": 0.11257250001654029,
+              "total_s": 0.11257309999200515,
+              "pct_of_semantic": 99.61357332955652
+            },
+            {
+              "query": "just",
+              "cache_hit": false,
+              "cache_lookup_s": 6.00004568696022e-07,
+              "cognitive_call_s": 8.630001684650779e-05,
+              "total_s": 8.690002141520381e-05,
+              "pct_of_semantic": 0.07689600496209315
+            },
+            {
+              "query": "know",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00010730000212788582,
+              "total_s": 0.00010750000365078449,
+              "pct_of_semantic": 0.09512449685897893
+            },
+            {
+              "query": "pound",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 0.00012599999899975955,
+              "total_s": 0.00012620000052265823,
+              "pct_of_semantic": 0.11167173158726805
+            },
+            {
+              "query": "hundred",
+              "cache_hit": false,
+              "cache_lookup_s": 2.00001522898674e-07,
+              "cognitive_call_s": 7.270000060088933e-05,
+              "total_s": 7.2900002123788e-05,
+              "pct_of_semantic": 0.06450768174455986
+            },
+            {
+              "query": "pounds",
+              "cache_hit": false,
+              "cache_lookup_s": 1.00000761449337e-07,
+              "cognitive_call_s": 1.829999382607639e-05,
+              "total_s": 1.8399994587525725e-05,
+              "pct_of_semantic": 0.016281769003768282
+            }
+          ],
+          "hypothesis_scoring_s": 1.7000013031065464e-05,
+          "posterior_s": 1.2899981811642647e-05,
+          "tokens": [
+            "well",
+            "it's",
+            "just",
+            "that",
+            "you",
+            "know",
+            "pound",
+            "or",
+            "hundred",
+            "pounds",
+            "today",
+            "is",
+            "not",
+            "the",
+            "same",
+            "as",
+            "hundred",
+            "pounds",
+            "in",
+            "year's",
+            "time",
+            "or",
+            "two",
+            "two",
+            "years",
+            "time"
+          ]
+        }
+      ]
+    }
+  ]
+}
