@@ -1,0 +1,248 @@
+{
+  "version": "v301",
+  "benchmark": "richer_cognition",
+  "tasks": [
+    "delayed_memory",
+    "sequence_binding",
+    "interference",
+    "rule_change",
+    "planning",
+    "counterfactual"
+  ],
+  "seeds": [
+    301,
+    302,
+    303
+  ],
+  "episodes": 8,
+  "horizon": 9,
+  "config_count": 5,
+  "wall_time_seconds": 0.10140721999960078,
+  "results": [
+    {
+      "credit": "global_persistent",
+      "eval_accuracy": 0.7569444444444445,
+      "first_half": 0.8194444444444445,
+      "second_half": 0.6944444444444445,
+      "learning_gain": -0.125,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9166666666666666,
+          "first": 0.8333333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.5833333333333334,
+          "first": 0.6666666666666666,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.4166666666666667,
+          "first": 0.6666666666666666,
+          "second": 0.16666666666666666
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.625,
+          "first": 0.75,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "adaptive_baseline",
+      "eval_accuracy": 0.7569444444444445,
+      "first_half": 0.8194444444444445,
+      "second_half": 0.6944444444444445,
+      "learning_gain": -0.125,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9166666666666666,
+          "first": 0.8333333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.5833333333333334,
+          "first": 0.6666666666666666,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.4166666666666667,
+          "first": 0.6666666666666666,
+          "second": 0.16666666666666666
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.625,
+          "first": 0.75,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "global_fast",
+      "eval_accuracy": 0.7361111111111112,
+      "first_half": 0.7777777777777778,
+      "second_half": 0.6944444444444445,
+      "learning_gain": -0.08333333333333326,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9166666666666666,
+          "first": 0.9166666666666666,
+          "second": 0.9166666666666666
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4583333333333333,
+          "first": 0.4166666666666667,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5416666666666666,
+          "first": 0.8333333333333334,
+          "second": 0.25
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.5,
+          "first": 0.5,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "error_accumulator",
+      "eval_accuracy": 0.7152777777777778,
+      "first_half": 0.7361111111111112,
+      "second_half": 0.6944444444444445,
+      "learning_gain": -0.04166666666666663,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9166666666666666,
+          "first": 0.8333333333333334,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4583333333333333,
+          "first": 0.4166666666666667,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.4166666666666667,
+          "first": 0.6666666666666666,
+          "second": 0.16666666666666666
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.5,
+          "first": 0.5,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "long_eligibility",
+      "eval_accuracy": 0.6875,
+      "first_half": 0.7083333333333334,
+      "second_half": 0.6666666666666666,
+      "learning_gain": -0.04166666666666674,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.875,
+          "first": 0.75,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4583333333333333,
+          "first": 0.5,
+          "second": 0.4166666666666667
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.2916666666666667,
+          "first": 0.5,
+          "second": 0.08333333333333333
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.5,
+          "first": 0.5,
+          "second": 0.5
+        }
+      ]
+    }
+  ]
+}

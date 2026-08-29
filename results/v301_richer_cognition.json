@@ -1,0 +1,257 @@
+{
+  "version": "v301",
+  "benchmark": "richer_cognition",
+  "tasks": [
+    "delayed_memory",
+    "sequence_binding",
+    "interference",
+    "rule_change",
+    "planning",
+    "counterfactual"
+  ],
+  "seeds": [
+    301,
+    302,
+    303,
+    304,
+    305,
+    306,
+    307,
+    308,
+    309,
+    310,
+    311,
+    312
+  ],
+  "episodes": 16,
+  "horizon": 9,
+  "config_count": 5,
+  "wall_time_seconds": 0.38616790002561174,
+  "results": [
+    {
+      "credit": "global_persistent",
+      "eval_accuracy": 0.7690972222222222,
+      "first_half": 0.8194444444444445,
+      "second_half": 0.71875,
+      "learning_gain": -0.10069444444444453,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.96875,
+          "first": 0.9375,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.5260416666666666,
+          "first": 0.5520833333333334,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5833333333333334,
+          "first": 0.8541666666666666,
+          "second": 0.3125
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.5364583333333334,
+          "first": 0.5729166666666666,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "adaptive_baseline",
+      "eval_accuracy": 0.7664930555555555,
+      "first_half": 0.8194444444444445,
+      "second_half": 0.7135416666666666,
+      "learning_gain": -0.1059027777777779,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.953125,
+          "first": 0.9375,
+          "second": 0.96875
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.5260416666666666,
+          "first": 0.5520833333333334,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5833333333333334,
+          "first": 0.8541666666666666,
+          "second": 0.3125
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.5364583333333334,
+          "first": 0.5729166666666666,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "error_accumulator",
+      "eval_accuracy": 0.7482638888888888,
+      "first_half": 0.7777777777777778,
+      "second_half": 0.71875,
+      "learning_gain": -0.05902777777777779,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.96875,
+          "first": 0.9375,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4635416666666667,
+          "first": 0.4270833333333333,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5833333333333334,
+          "first": 0.8541666666666666,
+          "second": 0.3125
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.4739583333333333,
+          "first": 0.4479166666666667,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "global_fast",
+      "eval_accuracy": 0.7430555555555555,
+      "first_half": 0.7777777777777778,
+      "second_half": 0.7083333333333334,
+      "learning_gain": -0.06944444444444442,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.9375,
+          "first": 0.9375,
+          "second": 0.9375
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4635416666666667,
+          "first": 0.4270833333333333,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5833333333333334,
+          "first": 0.8541666666666666,
+          "second": 0.3125
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.4739583333333333,
+          "first": 0.4479166666666667,
+          "second": 0.5
+        }
+      ]
+    },
+    {
+      "credit": "long_eligibility",
+      "eval_accuracy": 0.7352430555555555,
+      "first_half": 0.7604166666666666,
+      "second_half": 0.7100694444444445,
+      "learning_gain": -0.0503472222222221,
+      "tasks": [
+        {
+          "task": "delayed_memory",
+          "accuracy": 0.953125,
+          "first": 0.90625,
+          "second": 1.0
+        },
+        {
+          "task": "sequence_binding",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "interference",
+          "accuracy": 0.4635416666666667,
+          "first": 0.4270833333333333,
+          "second": 0.5
+        },
+        {
+          "task": "rule_change",
+          "accuracy": 0.5208333333333334,
+          "first": 0.78125,
+          "second": 0.2604166666666667
+        },
+        {
+          "task": "planning",
+          "accuracy": 1.0,
+          "first": 1.0,
+          "second": 1.0
+        },
+        {
+          "task": "counterfactual",
+          "accuracy": 0.4739583333333333,
+          "first": 0.4479166666666667,
+          "second": 0.5
+        }
+      ]
+    }
+  ]
+}
