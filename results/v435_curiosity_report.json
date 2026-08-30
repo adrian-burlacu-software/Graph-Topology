@@ -1,0 +1,55 @@
+{
+  "status": "FAIL",
+  "version": "v435",
+  "methodology": {
+    "architecture": "curiosity-driven semantic learner",
+    "starting_memory": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\cognitive_language_memory.sqlite",
+    "lexical_priors": [
+      "WordNet",
+      "VerbNet 3.3",
+      "PropBank 3.1",
+      "SemLink"
+    ],
+    "broad_semantic_graph": "ConceptNet already present in memory",
+    "grammar_source": "UD GUM already learned upstream",
+    "teacher_role": "answer questions selected from missing knowledge",
+    "teacher_controls_curiosity": false,
+    "teacher_not_runtime_dependency": false
+  },
+  "curiosity": {
+    "concepts": 100,
+    "rounds_per_concept": 5,
+    "questions_attempted": 500,
+    "accepted_answers": 0,
+    "failed_answers": 508,
+    "new_facts": 0,
+    "coverage_by_family": {}
+  },
+  "memory": {
+    "sqlite": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\cognitive_language_memory.sqlite",
+    "counts": {
+      "concepts": 124360,
+      "lexical_relations": 360653,
+      "verbnet_classes": 329,
+      "verbnet_members": 6763,
+      "verbnet_roles": 977,
+      "verbnet_frames": 1567,
+      "propbank_predicates": 298481,
+      "propbank_rolesets": 11617,
+      "propbank_roles": 77442,
+      "semlink_mappings": 7664,
+      "teacher_examples": 18,
+      "learned_patterns": 36,
+      "semantic_grounding": 318,
+      "curiosity_state": 0,
+      "curiosity_questions": 9,
+      "curiosity_facts": 0
+    }
+  },
+  "outputs": {
+    "questions": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v435_curiosity_questions.jsonl",
+    "failures": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v435_curiosity_failures.jsonl",
+    "report": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v435_curiosity_report.json"
+  },
+  "runtime_seconds": 424.26177350000034
+}

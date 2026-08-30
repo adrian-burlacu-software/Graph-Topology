@@ -1,0 +1,570 @@
+{"lemma": "cut", "family": "patients", "question": "What kinds of things can someone cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "objects", "question": "What can someone cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "agents", "question": "What kinds of things can cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "agents", "question": "What kinds of things can break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "patients", "question": "What kinds of things can someone break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "tools", "question": "What can someone use to break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "patients", "question": "What kinds of things can someone fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "objects", "question": "What can someone fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "agents", "question": "What kinds of things can fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "agents", "question": "What kinds of things can run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "patients", "question": "What kinds of things can someone run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "objects", "question": "What can someone run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "agents", "question": "What kinds of things can play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "patients", "question": "What kinds of things can someone play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "tools", "question": "What can someone use to play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "agents", "question": "What kinds of things can clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "patients", "question": "What kinds of things can someone clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "objects", "question": "What can someone clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "agents", "question": "What kinds of things can call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "locations", "question": "Where can call happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "patients", "question": "What kinds of things can someone call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "agents", "question": "What kinds of things can drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "patients", "question": "What kinds of things can someone drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "objects", "question": "What can someone drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "locations", "question": "Where can give happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "agents", "question": "What kinds of things can give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "patients", "question": "What kinds of things can someone give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "patients", "question": "What kinds of things can someone make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "objects", "question": "What can someone make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "locations", "question": "Where can make happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "agents", "question": "What kinds of things can draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "patients", "question": "What kinds of things can someone draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "objects", "question": "What can someone draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "agents", "question": "What kinds of things can take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "patients", "question": "What kinds of things can someone take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "objects", "question": "What can someone take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "agents", "question": "What kinds of things can turn?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "patients", "question": "What kinds of things can someone turn?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "objects", "question": "What can someone turn?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "charge", "family": "agents", "question": "What kinds of things can charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "patients", "question": "What kinds of things can someone charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "objects", "question": "What can someone charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "agents", "question": "What kinds of things can close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "patients", "question": "What kinds of things can someone close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "objects", "question": "What can someone close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "agents", "question": "What kinds of things can pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "patients", "question": "What kinds of things can someone pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "objects", "question": "What can someone pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "agents", "question": "What kinds of things can hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "patients", "question": "What kinds of things can someone hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "objects", "question": "What can someone hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "agents", "question": "What kinds of things can check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "patients", "question": "What kinds of things can someone check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "objects", "question": "What can someone check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "agents", "question": "What kinds of things can beat?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "patients", "question": "What kinds of things can someone beat?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "objects", "question": "What can someone beat?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "open", "family": "agents", "question": "What kinds of things can open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "patients", "question": "What kinds of things can someone open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "objects", "question": "What can someone open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "agents", "question": "What kinds of things can raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "patients", "question": "What kinds of things can someone raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "objects", "question": "What can someone raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "agents", "question": "What kinds of things can go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "patients", "question": "What kinds of things can someone go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "objects", "question": "What can someone go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "agents", "question": "What kinds of things can set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "patients", "question": "What kinds of things can someone set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "objects", "question": "What can someone set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lead", "family": "agents", "question": "What kinds of things can lead?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "patients", "question": "What kinds of things can someone cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "objects", "question": "What can someone cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "agents", "question": "What kinds of things can cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "tools", "question": "What can someone use to cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cut", "family": "postconditions", "question": "What usually happens after cut?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "agents", "question": "What kinds of things can break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "patients", "question": "What kinds of things can someone break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "tools", "question": "What can someone use to break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "objects", "question": "What can someone break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "break", "family": "postconditions", "question": "What usually happens after break?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "patients", "question": "What kinds of things can someone fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "objects", "question": "What can someone fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "agents", "question": "What kinds of things can fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "tools", "question": "What can someone use to fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fall", "family": "postconditions", "question": "What usually happens after fall?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "agents", "question": "What kinds of things can run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "patients", "question": "What kinds of things can someone run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "objects", "question": "What can someone run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "tools", "question": "What can someone use to run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "run", "family": "postconditions", "question": "What usually happens after run?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "agents", "question": "What kinds of things can play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "patients", "question": "What kinds of things can someone play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "tools", "question": "What can someone use to play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "objects", "question": "What can someone play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "play", "family": "postconditions", "question": "What usually happens after play?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "agents", "question": "What kinds of things can clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "patients", "question": "What kinds of things can someone clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "objects", "question": "What can someone clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "locations", "question": "Where can clear happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clear", "family": "tools", "question": "What can someone use to clear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "agents", "question": "What kinds of things can call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "locations", "question": "Where can call happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "patients", "question": "What kinds of things can someone call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "tools", "question": "What can someone use to call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "call", "family": "objects", "question": "What can someone call?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "agents", "question": "What kinds of things can drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "patients", "question": "What kinds of things can someone drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "objects", "question": "What can someone drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "tools", "question": "What can someone use to drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drive", "family": "postconditions", "question": "What usually happens after drive?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "locations", "question": "Where can give happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "agents", "question": "What kinds of things can give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "patients", "question": "What kinds of things can someone give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "tools", "question": "What can someone use to give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "give", "family": "objects", "question": "What can someone give?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "patients", "question": "What kinds of things can someone make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "objects", "question": "What can someone make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "locations", "question": "Where can make happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "agents", "question": "What kinds of things can make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "make", "family": "tools", "question": "What can someone use to make?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "agents", "question": "What kinds of things can draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "patients", "question": "What kinds of things can someone draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "objects", "question": "What can someone draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "locations", "question": "Where can draw happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "draw", "family": "tools", "question": "What can someone use to draw?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "agents", "question": "What kinds of things can take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "patients", "question": "What kinds of things can someone take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "objects", "question": "What can someone take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "locations", "question": "Where can take happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "take", "family": "tools", "question": "What can someone use to take?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "agents", "question": "What kinds of things can turn?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "patients", "question": "What kinds of things can someone turn?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "turn", "family": "objects", "question": "What can someone turn?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "turn", "family": "locations", "question": "Where can turn happen?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "turn", "family": "postconditions", "question": "What usually happens after turn?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "agents", "question": "What kinds of things can charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "patients", "question": "What kinds of things can someone charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "objects", "question": "What can someone charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "locations", "question": "Where can charge happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "charge", "family": "tools", "question": "What can someone use to charge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "agents", "question": "What kinds of things can close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "patients", "question": "What kinds of things can someone close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "objects", "question": "What can someone close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "locations", "question": "Where can close happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "close", "family": "tools", "question": "What can someone use to close?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "agents", "question": "What kinds of things can pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "patients", "question": "What kinds of things can someone pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "objects", "question": "What can someone pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "locations", "question": "Where can pass happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pass", "family": "tools", "question": "What can someone use to pass?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "agents", "question": "What kinds of things can hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "patients", "question": "What kinds of things can someone hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "objects", "question": "What can someone hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "locations", "question": "Where can hold happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hold", "family": "tools", "question": "What can someone use to hold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "agents", "question": "What kinds of things can check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "patients", "question": "What kinds of things can someone check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "objects", "question": "What can someone check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "locations", "question": "Where can check happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "check", "family": "tools", "question": "What can someone use to check?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "agents", "question": "What kinds of things can beat?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "patients", "question": "What kinds of things can someone beat?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "objects", "question": "What can someone beat?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "beat", "family": "locations", "question": "Where can beat happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "beat", "family": "tools", "question": "What can someone use to beat?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "agents", "question": "What kinds of things can open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "patients", "question": "What kinds of things can someone open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "objects", "question": "What can someone open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "locations", "question": "Where can open happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "open", "family": "tools", "question": "What can someone use to open?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "agents", "question": "What kinds of things can raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "patients", "question": "What kinds of things can someone raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "objects", "question": "What can someone raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "locations", "question": "Where can raise happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "raise", "family": "tools", "question": "What can someone use to raise?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "agents", "question": "What kinds of things can go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "patients", "question": "What kinds of things can someone go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "objects", "question": "What can someone go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "locations", "question": "Where can go happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "go", "family": "tools", "question": "What can someone use to go?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "agents", "question": "What kinds of things can set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "patients", "question": "What kinds of things can someone set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "objects", "question": "What can someone set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "locations", "question": "Where can set happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "set", "family": "tools", "question": "What can someone use to set?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lead", "family": "agents", "question": "What kinds of things can lead?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lead", "family": "patients", "question": "What kinds of things can someone lead?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lead", "family": "objects", "question": "What can someone lead?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "lead", "family": "locations", "question": "Where can lead happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lead", "family": "tools", "question": "What can someone use to lead?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "work", "family": "agents", "question": "What kinds of things can work?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "work", "family": "patients", "question": "What kinds of things can someone work?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "work", "family": "objects", "question": "What can someone work?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "work", "family": "locations", "question": "Where can work happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "work", "family": "tools", "question": "What can someone use to work?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pull", "family": "agents", "question": "What kinds of things can pull?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pull", "family": "patients", "question": "What kinds of things can someone pull?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pull", "family": "objects", "question": "What can someone pull?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pull", "family": "locations", "question": "Where can pull happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pull", "family": "tools", "question": "What can someone use to pull?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "swing", "family": "agents", "question": "What kinds of things can swing?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "swing", "family": "patients", "question": "What kinds of things can someone swing?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "swing", "family": "objects", "question": "What can someone swing?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "swing", "family": "locations", "question": "Where can swing happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "swing", "family": "tools", "question": "What can someone use to swing?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "blow", "family": "agents", "question": "What kinds of things can blow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "blow", "family": "patients", "question": "What kinds of things can someone blow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "blow", "family": "objects", "question": "What can someone blow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "blow", "family": "locations", "question": "Where can blow happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "blow", "family": "postconditions", "question": "What usually happens after blow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drop", "family": "agents", "question": "What kinds of things can drop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drop", "family": "patients", "question": "What kinds of things can someone drop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drop", "family": "objects", "question": "What can someone drop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drop", "family": "locations", "question": "Where can drop happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "drop", "family": "tools", "question": "What can someone use to drop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "get", "family": "agents", "question": "What kinds of things can get?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "get", "family": "patients", "question": "What kinds of things can someone get?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "get", "family": "objects", "question": "What can someone get?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "get", "family": "locations", "question": "Where can get happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "get", "family": "tools", "question": "What can someone use to get?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stand", "family": "agents", "question": "What kinds of things can stand?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stand", "family": "patients", "question": "What kinds of things can someone stand?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stand", "family": "objects", "question": "What can someone stand?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stand", "family": "locations", "question": "Where can stand happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stand", "family": "tools", "question": "What can someone use to stand?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fly", "family": "agents", "question": "What kinds of things can fly?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fly", "family": "patients", "question": "What kinds of things can someone fly?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fly", "family": "objects", "question": "What can someone fly?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fly", "family": "locations", "question": "Where can fly happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fly", "family": "tools", "question": "What can someone use to fly?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hit", "family": "agents", "question": "What kinds of things can hit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hit", "family": "patients", "question": "What kinds of things can someone hit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hit", "family": "objects", "question": "What can someone hit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hit", "family": "locations", "question": "Where can hit happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hit", "family": "tools", "question": "What can someone use to hit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "kill", "family": "agents", "question": "What kinds of things can kill?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "kill", "family": "patients", "question": "What kinds of things can someone kill?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "kill", "family": "objects", "question": "What can someone kill?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "kill", "family": "locations", "question": "Where can kill happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "kill", "family": "postconditions", "question": "What usually happens after kill?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "leave", "family": "agents", "question": "What kinds of things can leave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "leave", "family": "patients", "question": "What kinds of things can someone leave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "leave", "family": "objects", "question": "What can someone leave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "leave", "family": "locations", "question": "Where can leave happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "leave", "family": "tools", "question": "What can someone use to leave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "feel", "family": "agents", "question": "What kinds of things can feel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "feel", "family": "patients", "question": "What kinds of things can someone feel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "feel", "family": "objects", "question": "What can someone feel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "feel", "family": "locations", "question": "Where can feel happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "feel", "family": "tools", "question": "What can someone use to feel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "serve", "family": "agents", "question": "What kinds of things can serve?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "serve", "family": "patients", "question": "What kinds of things can someone serve?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "serve", "family": "objects", "question": "What can someone serve?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "serve", "family": "locations", "question": "Where can serve happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "serve", "family": "tools", "question": "What can someone use to serve?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "strike", "family": "agents", "question": "What kinds of things can strike?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "strike", "family": "patients", "question": "What kinds of things can someone strike?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "strike", "family": "objects", "question": "What can someone strike?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "strike", "family": "locations", "question": "Where can strike happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "strike", "family": "tools", "question": "What can someone use to strike?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "move", "family": "agents", "question": "What kinds of things can move?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "move", "family": "patients", "question": "What kinds of things can someone move?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "move", "family": "objects", "question": "What can someone move?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "move", "family": "locations", "question": "Where can move happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "move", "family": "tools", "question": "What can someone use to move?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "return", "family": "agents", "question": "What kinds of things can return?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "return", "family": "patients", "question": "What kinds of things can someone return?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "return", "family": "objects", "question": "What can someone return?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "return", "family": "locations", "question": "Where can return happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "return", "family": "tools", "question": "What can someone use to return?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "snap", "family": "agents", "question": "What kinds of things can snap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "snap", "family": "patients", "question": "What kinds of things can someone snap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "snap", "family": "objects", "question": "What can someone snap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "snap", "family": "locations", "question": "Where can snap happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "snap", "family": "tools", "question": "What can someone use to snap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sound", "family": "agents", "question": "What kinds of things can sound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sound", "family": "patients", "question": "What kinds of things can someone sound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sound", "family": "objects", "question": "What can someone sound?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "sound", "family": "locations", "question": "Where can sound happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sound", "family": "tools", "question": "What can someone use to sound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bow", "family": "agents", "question": "What kinds of things can bow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bow", "family": "patients", "question": "What kinds of things can someone bow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bow", "family": "objects", "question": "What can someone bow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bow", "family": "locations", "question": "Where can bow happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bow", "family": "tools", "question": "What can someone use to bow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "come", "family": "agents", "question": "What kinds of things can come?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "come", "family": "patients", "question": "What kinds of things can someone come?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "come", "family": "objects", "question": "What can someone come?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "come", "family": "locations", "question": "Where can come happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "come", "family": "tools", "question": "What can someone use to come?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crash", "family": "agents", "question": "What kinds of things can crash?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crash", "family": "patients", "question": "What kinds of things can someone crash?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crash", "family": "objects", "question": "What can someone crash?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crash", "family": "locations", "question": "Where can crash happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crash", "family": "tools", "question": "What can someone use to crash?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "keep", "family": "agents", "question": "What kinds of things can keep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "keep", "family": "patients", "question": "What kinds of things can someone keep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "keep", "family": "objects", "question": "What can someone keep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "keep", "family": "locations", "question": "Where can keep happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "keep", "family": "tools", "question": "What can someone use to keep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "spin", "family": "agents", "question": "What kinds of things can spin?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "spin", "family": "patients", "question": "What kinds of things can someone spin?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "spin", "family": "objects", "question": "What can someone spin?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "spin", "family": "locations", "question": "Where can spin happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "spin", "family": "tools", "question": "What can someone use to spin?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "act", "family": "agents", "question": "What kinds of things can act?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "act", "family": "patients", "question": "What kinds of things can someone act?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "act", "family": "objects", "question": "What can someone act?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "act", "family": "locations", "question": "Where can act happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "act", "family": "tools", "question": "What can someone use to act?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crack", "family": "agents", "question": "What kinds of things can crack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crack", "family": "patients", "question": "What kinds of things can someone crack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crack", "family": "objects", "question": "What can someone crack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crack", "family": "locations", "question": "Where can crack happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crack", "family": "tools", "question": "What can someone use to crack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "follow", "family": "agents", "question": "What kinds of things can follow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "follow", "family": "patients", "question": "What kinds of things can someone follow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "follow", "family": "objects", "question": "What can someone follow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "follow", "family": "locations", "question": "Where can follow happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "follow", "family": "tools", "question": "What can someone use to follow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hack", "family": "agents", "question": "What kinds of things can hack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hack", "family": "patients", "question": "What kinds of things can someone hack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hack", "family": "objects", "question": "What can someone hack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hack", "family": "locations", "question": "Where can hack happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hack", "family": "tools", "question": "What can someone use to hack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "box", "family": "agents", "question": "What kinds of things can box?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "box", "family": "patients", "question": "What kinds of things can someone box?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "box", "family": "objects", "question": "What can someone box?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "box", "family": "locations", "question": "Where can box happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "box", "family": "tools", "question": "What can someone use to box?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "count", "family": "agents", "question": "What kinds of things can count?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "count", "family": "patients", "question": "What kinds of things can someone count?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "count", "family": "objects", "question": "What can someone count?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "count", "family": "locations", "question": "Where can count happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "count", "family": "tools", "question": "What can someone use to count?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crown", "family": "agents", "question": "What kinds of things can crown?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crown", "family": "patients", "question": "What kinds of things can someone crown?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crown", "family": "objects", "question": "What can someone crown?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crown", "family": "locations", "question": "Where can crown happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "crown", "family": "tools", "question": "What can someone use to crown?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "meet", "family": "agents", "question": "What kinds of things can meet?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "meet", "family": "patients", "question": "What kinds of things can someone meet?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "meet", "family": "objects", "question": "What can someone meet?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "meet", "family": "locations", "question": "Where can meet happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "meet", "family": "tools", "question": "What can someone use to meet?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "see", "family": "agents", "question": "What kinds of things can see?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "see", "family": "patients", "question": "What kinds of things can someone see?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "see", "family": "objects", "question": "What can someone see?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "see", "family": "locations", "question": "Where can see happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "see", "family": "tools", "question": "What can someone use to see?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "slip", "family": "agents", "question": "What kinds of things can slip?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "slip", "family": "patients", "question": "What kinds of things can someone slip?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "slip", "family": "objects", "question": "What can someone slip?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "slip", "family": "locations", "question": "Where can slip happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "slip", "family": "tools", "question": "What can someone use to slip?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stone", "family": "agents", "question": "What kinds of things can stone?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stone", "family": "patients", "question": "What kinds of things can someone stone?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stone", "family": "objects", "question": "What can someone stone?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stone", "family": "locations", "question": "Where can stone happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stone", "family": "tools", "question": "What can someone use to stone?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tap", "family": "agents", "question": "What kinds of things can tap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tap", "family": "patients", "question": "What kinds of things can someone tap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tap", "family": "objects", "question": "What can someone tap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tap", "family": "locations", "question": "Where can tap happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tap", "family": "tools", "question": "What can someone use to tap?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "jump", "family": "agents", "question": "What kinds of things can jump?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "jump", "family": "patients", "question": "What kinds of things can someone jump?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "jump", "family": "objects", "question": "What can someone jump?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "jump", "family": "locations", "question": "Where can jump happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "jump", "family": "tools", "question": "What can someone use to jump?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "push", "family": "agents", "question": "What kinds of things can push?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "push", "family": "patients", "question": "What kinds of things can someone push?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "push", "family": "objects", "question": "What can someone push?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "push", "family": "locations", "question": "Where can push happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "push", "family": "tools", "question": "What can someone use to push?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stamp", "family": "agents", "question": "What kinds of things can stamp?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stamp", "family": "patients", "question": "What kinds of things can someone stamp?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stamp", "family": "objects", "question": "What can someone stamp?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stamp", "family": "locations", "question": "Where can stamp happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stamp", "family": "tools", "question": "What can someone use to stamp?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tease", "family": "agents", "question": "What kinds of things can tease?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tease", "family": "patients", "question": "What kinds of things can someone tease?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tease", "family": "objects", "question": "What can someone tease?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tease", "family": "locations", "question": "Where can tease happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tease", "family": "tools", "question": "What can someone use to tease?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cast", "family": "agents", "question": "What kinds of things can cast?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cast", "family": "patients", "question": "What kinds of things can someone cast?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cast", "family": "objects", "question": "What can someone cast?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cast", "family": "locations", "question": "Where can cast happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cast", "family": "tools", "question": "What can someone use to cast?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fold", "family": "agents", "question": "What kinds of things can fold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fold", "family": "patients", "question": "What kinds of things can someone fold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fold", "family": "objects", "question": "What can someone fold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fold", "family": "locations", "question": "Where can fold happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fold", "family": "tools", "question": "What can someone use to fold?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "grow", "family": "agents", "question": "What kinds of things can grow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "grow", "family": "patients", "question": "What kinds of things can someone grow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "grow", "family": "objects", "question": "What can someone grow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "grow", "family": "locations", "question": "Where can grow happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "grow", "family": "tools", "question": "What can someone use to grow?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "seed", "family": "agents", "question": "What kinds of things can seed?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "seed", "family": "patients", "question": "What kinds of things can someone seed?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "seed", "family": "objects", "question": "What can someone seed?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "seed", "family": "locations", "question": "Where can seed happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "seed", "family": "tools", "question": "What can someone use to seed?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "start", "family": "agents", "question": "What kinds of things can start?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "start", "family": "patients", "question": "What kinds of things can someone start?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "start", "family": "objects", "question": "What can someone start?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "start", "family": "locations", "question": "Where can start happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "start", "family": "tools", "question": "What can someone use to start?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stop", "family": "agents", "question": "What kinds of things can stop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stop", "family": "patients", "question": "What kinds of things can someone stop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stop", "family": "objects", "question": "What can someone stop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stop", "family": "locations", "question": "Where can stop happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "stop", "family": "tools", "question": "What can someone use to stop?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sweep", "family": "agents", "question": "What kinds of things can sweep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sweep", "family": "patients", "question": "What kinds of things can someone sweep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sweep", "family": "objects", "question": "What can someone sweep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sweep", "family": "locations", "question": "Where can sweep happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "sweep", "family": "tools", "question": "What can someone use to sweep?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "wave", "family": "agents", "question": "What kinds of things can wave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "wave", "family": "patients", "question": "What kinds of things can someone wave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "wave", "family": "objects", "question": "What can someone wave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "wave", "family": "locations", "question": "Where can wave happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "wave", "family": "tools", "question": "What can someone use to wave?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "explode", "family": "agents", "question": "What kinds of things can explode?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "explode", "family": "patients", "question": "What kinds of things can someone explode?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "explode", "family": "objects", "question": "What can someone explode?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "explode", "family": "locations", "question": "Where can explode happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "explode", "family": "tools", "question": "What can someone use to explode?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "heel", "family": "agents", "question": "What kinds of things can heel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "heel", "family": "patients", "question": "What kinds of things can someone heel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "heel", "family": "objects", "question": "What can someone heel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "heel", "family": "locations", "question": "Where can heel happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "heel", "family": "tools", "question": "What can someone use to heel?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "ring", "family": "agents", "question": "What kinds of things can ring?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "ring", "family": "patients", "question": "What kinds of things can someone ring?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "ring", "family": "objects", "question": "What can someone ring?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "ring", "family": "locations", "question": "Where can ring happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "ring", "family": "tools", "question": "What can someone use to ring?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "use", "family": "agents", "question": "What kinds of things can use?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "use", "family": "patients", "question": "What kinds of things can someone use?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "use", "family": "objects", "question": "What can someone use?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "use", "family": "locations", "question": "Where can use happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "use", "family": "tools", "question": "What can someone use to use?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cross", "family": "agents", "question": "What kinds of things can cross?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cross", "family": "patients", "question": "What kinds of things can someone cross?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cross", "family": "objects", "question": "What can someone cross?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cross", "family": "locations", "question": "Where can cross happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "cross", "family": "tools", "question": "What can someone use to cross?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fit", "family": "agents", "question": "What kinds of things can fit?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "fit", "family": "patients", "question": "What kinds of things can someone fit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fit", "family": "objects", "question": "What can someone fit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fit", "family": "locations", "question": "Where can fit happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "fit", "family": "tools", "question": "What can someone use to fit?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hammer", "family": "agents", "question": "What kinds of things can hammer?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hammer", "family": "patients", "question": "What kinds of things can someone hammer?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hammer", "family": "objects", "question": "What can someone hammer?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hammer", "family": "locations", "question": "Where can hammer happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hammer", "family": "tools", "question": "What can someone use to hammer?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "have", "family": "agents", "question": "What kinds of things can have?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "have", "family": "patients", "question": "What kinds of things can someone have?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "have", "family": "objects", "question": "What can someone have?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "have", "family": "locations", "question": "Where can have happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "have", "family": "tools", "question": "What can someone use to have?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "light", "family": "agents", "question": "What kinds of things can light?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "light", "family": "patients", "question": "What kinds of things can someone light?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "light", "family": "objects", "question": "What can someone light?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "light", "family": "locations", "question": "Where can light happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "light", "family": "tools", "question": "What can someone use to light?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "look", "family": "agents", "question": "What kinds of things can look?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "look", "family": "patients", "question": "What kinds of things can someone look?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "look", "family": "objects", "question": "What can someone look?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "look", "family": "locations", "question": "Where can look happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "look", "family": "tools", "question": "What can someone use to look?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "mind", "family": "agents", "question": "What kinds of things can mind?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "mind", "family": "patients", "question": "What kinds of things can someone mind?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "mind", "family": "objects", "question": "What can someone mind?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "mind", "family": "locations", "question": "Where can mind happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "mind", "family": "tools", "question": "What can someone use to mind?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pound", "family": "agents", "question": "What kinds of things can pound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pound", "family": "patients", "question": "What kinds of things can someone pound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pound", "family": "objects", "question": "What can someone pound?", "reason": "exception", "error": "NameError(\"name 'sha' is not defined\")"}
+{"lemma": "pound", "family": "locations", "question": "Where can pound happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "pound", "family": "tools", "question": "What can someone use to pound?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "reach", "family": "agents", "question": "What kinds of things can reach?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "reach", "family": "patients", "question": "What kinds of things can someone reach?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "reach", "family": "objects", "question": "What can someone reach?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "reach", "family": "locations", "question": "Where can reach happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "reach", "family": "tools", "question": "What can someone use to reach?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "smack", "family": "agents", "question": "What kinds of things can smack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "smack", "family": "patients", "question": "What kinds of things can someone smack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "smack", "family": "objects", "question": "What can someone smack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "smack", "family": "locations", "question": "Where can smack happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "smack", "family": "tools", "question": "What can someone use to smack?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "squeeze", "family": "agents", "question": "What kinds of things can squeeze?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "squeeze", "family": "patients", "question": "What kinds of things can someone squeeze?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "squeeze", "family": "objects", "question": "What can someone squeeze?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "squeeze", "family": "locations", "question": "Where can squeeze happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "squeeze", "family": "tools", "question": "What can someone use to squeeze?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "trim", "family": "agents", "question": "What kinds of things can trim?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "trim", "family": "patients", "question": "What kinds of things can someone trim?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "trim", "family": "objects", "question": "What can someone trim?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "trim", "family": "locations", "question": "Where can trim happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "trim", "family": "tools", "question": "What can someone use to trim?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tug", "family": "agents", "question": "What kinds of things can tug?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tug", "family": "patients", "question": "What kinds of things can someone tug?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tug", "family": "objects", "question": "What can someone tug?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tug", "family": "locations", "question": "Where can tug happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tug", "family": "tools", "question": "What can someone use to tug?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bang", "family": "agents", "question": "What kinds of things can bang?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bang", "family": "patients", "question": "What kinds of things can someone bang?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bang", "family": "objects", "question": "What can someone bang?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bang", "family": "locations", "question": "Where can bang happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bang", "family": "tools", "question": "What can someone use to bang?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bear", "family": "agents", "question": "What kinds of things can bear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bear", "family": "patients", "question": "What kinds of things can someone bear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bear", "family": "objects", "question": "What can someone bear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bear", "family": "locations", "question": "Where can bear happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "bear", "family": "tools", "question": "What can someone use to bear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "build", "family": "agents", "question": "What kinds of things can build?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "build", "family": "patients", "question": "What kinds of things can someone build?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "build", "family": "objects", "question": "What can someone build?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "build", "family": "locations", "question": "Where can build happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "build", "family": "tools", "question": "What can someone use to build?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "gather", "family": "agents", "question": "What kinds of things can gather?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "gather", "family": "patients", "question": "What kinds of things can someone gather?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "gather", "family": "objects", "question": "What can someone gather?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "gather", "family": "locations", "question": "Where can gather happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "gather", "family": "tools", "question": "What can someone use to gather?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hail", "family": "agents", "question": "What kinds of things can hail?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hail", "family": "patients", "question": "What kinds of things can someone hail?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hail", "family": "objects", "question": "What can someone hail?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hail", "family": "locations", "question": "Where can hail happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "hail", "family": "tools", "question": "What can someone use to hail?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "howl", "family": "agents", "question": "What kinds of things can howl?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "howl", "family": "patients", "question": "What kinds of things can someone howl?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "howl", "family": "objects", "question": "What can someone howl?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "howl", "family": "locations", "question": "Where can howl happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "howl", "family": "tools", "question": "What can someone use to howl?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lodge", "family": "agents", "question": "What kinds of things can lodge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lodge", "family": "patients", "question": "What kinds of things can someone lodge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lodge", "family": "objects", "question": "What can someone lodge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lodge", "family": "locations", "question": "Where can lodge happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "lodge", "family": "tools", "question": "What can someone use to lodge?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "paint", "family": "agents", "question": "What kinds of things can paint?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "paint", "family": "patients", "question": "What kinds of things can someone paint?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "paint", "family": "objects", "question": "What can someone paint?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "paint", "family": "locations", "question": "Where can paint happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "paint", "family": "tools", "question": "What can someone use to paint?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "render", "family": "agents", "question": "What kinds of things can render?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "render", "family": "patients", "question": "What kinds of things can someone render?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "render", "family": "objects", "question": "What can someone render?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "render", "family": "locations", "question": "Where can render happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "render", "family": "tools", "question": "What can someone use to render?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tear", "family": "agents", "question": "What kinds of things can tear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tear", "family": "patients", "question": "What kinds of things can someone tear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tear", "family": "objects", "question": "What can someone tear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tear", "family": "locations", "question": "Where can tear happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "tear", "family": "tools", "question": "What can someone use to tear?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "head", "family": "agents", "question": "What kinds of things can head?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "head", "family": "patients", "question": "What kinds of things can someone head?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "head", "family": "objects", "question": "What can someone head?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "head", "family": "locations", "question": "Where can head happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "head", "family": "tools", "question": "What can someone use to head?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clean", "family": "agents", "question": "What kinds of things can clean?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clean", "family": "patients", "question": "What kinds of things can someone clean?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clean", "family": "objects", "question": "What can someone clean?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clean", "family": "locations", "question": "Where can clean happen?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
+{"lemma": "clean", "family": "tools", "question": "What can someone use to clean?", "reason": "exception", "error": "NameError(\"name 'lemma_key' is not defined\")"}
