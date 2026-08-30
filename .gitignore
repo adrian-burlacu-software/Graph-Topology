@@ -41,6 +41,9 @@ results/cognitive_language_memory.sqlite-wal
 results/assistant_semantic_net.sqlite
 results/assistant_semantic_net.sqlite-shm
 results/assistant_semantic_net.sqlite-wal
+results/full_semantic_memory.sqlite
+results/full_semantic_memory.sqlite-shm
+results/full_semantic_memory.sqlite-wal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
@@ -110,3 +113,4 @@ data/verbnet3.3/
 data/WordNet/
 data/propbank-frames-3.1/
 data/ubuntu/
+data/conceptnet-assertions-5.7.0.csv.gz
