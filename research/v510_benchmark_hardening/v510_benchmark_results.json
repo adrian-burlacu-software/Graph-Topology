@@ -1,0 +1,2320 @@
+{
+  "benchmark": "v510_benchmark_hardening",
+  "description": "V509 regression plus adversarial semantic-boundary cases.",
+  "suites": {
+    "v509_regression": {
+      "system": "V509 regression",
+      "cases": 36,
+      "passed": 36,
+      "pass_rate": 1.0,
+      "overall": 0.9993055555555556,
+      "failure_stages": {}
+    },
+    "v510_adversarial": {
+      "system": "V510 adversarial",
+      "cases": 34,
+      "passed": 32,
+      "pass_rate": 0.9411764705882353,
+      "overall": 1.0,
+      "failure_stages": {
+        "goal/planner": 2
+      }
+    },
+    "combined": {
+      "system": "Combined",
+      "cases": 70,
+      "passed": 68,
+      "pass_rate": 0.9714285714285714,
+      "overall": 0.9996428571428572,
+      "failure_stages": {
+        "goal/planner": 2
+      }
+    }
+  },
+  "cases": {
+    "v509_regression": [
+      {
+        "name": "greeting",
+        "passed": true,
+        "checks": {
+          "natural": true,
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "Hello!",
+          "source": "fallback",
+          "goal": "social_greeting",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "Hello!"
+        ]
+      },
+      {
+        "name": "thanks",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "You're welcome!",
+          "source": "fallback",
+          "goal": "social_thanks",
+          "target": "general",
+          "target_subject": "thank",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "You're welcome!"
+        ]
+      },
+      {
+        "name": "goodbye",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "Bye!",
+          "source": "fallback",
+          "goal": "social_goodbye",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "Bye!"
+        ]
+      },
+      {
+        "name": "affection",
+        "passed": true,
+        "checks": {
+          "natural": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "That's nice to hear.",
+          "source": "fallback",
+          "goal": "social_affection",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "That's nice to hear."
+        ]
+      },
+      {
+        "name": "dog_color",
+        "passed": true,
+        "checks": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "dog_count",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are two dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 2
+          },
+          "entities": {
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are two dogs."
+        ]
+      },
+      {
+        "name": "state_update",
+        "passed": true,
+        "checks": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is blue."
+        ]
+      },
+      {
+        "name": "state_reference",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "topic_switch",
+        "passed": true,
+        "checks": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "dog": 1,
+            "universe": 1
+          },
+          "entities": {
+            "dog": 1,
+            "universe": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "universe_reference",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "universe",
+          "target_attribute": "size",
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "universe": 1
+          },
+          "entities": {
+            "universe": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "followup_reference",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "conversation_scope",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are two dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 2
+          },
+          "entities": {
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are two dogs."
+        ]
+      },
+      {
+        "name": "universe",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "universe",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "python",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "router",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "router",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "meaning",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "curious",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "explanation",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_explanation",
+          "target": "property",
+          "target_subject": "sky",
+          "target_attribute": "color",
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "challenge_red",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not certain yet.",
+          "source": "fallback",
+          "goal": "challenge_claim",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not certain yet."
+        ]
+      },
+      {
+        "name": "challenge_universe",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not certain yet.",
+          "source": "fallback",
+          "goal": "challenge_claim",
+          "target": "general",
+          "target_subject": "universe",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "universe": 1
+          },
+          "entities": {
+            "universe": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not certain yet."
+        ]
+      },
+      {
+        "name": "correction",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not certain yet.",
+          "source": "fallback",
+          "goal": "challenge_claim",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not certain yet."
+        ]
+      },
+      {
+        "name": "joke",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "Sure.",
+          "source": "fallback",
+          "goal": "request_generation",
+          "target": "generate",
+          "target_subject": "joke",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "Sure."
+        ]
+      },
+      {
+        "name": "example",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I saw a cat today.",
+          "source": "logic",
+          "goal": "request_action",
+          "target": "generate",
+          "target_subject": "example",
+          "target_attribute": null,
+          "logic_answer": "I saw a cat today.",
+          "logic_kind": "example",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I saw a cat today."
+        ]
+      },
+      {
+        "name": "colors",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "Red, blue, and green.",
+          "source": "logic",
+          "goal": "request_generation",
+          "target": "general",
+          "target_subject": "color",
+          "target_attribute": null,
+          "logic_answer": "Red, blue, and green.",
+          "logic_kind": "list",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "Red, blue, and green."
+        ]
+      },
+      {
+        "name": "assistant_curiosity",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm curious about where our conversation might go.",
+          "source": "logic",
+          "goal": "explore_assistant",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "I'm curious about where our conversation might go.",
+          "logic_kind": "social",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm curious about where our conversation might go."
+        ]
+      },
+      {
+        "name": "assistant_wants",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 0.975,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'd like to keep chatting and see where this goes.",
+          "source": "logic",
+          "goal": "explore_assistant",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "I'd like to keep chatting and see where this goes.",
+          "logic_kind": "social",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'd like to keep chatting and see where this goes."
+        ]
+      },
+      {
+        "name": "assistant_thoughts",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm thinking about what we should explore next.",
+          "source": "logic",
+          "goal": "explore_assistant",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "I'm thinking about what we should explore next.",
+          "logic_kind": "social",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm thinking about what we should explore next."
+        ]
+      },
+      {
+        "name": "assistant_followup",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm thinking about what we should explore next.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "no_parrot",
+        "passed": true,
+        "checks": {
+          "not_exact_user": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "moon",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "stale_response",
+        "passed": true,
+        "checks": {
+          "varied": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "universe",
+          "target_attribute": "shape",
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "universe": 1
+          },
+          "entities": {
+            "universe": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "followup_not_repeat",
+        "passed": true,
+        "checks": {
+          "varied": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is red.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "addition",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "seven.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "seven.",
+          "logic_kind": "state_arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 2
+          },
+          "entities": {
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "seven."
+        ]
+      },
+      {
+        "name": "subtraction",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "seven.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "seven.",
+          "logic_kind": "state_arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 10
+          },
+          "entities": {
+            "dog": 10
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "seven."
+        ]
+      },
+      {
+        "name": "count_animals",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "animal",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "cat": 1,
+            "dog": 2
+          },
+          "entities": {
+            "cat": 1,
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "letter_count",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "3.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "r",
+          "target_attribute": null,
+          "logic_answer": "3.",
+          "logic_kind": "letter_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "3."
+        ]
+      },
+      {
+        "name": "spelling",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "strawberry.",
+          "source": "logic",
+          "goal": "request_explanation",
+          "target": "general",
+          "target_subject": "strawberry",
+          "target_attribute": null,
+          "logic_answer": "strawberry.",
+          "logic_kind": "spelling",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "strawberry."
+        ]
+      },
+      {
+        "name": "underspecified",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "I'm not sure yet."
+        ]
+      }
+    ],
+    "v510_adversarial": [
+      {
+        "name": "ref_color_red",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "ref_color_blue",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is blue."
+        ]
+      },
+      {
+        "name": "ref_color_green",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is green.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is green.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is green."
+        ]
+      },
+      {
+        "name": "ref_size_small",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is small.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "size",
+          "logic_answer": "The dog is small.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is small."
+        ]
+      },
+      {
+        "name": "ref_size_big",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is big.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "size",
+          "logic_answer": "The dog is big.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The dog is big."
+        ]
+      },
+      {
+        "name": "ref_shape_round",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The ball is round.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "ball",
+          "target_attribute": "shape",
+          "logic_answer": "The ball is round.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "ball": 1
+          },
+          "entities": {
+            "ball": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The ball is round."
+        ]
+      },
+      {
+        "name": "ref_shape_square",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The box is square.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "box",
+          "target_attribute": "shape",
+          "logic_answer": "The box is square.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "box": 1
+          },
+          "entities": {
+            "box": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "The box is square."
+        ]
+      },
+      {
+        "name": "switch_dog",
+        "passed": false,
+        "checks": {
+          "must_contain": true,
+          "must_not_contain": false
+        },
+        "overall": 1.0,
+        "failure_stage": "goal/planner",
+        "diagnostic": {
+          "response": "The dog is red.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is red.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "dog": 1,
+            "universe": 1
+          },
+          "entities": {
+            "dog": 1,
+            "universe": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is red."
+        ]
+      },
+      {
+        "name": "switch_cat",
+        "passed": false,
+        "checks": {
+          "must_contain": true,
+          "must_not_contain": false
+        },
+        "overall": 1.0,
+        "failure_stage": "goal/planner",
+        "diagnostic": {
+          "response": "The cat is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "cat",
+          "target_attribute": "color",
+          "logic_answer": "The cat is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "cat": 1,
+            "dog": 1
+          },
+          "entities": {
+            "cat": 1,
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The cat is blue."
+        ]
+      },
+      {
+        "name": "switch_book",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The book is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "book",
+          "target_attribute": "color",
+          "logic_answer": "The book is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "book": 1,
+            "dog": 1
+          },
+          "entities": {
+            "book": 1,
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The book is blue."
+        ]
+      },
+      {
+        "name": "count_one_dog",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are one dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are one dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are one dogs."
+        ]
+      },
+      {
+        "name": "count_three_dogs",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are three dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are three dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 3
+          },
+          "entities": {
+            "dog": 3
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are three dogs."
+        ]
+      },
+      {
+        "name": "count_four_cats",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are four cats.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "cat",
+          "target_attribute": null,
+          "logic_answer": "There are four cats.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "cat": 4
+          },
+          "entities": {
+            "cat": 4
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are four cats."
+        ]
+      },
+      {
+        "name": "count_two_books",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two books.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "book",
+          "target_attribute": null,
+          "logic_answer": "There are two books.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "book": 2
+          },
+          "entities": {
+            "book": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are two books."
+        ]
+      },
+      {
+        "name": "count_two_people",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two peoples.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "people",
+          "target_attribute": null,
+          "logic_answer": "There are two peoples.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "people": 2
+          },
+          "entities": {
+            "people": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are two peoples."
+        ]
+      },
+      {
+        "name": "state_red_blue",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is blue."
+        ]
+      },
+      {
+        "name": "state_small_big",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is big.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "size",
+          "logic_answer": "The dog is big.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 4,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is big."
+        ]
+      },
+      {
+        "name": "state_color_three",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "The dog is blue.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": "The dog is blue.",
+          "logic_kind": "state_property",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 6,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "Tell me more.",
+          "Tell me more.",
+          "The dog is blue."
+        ]
+      },
+      {
+        "name": "arith_add",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "12.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "12.",
+          "logic_kind": "arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "12."
+        ]
+      },
+      {
+        "name": "arith_minus",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "7.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "7.",
+          "logic_kind": "arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "7."
+        ]
+      },
+      {
+        "name": "arith_times",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "12.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "time",
+          "target_attribute": null,
+          "logic_answer": "12.",
+          "logic_kind": "arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "12."
+        ]
+      },
+      {
+        "name": "arith_divide",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "4.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": null,
+          "target_attribute": null,
+          "logic_answer": "4.",
+          "logic_kind": "arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "4."
+        ]
+      },
+      {
+        "name": "letter_a",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "3.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "a",
+          "target_attribute": null,
+          "logic_answer": "3.",
+          "logic_kind": "letter_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "3."
+        ]
+      },
+      {
+        "name": "letter_b",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "3.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "b",
+          "target_attribute": null,
+          "logic_answer": "3.",
+          "logic_kind": "letter_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "3."
+        ]
+      },
+      {
+        "name": "spell_banana",
+        "passed": true,
+        "checks": {
+          "must_contain": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "banana.",
+          "source": "logic",
+          "goal": "request_explanation",
+          "target": "general",
+          "target_subject": "banana",
+          "target_attribute": null,
+          "logic_answer": "banana.",
+          "logic_kind": "spelling",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 0,
+          "entity_counts": {},
+          "entities": {}
+        },
+        "responses": [
+          "banana."
+        ]
+      },
+      {
+        "name": "add_state",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "seven.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "seven.",
+          "logic_kind": "state_arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 2
+          },
+          "entities": {
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "seven."
+        ]
+      },
+      {
+        "name": "subtract_state",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "seven.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "general",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "seven.",
+          "logic_kind": "state_arithmetic",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 10
+          },
+          "entities": {
+            "dog": 10
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "seven."
+        ]
+      },
+      {
+        "name": "add_state_twice_no_mutation",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are two dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 1,
+          "entity_counts": {
+            "dog": 2
+          },
+          "entities": {
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "seven.",
+          "There are two dogs."
+        ]
+      },
+      {
+        "name": "unknown_weight",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "definition",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "unknown_color",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "color",
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "unknown_shape",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "property",
+          "target_subject": "dog",
+          "target_attribute": "shape",
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "dog": 1
+          },
+          "entities": {
+            "dog": 1
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "mixed_animals",
+        "passed": true,
+        "checks": {
+          "nonempty": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "I'm not sure yet.",
+          "source": "fallback",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "animal",
+          "target_attribute": null,
+          "logic_answer": null,
+          "logic_kind": null,
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "cat": 1,
+            "dog": 2
+          },
+          "entities": {
+            "cat": 1,
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "I'm not sure yet."
+        ]
+      },
+      {
+        "name": "mixed_dogs",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are two dogs.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "dog",
+          "target_attribute": null,
+          "logic_answer": "There are two dogs.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "cat": 1,
+            "dog": 2
+          },
+          "entities": {
+            "cat": 1,
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are two dogs."
+        ]
+      },
+      {
+        "name": "mixed_cats",
+        "passed": true,
+        "checks": {
+          "must_contain_one": true
+        },
+        "overall": 1.0,
+        "failure_stage": null,
+        "diagnostic": {
+          "response": "There are one cats.",
+          "source": "logic",
+          "goal": "request_information",
+          "target": "count",
+          "target_subject": "cat",
+          "target_attribute": null,
+          "logic_answer": "There are one cats.",
+          "logic_kind": "state_count",
+          "evidence_count": 0,
+          "participant_consulted": false,
+          "participant_raw": null,
+          "knowledge_frozen": true,
+          "state_facts": 2,
+          "entity_counts": {
+            "cat": 1,
+            "dog": 2
+          },
+          "entities": {
+            "cat": 1,
+            "dog": 2
+          }
+        },
+        "responses": [
+          "Tell me more.",
+          "There are one cats."
+        ]
+      }
+    ]
+  }
+}
