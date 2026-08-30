@@ -1,0 +1,1677 @@
+{
+  "summary": {
+    "llm": {
+      "system": "LLM alone",
+      "cases": 36,
+      "passed": 34,
+      "pass_rate": 0.9444444444444444,
+      "overall": 0.8729036068546792,
+      "naturalness": 0.9833333333333333,
+      "state_consistency": 0.9444444444444444,
+      "context_use": 0.9583333333333334,
+      "non_parroting": 0.5844254416808028,
+      "brevity": 0.8939814814814815
+    },
+    "architecture": {
+      "system": "Architecture alone",
+      "cases": 36,
+      "passed": 29,
+      "pass_rate": 0.8055555555555556,
+      "overall": 0.9361111111111111,
+      "naturalness": 1.0,
+      "state_consistency": 0.9722222222222222,
+      "context_use": 0.9305555555555556,
+      "non_parroting": 0.7805555555555556,
+      "brevity": 0.9972222222222222
+    },
+    "architecture_llm": {
+      "system": "Architecture + LLM",
+      "cases": 36,
+      "passed": 33,
+      "pass_rate": 0.9166666666666666,
+      "overall": 0.8876029224793078,
+      "naturalness": 0.8819444444444444,
+      "state_consistency": 1.0,
+      "context_use": 0.9583333333333334,
+      "non_parroting": 0.7986627605446872,
+      "brevity": 0.799074074074074
+    }
+  },
+  "cases": {
+    "llm": [
+      {
+        "name": "greeting",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8333333333333334,
+        "brevity": 1.0,
+        "details": {
+          "natural": true
+        },
+        "overall": 0.9666666666666668
+      },
+      {
+        "name": "thanks",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "goodbye",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "affection",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "natural": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "dog_color",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.8400000000000001
+      },
+      {
+        "name": "dog_count",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.7
+      },
+      {
+        "name": "state_update",
+        "passed": false,
+        "checks_passed": 1,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 0.0,
+        "context_use": 0.5,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": false,
+          "must_not_contain": true
+        },
+        "overall": 0.54
+      },
+      {
+        "name": "state_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.8400000000000001
+      },
+      {
+        "name": "topic_switch",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 0.85,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.8099999999999999
+      },
+      {
+        "name": "universe_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.875,
+        "brevity": 0.775,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.93
+      },
+      {
+        "name": "followup_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.5,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "conversation_scope",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9512195121951219,
+        "brevity": 0.55,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9002439024390243
+      },
+      {
+        "name": "python",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9130434782608696,
+        "brevity": 0.75,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9326086956521739
+      },
+      {
+        "name": "router",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9259259259259259,
+        "brevity": 0.55,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8951851851851853
+      },
+      {
+        "name": "meaning",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9523809523809523,
+        "brevity": 0.75,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9404761904761905
+      },
+      {
+        "name": "explanation",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.875,
+        "brevity": 0.55,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.885
+      },
+      {
+        "name": "challenge_red",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.74
+      },
+      {
+        "name": "challenge_universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.625,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.925
+      },
+      {
+        "name": "correction",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8400000000000001
+      },
+      {
+        "name": "joke",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9800000000000001
+      },
+      {
+        "name": "example",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8888888888888888,
+        "brevity": 0.9,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.8977777777777778
+      },
+      {
+        "name": "colors",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "count_at_least": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "assistant_curiosity",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8571428571428572,
+        "brevity": 0.9,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.9514285714285714
+      },
+      {
+        "name": "assistant_wants",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9400000000000001
+      },
+      {
+        "name": "assistant_thoughts",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6666666666666667,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9333333333333333
+      },
+      {
+        "name": "assistant_followup",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6666666666666667,
+        "brevity": 0.875,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9083333333333334
+      },
+      {
+        "name": "no_parrot",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.94,
+        "brevity": 0.3,
+        "details": {
+          "not_exact_user": true
+        },
+        "overall": 0.788
+      },
+      {
+        "name": "stale_response",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.7857142857142857,
+        "brevity": 0.7666666666666666,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.9104761904761904
+      },
+      {
+        "name": "followup_not_repeat",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.19999999999999996,
+        "brevity": 0.9666666666666667,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.8333333333333334
+      },
+      {
+        "name": "addition",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "subtraction",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "count_animals",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "letter_count",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 0.0,
+        "context_use": 1.0,
+        "non_parroting": 0.75,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.75
+      },
+      {
+        "name": "spelling",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8333333333333334,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9666666666666668
+      },
+      {
+        "name": "underspecified",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9800000000000001
+      }
+    ],
+    "architecture": [
+      {
+        "name": "greeting",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "natural": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "thanks",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "goodbye",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "affection",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "natural": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "dog_color",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.85
+      },
+      {
+        "name": "dog_count",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6666666666666667,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.9333333333333333
+      },
+      {
+        "name": "state_update",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.75
+      },
+      {
+        "name": "state_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9199999999999999
+      },
+      {
+        "name": "topic_switch",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.85
+      },
+      {
+        "name": "universe_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "followup_reference",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": false
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "conversation_scope",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.16666666666666663,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.8333333333333333
+      },
+      {
+        "name": "universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "python",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "router",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "meaning",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "explanation",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "challenge_red",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "challenge_universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "correction",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "joke",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9800000000000001
+      },
+      {
+        "name": "example",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6666666666666667,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": false
+        },
+        "overall": 0.9333333333333333
+      },
+      {
+        "name": "colors",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "count_at_least": false
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "assistant_curiosity",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.96
+      },
+      {
+        "name": "assistant_wants",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "assistant_thoughts",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9199999999999999
+      },
+      {
+        "name": "assistant_followup",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9199999999999999
+      },
+      {
+        "name": "no_parrot",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "not_exact_user": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "stale_response",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "followup_not_repeat",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.75
+      },
+      {
+        "name": "addition",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "subtraction",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "count_animals",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "letter_count",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 0.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.8
+      },
+      {
+        "name": "spelling",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": false
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "underspecified",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 1.0
+      }
+    ],
+    "architecture_llm": [
+      {
+        "name": "greeting",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9,
+        "brevity": 0.9,
+        "details": {
+          "natural": true
+        },
+        "overall": 0.96
+      },
+      {
+        "name": "thanks",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 1.0
+      },
+      {
+        "name": "goodbye",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9200000000000002
+      },
+      {
+        "name": "affection",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9166666666666666,
+        "brevity": 0.9,
+        "details": {
+          "natural": true
+        },
+        "overall": 0.9633333333333333
+      },
+      {
+        "name": "dog_color",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.85
+      },
+      {
+        "name": "dog_count",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8461538461538461,
+        "brevity": 0.825,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.9342307692307692
+      },
+      {
+        "name": "state_update",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 0.9,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.8300000000000001
+      },
+      {
+        "name": "state_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.5,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "topic_switch",
+        "passed": true,
+        "checks_passed": 2,
+        "checks_total": 2,
+        "naturalness": 0.7999999999999999,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.25,
+        "brevity": 0.6833333333333332,
+        "details": {
+          "must_contain": true,
+          "must_not_contain": true
+        },
+        "overall": 0.7466666666666666
+      },
+      {
+        "name": "universe_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.85,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9523809523809523,
+        "brevity": 0.525,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8654761904761905
+      },
+      {
+        "name": "followup_reference",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.85,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.925,
+        "brevity": 0.42500000000000004,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.8400000000000001
+      },
+      {
+        "name": "conversation_scope",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.6153846153846154,
+        "brevity": 0.825,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.888076923076923
+      },
+      {
+        "name": "universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9583333333333334,
+        "brevity": 0.3,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.7916666666666667
+      },
+      {
+        "name": "python",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9130434782608696,
+        "brevity": 0.75,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.872608695652174
+      },
+      {
+        "name": "router",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9166666666666666,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9633333333333333
+      },
+      {
+        "name": "meaning",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9166666666666666,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9633333333333333
+      },
+      {
+        "name": "explanation",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8888888888888888,
+        "brevity": 0.55,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.8877777777777778
+      },
+      {
+        "name": "challenge_red",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.5,
+        "brevity": 1.0,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "challenge_universe",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8695652173913043,
+        "brevity": 0.875,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9489130434782609
+      },
+      {
+        "name": "correction",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.5,
+        "brevity": 1.0,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9
+      },
+      {
+        "name": "joke",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.875,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9550000000000001
+      },
+      {
+        "name": "example",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8571428571428572,
+        "brevity": 1.0,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9114285714285714
+      },
+      {
+        "name": "colors",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 1.0,
+        "details": {
+          "count_at_least": true
+        },
+        "overall": 0.9400000000000001
+      },
+      {
+        "name": "assistant_curiosity",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.8181818181818181,
+        "brevity": 0.9,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.9436363636363637
+      },
+      {
+        "name": "assistant_wants",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.7692307692307692,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9338461538461539
+      },
+      {
+        "name": "assistant_thoughts",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 1.0,
+        "brevity": 0.9,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9800000000000001
+      },
+      {
+        "name": "assistant_followup",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.85,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9583333333333334,
+        "brevity": 0.825,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.9266666666666667
+      },
+      {
+        "name": "no_parrot",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9285714285714286,
+        "brevity": 0.55,
+        "details": {
+          "not_exact_user": true
+        },
+        "overall": 0.8957142857142857
+      },
+      {
+        "name": "stale_response",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7999999999999999,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9411764705882353,
+        "brevity": 0.5333333333333333,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.8549019607843137
+      },
+      {
+        "name": "followup_not_repeat",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.25,
+        "brevity": 1.0,
+        "details": {
+          "varied": true
+        },
+        "overall": 0.75
+      },
+      {
+        "name": "addition",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.8823529411764706,
+        "brevity": 0.75,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.8264705882352942
+      },
+      {
+        "name": "subtraction",
+        "passed": false,
+        "checks_passed": 0,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9393939393939394,
+        "brevity": 0.55,
+        "details": {
+          "must_contain_one": false
+        },
+        "overall": 0.8378787878787879
+      },
+      {
+        "name": "count_animals",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.1,
+        "state_consistency": 1.0,
+        "context_use": 0.5,
+        "non_parroting": 0.9333333333333333,
+        "brevity": 0.75,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.6566666666666666
+      },
+      {
+        "name": "letter_count",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.875,
+        "brevity": 0.75,
+        "details": {
+          "must_contain_one": true
+        },
+        "overall": 0.865
+      },
+      {
+        "name": "spelling",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 1.0,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.875,
+        "brevity": 0.9,
+        "details": {
+          "must_contain": true
+        },
+        "overall": 0.9550000000000001
+      },
+      {
+        "name": "underspecified",
+        "passed": true,
+        "checks_passed": 1,
+        "checks_total": 1,
+        "naturalness": 0.7,
+        "state_consistency": 1.0,
+        "context_use": 1.0,
+        "non_parroting": 0.9803921568627451,
+        "brevity": 0.3,
+        "details": {
+          "nonempty": true
+        },
+        "overall": 0.7960784313725491
+      }
+    ]
+  }
+}
