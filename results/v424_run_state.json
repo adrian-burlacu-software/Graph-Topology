@@ -1,0 +1,11 @@
+{
+  "version": "v424",
+  "last_candidate_index": 1675,
+  "accepted_total": 986,
+  "skipped": 0,
+  "failed": 689,
+  "observations": 986,
+  "patterns": 1814,
+  "semantic_edges": 16164,
+  "wall_seconds": 17510.84043370001
+}
