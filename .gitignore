@@ -38,6 +38,9 @@ data/conceptnet_compact.db-wal
 results/cognitive_language_memory.sqlite
 results/cognitive_language_memory.sqlite-shm
 results/cognitive_language_memory.sqlite-wal
+results/assistant_semantic_net.sqlite
+results/assistant_semantic_net.sqlite-shm
+results/assistant_semantic_net.sqlite-wal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
