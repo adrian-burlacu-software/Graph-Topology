@@ -1,0 +1,723 @@
+{
+  "decay": 0.65,
+  "negative_weight": 0.15,
+  "updates": 229,
+  "positive_updates": 229,
+  "negative_updates": 0,
+  "exact": [
+    {
+      "goal": "schema:location",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "yago:partOf": 9.5,
+        "schema:sponsor": 1.0,
+        "schema:location": 2.5
+      }
+    },
+    {
+      "goal": "schema:location",
+      "prefix": [
+        "yago:partOf"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 9.5
+      }
+    },
+    {
+      "goal": "schema:location",
+      "prefix": [
+        "schema:sponsor"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 1.0
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "yago:studentOf": 3.0,
+        "schema:alumniOf": 0.5,
+        "schema:deathPlace": 0.5,
+        "schema:nationality": 0.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [
+        "yago:studentOf"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:birthPlace": 3.0
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "yago:studentOf": 2.0,
+        "yago:hasMother": 1.0,
+        "yago:hasFather": 1.0,
+        "schema:worksFor": 1.0,
+        "schema:birthPlace": 3.0,
+        "schema:nationality": 0.5,
+        "schema:deathPlace": 0.5,
+        "schema:alumniOf": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "yago:studentOf"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:nationality": 2.0
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "yago:hasMother"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:nationality": 1.0
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "yago:hasFather"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:nationality": 1.0
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "yago:partner": 1.0,
+        "yago:studentOf": 4.5,
+        "schema:performer": 1.0,
+        "schema:spouse": 2.0,
+        "schema:nationality": 6.0,
+        "schema:birthPlace": 1.0,
+        "schema:deathPlace": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "yago:partner"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:knowsLanguage": 1.0
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "yago:studentOf"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:knowsLanguage": 4.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:performer"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:knowsLanguage": 1.0
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:spouse"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:knowsLanguage": 2.0
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "successor": 1.0,
+        "relation": 1.0,
+        "birthPlace": 1.0,
+        "education": 1.0,
+        "termPeriod": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "successor"
+      ],
+      "depth": 1,
+      "next": {
+        "birthPlace": 1.0
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "relation"
+      ],
+      "depth": 1,
+      "next": {
+        "birthPlace": 1.0
+      }
+    },
+    {
+      "goal": "is_a",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "subClassOf": 23.0,
+        "disjointWith": 1.0
+      }
+    },
+    {
+      "goal": "is_a",
+      "prefix": [
+        "subClassOf"
+      ],
+      "depth": 1,
+      "next": {
+        "is_a": 23.0
+      }
+    },
+    {
+      "goal": "is_a",
+      "prefix": [
+        "disjointWith"
+      ],
+      "depth": 1,
+      "next": {
+        "is_a": 1.0
+      }
+    },
+    {
+      "goal": "schema:location",
+      "prefix": [
+        "schema:location"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 2.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [
+        "schema:alumniOf"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 0.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [
+        "schema:deathPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 0.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [
+        "schema:nationality"
+      ],
+      "depth": 1,
+      "next": {
+        "yago:leader": 0.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "prefix": [
+        "schema:nationality",
+        "yago:leader"
+      ],
+      "depth": 2,
+      "next": {
+        "schema:birthPlace": 0.325
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:worksFor"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 1.0
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:birthPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 3.0
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:nationality"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:memberOf": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:nationality",
+        "schema:memberOf"
+      ],
+      "depth": 2,
+      "next": {
+        "schema:location": 0.325
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:deathPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:alumniOf"
+      ],
+      "depth": 1,
+      "next": {
+        "yago:namedAfter": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "prefix": [
+        "schema:alumniOf",
+        "yago:namedAfter"
+      ],
+      "depth": 2,
+      "next": {
+        "schema:nationality": 0.325
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:nationality"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:memberOf": 0.5,
+        "yago:officialLanguage": 5.0,
+        "yago:namedAfter": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:nationality",
+        "schema:memberOf"
+      ],
+      "depth": 2,
+      "next": {
+        "yago:interestedIn": 0.325
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:birthPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 0.5,
+        "yago:officialLanguage": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:birthPlace",
+        "schema:location"
+      ],
+      "depth": 2,
+      "next": {
+        "yago:officialLanguage": 0.325
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:deathPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:location": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "prefix": [
+        "schema:deathPlace",
+        "schema:location"
+      ],
+      "depth": 2,
+      "next": {
+        "yago:officialLanguage": 0.325
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "birthPlace"
+      ],
+      "depth": 1,
+      "next": {
+        "country": 0.5,
+        "subdivision": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "education"
+      ],
+      "depth": 1,
+      "next": {
+        "city": 0.5,
+        "state": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "education",
+        "city"
+      ],
+      "depth": 2,
+      "next": {
+        "country": 0.325
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "education",
+        "state"
+      ],
+      "depth": 2,
+      "next": {
+        "capital": 0.325
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "termPeriod"
+      ],
+      "depth": 1,
+      "next": {
+        "predecessor": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "prefix": [
+        "termPeriod",
+        "predecessor"
+      ],
+      "depth": 2,
+      "next": {
+        "birthPlace": 0.325
+      }
+    },
+    {
+      "goal": "yago:hasMother",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "yago:hasFather": 7.0
+      }
+    },
+    {
+      "goal": "yago:hasMother",
+      "prefix": [
+        "yago:hasFather"
+      ],
+      "depth": 1,
+      "next": {
+        "schema:spouse": 7.0
+      }
+    }
+  ],
+  "goal": [
+    {
+      "goal": "schema:location",
+      "depth": 0,
+      "next": {
+        "yago:partOf": 9.5,
+        "schema:sponsor": 1.0,
+        "schema:location": 2.5
+      }
+    },
+    {
+      "goal": "schema:location",
+      "depth": 1,
+      "next": {
+        "schema:location": 13.0
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "depth": 0,
+      "next": {
+        "yago:studentOf": 3.0,
+        "schema:alumniOf": 0.5,
+        "schema:deathPlace": 0.5,
+        "schema:nationality": 0.5
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "depth": 1,
+      "next": {
+        "schema:birthPlace": 3.0,
+        "schema:location": 1.0,
+        "yago:leader": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "depth": 0,
+      "next": {
+        "yago:studentOf": 2.0,
+        "yago:hasMother": 1.0,
+        "yago:hasFather": 1.0,
+        "schema:worksFor": 1.0,
+        "schema:birthPlace": 3.0,
+        "schema:nationality": 0.5,
+        "schema:deathPlace": 0.5,
+        "schema:alumniOf": 0.5
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "depth": 1,
+      "next": {
+        "schema:nationality": 4.0,
+        "schema:location": 4.5,
+        "schema:memberOf": 0.5,
+        "yago:namedAfter": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "depth": 0,
+      "next": {
+        "yago:partner": 1.0,
+        "yago:studentOf": 4.5,
+        "schema:performer": 1.0,
+        "schema:spouse": 2.0,
+        "schema:nationality": 6.0,
+        "schema:birthPlace": 1.0,
+        "schema:deathPlace": 0.5
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "depth": 1,
+      "next": {
+        "schema:knowsLanguage": 8.5,
+        "schema:memberOf": 0.5,
+        "yago:officialLanguage": 5.5,
+        "schema:location": 1.0,
+        "yago:namedAfter": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "depth": 0,
+      "next": {
+        "successor": 1.0,
+        "relation": 1.0,
+        "birthPlace": 1.0,
+        "education": 1.0,
+        "termPeriod": 0.5
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "depth": 1,
+      "next": {
+        "birthPlace": 2.0,
+        "country": 0.5,
+        "city": 0.5,
+        "state": 0.5,
+        "subdivision": 0.5,
+        "predecessor": 0.5
+      }
+    },
+    {
+      "goal": "is_a",
+      "depth": 0,
+      "next": {
+        "subClassOf": 23.0,
+        "disjointWith": 1.0
+      }
+    },
+    {
+      "goal": "is_a",
+      "depth": 1,
+      "next": {
+        "is_a": 24.0
+      }
+    },
+    {
+      "goal": "schema:birthPlace",
+      "depth": 2,
+      "next": {
+        "schema:birthPlace": 0.325
+      }
+    },
+    {
+      "goal": "schema:nationality",
+      "depth": 2,
+      "next": {
+        "schema:location": 0.325,
+        "schema:nationality": 0.325
+      }
+    },
+    {
+      "goal": "schema:knowsLanguage",
+      "depth": 2,
+      "next": {
+        "yago:interestedIn": 0.325,
+        "yago:officialLanguage": 0.65
+      }
+    },
+    {
+      "goal": "birthPlace",
+      "depth": 2,
+      "next": {
+        "country": 0.325,
+        "capital": 0.325,
+        "birthPlace": 0.325
+      }
+    },
+    {
+      "goal": "yago:hasMother",
+      "depth": 0,
+      "next": {
+        "yago:hasFather": 7.0
+      }
+    },
+    {
+      "goal": "yago:hasMother",
+      "depth": 1,
+      "next": {
+        "schema:spouse": 7.0
+      }
+    }
+  ],
+  "global_depth": [
+    {
+      "depth": 0,
+      "next": {
+        "yago:partOf": 9.5,
+        "schema:sponsor": 1.0,
+        "yago:studentOf": 9.5,
+        "yago:hasMother": 1.0,
+        "yago:hasFather": 8.0,
+        "yago:partner": 1.0,
+        "schema:performer": 1.0,
+        "schema:spouse": 2.0,
+        "successor": 1.0,
+        "relation": 1.0,
+        "subClassOf": 23.0,
+        "disjointWith": 1.0,
+        "schema:location": 2.5,
+        "schema:alumniOf": 1.0,
+        "schema:deathPlace": 1.5,
+        "schema:nationality": 7.0,
+        "schema:worksFor": 1.0,
+        "schema:birthPlace": 4.0,
+        "birthPlace": 1.0,
+        "education": 1.0,
+        "termPeriod": 0.5
+      }
+    },
+    {
+      "depth": 1,
+      "next": {
+        "schema:location": 19.5,
+        "schema:birthPlace": 3.0,
+        "schema:nationality": 4.0,
+        "schema:knowsLanguage": 8.5,
+        "birthPlace": 2.0,
+        "is_a": 24.0,
+        "yago:leader": 0.5,
+        "schema:memberOf": 1.0,
+        "yago:namedAfter": 1.0,
+        "yago:officialLanguage": 5.5,
+        "country": 0.5,
+        "city": 0.5,
+        "state": 0.5,
+        "subdivision": 0.5,
+        "predecessor": 0.5,
+        "schema:spouse": 7.0
+      }
+    },
+    {
+      "depth": 2,
+      "next": {
+        "schema:birthPlace": 0.325,
+        "schema:location": 0.325,
+        "schema:nationality": 0.325,
+        "yago:interestedIn": 0.325,
+        "yago:officialLanguage": 0.65,
+        "country": 0.325,
+        "capital": 0.325,
+        "birthPlace": 0.325
+      }
+    }
+  ]
+}

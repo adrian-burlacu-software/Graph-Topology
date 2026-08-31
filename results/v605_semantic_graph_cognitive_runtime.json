@@ -1,0 +1,94 @@
+{
+  "version": "V605",
+  "benchmark": "semantic_graph_cognitive_runtime",
+  "config": {
+    "database": ".\\results\\v562_kg_composition_audit.sqlite",
+    "output": ".\\results\\v605_semantic_graph_cognitive_runtime.json",
+    "trace_output": ".\\results\\v605_cognitive_traces.jsonl",
+    "prior_output": ".\\results\\v605_global_attention_prior.json",
+    "workers": 20,
+    "seed_start": 60500,
+    "budget": 80,
+    "per_node": 60,
+    "max_depth": 3,
+    "cache_entries": 12000,
+    "max_probes_per_case": 500,
+    "prior_decay": 0.65,
+    "train_subjects_per_relation": 120,
+    "train_traces_per_relation": 30,
+    "interactions_per_relation": 20,
+    "progress_every": 10,
+    "profile_relations": 20,
+    "profile_subjects": 500,
+    "profile_probes": 250
+  },
+  "database": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v562_kg_composition_audit.sqlite",
+  "profiler": {
+    "total_edges": 191894720,
+    "sampled_subjects": 500,
+    "profile_probes": 250,
+    "mean_outgoing_fanout": 6.4,
+    "cold": {
+      "median_seconds": 4.074999742442742e-05,
+      "p95_seconds": 7.870000263210386e-05,
+      "mean_seconds": 4.452799988212064e-05,
+      "rate_per_second": 22324.41845551636
+    },
+    "warm": {
+      "median_seconds": 2.00001522898674e-07,
+      "p95_seconds": 4.00003045797348e-07,
+      "mean_seconds": 2.263996284455061e-07,
+      "rate_per_second": 2850627.1898807604
+    },
+    "estimated_live_workload": {
+      "10": {
+        "cold_seconds": 0.032599997939541936,
+        "warm_seconds": 0.0001600012183189392
+      },
+      "100": {
+        "cold_seconds": 0.32599997939541936,
+        "warm_seconds": 0.001600012183189392
+      },
+      "1000": {
+        "cold_seconds": 3.2599997939541936,
+        "warm_seconds": 0.01600012183189392
+      },
+      "10000": {
+        "cold_seconds": 32.599997939541936,
+        "warm_seconds": 0.1600012183189392
+      },
+      "100000": {
+        "cold_seconds": 325.99997939541936,
+        "warm_seconds": 1.600012183189392
+      }
+    }
+  },
+  "bootstrap": {
+    "traces": 47
+  },
+  "attention_memory": {
+    "updates": 229,
+    "positive_updates": 229,
+    "negative_updates": 0,
+    "exact_states": 46,
+    "goal_states": 18
+  },
+  "interaction_summary": {
+    "cases": 280,
+    "accuracy": 0.725,
+    "supported_cases": 140,
+    "supported_recovery": 0.45,
+    "negative_cases": 140,
+    "false_proof_rate": 0.0,
+    "predicted_positive": 63,
+    "mean_steps": 27.37857142857143,
+    "mean_path_length": 2.142857142857143,
+    "mean_attention_selected": 53.01428571428571,
+    "mean_exploration_selected": 173.3892857142857,
+    "budget_exhausted": 121,
+    "runtime_seconds": 0.9117690999992192
+  },
+  "trace_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v605_cognitive_traces.jsonl",
+  "prior_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v605_global_attention_prior.json",
+  "elapsed_seconds": 234.9569182999985
+}
