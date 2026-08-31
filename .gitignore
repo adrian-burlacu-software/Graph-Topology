@@ -50,6 +50,7 @@ results/v557_semantic_composition.sqlite-wal
 results/v562_kg_composition_audit.sqlite
 results/v562_kg_composition_audit.sqlite-shm
 results/v562_kg_composition_audit.sqlite-wal
+results/v562_kg_composition_audit.sqlite-journal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
