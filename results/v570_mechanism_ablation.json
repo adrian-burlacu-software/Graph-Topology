@@ -1,0 +1,4738 @@
+{
+  "benchmark": "v570_cognitive_mechanism_ablation",
+  "database": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v562_kg_composition_audit.sqlite",
+  "v568_model": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v568_20_relation_induction.json",
+  "database_size_bytes": 48173432832,
+  "source_graph_read_only": true,
+  "schema": {
+    "columns": [
+      "object",
+      "relation",
+      "source",
+      "subject"
+    ],
+    "indexes": [
+      "idx_sro",
+      "idx_o",
+      "idx_r",
+      "idx_s"
+    ]
+  },
+  "graph": {
+    "edges": 191894720
+  },
+  "oracle": {
+    "supported": 472,
+    "hard_negative": 184,
+    "total": 656,
+    "construction": "2-hop graph-derived supported cases with the direct target edge hidden during primary policy evaluation"
+  },
+  "policies": {
+    "bfs": {
+      "cases": 656,
+      "accuracy": 0.551829268292683,
+      "supported_cases": 472,
+      "supported_recovery": 0.3792372881355932,
+      "negative_cases": 184,
+      "false_proof_rate": 0.005434782608695652,
+      "predicted_positive": 180,
+      "mean_steps": 64.59603658536585,
+      "mean_path_length": 2.022222222222222,
+      "budget_exhausted": 466,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.15384615384616
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9746835443037974,
+          "false_proof_rate": 0.14285714285714285,
+          "mean_steps": 12.023255813953488
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.9821428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 60.05940594059406
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.0916030534351145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.71111111111111
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.7777777777777778,
+          "false_proof_rate": 0.0,
+          "mean_steps": 62.44444444444444
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 38.77272727272727
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.6,
+          "false_proof_rate": 0.0,
+          "mean_steps": 53.38095238095238
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.0
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.8125
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.2542063999862876
+    },
+    "frequency": {
+      "cases": 656,
+      "accuracy": 0.49390243902439024,
+      "supported_cases": 472,
+      "supported_recovery": 0.3008474576271186,
+      "negative_cases": 184,
+      "false_proof_rate": 0.010869565217391304,
+      "predicted_positive": 144,
+      "mean_steps": 66.47713414634147,
+      "mean_path_length": 2.013888888888889,
+      "budget_exhausted": 502,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9493670886075949,
+          "false_proof_rate": 0.2857142857142857,
+          "mean_steps": 11.80232558139535
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.6071428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 67.55445544554455
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.03816793893129771,
+          "false_proof_rate": 0.0,
+          "mean_steps": 78.93888888888888
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.5909090909090909,
+          "false_proof_rate": 0.0,
+          "mean_steps": 41.22727272727273
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.05,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.9
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.7333333333333333,
+          "false_proof_rate": 0.0,
+          "mean_steps": 52.142857142857146
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.058823529411764705,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.91803278688525
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.07692307692307693,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.83333333333333
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.6875
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.36284580000210553
+    },
+    "behavior": {
+      "cases": 656,
+      "accuracy": 0.551829268292683,
+      "supported_cases": 472,
+      "supported_recovery": 0.3792372881355932,
+      "negative_cases": 184,
+      "false_proof_rate": 0.005434782608695652,
+      "predicted_positive": 180,
+      "mean_steps": 64.59603658536585,
+      "mean_path_length": 2.022222222222222,
+      "budget_exhausted": 466,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.15384615384616
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9746835443037974,
+          "false_proof_rate": 0.14285714285714285,
+          "mean_steps": 12.023255813953488
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.9821428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 60.05940594059406
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.0916030534351145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.71111111111111
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.7777777777777778,
+          "false_proof_rate": 0.0,
+          "mean_steps": 62.44444444444444
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 38.77272727272727
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.6,
+          "false_proof_rate": 0.0,
+          "mean_steps": 53.38095238095238
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.0
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.8125
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.27199219999602064
+    },
+    "family": {
+      "cases": 656,
+      "accuracy": 0.49847560975609756,
+      "supported_cases": 472,
+      "supported_recovery": 0.3072033898305085,
+      "negative_cases": 184,
+      "false_proof_rate": 0.010869565217391304,
+      "predicted_positive": 147,
+      "mean_steps": 65.5685975609756,
+      "mean_path_length": 2.0136054421768708,
+      "budget_exhausted": 499,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.2857142857142857,
+          "mean_steps": 7.8023255813953485
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.44642857142857145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 72.21782178217822
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.007633587786259542,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.76666666666667
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.4444444444444444,
+          "false_proof_rate": 0.0,
+          "mean_steps": 75.77777777777777
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 14.909090909090908
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.7333333333333333,
+          "false_proof_rate": 0.0,
+          "mean_steps": 47.61904761904762
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 70.44444444444444
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.8125
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.422858299993095
+    },
+    "depth": {
+      "cases": 656,
+      "accuracy": 0.551829268292683,
+      "supported_cases": 472,
+      "supported_recovery": 0.3771186440677966,
+      "negative_cases": 184,
+      "false_proof_rate": 0.0,
+      "predicted_positive": 178,
+      "mean_steps": 63.416158536585364,
+      "mean_path_length": 2.0112359550561796,
+      "budget_exhausted": 447,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 78.53846153846153
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9746835443037974,
+          "false_proof_rate": 0.0,
+          "mean_steps": 11.63953488372093
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.9821428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 55.40594059405941
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.08396946564885496,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.43333333333334
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.7777777777777778,
+          "false_proof_rate": 0.0,
+          "mean_steps": 62.44444444444444
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 38.77272727272727
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.6,
+          "false_proof_rate": 0.0,
+          "mean_steps": 53.38095238095238
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.0
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 61.5
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.28679109999211505
+    },
+    "behavior_family": {
+      "cases": 656,
+      "accuracy": 0.49847560975609756,
+      "supported_cases": 472,
+      "supported_recovery": 0.3072033898305085,
+      "negative_cases": 184,
+      "false_proof_rate": 0.010869565217391304,
+      "predicted_positive": 147,
+      "mean_steps": 65.58689024390245,
+      "mean_path_length": 2.0136054421768708,
+      "budget_exhausted": 499,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.2857142857142857,
+          "mean_steps": 7.732558139534884
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.44642857142857145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 72.11881188118812
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.030534351145038167,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.23333333333333
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 16.0
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.05,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.7
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.7333333333333333,
+          "false_proof_rate": 0.0,
+          "mean_steps": 47.61904761904762
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 74.22222222222223
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.8125
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.5025217000074917
+    },
+    "behavior_depth": {
+      "cases": 656,
+      "accuracy": 0.5060975609756098,
+      "supported_cases": 472,
+      "supported_recovery": 0.3135593220338983,
+      "negative_cases": 184,
+      "false_proof_rate": 0.0,
+      "predicted_positive": 148,
+      "mean_steps": 64.89634146341463,
+      "mean_path_length": 2.0,
+      "budget_exhausted": 477,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.38461538461539
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9493670886075949,
+          "false_proof_rate": 0.0,
+          "mean_steps": 11.813953488372093
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.6071428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 62.51485148514851
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.06870229007633588,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.83333333333333
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.5909090909090909,
+          "false_proof_rate": 0.0,
+          "mean_steps": 40.09090909090909
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.05,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.5
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.8,
+          "false_proof_rate": 0.0,
+          "mean_steps": 49.333333333333336
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.058823529411764705,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.85245901639344
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.21428571428571
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.07692307692307693,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.61111111111111
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 61.5
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.36873290000949055
+    },
+    "family_depth": {
+      "cases": 656,
+      "accuracy": 0.5182926829268293,
+      "supported_cases": 472,
+      "supported_recovery": 0.3305084745762712,
+      "negative_cases": 184,
+      "false_proof_rate": 0.0,
+      "predicted_positive": 156,
+      "mean_steps": 63.49542682926829,
+      "mean_path_length": 2.0,
+      "budget_exhausted": 469,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.38461538461539
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 7.546511627906977
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.44642857142857145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 67.07920792079207
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.06870229007633588,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.22777777777777
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.4444444444444444,
+          "false_proof_rate": 0.0,
+          "mean_steps": 75.77777777777777
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 12.227272727272727
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.8,
+          "false_proof_rate": 0.0,
+          "mean_steps": 47.04761904761905
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 78.14285714285714
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.3076923076923077,
+          "false_proof_rate": 0.0,
+          "mean_steps": 68.0
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 61.5
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.4257859999925131
+    },
+    "full_hybrid": {
+      "cases": 656,
+      "accuracy": 0.5121951219512195,
+      "supported_cases": 472,
+      "supported_recovery": 0.3220338983050847,
+      "negative_cases": 184,
+      "false_proof_rate": 0.0,
+      "predicted_positive": 152,
+      "mean_steps": 63.826219512195124,
+      "mean_path_length": 2.0,
+      "budget_exhausted": 473,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.38461538461539
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 7.523255813953488
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.44642857142857145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 67.07920792079207
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.06870229007633588,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.61111111111111
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 1.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 13.318181818181818
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.05,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.4
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.8,
+          "false_proof_rate": 0.0,
+          "mean_steps": 47.04761904761905
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 78.35714285714286
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.38888888888889
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 61.5
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.5087398000032408
+    },
+    "shuffled_behavior": {
+      "cases": 656,
+      "accuracy": 0.5015243902439024,
+      "supported_cases": 472,
+      "supported_recovery": 0.3135593220338983,
+      "negative_cases": 184,
+      "false_proof_rate": 0.016304347826086956,
+      "predicted_positive": 151,
+      "mean_steps": 66.23170731707317,
+      "mean_path_length": 2.1456953642384105,
+      "budget_exhausted": 494,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9493670886075949,
+          "false_proof_rate": 0.2857142857142857,
+          "mean_steps": 10.755813953488373
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.5,
+          "false_proof_rate": 0.0,
+          "mean_steps": 71.43564356435644
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.15267175572519084,
+          "false_proof_rate": 0.0,
+          "mean_steps": 76.48333333333333
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 40.40909090909091
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.5333333333333333,
+          "false_proof_rate": 0.16666666666666666,
+          "mean_steps": 55.333333333333336
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.22222222222223
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.15384615384615385,
+          "false_proof_rate": 0.0,
+          "mean_steps": 76.22222222222223
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.6875
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.3344520999962697
+    },
+    "shuffled_family": {
+      "cases": 656,
+      "accuracy": 0.551829268292683,
+      "supported_cases": 472,
+      "supported_recovery": 0.3792372881355932,
+      "negative_cases": 184,
+      "false_proof_rate": 0.005434782608695652,
+      "predicted_positive": 180,
+      "mean_steps": 64.59603658536585,
+      "mean_path_length": 2.022222222222222,
+      "budget_exhausted": 466,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.15384615384616
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9746835443037974,
+          "false_proof_rate": 0.14285714285714285,
+          "mean_steps": 12.023255813953488
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.9821428571428571,
+          "false_proof_rate": 0.0,
+          "mean_steps": 60.05940594059406
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.0916030534351145,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.71111111111111
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.7777777777777778,
+          "false_proof_rate": 0.0,
+          "mean_steps": 62.44444444444444
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 38.77272727272727
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.6,
+          "false_proof_rate": 0.0,
+          "mean_steps": 53.38095238095238
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.125,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.66666666666667
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.23076923076923078,
+          "false_proof_rate": 0.0,
+          "mean_steps": 77.0
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.8125
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.27338319999398664
+    },
+    "shuffled_all": {
+      "cases": 656,
+      "accuracy": 0.5015243902439024,
+      "supported_cases": 472,
+      "supported_recovery": 0.3135593220338983,
+      "negative_cases": 184,
+      "false_proof_rate": 0.016304347826086956,
+      "predicted_positive": 151,
+      "mean_steps": 66.23170731707317,
+      "mean_path_length": 2.1456953642384105,
+      "budget_exhausted": 494,
+      "results_by_relation": {
+        "schema:birthPlace": {
+          "cases": 39,
+          "supported_cases": 24,
+          "supported_recovery": 0.041666666666666664,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "is_a": {
+          "cases": 86,
+          "supported_cases": 79,
+          "supported_recovery": 0.9493670886075949,
+          "false_proof_rate": 0.2857142857142857,
+          "mean_steps": 10.755813953488373
+        },
+        "team": {
+          "cases": 101,
+          "supported_cases": 56,
+          "supported_recovery": 0.5,
+          "false_proof_rate": 0.0,
+          "mean_steps": 71.43564356435644
+        },
+        "schema:nationality": {
+          "cases": 180,
+          "supported_cases": 131,
+          "supported_recovery": 0.15267175572519084,
+          "false_proof_rate": 0.0,
+          "mean_steps": 76.48333333333333
+        },
+        "deathPlace": {
+          "cases": 9,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:gender": {
+          "cases": 22,
+          "supported_cases": 22,
+          "supported_recovery": 0.6363636363636364,
+          "false_proof_rate": 0.0,
+          "mean_steps": 40.40909090909091
+        },
+        "schema:organizer": {
+          "cases": 20,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:inLanguage": {
+          "cases": 10,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:location": {
+          "cases": 21,
+          "supported_cases": 15,
+          "supported_recovery": 0.5333333333333333,
+          "false_proof_rate": 0.16666666666666666,
+          "mean_steps": 55.333333333333336
+        },
+        "yago:participant": {
+          "cases": 61,
+          "supported_cases": 34,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:memberOf": {
+          "cases": 14,
+          "supported_cases": 8,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:alumniOf": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "birthPlace": {
+          "cases": 27,
+          "supported_cases": 20,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 79.22222222222223
+        },
+        "schema:knowsLanguage": {
+          "cases": 18,
+          "supported_cases": 13,
+          "supported_recovery": 0.15384615384615385,
+          "false_proof_rate": 0.0,
+          "mean_steps": 76.22222222222223
+        },
+        "yago:hasMother": {
+          "cases": 16,
+          "supported_cases": 9,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 73.6875
+        },
+        "schema:award": {
+          "cases": 4,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:deathPlace": {
+          "cases": 12,
+          "supported_cases": 6,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "movement": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:locationCreated": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:productionCompany": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "schema:worksFor": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "managerClub": {
+          "cases": 3,
+          "supported_cases": 3,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "nationality": {
+          "cases": 2,
+          "supported_cases": 2,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        },
+        "draftTeam": {
+          "cases": 1,
+          "supported_cases": 1,
+          "supported_recovery": 0.0,
+          "false_proof_rate": 0.0,
+          "mean_steps": 80.0
+        }
+      },
+      "seconds": 0.33106080000288785
+    }
+  },
+  "deltas_vs_bfs": {
+    "bfs": {
+      "accuracy_delta_vs_bfs": 0.0,
+      "supported_recovery_delta_vs_bfs": 0.0,
+      "false_proof_delta_vs_bfs": 0.0,
+      "mean_steps_delta_vs_bfs": 0.0
+    },
+    "frequency": {
+      "accuracy_delta_vs_bfs": -0.057926829268292734,
+      "supported_recovery_delta_vs_bfs": -0.07838983050847459,
+      "false_proof_delta_vs_bfs": 0.005434782608695652,
+      "mean_steps_delta_vs_bfs": 1.8810975609756184
+    },
+    "behavior": {
+      "accuracy_delta_vs_bfs": 0.0,
+      "supported_recovery_delta_vs_bfs": 0.0,
+      "false_proof_delta_vs_bfs": 0.0,
+      "mean_steps_delta_vs_bfs": 0.0
+    },
+    "family": {
+      "accuracy_delta_vs_bfs": -0.05335365853658541,
+      "supported_recovery_delta_vs_bfs": -0.07203389830508472,
+      "false_proof_delta_vs_bfs": 0.005434782608695652,
+      "mean_steps_delta_vs_bfs": 0.9725609756097526
+    },
+    "depth": {
+      "accuracy_delta_vs_bfs": 0.0,
+      "supported_recovery_delta_vs_bfs": -0.0021186440677966045,
+      "false_proof_delta_vs_bfs": -0.005434782608695652,
+      "mean_steps_delta_vs_bfs": -1.1798780487804876
+    },
+    "behavior_family": {
+      "accuracy_delta_vs_bfs": -0.05335365853658541,
+      "supported_recovery_delta_vs_bfs": -0.07203389830508472,
+      "false_proof_delta_vs_bfs": 0.005434782608695652,
+      "mean_steps_delta_vs_bfs": 0.9908536585365937
+    },
+    "behavior_depth": {
+      "accuracy_delta_vs_bfs": -0.04573170731707321,
+      "supported_recovery_delta_vs_bfs": -0.0656779661016949,
+      "false_proof_delta_vs_bfs": -0.005434782608695652,
+      "mean_steps_delta_vs_bfs": 0.30030487804877737
+    },
+    "family_depth": {
+      "accuracy_delta_vs_bfs": -0.03353658536585369,
+      "supported_recovery_delta_vs_bfs": -0.048728813559322015,
+      "false_proof_delta_vs_bfs": -0.005434782608695652,
+      "mean_steps_delta_vs_bfs": -1.1006097560975618
+    },
+    "full_hybrid": {
+      "accuracy_delta_vs_bfs": -0.03963414634146345,
+      "supported_recovery_delta_vs_bfs": -0.05720338983050849,
+      "false_proof_delta_vs_bfs": -0.005434782608695652,
+      "mean_steps_delta_vs_bfs": -0.7698170731707279
+    },
+    "shuffled_behavior": {
+      "accuracy_delta_vs_bfs": -0.05030487804878059,
+      "supported_recovery_delta_vs_bfs": -0.0656779661016949,
+      "false_proof_delta_vs_bfs": 0.010869565217391304,
+      "mean_steps_delta_vs_bfs": 1.6356707317073216
+    },
+    "shuffled_family": {
+      "accuracy_delta_vs_bfs": 0.0,
+      "supported_recovery_delta_vs_bfs": 0.0,
+      "false_proof_delta_vs_bfs": 0.0,
+      "mean_steps_delta_vs_bfs": 0.0
+    },
+    "shuffled_all": {
+      "accuracy_delta_vs_bfs": -0.05030487804878059,
+      "supported_recovery_delta_vs_bfs": -0.0656779661016949,
+      "false_proof_delta_vs_bfs": 0.010869565217391304,
+      "mean_steps_delta_vs_bfs": 1.6356707317073216
+    }
+  },
+  "mechanism_effects": {
+    "behavior_effect": {
+      "with": {
+        "cases": 656,
+        "accuracy": 0.551829268292683,
+        "supported_cases": 472,
+        "supported_recovery": 0.3792372881355932,
+        "negative_cases": 184,
+        "false_proof_rate": 0.005434782608695652,
+        "predicted_positive": 180,
+        "mean_steps": 64.59603658536585,
+        "mean_path_length": 2.022222222222222,
+        "budget_exhausted": 466,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.041666666666666664,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.15384615384616
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 0.9746835443037974,
+            "false_proof_rate": 0.14285714285714285,
+            "mean_steps": 12.023255813953488
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.9821428571428571,
+            "false_proof_rate": 0.0,
+            "mean_steps": 60.05940594059406
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.0916030534351145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.71111111111111
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.7777777777777778,
+            "false_proof_rate": 0.0,
+            "mean_steps": 62.44444444444444
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 0.6363636363636364,
+            "false_proof_rate": 0.0,
+            "mean_steps": 38.77272727272727
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.6,
+            "false_proof_rate": 0.0,
+            "mean_steps": 53.38095238095238
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.0
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.27199219999602064
+      },
+      "without": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.5685975609756,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.8023255813953485
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.21782178217822
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.007633587786259542,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.76666666666667
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.4444444444444444,
+            "false_proof_rate": 0.0,
+            "mean_steps": 75.77777777777777
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 14.909090909090908
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 70.44444444444444
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.422858299993095
+      },
+      "delta_accuracy": 0.05335365853658541,
+      "delta_recovery": 0.07203389830508472
+    },
+    "family_effect": {
+      "with": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.5685975609756,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.8023255813953485
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.21782178217822
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.007633587786259542,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.76666666666667
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.4444444444444444,
+            "false_proof_rate": 0.0,
+            "mean_steps": 75.77777777777777
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 14.909090909090908
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 70.44444444444444
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.422858299993095
+      },
+      "without": {
+        "cases": 656,
+        "accuracy": 0.551829268292683,
+        "supported_cases": 472,
+        "supported_recovery": 0.3792372881355932,
+        "negative_cases": 184,
+        "false_proof_rate": 0.005434782608695652,
+        "predicted_positive": 180,
+        "mean_steps": 64.59603658536585,
+        "mean_path_length": 2.022222222222222,
+        "budget_exhausted": 466,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.041666666666666664,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.15384615384616
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 0.9746835443037974,
+            "false_proof_rate": 0.14285714285714285,
+            "mean_steps": 12.023255813953488
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.9821428571428571,
+            "false_proof_rate": 0.0,
+            "mean_steps": 60.05940594059406
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.0916030534351145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.71111111111111
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.7777777777777778,
+            "false_proof_rate": 0.0,
+            "mean_steps": 62.44444444444444
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 0.6363636363636364,
+            "false_proof_rate": 0.0,
+            "mean_steps": 38.77272727272727
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.6,
+            "false_proof_rate": 0.0,
+            "mean_steps": 53.38095238095238
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.0
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.27199219999602064
+      },
+      "delta_accuracy": -0.05335365853658541,
+      "delta_recovery": -0.07203389830508472
+    },
+    "depth_effect": {
+      "without_depth": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.58689024390245,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.732558139534884
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.11881188118812
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.030534351145038167,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.23333333333333
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 16.0
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.05,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.7
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 74.22222222222223
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.5025217000074917
+      },
+      "with_depth": {
+        "cases": 656,
+        "accuracy": 0.5121951219512195,
+        "supported_cases": 472,
+        "supported_recovery": 0.3220338983050847,
+        "negative_cases": 184,
+        "false_proof_rate": 0.0,
+        "predicted_positive": 152,
+        "mean_steps": 63.826219512195124,
+        "mean_path_length": 2.0,
+        "budget_exhausted": 473,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.38461538461539
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 7.523255813953488
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 67.07920792079207
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.06870229007633588,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.61111111111111
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 13.318181818181818
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.05,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.4
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.8,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.04761904761905
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 78.35714285714286
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.38888888888889
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 61.5
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.5087398000032408
+      },
+      "delta_accuracy": 0.013719512195121963,
+      "delta_recovery": 0.014830508474576232,
+      "delta_steps": -1.7606707317073216
+    },
+    "family_interaction": {
+      "behavior_only": {
+        "cases": 656,
+        "accuracy": 0.551829268292683,
+        "supported_cases": 472,
+        "supported_recovery": 0.3792372881355932,
+        "negative_cases": 184,
+        "false_proof_rate": 0.005434782608695652,
+        "predicted_positive": 180,
+        "mean_steps": 64.59603658536585,
+        "mean_path_length": 2.022222222222222,
+        "budget_exhausted": 466,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.041666666666666664,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.15384615384616
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 0.9746835443037974,
+            "false_proof_rate": 0.14285714285714285,
+            "mean_steps": 12.023255813953488
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.9821428571428571,
+            "false_proof_rate": 0.0,
+            "mean_steps": 60.05940594059406
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.0916030534351145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.71111111111111
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.7777777777777778,
+            "false_proof_rate": 0.0,
+            "mean_steps": 62.44444444444444
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 0.6363636363636364,
+            "false_proof_rate": 0.0,
+            "mean_steps": 38.77272727272727
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.6,
+            "false_proof_rate": 0.0,
+            "mean_steps": 53.38095238095238
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.0
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.27199219999602064
+      },
+      "family_only": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.5685975609756,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.8023255813953485
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.21782178217822
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.007633587786259542,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.76666666666667
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.4444444444444444,
+            "false_proof_rate": 0.0,
+            "mean_steps": 75.77777777777777
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 14.909090909090908
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 70.44444444444444
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.422858299993095
+      },
+      "behavior_family": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.58689024390245,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.732558139534884
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.11881188118812
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.030534351145038167,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.23333333333333
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 16.0
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.05,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.7
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 74.22222222222223
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.5025217000074917
+      },
+      "synergy_accuracy": -0.05335365853658541,
+      "synergy_recovery": -0.07203389830508472
+    },
+    "depth_interaction": {
+      "behavior_only": {
+        "cases": 656,
+        "accuracy": 0.551829268292683,
+        "supported_cases": 472,
+        "supported_recovery": 0.3792372881355932,
+        "negative_cases": 184,
+        "false_proof_rate": 0.005434782608695652,
+        "predicted_positive": 180,
+        "mean_steps": 64.59603658536585,
+        "mean_path_length": 2.022222222222222,
+        "budget_exhausted": 466,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.041666666666666664,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.15384615384616
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 0.9746835443037974,
+            "false_proof_rate": 0.14285714285714285,
+            "mean_steps": 12.023255813953488
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.9821428571428571,
+            "false_proof_rate": 0.0,
+            "mean_steps": 60.05940594059406
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.0916030534351145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.71111111111111
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.7777777777777778,
+            "false_proof_rate": 0.0,
+            "mean_steps": 62.44444444444444
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 0.6363636363636364,
+            "false_proof_rate": 0.0,
+            "mean_steps": 38.77272727272727
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.6,
+            "false_proof_rate": 0.0,
+            "mean_steps": 53.38095238095238
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.0
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.27199219999602064
+      },
+      "behavior_depth": {
+        "cases": 656,
+        "accuracy": 0.5060975609756098,
+        "supported_cases": 472,
+        "supported_recovery": 0.3135593220338983,
+        "negative_cases": 184,
+        "false_proof_rate": 0.0,
+        "predicted_positive": 148,
+        "mean_steps": 64.89634146341463,
+        "mean_path_length": 2.0,
+        "budget_exhausted": 477,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.38461538461539
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 0.9493670886075949,
+            "false_proof_rate": 0.0,
+            "mean_steps": 11.813953488372093
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.6071428571428571,
+            "false_proof_rate": 0.0,
+            "mean_steps": 62.51485148514851
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.06870229007633588,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.83333333333333
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 0.5909090909090909,
+            "false_proof_rate": 0.0,
+            "mean_steps": 40.09090909090909
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.05,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.5
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.8,
+            "false_proof_rate": 0.0,
+            "mean_steps": 49.333333333333336
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.058823529411764705,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.85245901639344
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.21428571428571
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.07692307692307693,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.61111111111111
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 61.5
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.36873290000949055
+      },
+      "family_only": {
+        "cases": 656,
+        "accuracy": 0.49847560975609756,
+        "supported_cases": 472,
+        "supported_recovery": 0.3072033898305085,
+        "negative_cases": 184,
+        "false_proof_rate": 0.010869565217391304,
+        "predicted_positive": 147,
+        "mean_steps": 65.5685975609756,
+        "mean_path_length": 2.0136054421768708,
+        "budget_exhausted": 499,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.2857142857142857,
+            "mean_steps": 7.8023255813953485
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 72.21782178217822
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.007633587786259542,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.76666666666667
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.4444444444444444,
+            "false_proof_rate": 0.0,
+            "mean_steps": 75.77777777777777
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 14.909090909090908
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.7333333333333333,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.61904761904762
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.23076923076923078,
+            "false_proof_rate": 0.0,
+            "mean_steps": 70.44444444444444
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 73.8125
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.422858299993095
+      },
+      "family_depth": {
+        "cases": 656,
+        "accuracy": 0.5182926829268293,
+        "supported_cases": 472,
+        "supported_recovery": 0.3305084745762712,
+        "negative_cases": 184,
+        "false_proof_rate": 0.0,
+        "predicted_positive": 156,
+        "mean_steps": 63.49542682926829,
+        "mean_path_length": 2.0,
+        "budget_exhausted": 469,
+        "results_by_relation": {
+          "schema:birthPlace": {
+            "cases": 39,
+            "supported_cases": 24,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.38461538461539
+          },
+          "is_a": {
+            "cases": 86,
+            "supported_cases": 79,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 7.546511627906977
+          },
+          "team": {
+            "cases": 101,
+            "supported_cases": 56,
+            "supported_recovery": 0.44642857142857145,
+            "false_proof_rate": 0.0,
+            "mean_steps": 67.07920792079207
+          },
+          "schema:nationality": {
+            "cases": 180,
+            "supported_cases": 131,
+            "supported_recovery": 0.06870229007633588,
+            "false_proof_rate": 0.0,
+            "mean_steps": 77.22777777777777
+          },
+          "deathPlace": {
+            "cases": 9,
+            "supported_cases": 9,
+            "supported_recovery": 0.4444444444444444,
+            "false_proof_rate": 0.0,
+            "mean_steps": 75.77777777777777
+          },
+          "schema:gender": {
+            "cases": 22,
+            "supported_cases": 22,
+            "supported_recovery": 1.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 12.227272727272727
+          },
+          "schema:organizer": {
+            "cases": 20,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:inLanguage": {
+            "cases": 10,
+            "supported_cases": 8,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:location": {
+            "cases": 21,
+            "supported_cases": 15,
+            "supported_recovery": 0.8,
+            "false_proof_rate": 0.0,
+            "mean_steps": 47.04761904761905
+          },
+          "yago:participant": {
+            "cases": 61,
+            "supported_cases": 34,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:memberOf": {
+            "cases": 14,
+            "supported_cases": 8,
+            "supported_recovery": 0.125,
+            "false_proof_rate": 0.0,
+            "mean_steps": 78.14285714285714
+          },
+          "schema:alumniOf": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "birthPlace": {
+            "cases": 27,
+            "supported_cases": 20,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 79.66666666666667
+          },
+          "schema:knowsLanguage": {
+            "cases": 18,
+            "supported_cases": 13,
+            "supported_recovery": 0.3076923076923077,
+            "false_proof_rate": 0.0,
+            "mean_steps": 68.0
+          },
+          "yago:hasMother": {
+            "cases": 16,
+            "supported_cases": 9,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 61.5
+          },
+          "schema:award": {
+            "cases": 4,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:deathPlace": {
+            "cases": 12,
+            "supported_cases": 6,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "movement": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:locationCreated": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:productionCompany": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "schema:worksFor": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "managerClub": {
+            "cases": 3,
+            "supported_cases": 3,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "nationality": {
+            "cases": 2,
+            "supported_cases": 2,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          },
+          "draftTeam": {
+            "cases": 1,
+            "supported_cases": 1,
+            "supported_recovery": 0.0,
+            "false_proof_rate": 0.0,
+            "mean_steps": 80.0
+          }
+        },
+        "seconds": 0.4257859999925131
+      }
+    }
+  },
+  "shuffle_test": {
+    "behavior_loss": 0.05030487804878059,
+    "family_loss": -0.05335365853658541,
+    "full_loss": 0.010670731707317138
+  },
+  "utility_scores": {
+    "bfs": 0.3643693053015529,
+    "frequency": 0.2789508593370868,
+    "behavior": 0.3643693053015529,
+    "family": 0.2854203586136474,
+    "depth": 0.36919162425072344,
+    "behavior_family": 0.28541807202828157,
+    "behavior_depth": 0.3054472793509715,
+    "family_depth": 0.32257154622261264,
+    "full_hybrid": 0.3140556208660603,
+    "shuffled_behavior": 0.28489992383665547,
+    "shuffled_family": 0.3643693053015529,
+    "shuffled_all": 0.28489992383665547
+  },
+  "cognitive_winner": "depth",
+  "config": {
+    "workers": 20,
+    "top_predicates": 20,
+    "sample_each": 600,
+    "middle_out_limit": 150,
+    "cases_per_predicate": 60,
+    "negative_ratio": 0.75,
+    "holdout_supported": 500,
+    "holdout_negative": 500,
+    "budget": 80,
+    "per_node": 60,
+    "max_depth": 3,
+    "seed": 570
+  },
+  "v568_profiles_used": 20,
+  "elapsed_seconds": 52.70329320000019
+}
