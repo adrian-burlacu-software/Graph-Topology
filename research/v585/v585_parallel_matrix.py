@@ -565,8 +565,8 @@ def main():
     log("mode                 : parallel policy/seed jobs")
     log("nested parallelism   : OFF")
 
-    if args.workers < 1 or args.workers > 20:
-        raise ValueError("--workers must be between 1 and 20")
+    if args.workers < 1 or args.workers > 200:
+        raise ValueError("--workers must be between 1 and 200")
 
     # Main-process connection: oracle/profile discovery happens once.
     con = connect_readonly(str(db))
