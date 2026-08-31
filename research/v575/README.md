@@ -1,6 +1,6 @@
-# V575.3 — Optimized Multi-Hypothesis Cognitive Controller
+# V575.4 — Optimized Multi-Hypothesis Cognitive Controller
 
-V575.3 is the performance rebuild of V575.
+V575.4 is the performance rebuild of V575.
 
 The prior version could spend enormous time repeatedly probing a ~45 GB SQLite
 graph. This version changes the execution model:
@@ -100,3 +100,12 @@ information_gain
 A successful result should show that the controller both changes attention
 meaningfully and improves supported recovery against `depth_branch` without
 creating false proofs.
+
+## V575.4 performance rebuild
+
+The multi-hypothesis controller has a strict no-I/O rule inside edge scoring.
+Only the active hypothesis frontier is batch-fetched. Child topology is not
+queried candidate-by-candidate.
+
+Use `--only-policy multi_depth` for a fast controller smoke test before the
+full matrix.

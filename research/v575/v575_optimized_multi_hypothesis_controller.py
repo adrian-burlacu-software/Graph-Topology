@@ -1614,17 +1614,16 @@ def run_multi_hypothesis(
     max_probes,
     case_deadline,
 ):
-    start = time.perf_counter()
+    """
+    I/O-free inner controller.
 
-    initial_depth, confidence = (
-        choose_initial_depth(
-            cache,
-            case,
-            profiles,
-            per_node,
-            stats,
-        )
-    )
+    SQLite is touched only for the current active frontier batch. Child
+    topology is NOT probed during edge scoring. This prevents the previous
+    implementation from converting every candidate edge into another graph
+    lookup.
+    """
+    started = time.perf_counter()
+    rng = random.Random(seed)
 
     hidden = {
         (
@@ -1634,53 +1633,72 @@ def run_multi_hypothesis(
         )
     } if case.gold else set()
 
-    next_id = 1
-
-    hypotheses = [
-        H(
-            hid=next_id,
-            depth_limit=initial_depth,
-            node=case.subject,
-            path=(),
-            score=1.0,
-        )
-    ]
-
-    next_id += 1
-
-    alternate_depth = min(
-        max_depth,
-        initial_depth + 1,
+    first = cache.get_one(
+        case.subject,
+        per_node,
+        hidden,
+        stats,
     )
 
-    if alternate_depth != initial_depth:
+    best_transition = 0.0
+
+    for relation, _object, _source in first:
+        profile = profiles.get(relation)
+        if profile:
+            best_transition = max(
+                best_transition,
+                second_profile(profile).get(
+                    case.target_relation,
+                    0.0,
+                ),
+            )
+
+    initial_depth = (
+        2
+        if best_transition >= 0.01
+        else 3
+    )
+
+    hypotheses = []
+    next_id = 1
+
+    for depth, prior in (
+        (initial_depth, 1.0),
+        (
+            min(
+                max_depth,
+                initial_depth + 1,
+            ),
+            0.82,
+        ),
+    ):
+        if any(
+            h.depth_limit == depth
+            for h in hypotheses
+        ):
+            continue
+
         hypotheses.append(
             H(
                 hid=next_id,
-                depth_limit=alternate_depth,
+                depth_limit=depth,
                 node=case.subject,
                 path=(),
-                score=0.85,
+                score=prior,
             )
         )
+
         next_id += 1
+        stats.hypotheses_created += 1
 
-    stats.hypotheses_created = (
-        len(hypotheses)
-    )
-
-    stats.max_live_hypotheses = len(
-        hypotheses
-    )
+    stats.max_live_hypotheses = len(hypotheses)
 
     visited = {
         case.subject
     }
 
     steps = 0
-
-    # The controller works in attention quanta.
-    quantum = 5
+    no_gain_rounds = 0
 
     while (
         hypotheses
@@ -1688,25 +1706,15 @@ def run_multi_hypothesis(
     ):
         if (
             time.perf_counter()
-            - start
+            - started
             > case_deadline
         ):
             stats.cases_aborted += 1
-            return (
-                False,
-                steps,
-                0,
-                stats,
-            )
+            break
 
         if steps >= max_probes:
             stats.cases_aborted += 1
-            return (
-                False,
-                steps,
-                0,
-                stats,
-            )
+            break
 
         live = [
             h
@@ -1719,25 +1727,36 @@ def run_multi_hypothesis(
 
         stats.allocation_rounds += 1
 
-        state_rows = []
-
-        # Batch-fetch the current frontier first.
-        frontier_nodes = [
+        # ONE batch read for all active hypotheses.
+        frontier_nodes = list(dict.fromkeys(
             h.node
             for h in live
-        ]
+        ))
 
-        frontier_edges = cache.get_many(
+        frontier = cache.get_many(
             frontier_nodes,
             per_node,
             hidden,
             stats,
         )
 
+        hypothesis_scores = []
+
         for h in live:
-            edges = frontier_edges.get(
+            edges = frontier.get(
                 h.node,
-                [],
+                (),
+            )
+
+            branch = (
+                min(
+                    1.0,
+                    len(edges)
+                    / max(
+                        1,
+                        per_node,
+                    ),
+                )
             )
 
             previous = (
@@ -1746,19 +1765,24 @@ def run_multi_hypothesis(
                 else None
             )
 
-            transition = transition_support(
-                previous,
-                case.target_relation,
-                profiles,
+            transition = (
+                best_transition
+                if previous is None
+                else second_profile(
+                    profiles.get(
+                        previous,
+                        {},
+                    )
+                ).get(
+                    case.target_relation,
+                    0.0,
+                )
             )
 
-            branch = min(
-                1.0,
-                len(edges)
-                / max(
-                    1,
-                    per_node,
-                ),
+            remaining = max(
+                1,
+                h.depth_limit
+                - len(h.path),
             )
 
             novelty = 1.0 / (
@@ -1766,126 +1790,77 @@ def run_multi_hypothesis(
                 + h.expansions
             )
 
-            remaining = max(
-                0,
-                h.depth_limit
-                - len(h.path),
-            )
-
-            depth_fit = (
-                1.0
-                / max(
-                    1,
-                    remaining,
-                )
-            )
-
-            base_value = (
-                0.55 * transition
-                + 0.20 * novelty
-                + 0.20 * depth_fit
+            value = (
+                0.45 * transition
+                + 0.25 * novelty
+                + 0.25 / remaining
                 - 0.30 * branch
-                - 0.05 * h.failures
+                - 0.06 * h.failures
             )
 
-            if policy in {
-                "multi_depth",
-            }:
+            if policy == "multi_depth":
                 value = (
-                    0.7
-                    * depth_fit
-                    + 0.3
-                    * (
-                        1.0
-                        - branch
-                    )
+                    0.70 / remaining
+                    + 0.20 * novelty
+                    - 0.20 * branch
                 )
-
-            elif policy == "multi_depth_branch_value":
-                value = base_value
-
-            elif policy == "multi_depth_backtrack":
-                value = base_value
 
             elif policy == "multi_depth_frontier_value":
-                value = (
-                    base_value
-                    + 0.20
-                    * min(
-                        1.0,
-                        len(edges)
-                        / 15.0,
-                    )
+                value += 0.12 * min(
+                    1.0,
+                    len(edges) / 12.0,
                 )
 
-            elif policy == "multi_depth_counterfactual":
-                value = base_value
-
-            elif policy == "multi_depth_learned_state":
-                value = (
-                    base_value
-                    + 0.30 * novelty
+            elif policy in {
+                "multi_depth_learned_state",
+                "full_cognitive_controller",
+            }:
+                value += (
+                    0.20 * novelty
                     - 0.08 * h.failures
                 )
 
-            elif policy == "full_cognitive_controller":
-                fam = 0.0
-
-                for relation, _o, _s in edges[:12]:
-                    fam = max(
-                        fam,
-                        target_family(
-                            relation,
-                            case.target_relation,
-                            profiles,
-                            neighbors,
-                        ),
-                    )
-
-                value = (
-                    base_value
-                    + 0.15 * fam
-                    + 0.20 * novelty
-                    - 0.08 * h.failures
-                )
-
-            else:
-                value = base_value
-
-            state_rows.append(
+            hypothesis_scores.append(
                 (
                     value,
                     h,
                 )
             )
 
-        state_rows.sort(
-            key=lambda x: x[0],
+        hypothesis_scores.sort(
+            key=lambda x: (
+                x[0],
+                -x[1].failures,
+            ),
             reverse=True,
         )
 
-        chosen_value, chosen = state_rows[0]
+        chosen_value, chosen = (
+            hypothesis_scores[0]
+        )
 
-        if policy in {
-            "multi_depth_counterfactual",
-            "full_cognitive_controller",
-        } and len(state_rows) > 1:
-            alternate_value, alternate = state_rows[1]
+        if (
+            policy in {
+                "multi_depth_counterfactual",
+                "full_cognitive_controller",
+            }
+            and len(hypothesis_scores) > 1
+        ):
+            alternate_value, alternate = (
+                hypothesis_scores[1]
+            )
 
             if (
                 alternate_value
-                >= chosen_value * 0.95
-                and alternate_value
-                > chosen_value
+                > chosen_value * 1.05
             ):
                 chosen = alternate
-                chosen_value = alternate_value
                 stats.counterfactual_switches += 1
                 stats.branch_switches += 1
 
-        edges = frontier_edges.get(
+        edges = frontier.get(
             chosen.node,
-            [],
+            (),
         )
 
         if not edges:
@@ -1913,97 +1888,103 @@ def run_multi_hypothesis(
             else None
         )
 
-        edge_nodes = [
-            object_
-            for _relation, object_, _source
-            in edges
-        ]
-
-        # BATCH child topology for this entire attention quantum.
-        child_topology = cache.get_many(
-            edge_nodes,
-            per_node,
-            hidden,
-            stats,
+        transition = (
+            best_transition
+            if previous is None
+            else second_profile(
+                profiles.get(
+                    previous,
+                    {},
+                )
+            ).get(
+                case.target_relation,
+                0.0,
+            )
         )
 
+        # ---------------------------------------------------------------
+        # Score edges entirely from current-node data and semantic profiles.
+        # NO child topology lookup.
+        # ---------------------------------------------------------------
         ranked = []
 
+        parent_branch = min(
+            1.0,
+            len(edges)
+            / max(
+                1,
+                per_node,
+            ),
+        )
+
         for relation, object_, source in edges:
-            degree = min(
-                1.0,
-                len(
-                    child_topology.get(
-                        object_,
-                        [],
-                    )
-                )
-                / max(
-                    1,
-                    per_node,
-                ),
-            )
-
-            transition = transition_support(
-                previous,
-                case.target_relation,
-                profiles,
-            )
-
-            family = target_family(
-                relation,
-                case.target_relation,
-                profiles,
-                neighbors,
-            )
-
-            endpoint = (
-                1.0
-                if object_ == case.object
-                else 0.0
-            )
-
-            target = (
+            target_hit = (
                 1.0
                 if relation
                 == case.target_relation
                 else 0.0
             )
 
-            score = (
-                0.45 * endpoint
-                + 0.20 * target
-                + 0.20 * transition
-                - 0.30 * degree
+            endpoint_hit = (
+                1.0
+                if object_
+                == case.object
+                else 0.0
             )
 
+            semantic = (
+                second_profile(
+                    profiles.get(
+                        previous,
+                        {},
+                    )
+                ).get(
+                    relation,
+                    0.0,
+                )
+                if previous
+                else 0.0
+            )
+
+            family = 0.0
+
             if policy in {
-                "multi_depth_branch_value",
                 "multi_depth_frontier_value",
                 "multi_depth_counterfactual",
                 "multi_depth_learned_state",
                 "full_cognitive_controller",
             }:
-                score += (
-                    0.10
-                    * family
+                family = target_family(
+                    relation,
+                    case.target_relation,
+                    profiles,
+                    neighbors,
                 )
 
-            # In uncertainty-aware/full modes, retain a small alternative
-            # rather than fully collapsing the ranking.
-            if policy in {
-                "multi_depth_learned_state",
-                "full_cognitive_controller",
-            }:
-                score += (
-                    0.02
-                    * random.Random(
-                        chosen.hid
-                        * 1009
-                        + steps
-                        + hash(object_)
-                    ).random()
+            score = (
+                0.60 * endpoint_hit
+                + 0.24 * target_hit
+                + 0.20 * semantic
+                + 0.08 * family
+                - 0.25 * parent_branch
+                + 0.05 * transition
+            )
+
+            # Tiny deterministic stochasticity keeps equivalent edges from
+            # always taking exactly the same path across seeds.
+            score += (
+                1e-8
+                * (
+                    hash(
+                        (
+                            chosen.hid,
+                            relation,
+                            object_,
+                            seed,
+                        )
+                    ) & 0xFFFF
                 )
+            )
 
             ranked.append(
                 (
@@ -2019,6 +2000,7 @@ def run_multi_hypothesis(
             reverse=True,
         )
 
+        quantum = 5
         yielded = 0
 
         for (
@@ -2042,8 +2024,10 @@ def run_multi_hypothesis(
             )
 
             if (
-                relation == case.target_relation
-                and object_ == case.object
+                relation
+                == case.target_relation
+                and object_
+                == case.object
             ):
                 return (
                     True,
@@ -2057,53 +2041,34 @@ def run_multi_hypothesis(
                     object_
                 )
 
-                child = H(
-                    hid=next_id,
-                    depth_limit=chosen.depth_limit,
-                    node=object_,
-                    path=new_path,
-                    score=score,
+                hypotheses.append(
+                    H(
+                        hid=next_id,
+                        depth_limit=chosen.depth_limit,
+                        node=object_,
+                        path=new_path,
+                        score=score,
+                    )
                 )
 
                 next_id += 1
-
-                hypotheses.append(
-                    child
-                )
-
                 stats.hypotheses_created += 1
-                yielded += 1
                 stats.information_gain += 1.0
+                yielded += 1
 
-                if len(hypotheses) > 24:
-                    live2 = [
-                        h
-                        for h in hypotheses
-                        if h.alive
-                    ]
+            if (
+                steps >= budget
+            ):
+                break
 
-                    live2.sort(
-                        key=lambda h: h.score,
-                        reverse=True,
-                    )
-
-                    keep = {
-                        h.hid
-                        for h in live2[:12]
-                    }
-
-                    for h in live2[12:]:
-                        if h.hid not in keep:
-                            h.alive = False
-                            stats.hypothesis_abandons += 1
-
-        if (
-            yielded == 0
-        ):
+        if yielded == 0:
             chosen.failures += 1
+            no_gain_rounds += 1
         else:
             chosen.failures = 0
+            no_gain_rounds = 0
 
+        # Genuine backtracking / attention redirection.
         if (
             policy
             in {
@@ -2118,19 +2083,68 @@ def run_multi_hypothesis(
             stats.hypothesis_abandons += 1
             stats.backtracks += 1
 
-            for _value, alternate in state_rows[1:]:
+            for _, alternate in hypothesis_scores[1:]:
                 if alternate.alive:
                     alternate.score += 0.15
                     stats.hypothesis_promotions += 1
                     stats.branch_switches += 1
                     break
 
+        # If all hypotheses stall, stop rather than endlessly polling SQLite.
+        if (
+            no_gain_rounds >= 4
+            and policy in {
+                "multi_depth_frontier_value",
+                "multi_depth_counterfactual",
+                "multi_depth_learned_state",
+                "full_cognitive_controller",
+            }
+        ):
+            alive = [
+                h for h in hypotheses
+                if h.alive
+            ]
+
+            if len(alive) > 1:
+                weakest = min(
+                    alive,
+                    key=lambda h: h.score,
+                )
+                weakest.alive = False
+                stats.hypothesis_abandons += 1
+                stats.backtracks += 1
+                no_gain_rounds = 0
+            else:
+                break
+
+        live_now = [
+            h for h in hypotheses
+            if h.alive
+        ]
+
+        if len(live_now) > 12:
+            live_now.sort(
+                key=lambda h: h.score,
+                reverse=True,
+            )
+
+            keep = {
+                h.hid
+                for h in live_now[:12]
+            }
+
+            for h in live_now[12:]:
+                h.alive = False
+                stats.hypothesis_abandons += 1
+
         stats.max_live_hypotheses = max(
             stats.max_live_hypotheses,
-            sum(
-                1
-                for h in hypotheses
-                if h.alive
+            len(
+                [
+                    h
+                    for h in hypotheses
+                    if h.alive
+                ]
             ),
         )
 
@@ -2220,14 +2234,14 @@ def evaluate_policy(
                         max_probes,
                         max_case_seconds,
                     )
-            except Exception:
-                local.cases_aborted += 1
-                pred = False
-                steps = min(
-                    budget,
-                    max_probes,
+            except Exception as exc:
+                print(
+                    f"    [CASE ERROR] "
+                    f"{policy} case={index + 1}/{len(cases)} "
+                    f"{type(exc).__name__}: {exc}",
+                    flush=True,
                 )
-                path_length = 0
+                raise
 
             elapsed_case = (
                 time.perf_counter()
@@ -2607,7 +2621,7 @@ def main():
     ap.add_argument(
         "--progress-every",
         type=int,
-        default=10,
+        default=5,
     )
 
     ap.add_argument(
@@ -2619,12 +2633,18 @@ def main():
     ap.add_argument(
         "--max-case-seconds",
         type=float,
-        default=5.0,
+        default=2.0,
     )
 
     ap.add_argument(
         "--skip-bfs",
         action="store_true",
+    )
+
+    ap.add_argument(
+        "--only-policy",
+        default="",
+        help="Run only one policy for a fast diagnostic.",
     )
 
     args = ap.parse_args()
@@ -2801,6 +2821,15 @@ def main():
             and p == "bfs"
         )
     ]
+
+    if args.only_policy:
+        if args.only_policy not in ALL_POLICIES:
+            raise ValueError(
+                f"Unknown --only-policy={args.only_policy!r}; "
+                f"valid={ALL_POLICIES}"
+            )
+        policies = [args.only_policy]
+
 
     per_seed = []
 
