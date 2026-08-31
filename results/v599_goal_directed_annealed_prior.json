@@ -1,0 +1,1051 @@
+{
+  "version": "V599",
+  "config": {
+    "database": ".\\results\\v562_kg_composition_audit.sqlite",
+    "output": ".\\results\\v599_goal_directed_annealed_prior.json",
+    "workers": 20,
+    "seeds": 5,
+    "seed_start": 59900,
+    "budget": 80,
+    "per_node": 60,
+    "max_depth": 3,
+    "cache_entries": 12000,
+    "progress_every": 10,
+    "max_probes_per_case": 500,
+    "max_case_seconds": 2.0,
+    "prior_decay": 0.65,
+    "top_predicates": 7,
+    "sample_each": 600,
+    "middle_limit": 150,
+    "case_cap": 100,
+    "supported_per_relation": 20,
+    "negative_per_relation": 20,
+    "only_policy": "",
+    "skip_bfs": false,
+    "skip_depth_branch": false
+  },
+  "policies": [
+    "goal_directed_prior_search"
+  ],
+  "jobs": 5,
+  "cases": 271,
+  "results": [
+    {
+      "job": {
+        "index": 1,
+        "total": 5,
+        "seed": 59900,
+        "policy": "goal_directed_prior_search"
+      },
+      "elapsed_seconds": 2.9143976000050316,
+      "result": {
+        "accuracy": 0.5719557195571956,
+        "supported_cases": 140,
+        "supported_recovery": 0.24285714285714285,
+        "negative_cases": 131,
+        "false_proof_rate": 0.07633587786259542,
+        "predicted_positive": 44,
+        "mean_steps": 72.20664206642067,
+        "mean_path_length": 2.3181818181818183,
+        "budget_exhausted": 189,
+        "controller_stats": {
+          "cases": 0,
+          "expansions": 106113,
+          "generated": 104181,
+          "pruned": 1876,
+          "forward_queries": 1896,
+          "reverse_queries": 0,
+          "cache_hits": 9592,
+          "cache_misses": 1896,
+          "two_hop_candidates": 30,
+          "three_hop_candidates": 14,
+          "verified_proofs": 44,
+          "false_proofs": 10,
+          "direct_rejections": 56,
+          "depth1_states": 7473,
+          "depth2_states": 18358,
+          "depth3_states": 0,
+          "max_frontier": 262,
+          "frontier_pops": 11217,
+          "frontier_pushes": 25831,
+          "case_timeouts": 0,
+          "top_success_patterns": [
+            [
+              "schema:location -> schema:location -> schema:location",
+              7
+            ],
+            [
+              "yago:hasFather -> schema:nationality",
+              7
+            ],
+            [
+              "schema:location -> schema:location",
+              5
+            ],
+            [
+              "schema:alumniOf -> schema:location",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:birthPlace",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:knowsLanguage",
+              4
+            ],
+            [
+              "schema:spouse -> schema:nationality",
+              3
+            ],
+            [
+              "associatedBand -> birthPlace",
+              2
+            ],
+            [
+              "schema:alumniOf -> yago:partOf -> schema:location",
+              2
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:knowsLanguage",
+              2
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1
+            ],
+            [
+              "schema:location -> schema:location -> is_a",
+              1
+            ],
+            [
+              "schema:performer -> schema:knowsLanguage",
+              1
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:birthPlace",
+              1
+            ]
+          ],
+          "top_path_patterns": [
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:twinnedWith",
+              3688
+            ],
+            [
+              "schema:deathPlace -> yago:twinnedWith -> yago:twinnedWith",
+              2208
+            ],
+            [
+              "is_a -> is_a -> is_a",
+              2130
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:creator",
+              2126
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:location",
+              1814
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1673
+            ],
+            [
+              "schema:location -> schema:location -> schema:memberOf",
+              1647
+            ],
+            [
+              "is_a -> is_a",
+              1600
+            ],
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:neighbor",
+              1540
+            ],
+            [
+              "schema:birthPlace -> yago:neighbor -> yago:neighbor",
+              1465
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:officialLanguage",
+              1297
+            ],
+            [
+              "schema:birthPlace -> schema:location -> schema:memberOf",
+              1256
+            ],
+            [
+              "is_a",
+              1218
+            ],
+            [
+              "schema:award",
+              1122
+            ],
+            [
+              "schema:deathPlace -> schema:location -> yago:neighbor",
+              1115
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> is_a",
+              1105
+            ],
+            [
+              "schema:award -> is_a -> is_a",
+              1087
+            ],
+            [
+              "schema:nationality -> yago:neighbor -> schema:memberOf",
+              1054
+            ],
+            [
+              "schema:location -> yago:neighbor -> schema:memberOf",
+              1040
+            ],
+            [
+              "schema:nationality -> schema:memberOf",
+              1005
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:memberOf",
+              962
+            ],
+            [
+              "is_a -> is_a -> owl:sameAs",
+              951
+            ],
+            [
+              "schema:location -> schema:location -> schema:location",
+              947
+            ],
+            [
+              "schema:worksFor -> schema:location -> yago:neighbor",
+              918
+            ],
+            [
+              "yago:hasFather -> schema:nationality -> schema:memberOf",
+              915
+            ]
+          ]
+        },
+        "policy_seconds": 2.9120695000019623
+      }
+    },
+    {
+      "job": {
+        "index": 2,
+        "total": 5,
+        "seed": 59901,
+        "policy": "goal_directed_prior_search"
+      },
+      "elapsed_seconds": 3.1102805999980774,
+      "result": {
+        "accuracy": 0.5719557195571956,
+        "supported_cases": 140,
+        "supported_recovery": 0.24285714285714285,
+        "negative_cases": 131,
+        "false_proof_rate": 0.07633587786259542,
+        "predicted_positive": 44,
+        "mean_steps": 72.20664206642067,
+        "mean_path_length": 2.3181818181818183,
+        "budget_exhausted": 189,
+        "controller_stats": {
+          "cases": 0,
+          "expansions": 106113,
+          "generated": 104181,
+          "pruned": 1876,
+          "forward_queries": 1896,
+          "reverse_queries": 0,
+          "cache_hits": 9592,
+          "cache_misses": 1896,
+          "two_hop_candidates": 30,
+          "three_hop_candidates": 14,
+          "verified_proofs": 44,
+          "false_proofs": 10,
+          "direct_rejections": 56,
+          "depth1_states": 7473,
+          "depth2_states": 18358,
+          "depth3_states": 0,
+          "max_frontier": 262,
+          "frontier_pops": 11217,
+          "frontier_pushes": 25831,
+          "case_timeouts": 0,
+          "top_success_patterns": [
+            [
+              "schema:location -> schema:location -> schema:location",
+              7
+            ],
+            [
+              "yago:hasFather -> schema:nationality",
+              7
+            ],
+            [
+              "schema:location -> schema:location",
+              5
+            ],
+            [
+              "schema:alumniOf -> schema:location",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:birthPlace",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:knowsLanguage",
+              4
+            ],
+            [
+              "schema:spouse -> schema:nationality",
+              3
+            ],
+            [
+              "associatedBand -> birthPlace",
+              2
+            ],
+            [
+              "schema:alumniOf -> yago:partOf -> schema:location",
+              2
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:knowsLanguage",
+              2
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1
+            ],
+            [
+              "schema:location -> schema:location -> is_a",
+              1
+            ],
+            [
+              "schema:performer -> schema:knowsLanguage",
+              1
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:birthPlace",
+              1
+            ]
+          ],
+          "top_path_patterns": [
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:twinnedWith",
+              3688
+            ],
+            [
+              "schema:deathPlace -> yago:twinnedWith -> yago:twinnedWith",
+              2208
+            ],
+            [
+              "is_a -> is_a -> is_a",
+              2130
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:creator",
+              2126
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:location",
+              1814
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1673
+            ],
+            [
+              "schema:location -> schema:location -> schema:memberOf",
+              1647
+            ],
+            [
+              "is_a -> is_a",
+              1600
+            ],
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:neighbor",
+              1540
+            ],
+            [
+              "schema:birthPlace -> yago:neighbor -> yago:neighbor",
+              1465
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:officialLanguage",
+              1297
+            ],
+            [
+              "schema:birthPlace -> schema:location -> schema:memberOf",
+              1256
+            ],
+            [
+              "is_a",
+              1218
+            ],
+            [
+              "schema:award",
+              1122
+            ],
+            [
+              "schema:deathPlace -> schema:location -> yago:neighbor",
+              1115
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> is_a",
+              1105
+            ],
+            [
+              "schema:award -> is_a -> is_a",
+              1087
+            ],
+            [
+              "schema:nationality -> yago:neighbor -> schema:memberOf",
+              1054
+            ],
+            [
+              "schema:location -> yago:neighbor -> schema:memberOf",
+              1040
+            ],
+            [
+              "schema:nationality -> schema:memberOf",
+              1005
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:memberOf",
+              962
+            ],
+            [
+              "is_a -> is_a -> owl:sameAs",
+              951
+            ],
+            [
+              "schema:location -> schema:location -> schema:location",
+              947
+            ],
+            [
+              "schema:worksFor -> schema:location -> yago:neighbor",
+              918
+            ],
+            [
+              "yago:hasFather -> schema:nationality -> schema:memberOf",
+              915
+            ]
+          ]
+        },
+        "policy_seconds": 3.1067231000051834
+      }
+    },
+    {
+      "job": {
+        "index": 3,
+        "total": 5,
+        "seed": 59902,
+        "policy": "goal_directed_prior_search"
+      },
+      "elapsed_seconds": 3.1741421000042465,
+      "result": {
+        "accuracy": 0.5719557195571956,
+        "supported_cases": 140,
+        "supported_recovery": 0.24285714285714285,
+        "negative_cases": 131,
+        "false_proof_rate": 0.07633587786259542,
+        "predicted_positive": 44,
+        "mean_steps": 72.20664206642067,
+        "mean_path_length": 2.3181818181818183,
+        "budget_exhausted": 189,
+        "controller_stats": {
+          "cases": 0,
+          "expansions": 106113,
+          "generated": 104181,
+          "pruned": 1876,
+          "forward_queries": 1896,
+          "reverse_queries": 0,
+          "cache_hits": 9592,
+          "cache_misses": 1896,
+          "two_hop_candidates": 30,
+          "three_hop_candidates": 14,
+          "verified_proofs": 44,
+          "false_proofs": 10,
+          "direct_rejections": 56,
+          "depth1_states": 7473,
+          "depth2_states": 18358,
+          "depth3_states": 0,
+          "max_frontier": 262,
+          "frontier_pops": 11217,
+          "frontier_pushes": 25831,
+          "case_timeouts": 0,
+          "top_success_patterns": [
+            [
+              "schema:location -> schema:location -> schema:location",
+              7
+            ],
+            [
+              "yago:hasFather -> schema:nationality",
+              7
+            ],
+            [
+              "schema:location -> schema:location",
+              5
+            ],
+            [
+              "schema:alumniOf -> schema:location",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:birthPlace",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:knowsLanguage",
+              4
+            ],
+            [
+              "schema:spouse -> schema:nationality",
+              3
+            ],
+            [
+              "associatedBand -> birthPlace",
+              2
+            ],
+            [
+              "schema:alumniOf -> yago:partOf -> schema:location",
+              2
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:knowsLanguage",
+              2
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1
+            ],
+            [
+              "schema:location -> schema:location -> is_a",
+              1
+            ],
+            [
+              "schema:performer -> schema:knowsLanguage",
+              1
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:birthPlace",
+              1
+            ]
+          ],
+          "top_path_patterns": [
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:twinnedWith",
+              3688
+            ],
+            [
+              "schema:deathPlace -> yago:twinnedWith -> yago:twinnedWith",
+              2208
+            ],
+            [
+              "is_a -> is_a -> is_a",
+              2130
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:creator",
+              2126
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:location",
+              1814
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1673
+            ],
+            [
+              "schema:location -> schema:location -> schema:memberOf",
+              1647
+            ],
+            [
+              "is_a -> is_a",
+              1600
+            ],
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:neighbor",
+              1540
+            ],
+            [
+              "schema:birthPlace -> yago:neighbor -> yago:neighbor",
+              1465
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:officialLanguage",
+              1297
+            ],
+            [
+              "schema:birthPlace -> schema:location -> schema:memberOf",
+              1256
+            ],
+            [
+              "is_a",
+              1218
+            ],
+            [
+              "schema:award",
+              1122
+            ],
+            [
+              "schema:deathPlace -> schema:location -> yago:neighbor",
+              1115
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> is_a",
+              1105
+            ],
+            [
+              "schema:award -> is_a -> is_a",
+              1087
+            ],
+            [
+              "schema:nationality -> yago:neighbor -> schema:memberOf",
+              1054
+            ],
+            [
+              "schema:location -> yago:neighbor -> schema:memberOf",
+              1040
+            ],
+            [
+              "schema:nationality -> schema:memberOf",
+              1005
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:memberOf",
+              962
+            ],
+            [
+              "is_a -> is_a -> owl:sameAs",
+              951
+            ],
+            [
+              "schema:location -> schema:location -> schema:location",
+              947
+            ],
+            [
+              "schema:worksFor -> schema:location -> yago:neighbor",
+              918
+            ],
+            [
+              "yago:hasFather -> schema:nationality -> schema:memberOf",
+              915
+            ]
+          ]
+        },
+        "policy_seconds": 3.1708095999929355
+      }
+    },
+    {
+      "job": {
+        "index": 4,
+        "total": 5,
+        "seed": 59903,
+        "policy": "goal_directed_prior_search"
+      },
+      "elapsed_seconds": 3.085003999993205,
+      "result": {
+        "accuracy": 0.5719557195571956,
+        "supported_cases": 140,
+        "supported_recovery": 0.24285714285714285,
+        "negative_cases": 131,
+        "false_proof_rate": 0.07633587786259542,
+        "predicted_positive": 44,
+        "mean_steps": 72.20664206642067,
+        "mean_path_length": 2.3181818181818183,
+        "budget_exhausted": 189,
+        "controller_stats": {
+          "cases": 0,
+          "expansions": 106113,
+          "generated": 104181,
+          "pruned": 1876,
+          "forward_queries": 1896,
+          "reverse_queries": 0,
+          "cache_hits": 9592,
+          "cache_misses": 1896,
+          "two_hop_candidates": 30,
+          "three_hop_candidates": 14,
+          "verified_proofs": 44,
+          "false_proofs": 10,
+          "direct_rejections": 56,
+          "depth1_states": 7473,
+          "depth2_states": 18358,
+          "depth3_states": 0,
+          "max_frontier": 262,
+          "frontier_pops": 11217,
+          "frontier_pushes": 25831,
+          "case_timeouts": 0,
+          "top_success_patterns": [
+            [
+              "schema:location -> schema:location -> schema:location",
+              7
+            ],
+            [
+              "yago:hasFather -> schema:nationality",
+              7
+            ],
+            [
+              "schema:location -> schema:location",
+              5
+            ],
+            [
+              "schema:alumniOf -> schema:location",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:birthPlace",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:knowsLanguage",
+              4
+            ],
+            [
+              "schema:spouse -> schema:nationality",
+              3
+            ],
+            [
+              "associatedBand -> birthPlace",
+              2
+            ],
+            [
+              "schema:alumniOf -> yago:partOf -> schema:location",
+              2
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:knowsLanguage",
+              2
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1
+            ],
+            [
+              "schema:location -> schema:location -> is_a",
+              1
+            ],
+            [
+              "schema:performer -> schema:knowsLanguage",
+              1
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:birthPlace",
+              1
+            ]
+          ],
+          "top_path_patterns": [
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:twinnedWith",
+              3688
+            ],
+            [
+              "schema:deathPlace -> yago:twinnedWith -> yago:twinnedWith",
+              2208
+            ],
+            [
+              "is_a -> is_a -> is_a",
+              2130
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:creator",
+              2126
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:location",
+              1814
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1673
+            ],
+            [
+              "schema:location -> schema:location -> schema:memberOf",
+              1647
+            ],
+            [
+              "is_a -> is_a",
+              1600
+            ],
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:neighbor",
+              1540
+            ],
+            [
+              "schema:birthPlace -> yago:neighbor -> yago:neighbor",
+              1465
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:officialLanguage",
+              1297
+            ],
+            [
+              "schema:birthPlace -> schema:location -> schema:memberOf",
+              1256
+            ],
+            [
+              "is_a",
+              1218
+            ],
+            [
+              "schema:award",
+              1122
+            ],
+            [
+              "schema:deathPlace -> schema:location -> yago:neighbor",
+              1115
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> is_a",
+              1105
+            ],
+            [
+              "schema:award -> is_a -> is_a",
+              1087
+            ],
+            [
+              "schema:nationality -> yago:neighbor -> schema:memberOf",
+              1054
+            ],
+            [
+              "schema:location -> yago:neighbor -> schema:memberOf",
+              1040
+            ],
+            [
+              "schema:nationality -> schema:memberOf",
+              1005
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:memberOf",
+              962
+            ],
+            [
+              "is_a -> is_a -> owl:sameAs",
+              951
+            ],
+            [
+              "schema:location -> schema:location -> schema:location",
+              947
+            ],
+            [
+              "schema:worksFor -> schema:location -> yago:neighbor",
+              918
+            ],
+            [
+              "yago:hasFather -> schema:nationality -> schema:memberOf",
+              915
+            ]
+          ]
+        },
+        "policy_seconds": 3.0815683999971952
+      }
+    },
+    {
+      "job": {
+        "index": 5,
+        "total": 5,
+        "seed": 59904,
+        "policy": "goal_directed_prior_search"
+      },
+      "elapsed_seconds": 3.089858400009689,
+      "result": {
+        "accuracy": 0.5719557195571956,
+        "supported_cases": 140,
+        "supported_recovery": 0.24285714285714285,
+        "negative_cases": 131,
+        "false_proof_rate": 0.07633587786259542,
+        "predicted_positive": 44,
+        "mean_steps": 72.20664206642067,
+        "mean_path_length": 2.3181818181818183,
+        "budget_exhausted": 189,
+        "controller_stats": {
+          "cases": 0,
+          "expansions": 106113,
+          "generated": 104181,
+          "pruned": 1876,
+          "forward_queries": 1896,
+          "reverse_queries": 0,
+          "cache_hits": 9592,
+          "cache_misses": 1896,
+          "two_hop_candidates": 30,
+          "three_hop_candidates": 14,
+          "verified_proofs": 44,
+          "false_proofs": 10,
+          "direct_rejections": 56,
+          "depth1_states": 7473,
+          "depth2_states": 18358,
+          "depth3_states": 0,
+          "max_frontier": 262,
+          "frontier_pops": 11217,
+          "frontier_pushes": 25831,
+          "case_timeouts": 0,
+          "top_success_patterns": [
+            [
+              "schema:location -> schema:location -> schema:location",
+              7
+            ],
+            [
+              "yago:hasFather -> schema:nationality",
+              7
+            ],
+            [
+              "schema:location -> schema:location",
+              5
+            ],
+            [
+              "schema:alumniOf -> schema:location",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:birthPlace",
+              4
+            ],
+            [
+              "yago:hasFather -> schema:knowsLanguage",
+              4
+            ],
+            [
+              "schema:spouse -> schema:nationality",
+              3
+            ],
+            [
+              "associatedBand -> birthPlace",
+              2
+            ],
+            [
+              "schema:alumniOf -> yago:partOf -> schema:location",
+              2
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:knowsLanguage",
+              2
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1
+            ],
+            [
+              "schema:location -> schema:location -> is_a",
+              1
+            ],
+            [
+              "schema:performer -> schema:knowsLanguage",
+              1
+            ],
+            [
+              "yago:hasFather -> yago:hasFather -> schema:birthPlace",
+              1
+            ]
+          ],
+          "top_path_patterns": [
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:twinnedWith",
+              3688
+            ],
+            [
+              "schema:deathPlace -> yago:twinnedWith -> yago:twinnedWith",
+              2208
+            ],
+            [
+              "is_a -> is_a -> is_a",
+              2130
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:creator",
+              2126
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:location",
+              1814
+            ],
+            [
+              "schema:deathPlace -> yago:neighbor -> schema:location",
+              1673
+            ],
+            [
+              "schema:location -> schema:location -> schema:memberOf",
+              1647
+            ],
+            [
+              "is_a -> is_a",
+              1600
+            ],
+            [
+              "schema:birthPlace -> yago:twinnedWith -> yago:neighbor",
+              1540
+            ],
+            [
+              "schema:birthPlace -> yago:neighbor -> yago:neighbor",
+              1465
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> yago:officialLanguage",
+              1297
+            ],
+            [
+              "schema:birthPlace -> schema:location -> schema:memberOf",
+              1256
+            ],
+            [
+              "is_a",
+              1218
+            ],
+            [
+              "schema:award",
+              1122
+            ],
+            [
+              "schema:deathPlace -> schema:location -> yago:neighbor",
+              1115
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> is_a",
+              1105
+            ],
+            [
+              "schema:award -> is_a -> is_a",
+              1087
+            ],
+            [
+              "schema:nationality -> yago:neighbor -> schema:memberOf",
+              1054
+            ],
+            [
+              "schema:location -> yago:neighbor -> schema:memberOf",
+              1040
+            ],
+            [
+              "schema:nationality -> schema:memberOf",
+              1005
+            ],
+            [
+              "schema:nationality -> schema:memberOf -> schema:memberOf",
+              962
+            ],
+            [
+              "is_a -> is_a -> owl:sameAs",
+              951
+            ],
+            [
+              "schema:location -> schema:location -> schema:location",
+              947
+            ],
+            [
+              "schema:worksFor -> schema:location -> yago:neighbor",
+              918
+            ],
+            [
+              "yago:hasFather -> schema:nationality -> schema:memberOf",
+              915
+            ]
+          ]
+        },
+        "policy_seconds": 3.081750800003647
+      }
+    }
+  ],
+  "failures": [],
+  "elapsed_seconds": 3.1769472000014503
+}

@@ -37,7 +37,7 @@
         "seed": 59500,
         "policy": "goal_directed_multihop"
       },
-      "elapsed_seconds": 2.0798794999864185,
+      "elapsed_seconds": 2.157690599997295,
       "result": {
         "accuracy": 0.5719557195571956,
         "supported_cases": 140,
@@ -227,7 +227,7 @@
             ]
           ]
         },
-        "policy_seconds": 2.0775342999986606
+        "policy_seconds": 2.1552796000032686
       }
     },
     {
@@ -237,7 +237,7 @@
         "seed": 59501,
         "policy": "goal_directed_multihop"
       },
-      "elapsed_seconds": 2.0865686999895843,
+      "elapsed_seconds": 2.1484425000089686,
       "result": {
         "accuracy": 0.5719557195571956,
         "supported_cases": 140,
@@ -427,7 +427,7 @@
             ]
           ]
         },
-        "policy_seconds": 2.0841015000041807
+        "policy_seconds": 2.145155199992587
       }
     },
     {
@@ -437,7 +437,7 @@
         "seed": 59502,
         "policy": "goal_directed_multihop"
       },
-      "elapsed_seconds": 2.0614653999946313,
+      "elapsed_seconds": 2.154515200003516,
       "result": {
         "accuracy": 0.5719557195571956,
         "supported_cases": 140,
@@ -627,7 +627,7 @@
             ]
           ]
         },
-        "policy_seconds": 2.0581379999930505
+        "policy_seconds": 2.151337600007537
       }
     },
     {
@@ -637,7 +637,7 @@
         "seed": 59503,
         "policy": "goal_directed_multihop"
       },
-      "elapsed_seconds": 2.127809099998558,
+      "elapsed_seconds": 2.1401495000027353,
       "result": {
         "accuracy": 0.5719557195571956,
         "supported_cases": 140,
@@ -827,7 +827,7 @@
             ]
           ]
         },
-        "policy_seconds": 2.1242625000013504
+        "policy_seconds": 2.13718499999959
       }
     },
     {
@@ -837,7 +837,7 @@
         "seed": 59504,
         "policy": "goal_directed_multihop"
       },
-      "elapsed_seconds": 2.067850499995984,
+      "elapsed_seconds": 2.115845399996033,
       "result": {
         "accuracy": 0.5719557195571956,
         "supported_cases": 140,
@@ -1027,10 +1027,10 @@
             ]
           ]
         },
-        "policy_seconds": 2.0637468000059016
+        "policy_seconds": 2.112749600011739
       }
     }
   ],
   "failures": [],
-  "elapsed_seconds": 2.133071699994616
+  "elapsed_seconds": 2.160736800011364
 }
