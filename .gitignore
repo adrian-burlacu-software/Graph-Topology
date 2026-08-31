@@ -47,6 +47,9 @@ results/full_semantic_memory.sqlite-wal
 results/v557_semantic_composition.sqlite
 results/v557_semantic_composition.sqlite-shm
 results/v557_semantic_composition.sqlite-wal
+results/v562_kg_composition_audit.sqlite
+results/v562_kg_composition_audit.sqlite-shm
+results/v562_kg_composition_audit.sqlite-wal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
