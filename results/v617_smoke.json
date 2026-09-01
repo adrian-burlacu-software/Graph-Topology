@@ -1,0 +1,110 @@
+{
+  "version": "V617",
+  "architecture": {
+    "grammar": "frozen spaCy",
+    "relation_attention": "learned context-conditioned relation attention",
+    "path_attention": "goal-conditioned path prior",
+    "search": "bounded cognitive graph search",
+    "memory": "persistent entity/intent/goal/path memory"
+  },
+  "config": {
+    "database": ".\\results\\v562_kg_composition_audit.sqlite",
+    "output": ".\\results\\v617_smoke.json",
+    "trace_output": ".\\results\\v617_smoke_traces.jsonl",
+    "prior_output": ".\\results\\v617_smoke_prior.json",
+    "memory_output": ".\\results\\v617_memory.json",
+    "spacy_model": "en_core_web_sm",
+    "mode": "smoke",
+    "max_hypotheses": 12,
+    "relation_vocabulary": 200,
+    "goal_budget": 40,
+    "budget": 80,
+    "per_node": 60,
+    "max_depth": 3,
+    "cache_entries": 12000,
+    "prior_decay": 0.65,
+    "seed": 61700,
+    "progress_every": 1
+  },
+  "relation_vocabulary": [
+    "academicDiscipline",
+    "academicAdvisor",
+    "schema:location",
+    "schema:birthPlace",
+    "schema:nationality",
+    "schema:knowsLanguage",
+    "birthPlace",
+    "is_a",
+    "yago:hasMother"
+  ],
+  "traces": 4,
+  "relation_attention": {
+    "decay": 0.65,
+    "updates": 1,
+    "context_states": 1,
+    "global_relations": 1,
+    "top_context_relations": [
+      {
+        "features": [
+          "question:WH_WHAT",
+          "root:be",
+          "has_subject",
+          "has_object",
+          "has_noun_chunk",
+          "pos:PRON",
+          "dep:attr",
+          "pos:AUX",
+          "dep:ROOT",
+          "pos:DET",
+          "dep:det",
+          "pos:NOUN",
+          "dep:nsubj",
+          "pos:ADP",
+          "dep:prep",
+          "dep:pobj",
+          "pos:PUNCT",
+          "dep:punct",
+          "context:active_subject"
+        ],
+        "relation": "academicDiscipline",
+        "weight": 1.0
+      }
+    ]
+  },
+  "path_attention": {
+    "decay": 0.65,
+    "updates": 1,
+    "exact_states": 1,
+    "goal_states": 1,
+    "exact": [
+      {
+        "goal": "academicDiscipline",
+        "prefix": [],
+        "depth": 0,
+        "next": {
+          "academicDiscipline": 1.0
+        }
+      }
+    ],
+    "goal": [
+      {
+        "goal": "academicDiscipline",
+        "depth": 0,
+        "next": {
+          "academicDiscipline": 1.0
+        }
+      }
+    ]
+  },
+  "memory": {
+    "path": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v617_memory.json",
+    "entities": 1,
+    "turns": 4,
+    "intent_patterns": 4,
+    "goal_patterns": 1,
+    "path_patterns": 1
+  },
+  "trace_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v617_smoke_traces.jsonl",
+  "prior_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v617_smoke_prior.json",
+  "relation_prior_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v617_smoke_prior_relation_attention.json"
+}
