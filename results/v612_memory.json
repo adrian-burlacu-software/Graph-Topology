@@ -1,0 +1,21 @@
+{
+  "version": "semantic-memory-v612",
+  "active_subject": null,
+  "active_entity_label": null,
+  "entities": [],
+  "turns": [],
+  "intent_memory": {},
+  "goal_memory": {},
+  "path_memory": {},
+  "relation_outcomes": {
+    "academicAdvisor": {
+      "miss": 0.1
+    },
+    "schema:birthPlace": {
+      "miss": 0.1
+    },
+    "schema:nationality": {
+      "miss": 0.05
+    }
+  }
+}

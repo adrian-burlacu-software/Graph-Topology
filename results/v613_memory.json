@@ -1,0 +1,1973 @@
+{
+  "version": "semantic-memory-v613",
+  "active_subject": "Albert Einstein",
+  "active_entity_label": "PERSON",
+  "entities": [
+    {
+      "text": "Albert Einstein",
+      "label": "PERSON",
+      "mentions": 2
+    }
+  ],
+  "turns": [
+    {
+      "timestamp": 1788251693.9807963,
+      "text": "hello",
+      "structural_key": "{\"deps\": [\"ROOT\"], \"entity_labels\": [], \"lemmas\": [\"hello\"], \"pos\": [\"INTJ\"], \"question\": \"DECLARATIVE\", \"root\": \"hello\"}",
+      "selected": {
+        "subject": null,
+        "relation": "",
+        "intent": "conversation",
+        "lexical_score": 1.0,
+        "evidence": {
+          "intent_score": 1.0,
+          "question": "DECLARATIVE",
+          "root": "hello",
+          "has_entity": false,
+          "has_subject": false,
+          "has_object": false,
+          "has_question_mark": false,
+          "pos": [
+            "INTJ"
+          ],
+          "learned_intent_bias": 0.0
+        }
+      },
+      "search": {
+        "success": true,
+        "intent_only": true,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": null,
+          "relation": "",
+          "intent": "conversation",
+          "lexical_score": 1.0,
+          "evidence": {
+            "intent_score": 1.0,
+            "question": "DECLARATIVE",
+            "root": "hello",
+            "has_entity": false,
+            "has_subject": false,
+            "has_object": false,
+            "has_question_mark": false,
+            "pos": [
+              "INTJ"
+            ],
+            "learned_intent_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": null
+    },
+    {
+      "timestamp": 1788251693.985574,
+      "text": "who was Albert Einstein?",
+      "structural_key": "{\"deps\": [\"nsubj\", \"ROOT\", \"compound\", \"attr\", \"punct\"], \"entity_labels\": [\"PERSON\"], \"lemmas\": [\"who\", \"be\", \"albert\", \"einstein\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PROPN\", \"PROPN\", \"PUNCT\"], \"question\": \"WH_WHO\", \"root\": \"be\"}",
+      "selected": {
+        "subject": "Albert Einstein",
+        "relation": "academicAdvisor",
+        "intent": "relation_lookup",
+        "lexical_score": 0.45454545454545453,
+        "evidence": {
+          "intent_score": 0.45454545454545453,
+          "intent_evidence": {
+            "question": "WH_WHO",
+            "root": "be",
+            "has_entity": true,
+            "has_subject": true,
+            "has_object": true,
+            "has_question_mark": true,
+            "pos": [
+              "AUX",
+              "PRON",
+              "PROPN",
+              "PUNCT"
+            ],
+            "learned_intent_bias": 0.0
+          },
+          "relation_score": 0.0,
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.0
+        }
+      },
+      "search": {
+        "success": false,
+        "steps": 1,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "Albert Einstein"
+    },
+    {
+      "timestamp": 1788251693.9907713,
+      "text": "Where was he born?",
+      "structural_key": "{\"deps\": [\"advmod\", \"auxpass\", \"nsubjpass\", \"ROOT\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"where\", \"be\", \"he\", \"bear\", \"?\"], \"pos\": [\"SCONJ\", \"AUX\", \"PRON\", \"VERB\", \"PUNCT\"], \"question\": \"WH_WHERE\", \"root\": \"bear\"}",
+      "selected": {
+        "subject": "Albert Einstein",
+        "relation": "schema:birthPlace",
+        "intent": "relation_lookup",
+        "lexical_score": 0.7466666666666666,
+        "evidence": {
+          "intent_score": 0.6666666666666666,
+          "intent_evidence": {
+            "question": "WH_WHERE",
+            "root": "bear",
+            "has_entity": false,
+            "has_subject": true,
+            "has_object": false,
+            "has_question_mark": true,
+            "pos": [
+              "AUX",
+              "PRON",
+              "PUNCT",
+              "SCONJ",
+              "VERB"
+            ],
+            "learned_intent_bias": 0.0
+          },
+          "relation_score": 0.08,
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.0
+        }
+      },
+      "search": {
+        "success": false,
+        "steps": 1,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7466666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:knowsLanguage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7466666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7466666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7466666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:birthPlace",
+          "intent": "identity_lookup",
+          "lexical_score": 0.41333333333333333,
+          "evidence": {
+            "intent_score": 0.3333333333333333,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:knowsLanguage",
+          "intent": "identity_lookup",
+          "lexical_score": 0.41333333333333333,
+          "evidence": {
+            "intent_score": 0.3333333333333333,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:location",
+          "intent": "identity_lookup",
+          "lexical_score": 0.41333333333333333,
+          "evidence": {
+            "intent_score": 0.3333333333333333,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "identity_lookup",
+          "lexical_score": 0.41333333333333333,
+          "evidence": {
+            "intent_score": 0.3333333333333333,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "yago:hasMother",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7466666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "evidence": {
+            "intent_score": 0.6666666666666666,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "Albert Einstein"
+    },
+    {
+      "timestamp": 1788251693.997061,
+      "text": "What was his nationality?",
+      "structural_key": "{\"deps\": [\"attr\", \"ROOT\", \"poss\", \"nsubj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"be\", \"his\", \"nationality\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PRON\", \"NOUN\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"be\"}",
+      "selected": {
+        "subject": "Albert Einstein",
+        "relation": "schema:nationality",
+        "intent": "relation_lookup",
+        "lexical_score": 0.8192857142857143,
+        "evidence": {
+          "intent_score": 0.7142857142857143,
+          "intent_evidence": {
+            "question": "WH_WHAT",
+            "root": "be",
+            "has_entity": false,
+            "has_subject": true,
+            "has_object": true,
+            "has_question_mark": true,
+            "pos": [
+              "AUX",
+              "NOUN",
+              "PRON",
+              "PUNCT"
+            ],
+            "learned_intent_bias": 0.0
+          },
+          "relation_score": 0.10500000000000001,
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.0
+        }
+      },
+      "search": {
+        "success": false,
+        "steps": 1,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8192857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.10500000000000001,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3907142857142858,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.10500000000000001,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.28571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "identity_lookup",
+          "lexical_score": 0.28571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "identity_lookup",
+          "lexical_score": 0.28571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:knowsLanguage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "intent_evidence": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "Albert Einstein"
+    },
+    {
+      "timestamp": 1788251694.0027494,
+      "text": "Who was Albert Einstein?",
+      "structural_key": "{\"deps\": [\"attr\", \"ROOT\", \"compound\", \"nsubj\", \"punct\"], \"entity_labels\": [\"PERSON\"], \"lemmas\": [\"who\", \"be\", \"albert\", \"einstein\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PROPN\", \"PROPN\", \"PUNCT\"], \"question\": \"WH_WHO\", \"root\": \"be\"}",
+      "selected": {
+        "subject": "Albert Einstein",
+        "relation": "academicAdvisor",
+        "intent": "relation_lookup",
+        "lexical_score": 0.45454545454545453,
+        "evidence": {
+          "intent_score": 0.45454545454545453,
+          "intent_evidence": {
+            "question": "WH_WHO",
+            "root": "be",
+            "has_entity": true,
+            "has_subject": true,
+            "has_object": true,
+            "has_question_mark": true,
+            "pos": [
+              "AUX",
+              "PRON",
+              "PROPN",
+              "PUNCT"
+            ],
+            "learned_intent_bias": 0.0
+          },
+          "relation_score": 0.0,
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.0
+        }
+      },
+      "search": {
+        "success": false,
+        "steps": 1,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.45454545454545453,
+          "evidence": {
+            "intent_score": 0.45454545454545453,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "identity_lookup",
+          "lexical_score": 0.3181818181818181,
+          "evidence": {
+            "intent_score": 0.3181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "is_a",
+          "intent": "entity_profile",
+          "lexical_score": 0.22727272727272727,
+          "evidence": {
+            "intent_score": 0.22727272727272727,
+            "intent_evidence": {
+              "question": "WH_WHO",
+              "root": "be",
+              "has_entity": true,
+              "has_subject": true,
+              "has_object": true,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PROPN",
+                "PUNCT"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "Albert Einstein"
+    },
+    {
+      "timestamp": 1788251694.0087163,
+      "text": "Where was he born?",
+      "structural_key": "{\"deps\": [\"advmod\", \"auxpass\", \"nsubjpass\", \"ROOT\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"where\", \"be\", \"he\", \"bear\", \"?\"], \"pos\": [\"SCONJ\", \"AUX\", \"PRON\", \"VERB\", \"PUNCT\"], \"question\": \"WH_WHERE\", \"root\": \"bear\"}",
+      "selected": {
+        "subject": "Albert Einstein",
+        "relation": "schema:birthPlace",
+        "intent": "relation_lookup",
+        "lexical_score": 1.748181818181818,
+        "evidence": {
+          "intent_score": 0.8181818181818181,
+          "intent_evidence": {
+            "question": "WH_WHERE",
+            "root": "bear",
+            "has_entity": false,
+            "has_subject": true,
+            "has_object": false,
+            "has_question_mark": true,
+            "pos": [
+              "AUX",
+              "PRON",
+              "PUNCT",
+              "SCONJ",
+              "VERB"
+            ],
+            "learned_intent_bias": 1.0
+          },
+          "relation_score": 0.08,
+          "goal_memory_bias": 1.0,
+          "relation_outcome_bias": 0.0
+        }
+      },
+      "search": {
+        "success": false,
+        "steps": 1,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 1.748181818181818,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 1.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:knowsLanguage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8981818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8981818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8981818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:birthPlace",
+          "intent": "identity_lookup",
+          "lexical_score": 0.26181818181818184,
+          "evidence": {
+            "intent_score": 0.18181818181818182,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:knowsLanguage",
+          "intent": "identity_lookup",
+          "lexical_score": 0.26181818181818184,
+          "evidence": {
+            "intent_score": 0.18181818181818182,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:location",
+          "intent": "identity_lookup",
+          "lexical_score": 0.26181818181818184,
+          "evidence": {
+            "intent_score": 0.18181818181818182,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "schema:nationality",
+          "intent": "identity_lookup",
+          "lexical_score": 0.26181818181818184,
+          "evidence": {
+            "intent_score": 0.18181818181818182,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 0.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "yago:hasMother",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8981818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.08,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8181818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8181818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        },
+        {
+          "subject": "Albert Einstein",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8181818181818181,
+          "evidence": {
+            "intent_score": 0.8181818181818181,
+            "intent_evidence": {
+              "question": "WH_WHERE",
+              "root": "bear",
+              "has_entity": false,
+              "has_subject": true,
+              "has_object": false,
+              "has_question_mark": true,
+              "pos": [
+                "AUX",
+                "PRON",
+                "PUNCT",
+                "SCONJ",
+                "VERB"
+              ],
+              "learned_intent_bias": 1.0
+            },
+            "relation_score": 0.0,
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "Albert Einstein"
+    }
+  ],
+  "intent_memory": {
+    "{\"deps\": [\"ROOT\"], \"entity_labels\": [], \"lemmas\": [\"hello\"], \"pos\": [\"INTJ\"], \"question\": \"DECLARATIVE\", \"root\": \"hello\"}": {
+      "conversation": 1
+    },
+    "{\"deps\": [\"nsubj\", \"ROOT\", \"compound\", \"attr\", \"punct\"], \"entity_labels\": [\"PERSON\"], \"lemmas\": [\"who\", \"be\", \"albert\", \"einstein\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PROPN\", \"PROPN\", \"PUNCT\"], \"question\": \"WH_WHO\", \"root\": \"be\"}": {
+      "relation_lookup": 1
+    },
+    "{\"deps\": [\"advmod\", \"auxpass\", \"nsubjpass\", \"ROOT\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"where\", \"be\", \"he\", \"bear\", \"?\"], \"pos\": [\"SCONJ\", \"AUX\", \"PRON\", \"VERB\", \"PUNCT\"], \"question\": \"WH_WHERE\", \"root\": \"bear\"}": {
+      "relation_lookup": 2
+    },
+    "{\"deps\": [\"attr\", \"ROOT\", \"poss\", \"nsubj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"be\", \"his\", \"nationality\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PRON\", \"NOUN\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"be\"}": {
+      "relation_lookup": 1
+    },
+    "{\"deps\": [\"attr\", \"ROOT\", \"compound\", \"nsubj\", \"punct\"], \"entity_labels\": [\"PERSON\"], \"lemmas\": [\"who\", \"be\", \"albert\", \"einstein\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PROPN\", \"PROPN\", \"PUNCT\"], \"question\": \"WH_WHO\", \"root\": \"be\"}": {
+      "relation_lookup": 1
+    }
+  },
+  "goal_memory": {
+    "[\"{\\\"deps\\\": [\\\"nsubj\\\", \\\"ROOT\\\", \\\"compound\\\", \\\"attr\\\", \\\"punct\\\"], \\\"entity_labels\\\": [\\\"PERSON\\\"], \\\"lemmas\\\": [\\\"who\\\", \\\"be\\\", \\\"albert\\\", \\\"einstein\\\", \\\"?\\\"], \\\"pos\\\": [\\\"PRON\\\", \\\"AUX\\\", \\\"PROPN\\\", \\\"PROPN\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHO\\\", \\\"root\\\": \\\"be\\\"}\", \"relation_lookup\"]": {
+      "academicAdvisor": 0.05
+    },
+    "[\"{\\\"deps\\\": [\\\"advmod\\\", \\\"auxpass\\\", \\\"nsubjpass\\\", \\\"ROOT\\\", \\\"punct\\\"], \\\"entity_labels\\\": [], \\\"lemmas\\\": [\\\"where\\\", \\\"be\\\", \\\"he\\\", \\\"bear\\\", \\\"?\\\"], \\\"pos\\\": [\\\"SCONJ\\\", \\\"AUX\\\", \\\"PRON\\\", \\\"VERB\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHERE\\\", \\\"root\\\": \\\"bear\\\"}\", \"relation_lookup\"]": {
+      "schema:birthPlace": 0.1
+    },
+    "[\"{\\\"deps\\\": [\\\"attr\\\", \\\"ROOT\\\", \\\"poss\\\", \\\"nsubj\\\", \\\"punct\\\"], \\\"entity_labels\\\": [], \\\"lemmas\\\": [\\\"what\\\", \\\"be\\\", \\\"his\\\", \\\"nationality\\\", \\\"?\\\"], \\\"pos\\\": [\\\"PRON\\\", \\\"AUX\\\", \\\"PRON\\\", \\\"NOUN\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHAT\\\", \\\"root\\\": \\\"be\\\"}\", \"relation_lookup\"]": {
+      "schema:nationality": 0.05
+    },
+    "[\"{\\\"deps\\\": [\\\"attr\\\", \\\"ROOT\\\", \\\"compound\\\", \\\"nsubj\\\", \\\"punct\\\"], \\\"entity_labels\\\": [\\\"PERSON\\\"], \\\"lemmas\\\": [\\\"who\\\", \\\"be\\\", \\\"albert\\\", \\\"einstein\\\", \\\"?\\\"], \\\"pos\\\": [\\\"PRON\\\", \\\"AUX\\\", \\\"PROPN\\\", \\\"PROPN\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHO\\\", \\\"root\\\": \\\"be\\\"}\", \"relation_lookup\"]": {
+      "academicAdvisor": 0.05
+    }
+  },
+  "path_memory": {},
+  "relation_outcomes": {
+    "academicAdvisor": {
+      "miss": 2.1
+    },
+    "schema:birthPlace": {
+      "miss": 2.1
+    },
+    "schema:nationality": {
+      "miss": 1.05
+    }
+  }
+}
