@@ -1,0 +1,1540 @@
+{
+  "active_subject": "en:bear",
+  "turns": [
+    {
+      "timestamp": 1788268350.8061485,
+      "question": "what is a bear?",
+      "answer": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+      "entity_resolution_kind": "canonical_en_exact",
+      "route": {
+        "intent": "concept_lookup",
+        "subject": "en:bear",
+        "relation": "definition",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "bear",
+        "canonical": "en:bear",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:bear",
+            "kind": "canonical_en_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "bear"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "definition",
+          "intent": "concept_lookup",
+          "lexical_score": 0.6,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "antonym",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "at_location",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "capable_of",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "desires",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "distinct_from",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "entails",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "etymologically_related_to",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "form_of",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_a",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_context",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_sense",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "what is a bear?",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "attr"
+          },
+          {
+            "text": "is",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "bear",
+            "lemma": "bear",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a bear"
+        ],
+        "root": "is",
+        "root_lemma": "be",
+        "question": "WH_WHAT",
+        "subjects": [
+          "bear"
+        ],
+        "objects": [
+          "what"
+        ]
+      },
+      "selected": {
+        "subject": "en:bear",
+        "relation": "definition",
+        "intent": "concept_lookup",
+        "lexical_score": 0.6,
+        "evidence": {
+          "concept": "bear",
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "bear",
+            "canonical": "en:bear",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:bear",
+                "kind": "canonical_en_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "bear"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "definition",
+            "antonym",
+            "at_location",
+            "capable_of",
+            "desires",
+            "distinct_from",
+            "entails",
+            "etymologically_related_to",
+            "form_of",
+            "has_a",
+            "has_context",
+            "has_sense"
+          ],
+          "relation_lexical_score": 0.6,
+          "distilled_sense": {
+            "node": "wn:synset:bear.n.01",
+            "label": "wn:synset:bear.n.01",
+            "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+          },
+          "sense_source": "llm_teacher",
+          "sense_confidence": 0.0,
+          "teacher_format": "json"
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:bear",
+          "relation": "definition",
+          "intent": "concept_lookup",
+          "lexical_score": 0.6,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.6,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "antonym",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "at_location",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "capable_of",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "desires",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "distinct_from",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "entails",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "etymologically_related_to",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "form_of",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_a",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_context",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_sense",
+          "intent": "concept_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.0,
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "intent_only": false,
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "sense_node": "wn:synset:bear.n.01"
+      },
+      "distillation": {
+        "type": "sense",
+        "selected": "wn:synset:bear.n.01",
+        "source": "llm_teacher",
+        "confidence": 0.0,
+        "candidates": [
+          "wn:synset:bear.n.01",
+          "wn:synset:bear.n.02",
+          "wn:synset:bear.v.01",
+          "wn:synset:bear.v.04",
+          "wn:synset:bear.v.05",
+          "wn:synset:bear.v.06",
+          "wn:synset:bear.v.11",
+          "wn:synset:behave.v.02",
+          "wn:synset:digest.v.03",
+          "wn:synset:give_birth.v.01",
+          "wn:synset:have_a_bun_in_the_oven.v.01",
+          "wn:synset:hold.v.11"
+        ]
+      },
+      "realization_cache": null,
+      "timing": {
+        "parse_seconds": 0.003900500014424324,
+        "hypothesis_seconds": 0.16180770000210032,
+        "distillation_seconds": 6.5471194999990985,
+        "search_seconds": 0.0001750999945215881,
+        "llm_seconds": 3.572312000003876,
+        "total_seconds": 10.285326700017322,
+        "realization_seconds": 3.572312000003876
+      }
+    },
+    {
+      "timestamp": 1788268362.658128,
+      "question": "are they brown?",
+      "answer": "en:bull",
+      "entity_resolution_kind": null,
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:bear",
+        "relation": "antonym",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "direct_edge",
+        "steps": 1,
+        "path": [
+          "antonym"
+        ],
+        "target": "en:bull",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "none",
+        "mention": null,
+        "canonical": null,
+        "confidence": 0.0,
+        "candidates": []
+      },
+      "goal_selection": [
+        {
+          "relation": "antonym",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "at_location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "capable_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "desires",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "distinct_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "entails",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "etymologically_related_to",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "form_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_context",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "are they brown?",
+        "tokens": [
+          {
+            "text": "are",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "they",
+            "lemma": "they",
+            "pos": "PRON",
+            "dep": "nsubj"
+          },
+          {
+            "text": "brown",
+            "lemma": "brown",
+            "pos": "ADJ",
+            "dep": "acomp"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "they"
+        ],
+        "root": "are",
+        "root_lemma": "be",
+        "question": "QUESTION",
+        "subjects": [
+          "they"
+        ],
+        "objects": []
+      },
+      "selected": {
+        "subject": "en:bear",
+        "relation": "antonym",
+        "intent": "relation_lookup",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "none",
+            "mention": null,
+            "canonical": null,
+            "confidence": 0.0,
+            "candidates": []
+          },
+          "candidate_relation_set": [
+            "antonym",
+            "at_location",
+            "capable_of",
+            "desires",
+            "distinct_from",
+            "entails",
+            "etymologically_related_to",
+            "form_of",
+            "has_a",
+            "has_context",
+            "has_sense",
+            "is_a"
+          ],
+          "distilled_sense": {
+            "node": "wn:synset:bear.n.01",
+            "label": "wn:synset:bear.n.01",
+            "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+          },
+          "sense_source": "llm_teacher",
+          "sense_confidence": 0.0,
+          "teacher_format": "json"
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:bear",
+          "relation": "antonym",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "at_location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "capable_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "desires",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "distinct_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "entails",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "etymologically_related_to",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "form_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_context",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "none",
+              "mention": null,
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense",
+              "is_a"
+            ],
+            "distilled_sense": {
+              "node": "wn:synset:bear.n.01",
+              "label": "wn:synset:bear.n.01",
+              "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+            },
+            "sense_source": "llm_teacher",
+            "sense_confidence": 0.0,
+            "teacher_format": "json"
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "intent_only": false,
+        "steps": 1,
+        "path": [
+          "antonym"
+        ],
+        "target": "en:bull",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "direct_edge"
+      },
+      "distillation": {
+        "type": "sense",
+        "selected": "wn:synset:bear.n.01",
+        "source": "llm_teacher",
+        "confidence": 0.0,
+        "candidates": [
+          "wn:synset:bear.n.01",
+          "wn:synset:bear.n.02",
+          "wn:synset:bear.v.01",
+          "wn:synset:bear.v.04",
+          "wn:synset:bear.v.05",
+          "wn:synset:bear.v.06",
+          "wn:synset:bear.v.11",
+          "wn:synset:behave.v.02",
+          "wn:synset:digest.v.03",
+          "wn:synset:give_birth.v.01",
+          "wn:synset:have_a_bun_in_the_oven.v.01",
+          "wn:synset:hold.v.11"
+        ]
+      },
+      "realization_cache": null,
+      "timing": {
+        "parse_seconds": 0.003063400014070794,
+        "hypothesis_seconds": 0.1622213000082411,
+        "distillation_seconds": 1.5458108000166249,
+        "search_seconds": 2.9999995604157448e-05,
+        "llm_seconds": 3.521816899999976,
+        "total_seconds": 5.232963499991456,
+        "realization_seconds": 3.521816899999976
+      }
+    }
+  ],
+  "entities": {}
+}
