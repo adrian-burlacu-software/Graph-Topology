@@ -127,3 +127,6 @@ data/dbpedia/
 data/v632_beginner_semantic.sqlite
 data/v632_beginner_semantic.sqlite-shm
 data/v632_beginner_semantic.sqlite-wal
+data/v633_full_semantic.sqlite
+data/v633_full_semantic.sqlite-shm
+data/v633_full_semantic.sqlite-wal
