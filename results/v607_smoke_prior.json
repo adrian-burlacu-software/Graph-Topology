@@ -1,0 +1,8 @@
+{
+  "decay": 0.65,
+  "updates": 0,
+  "exact_states": 0,
+  "goal_states": 0,
+  "exact": [],
+  "goal": []
+}
