@@ -1,0 +1,25 @@
+{
+  "decay": 0.65,
+  "updates": 2,
+  "exact_states": 1,
+  "goal_states": 1,
+  "exact": [
+    {
+      "goal": "academicDiscipline",
+      "prefix": [],
+      "depth": 0,
+      "next": {
+        "academicDiscipline": 2.0
+      }
+    }
+  ],
+  "goal": [
+    {
+      "goal": "academicDiscipline",
+      "depth": 0,
+      "next": {
+        "academicDiscipline": 2.0
+      }
+    }
+  ]
+}

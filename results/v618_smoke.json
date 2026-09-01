@@ -1,0 +1,135 @@
+{
+  "version": "V618",
+  "architecture": {
+    "grammar": "frozen spaCy",
+    "relation_attention": "learned context-conditioned relation attention",
+    "path_attention": "goal-conditioned path prior",
+    "search": "bounded cognitive graph search",
+    "memory": "persistent entity/intent/goal/path memory"
+  },
+  "config": {
+    "database": ".\\results\\v562_kg_composition_audit.sqlite",
+    "output": ".\\results\\v618_smoke.json",
+    "trace_output": ".\\results\\v618_smoke_traces.jsonl",
+    "prior_output": ".\\results\\v618_smoke_prior.json",
+    "memory_output": ".\\results\\v618_memory.json",
+    "spacy_model": "en_core_web_sm",
+    "mode": "smoke",
+    "max_hypotheses": 12,
+    "relation_vocabulary": 200,
+    "goal_budget": 40,
+    "budget": 80,
+    "per_node": 60,
+    "max_depth": 3,
+    "cache_entries": 12000,
+    "prior_decay": 0.65,
+    "seed": 61800,
+    "progress_every": 1
+  },
+  "relation_vocabulary": [
+    "academicDiscipline",
+    "academicAdvisor",
+    "schema:location",
+    "schema:birthPlace",
+    "schema:nationality",
+    "schema:knowsLanguage",
+    "birthPlace",
+    "is_a",
+    "yago:hasMother"
+  ],
+  "traces": 3,
+  "relation_attention": {
+    "decay": 0.65,
+    "updates": 2,
+    "context_states": 2,
+    "global_relations": 1,
+    "top_context_relations": [
+      {
+        "features": [
+          "question:WH_WHAT",
+          "root:be",
+          "has_subject",
+          "has_object",
+          "has_noun_chunk",
+          "pos:PRON",
+          "dep:attr",
+          "pos:AUX",
+          "dep:ROOT",
+          "pos:DET",
+          "dep:det",
+          "pos:NOUN",
+          "dep:nsubj",
+          "pos:ADP",
+          "dep:prep",
+          "dep:pobj",
+          "pos:PUNCT",
+          "dep:punct",
+          "context:active_subject"
+        ],
+        "relation": "academicDiscipline",
+        "weight": 1.0
+      },
+      {
+        "features": [
+          "question:WH_WHAT",
+          "root:tell",
+          "has_subject",
+          "has_object",
+          "has_noun_chunk",
+          "pos:PRON",
+          "dep:pobj",
+          "pos:AUX",
+          "dep:aux",
+          "dep:nsubj",
+          "pos:VERB",
+          "dep:ROOT",
+          "dep:dobj",
+          "pos:ADP",
+          "dep:prep",
+          "pos:PUNCT",
+          "dep:punct",
+          "context:pronoun",
+          "context:active_subject"
+        ],
+        "relation": "academicDiscipline",
+        "weight": 1.0
+      }
+    ]
+  },
+  "path_attention": {
+    "decay": 0.65,
+    "updates": 2,
+    "exact_states": 1,
+    "goal_states": 1,
+    "exact": [
+      {
+        "goal": "academicDiscipline",
+        "prefix": [],
+        "depth": 0,
+        "next": {
+          "academicDiscipline": 2.0
+        }
+      }
+    ],
+    "goal": [
+      {
+        "goal": "academicDiscipline",
+        "depth": 0,
+        "next": {
+          "academicDiscipline": 2.0
+        }
+      }
+    ]
+  },
+  "memory": {
+    "path": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v618_memory.json",
+    "entities": 1,
+    "turns": 3,
+    "intent_patterns": 3,
+    "goal_patterns": 2,
+    "path_patterns": 1
+  },
+  "trace_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v618_smoke_traces.jsonl",
+  "prior_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v618_smoke_prior.json",
+  "relation_prior_output": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\results\\v618_smoke_prior_relation_attention.json"
+}
