@@ -122,3 +122,8 @@ data/propbank-frames-3.1/
 data/ubuntu/
 data/conceptnet-assertions-5.7.0.csv.gz
 data/dbpedia/
+
+# SQLite database files for the beginner semantic dataset
+data/v632_beginner_semantic.sqlite
+data/v632_beginner_semantic.sqlite-shm
+data/v632_beginner_semantic.sqlite-wal
