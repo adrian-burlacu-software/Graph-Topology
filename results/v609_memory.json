@@ -1,0 +1,18 @@
+{
+  "active_subject": null,
+  "active_entity_label": null,
+  "entities": [],
+  "turns": [],
+  "goal_memory": {},
+  "relation_memory": {
+    "academicAdvisor": {
+      "__miss__": 0.05
+    },
+    "schema:birthPlace": {
+      "__miss__": 0.05
+    },
+    "schema:nationality": {
+      "__miss__": 0.05
+    }
+  }
+}
