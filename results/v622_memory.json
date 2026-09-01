@@ -1,0 +1,1253 @@
+{
+  "version": "semantic-memory-v622",
+  "active_subject": "http://dbpedia.org/resource/100_Word_Story",
+  "active_entity_label": null,
+  "current_resolution": {
+    "status": "unresolved",
+    "mention": null,
+    "canonical": null,
+    "confidence": 0.0,
+    "candidates": []
+  },
+  "entities": [
+    {
+      "text": "http://dbpedia.org/resource/100_Word_Story",
+      "label": "GRAPH_ID",
+      "mentions": 1,
+      "canonical": "http://dbpedia.org/resource/100_Word_Story",
+      "resolution_status": "resolved",
+      "resolution_confidence": 1.0
+    }
+  ],
+  "turns": [
+    {
+      "timestamp": 1788256524.7911675,
+      "text": "What is the academicDiscipline of http://dbpedia.org/resource/100_Word_Story?",
+      "structural_key": "{\"deps\": [\"attr\", \"ROOT\", \"det\", \"nsubj\", \"prep\", \"pobj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"be\", \"the\", \"academicdiscipline\", \"of\", \"http://dbpedia.org/resource/100_word_story\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"DET\", \"NOUN\", \"ADP\", \"NOUN\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"be\"}",
+      "selected": {
+        "subject": "http://dbpedia.org/resource/100_Word_Story",
+        "relation": "academicDiscipline",
+        "intent": "relation_lookup",
+        "lexical_score": 0.8342857142857143,
+        "evidence": {
+          "intent_score": 0.7142857142857143,
+          "relation_attention": 0.0,
+          "direct_graph_affordance": 0.12,
+          "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+          "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+          "entity_resolution": [
+            {
+              "node": "http://dbpedia.org/resource/100_Word_Story",
+              "kind": "subject_exact",
+              "score": 1.0,
+              "accepted": true
+            }
+          ],
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.0,
+          "structural_features": [
+            "question:WH_WHAT",
+            "root:be",
+            "has_subject",
+            "has_object",
+            "has_noun_chunk",
+            "pos:PRON",
+            "dep:attr",
+            "pos:AUX",
+            "dep:ROOT",
+            "pos:DET",
+            "dep:det",
+            "pos:NOUN",
+            "dep:nsubj",
+            "pos:ADP",
+            "dep:prep",
+            "dep:pobj",
+            "pos:PUNCT",
+            "dep:punct",
+            "context:active_subject"
+          ]
+        }
+      },
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "academicDiscipline"
+        ],
+        "target": "http://dbpedia.org/resource/Literary_magazine",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "goal_relation": "academicDiscipline"
+      },
+      "hypotheses": [
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8342857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "editor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8342857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "homepage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.8342857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicDiscipline",
+          "intent": "identity_lookup",
+          "lexical_score": 0.40571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "editor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.40571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "homepage",
+          "intent": "identity_lookup",
+          "lexical_score": 0.40571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicAdvisor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.28571428571428575,
+          "evidence": {
+            "intent_score": 0.28571428571428575,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "is_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "schema:birthPlace",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "schema:knowsLanguage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7142857142857143,
+          "evidence": {
+            "intent_score": 0.7142857142857143,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": "http://dbpedia.org/resource/100_Word_Story",
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [
+              {
+                "node": "http://dbpedia.org/resource/100_Word_Story",
+                "kind": "subject_exact",
+                "score": 1.0,
+                "accepted": true
+              }
+            ],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:be",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:attr",
+              "pos:AUX",
+              "dep:ROOT",
+              "pos:DET",
+              "dep:det",
+              "pos:NOUN",
+              "dep:nsubj",
+              "pos:ADP",
+              "dep:prep",
+              "dep:pobj",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:active_subject"
+            ]
+          }
+        }
+      ],
+      "active_subject": "http://dbpedia.org/resource/100_Word_Story"
+    },
+    {
+      "timestamp": 1788256531.2440815,
+      "text": "What can you tell me about it?",
+      "structural_key": "{\"deps\": [\"pobj\", \"aux\", \"nsubj\", \"ROOT\", \"dobj\", \"prep\", \"pobj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"can\", \"you\", \"tell\", \"i\", \"about\", \"it\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PRON\", \"VERB\", \"PRON\", \"ADP\", \"PRON\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"tell\"}",
+      "selected": {
+        "subject": "http://dbpedia.org/resource/100_Word_Story",
+        "relation": "academicDiscipline",
+        "intent": "relation_lookup",
+        "lexical_score": 1.8866666666666665,
+        "evidence": {
+          "intent_score": 0.7,
+          "relation_attention": 1.0,
+          "direct_graph_affordance": 0.12,
+          "entity_mention": null,
+          "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+          "entity_resolution": [],
+          "goal_memory_bias": 0.0,
+          "relation_outcome_bias": 0.6666666666666666,
+          "structural_features": [
+            "question:WH_WHAT",
+            "root:tell",
+            "has_subject",
+            "has_object",
+            "has_noun_chunk",
+            "pos:PRON",
+            "dep:pobj",
+            "pos:AUX",
+            "dep:aux",
+            "dep:nsubj",
+            "pos:VERB",
+            "dep:ROOT",
+            "dep:dobj",
+            "pos:ADP",
+            "dep:prep",
+            "pos:PUNCT",
+            "dep:punct",
+            "context:pronoun",
+            "context:active_subject"
+          ]
+        }
+      },
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "academicDiscipline"
+        ],
+        "target": "http://dbpedia.org/resource/Literary_magazine",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "goal_relation": "academicDiscipline"
+      },
+      "hypotheses": [
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicDiscipline",
+          "intent": "relation_lookup",
+          "lexical_score": 1.8866666666666665,
+          "evidence": {
+            "intent_score": 0.7,
+            "relation_attention": 1.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.6666666666666666,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicDiscipline",
+          "intent": "identity_lookup",
+          "lexical_score": 1.3866666666666665,
+          "evidence": {
+            "intent_score": 0.2,
+            "relation_attention": 1.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.6666666666666666,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicDiscipline",
+          "intent": "entity_profile",
+          "lexical_score": 1.2866666666666668,
+          "evidence": {
+            "intent_score": 0.1,
+            "relation_attention": 1.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.6666666666666666,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "editor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.82,
+          "evidence": {
+            "intent_score": 0.7,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "homepage",
+          "intent": "relation_lookup",
+          "lexical_score": 0.82,
+          "evidence": {
+            "intent_score": 0.7,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicAdvisor",
+          "intent": "relation_lookup",
+          "lexical_score": 0.7,
+          "evidence": {
+            "intent_score": 0.7,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "editor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.32,
+          "evidence": {
+            "intent_score": 0.2,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "homepage",
+          "intent": "identity_lookup",
+          "lexical_score": 0.32,
+          "evidence": {
+            "intent_score": 0.2,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "editor",
+          "intent": "entity_profile",
+          "lexical_score": 0.22,
+          "evidence": {
+            "intent_score": 0.1,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "homepage",
+          "intent": "entity_profile",
+          "lexical_score": 0.22,
+          "evidence": {
+            "intent_score": 0.1,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.12,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicAdvisor",
+          "intent": "identity_lookup",
+          "lexical_score": 0.2,
+          "evidence": {
+            "intent_score": 0.2,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        },
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "academicAdvisor",
+          "intent": "entity_profile",
+          "lexical_score": 0.1,
+          "evidence": {
+            "intent_score": 0.1,
+            "relation_attention": 0.0,
+            "direct_graph_affordance": 0.0,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "goal_memory_bias": 0.0,
+            "relation_outcome_bias": 0.0,
+            "structural_features": [
+              "question:WH_WHAT",
+              "root:tell",
+              "has_subject",
+              "has_object",
+              "has_noun_chunk",
+              "pos:PRON",
+              "dep:pobj",
+              "pos:AUX",
+              "dep:aux",
+              "dep:nsubj",
+              "pos:VERB",
+              "dep:ROOT",
+              "dep:dobj",
+              "pos:ADP",
+              "dep:prep",
+              "pos:PUNCT",
+              "dep:punct",
+              "context:pronoun",
+              "context:active_subject"
+            ]
+          }
+        }
+      ],
+      "active_subject": "http://dbpedia.org/resource/100_Word_Story"
+    },
+    {
+      "timestamp": 1788256531.5748787,
+      "text": "not-a-real-graph-entity-v622",
+      "structural_key": "{\"deps\": [\"neg\", \"punct\", \"nummod\", \"punct\", \"preconj\", \"punct\", \"nmod\", \"punct\", \"appos\", \"punct\", \"ROOT\"], \"entity_labels\": [], \"lemmas\": [\"not\", \"-\", \"a\", \"-\", \"real\", \"-\", \"graph\", \"-\", \"entity\", \"-\", \"v622\"], \"pos\": [\"PART\", \"PUNCT\", \"PRON\", \"PUNCT\", \"ADJ\", \"PUNCT\", \"NOUN\", \"PUNCT\", \"NOUN\", \"PUNCT\", \"NOUN\"], \"question\": \"DECLARATIVE\", \"root\": \"v622\"}",
+      "selected": {
+        "subject": "http://dbpedia.org/resource/100_Word_Story",
+        "relation": "",
+        "intent": "conversation",
+        "lexical_score": 1.0,
+        "evidence": {
+          "intent_score": 1.0,
+          "structural_features": [
+            "question:DECLARATIVE",
+            "root:v622",
+            "has_noun_chunk",
+            "pos:PART",
+            "dep:neg",
+            "pos:PUNCT",
+            "dep:punct",
+            "pos:PRON",
+            "dep:nummod",
+            "pos:ADJ",
+            "dep:preconj",
+            "pos:NOUN",
+            "dep:nmod",
+            "dep:appos",
+            "dep:ROOT",
+            "context:active_subject"
+          ],
+          "direct_graph_relations": 3,
+          "entity_mention": null,
+          "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+          "entity_resolution": [],
+          "question": "DECLARATIVE",
+          "root": "v622",
+          "has_entity": false,
+          "has_subject": false,
+          "has_object": false,
+          "pronoun_context": false,
+          "pos": [
+            "ADJ",
+            "NOUN",
+            "PART",
+            "PRON",
+            "PUNCT"
+          ],
+          "learned_intent_bias": 0.0
+        }
+      },
+      "search": {
+        "success": true,
+        "intent_only": true,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "hypotheses": [
+        {
+          "subject": "http://dbpedia.org/resource/100_Word_Story",
+          "relation": "",
+          "intent": "conversation",
+          "lexical_score": 1.0,
+          "evidence": {
+            "intent_score": 1.0,
+            "structural_features": [
+              "question:DECLARATIVE",
+              "root:v622",
+              "has_noun_chunk",
+              "pos:PART",
+              "dep:neg",
+              "pos:PUNCT",
+              "dep:punct",
+              "pos:PRON",
+              "dep:nummod",
+              "pos:ADJ",
+              "dep:preconj",
+              "pos:NOUN",
+              "dep:nmod",
+              "dep:appos",
+              "dep:ROOT",
+              "context:active_subject"
+            ],
+            "direct_graph_relations": 3,
+            "entity_mention": null,
+            "canonical_subject": "http://dbpedia.org/resource/100_Word_Story",
+            "entity_resolution": [],
+            "question": "DECLARATIVE",
+            "root": "v622",
+            "has_entity": false,
+            "has_subject": false,
+            "has_object": false,
+            "pronoun_context": false,
+            "pos": [
+              "ADJ",
+              "NOUN",
+              "PART",
+              "PRON",
+              "PUNCT"
+            ],
+            "learned_intent_bias": 0.0
+          }
+        }
+      ],
+      "active_subject": "http://dbpedia.org/resource/100_Word_Story"
+    }
+  ],
+  "intent_memory": {
+    "{\"deps\": [\"attr\", \"ROOT\", \"det\", \"nsubj\", \"prep\", \"pobj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"be\", \"the\", \"academicdiscipline\", \"of\", \"http://dbpedia.org/resource/100_word_story\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"DET\", \"NOUN\", \"ADP\", \"NOUN\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"be\"}": {
+      "relation_lookup": 1
+    },
+    "{\"deps\": [\"pobj\", \"aux\", \"nsubj\", \"ROOT\", \"dobj\", \"prep\", \"pobj\", \"punct\"], \"entity_labels\": [], \"lemmas\": [\"what\", \"can\", \"you\", \"tell\", \"i\", \"about\", \"it\", \"?\"], \"pos\": [\"PRON\", \"AUX\", \"PRON\", \"VERB\", \"PRON\", \"ADP\", \"PRON\", \"PUNCT\"], \"question\": \"WH_WHAT\", \"root\": \"tell\"}": {
+      "relation_lookup": 1
+    },
+    "{\"deps\": [\"neg\", \"punct\", \"nummod\", \"punct\", \"preconj\", \"punct\", \"nmod\", \"punct\", \"appos\", \"punct\", \"ROOT\"], \"entity_labels\": [], \"lemmas\": [\"not\", \"-\", \"a\", \"-\", \"real\", \"-\", \"graph\", \"-\", \"entity\", \"-\", \"v622\"], \"pos\": [\"PART\", \"PUNCT\", \"PRON\", \"PUNCT\", \"ADJ\", \"PUNCT\", \"NOUN\", \"PUNCT\", \"NOUN\", \"PUNCT\", \"NOUN\"], \"question\": \"DECLARATIVE\", \"root\": \"v622\"}": {
+      "conversation": 1
+    }
+  },
+  "goal_memory": {
+    "[\"{\\\"deps\\\": [\\\"attr\\\", \\\"ROOT\\\", \\\"det\\\", \\\"nsubj\\\", \\\"prep\\\", \\\"pobj\\\", \\\"punct\\\"], \\\"entity_labels\\\": [], \\\"lemmas\\\": [\\\"what\\\", \\\"be\\\", \\\"the\\\", \\\"academicdiscipline\\\", \\\"of\\\", \\\"http://dbpedia.org/resource/100_word_story\\\", \\\"?\\\"], \\\"pos\\\": [\\\"PRON\\\", \\\"AUX\\\", \\\"DET\\\", \\\"NOUN\\\", \\\"ADP\\\", \\\"NOUN\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHAT\\\", \\\"root\\\": \\\"be\\\"}\", \"relation_lookup\"]": {
+      "academicDiscipline": 1
+    },
+    "[\"{\\\"deps\\\": [\\\"pobj\\\", \\\"aux\\\", \\\"nsubj\\\", \\\"ROOT\\\", \\\"dobj\\\", \\\"prep\\\", \\\"pobj\\\", \\\"punct\\\"], \\\"entity_labels\\\": [], \\\"lemmas\\\": [\\\"what\\\", \\\"can\\\", \\\"you\\\", \\\"tell\\\", \\\"i\\\", \\\"about\\\", \\\"it\\\", \\\"?\\\"], \\\"pos\\\": [\\\"PRON\\\", \\\"AUX\\\", \\\"PRON\\\", \\\"VERB\\\", \\\"PRON\\\", \\\"ADP\\\", \\\"PRON\\\", \\\"PUNCT\\\"], \\\"question\\\": \\\"WH_WHAT\\\", \\\"root\\\": \\\"tell\\\"}\", \"relation_lookup\"]": {
+      "academicDiscipline": 1
+    }
+  },
+  "path_memory": {
+    "[\"academicDiscipline\", [\"academicDiscipline\"]]": {
+      "success": 2.0
+    }
+  },
+  "relation_outcomes": {
+    "academicDiscipline": {
+      "success": 4.0
+    }
+  }
+}
