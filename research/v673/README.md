@@ -96,8 +96,12 @@ retains direct evidence for those concepts (including features such as paws, tai
 and fur) and follows upward `is_a` relations for two hops, retaining concepts such
 as canid and organism without expanding into sibling species.
 
+ConceptNet is scanned once for direct evidence and once per requested type-closure
+hop. The builder reports its active pass and every 250,000 scanned rows, including
+the retained-edge count, pending type frontier, and scan rate.
+
 ```powershell
-python .\research\v673\v673_semantic_network_builder.py --conceptnet ".\data\conceptnet-assertions-5.7.0.csv.gz" --output ".\data\v673_focused_semantic.sqlite" --focus-concepts bear dog animal --focus-depth 2
+python .\research\v673\v673_semantic_network_builder.py --conceptnet ".\data\conceptnet-assertions-5.7.0.csv.gz" --output ".\data\v673_focused_semantic.sqlite" --focus-concepts bear dog animal --focus-depth 2 --progress-every 250000
 ```
 
 ```powershell

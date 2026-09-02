@@ -709,17 +709,49 @@ def ingest_wordnet_focused(conn, wn, focus_terms, focus_depth):
     return {"seed_synsets": len(seed_synsets), "synsets": len(selected), "edges": edge_count}
 
 
-def ingest_conceptnet_focused(conn, path, focus_terms, focus_depth):
+def ingest_conceptnet_focused(
+    conn,
+    path,
+    focus_terms,
+    focus_depth,
+    progress_every,
+):
     """Keep direct seed evidence, then only follow bounded type relationships."""
     included = set(focus_terms)
     frontier = set(focus_terms)
     rows_seen = 0
     retained = 0
+    started = time.perf_counter()
 
     for depth in range(focus_depth + 1):
+        pass_started = time.perf_counter()
+        pass_rows = 0
+        pass_retained = 0
         next_frontier = set()
-        with gzip.open(path, "rt", encoding="utf-8", errors="replace", newline="") as handle:
+        print(
+            f"    ConceptNet pass {depth + 1}/{focus_depth + 1}: "
+            f"{'direct seed evidence' if depth == 0 else 'is_a closure'}; "
+            f"frontier={len(frontier):,}",
+            flush=True,
+        )
+        with gzip.open(
+            path,
+            "rt",
+            encoding="utf-8",
+            errors="replace",
+            newline="",
+        ) as handle:
             for row in csv.reader(handle, delimiter="\t"):
+                pass_rows += 1
+                if progress_every and pass_rows % progress_every == 0:
+                    elapsed = time.perf_counter() - pass_started
+                    print(
+                        f"      rows={pass_rows:,} "
+                        f"kept_this_pass={pass_retained:,} "
+                        f"frontier_next={len(next_frontier):,} "
+                        f"rows/s={pass_rows / elapsed:,.0f}",
+                        flush=True,
+                    )
                 if len(row) < 4:
                     continue
                 if depth == 0:
@@ -731,7 +763,8 @@ def ingest_conceptnet_focused(conn, path, focus_terms, focus_depth):
                     continue
                 start_term, end_term = start[3:], end[3:]
                 follows_type = (
-                    relation in UPWARD_TYPE_RELATIONS
+                    depth < focus_depth
+                    and relation in UPWARD_TYPE_RELATIONS
                     and start_term in frontier
                 )
                 direct_evidence = (
@@ -750,12 +783,28 @@ def ingest_conceptnet_focused(conn, path, focus_terms, focus_depth):
                     (start, relation, end, "conceptnet"),
                 )
                 retained += 1
+                pass_retained += 1
                 included.update((start_term, end_term))
                 if follows_type and end_term not in frontier:
                     next_frontier.add(end_term)
         frontier = next_frontier
         conn.commit()
-    return {"rows_seen": rows_seen, "concepts": len(included), "edges": retained}
+        elapsed = time.perf_counter() - pass_started
+        print(
+            f"    ConceptNet pass {depth + 1} complete: "
+            f"rows={pass_rows:,} kept={pass_retained:,} "
+            f"next_frontier={len(frontier):,} elapsed={elapsed:.1f}s",
+            flush=True,
+        )
+        if not frontier and depth < focus_depth:
+            print("    Type closure complete: no further ancestors.", flush=True)
+            break
+    return {
+        "rows_seen": rows_seen,
+        "concepts": len(included),
+        "edges": retained,
+        "elapsed_seconds": time.perf_counter() - started,
+    }
 
 
 
@@ -913,6 +962,12 @@ def main():
         default=2,
         help="Number of structural type-closure hops after direct seed evidence.",
     )
+    ap.add_argument(
+        "--progress-every",
+        type=int,
+        default=250000,
+        help="Print focused ConceptNet scan progress every N rows; use 0 to disable.",
+    )
     args = ap.parse_args()
 
     if (
@@ -925,6 +980,8 @@ def main():
 
     if args.focus_depth < 0:
         raise SystemExit("--focus-depth must be non-negative")
+    if args.progress_every < 0:
+        raise SystemExit("--progress-every must be non-negative")
 
     focus_terms = (
         {normalize_word(term) for term in args.focus_concepts}
@@ -1014,7 +1071,11 @@ def main():
         )
         cn_stats = (
             ingest_conceptnet_focused(
-                conn, conceptnet_path, focus_terms, args.focus_depth
+                conn,
+                conceptnet_path,
+                focus_terms,
+                args.focus_depth,
+                args.progress_every,
             )
             if focus_terms
             else ingest_conceptnet(conn, conceptnet_path)
