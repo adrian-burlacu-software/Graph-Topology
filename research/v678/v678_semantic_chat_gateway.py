@@ -623,16 +623,30 @@ def choose_semantic_goal(
             "candidates":[],
         }
 
-    words = set(re.findall(r"[a-z]+", parse.text.lower()))
-    available_goals = {item["goal"] for item in goals}
-    # Possessive questions explicitly request a direct part fact. This is a
-    # graph query shape, not an ambiguous semantic decision for the teacher.
-    if (
-        "part" in available_goals
-        and words.intersection({"has", "have", "contain", "contains"})
-    ):
-        return "part", {
-            "source": "structural_possession",
+    target_terms = question_target_terms(parse)
+    direct_goal_matches = {
+        item["goal"]: graph.find_goal_facts(
+            subject,
+            item["goal"],
+            query_text=parse.text,
+            target_terms=target_terms,
+            limit=2,
+        )
+        for item in goals
+    } if subject and target_terms else {}
+    matching_goals = [
+        goal for goal, facts in direct_goal_matches.items()
+        if facts
+    ]
+    specific_matching_goals = [
+        goal for goal in matching_goals
+        if goal != "association"
+    ]
+    if specific_matching_goals:
+        matching_goals = specific_matching_goals
+    if len(matching_goals) == 1:
+        return matching_goals[0], {
+            "source": "direct_argument_evidence",
             "confidence": 1.0,
             "candidates": [item["goal"] for item in goals],
             "candidate_details": goals,
@@ -1083,7 +1097,7 @@ def apply_live_distillation(
         )
     ]
 
-    # Context resolution + goal-specific fact lookup. This adapter is entirely
+    # Entity resolution + goal-specific fact lookup. This adapter is entirely
     # internal to the graph and cannot be selected by the language model.
     if (
         base.subject
@@ -1091,7 +1105,7 @@ def apply_live_distillation(
             "entity_resolution",
             {},
         ).get("status")
-        == "context_resolved"
+        in {"context_resolved", "resolved"}
     ):
         target_terms=question_target_terms(parse)
         facts=graph.find_goal_facts(
@@ -1189,6 +1203,19 @@ def clean_surface_answer(answer):
 def requested_part_list(question):
     words = set(re.findall(r"[a-z]+", str(question).lower()))
     return bool(words.intersection({"parts", "components"}))
+
+
+def is_polar_question(parse):
+    return str(parse.question or "") == "QUESTION"
+
+
+def verified_polar_answer(selected, result):
+    goal = result.get("semantic_goal", selected.relation)
+    return (
+        "Yes, the semantic graph verifies the requested "
+        f"{goal} for {result['subject_label']}: "
+        f"{result['target_label']}."
+    )
 
 
 
@@ -1551,9 +1578,13 @@ def handle_turn(
                 "count": len(part_labels),
             }
             realization_guard = "deterministic_part_inventory"
+        elif is_polar_question(parse):
+            answer = verified_polar_answer(selected, result)
+            mode = "grounded"
+            realization_guard = "deterministic_polar_fact"
         realization_cache = (
             None
-            if selected.relation == "definition"
+            if selected.relation == "definition" or is_polar_question(parse)
             else graph.get_realized_answer(
             question,
             selected.subject,
@@ -1570,7 +1601,7 @@ def handle_turn(
             result.get("path", []),
         ))
 
-        if part_labels:
+        if part_labels or is_polar_question(parse):
             pass
         elif realization_cache:
             answer = realization_cache["answer"]
