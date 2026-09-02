@@ -49,6 +49,21 @@ class Graph:
             check_same_thread=False,
         )
         self.conn.row_factory = sqlite3.Row
+        required_tables = {"nodes", "edges", "relations", "metadata"}
+        tables = {
+            str(row["name"])
+            for row in self.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        missing = required_tables - tables
+        if missing:
+            self.conn.close()
+            raise ValueError(
+                f"{self.db} is not a V678 semantic graph; missing tables: "
+                f"{', '.join(sorted(missing))}. Build it with "
+                "v678_semantic_network_builder.py or pass the focused graph."
+            )
         # The semantic facts remain immutable by convention. V662 writes only
         # its distilled-memory tables, created below.
         self.conn.execute(
@@ -1073,6 +1088,7 @@ class Graph:
                     "whether the subject has a characteristic or property",
                 "relations": (
                     "has_property",
+                    "has_attribute",
                 ),
             },
             "part": {
