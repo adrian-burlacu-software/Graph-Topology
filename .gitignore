@@ -139,6 +139,5 @@ data/v632_beginner_semantic.sqlite-wal
 data/v633_full_semantic.sqlite
 data/v633_full_semantic.sqlite-shm
 data/v633_full_semantic.sqlite-wal
-data/v673_focused_semantic.sqlite
 data/v673_focused_semantic.sqlite-shm
 data/v673_focused_semantic.sqlite-wal
