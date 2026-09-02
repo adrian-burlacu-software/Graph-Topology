@@ -16,7 +16,7 @@ def _stable_key(*parts: object) -> str:
 class RamSemanticMemory:
     """Per-process semantic working memory.
 
-    V673 distinguishes local evidence from imported shared state. Imported rows
+    V675 distinguishes local evidence from imported shared state. Imported rows
     are never exported merely because they were imported. Every locally-created
     record carries provenance and a derivation depth so the shared store can
     arbitrate evidence instead of treating every observation as graph truth.
@@ -380,7 +380,7 @@ class SharedCheckpoint:
 
 class SharedDistilledMemory:
     def __init__(self,graph,ram,checkpoint=None):
-        self.graph_memory=__import__("v673_semantic_core",fromlist=["DistilledMemory"]).DistilledMemory(graph); self.ram=ram; self.checkpoint=checkpoint
+        self.graph_memory=__import__("v675_semantic_core",fromlist=["DistilledMemory"]).DistilledMemory(graph); self.ram=ram; self.checkpoint=checkpoint
     def lookup(self,decision_type,surface,context_text,candidates):
         hit=self.ram.lookup(decision_type,surface,context_text,candidates)
         if hit:return hit

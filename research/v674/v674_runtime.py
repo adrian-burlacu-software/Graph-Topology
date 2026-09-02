@@ -8,18 +8,18 @@ import sys
 import time
 from pathlib import Path
 
-from v673_offline_learning import worker_main
-from v673_memory import SharedCheckpoint
+from v674_offline_learning import worker_main
+from v674_memory import SharedCheckpoint
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(description="V673 19 offline workers + 1 online semantic chat worker")
+    ap = argparse.ArgumentParser(description="V674 19 offline workers + 1 online semantic chat worker")
     ap.add_argument("--database", required=True)
-    ap.add_argument("--output", default="./results/v673_chat.json")
-    ap.add_argument("--trace-output", default="./results/v673_chat_traces.jsonl")
-    ap.add_argument("--memory-output", default="./results/v673_memory.json")
-    ap.add_argument("--worker-log-dir", default="./results/v673_workers")
-    ap.add_argument("--shared-memory", default="./results/v673_shared_memory.sqlite")
+    ap.add_argument("--output", default="./results/v674_chat.json")
+    ap.add_argument("--trace-output", default="./results/v674_chat_traces.jsonl")
+    ap.add_argument("--memory-output", default="./results/v674_memory.json")
+    ap.add_argument("--worker-log-dir", default="./results/v674_workers")
+    ap.add_argument("--shared-memory", default="./results/v674_shared_memory.sqlite")
     ap.add_argument("--spacy-model", default="en_core_web_sm")
     ap.add_argument("--llm-model", required=True)
     ap.add_argument("--mode", choices=("chat", "smoke"), default="chat")
@@ -43,7 +43,7 @@ def launch_offline(args, stop_event):
     child_args.total_workers = 20
     processes = []
     for worker_id in range(19):
-        p = mp.Process(target=offline_process_entry, args=(child_args, worker_id, stop_event), name=f"v673-offline-{worker_id:02d}")
+        p = mp.Process(target=offline_process_entry, args=(child_args, worker_id, stop_event), name=f"v674-offline-{worker_id:02d}")
         p.daemon = True
         p.start()
         processes.append(p)
@@ -61,11 +61,11 @@ def offline_process_entry(args, worker_id, stop_event):
     except KeyboardInterrupt:
         pass
     except Exception as exc:
-        print(f"[V673 offline worker {worker_id}] FATAL: {exc!r}", flush=True)
+        print(f"[V674 offline worker {worker_id}] FATAL: {exc!r}", flush=True)
 
 
 def run_chat(args, stop_event):
-    from v673_semantic_chat_gateway import run_chat_worker
+    from v674_semantic_chat_gateway import run_chat_worker
     chat_args = argparse.Namespace(**vars(args))
     chat_args.worker_id = 19
     chat_args.total_workers = 20
@@ -85,7 +85,7 @@ def main():
     bootstrap = SharedCheckpoint(args.shared_memory, 19, 20, args.checkpoint_seconds)
     bootstrap.close()
 
-    print("=== V673 COGNITIVE RUNTIME ===", flush=True)
+    print("=== V674 COGNITIVE RUNTIME ===", flush=True)
     print("workers : 19 offline learners + 1 online chat worker", flush=True)
     print(f"shared  : {Path(args.shared_memory).resolve()}", flush=True)
     print(f"sync    : modulus-staggered every {args.checkpoint_seconds}s", flush=True)
@@ -108,7 +108,7 @@ def main():
                 p.terminate()
         for p in offline:
             p.join(timeout=1.0)
-        print("=== V673 RUNTIME COMPLETE ===", flush=True)
+        print("=== V674 RUNTIME COMPLETE ===", flush=True)
         print("offline exit codes:", {p.name: p.exitcode for p in offline}, flush=True)
 
 

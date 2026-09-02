@@ -1,6 +1,10 @@
-# V673 — Semantic Combination Laboratory
+# V675 — Learned Search Attention
 
-V673 mirrors V672 and turns its specialist evidence into a bounded semantic
+V675 inherits V674’s contextual RAM and V673’s relation laboratory. Its
+relation transitions and interaction evidence are the substrate for contextual
+priors and candidate-ranking experiments, without changing graph authority.
+
+V675 mirrors V672 and turns its specialist evidence into a bounded semantic
 combination laboratory.
 
 ## What changed
@@ -9,7 +13,7 @@ combination laboratory.
 
 V671 mapped workers to `worker_id` seconds inside the interval. With a 300-second checkpoint interval, all 20 workers therefore synchronized inside the first 20 seconds.
 
-V673 assigns slots across the entire interval:
+V675 assigns slots across the entire interval:
 
 - 300s mode: workers are about 15s apart
 - 60s mode: workers are about 3s apart
@@ -35,7 +39,7 @@ V671 used `MAX()` for counts/confidence. That hid the difference between:
 - one worker importing the other worker's result
 - contradictory evidence
 
-V673 keeps per-worker evidence tables and materializes an aggregate view. Imported shared state is not re-exported as new worker evidence.
+V675 keeps per-worker evidence tables and materializes an aggregate view. Imported shared state is not re-exported as new worker evidence.
 
 ### 4. Goal decisions are arbitrated
 
@@ -45,10 +49,10 @@ The online goal lookup uses the shared arbitration result when one is available.
 
 ### 5. Composition is bounded
 
-The V671 composition lane produced ~55k learned records in the observed run. V673 defaults to:
+The V671 composition lane produced ~55k learned records in the observed run. V675 defaults to:
 
 - fanout = 4
-- max derived compositions per worker run = 2,000
+- max derived compositions per batch = 250
 - derivation depth = 2
 
 These are instrumentation/training limits, not semantic assumptions.
@@ -63,7 +67,7 @@ Worker status now exposes:
 - sync count
 - import/export/merge/conflict counts
 
-`v673_inspect.py` additionally shows:
+`v675_inspect.py` additionally shows:
 
 - provenance/promotion distribution
 - decision arbitration
@@ -96,7 +100,7 @@ The useful signals are:
 
 ## Run
 
-Use a fresh V673 shared database for this experiment. Do not reuse the V671 shared database because V673 has a new evidence schema.
+Use a fresh V675 shared database for this experiment. Do not reuse the V671 shared database because V675 has a new evidence schema.
 
 ### Focused semantic graph
 
@@ -110,21 +114,21 @@ hop. The builder reports its active pass and every 250,000 scanned rows, includi
 the retained-edge count, pending type frontier, and scan rate.
 
 ```powershell
-python .\research\v673\v673_semantic_network_builder.py --conceptnet ".\data\conceptnet-assertions-5.7.0.csv.gz" --output ".\data\v673_focused_semantic.sqlite" --focus-concepts bear dog animal --focus-depth 2 --progress-every 250000
+python .\research\v675\v675_semantic_network_builder.py --conceptnet ".\data\conceptnet-assertions-5.7.0.csv.gz" --output ".\data\v675_focused_semantic.sqlite" --focus-concepts bear dog animal --focus-depth 2 --progress-every 250000
 ```
 
 ```powershell
-python .\research\v673\v673_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v673_chat.json" --trace-output ".\results\v673_chat_traces.jsonl" --memory-output ".\results\v673_memory.json" --worker-log-dir ".\results\v673_workers" --shared-memory ".\results\v673_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67300 --batch-sleep 0.20
+python .\research\v675\v675_runtime.py --database ".\data\v675_focused_semantic.sqlite" --output ".\results\v675_chat.json" --trace-output ".\results\v675_chat_traces.jsonl" --memory-output ".\results\v675_memory.json" --worker-log-dir ".\results\v675_workers" --shared-memory ".\results\v675_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67500 --batch-sleep 0.20
 ```
 
 For a faster checkpoint-spacing test:
 
 ```powershell
-python .\research\v673\v673_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v673_chat.json" --trace-output ".\results\v673_chat_traces.jsonl" --memory-output ".\results\v673_memory.json" --worker-log-dir ".\results\v673_workers" --shared-memory ".\results\v673_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67300 --batch-sleep 0.20
+python .\research\v675\v675_runtime.py --database ".\data\v675_focused_semantic.sqlite" --output ".\results\v675_chat.json" --trace-output ".\results\v675_chat_traces.jsonl" --memory-output ".\results\v675_memory.json" --worker-log-dir ".\results\v675_workers" --shared-memory ".\results\v675_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67500 --batch-sleep 0.20
 ```
 
 Inspect after a run:
 
 ```powershell
-python .\research\v673\v673_inspect.py --shared-memory ".\results\v673_shared_memory.sqlite" --events 40
+python .\research\v675\v675_inspect.py --shared-memory ".\results\v675_shared_memory.sqlite" --events 40
 ```

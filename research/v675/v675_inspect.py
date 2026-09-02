@@ -3,10 +3,10 @@ import argparse, json, sqlite3, time
 from pathlib import Path
 
 def main():
-    ap=argparse.ArgumentParser(description="V673 shared-memory and provenance inspector")
+    ap=argparse.ArgumentParser(description="V675 shared-memory and provenance inspector")
     ap.add_argument("--shared-memory", required=True); ap.add_argument("--events", type=int, default=30)
     args=ap.parse_args(); db=Path(args.shared_memory).resolve(); con=sqlite3.connect(str(db),timeout=10); con.row_factory=sqlite3.Row
-    print("=== V673 INSPECT ==="); print("database:",db)
+    print("=== V675 INSPECT ==="); print("database:",db)
     for table in ("semantic_decisions","semantic_knowledge","relation_transitions","decision_evidence","knowledge_evidence","transition_evidence","checkpoint_events","merge_events","decision_resolution"):
         try: print(f"{table}: {con.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]:,}")
         except Exception as exc: print(f"{table}: ERROR {exc!r}")

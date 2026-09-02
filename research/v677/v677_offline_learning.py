@@ -9,7 +9,7 @@ import time
 import json
 from pathlib import Path
 
-from v673_memory import RamSemanticMemory, SharedCheckpoint
+from v677_memory import RamSemanticMemory, SharedCheckpoint
 
 RELATION_LANES = [
     "antonym_structure",
@@ -180,7 +180,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no):
                     break
 
     elif lane == "relation_composition":
-        # V671 generated an uncontrolled Cartesian product. V673 deliberately
+        # V671 generated an uncontrolled Cartesian product. V677 deliberately
         # caps both fanout and total derived records per batch. Composition is
         # useful training evidence, but it is NOT graph truth.
         fanout = max(1, int(getattr(ram, "composition_fanout", 4)))
