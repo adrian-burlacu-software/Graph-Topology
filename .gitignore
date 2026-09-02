@@ -57,6 +57,9 @@ results/v671_shared_memory.sqlite-wal
 results/v672_shared_memory.sqlite
 results/v672_shared_memory.sqlite-shm
 results/v672_shared_memory.sqlite-wal
+results/v673_shared_memory.sqlite
+results/v673_shared_memory.sqlite-shm
+results/v673_shared_memory.sqlite-wal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
@@ -129,10 +132,13 @@ data/ubuntu/
 data/conceptnet-assertions-5.7.0.csv.gz
 data/dbpedia/
 
-# SQLite database files for the beginner semantic dataset
+# SQLite database files for the semantic datasets
 data/v632_beginner_semantic.sqlite
 data/v632_beginner_semantic.sqlite-shm
 data/v632_beginner_semantic.sqlite-wal
 data/v633_full_semantic.sqlite
 data/v633_full_semantic.sqlite-shm
 data/v633_full_semantic.sqlite-wal
+data/v673_focused_semantic.sqlite
+data/v673_focused_semantic.sqlite-shm
+data/v673_focused_semantic.sqlite-wal
