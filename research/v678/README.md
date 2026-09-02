@@ -123,13 +123,13 @@ python .\research\v678\v678_semantic_network_builder.py --conceptnet ".\data\con
 ```
 
 ```powershell
-python .\research\v678\v678_runtime.py --database ".\data\v678_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67800 --batch-sleep 0.20
+python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67800 --batch-sleep 0.20
 ```
 
 For a faster checkpoint-spacing test:
 
 ```powershell
-python .\research\v678\v678_runtime.py --database ".\data\v678_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67800 --batch-sleep 0.20
+python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67800 --batch-sleep 0.20
 ```
 
 Inspect after a run:
