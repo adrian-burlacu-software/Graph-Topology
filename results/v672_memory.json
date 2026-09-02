@@ -1,0 +1,667 @@
+{
+  "active_subject": "en:bear",
+  "turns": [
+    {
+      "timestamp": 1788362205.4289348,
+      "question": "what is a bear?",
+      "answer": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+      "entity_resolution_kind": "canonical_en_exact",
+      "context": {
+        "active_subject_before_turn": null,
+        "selected_subject": "en:bear"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:bear",
+        "relation": "definition",
+        "mode": "grounded_cache",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "bear",
+        "canonical": "en:bear",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:bear",
+            "kind": "canonical_en_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "bear"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "what is a bear?",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "attr"
+          },
+          {
+            "text": "is",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "bear",
+            "lemma": "bear",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a bear"
+        ],
+        "root": "is",
+        "root_lemma": "be",
+        "question": "WH_WHAT",
+        "subjects": [
+          "bear"
+        ],
+        "objects": [
+          "what"
+        ]
+      },
+      "selected": {
+        "subject": "en:bear",
+        "relation": "definition",
+        "intent": "relation_lookup",
+        "lexical_score": 0.6,
+        "evidence": {
+          "concept": "bear",
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "bear",
+            "canonical": "en:bear",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:bear",
+                "kind": "canonical_en_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "bear"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "definition",
+            "antonym",
+            "at_location",
+            "capable_of",
+            "desires",
+            "distinct_from",
+            "entails",
+            "etymologically_related_to",
+            "form_of",
+            "has_a",
+            "has_context",
+            "has_sense"
+          ],
+          "relation_lexical_score": 0.6,
+          "semantic_goal": "definition",
+          "semantic_goal_source": "llm_teacher",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "WH_WHAT",
+            "root": "be",
+            "subjects": [
+              "bear"
+            ],
+            "objects": [
+              "what"
+            ],
+            "predicate_tokens": [
+              "what",
+              "is"
+            ],
+            "predicate_lemmas": [
+              "what"
+            ],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "WH_WHAT",
+            "root": "be",
+            "pos": [
+              "AUX",
+              "DET",
+              "NOUN",
+              "PRON",
+              "PUNCT"
+            ],
+            "dependencies": [
+              "ROOT",
+              "attr",
+              "det",
+              "nsubj",
+              "punct"
+            ],
+            "has_pronoun": true,
+            "has_auxiliary": true,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": false
+          },
+          "target_terms": [],
+          "semantic_goal_runtime_relation": "definition"
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:bear",
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.6,
+            "semantic_goal": "definition",
+            "semantic_goal_source": "llm_teacher",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "subjects": [
+                "bear"
+              ],
+              "objects": [
+                "what"
+              ],
+              "predicate_tokens": [
+                "what",
+                "is"
+              ],
+              "predicate_lemmas": [
+                "what"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "pos": [
+                "AUX",
+                "DET",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "attr",
+                "det",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": true,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [],
+            "semantic_goal_runtime_relation": "definition"
+          }
+        },
+        {
+          "subject": "en:bear",
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "evidence": {
+            "concept": "bear",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "bear",
+              "canonical": "en:bear",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:bear",
+                  "kind": "canonical_en_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "bear"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "desires",
+              "distinct_from",
+              "entails",
+              "etymologically_related_to",
+              "form_of",
+              "has_a",
+              "has_context",
+              "has_sense"
+            ],
+            "relation_lexical_score": 0.6,
+            "semantic_goal": "definition",
+            "semantic_goal_source": "llm_teacher",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "subjects": [
+                "bear"
+              ],
+              "objects": [
+                "what"
+              ],
+              "predicate_tokens": [
+                "what",
+                "is"
+              ],
+              "predicate_lemmas": [
+                "what"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "pos": [
+                "AUX",
+                "DET",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "attr",
+                "det",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": true,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [],
+            "semantic_goal_runtime_relation": "has_sense"
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "intent_only": false,
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "sense_node": null,
+        "semantic_goal": "definition",
+        "semantic_relation": "definition",
+        "subject_label": "bear",
+        "target_label": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws"
+      },
+      "distillation": {
+        "source": "llm_teacher",
+        "decision": "definition"
+      },
+      "realization_cache": {
+        "answer": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+        "source": "semantic_answer_cache",
+        "hits": 2
+      },
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.004696699965279549,
+        "hypothesis_seconds": 0.7919616000144742,
+        "distillation_seconds": 9.460718699963763,
+        "search_seconds": 0.0016811999958008528,
+        "llm_seconds": 0.0,
+        "total_seconds": 10.259764600021299,
+        "realization_seconds": 0.0006755000213161111
+      }
+    }
+  ],
+  "entities": {}
+}

@@ -54,6 +54,9 @@ results/v562_kg_composition_audit.sqlite-journal
 results/v671_shared_memory.sqlite
 results/v671_shared_memory.sqlite-shm
 results/v671_shared_memory.sqlite-wal
+results/v672_shared_memory.sqlite
+results/v672_shared_memory.sqlite-shm
+results/v672_shared_memory.sqlite-wal
 
 # Checkpoint files
 results/v200_graph_transformer.pt
