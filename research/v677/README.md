@@ -132,3 +132,10 @@ Inspect after a run:
 ```powershell
 python .\research\v677\v677_inspect.py --shared-memory ".\results\v677_shared_memory.sqlite" --events 40
 ```
+
+For a compact uploadable overnight report (three JSONL records: run totals,
+per-worker status, and shared merge/arbitration/combination diagnostics):
+
+```powershell
+python .\research\v677\v677_worker_summary.py --worker-log-dir ".\results\v677_workers" --shared-memory ".\results\v677_shared_memory.sqlite" --output ".\results\v677\worker_summary.jsonl"
+```
