@@ -623,6 +623,23 @@ def choose_semantic_goal(
             "candidates":[],
         }
 
+    words = set(re.findall(r"[a-z]+", parse.text.lower()))
+    available_goals = {item["goal"] for item in goals}
+    # Possessive questions explicitly request a direct part fact. This is a
+    # graph query shape, not an ambiguous semantic decision for the teacher.
+    if (
+        "part" in available_goals
+        and words.intersection({"has", "have", "contain", "contains"})
+    ):
+        return "part", {
+            "source": "structural_possession",
+            "confidence": 1.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
+
     descriptions={
         item["goal"]:item["meaning"]
         for item in goals
