@@ -1169,6 +1169,11 @@ def clean_surface_answer(answer):
     return text
 
 
+def requested_part_list(question):
+    words = set(re.findall(r"[a-z]+", str(question).lower()))
+    return bool(words.intersection({"parts", "components"}))
+
+
 
 def handle_turn(
     question,
@@ -1420,6 +1425,33 @@ def handle_turn(
         ranked
     )
 
+    # A plural parts/components question requests the complete direct graph
+    # inventory, not a single representative fact or a multi-hop substitute.
+    if requested_part_list(question) and selected.subject:
+        parts = graph.find_goal_facts(
+            selected.subject,
+            "part",
+            query_text=question,
+            target_terms=[],
+            limit=100,
+        )
+        labels = sorted({
+            str(item["label"])
+            for item in parts
+        }, key=str.lower)
+        if labels:
+            selected.evidence["all_part_labels"] = labels
+            result = {
+                "success": True,
+                "steps": 1,
+                "path": ["has_a", "has_part"],
+                "target": parts[0]["object"],
+                "attention": 0,
+                "exploration": 0,
+                "direct_proof": True,
+                "proof_kind": "direct_part_inventory",
+            }
+
     # Keep the public semantic goal stable even though graph search uses
     # internal raw relations.
     if (
@@ -1485,6 +1517,23 @@ def handle_turn(
         "success",
         False,
     ):
+        part_labels = (
+            selected.evidence.get("all_part_labels")
+            if isinstance(selected.evidence, dict)
+            else None
+        )
+        if part_labels:
+            answer = (
+                f"{result['subject_label']} has: "
+                + ", ".join(part_labels)
+                + "."
+            )
+            mode = "grounded"
+            realization_cache = {
+                "source": "direct_part_inventory",
+                "count": len(part_labels),
+            }
+            realization_guard = "deterministic_part_inventory"
         realization_cache = (
             None
             if selected.relation == "definition"
@@ -1504,7 +1553,9 @@ def handle_turn(
             result.get("path", []),
         ))
 
-        if realization_cache:
+        if part_labels:
+            pass
+        elif realization_cache:
             answer = realization_cache["answer"]
             mode = "grounded_cache"
         else:
