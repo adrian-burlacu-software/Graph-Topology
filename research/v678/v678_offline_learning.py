@@ -128,9 +128,13 @@ def feature_for_pair(conn, subject, relation, obj):
     }
 
 
-def run_lane(conn, ram, lane, seed, worker_id, batch_no):
+def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
     rng = random.Random(seed + worker_id * 100003 + batch_no * 9973)
-    subjects = sample_subjects(conn, seed + batch_no * 17, worker_id, 64)
+    subjects = (
+        [str(subject) for subject in focus_subjects]
+        if focus_subjects
+        else sample_subjects(conn, seed + batch_no * 17, worker_id, 64)
+    )
     learned = 0
     inspected = 0
 
@@ -325,12 +329,24 @@ def worker_main(args, worker_id: int, stop_event=None):
             batch_started = time.perf_counter()
             lane = RELATION_LANES[worker_id % len(RELATION_LANES)]
             try:
-                inspected, learned = run_lane(conn, ram, lane, args.seed, worker_id, batches)
+                task = shared.claim_query()
+                focus_subjects = [task["subject"]] if task else None
+                inspected, learned = run_lane(
+                    conn, ram, lane, args.seed, worker_id, batches, focus_subjects,
+                )
                 batches += 1
                 items += inspected
                 learned_total += learned
                 elapsed = time.perf_counter() - batch_started
                 log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, duration_s=elapsed, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
+                if task:
+                    sync = shared.sync(ram, role, os.getpid(), force=True)
+                    shared.complete_query(task["id"], {
+                        "lane": lane, "inspected": inspected, "learned": learned,
+                        "sync": sync,
+                    })
+                    log("query_task_completed", query_id=task["query_id"], task_id=task["id"],
+                        subject=task["subject"], lane=lane, inspected=inspected, learned=learned)
             except Exception as exc:
                 errors += 1
                 shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_error=repr(exc))

@@ -1527,6 +1527,18 @@ def verified_polar_answer(selected, result):
     )
 
 
+def dispatch_worker_query(checkpoint, question):
+    if checkpoint is None:
+        return None
+    text = normalize_question_text(question)
+    match = re.search(r"\b(animal|bear|dog)s?\b", text)
+    if not match:
+        return None
+    try:
+        return checkpoint.enqueue_query(question, f"en:{match.group(1)}")
+    except sqlite3.Error:
+        return None
+
 
 def handle_turn(
     question,
@@ -1539,6 +1551,7 @@ def handle_turn(
     distilled,
     args,
     worker_discoveries=None,
+    worker_pool=None,
 ):
     started = time.perf_counter()
 
@@ -1550,6 +1563,7 @@ def handle_turn(
         time.perf_counter()
         - t0
     )
+    worker_query_id = dispatch_worker_query(worker_pool, question)
     discovery = (
         worker_discoveries.answer(question)
         if worker_discoveries is not None
@@ -1579,6 +1593,7 @@ def handle_turn(
             },
             "parse": asdict(parse),
             "worker_discovery": discovery,
+            "worker_pool": {"query_id": worker_query_id},
             "timing": {
                 "parse_seconds": parse_seconds,
                 "hypothesis_seconds": 0.0,
@@ -1624,6 +1639,7 @@ def handle_turn(
         trace = {
             "question": question,
             "answer": answer,
+            "worker_pool": {"query_id": worker_query_id},
             "route": {
                 "intent": "conversation",
                 "subject": None,
@@ -2559,6 +2575,7 @@ def run_chat_worker(args):
                 distilled,
                 args,
                 worker_discoveries,
+                checkpoint,
             )
             print(
                 f"\nQ: {question}",
@@ -2652,6 +2669,7 @@ def run_chat_worker(args):
                 distilled,
                 args,
                 worker_discoveries,
+                checkpoint,
             )
 
             print(

@@ -176,3 +176,13 @@ questions backed by non-cyclic worker-discovered `is_a` paths for animal, bear,
 and dog. Worker provenance remains in the trace and benchmark instrumentation;
 it is not exposed in the user question or answer. Use a fresh shared database
 when changing worker-learning behavior so stale discoveries cannot appear.
+
+### Query-time worker pool
+
+Every animal, bear, or dog question is also dispatched to all 19 specialist
+lanes at high priority. Each lane claims only its own task, analyzes the
+question subject, force-syncs its evidence, and marks completion in the shared
+checkpoint. This guarantees every lane receives an equal query-time turn while
+the normal staggered checkpoint schedule continues to share background
+learning. The chat response remains graph-grounded; worker results are
+provenance-bearing supporting evidence in its trace.

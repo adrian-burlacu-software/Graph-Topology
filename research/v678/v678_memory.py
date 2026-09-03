@@ -257,6 +257,14 @@ class SharedCheckpoint:
           id INTEGER PRIMARY KEY AUTOINCREMENT, worker_id INTEGER NOT NULL, table_name TEXT NOT NULL, key TEXT NOT NULL,
           action TEXT NOT NULL, conflict INTEGER NOT NULL DEFAULT 0, ts REAL NOT NULL, payload_json TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_merge_events_ts ON merge_events(ts);
+        CREATE TABLE IF NOT EXISTS query_tasks(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, query_id TEXT NOT NULL, worker_id INTEGER NOT NULL,
+          question TEXT NOT NULL, subject TEXT NOT NULL, priority INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'queued', created_unix REAL NOT NULL,
+          started_unix REAL, completed_unix REAL, result_json TEXT,
+          UNIQUE(query_id,worker_id));
+        CREATE INDEX IF NOT EXISTS idx_query_tasks_worker
+          ON query_tasks(worker_id,status,priority DESC,id);
         """); self.conn.commit()
         self.last_bucket=None; self.last_export_unix=0.0; self.last_import_unix=0.0
 
@@ -373,6 +381,53 @@ class SharedCheckpoint:
     def record_event(self,event,payload,duration_s=0.0):
         with self.lock:
             self.conn.execute("INSERT INTO checkpoint_events(worker_id,event,ts,duration_s,payload_json) VALUES(?,?,?,?,?)",(self.worker_id,str(event),time.time(),float(duration_s),json.dumps(payload,ensure_ascii=False,sort_keys=True))); self.conn.commit()
+
+    def enqueue_query(self, question, subject, priority=100):
+        """Give each offline lane one fairly scheduled, query-specific task."""
+        query_id = _stable_key("query", question, subject, time.time_ns())
+        now = time.time()
+        with self.lock:
+            self.conn.executemany(
+                """INSERT INTO query_tasks(query_id,worker_id,question,subject,priority,status,created_unix)
+                   VALUES(?,?,?,?,?,'queued',?)""",
+                [
+                    (query_id, worker_id, str(question), str(subject), int(priority), now)
+                    for worker_id in range(self.total_workers - 1)
+                ],
+            )
+            self.conn.commit()
+        return query_id
+
+    def claim_query(self):
+        with self.lock:
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self.conn.execute(
+                    """SELECT id,query_id,question,subject FROM query_tasks
+                       WHERE worker_id=? AND status='queued'
+                       ORDER BY priority DESC,id LIMIT 1""",
+                    (self.worker_id,),
+                ).fetchone()
+                if row:
+                    self.conn.execute(
+                        "UPDATE query_tasks SET status='running',started_unix=? WHERE id=?",
+                        (time.time(), int(row["id"])),
+                    )
+                self.conn.commit()
+                return dict(row) if row else None
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def complete_query(self, task_id, result):
+        with self.lock:
+            self.conn.execute(
+                """UPDATE query_tasks SET status='completed',completed_unix=?,result_json=?
+                   WHERE id=? AND worker_id=? AND status='running'""",
+                (time.time(), json.dumps(result, ensure_ascii=False, sort_keys=True),
+                 int(task_id), self.worker_id),
+            )
+            self.conn.commit()
 
     def close(self):
         with self.lock:self.conn.close()
