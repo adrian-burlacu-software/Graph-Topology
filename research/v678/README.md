@@ -155,3 +155,9 @@ distillation/realization instrumentation for every case.
 ```powershell
 python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\benchmark.jsonl" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
+
+Add equivalent optional-determiner phrasing for a 64-case normalization run:
+
+```powershell
+python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\normalization_benchmark.jsonl" --normalization-variants --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+```

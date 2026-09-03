@@ -119,9 +119,42 @@ def build_cases(graph):
     return cases
 
 
+def normalization_variants(cases):
+    variants = []
+    for case in cases:
+        question = case["question"]
+        if question.startswith("What is "):
+            variant = question.replace("What is a ", "What is the ", 1)
+            variant = variant.replace("What is an ", "What is the ", 1)
+        elif question.startswith("Does dog "):
+            variant = question.replace("Does dog ", "Does the dog ", 1)
+        elif question.startswith("Does bear "):
+            variant = question.replace("Does bear ", "Does the bear ", 1)
+        elif question.startswith("Does animal "):
+            variant = question.replace("Does animal ", "Does an animal ", 1)
+        elif question.startswith("Is dog "):
+            variant = question.replace("Is dog ", "Is the dog ", 1)
+        elif question.startswith("Is bear "):
+            variant = question.replace("Is bear ", "Is the bear ", 1)
+        elif question.startswith("Is animal "):
+            variant = question.replace("Is animal ", "Is an animal ", 1)
+        elif question.startswith("Can animal "):
+            variant = question.replace("Can animal ", "Can an animal ", 1)
+        else:
+            raise ValueError(f"No normalization variant for {question!r}")
+        variants.append({
+            **case,
+            "id": case["id"] + "_determiner",
+            "question": variant,
+            "normalization_variant": "optional_determiner",
+            "source_case_id": case["id"],
+        })
+    return variants
+
+
 def main():
     ap = argparse.ArgumentParser(
-        description="Run 32 verified focused-graph dialogue benchmark cases."
+        description="Run focused graph dialogue benchmark cases."
     )
     ap.add_argument("--database", required=True)
     ap.add_argument("--output", default="./results/v678/benchmark.jsonl")
@@ -132,10 +165,17 @@ def main():
     ap.add_argument("--per-node", type=int, default=60)
     ap.add_argument("--max-depth", type=int, default=3)
     ap.add_argument("--cache-entries", type=int, default=12000)
+    ap.add_argument(
+        "--normalization-variants",
+        action="store_true",
+        help="Also run equivalent optional-determiner forms (64 cases total).",
+    )
     args = ap.parse_args()
 
     graph = Graph(args.database, args.cache_entries)
     cases = build_cases(graph)
+    if args.normalization_variants:
+        cases += normalization_variants(cases)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 

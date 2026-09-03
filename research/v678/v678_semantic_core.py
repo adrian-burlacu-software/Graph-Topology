@@ -10,6 +10,39 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def normalize_surface(value):
+    """Normalize presentation-only variation without adding semantic evidence."""
+    text = str(value or "").lower().replace("’", "'")
+    text = re.sub(r"[_-]+", " ", text)
+    text = re.sub(r"[^a-z0-9'\s]", " ", text)
+    text = re.sub(r"(^|\s)([a-z]+)['’]s(?=\s|$)", r"\1\2", text)
+    text = text.replace("'", " ")
+    text = " ".join(text.split())
+    return re.sub(r"^(?:a|an|the)\s+", "", text)
+
+
+def lexical_forms(value):
+    """Return deterministic spelling and regular-inflection equivalents."""
+    base = normalize_surface(value)
+    if not base:
+        return []
+    forms = [base]
+    if not re.fullmatch(r"[a-z]+", base):
+        return forms
+    if base.endswith("ies") and len(base) > 3:
+        forms.append(base[:-3] + "y")
+    elif base.endswith("es") and len(base) > 3:
+        forms.append(base[:-2])
+    elif base.endswith("s") and len(base) > 3:
+        forms.append(base[:-1])
+    if base.endswith("e") and len(base) > 2:
+        forms.append(base[:-1] + "ing")
+    forms.extend([base + "s", base + "ed", base + "ing"])
+    if base.endswith("y") and len(base) > 2:
+        forms.extend([base[:-1] + "ies", base[:-1] + "ied"])
+    return list(dict.fromkeys(forms))
+
+
 @dataclass(frozen=True)
 class Edge:
     subject: str
@@ -392,32 +425,9 @@ class Graph:
         """
         term_groups=[]
         for value in (target_terms or []):
-            text=" ".join(str(value or "").lower().split())
+            text=normalize_surface(value)
             if text and all(text not in group for group in term_groups):
-                term_groups.append([text])
-        # Questions commonly use an inflected verb while ConceptNet stores a
-        # nominalized or progressive target (``eat`` / ``eating``). Expand
-        # the lexical constraint deterministically; the resulting edge still
-        # has to be explicitly present in the graph.
-        for group in term_groups:
-            term = group[0]
-            if not re.fullmatch(r"[a-z]+", term):
-                continue
-            variants = {
-                term + "s",
-                term + "ed",
-                term + "ing",
-            }
-            if term.endswith("e") and len(term) > 2:
-                variants.add(term[:-1] + "ing")
-            if term.endswith("y") and len(term) > 2:
-                variants.update({
-                    term[:-1] + "ies",
-                    term[:-1] + "ied",
-                })
-            for variant in variants:
-                if variant not in group:
-                    group.append(variant)
+                term_groups.append(lexical_forms(text))
 
         terms = [
             term
@@ -1239,21 +1249,9 @@ class Graph:
 
         term_groups=[]
         for value in (target_terms or []):
-            text=" ".join(str(value or "").lower().split())
+            text=normalize_surface(value)
             if text and all(text not in group for group in term_groups):
-                term_groups.append([text])
-        for group in term_groups:
-            term = group[0]
-            if not re.fullmatch(r"[a-z]+", term):
-                continue
-            variants = {term + "s", term + "ed", term + "ing"}
-            if term.endswith("e") and len(term) > 2:
-                variants.add(term[:-1] + "ing")
-            if term.endswith("y") and len(term) > 2:
-                variants.update({term[:-1] + "ies", term[:-1] + "ied"})
-            for variant in variants:
-                if variant not in group:
-                    group.append(variant)
+                term_groups.append(lexical_forms(text))
         terms = [term for group in term_groups for term in group]
 
         placeholders=",".join(
@@ -1393,9 +1391,7 @@ class Graph:
                 "candidates": [],
             }
 
-        normalized = " ".join(
-            mention.lower().split()
-        )
+        normalized = normalize_surface(mention)
 
         if normalized.endswith("s") and len(normalized) > 3:
             singular = normalized[:-1]
