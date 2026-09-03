@@ -23,7 +23,7 @@ from v679_semantic_core import (
     normalize_question_text,
 )
 from v679_memory import RamSemanticMemory, SharedCheckpoint, SharedDistilledMemory
-from v679_attention import AttentionController
+from v679_attention import AttentionController, DistilledAttentionPolicy
 
 
 def append_trace(
@@ -1858,8 +1858,12 @@ def handle_turn(
             runtime_hypotheses.append(hypothesis)
 
     runtime_hypotheses = controller.prioritize_hypotheses(runtime_hypotheses)
+    controller.begin_turn(
+        runtime_hypotheses[0].subject if runtime_hypotheses else None
+    )
 
     for index,hypothesis in enumerate(runtime_hypotheses):
+        controller.begin_hypothesis(hypothesis)
         selected_fact = (
             hypothesis.evidence.get(
                 "selected_fact_target"
@@ -1895,6 +1899,8 @@ def handle_turn(
                 raw_relation,
                 selected_fact,
             )
+            if result.get("success"):
+                controller.record_direct_proof(hypothesis, result.get("target"))
         else:
             result=search(
                 graph,
@@ -1905,6 +1911,7 @@ def handle_turn(
                 max_depth=args.max_depth,
                 controller=controller,
             )
+        controller.record_selected_path(hypothesis, result)
 
         semantic_match=float(
             hypothesis.lexical_score
@@ -2177,7 +2184,12 @@ def handle_turn(
             if isinstance(selected.evidence, dict)
             else []
         )
-        if goal and target_terms:
+        if semantic_decision["outcome"] == "abstain":
+            answer = (
+                "I don't know: no candidate has verified graph evidence "
+                "for that request."
+            )
+        elif goal and target_terms:
             target_text = ", ".join(str(x) for x in target_terms)
             answer = (
                 "I couldn't verify that "
@@ -2293,9 +2305,7 @@ def handle_turn(
         ],
         "candidate_evidence": semantic_decision["candidates"],
         "semantic_decision": semantic_decision,
-        "attention_controller": {
-            "traversal_targets": controller.traversal_targets,
-        },
+        "attention_controller": controller.trace(),
         "parse": asdict(parse),
         "selected": asdict(selected),
         "hypotheses": [
@@ -2576,6 +2586,10 @@ def run_chat_worker(args):
     attention = Attention(
         0.65
     )
+    policy_path = str(getattr(args, "attention_policy", "") or "")
+    attention_controller = AttentionController(
+        policy=DistilledAttentionPolicy.load(policy_path) if policy_path else None
+    )
 
     ram_memory = RamSemanticMemory(worker_id=getattr(args, "worker_id", 19))
     checkpoint = SharedCheckpoint(
@@ -2693,6 +2707,7 @@ def run_chat_worker(args):
                 args,
                 worker_discoveries,
                 checkpoint,
+                attention_controller,
             )
             print(
                 f"\nQ: {question}",
@@ -2787,6 +2802,7 @@ def run_chat_worker(args):
                 args,
                 worker_discoveries,
                 checkpoint,
+                attention_controller,
             )
 
             print(

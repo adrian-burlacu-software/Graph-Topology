@@ -2778,6 +2778,8 @@ def search(
 
     while queue and expansions < budget:
         _, depth, node, prefix = heapq.heappop(queue)
+        if controller is not None:
+            controller.record_visit(node)
 
         if depth >= max_depth - 1:
             continue
@@ -2789,31 +2791,11 @@ def search(
             else graph.outgoing(node, per_node)
         )
 
-        ranked = attention.rank(
-            hypothesis.relation,
-            prefix,
-            [
-                edge.relation
-                for edge in edges
-            ],
-        )
-        score_by_relation = dict(ranked)
-
-        edges.sort(
-            key=lambda edge: (
-                -score_by_relation.get(
-                    edge.relation,
-                    0.0,
-                ),
-                edge.relation,
-            )
-        )
         if controller is not None:
             edges = controller.select_traversal_targets(
                 hypothesis,
                 prefix,
                 edges,
-                score_by_relation,
             )
 
         for edge in edges:
@@ -2829,10 +2811,11 @@ def search(
                 continue
 
             seen.add(state)
+            if controller is not None:
+                controller.record_traversal_target(edge.relation, edge.object)
 
-            if score_by_relation.get(
-                edge.relation,
-                0.0,
+            if controller is not None and controller.state.relation_activation.get(
+                edge.relation, 0.0
             ) > 0:
                 attention_hits += 1
             else:
@@ -2870,9 +2853,12 @@ def search(
                 heapq.heappush(
                     queue,
                     (
-                        -score_by_relation.get(
-                            edge.relation,
-                            0.0,
+                        -(
+                            controller.state.relation_activation.get(
+                                edge.relation, 0.0
+                            )
+                            if controller is not None
+                            else 0.0
                         ),
                         len(next_prefix),
                         edge.object,

@@ -28,7 +28,18 @@ For every semantic turn V679 now:
 3. arbitrates each candidate using explicit support, contradiction,
    specificity, provenance, and lexical components; and
 4. records the selected semantic decision and all rejected alternatives in the
-   chat trace.
+   chat trace; and
+5. carries an `AttentionState` across turns and traversal steps. It decays
+   relation and candidate activation, tracks focus and visited graph elements,
+   and reinforces verified paths.
+
+The architecture is explicitly `features → attention policy → scores →
+arbitration`. `HandCodedAttentionPolicy` is the initial policy;
+`DistilledAttentionPolicy` learns relation biases from emitted teacher-policy
+traces and can be supplied to chat with `--attention-policy`. Arbitration
+remains separate and abstains with `no_verified_evidence` when no candidate is
+graph-verified. This produces the explicit answer “I don't know” rather than
+selecting an attractive but unsupported candidate.
 
 Only verified graph evidence can produce a grounded answer. Worker evidence
 remains provenance-bearing training evidence. Shared evidence aggregation is
@@ -179,11 +190,32 @@ distillation/realization instrumentation for every case.
 python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\benchmark.jsonl" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
+Run the adversarial ambiguity benchmark. It tests strong association, plausible
+derived evidence, direct contradiction, weak direct evidence, and an unrelated
+high lexical match; success requires abstention because none is verified. It
+also emits a distilled attention-policy JSON artifact:
+
+```powershell
+python .\research\v679\v679_attention_benchmark.py --output ".\results\v679\attention_benchmark.jsonl" --policy-output ".\results\v679\distilled_attention_policy.json"
+```
+
+Use the artifact for chat policy replay:
+
+```powershell
+python .\research\v679\v679_runtime.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679_chat.json" --trace-output ".\results\v679_chat_traces.jsonl" --memory-output ".\results\v679_memory.json" --worker-log-dir ".\results\v679_workers" --shared-memory ".\results\v679_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67900 --worker-count 12 --batch-sleep 0 --attention-policy ".\results\v679\distilled_attention_policy.json"
+```
+
 Add equivalent determiner, contraction, and part-subject grammar forms for a
 93-case normalization run:
 
 ```powershell
 python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\normalization_benchmark.jsonl" --normalization-variants --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+```
+
+Add the no-valid-answer case to the focused graph benchmark:
+
+```powershell
+python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\adversarial_graph_benchmark.jsonl" --adversarial-ambiguity --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
 After offline workers have populated the shared checkpoint, include up to ten

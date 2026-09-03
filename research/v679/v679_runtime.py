@@ -32,6 +32,11 @@ def build_parser():
     ap.add_argument("--per-node", type=int, default=60)
     ap.add_argument("--max-depth", type=int, default=3)
     ap.add_argument("--cache-entries", type=int, default=12000)
+    ap.add_argument(
+        "--attention-policy",
+        default="",
+        help="Optional JSON policy distilled by v679_attention_benchmark.py.",
+    )
     ap.add_argument("--checkpoint-seconds", type=int, choices=(60,300), default=300)
     ap.add_argument(
         "--worker-count",

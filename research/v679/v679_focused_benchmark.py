@@ -16,6 +16,7 @@ from v679_semantic_chat_gateway import (
     handle_turn,
 )
 from v679_semantic_core import Attention, Context, Graph, SpaCyParser
+from v679_attention import AttentionController
 
 
 class BenchmarkMemory(Context):
@@ -334,6 +335,11 @@ def main():
         default="",
         help="Include live worker-discovery transition cases from this checkpoint.",
     )
+    ap.add_argument(
+        "--adversarial-ambiguity",
+        action="store_true",
+        help="Also emit controller-only ambiguity and abstention benchmark cases.",
+    )
     args = ap.parse_args()
 
     graph = Graph(args.database, args.cache_entries)
@@ -348,6 +354,16 @@ def main():
     )
     if worker_discoveries is not None:
         cases += worker_discovery_cases(args.shared_memory)
+    if args.adversarial_ambiguity:
+        cases += [{
+            "id": "adversarial_no_valid_answer",
+            "group": "adversarial_ambiguity",
+            "question": "Is a dog a nonexistent target?",
+            "expected": {
+                "semantic_decision_outcome": "abstain",
+                "route_success": False,
+            },
+        }]
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -371,10 +387,17 @@ def main():
                 distilled,
                 args,
                 worker_discoveries,
+                controller=AttentionController(),
             )
             route = trace["route"]
             expected = case["expected"]
-            if expected.get("intent") == "worker_discovery":
+            if "semantic_decision_outcome" in expected:
+                passed = (
+                    trace["semantic_decision"]["outcome"]
+                    == expected["semantic_decision_outcome"]
+                    and route["success"] == expected["route_success"]
+                )
+            elif expected.get("intent") == "worker_discovery":
                 passed = (
                     route["success"]
                     and route["intent"] == "worker_discovery"
