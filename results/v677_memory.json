@@ -1,0 +1,714 @@
+{
+  "active_subject": "en:dog",
+  "turns": [
+    {
+      "timestamp": 1788367930.962794,
+      "question": "what can a dog do?",
+      "answer": "dogs can do act playful",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": null,
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "capable_of",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "direct_edge",
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:act playful",
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "capable_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.9333333333333333,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "antonym",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "at_location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "dbpedia/genre",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": false,
+          "steps": 21
+        },
+        {
+          "relation": "derived_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": false,
+          "steps": 1
+        },
+        {
+          "relation": "desires",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": false,
+          "steps": 21
+        },
+        {
+          "relation": "distinct_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": false,
+          "steps": 1
+        },
+        {
+          "relation": "causes",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 40
+        },
+        {
+          "relation": "causes_desire",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 40
+        },
+        {
+          "relation": "dbpedia/genus",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 40
+        },
+        {
+          "relation": "defined_as",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 40
+        }
+      ],
+      "parse": {
+        "text": "what can a dog do?",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "dobj"
+          },
+          {
+            "text": "can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "do",
+            "lemma": "do",
+            "pos": "VERB",
+            "dep": "ROOT"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a dog"
+        ],
+        "root": "do",
+        "root_lemma": "do",
+        "question": "WH_WHAT",
+        "subjects": [
+          "dog"
+        ],
+        "objects": [
+          "what"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "capable_of",
+        "intent": "relation_lookup",
+        "lexical_score": 0.9333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "definition",
+            "derived_from",
+            "desires",
+            "distinct_from"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "capable_of",
+          "intent": "relation_lookup",
+          "lexical_score": 0.9333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "antonym",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "at_location",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "dbpedia/genre",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "derived_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "desires",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "distinct_from",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "causes",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "causes_desire",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "dbpedia/genus",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "defined_as",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ]
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "intent_only": false,
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:act playful",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "direct_edge",
+        "subject_label": "dog",
+        "target_label": "act playful"
+      },
+      "distillation": {
+        "source": "teacher_rejected",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "accepted",
+      "timing": {
+        "parse_seconds": 0.004001300025265664,
+        "hypothesis_seconds": 0.0009865000029094517,
+        "distillation_seconds": 8.806127900024876,
+        "search_seconds": 0.0015289000002667308,
+        "llm_seconds": 3.4537752000032924,
+        "total_seconds": 12.266436200006865,
+        "realization_seconds": 3.4537752000032924
+      }
+    }
+  ],
+  "entities": {}
+}
