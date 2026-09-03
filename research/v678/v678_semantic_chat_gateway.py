@@ -581,16 +581,20 @@ def question_target_terms(parse):
     for item in tokens:
         pos=str(item.get("pos","")).upper()
         dep=str(item.get("dep","")).lower()
-        lemma=str(item.get("lemma") or item.get("text") or "").lower().strip()
+        forms=[
+            str(item.get("text") or "").lower().strip(),
+            str(item.get("lemma") or "").lower().strip(),
+        ]
 
-        if not lemma or lemma in stop:
+        if not any(form and form not in stop for form in forms):
             continue
         if pos not in {"NOUN","PROPN","ADJ","ADV"}:
             continue
         if dep in {"nsubj","nsubjpass","det","aux","auxpass"}:
             continue
-        if lemma not in terms:
-            terms.append(lemma)
+        for form in forms:
+            if form and form not in stop and form not in terms:
+                terms.append(form)
 
     # Keep the explicit object/predicate ordering visible for the trace.
     if any(
@@ -602,6 +606,15 @@ def question_target_terms(parse):
             if term not in {"part", "parts", "component", "components"}
         ]
     return terms[:8]
+
+
+def is_definition_form(parse):
+    words = re.findall(r"[a-z]+", str(parse.text or "").lower())
+    return (
+        len(words) >= 2
+        and words[0] in {"what", "who"}
+        and words[1] in {"is", "are", "was", "were"}
+    )
 
 
 def choose_semantic_goal(
@@ -653,6 +666,14 @@ def choose_semantic_goal(
             "frame": question_argument_frame(parse),
             "syntax_frame": structural_question_frame(parse),
         }
+
+    # A non-definition question with an explicit argument must not be answered
+    # by an unrelated definition merely because no requested graph fact exists.
+    if target_terms and not is_definition_form(parse):
+        goals = [
+            item for item in goals
+            if item["goal"] != "definition"
+        ]
 
     descriptions={
         item["goal"]:item["meaning"]
