@@ -144,3 +144,14 @@ per-worker status, and shared merge/arbitration/combination diagnostics):
 ```powershell
 python .\research\v678\v678_worker_summary.py --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory.sqlite" --output ".\results\v678\worker_summary.jsonl"
 ```
+
+### Focused dialogue benchmark
+
+This runs 32 graph-backed animal/dog/bear questions selected from verified
+focused-graph facts. It overwrites the JSONL output and records the expected
+fact, answer, pass/fail verdict, and complete internal routing/search/
+distillation/realization instrumentation for every case.
+
+```powershell
+python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\benchmark.jsonl" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+```
