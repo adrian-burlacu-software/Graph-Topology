@@ -707,6 +707,15 @@ def question_target_terms(parse):
         for item in (parse.tokens or [])
         if isinstance(item,dict)
     ]
+    copular_match = re.fullmatch(
+        r"is\s+(?:(?:a|an|the)\s+)?(.+?)\s+"
+        r"(?:(?:a|an|the)\s+)?(.+?)\??",
+        normalize_question_text(parse.text),
+    )
+    if copular_match:
+        target = copular_match.group(2).strip()
+        if target:
+            return [target]
     subject_indexes = {
         index
         for index, item in enumerate(tokens)
@@ -878,7 +887,7 @@ def choose_semantic_goal(
     available_goals = {item["goal"] for item in goals}
     normalized_question = normalize_question_text(parse.text)
     copular_match = re.fullmatch(
-        r"is\s+(?:(?:a|an|the)\s+)?(animal|bear|dog)\s+"
+        r"is\s+(?:(?:a|an|the)\s+)?(.+?)\s+"
         r"(?:(?:a|an|the)\s+)?(.+?)\??",
         normalized_question,
     )
