@@ -95,6 +95,19 @@ class MemoryContext(Context):
 class WorkerDiscoveryReader:
     """Read derived worker evidence without treating it as source graph truth."""
 
+    FOCUSED_TOPIC_SPECS = (
+        ("relation_composition", "en:animal"),
+        ("relation_composition", "en:bear"),
+        ("relation_composition", "en:dog"),
+        ("relation_interaction_statistics", "en:animal"),
+        ("relation_interaction_statistics", "en:bear"),
+        ("relation_interaction_statistics", "en:dog"),
+        ("relation_inverse", "en:animal"),
+        ("relation_inverse", "en:dog"),
+        ("relation_symmetry", "en:bear"),
+        ("relation_symmetry", "en:dog"),
+    )
+
     def __init__(self, shared_memory):
         self.path = Path(shared_memory)
 
@@ -113,7 +126,7 @@ class WorkerDiscoveryReader:
                     FROM semantic_knowledge
                     WHERE subject IN ('en:animal', 'en:bear', 'en:dog')
                       AND positive > negative
-                      AND provenance='derived'
+                      AND provenance IN ('derived', 'arbitrated')
                     ORDER BY kind,subject,positive DESC,confidence DESC,key
                     """,
                 ).fetchall()
@@ -160,8 +173,8 @@ class WorkerDiscoveryReader:
 
     def topics(self, limit=10):
         return [
-            self.topic_for(discovery)
-            for discovery in self.discoveries(limit)
+            self.topic_for({"kind": kind, "subject": subject})
+            for kind, subject in self.FOCUSED_TOPIC_SPECS[:int(limit)]
         ]
 
     def answer(self, question):
@@ -170,9 +183,28 @@ class WorkerDiscoveryReader:
             r"(animal|bear|dog)\?\s*",
             str(question).lower(),
         )
-        if not match or not self.path.exists():
+        if not match:
             return None
         subject = f"en:{match.group(1)}"
+        recognized_topic = str(question).strip().lower() in {
+            topic.lower() for topic in self.topics()
+        }
+        if not self.path.exists():
+            if recognized_topic:
+                return {
+                    "answer": (
+                        f"No derived worker evidence for {match.group(1)} is available "
+                        "yet. Start the offline workers and wait for a checkpoint."
+                    ),
+                    "previous_relation": subject,
+                    "next_relation": None,
+                    "count": 0,
+                    "confidence": 0.0,
+                    "derivation_depth": 0,
+                    "kind": None,
+                    "available": False,
+                }
+            return None
         for discovery in self.discoveries(limit=100):
             if (
                 discovery["subject"] == subject
@@ -196,7 +228,22 @@ class WorkerDiscoveryReader:
                     "derivation_depth": discovery["derivation_depth"],
                     "kind": discovery["kind"],
                     "record_key": discovery["key"],
+                    "available": True,
                 }
+        if recognized_topic:
+            return {
+                "answer": (
+                    f"No derived worker evidence for {match.group(1)} is available "
+                    "yet. Keep the offline workers running until their next checkpoint."
+                ),
+                "previous_relation": subject,
+                "next_relation": None,
+                "count": 0,
+                "confidence": 0.0,
+                "derivation_depth": 0,
+                "kind": None,
+                "available": False,
+            }
         return None
 
 
@@ -1535,7 +1582,7 @@ def handle_turn(
     if discovery:
         total_seconds = time.perf_counter() - started
         result = {
-            "success": True,
+            "success": bool(discovery.get("available", True)),
             "steps": 0,
             "path": [],
             "target": discovery["next_relation"],
@@ -2486,7 +2533,7 @@ def run_chat_worker(args):
         flush=True,
     )
 
-    topics = [
+    base_topics = [
         "What is a dog?",
         "What is an animal?",
         "What is a house?",
@@ -2498,7 +2545,11 @@ def run_chat_worker(args):
         "What is a tree?",
         "What is food?",
     ]
-    topics.extend(worker_discoveries.topics())
+
+    def current_topics():
+        return base_topics + worker_discoveries.topics(limit=10)
+
+    topics = current_topics()
 
     for index, question in enumerate(
         topics,
@@ -2510,7 +2561,7 @@ def run_chat_worker(args):
         )
 
     print(
-        "\nCommands: help, exit",
+        "\nCommands: topics, help, exit",
         flush=True,
     )
 
@@ -2601,7 +2652,9 @@ def run_chat_worker(args):
             if question.lower() in {
                 "help",
                 "?",
+                "topics",
             }:
+                topics = current_topics()
                 for index, item in enumerate(
                     topics,
                     1,

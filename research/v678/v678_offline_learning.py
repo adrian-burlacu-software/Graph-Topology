@@ -82,7 +82,18 @@ def sample_subjects(conn, seed: int, worker_id: int, batch_size: int = 64):
         """,
         (int(batch_size), int(offset)),
     ).fetchall()
-    return [str(r[0]) for r in rows]
+    sampled = [str(r[0]) for r in rows]
+    focused = [
+        str(row[0])
+        for row in conn.execute(
+            """
+            SELECT node FROM nodes
+            WHERE node IN ('en:animal', 'en:bear', 'en:dog')
+            ORDER BY node
+            """
+        ).fetchall()
+    ]
+    return list(dict.fromkeys(focused + sampled))
 
 
 def fetch_outgoing(conn, node, limit=64):
