@@ -292,18 +292,21 @@ def grammar_normalization_cases():
 
 
 def worker_discovery_cases(shared_memory):
-    """Use live transition evidence so nondeterministic worker output is benchmarked safely."""
+    """Use ten focused, live worker discoveries without inventing static facts."""
     reader = WorkerDiscoveryReader(shared_memory)
     return [
         {
-            "id": f"worker_discovery_{index}",
+            "id": f"worker_discovery_{discovery['kind']}_{discovery['subject']}".replace(":", "_"),
             "group": "worker_discovery",
-            "question": topic,
+            "question": reader.topic_for(discovery),
             "expected": {
                 "intent": "worker_discovery",
+                "subject": discovery["subject"],
+                "kind": discovery["kind"],
+                "record_key": discovery["key"],
             },
         }
-        for index, topic in enumerate(dict.fromkeys(reader.topics(limit=12)), 1)
+        for discovery in reader.discoveries(limit=10)
     ]
 
 
@@ -374,7 +377,10 @@ def main():
                 passed = (
                     route["success"]
                     and route["intent"] == "worker_discovery"
+                    and route["subject"] == expected["subject"]
                     and "worker_discovery" in trace
+                    and trace["worker_discovery"]["kind"] == expected["kind"]
+                    and trace["worker_discovery"]["record_key"] == expected["record_key"]
                 )
             else:
                 passed = (
