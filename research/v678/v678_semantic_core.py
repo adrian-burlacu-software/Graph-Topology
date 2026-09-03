@@ -471,6 +471,23 @@ class Graph:
                 return True
         return False
 
+    def target_matches_exact_terms(self, target, target_terms):
+        """Match a requested concept exactly, allowing only regular inflections."""
+        target_text = normalize_surface(
+            str(target or "").removeprefix("en:")
+        )
+        if not target_text:
+            return False
+        requested = [
+            normalize_surface(term)
+            for term in (target_terms or [])
+            if normalize_surface(term)
+        ]
+        return bool(requested) and all(
+            target_text in lexical_forms(term)
+            for term in requested
+        )
+
     def prove_edge(
         self,
         subject,
@@ -1386,7 +1403,7 @@ class Graph:
                 for edge in self.outgoing(node, 256):
                     if edge.relation not in relations:
                         continue
-                    if self.target_matches_terms(edge.object, target_terms):
+                    if self.target_matches_exact_terms(edge.object, target_terms):
                         return True
                     if edge.object not in visited:
                         visited.add(edge.object)
@@ -1409,6 +1426,22 @@ class Graph:
         ).fetchall()
         return [
             str(row["relation"])
+            for row in rows
+        ]
+
+    def outgoing_relation(self, subject, relation, limit=256):
+        """Fetch a relation-specific frontier without losing it to unrelated edges."""
+        rows = self.conn.execute(
+            """
+            SELECT subject,relation,object FROM edges
+            WHERE subject=? AND relation=?
+            ORDER BY object
+            LIMIT ?
+            """,
+            (str(subject), str(relation), int(limit)),
+        ).fetchall()
+        return [
+            Edge(str(row["subject"]), str(row["relation"]), str(row["object"]))
             for row in rows
         ]
 
@@ -2696,15 +2729,18 @@ def search(
         else []
     )
 
-    for edge in graph.outgoing(
-        hypothesis.subject,
-        per_node,
-    ):
+    direct_edges = (
+        graph.outgoing_relation(hypothesis.subject, hypothesis.relation, per_node)
+        if hypothesis.relation == "is_a"
+        else graph.outgoing(hypothesis.subject, per_node)
+    )
+    for edge in direct_edges:
         if (
             edge.relation == hypothesis.relation
-            and graph.target_matches_terms(
-                edge.object,
-                target_terms,
+            and (
+                graph.target_matches_exact_terms(edge.object, target_terms)
+                if hypothesis.relation == "is_a"
+                else graph.target_matches_terms(edge.object, target_terms)
             )
         ):
             return {
@@ -2747,10 +2783,9 @@ def search(
 
         expansions += 1
         edges = list(
-            graph.outgoing(
-                node,
-                per_node,
-            )
+            graph.outgoing_relation(node, hypothesis.relation, per_node)
+            if hypothesis.relation == "is_a"
+            else graph.outgoing(node, per_node)
         )
 
         ranked = attention.rank(
@@ -2795,15 +2830,18 @@ def search(
             else:
                 exploration += 1
 
-            for goal in graph.outgoing(
-                edge.object,
-                per_node,
-            ):
+            goals = (
+                graph.outgoing_relation(edge.object, hypothesis.relation, per_node)
+                if hypothesis.relation == "is_a"
+                else graph.outgoing(edge.object, per_node)
+            )
+            for goal in goals:
                 if (
                     goal.relation == hypothesis.relation
-                    and graph.target_matches_terms(
-                        goal.object,
-                        target_terms,
+                    and (
+                        graph.target_matches_exact_terms(goal.object, target_terms)
+                        if hypothesis.relation == "is_a"
+                        else graph.target_matches_terms(goal.object, target_terms)
                     )
                 ):
                     return {
