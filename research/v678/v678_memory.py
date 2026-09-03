@@ -204,6 +204,42 @@ class RamSemanticMemory:
                 if row: vals.append(min(1,float(row["confidence"])) * min(1,float(row["count"])/10))
         return max(vals,default=0.0)
 
+    def composition_paths(self, subject, max_depth, limit=64):
+        """Return locally-created or imported derived paths starting at subject."""
+        if int(max_depth) < 2:
+            return []
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT relation,object,feature_json,derivation_depth
+                   FROM semantic_knowledge
+                   WHERE kind='relation_composition' AND subject=?
+                     AND derivation_depth BETWEEN 2 AND ?
+                   ORDER BY derivation_depth,relation,object LIMIT ?""",
+                (str(subject), int(max_depth), int(limit)),
+            ).fetchall()
+        paths = []
+        for row in rows:
+            try:
+                feature = json.loads(str(row["feature_json"]))
+            except (TypeError, ValueError):
+                continue
+            relations = feature.get("relations")
+            if not isinstance(relations, list):
+                relations = str(row["relation"]).split("->")
+            relations = [str(relation) for relation in relations if relation]
+            obj = row["object"]
+            if not relations or obj is None or len(relations) > int(max_depth):
+                continue
+            nodes = feature.get("nodes")
+            if not isinstance(nodes, list) or len(nodes) != len(relations) + 1:
+                middle = feature.get("middle")
+                nodes = [str(subject), str(middle), str(obj)] if middle else []
+            nodes = [str(node) for node in nodes]
+            if len(nodes) != len(relations) + 1 or nodes[0] != str(subject):
+                continue
+            paths.append({"relations": relations, "nodes": nodes, "object": str(obj)})
+        return paths
+
 
 class SharedCheckpoint:
     """Shared WAL store with per-worker evidence contributions and arbitration."""
@@ -248,6 +284,8 @@ class SharedCheckpoint:
         CREATE TABLE IF NOT EXISTS worker_status(
           worker_id INTEGER PRIMARY KEY, role TEXT NOT NULL, pid INTEGER, last_seen REAL NOT NULL, last_sync REAL,
           batches INTEGER NOT NULL DEFAULT 0, items INTEGER NOT NULL DEFAULT 0, learned INTEGER NOT NULL DEFAULT 0,
+          new_results INTEGER NOT NULL DEFAULT 0, no_new_streak INTEGER NOT NULL DEFAULT 0,
+          termination_reason TEXT,
           imported INTEGER NOT NULL DEFAULT 0, errors INTEGER NOT NULL DEFAULT 0, last_error TEXT,
           last_batch_s REAL DEFAULT 0, learned_per_s REAL DEFAULT 0, last_sync_s REAL DEFAULT 0, sync_count INTEGER DEFAULT 0,
           cpu_seconds REAL DEFAULT 0, cpu_utilization REAL DEFAULT 0);
@@ -272,6 +310,9 @@ class SharedCheckpoint:
             row[1] for row in self.conn.execute("PRAGMA table_info(worker_status)")
         }
         for name, definition in (
+            ("new_results", "INTEGER NOT NULL DEFAULT 0"),
+            ("no_new_streak", "INTEGER NOT NULL DEFAULT 0"),
+            ("termination_reason", "TEXT"),
             ("cpu_seconds", "REAL DEFAULT 0"),
             ("cpu_utilization", "REAL DEFAULT 0"),
         ):
@@ -300,15 +341,19 @@ class SharedCheckpoint:
             prev=self.conn.execute("SELECT * FROM worker_status WHERE worker_id=?",(self.worker_id,)).fetchone()
             values={"role":role,"pid":int(pid),"last_seen":time.time(),"last_sync":updates.get("last_sync",prev["last_sync"] if prev else None),
                     "batches":int(updates.get("batches",prev["batches"] if prev else 0)),"items":int(updates.get("items",prev["items"] if prev else 0)),
-                    "learned":int(updates.get("learned",prev["learned"] if prev else 0)),"imported":int(updates.get("imported",prev["imported"] if prev else 0)),
+                    "learned":int(updates.get("learned",prev["learned"] if prev else 0)),
+                    "new_results":int(updates.get("new_results",prev["new_results"] if prev else 0)),
+                    "no_new_streak":int(updates.get("no_new_streak",prev["no_new_streak"] if prev else 0)),
+                    "termination_reason":updates.get("termination_reason",prev["termination_reason"] if prev else None),
+                    "imported":int(updates.get("imported",prev["imported"] if prev else 0)),
                     "errors":int(updates.get("errors",prev["errors"] if prev else 0)),"last_error":updates.get("last_error",prev["last_error"] if prev else None),
                     "last_batch_s":float(updates.get("last_batch_s",prev["last_batch_s"] if prev else 0)),"learned_per_s":float(updates.get("learned_per_s",prev["learned_per_s"] if prev else 0)),
                     "last_sync_s":float(updates.get("last_sync_s",prev["last_sync_s"] if prev else 0)),"sync_count":int(updates.get("sync_count",prev["sync_count"] if prev else 0)),
                     "cpu_seconds":float(updates.get("cpu_seconds",prev["cpu_seconds"] if prev else 0)),"cpu_utilization":float(updates.get("cpu_utilization",prev["cpu_utilization"] if prev else 0))}
             if prev:
-                self.conn.execute("""UPDATE worker_status SET role=?,pid=?,last_seen=?,last_sync=?,batches=?,items=?,learned=?,imported=?,errors=?,last_error=?,last_batch_s=?,learned_per_s=?,last_sync_s=?,sync_count=?,cpu_seconds=?,cpu_utilization=? WHERE worker_id=?""",(*values.values(),self.worker_id))
+                self.conn.execute("""UPDATE worker_status SET role=?,pid=?,last_seen=?,last_sync=?,batches=?,items=?,learned=?,new_results=?,no_new_streak=?,termination_reason=?,imported=?,errors=?,last_error=?,last_batch_s=?,learned_per_s=?,last_sync_s=?,sync_count=?,cpu_seconds=?,cpu_utilization=? WHERE worker_id=?""",(*values.values(),self.worker_id))
             else:
-                self.conn.execute("""INSERT INTO worker_status(worker_id,role,pid,last_seen,last_sync,batches,items,learned,imported,errors,last_error,last_batch_s,learned_per_s,last_sync_s,sync_count,cpu_seconds,cpu_utilization) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(self.worker_id,*values.values()))
+                self.conn.execute("""INSERT INTO worker_status(worker_id,role,pid,last_seen,last_sync,batches,items,learned,new_results,no_new_streak,termination_reason,imported,errors,last_error,last_batch_s,learned_per_s,last_sync_s,sync_count,cpu_seconds,cpu_utilization) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(self.worker_id,*values.values()))
             self.conn.commit()
 
     def _merge(self, ram, export):

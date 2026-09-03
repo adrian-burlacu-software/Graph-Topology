@@ -57,8 +57,9 @@ The online goal lookup uses the shared arbitration result when one is available.
 The V671 composition lane produced ~55k learned records in the observed run. V678 defaults to:
 
 - fanout = 4
-- max derived compositions per batch = 250
-- derivation depth = 2
+- max derived compositions per worker run = 2,000
+- maximum composition depth = 3 edges
+- a 1,000-batch consecutive no-new-result termination streak
 
 These are instrumentation/training limits, not semantic assumptions.
 
@@ -98,7 +99,7 @@ The useful signals are:
 
 1. `contested` decisions — whether the system is exposing ambiguity instead of hiding it.
 2. positive/negative evidence — whether counter-relations actually create useful discrimination.
-3. derivation depth — whether composed relations remain bounded and visibly derived.
+3. derivation depth — whether composed relations remain bounded, visibly derived, and include reusable prior paths.
 4. relation transition counts — whether relation composition has stable structure.
 5. learned/sec by lane — whether any lane is burning CPU without producing useful structure.
 6. checkpoint spacing — in 300s mode, events should be distributed over roughly five minutes rather than clustered into ~20 seconds.
@@ -211,6 +212,10 @@ checkpoint slots. SQLite auto-checkpoints the WAL at 256 pages and the runtime
 runs a final truncate checkpoint after chat and all worker connections have
 closed. Increase `--batch-sleep` only when you intentionally want to cap CPU
 usage.
+Each worker also exits cleanly after 1,000 consecutive batches that add no new
+local record (`--max-no-new-batches`; pass `0` to disable), so a plateaued graph
+does not keep saturating the CPU. The JSONL worker log and inspector report
+`new_results`, `no_new_streak`, and the termination reason.
 Each queued task includes the focused subject plus a rotating batch of graph
 subjects (`--worker-query-batch-subjects`, default `128`) so lanes perform
 substantial graph work rather than repeatedly reading one edge.
@@ -229,10 +234,11 @@ chat runtime; for example add `--worker-count 12` to the command above.
 
 ### Relation composition and exclusion
 
-The composition lane derives bounded two-edge paths over every relation
-registered by the specialist lanes. Pairs are prioritized by the semantic
-relation registry, while node-cycle checks prevent tautologies. This includes
-patterns such as `is_a → is_a` and `is_a → has_a` when supported by graph
-edges. Counterrelation mining separately stores negative `is_not:<relation>`
-evidence with its competing observed relation and contradiction group; this is
-training evidence, not a graph fact.
+The composition lane derives bounded two- and three-edge paths over every
+relation registered by the specialist lanes. It can extend graph edges with
+prior locally discovered or imported shared paths, including previously derived
+paths combined with other discovered paths. Relation sequences are prioritized
+by the semantic registry, while full node-path cycle checks prevent
+tautologies. Counterrelation mining separately stores negative
+`is_not:<relation>` evidence with its competing observed relation and
+contradiction group; this is training evidence, not a graph fact.

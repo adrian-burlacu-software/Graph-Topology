@@ -52,6 +52,8 @@ def run_configuration(args, worker_count, root):
         duration_seconds=args.duration_seconds,
         composition_fanout=args.composition_fanout,
         composition_max=args.composition_max,
+        composition_max_depth=args.composition_max_depth,
+        max_no_new_batches=args.max_no_new_batches,
         worker_query_batch_subjects=args.worker_query_batch_subjects,
         task_poll_seconds=args.task_poll_seconds,
     )
@@ -109,6 +111,8 @@ def main():
     parser.add_argument("--seed", type=int, default=67800)
     parser.add_argument("--composition-fanout", type=int, default=4)
     parser.add_argument("--composition-max", type=int, default=2000)
+    parser.add_argument("--composition-max-depth", type=int, default=3)
+    parser.add_argument("--max-no-new-batches", type=int, default=1000)
     parser.add_argument("--worker-query-batch-subjects", type=int, default=128)
     parser.add_argument("--task-poll-seconds", type=float, default=0.25)
     args = parser.parse_args()
