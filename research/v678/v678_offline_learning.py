@@ -55,6 +55,8 @@ RELATION_GROUPS = {
     "graph_health_sampling": [],
 }
 
+QUERY_SUBJECTS = ("en:animal", "en:bear", "en:dog")
+
 
 def read_counts(conn):
     return {
@@ -309,6 +311,7 @@ def worker_main(args, worker_id: int, stop_event=None):
     batches = items = learned_total = imported_total = errors = 0
     elapsed = 0.0
     learned = 0
+    background_round = 0
 
     def log(event, **payload):
         row = {"timestamp": time.time(), "worker_id": worker_id, "role": role, "event": event, **payload}
@@ -330,6 +333,17 @@ def worker_main(args, worker_id: int, stop_event=None):
             lane = RELATION_LANES[worker_id % len(RELATION_LANES)]
             try:
                 task = shared.claim_query()
+                if task is None:
+                    subject = QUERY_SUBJECTS[
+                        (worker_id + background_round) % len(QUERY_SUBJECTS)
+                    ]
+                    shared.enqueue_background_query(
+                        worker_id,
+                        f"Explore {subject.removeprefix('en:')} graph evidence.",
+                        subject,
+                    )
+                    background_round += 1
+                    task = shared.claim_query()
                 focus_subjects = [task["subject"]] if task else None
                 inspected, learned = run_lane(
                     conn, ram, lane, args.seed, worker_id, batches, focus_subjects,
@@ -365,7 +379,7 @@ def worker_main(args, worker_id: int, stop_event=None):
                     errors += 1
                     log("error", stage="checkpoint_sync", error=repr(exc))
 
-            sleep_s = max(0.05, float(args.batch_sleep))
+            sleep_s = max(0.0, float(args.batch_sleep))
             if stop_event is not None:
                 stop_event.wait(sleep_s)
             else:

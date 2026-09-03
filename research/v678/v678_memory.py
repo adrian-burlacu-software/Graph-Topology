@@ -398,6 +398,27 @@ class SharedCheckpoint:
             self.conn.commit()
         return query_id
 
+    def enqueue_background_query(self, worker_id, question, subject):
+        """Schedule one low-priority graph query for a specific lane if it is idle."""
+        now = time.time()
+        query_id = _stable_key("background_query", worker_id, subject, now)
+        with self.lock:
+            outstanding = self.conn.execute(
+                """SELECT 1 FROM query_tasks
+                   WHERE worker_id=? AND status IN ('queued','running')
+                   LIMIT 1""",
+                (int(worker_id),),
+            ).fetchone()
+            if outstanding:
+                return None
+            self.conn.execute(
+                """INSERT INTO query_tasks(query_id,worker_id,question,subject,priority,status,created_unix)
+                   VALUES(?,?,?,?,?,'queued',?)""",
+                (query_id, int(worker_id), str(question), str(subject), 0, now),
+            )
+            self.conn.commit()
+        return query_id
+
     def claim_query(self):
         with self.lock:
             self.conn.execute("BEGIN IMMEDIATE")

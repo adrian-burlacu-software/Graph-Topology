@@ -30,7 +30,12 @@ def build_parser():
     ap.add_argument("--cache-entries", type=int, default=12000)
     ap.add_argument("--checkpoint-seconds", type=int, choices=(60,300), default=300)
     ap.add_argument("--seed", type=int, default=67100)
-    ap.add_argument("--batch-sleep", type=float, default=0.20)
+    ap.add_argument(
+        "--batch-sleep",
+        type=float,
+        default=0.0,
+        help="Optional pause between worker tasks; 0 keeps the 19-worker pool busy.",
+    )
     ap.add_argument("--duration-seconds", type=int, default=0, help="0 means until chat exits")
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,

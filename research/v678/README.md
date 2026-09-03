@@ -186,3 +186,9 @@ checkpoint. This guarantees every lane receives an equal query-time turn while
 the normal staggered checkpoint schedule continues to share background
 learning. The chat response remains graph-grounded; worker results are
 provenance-bearing supporting evidence in its trace.
+
+When no user task is queued, every lane continuously creates and claims one
+low-priority exploration task for animal, bear, or dog in round-robin order.
+This keeps all 19 processes actively querying the graph while preserving one
+task per lane and giving user questions priority. `--batch-sleep 0` is the
+default; increase it only when you intentionally want to cap CPU usage.
