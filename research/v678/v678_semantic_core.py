@@ -390,11 +390,40 @@ class Graph:
         This is a generic argument-grounding primitive. It does not know
         anything about properties, adjectives, types, or specific relations.
         """
-        terms=[]
+        term_groups=[]
         for value in (target_terms or []):
             text=" ".join(str(value or "").lower().split())
-            if text and text not in terms:
-                terms.append(text)
+            if text and all(text not in group for group in term_groups):
+                term_groups.append([text])
+        # Questions commonly use an inflected verb while ConceptNet stores a
+        # nominalized or progressive target (``eat`` / ``eating``). Expand
+        # the lexical constraint deterministically; the resulting edge still
+        # has to be explicitly present in the graph.
+        for group in term_groups:
+            term = group[0]
+            if not re.fullmatch(r"[a-z]+", term):
+                continue
+            variants = {
+                term + "s",
+                term + "ed",
+                term + "ing",
+            }
+            if term.endswith("e") and len(term) > 2:
+                variants.add(term[:-1] + "ing")
+            if term.endswith("y") and len(term) > 2:
+                variants.update({
+                    term[:-1] + "ies",
+                    term[:-1] + "ied",
+                })
+            for variant in variants:
+                if variant not in group:
+                    group.append(variant)
+
+        terms = [
+            term
+            for group in term_groups
+            for term in group
+        ]
 
         if not terms:
             return True
@@ -1208,11 +1237,24 @@ class Graph:
         if not relations:
             return []
 
-        terms=[]
+        term_groups=[]
         for value in (target_terms or []):
             text=" ".join(str(value or "").lower().split())
-            if text and text not in terms:
-                terms.append(text)
+            if text and all(text not in group for group in term_groups):
+                term_groups.append([text])
+        for group in term_groups:
+            term = group[0]
+            if not re.fullmatch(r"[a-z]+", term):
+                continue
+            variants = {term + "s", term + "ed", term + "ing"}
+            if term.endswith("e") and len(term) > 2:
+                variants.add(term[:-1] + "ing")
+            if term.endswith("y") and len(term) > 2:
+                variants.update({term[:-1] + "ies", term[:-1] + "ied"})
+            for variant in variants:
+                if variant not in group:
+                    group.append(variant)
+        terms = [term for group in term_groups for term in group]
 
         placeholders=",".join(
             "?" for _ in relations
@@ -1225,13 +1267,18 @@ class Graph:
             # OR would let a query such as "big heart" select an unrelated
             # edge to "big", producing a false positive.
             clauses = []
-            for _term in terms:
+            for group in term_groups:
+                alternatives = []
+                for _term in group:
+                    alternatives.append(
+                        "(instr(lower(COALESCE(n.normalized,'')),?) > 0 "
+                        "OR instr(lower(COALESCE(n.label,'')),?) > 0 "
+                        "OR instr(lower(e.object),?) > 0)"
+                    )
+                    params.extend([_term, _term, _term])
                 clauses.append(
-                    "(instr(lower(COALESCE(n.normalized,'')),?) > 0 "
-                    "OR instr(lower(COALESCE(n.label,'')),?) > 0 "
-                    "OR instr(lower(e.object),?) > 0)"
+                    "(" + " OR ".join(alternatives) + ")"
                 )
-                params.extend([_term, _term, _term])
             target_clause=" AND " + " AND ".join(clauses)
 
         params.append(int(limit))
