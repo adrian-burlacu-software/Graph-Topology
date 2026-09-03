@@ -547,7 +547,15 @@ def classify_turn_mode(parse):
     )
     has_question_mark=text.endswith("?")
 
-    if question_kind in wh_questions or has_wh or has_question_mark:
+    if (
+        question_kind in wh_questions
+        or has_wh
+        or has_question_mark
+        or re.fullmatch(
+            r"\s*(?:the\s+)?(?:part|parts|component|components)\s+of\s+.+\s*",
+            text.lower(),
+        )
+    ):
         return "semantic"
 
     # Imperatives and ordinary non-interrogative utterances are conversational
@@ -1340,10 +1348,16 @@ def clean_surface_answer(answer):
 
 
 def requested_part_list(question):
-    words = set(re.findall(r"[a-z]+", str(question).lower()))
-    return (
-        bool(words.intersection({"part", "parts", "component", "components"}))
-        and bool(words.intersection({"what", "which"}))
+    text = str(question).lower()
+    words = set(re.findall(r"[a-z]+", text))
+    return bool(
+        words.intersection({"part", "parts", "component", "components"})
+    ) and (
+        bool(words.intersection({"what", "which"}))
+        or bool(re.fullmatch(
+            r"\s*(?:the\s+)?(?:part|parts|component|components)\s+of\s+.+\s*",
+            text,
+        ))
     )
 
 

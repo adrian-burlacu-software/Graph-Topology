@@ -154,6 +154,29 @@ def normalization_variants(cases):
 
 def grammar_normalization_cases():
     cases = []
+    for subject in ("animal", "bear", "dog"):
+        cases.append({
+            "id": f"definition_{subject}_case_punctuation",
+            "group": "definition",
+            "question": f"WHAT IS {'AN' if subject[0] in 'aeiou' else 'A'} {subject.upper()}!!!",
+            "normalization_variant": "case_punctuation",
+            "expected": {
+                "subject": f"en:{subject}",
+                "semantic_goal": "definition",
+                "direct_proof": True,
+            },
+        })
+        cases.append({
+            "id": f"definition_{subject}_plural",
+            "group": "definition",
+            "question": f"What are {subject}s?",
+            "normalization_variant": "regular_plural",
+            "expected": {
+                "subject": f"en:{subject}",
+                "semantic_goal": "definition",
+                "direct_proof": True,
+            },
+        })
     cases.append({
         "id": "property_dog_larger_than_a_cat",
         "group": "property",
@@ -165,6 +188,20 @@ def grammar_normalization_cases():
             "relation": "has_property",
             "target": "en:larger than cat",
             "target_label": "larger than cat",
+            "direct_proof": True,
+        },
+    })
+    cases.append({
+        "id": "capability_animal_eat_inflection",
+        "group": "capability",
+        "question": "Can an animal eat?",
+        "normalization_variant": "verb_inflection",
+        "expected": {
+            "subject": "en:animal",
+            "semantic_goal": "capability",
+            "relation": "capable_of",
+            "target": "en:eating",
+            "target_label": "eating",
             "direct_proof": True,
         },
     })
@@ -199,6 +236,13 @@ def grammar_normalization_cases():
                 "normalization_variant": "part_subject_placement",
                 "expected": expected,
             })
+        cases.append({
+            "id": f"part_inventory_{subject}_terse",
+            "group": "part_inventory",
+            "question": f"parts of an {subject}" if subject[0] in "aeiou" else f"parts of a {subject}",
+            "normalization_variant": "terse_prepositional_fragment",
+            "expected": expected,
+        })
     return cases
 
 
