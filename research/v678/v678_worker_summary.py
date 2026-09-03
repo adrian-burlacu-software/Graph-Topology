@@ -54,10 +54,12 @@ def worker_summary(log_dir: Path):
             "learned": int(latest.get("learned", 0) or 0),
             "errors": len(errors),
             "syncs": len(syncs),
+            "cpu_seconds": float(latest.get("cpu_seconds", 0) or 0),
+            "cpu_utilization": float(latest.get("cpu_utilization", 0) or 0),
             **dict(sync_totals),
         }
         workers.append(worker)
-        for key in ("batches", "items", "learned", "errors", "syncs",
+        for key in ("batches", "items", "learned", "errors", "syncs", "cpu_seconds",
                     "exported", "imported", "merged", "conflicts"):
             totals[key] += worker.get(key, 0)
     return workers, dict(totals)

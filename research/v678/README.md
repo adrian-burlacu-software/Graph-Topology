@@ -123,13 +123,13 @@ python .\research\v678\v678_semantic_network_builder.py --conceptnet ".\data\con
 ```
 
 ```powershell
-python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67800 --batch-sleep 0.20
+python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67800 --worker-count 12 --batch-sleep 0
 ```
 
 For a faster checkpoint-spacing test:
 
 ```powershell
-python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67800 --batch-sleep 0.20
+python .\research\v678\v678_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678_chat.json" --trace-output ".\results\v678_chat_traces.jsonl" --memory-output ".\results\v678_memory.json" --worker-log-dir ".\results\v678_workers" --shared-memory ".\results\v678_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67800 --worker-count 12 --batch-sleep 0
 ```
 
 Inspect after a run:
@@ -187,22 +187,45 @@ logic; it intentionally retains prior worker evidence across restarts.
 
 ### Query-time worker pool
 
-Every animal, bear, or dog question is also dispatched to all 19 specialist
-lanes at high priority. Each lane claims only its own task, analyzes the
-question subject, force-syncs its evidence, and marks completion in the shared
-checkpoint. This guarantees every lane receives an equal query-time turn while
-the normal staggered checkpoint schedule continues to share background
-learning. The chat response remains graph-grounded; worker results are
-provenance-bearing supporting evidence in its trace.
+The offline learners are now an eight-lane general-purpose pool: lexical
+semantics, taxonomy, part/whole, attributes/actions, causal/context,
+structural inference, composition, and interaction/health. The runtime starts
+a CPU-aware default of 10–15 worker processes (one core is left for chat);
+override it with `--worker-count 10` through `--worker-count 15`.
 
-When no user task is queued, every lane continuously creates and claims one
-low-priority exploration task for animal, bear, or dog in round-robin order.
-This keeps all 19 processes actively querying the graph while preserving one
-task per lane and giving user questions priority. `--batch-sleep 0` is the
-default; increase it only when you intentionally want to cap CPU usage.
+Every animal, bear, or dog question is dispatched to every pool worker at high
+priority. Workers rotate through the eight lanes, then force-sync their
+evidence and mark their task complete. The chat response remains
+graph-grounded; worker results are provenance-bearing supporting evidence in
+its trace.
+
+When no user task is queued, every worker locally rotates animal, bear, and dog
+exploration without inserting background tasks into the shared SQLite queue.
+Idle polling is read-only (default `--task-poll-seconds 0.25`), while only
+actual chat work claims, completes, and immediately shares a task result. This
+keeps `--batch-sleep 0` CPU-bound rather than SQLite-write-bound while preserving
+high-priority, one-task-per-worker fairness.
+
+Shared background evidence is still merged through the evenly staggered
+checkpoint slots. SQLite auto-checkpoints the WAL at 256 pages and the runtime
+runs a final truncate checkpoint after chat and all worker connections have
+closed. Increase `--batch-sleep` only when you intentionally want to cap CPU
+usage.
 Each queued task includes the focused subject plus a rotating batch of graph
 subjects (`--worker-query-batch-subjects`, default `128`) so lanes perform
 substantial graph work rather than repeatedly reading one edge.
+
+Worker status and JSONL logs include CPU seconds and per-batch CPU utilization,
+in addition to throughput and sync metrics. To choose the best pool size on a
+specific machine, run the offline-only sweep (it does not load the LLM):
+
+```powershell
+python .\research\v678\v678_worker_pool_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\worker_pool_benchmark.jsonl" --worker-counts 10,12,15 --duration-seconds 60
+```
+
+The final JSONL record contains the recommended `--worker-count`, selected by
+learned items per second and then host CPU utilization. Use that value in the
+chat runtime; for example add `--worker-count 12` to the command above.
 
 ### Relation composition and exclusion
 

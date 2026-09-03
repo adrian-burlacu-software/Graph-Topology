@@ -11,7 +11,7 @@ from pathlib import Path
 
 from v678_memory import RamSemanticMemory, SharedCheckpoint
 
-RELATION_LANES = [
+SPECIALIST_LANES = [
     "antonym_structure",
     "synonym_structure",
     "hypernym_structure",
@@ -32,6 +32,26 @@ RELATION_LANES = [
     "relation_interaction_statistics",
     "graph_health_sampling",
 ]
+
+GENERAL_LANES = {
+    "lexical_semantics": (
+        "antonym_structure", "synonym_structure", "association_structure",
+        "contrast_structure",
+    ),
+    "taxonomy": ("hypernym_structure", "hyponym_structure"),
+    "part_whole": ("meronym_structure", "holonym_structure"),
+    "attributes_actions": ("property_structure", "capability_structure"),
+    "causal_context": (
+        "cause_structure", "purpose_structure", "location_structure",
+    ),
+    "structural_inference": (
+        "relation_inverse", "relation_symmetry", "counterrelation_mining",
+    ),
+    "composition": ("relation_composition",),
+    "interaction_health": (
+        "relation_interaction_statistics", "graph_health_sampling",
+    ),
+}
 
 RELATION_GROUPS = {
     "antonym_structure": ["antonym"],
@@ -146,6 +166,22 @@ def feature_for_pair(conn, subject, relation, obj):
 
 
 def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
+    if lane in GENERAL_LANES:
+        inspected = learned = 0
+        for specialist_lane in GENERAL_LANES[lane]:
+            lane_inspected, lane_learned = run_lane(
+                conn,
+                ram,
+                specialist_lane,
+                seed,
+                worker_id,
+                batch_no,
+                focus_subjects,
+            )
+            inspected += lane_inspected
+            learned += lane_learned
+        return inspected, learned
+
     rng = random.Random(seed + worker_id * 100003 + batch_no * 9973)
     sampled = sample_subjects(
         conn, seed + batch_no * 17, worker_id,
@@ -353,7 +389,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
 
 
 def worker_main(args, worker_id: int, stop_event=None):
-    role = f"offline:{RELATION_LANES[worker_id % len(RELATION_LANES)]}"
+    role = "offline:general_pool"
     ram = RamSemanticMemory(worker_id)
     ram.composition_fanout = int(getattr(args, "composition_fanout", 4))
     ram.composition_max = int(getattr(args, "composition_max", 2000))
@@ -366,6 +402,10 @@ def worker_main(args, worker_id: int, stop_event=None):
     elapsed = 0.0
     learned = 0
     background_round = 0
+    next_task_poll = 0.0
+    cpu_started = time.process_time()
+    cpu_seconds = 0.0
+    cpu_utilization = 0.0
 
     def log(event, **payload):
         row = {"timestamp": time.time(), "worker_id": worker_id, "role": role, "event": event, **payload}
@@ -384,21 +424,27 @@ def worker_main(args, worker_id: int, stop_event=None):
             if args.duration_seconds and time.time() - started >= args.duration_seconds:
                 break
             batch_started = time.perf_counter()
-            lane = RELATION_LANES[worker_id % len(RELATION_LANES)]
+            batch_cpu_started = time.process_time()
+            lane = tuple(GENERAL_LANES)[
+                (worker_id + batches) % len(GENERAL_LANES)
+            ]
             try:
-                task = shared.claim_query()
+                task = None
+                now = time.monotonic()
+                if now >= next_task_poll:
+                    task = shared.claim_query()
+                    next_task_poll = now + max(
+                        0.01,
+                        float(getattr(args, "task_poll_seconds", 0.25)),
+                    )
                 if task is None:
                     subject = QUERY_SUBJECTS[
                         (worker_id + background_round) % len(QUERY_SUBJECTS)
                     ]
-                    shared.enqueue_background_query(
-                        worker_id,
-                        f"Explore {subject.removeprefix('en:')} graph evidence.",
-                        subject,
-                    )
                     background_round += 1
-                    task = shared.claim_query()
-                focus_subjects = [task["subject"]] if task else None
+                    focus_subjects = [subject]
+                else:
+                    focus_subjects = [task["subject"]]
                 inspected, learned = run_lane(
                     conn, ram, lane, args.seed, worker_id, batches, focus_subjects,
                 )
@@ -406,7 +452,10 @@ def worker_main(args, worker_id: int, stop_event=None):
                 items += inspected
                 learned_total += learned
                 elapsed = time.perf_counter() - batch_started
-                log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, duration_s=elapsed, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
+                batch_cpu_seconds = time.process_time() - batch_cpu_started
+                cpu_seconds = time.process_time() - cpu_started
+                cpu_utilization = batch_cpu_seconds / max(elapsed, 1e-9)
+                log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, duration_s=elapsed, cpu_seconds=batch_cpu_seconds, cpu_utilization=cpu_utilization, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
                 if task:
                     sync = shared.sync(ram, role, os.getpid(), force=True)
                     shared.complete_query(task["id"], {
@@ -425,7 +474,7 @@ def worker_main(args, worker_id: int, stop_event=None):
             # frequently, but only the worker owning the current slot writes.
             if shared.should_sync():
                 try:
-                    shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)))
+                    shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
                     sync = shared.sync(ram, role, os.getpid())
                     imported_total += sync.get("imported", 0)
                     log("checkpoint_sync", **sync)
@@ -447,9 +496,10 @@ def worker_main(args, worker_id: int, stop_event=None):
             log("error", stage="final_checkpoint", error=repr(exc))
     finally:
         conn.close()
-        shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)))
+        cpu_seconds = time.process_time() - cpu_started
+        shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
         shared.close()
-        log("worker_stop", batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors)
+        log("worker_stop", batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
 
 
 def build_parser():
@@ -466,6 +516,12 @@ def build_parser():
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,
                     help="Maximum derived compositions per worker run")
+    ap.add_argument(
+        "--task-poll-seconds",
+        type=float,
+        default=0.25,
+        help="Maximum delay before an idle worker checks for high-priority chat work.",
+    )
     return ap
 
 

@@ -214,6 +214,7 @@ class SharedCheckpoint:
         self.conn=sqlite3.connect(str(self.path),timeout=10,check_same_thread=False); self.conn.row_factory=sqlite3.Row
         self.conn.execute("PRAGMA busy_timeout=10000"); self.conn.executescript("""
         PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
+        PRAGMA wal_autocheckpoint=256; PRAGMA journal_size_limit=67108864;
         CREATE TABLE IF NOT EXISTS semantic_decisions(
           key TEXT PRIMARY KEY, decision_type TEXT NOT NULL, surface TEXT NOT NULL, context_key TEXT NOT NULL,
           candidate_set TEXT NOT NULL, selected TEXT NOT NULL, count INTEGER NOT NULL, confidence REAL NOT NULL,
@@ -248,7 +249,8 @@ class SharedCheckpoint:
           worker_id INTEGER PRIMARY KEY, role TEXT NOT NULL, pid INTEGER, last_seen REAL NOT NULL, last_sync REAL,
           batches INTEGER NOT NULL DEFAULT 0, items INTEGER NOT NULL DEFAULT 0, learned INTEGER NOT NULL DEFAULT 0,
           imported INTEGER NOT NULL DEFAULT 0, errors INTEGER NOT NULL DEFAULT 0, last_error TEXT,
-          last_batch_s REAL DEFAULT 0, learned_per_s REAL DEFAULT 0, last_sync_s REAL DEFAULT 0, sync_count INTEGER DEFAULT 0);
+          last_batch_s REAL DEFAULT 0, learned_per_s REAL DEFAULT 0, last_sync_s REAL DEFAULT 0, sync_count INTEGER DEFAULT 0,
+          cpu_seconds REAL DEFAULT 0, cpu_utilization REAL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS checkpoint_events(
           id INTEGER PRIMARY KEY AUTOINCREMENT, worker_id INTEGER NOT NULL, event TEXT NOT NULL, ts REAL NOT NULL,
           duration_s REAL NOT NULL, payload_json TEXT NOT NULL);
@@ -265,7 +267,19 @@ class SharedCheckpoint:
           UNIQUE(query_id,worker_id));
         CREATE INDEX IF NOT EXISTS idx_query_tasks_worker
           ON query_tasks(worker_id,status,priority DESC,id);
-        """); self.conn.commit()
+        """)
+        columns = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(worker_status)")
+        }
+        for name, definition in (
+            ("cpu_seconds", "REAL DEFAULT 0"),
+            ("cpu_utilization", "REAL DEFAULT 0"),
+        ):
+            if name not in columns:
+                self.conn.execute(
+                    f"ALTER TABLE worker_status ADD COLUMN {name} {definition}"
+                )
+        self.conn.commit()
         self.last_bucket=None; self.last_export_unix=0.0; self.last_import_unix=0.0
 
     def target_slot(self):
@@ -289,11 +303,12 @@ class SharedCheckpoint:
                     "learned":int(updates.get("learned",prev["learned"] if prev else 0)),"imported":int(updates.get("imported",prev["imported"] if prev else 0)),
                     "errors":int(updates.get("errors",prev["errors"] if prev else 0)),"last_error":updates.get("last_error",prev["last_error"] if prev else None),
                     "last_batch_s":float(updates.get("last_batch_s",prev["last_batch_s"] if prev else 0)),"learned_per_s":float(updates.get("learned_per_s",prev["learned_per_s"] if prev else 0)),
-                    "last_sync_s":float(updates.get("last_sync_s",prev["last_sync_s"] if prev else 0)),"sync_count":int(updates.get("sync_count",prev["sync_count"] if prev else 0))}
+                    "last_sync_s":float(updates.get("last_sync_s",prev["last_sync_s"] if prev else 0)),"sync_count":int(updates.get("sync_count",prev["sync_count"] if prev else 0)),
+                    "cpu_seconds":float(updates.get("cpu_seconds",prev["cpu_seconds"] if prev else 0)),"cpu_utilization":float(updates.get("cpu_utilization",prev["cpu_utilization"] if prev else 0))}
             if prev:
-                self.conn.execute("""UPDATE worker_status SET role=?,pid=?,last_seen=?,last_sync=?,batches=?,items=?,learned=?,imported=?,errors=?,last_error=?,last_batch_s=?,learned_per_s=?,last_sync_s=?,sync_count=? WHERE worker_id=?""",(*values.values(),self.worker_id))
+                self.conn.execute("""UPDATE worker_status SET role=?,pid=?,last_seen=?,last_sync=?,batches=?,items=?,learned=?,imported=?,errors=?,last_error=?,last_batch_s=?,learned_per_s=?,last_sync_s=?,sync_count=?,cpu_seconds=?,cpu_utilization=? WHERE worker_id=?""",(*values.values(),self.worker_id))
             else:
-                self.conn.execute("""INSERT INTO worker_status(worker_id,role,pid,last_seen,last_sync,batches,items,learned,imported,errors,last_error,last_batch_s,learned_per_s,last_sync_s,sync_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(self.worker_id,*values.values()))
+                self.conn.execute("""INSERT INTO worker_status(worker_id,role,pid,last_seen,last_sync,batches,items,learned,imported,errors,last_error,last_batch_s,learned_per_s,last_sync_s,sync_count,cpu_seconds,cpu_utilization) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(self.worker_id,*values.values()))
             self.conn.commit()
 
     def _merge(self, ram, export):
@@ -421,13 +436,22 @@ class SharedCheckpoint:
 
     def claim_query(self):
         with self.lock:
+            # Idle workers poll with a read transaction. Acquiring the writer lock
+            # only after finding work avoids WAL churn when --batch-sleep is zero.
+            queued = self.conn.execute(
+                """SELECT id FROM query_tasks
+                   WHERE worker_id=? AND status='queued'
+                   ORDER BY priority DESC,id LIMIT 1""",
+                (self.worker_id,),
+            ).fetchone()
+            if not queued:
+                return None
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 row = self.conn.execute(
-                    """SELECT id,query_id,question,subject FROM query_tasks
-                       WHERE worker_id=? AND status='queued'
-                       ORDER BY priority DESC,id LIMIT 1""",
-                    (self.worker_id,),
+                    """SELECT id,query_id,question,subject,priority FROM query_tasks
+                       WHERE id=? AND worker_id=? AND status='queued'""",
+                    (int(queued["id"]), self.worker_id),
                 ).fetchone()
                 if row:
                     self.conn.execute(
@@ -452,6 +476,17 @@ class SharedCheckpoint:
 
     def close(self):
         with self.lock:self.conn.close()
+
+    def checkpoint_wal(self, mode="TRUNCATE"):
+        """Run only after worker connections have stopped to reclaim WAL space."""
+        if str(mode).upper() not in {"PASSIVE", "FULL", "RESTART", "TRUNCATE"}:
+            raise ValueError(f"unsupported WAL checkpoint mode: {mode}")
+        with self.lock:
+            return tuple(
+                self.conn.execute(
+                    f"PRAGMA wal_checkpoint({str(mode).upper()})"
+                ).fetchone()
+            )
 
 
 class SharedDistilledMemory:

@@ -12,8 +12,12 @@ from v678_offline_learning import worker_main
 from v678_memory import SharedCheckpoint
 
 
+def default_worker_count():
+    return min(15, max(10, (os.cpu_count() or 11) - 1))
+
+
 def build_parser():
-    ap = argparse.ArgumentParser(description="V678 19 offline workers + 1 online semantic chat worker")
+    ap = argparse.ArgumentParser(description="V678 general-lane worker pool + online semantic chat worker")
     ap.add_argument("--database", required=True)
     ap.add_argument("--output", default="./results/v678_chat.json")
     ap.add_argument("--trace-output", default="./results/v678_chat_traces.jsonl")
@@ -29,12 +33,19 @@ def build_parser():
     ap.add_argument("--max-depth", type=int, default=3)
     ap.add_argument("--cache-entries", type=int, default=12000)
     ap.add_argument("--checkpoint-seconds", type=int, choices=(60,300), default=300)
+    ap.add_argument(
+        "--worker-count",
+        type=int,
+        choices=range(10, 16),
+        default=default_worker_count(),
+        help="Offline general-purpose worker processes (default: CPU-aware 10–15).",
+    )
     ap.add_argument("--seed", type=int, default=67100)
     ap.add_argument(
         "--batch-sleep",
         type=float,
         default=0.0,
-        help="Optional pause between worker tasks; 0 keeps the 19-worker pool busy.",
+        help="Optional pause between worker tasks; 0 keeps the worker pool busy.",
     )
     ap.add_argument("--duration-seconds", type=int, default=0, help="0 means until chat exits")
     ap.add_argument("--composition-fanout", type=int, default=4)
@@ -46,14 +57,20 @@ def build_parser():
         default=128,
         help="Graph subjects each worker analyzes per queued task.",
     )
+    ap.add_argument(
+        "--task-poll-seconds",
+        type=float,
+        default=0.25,
+        help="Maximum delay before idle workers check for high-priority chat work.",
+    )
     return ap
 
 
 def launch_offline(args, stop_event):
     child_args = argparse.Namespace(**vars(args))
-    child_args.total_workers = 20
+    child_args.total_workers = args.worker_count + 1
     processes = []
-    for worker_id in range(19):
+    for worker_id in range(args.worker_count):
         p = mp.Process(target=offline_process_entry, args=(child_args, worker_id, stop_event), name=f"v678-offline-{worker_id:02d}")
         p.daemon = True
         p.start()
@@ -78,8 +95,8 @@ def offline_process_entry(args, worker_id, stop_event):
 def run_chat(args, stop_event):
     from v678_semantic_chat_gateway import run_chat_worker
     chat_args = argparse.Namespace(**vars(args))
-    chat_args.worker_id = 19
-    chat_args.total_workers = 20
+    chat_args.worker_id = args.worker_count
+    chat_args.total_workers = args.worker_count + 1
     chat_args.stop_event = stop_event
     return run_chat_worker(chat_args)
 
@@ -93,16 +110,28 @@ def main():
 
     # Create the shared checkpoint schema once before fan-out. This avoids a
     # startup DDL stampede among 20 processes.
-    bootstrap = SharedCheckpoint(args.shared_memory, 19, 20, args.checkpoint_seconds)
+    bootstrap = SharedCheckpoint(
+        args.shared_memory,
+        args.worker_count,
+        args.worker_count + 1,
+        args.checkpoint_seconds,
+    )
     bootstrap.close()
 
     print("=== V678 COGNITIVE RUNTIME ===", flush=True)
-    print("workers : 19 offline learners + 1 online chat worker", flush=True)
+    print(
+        f"workers : {args.worker_count} offline pool workers across 8 general lanes + 1 online chat worker",
+        flush=True,
+    )
     print(f"shared  : {Path(args.shared_memory).resolve()}", flush=True)
     print(f"sync    : modulus-staggered every {args.checkpoint_seconds}s", flush=True)
 
     offline = launch_offline(args, stop_event)
-    print("offline workers started:", ", ".join(f"{i:02d}" for i in range(19)), flush=True)
+    print(
+        "offline workers started:",
+        ", ".join(f"{i:02d}" for i in range(args.worker_count)),
+        flush=True,
+    )
 
     try:
         run_chat(args, stop_event)
@@ -119,6 +148,21 @@ def main():
                 p.terminate()
         for p in offline:
             p.join(timeout=1.0)
+        checkpoint = SharedCheckpoint(
+            args.shared_memory,
+            args.worker_count,
+            args.worker_count + 1,
+            args.checkpoint_seconds,
+        )
+        try:
+            checkpoint_result = checkpoint.checkpoint_wal()
+            print(
+                f"WAL checkpoint: busy={checkpoint_result[0]} "
+                f"pages={checkpoint_result[1]} checkpointed={checkpoint_result[2]}",
+                flush=True,
+            )
+        finally:
+            checkpoint.close()
         print("=== V678 RUNTIME COMPLETE ===", flush=True)
         print("offline exit codes:", {p.name: p.exitcode for p in offline}, flush=True)
 
