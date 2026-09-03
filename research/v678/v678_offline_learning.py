@@ -165,6 +165,40 @@ def feature_for_pair(conn, subject, relation, obj):
     }
 
 
+def composition_paths(conn, ram, subject, max_depth, limit=64):
+    """Return bounded graph edges and reusable derived paths from one subject."""
+    if int(max_depth) < 1:
+        return []
+    placeholders = ",".join("?" for _ in COMPOSITION_RELATIONS)
+    rows = conn.execute(
+        f"""
+        SELECT relation,object FROM edges
+        WHERE subject=? AND relation IN ({placeholders}) AND object != ?
+        ORDER BY CASE relation
+            {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
+            ELSE {len(COMPOSITION_PRIORITY)}
+        END, object
+        LIMIT ?
+        """,
+        (subject, *COMPOSITION_RELATIONS, subject, int(limit)),
+    ).fetchall()
+    paths = [
+        {
+            "relations": [str(row[0])],
+            "nodes": [str(subject), str(row[1])],
+            "object": str(row[1]),
+        }
+        for row in rows
+    ]
+    paths.extend(ram.composition_paths(subject, max_depth, limit=limit))
+    paths.sort(key=lambda path: (
+        len(path["relations"]),
+        tuple(COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY)) for relation in path["relations"]),
+        path["object"],
+    ))
+    return paths[:int(limit)]
+
+
 def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
     if lane in GENERAL_LANES:
         inspected = learned = 0
@@ -267,61 +301,52 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                     break
 
     elif lane == "relation_composition":
-        # V671 generated an uncontrolled Cartesian product. V678 deliberately
-        # caps both fanout and total derived records per batch. Composition is
-        # useful training evidence, but it is NOT graph truth.
+        # Paths may reuse locally generated and imported shared compositions, but
+        # fanout, total output, and depth keep this bounded training evidence.
         fanout = max(1, int(getattr(ram, "composition_fanout", 4)))
         max_derived = max(1, int(getattr(ram, "composition_max", 2000)))
+        max_depth = max(2, int(getattr(ram, "composition_max_depth", 3)))
         per_subject_max = fanout * 8
         produced = 0
         for subject in subjects:
             if ram.composition_produced >= max_derived:
                 break
             subject_produced = 0
-            placeholders = ",".join("?" for _ in COMPOSITION_RELATIONS)
-            rows = conn.execute(
-                f"""
-                SELECT subject,relation,object FROM edges
-                WHERE subject=? AND relation IN ({placeholders}) AND object != ?
-                ORDER BY CASE relation
-                    {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
-                    ELSE {len(COMPOSITION_PRIORITY)}
-                END, object
-                LIMIT 256
-                """,
-                (subject, *COMPOSITION_RELATIONS, subject),
-            ).fetchall()
-            for row in rows:
+            first_paths = composition_paths(conn, ram, subject, max_depth - 1, limit=128)
+            for first in first_paths:
                 if subject_produced >= per_subject_max:
                     break
                 if ram.composition_produced >= max_derived:
                     break
-                mid, rel1 = str(row[2]), str(row[1])
-                second_rows = conn.execute(
-                    f"""
-                    SELECT subject,relation,object FROM edges
-                    WHERE subject=? AND relation IN ({placeholders})
-                      AND object != ? AND object != ?
-                    ORDER BY CASE relation
-                        {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
-                        ELSE {len(COMPOSITION_PRIORITY)}
-                    END, object
-                    LIMIT 64
-                    """,
-                    (mid, *COMPOSITION_RELATIONS, subject, mid),
-                ).fetchall()
-                for row2 in second_rows[:fanout]:
+                remaining_depth = max_depth - len(first["relations"])
+                for second in composition_paths(
+                    conn, ram, first["object"], remaining_depth, limit=64
+                )[:fanout]:
                     if subject_produced >= per_subject_max:
                         break
                     if ram.composition_produced >= max_derived:
                         break
-                    rel2, obj = str(row2[1]), str(row2[2])
-                    ram.upsert_transition(rel1, rel2, confidence=0.5, count=1, provenance="derived", derivation_depth=2)
+                    relations = first["relations"] + second["relations"]
+                    nodes = first["nodes"][:-1] + second["nodes"]
+                    if len(relations) < 2 or len(relations) > max_depth:
+                        continue
+                    if len(nodes) != len(relations) + 1 or len(set(nodes)) != len(nodes):
+                        continue
+                    for previous, following in zip(relations, relations[1:]):
+                        ram.upsert_transition(
+                            previous, following, confidence=0.5, count=1,
+                            provenance="derived", derivation_depth=len(relations),
+                        )
                     ram.upsert_knowledge(
-                        lane, subject, rel1 + "->" + rel2, obj,
-                        {"middle": mid, "depth": 2, "relations": [rel1, rel2]},
+                        lane, subject, "->".join(relations), second["object"],
+                        {
+                            "middle": first["object"],
+                            "nodes": nodes,
+                            "depth": len(relations),
+                            "relations": relations,
+                        },
                         positive=1, confidence=0.4, source="offline_composition",
-                        provenance="derived", derivation_depth=2,
+                        provenance="derived", derivation_depth=len(relations),
                     )
                     learned += 1; inspected += 1; produced += 1
                     subject_produced += 1
@@ -393,12 +418,13 @@ def worker_main(args, worker_id: int, stop_event=None):
     ram = RamSemanticMemory(worker_id)
     ram.composition_fanout = int(getattr(args, "composition_fanout", 4))
     ram.composition_max = int(getattr(args, "composition_max", 2000))
+    ram.composition_max_depth = int(getattr(args, "composition_max_depth", 3))
     ram.query_batch_subjects = int(getattr(args, "worker_query_batch_subjects", 128))
     shared = SharedCheckpoint(args.shared_memory, worker_id, args.total_workers, args.checkpoint_seconds)
     log_path = Path(args.worker_log_dir) / f"worker_{worker_id:02d}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.time()
-    batches = items = learned_total = imported_total = errors = 0
+    batches = items = learned_total = new_results_total = imported_total = errors = 0
     elapsed = 0.0
     learned = 0
     background_round = 0
@@ -406,6 +432,9 @@ def worker_main(args, worker_id: int, stop_event=None):
     cpu_started = time.process_time()
     cpu_seconds = 0.0
     cpu_utilization = 0.0
+    no_new_streak = 0
+    termination_reason = None
+    max_no_new_batches = max(0, int(getattr(args, "max_no_new_batches", 1000)))
 
     def log(event, **payload):
         row = {"timestamp": time.time(), "worker_id": worker_id, "role": role, "event": event, **payload}
@@ -420,8 +449,10 @@ def worker_main(args, worker_id: int, stop_event=None):
     try:
         while True:
             if stop_event is not None and stop_event.is_set():
+                termination_reason = "stop_event"
                 break
             if args.duration_seconds and time.time() - started >= args.duration_seconds:
+                termination_reason = "duration_limit"
                 break
             batch_started = time.perf_counter()
             batch_cpu_started = time.process_time()
@@ -445,17 +476,21 @@ def worker_main(args, worker_id: int, stop_event=None):
                     focus_subjects = [subject]
                 else:
                     focus_subjects = [task["subject"]]
+                before_counts = sum(ram.counts().values())
                 inspected, learned = run_lane(
                     conn, ram, lane, args.seed, worker_id, batches, focus_subjects,
                 )
+                new_results = max(0, sum(ram.counts().values()) - before_counts)
                 batches += 1
                 items += inspected
                 learned_total += learned
+                new_results_total += new_results
+                no_new_streak = 0 if new_results else no_new_streak + 1
                 elapsed = time.perf_counter() - batch_started
                 batch_cpu_seconds = time.process_time() - batch_cpu_started
                 cpu_seconds = time.process_time() - cpu_started
                 cpu_utilization = batch_cpu_seconds / max(elapsed, 1e-9)
-                log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, duration_s=elapsed, cpu_seconds=batch_cpu_seconds, cpu_utilization=cpu_utilization, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
+                log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, new_results=new_results, no_new_streak=no_new_streak, duration_s=elapsed, cpu_seconds=batch_cpu_seconds, cpu_utilization=cpu_utilization, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
                 if task:
                     sync = shared.sync(ram, role, os.getpid(), force=True)
                     shared.complete_query(task["id"], {
@@ -466,7 +501,7 @@ def worker_main(args, worker_id: int, stop_event=None):
                         subject=task["subject"], lane=lane, inspected=inspected, learned=learned)
             except Exception as exc:
                 errors += 1
-                shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_error=repr(exc))
+                shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, new_results=new_results_total, no_new_streak=no_new_streak, imported=imported_total, errors=errors, last_error=repr(exc))
                 log("error", stage="analysis_batch", error=repr(exc))
                 time.sleep(1.0)
 
@@ -474,13 +509,23 @@ def worker_main(args, worker_id: int, stop_event=None):
             # frequently, but only the worker owning the current slot writes.
             if shared.should_sync():
                 try:
-                    shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
+                    shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, new_results=new_results_total, no_new_streak=no_new_streak, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
                     sync = shared.sync(ram, role, os.getpid())
                     imported_total += sync.get("imported", 0)
                     log("checkpoint_sync", **sync)
                 except Exception as exc:
                     errors += 1
                     log("error", stage="checkpoint_sync", error=repr(exc))
+
+            if max_no_new_batches and no_new_streak >= max_no_new_batches:
+                termination_reason = "max_no_new_batches"
+                log(
+                    "termination_condition",
+                    reason=termination_reason,
+                    no_new_streak=no_new_streak,
+                    max_no_new_batches=max_no_new_batches,
+                )
+                break
 
             sleep_s = max(0.0, float(args.batch_sleep))
             if stop_event is not None:
@@ -497,9 +542,9 @@ def worker_main(args, worker_id: int, stop_event=None):
     finally:
         conn.close()
         cpu_seconds = time.process_time() - cpu_started
-        shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
+        shared.heartbeat(role, os.getpid(), batches=batches, items=items, learned=learned_total, new_results=new_results_total, no_new_streak=no_new_streak, termination_reason=termination_reason, imported=imported_total, errors=errors, last_batch_s=elapsed, learned_per_s=(learned/max(elapsed,1e-9)), cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
         shared.close()
-        log("worker_stop", batches=batches, items=items, learned=learned_total, imported=imported_total, errors=errors, cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
+        log("worker_stop", batches=batches, items=items, learned=learned_total, new_results=new_results_total, no_new_streak=no_new_streak, termination_reason=termination_reason, imported=imported_total, errors=errors, cpu_seconds=cpu_seconds, cpu_utilization=cpu_utilization)
 
 
 def build_parser():
@@ -516,6 +561,10 @@ def build_parser():
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,
                     help="Maximum derived compositions per worker run")
+    ap.add_argument("--composition-max-depth", type=int, default=3,
+                    help="Maximum number of edges in a derived composition path")
+    ap.add_argument("--max-no-new-batches", type=int, default=1000,
+                    help="Stop after this many consecutive batches add no local records; 0 disables")
     ap.add_argument(
         "--task-poll-seconds",
         type=float,

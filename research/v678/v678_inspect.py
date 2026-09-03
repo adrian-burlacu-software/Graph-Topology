@@ -77,7 +77,7 @@ def main():
         interval=300
         for r in rows:
             wid=int(r['worker_id']); slot=int((wid*interval)/max(len(rows),1)); age=now-float(r['last_seen'])
-            print(f"  {wid:02d} {r['role']:<32} pid={r['pid']} age={age:6.1f}s slot@300s={slot:3d}s batches={r['batches']} learned={r['learned']} imported={r['imported']} errors={r['errors']} last_batch={float(r['last_batch_s'] or 0):.3f}s learn/s={float(r['learned_per_s'] or 0):8.1f} syncs={r['sync_count']} sync_s={float(r['last_sync_s'] or 0):.3f}")
+            print(f"  {wid:02d} {r['role']:<32} pid={r['pid']} age={age:6.1f}s slot@300s={slot:3d}s batches={r['batches']} learned={r['learned']} new={r['new_results']} streak={r['no_new_streak']} stop={r['termination_reason'] or '-'} imported={r['imported']} errors={r['errors']} last_batch={float(r['last_batch_s'] or 0):.3f}s learn/s={float(r['learned_per_s'] or 0):8.1f} syncs={r['sync_count']} sync_s={float(r['last_sync_s'] or 0):.3f}")
     except Exception as exc: print("worker status error:",repr(exc))
     print("\nrecent checkpoint events:")
     try:

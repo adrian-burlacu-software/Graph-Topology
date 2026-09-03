@@ -51,6 +51,10 @@ def build_parser():
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,
                     help="Maximum derived compositions per worker run")
+    ap.add_argument("--composition-max-depth", type=int, default=3,
+                    help="Maximum number of edges in a derived composition path")
+    ap.add_argument("--max-no-new-batches", type=int, default=1000,
+                    help="Stop a worker after this many consecutive no-new-result batches; 0 disables")
     ap.add_argument(
         "--worker-query-batch-subjects",
         type=int,
