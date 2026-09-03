@@ -40,6 +40,12 @@ def build_parser():
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,
                     help="Maximum derived compositions per worker run")
+    ap.add_argument(
+        "--worker-query-batch-subjects",
+        type=int,
+        default=128,
+        help="Graph subjects each worker analyzes per queued task.",
+    )
     return ap
 
 

@@ -56,6 +56,21 @@ RELATION_GROUPS = {
 }
 
 QUERY_SUBJECTS = ("en:animal", "en:bear", "en:dog")
+COMPOSITION_RELATIONS = tuple(
+    dict.fromkeys(
+        relation
+        for relations in RELATION_GROUPS.values()
+        for relation in relations
+    )
+)
+COMPOSITION_PRIORITY = {
+    relation: index
+    for index, relation in enumerate((
+        "is_a", "has_part", "has_a", "part_of", "has_property",
+        "capable_of", "causes", "used_for", "at_location",
+        "synonym", "similar_to", "related_to", "antonym",
+    ))
+}
 
 
 def read_counts(conn):
@@ -132,11 +147,13 @@ def feature_for_pair(conn, subject, relation, obj):
 
 def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
     rng = random.Random(seed + worker_id * 100003 + batch_no * 9973)
-    subjects = (
-        [str(subject) for subject in focus_subjects]
-        if focus_subjects
-        else sample_subjects(conn, seed + batch_no * 17, worker_id, 64)
+    sampled = sample_subjects(
+        conn, seed + batch_no * 17, worker_id,
+        int(getattr(ram, "query_batch_subjects", 64)),
     )
+    subjects = list(dict.fromkeys(
+        [str(subject) for subject in (focus_subjects or [])] + sampled
+    ))
     learned = 0
     inspected = 0
 
@@ -191,7 +208,24 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                     neg_rel, neg_obj = str(neg[1]), str(neg[2])
                     if neg_rel == pos_rel or neg_obj == pos_obj:
                         continue
-                    ram.upsert_knowledge(lane, subject, pos_rel, neg_obj, {"positive_relation": pos_rel, "distractor_relation": neg_rel, "positive_object": pos_obj}, negative=1, confidence=0.5, source="offline_counterrelation", provenance="derived", derivation_depth=1)
+                    ram.upsert_knowledge(
+                        "relation_exclusion",
+                        subject,
+                        f"is_not:{pos_rel}",
+                        neg_obj,
+                        {
+                            "positive_relation": pos_rel,
+                            "distractor_relation": neg_rel,
+                            "positive_object": pos_obj,
+                            "reason": "contrasting_observed_relation",
+                        },
+                        negative=1,
+                        confidence=0.5,
+                        source="offline_counterrelation",
+                        provenance="derived",
+                        derivation_depth=1,
+                        contradiction_group=f"{subject}|{pos_rel}|{neg_obj}",
+                    )
                     learned += 1
                     inspected += 1
                     break
@@ -208,14 +242,18 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
             if ram.composition_produced >= max_derived:
                 break
             subject_produced = 0
+            placeholders = ",".join("?" for _ in COMPOSITION_RELATIONS)
             rows = conn.execute(
-                """
+                f"""
                 SELECT subject,relation,object FROM edges
-                WHERE subject=? AND relation='is_a' AND object != ?
-                ORDER BY object
+                WHERE subject=? AND relation IN ({placeholders}) AND object != ?
+                ORDER BY CASE relation
+                    {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
+                    ELSE {len(COMPOSITION_PRIORITY)}
+                END, object
                 LIMIT 256
                 """,
-                (subject, subject),
+                (subject, *COMPOSITION_RELATIONS, subject),
             ).fetchall()
             for row in rows:
                 if subject_produced >= per_subject_max:
@@ -224,14 +262,17 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                     break
                 mid, rel1 = str(row[2]), str(row[1])
                 second_rows = conn.execute(
-                    """
+                    f"""
                     SELECT subject,relation,object FROM edges
-                    WHERE subject=? AND relation='is_a'
+                    WHERE subject=? AND relation IN ({placeholders})
                       AND object != ? AND object != ?
-                    ORDER BY object
+                    ORDER BY CASE relation
+                        {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
+                        ELSE {len(COMPOSITION_PRIORITY)}
+                    END, object
                     LIMIT 64
                     """,
-                    (mid, subject, mid),
+                    (mid, *COMPOSITION_RELATIONS, subject, mid),
                 ).fetchall()
                 for row2 in second_rows[:fanout]:
                     if subject_produced >= per_subject_max:
@@ -240,7 +281,12 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                         break
                     rel2, obj = str(row2[1]), str(row2[2])
                     ram.upsert_transition(rel1, rel2, confidence=0.5, count=1, provenance="derived", derivation_depth=2)
-                    ram.upsert_knowledge(lane, subject, rel1 + "->" + rel2, obj, {"middle": mid, "depth": 2}, positive=1, confidence=0.4, source="offline_composition", provenance="derived", derivation_depth=2)
+                    ram.upsert_knowledge(
+                        lane, subject, rel1 + "->" + rel2, obj,
+                        {"middle": mid, "depth": 2, "relations": [rel1, rel2]},
+                        positive=1, confidence=0.4, source="offline_composition",
+                        provenance="derived", derivation_depth=2,
+                    )
                     learned += 1; inspected += 1; produced += 1
                     subject_produced += 1
                     ram.composition_produced += 1
@@ -250,14 +296,21 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
         # composition. Store it separately so composition statistics remain
         # interpretable and the controller can later learn contextual pairings.
         for subject in subjects:
-            relations = sorted({
-                str(row[1])
-                for row in fetch_outgoing(conn, subject, 96)
-                if str(row[1]) in {
-                    "is_a", "has_a", "has_property", "capable_of",
-                    "at_location", "used_for",
-                }
-            })
+            placeholders = ",".join("?" for _ in COMPOSITION_RELATIONS)
+            relations = [
+                str(row[0])
+                for row in conn.execute(
+                    f"""
+                    SELECT DISTINCT relation FROM edges
+                    WHERE subject=? AND relation IN ({placeholders})
+                    ORDER BY CASE relation
+                        {" ".join(f"WHEN '{relation}' THEN {COMPOSITION_PRIORITY.get(relation, len(COMPOSITION_PRIORITY))}" for relation in COMPOSITION_RELATIONS)}
+                        ELSE {len(COMPOSITION_PRIORITY)}
+                    END
+                    """,
+                    (subject, *COMPOSITION_RELATIONS),
+                ).fetchall()
+            ]
             for index, first in enumerate(relations[:12]):
                 for second in relations[index + 1:12]:
                     ram.upsert_knowledge(
@@ -304,6 +357,7 @@ def worker_main(args, worker_id: int, stop_event=None):
     ram = RamSemanticMemory(worker_id)
     ram.composition_fanout = int(getattr(args, "composition_fanout", 4))
     ram.composition_max = int(getattr(args, "composition_max", 2000))
+    ram.query_batch_subjects = int(getattr(args, "worker_query_batch_subjects", 128))
     shared = SharedCheckpoint(args.shared_memory, worker_id, args.total_workers, args.checkpoint_seconds)
     log_path = Path(args.worker_log_dir) / f"worker_{worker_id:02d}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)

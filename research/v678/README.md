@@ -200,3 +200,16 @@ low-priority exploration task for animal, bear, or dog in round-robin order.
 This keeps all 19 processes actively querying the graph while preserving one
 task per lane and giving user questions priority. `--batch-sleep 0` is the
 default; increase it only when you intentionally want to cap CPU usage.
+Each queued task includes the focused subject plus a rotating batch of graph
+subjects (`--worker-query-batch-subjects`, default `128`) so lanes perform
+substantial graph work rather than repeatedly reading one edge.
+
+### Relation composition and exclusion
+
+The composition lane derives bounded two-edge paths over every relation
+registered by the specialist lanes. Pairs are prioritized by the semantic
+relation registry, while node-cycle checks prevent tautologies. This includes
+patterns such as `is_a → is_a` and `is_a → has_a` when supported by graph
+edges. Counterrelation mining separately stores negative `is_not:<relation>`
+evidence with its competing observed relation and contradiction group; this is
+training evidence, not a graph fact.
