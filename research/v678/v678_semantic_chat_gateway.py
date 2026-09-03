@@ -885,6 +885,44 @@ def choose_semantic_goal(
             "frame": question_argument_frame(parse),
             "syntax_frame": structural_question_frame(parse),
         }
+    target_words = {
+        word
+        for term in target_terms
+        for word in re.findall(r"[a-z0-9]+", str(term).lower())
+    }
+    target_pos = {
+        str(item.get("pos", "")).upper()
+        for item in (parse.tokens or [])
+        if str(item.get("text") or item.get("lemma") or "").lower() in target_words
+    }
+    if (
+        str(parse.root_lemma or "").lower() == "be"
+        and target_terms
+        and "type" in available_goals
+        and target_pos.intersection({"NOUN", "PROPN"})
+    ):
+        return "type", {
+            "source": "structural_copular_type",
+            "confidence": 1.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
+    if (
+        str(parse.root_lemma or "").lower() == "be"
+        and target_terms
+        and "property" in available_goals
+        and "ADJ" in target_pos
+    ):
+        return "property", {
+            "source": "structural_copular_property",
+            "confidence": 1.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
     if (
         str(parse.root_lemma or "").lower() in {"have", "has"}
         and subject

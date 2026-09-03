@@ -178,6 +178,11 @@ it never replaces graph-grounded routing or appears in the user answer. Use a
 fresh shared database when changing worker-learning behavior so stale
 discoveries cannot appear.
 
+The worker-discovery benchmark evaluates those ordinary questions using the
+same graph-authoritative type route. It intentionally asserts the subject,
+`type` goal, and expected target rather than a mutable worker-record key, since
+workers may continue to add supporting evidence while the benchmark runs.
+
 ### Query-time worker pool
 
 Every animal, bear, or dog question is also dispatched to all 19 specialist
