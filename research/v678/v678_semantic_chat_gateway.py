@@ -884,16 +884,17 @@ def choose_semantic_goal(
     )
     if copular_match and subject:
         copular_target = copular_match.group(2).strip()
-        type_markers = {
-            "animal", "organism", "thing", "mammal", "carnivore", "canine",
-            "canid", "vertebrate", "quadruped", "predator",
-        }
         if (
             "type" in available_goals
-            and set(re.findall(r"[a-z]+", copular_target)).intersection(type_markers)
+            and graph.has_goal_path(
+                subject,
+                "type",
+                [copular_target],
+                max_depth=2,
+            )
         ):
             return "type", {
-                "source": "structural_copular_type_form",
+                "source": "structural_copular_type_path",
                 "confidence": 1.0,
                 "candidates": [item["goal"] for item in goals],
                 "candidate_details": goals,

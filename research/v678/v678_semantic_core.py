@@ -1373,6 +1373,29 @@ class Graph:
 
         return facts[:int(limit)]
 
+    def has_goal_path(self, subject, goal, target_terms, max_depth=2):
+        """Check bounded same-goal reachability without lexical goal heuristics."""
+        relations = set(self.semantic_relations_for_goal(goal))
+        if not relations or not target_terms:
+            return False
+        frontier = {str(subject)}
+        visited = set(frontier)
+        for _ in range(max(1, int(max_depth))):
+            next_frontier = set()
+            for node in frontier:
+                for edge in self.outgoing(node, 256):
+                    if edge.relation not in relations:
+                        continue
+                    if self.target_matches_terms(edge.object, target_terms):
+                        return True
+                    if edge.object not in visited:
+                        visited.add(edge.object)
+                        next_frontier.add(edge.object)
+            frontier = next_frontier
+            if not frontier:
+                break
+        return False
+
     def relation_vocab(self, limit=200):
         rows = self.conn.execute(
             """
