@@ -21,6 +21,20 @@ def normalize_surface(value):
     return re.sub(r"^(?:a|an|the)\s+", "", text)
 
 
+def normalize_question_text(value):
+    """Expand standard interrogative contractions before structural parsing."""
+    text = str(value or "").lower().replace("’", "'")
+    return re.sub(
+        r"\b(what|who|where|when|why|how|which)'(s|re)\b",
+        lambda match: (
+            f"{match.group(1)} is"
+            if match.group(2) == "s"
+            else f"{match.group(1)} are"
+        ),
+        text,
+    )
+
+
 def lexical_forms(value):
     """Return deterministic spelling and regular-inflection equivalents."""
     base = normalize_surface(value)
@@ -2298,6 +2312,18 @@ def entity_mention(parse):
         item for item in (parse.tokens or [])
         if isinstance(item, dict)
     ]
+    question = normalize_question_text(parse.text)
+    # The semantic subject may occur outside spaCy's nominal-subject position
+    # in possessive and prepositional part questions.
+    for pattern in (
+        r"\b([a-z0-9_-]+)'s\s+(?:part|parts|component|components)\b",
+        r"\b(?:part|parts|component|components)\s+of\s+(?:(?:a|an|the)\s+)?([a-z0-9_-]+)\b",
+        r"\b(?:do|does|did)\s+(?:a|an|the\s+)?([a-z0-9_-]+)\s+(?:have|has|contain|contains)\b",
+    ):
+        match = re.search(pattern, question)
+        if match:
+            return normalize_surface(match.group(1))
+
     for item in tokens:
         if str(item.get("dep", "")).lower() in {"nsubj", "nsubjpass"}:
             value = str(item.get("text", "")).strip()
@@ -2375,9 +2401,10 @@ def concept_mention(parse):
 
 
 def structural_concept_question(parse):
+    question_text = normalize_question_text(parse.text)
     words = re.findall(
         r"[a-z]+",
-        str(parse.text or "").lower(),
+        question_text,
     )
     definition_frame = (
         len(words) >= 2
@@ -2396,6 +2423,10 @@ def structural_concept_question(parse):
     )
     return (
         definition_frame
+        and not re.search(
+            r"\b(?:part|parts|component|components)\b",
+            question_text,
+        )
         and parse.root_lemma in {
             "be",
             "mean",

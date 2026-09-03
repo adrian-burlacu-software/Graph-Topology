@@ -152,6 +152,42 @@ def normalization_variants(cases):
     return variants
 
 
+def grammar_normalization_cases():
+    cases = []
+    for subject in ("animal", "bear", "dog"):
+        cases.append({
+            "id": f"definition_{subject}_contraction",
+            "group": "definition",
+            "question": f"What's {'an' if subject[0] in 'aeiou' else 'a'} {subject}?",
+            "normalization_variant": "interrogative_contraction",
+            "expected": {
+                "subject": f"en:{subject}",
+                "semantic_goal": "definition",
+                "direct_proof": True,
+            },
+        })
+    for subject in ("dog", "bear", "animal"):
+        expected = {
+            "subject": f"en:{subject}",
+            "semantic_goal": "part",
+            "direct_proof": True,
+        }
+        for index, question in enumerate((
+            f"What parts does {subject} have?",
+            f"What are the parts of {subject}?",
+            f"What are {subject}'s parts?",
+            f"What's {subject}'s parts?",
+        ), 1):
+            cases.append({
+                "id": f"part_inventory_{subject}_{index}",
+                "group": "part_inventory",
+                "question": question,
+                "normalization_variant": "part_subject_placement",
+                "expected": expected,
+            })
+    return cases
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Run focused graph dialogue benchmark cases."
@@ -168,7 +204,7 @@ def main():
     ap.add_argument(
         "--normalization-variants",
         action="store_true",
-        help="Also run equivalent optional-determiner forms (64 cases total).",
+        help="Run determiner, contraction, and part-subject grammar variants.",
     )
     args = ap.parse_args()
 
@@ -176,6 +212,7 @@ def main():
     cases = build_cases(graph)
     if args.normalization_variants:
         cases += normalization_variants(cases)
+        cases += grammar_normalization_cases()
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 

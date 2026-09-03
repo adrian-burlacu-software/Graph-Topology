@@ -20,6 +20,7 @@ from v678_semantic_core import (
     relation_hypotheses,
     search,
     structural_question_frame,
+    normalize_question_text,
 )
 from v678_memory import RamSemanticMemory, SharedCheckpoint, SharedDistilledMemory
 
@@ -654,19 +655,30 @@ def question_target_terms(parse):
         word in {"part", "parts", "component", "components"}
         for word in re.findall(r"[a-z]+", parse.text.lower())
     ):
+        terms = [
+            term for term in terms
+            if term not in {"part", "parts", "component", "components"}
+        ]
         phrase_terms = [
             term for term in phrase_terms
             if term not in {"part", "parts", "component", "components"}
         ]
+        if requested_part_list(parse.text):
+            return []
     return (phrase_terms or terms)[:8]
 
 
 def is_definition_form(parse):
-    words = re.findall(r"[a-z]+", str(parse.text or "").lower())
+    question_text = normalize_question_text(parse.text)
+    words = re.findall(r"[a-z]+", question_text)
     return (
         len(words) >= 2
         and words[0] in {"what", "who"}
         and words[1] in {"is", "are", "was", "were"}
+        and not re.search(
+            r"\b(?:part|parts|component|components)\b",
+            question_text,
+        )
     )
 
 
@@ -699,6 +711,16 @@ def choose_semantic_goal(
         }
 
     target_terms = question_target_terms(parse)
+    available_goals = {item["goal"] for item in goals}
+    if requested_part_list(parse.text) and "part" in available_goals:
+        return "part", {
+            "source": "structural_part_inventory",
+            "confidence": 1.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
     direct_goal_matches = {
         item["goal"]: graph.find_goal_facts(
             subject,
@@ -1319,7 +1341,10 @@ def clean_surface_answer(answer):
 
 def requested_part_list(question):
     words = set(re.findall(r"[a-z]+", str(question).lower()))
-    return bool(words.intersection({"parts", "components"}))
+    return (
+        bool(words.intersection({"part", "parts", "component", "components"}))
+        and bool(words.intersection({"what", "which"}))
+    )
 
 
 def is_polar_question(parse):
