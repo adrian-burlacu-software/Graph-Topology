@@ -162,3 +162,11 @@ Add equivalent determiner, contraction, and part-subject grammar forms for a
 ```powershell
 python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\normalization_benchmark.jsonl" --normalization-variants --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
+
+After offline workers have populated the shared checkpoint, include dynamic
+worker-only transition cases. These answers are labelled as derived worker
+observations, never as semantic-graph facts:
+
+```powershell
+python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\worker_discovery_benchmark.jsonl" --normalization-variants --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+```

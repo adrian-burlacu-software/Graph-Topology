@@ -12,6 +12,7 @@ from v678_semantic_chat_gateway import (
     LiveSemanticTeacher,
     LocalLLMRuntime,
     Realizer,
+    WorkerDiscoveryReader,
     handle_turn,
 )
 from v678_semantic_core import Attention, Context, Graph, SpaCyParser
@@ -290,6 +291,22 @@ def grammar_normalization_cases():
     return cases
 
 
+def worker_discovery_cases(shared_memory):
+    """Use live transition evidence so nondeterministic worker output is benchmarked safely."""
+    reader = WorkerDiscoveryReader(shared_memory)
+    return [
+        {
+            "id": f"worker_discovery_{index}",
+            "group": "worker_discovery",
+            "question": topic,
+            "expected": {
+                "intent": "worker_discovery",
+            },
+        }
+        for index, topic in enumerate(dict.fromkeys(reader.topics(limit=12)), 1)
+    ]
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Run focused graph dialogue benchmark cases."
@@ -308,6 +325,11 @@ def main():
         action="store_true",
         help="Run determiner, contraction, and part-subject grammar variants.",
     )
+    ap.add_argument(
+        "--shared-memory",
+        default="",
+        help="Include live worker-discovery transition cases from this checkpoint.",
+    )
     args = ap.parse_args()
 
     graph = Graph(args.database, args.cache_entries)
@@ -315,6 +337,13 @@ def main():
     if args.normalization_variants:
         cases += normalization_variants(cases)
         cases += grammar_normalization_cases()
+    worker_discoveries = (
+        WorkerDiscoveryReader(args.shared_memory)
+        if args.shared_memory
+        else None
+    )
+    if worker_discoveries is not None:
+        cases += worker_discovery_cases(args.shared_memory)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -337,22 +366,30 @@ def main():
                 teacher,
                 distilled,
                 args,
+                worker_discoveries,
             )
             route = trace["route"]
             expected = case["expected"]
-            passed = (
-                route["success"]
-                and route["subject"] == expected["subject"]
-                and route["direct_proof"] == expected["direct_proof"]
-                and (
-                    expected["semantic_goal"]
-                    == trace["search"].get("semantic_goal", route["relation"])
+            if expected.get("intent") == "worker_discovery":
+                passed = (
+                    route["success"]
+                    and route["intent"] == "worker_discovery"
+                    and "worker_discovery" in trace
                 )
-                and (
-                    "target" not in expected
-                    or route["target"] == expected["target"]
+            else:
+                passed = (
+                    route["success"]
+                    and route["subject"] == expected["subject"]
+                    and route["direct_proof"] == expected["direct_proof"]
+                    and (
+                        expected["semantic_goal"]
+                        == trace["search"].get("semantic_goal", route["relation"])
+                    )
+                    and (
+                        "target" not in expected
+                        or route["target"] == expected["target"]
+                    )
                 )
-            )
             record = {
                 "record_type": "benchmark_case",
                 "benchmark": "v678_focused_graph",

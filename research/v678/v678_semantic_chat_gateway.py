@@ -92,6 +92,134 @@ class MemoryContext(Context):
         )
 
 
+class WorkerDiscoveryReader:
+    """Read derived worker evidence without treating it as source graph truth."""
+
+    def __init__(self, shared_memory):
+        self.path = Path(shared_memory)
+
+    def topics(self, limit=4):
+        if not self.path.exists():
+            return []
+        try:
+            with sqlite3.connect(
+                f"file:{self.path.resolve()}?mode=ro",
+                uri=True,
+            ) as connection:
+                rows = connection.execute(
+                    """
+                    SELECT previous_relation,next_relation
+                    FROM relation_transitions
+                    ORDER BY count DESC,confidence DESC
+                    LIMIT ?
+                    """,
+                    (int(limit),),
+                ).fetchall()
+        except sqlite3.Error:
+            return []
+        topics = [
+            f"What relation commonly follows {row[0]}?"
+            for row in rows
+        ]
+        try:
+            with sqlite3.connect(f"file:{self.path.resolve()}?mode=ro", uri=True) as connection:
+                kinds = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT DISTINCT kind FROM semantic_knowledge "
+                        "WHERE positive > negative AND provenance='derived'"
+                    )
+                }
+        except sqlite3.Error:
+            kinds = set()
+        prompts = {
+            "relation_interaction_statistics": "Which relation pair do workers most often observe together?",
+            "relation_composition": "What two-step relation composition did workers observe?",
+            "relation_inverse": "What inverse relation did workers observe?",
+            "relation_symmetry": "What symmetric relation did workers observe?",
+        }
+        return topics + [prompt for kind, prompt in prompts.items() if kind in kinds]
+
+    def answer(self, question):
+        match = re.fullmatch(
+            r"\s*what relation commonly follows ([a-z0-9_/-]+)\?\s*",
+            str(question).lower(),
+        )
+        if not self.path.exists():
+            return None
+        if not match:
+            prompts = {
+                "which relation pair do workers most often observe together?": "relation_interaction_statistics",
+                "what two-step relation composition did workers observe?": "relation_composition",
+                "what inverse relation did workers observe?": "relation_inverse",
+                "what symmetric relation did workers observe?": "relation_symmetry",
+            }
+            kind = prompts.get(str(question).strip().lower())
+            if not kind:
+                return None
+            try:
+                with sqlite3.connect(f"file:{self.path.resolve()}?mode=ro", uri=True) as connection:
+                    row = connection.execute(
+                        """
+                        SELECT key,relation,positive,confidence,derivation_depth
+                        FROM semantic_knowledge
+                        WHERE kind=? AND positive > negative AND provenance='derived'
+                        ORDER BY positive DESC,confidence DESC,key
+                        LIMIT 1
+                        """,
+                        (kind,),
+                    ).fetchone()
+            except sqlite3.Error:
+                return None
+            if not row:
+                return None
+            return {
+                "answer": (
+                    f"Workers observed derived {kind.replace('_', ' ')} evidence "
+                    f"({row[1] or row[0]}; support={row[2]}, "
+                    f"confidence={float(row[3]):.2f}, derivation depth={row[4]})."
+                ),
+                "previous_relation": kind,
+                "next_relation": row[1] or row[0],
+                "count": int(row[2]),
+                "confidence": float(row[3]),
+                "derivation_depth": int(row[4]),
+                "kind": kind,
+            }
+        try:
+            with sqlite3.connect(
+                f"file:{self.path.resolve()}?mode=ro",
+                uri=True,
+            ) as connection:
+                row = connection.execute(
+                    """
+                    SELECT next_relation,count,confidence,derivation_depth
+                    FROM relation_transitions
+                    WHERE previous_relation=?
+                    ORDER BY count DESC,confidence DESC,next_relation
+                    LIMIT 1
+                    """,
+                    (match.group(1),),
+                ).fetchone()
+        except sqlite3.Error:
+            return None
+        if not row:
+            return None
+        return {
+            "answer": (
+                f"Workers observed {row[0]} most often after "
+                f"{match.group(1)} (support={row[1]}, "
+                f"confidence={float(row[2]):.2f}, "
+                f"derivation depth={row[3]})."
+            ),
+            "previous_relation": match.group(1),
+            "next_relation": row[0],
+            "count": int(row[1]),
+            "confidence": float(row[2]),
+            "derivation_depth": int(row[3]),
+        }
+
+
 class LocalLLMRuntime:
     """One shared SmolLM tokenizer/model for teacher and realizer."""
     def __init__(self, model_path):
@@ -1407,6 +1535,7 @@ def handle_turn(
     teacher,
     distilled,
     args,
+    worker_discoveries=None,
 ):
     started = time.perf_counter()
 
@@ -1418,6 +1547,49 @@ def handle_turn(
         time.perf_counter()
         - t0
     )
+    discovery = (
+        worker_discoveries.answer(question)
+        if worker_discoveries is not None
+        else None
+    )
+    if discovery:
+        total_seconds = time.perf_counter() - started
+        result = {
+            "success": True,
+            "steps": 0,
+            "path": [],
+            "target": discovery["next_relation"],
+            "attention": 0,
+            "exploration": 0,
+            "direct_proof": False,
+            "proof_kind": "worker_derived_transition",
+        }
+        trace = {
+            "question": question,
+            "answer": discovery["answer"],
+            "route": {
+                "intent": "worker_discovery",
+                "subject": discovery["previous_relation"],
+                "relation": discovery["next_relation"],
+                "mode": "worker_derived",
+                **result,
+            },
+            "parse": asdict(parse),
+            "worker_discovery": discovery,
+            "timing": {
+                "parse_seconds": parse_seconds,
+                "hypothesis_seconds": 0.0,
+                "distillation_seconds": 0.0,
+                "search_seconds": 0.0,
+                "llm_seconds": 0.0,
+                "total_seconds": total_seconds,
+                "realization_seconds": 0.0,
+            },
+        }
+        memory.turns.append(trace)
+        memory.turns = memory.turns[-256:]
+        memory.save()
+        return discovery["answer"], trace
 
     # Speech-act routing happens before graph hypothesis generation. This
     # prevents conversational requests such as "tell me a joke" from being
@@ -2281,6 +2453,7 @@ def run_chat_worker(args):
     except Exception:
         pass
     distilled = SharedDistilledMemory(graph, ram_memory, checkpoint)
+    worker_discoveries = WorkerDiscoveryReader(args.shared_memory)
 
     # Keep online semantic memory synchronized even while the user is idle.
     # The checkpoint itself decides whether the current-time modulus slot belongs
@@ -2345,6 +2518,7 @@ def run_chat_worker(args):
         "What is a tree?",
         "What is food?",
     ]
+    topics.extend(worker_discoveries.topics())
 
     for index, question in enumerate(
         topics,
@@ -2377,6 +2551,7 @@ def run_chat_worker(args):
                 teacher,
                 distilled,
                 args,
+                worker_discoveries,
             )
             print(
                 f"\nQ: {question}",
@@ -2467,6 +2642,7 @@ def run_chat_worker(args):
                 teacher,
                 distilled,
                 args,
+                worker_discoveries,
             )
 
             print(
