@@ -174,8 +174,9 @@ python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused
 After a checkpoint, chat displays up to ten focused, ordinary taxonomy
 questions backed by non-cyclic worker-discovered `is_a` paths for animal, bear,
 and dog. Worker provenance remains in the trace and benchmark instrumentation;
-it is not exposed in the user question or answer. Use a fresh shared database
-when changing worker-learning behavior so stale discoveries cannot appear.
+it never replaces graph-grounded routing or appears in the user answer. Use a
+fresh shared database when changing worker-learning behavior so stale
+discoveries cannot appear.
 
 ### Query-time worker pool
 

@@ -300,10 +300,10 @@ def worker_discovery_cases(shared_memory):
             "group": "worker_discovery",
             "question": reader.topic_for(discovery),
             "expected": {
-                "intent": "worker_discovery",
                 "subject": discovery["subject"],
-                "kind": discovery["kind"],
-                "record_key": discovery["key"],
+                "semantic_goal": "type",
+                "target": discovery["object"],
+                "worker_record_key": discovery["key"],
             },
         }
         for discovery in reader.discoveries(limit=10)
@@ -386,7 +386,6 @@ def main():
                 passed = (
                     route["success"]
                     and route["subject"] == expected["subject"]
-                    and route["direct_proof"] == expected["direct_proof"]
                     and (
                         expected["semantic_goal"]
                         == trace["search"].get("semantic_goal", route["relation"])
@@ -396,6 +395,8 @@ def main():
                         or route["target"] == expected["target"]
                     )
                 )
+                if "direct_proof" in expected:
+                    passed = passed and route["direct_proof"] == expected["direct_proof"]
             record = {
                 "record_type": "benchmark_case",
                 "benchmark": "v678_focused_graph",

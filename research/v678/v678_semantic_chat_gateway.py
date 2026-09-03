@@ -718,7 +718,10 @@ def question_target_terms(parse):
         if str(item.get("lemma") or item.get("text") or "").lower()
         in {"do", "does", "did", "can", "could", "be", "is", "are", "was", "were"}
     ]
-    if str(parse.question or "") in {"QUESTION", "WH_WHAT", "WH_WHICH"}:
+    if (
+        not subject_indexes
+        and str(parse.question or "") in {"QUESTION", "WH_WHAT", "WH_WHICH"}
+    ):
         for auxiliary_index in auxiliary_indexes:
             structural_subject = next(
                 (
@@ -876,6 +879,20 @@ def choose_semantic_goal(
     if requested_part_list(parse.text) and "part" in available_goals:
         return "part", {
             "source": "structural_part_inventory",
+            "confidence": 1.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
+    if (
+        str(parse.root_lemma or "").lower() in {"have", "has"}
+        and subject
+        and target_terms
+        and "part" in available_goals
+    ):
+        return "part", {
+            "source": "structural_possessive_part",
             "confidence": 1.0,
             "candidates": [item["goal"] for item in goals],
             "candidate_details": goals,
@@ -1564,11 +1581,9 @@ def handle_turn(
         - t0
     )
     worker_query_id = dispatch_worker_query(worker_pool, question)
-    discovery = (
-        worker_discoveries.answer(question)
-        if worker_discoveries is not None
-        else None
-    )
+    # Worker records support later answers and diagnostics, but never replace
+    # graph-authoritative routing for an ordinary user question.
+    discovery = None
     if discovery:
         total_seconds = time.perf_counter() - started
         result = {
