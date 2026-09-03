@@ -667,9 +667,9 @@ def choose_semantic_goal(
             "syntax_frame": structural_question_frame(parse),
         }
 
-    # A non-definition question with an explicit argument must not be answered
-    # by an unrelated definition merely because no requested graph fact exists.
-    if target_terms and not is_definition_form(parse):
+    # Definition is available only to grammatical definition requests. Other
+    # questions must not return a definition merely because it is easy to prove.
+    if not is_definition_form(parse):
         goals = [
             item for item in goals
             if item["goal"] != "definition"
