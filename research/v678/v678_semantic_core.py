@@ -2294,8 +2294,27 @@ def concept_mention(parse):
 
 
 def structural_concept_question(parse):
+    words = re.findall(
+        r"[a-z]+",
+        str(parse.text or "").lower(),
+    )
+    definition_frame = (
+        len(words) >= 2
+        and (
+            (
+                words[0] in {"what", "who"}
+                and words[1] in {"is", "are", "was", "were"}
+            )
+            or (
+                words[0] == "what"
+                and len(words) >= 3
+                and words[1] in {"does", "do", "did"}
+                and words[-1] == "mean"
+            )
+        )
+    )
     return (
-        parse.question == "WH_WHAT"
+        definition_frame
         and parse.root_lemma in {
             "be",
             "mean",
