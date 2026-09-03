@@ -154,6 +154,20 @@ def normalization_variants(cases):
 
 def grammar_normalization_cases():
     cases = []
+    cases.append({
+        "id": "property_dog_larger_than_a_cat",
+        "group": "property",
+        "question": "Is a dog larger than a cat?",
+        "normalization_variant": "internal_optional_determiner",
+        "expected": {
+            "subject": "en:dog",
+            "semantic_goal": "property",
+            "relation": "has_property",
+            "target": "en:larger than cat",
+            "target_label": "larger than cat",
+            "direct_proof": True,
+        },
+    })
     for subject in ("animal", "bear", "dog"):
         cases.append({
             "id": f"definition_{subject}_contraction",

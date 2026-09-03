@@ -17,8 +17,9 @@ def normalize_surface(value):
     text = re.sub(r"[^a-z0-9'\s]", " ", text)
     text = re.sub(r"(^|\s)([a-z]+)['’]s(?=\s|$)", r"\1\2", text)
     text = text.replace("'", " ")
+    text = re.sub(r"\b(?:a|an|the)\s+", "", text)
     text = " ".join(text.split())
-    return re.sub(r"^(?:a|an|the)\s+", "", text)
+    return text
 
 
 def normalize_question_text(value):
