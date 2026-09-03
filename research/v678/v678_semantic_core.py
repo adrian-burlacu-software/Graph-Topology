@@ -2296,6 +2296,7 @@ def entity_mention(parse):
         "these",
         "those",
     }
+    excluded = wh | refs | {"a", "an", "the"}
 
     tokens = [
         item for item in (parse.tokens or [])
@@ -2304,7 +2305,7 @@ def entity_mention(parse):
     for item in tokens:
         if str(item.get("dep", "")).lower() in {"nsubj", "nsubjpass"}:
             value = str(item.get("text", "")).strip()
-            if value and value.lower() not in refs:
+            if value and value.lower() not in excluded:
                 return value
 
     # spaCy can label the lexical subject of short copular questions (for
@@ -2334,8 +2335,7 @@ def entity_mention(parse):
         parts = [
             part
             for part in str(value).split()
-            if part.lower()
-            not in wh | refs
+            if part.lower() not in excluded
         ]
         if parts:
             return " ".join(
