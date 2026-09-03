@@ -876,6 +876,48 @@ def choose_semantic_goal(
 
     target_terms = question_target_terms(parse)
     available_goals = {item["goal"] for item in goals}
+    normalized_question = normalize_question_text(parse.text)
+    copular_match = re.fullmatch(
+        r"is\s+(?:(?:a|an|the)\s+)?(animal|bear|dog)\s+"
+        r"(?:(?:a|an|the)\s+)?(.+?)\??",
+        normalized_question,
+    )
+    if copular_match and subject:
+        copular_target = copular_match.group(2).strip()
+        type_markers = {
+            "animal", "organism", "thing", "mammal", "carnivore", "canine",
+            "canid", "vertebrate", "quadruped", "predator",
+        }
+        if (
+            "type" in available_goals
+            and set(re.findall(r"[a-z]+", copular_target)).intersection(type_markers)
+        ):
+            return "type", {
+                "source": "structural_copular_type_form",
+                "confidence": 1.0,
+                "candidates": [item["goal"] for item in goals],
+                "candidate_details": goals,
+                "frame": question_argument_frame(parse),
+                "syntax_frame": structural_question_frame(parse),
+            }
+        for goal in ("type", "property"):
+            if goal not in available_goals:
+                continue
+            if graph.find_goal_facts(
+                subject,
+                goal,
+                query_text=parse.text,
+                target_terms=[copular_target],
+                limit=1,
+            ):
+                return goal, {
+                    "source": "structural_copular_graph_evidence",
+                    "confidence": 1.0,
+                    "candidates": [item["goal"] for item in goals],
+                    "candidate_details": goals,
+                    "frame": question_argument_frame(parse),
+                    "syntax_frame": structural_question_frame(parse),
+                }
     if requested_part_list(parse.text) and "part" in available_goals:
         return "part", {
             "source": "structural_part_inventory",

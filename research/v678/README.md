@@ -182,6 +182,8 @@ The worker-discovery benchmark evaluates those ordinary questions using the
 same graph-authoritative type route. It intentionally asserts the subject,
 `type` goal, and expected target rather than a mutable worker-record key, since
 workers may continue to add supporting evidence while the benchmark runs.
+Delete the shared-memory database before a run after changing worker-lane
+logic; it intentionally retains prior worker evidence across restarts.
 
 ### Query-time worker pool
 

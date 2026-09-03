@@ -294,6 +294,7 @@ def grammar_normalization_cases():
 def worker_discovery_cases(shared_memory):
     """Use ten focused, live worker discoveries without inventing static facts."""
     reader = WorkerDiscoveryReader(shared_memory)
+    discoveries = reader.discoveries(limit=10)
     return [
         {
             "id": f"worker_discovery_{discovery['kind']}_{discovery['subject']}".replace(":", "_"),
@@ -306,7 +307,7 @@ def worker_discovery_cases(shared_memory):
                 "worker_record_key": discovery["key"],
             },
         }
-        for discovery in reader.discoveries(limit=10)
+        for discovery in discoveries
     ]
 
 
