@@ -205,6 +205,50 @@ def grammar_normalization_cases():
             "direct_proof": True,
         },
     })
+    cases.extend((
+        {
+            "id": "part_dog_plural_subject",
+            "group": "part",
+            "question": "Do dogs have teeth?",
+            "normalization_variant": "plural_subject_auxiliary",
+            "expected": {
+                "subject": "en:dog",
+                "semantic_goal": "part",
+                "relation": "has_a",
+                "target": "en:teeth",
+                "target_label": "teeth",
+                "direct_proof": True,
+            },
+        },
+        {
+            "id": "property_dog_plural_subject",
+            "group": "property",
+            "question": "Are dogs brown?",
+            "normalization_variant": "plural_subject_copular",
+            "expected": {
+                "subject": "en:dog",
+                "semantic_goal": "property",
+                "relation": "has_property",
+                "target": "en:brown",
+                "target_label": "brown",
+                "direct_proof": True,
+            },
+        },
+        {
+            "id": "capability_animal_plural_subject",
+            "group": "capability",
+            "question": "Can animals eat?",
+            "normalization_variant": "plural_subject_inflection",
+            "expected": {
+                "subject": "en:animal",
+                "semantic_goal": "capability",
+                "relation": "capable_of",
+                "target": "en:eating",
+                "target_label": "eating",
+                "direct_proof": True,
+            },
+        },
+    ))
     for subject in ("animal", "bear", "dog"):
         cases.append({
             "id": f"definition_{subject}_contraction",

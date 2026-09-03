@@ -2319,7 +2319,8 @@ def entity_mention(parse):
     for pattern in (
         r"\b([a-z0-9_-]+)'s\s+(?:part|parts|component|components)\b",
         r"\b(?:part|parts|component|components)\s+of\s+(?:(?:a|an|the)\s+)?([a-z0-9_-]+)\b",
-        r"\b(?:do|does|did)\s+(?:a|an|the\s+)?([a-z0-9_-]+)\s+(?:have|has|contain|contains)\b",
+        r"\b(?:what|which)\s+(?:part|parts|component|components)\s+(?:do|does|did)\s+(?:(?:a|an|the)\s+)?([a-z0-9_-]+)\s+(?:have|has|contain|contains)\b",
+        r"^(?:do|does|did|can|could|is|are|was|were)\s+(?:(?:a|an|the)\s+)?([a-z0-9_-]+)\b",
     ):
         match = re.search(pattern, question)
         if match:

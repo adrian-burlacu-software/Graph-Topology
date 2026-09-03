@@ -581,6 +581,28 @@ def question_target_terms(parse):
         for index, item in enumerate(tokens)
         if str(item.get("dep", "")).lower() in {"nsubj", "nsubjpass"}
     }
+    auxiliary_indexes = [
+        index
+        for index, item in enumerate(tokens)
+        if str(item.get("lemma") or item.get("text") or "").lower()
+        in {"do", "does", "did", "can", "could", "be", "is", "are", "was", "were"}
+    ]
+    if str(parse.question or "") in {"QUESTION", "WH_WHAT", "WH_WHICH"}:
+        for auxiliary_index in auxiliary_indexes:
+            structural_subject = next(
+                (
+                    index
+                    for index, item in enumerate(
+                        tokens[auxiliary_index + 1:],
+                        auxiliary_index + 1,
+                    )
+                    if str(item.get("pos", "")).upper() in {"NOUN", "PROPN"}
+                ),
+                None,
+            )
+            if structural_subject is not None:
+                subject_indexes = {structural_subject}
+                break
     if (
         not subject_indexes
         and str(parse.question or "") == "QUESTION"
@@ -634,7 +656,7 @@ def question_target_terms(parse):
         phrase = " ".join(
             word
             for word in words
-            if word not in {"a", "an", "the"} | subject_surfaces
+            if word not in stop | subject_surfaces
         )
         if (
             phrase
