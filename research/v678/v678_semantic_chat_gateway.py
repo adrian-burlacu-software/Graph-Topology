@@ -466,7 +466,6 @@ def question_argument_frame(parse):
         for item in (parse.tokens or [])
         if isinstance(item,dict)
     ]
-
     predicates=[
         str(item.get("text",""))
         for item in tokens
@@ -568,17 +567,33 @@ def question_target_terms(parse):
         for item in (parse.tokens or [])
         if isinstance(item,dict)
     ]
+    subject_indexes = {
+        index
+        for index, item in enumerate(tokens)
+        if str(item.get("dep", "")).lower() in {"nsubj", "nsubjpass"}
+    }
+    if (
+        not subject_indexes
+        and str(parse.question or "") == "QUESTION"
+        and str(parse.root_lemma or "").lower() == "be"
+    ):
+        subject_indexes = {
+            index
+            for index, item in enumerate(tokens[1:], 1)
+            if str(item.get("pos", "")).upper() in {"NOUN", "PROPN"}
+        }
+        subject_indexes = set(list(subject_indexes)[:1])
 
     stop={
         "a","an","the","it","he","she","they","them",
         "this","that","these","those","what","who","where",
         "when","why","how","which","is","are","was","were",
-        "be","can","could","do","does","did","of","to",
+        "be","have","has","can","could","do","does","did","of","to",
         "for","with","and","or","on","in","at","from",
     }
 
     terms=[]
-    for item in tokens:
+    for index, item in enumerate(tokens):
         pos=str(item.get("pos","")).upper()
         dep=str(item.get("dep","")).lower()
         forms=[
@@ -588,9 +603,15 @@ def question_target_terms(parse):
 
         if not any(form and form not in stop for form in forms):
             continue
-        if pos not in {"NOUN","PROPN","ADJ","ADV"}:
+        if pos not in {"NOUN","PROPN","ADJ","ADV"} and not (
+            pos == "VERB" and dep == "root"
+        ):
             continue
-        if dep in {"nsubj","nsubjpass","det","aux","auxpass"}:
+        if (
+            index in subject_indexes
+            or dep in {"nsubj","nsubjpass","det","aux","auxpass","root"}
+            and pos != "VERB"
+        ):
             continue
         for form in forms:
             if form and form not in stop and form not in terms:

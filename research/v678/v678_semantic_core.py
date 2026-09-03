@@ -1221,17 +1221,18 @@ class Graph:
         params=[str(subject), *sorted(relations)]
         target_clause=""
         if terms:
-            # Match whole normalized/label concepts first. LIKE is used only
-            # for multi-word labels and canonical en:<term> nodes.
-            clauses=[]
+            # Every explicit argument term constrains the same graph object.
+            # OR would let a query such as "big heart" select an unrelated
+            # edge to "big", producing a false positive.
+            clauses = []
             for _term in terms:
                 clauses.append(
-                    "(lower(COALESCE(n.normalized,''))=? "
-                    "OR lower(COALESCE(n.label,''))=? "
-                    "OR lower(e.object)=?)"
+                    "(instr(lower(COALESCE(n.normalized,'')),?) > 0 "
+                    "OR instr(lower(COALESCE(n.label,'')),?) > 0 "
+                    "OR instr(lower(e.object),?) > 0)"
                 )
-                params.extend([_term, _term, "en:" + _term])
-            target_clause=" AND (" + " OR ".join(clauses) + ")"
+                params.extend([_term, _term, _term])
+            target_clause=" AND " + " AND ".join(clauses)
 
         params.append(int(limit))
 
@@ -2231,6 +2232,26 @@ def entity_mention(parse):
         "these",
         "those",
     }
+
+    tokens = [
+        item for item in (parse.tokens or [])
+        if isinstance(item, dict)
+    ]
+    for item in tokens:
+        if str(item.get("dep", "")).lower() in {"nsubj", "nsubjpass"}:
+            value = str(item.get("text", "")).strip()
+            if value and value.lower() not in refs:
+                return value
+
+    # spaCy can label the lexical subject of short copular questions (for
+    # example, "Is dog fun?") as a compound. In a polar copular form the
+    # first noun after the auxiliary is still the subject.
+    if str(parse.question or "") == "QUESTION":
+        for item in tokens[1:]:
+            if str(item.get("pos", "")).upper() in {"NOUN", "PROPN"}:
+                value = str(item.get("text", "")).strip()
+                if value and value.lower() not in refs:
+                    return value
 
     for entity in parse.entities:
         value = str(
