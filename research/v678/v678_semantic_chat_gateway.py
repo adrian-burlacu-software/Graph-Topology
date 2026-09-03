@@ -95,19 +95,6 @@ class MemoryContext(Context):
 class WorkerDiscoveryReader:
     """Read derived worker evidence without treating it as source graph truth."""
 
-    FOCUSED_TOPIC_SPECS = (
-        ("relation_composition", "en:animal", "How do workers connect animal to broader categories?"),
-        ("relation_composition", "en:bear", "How do workers connect bear to broader categories?"),
-        ("relation_composition", "en:dog", "How do workers connect dog to broader categories?"),
-        ("relation_interaction_statistics", "en:animal", "What kinds of facts tend to appear together for animal?"),
-        ("relation_interaction_statistics", "en:bear", "What kinds of facts tend to appear together for bear?"),
-        ("relation_interaction_statistics", "en:dog", "What kinds of facts tend to appear together for dog?"),
-        ("graph_health_sampling", "en:animal", "What did workers find about animal's graph connections?"),
-        ("graph_health_sampling", "en:bear", "What did workers find about bear's graph connections?"),
-        ("graph_health_sampling", "en:dog", "What did workers find about dog's graph connections?"),
-        ("relation_inverse", "en:dog", "Did workers find a reciprocal connection for dog?"),
-    )
-
     def __init__(self, shared_memory):
         self.path = Path(shared_memory)
 
@@ -124,114 +111,108 @@ class WorkerDiscoveryReader:
                     SELECT kind,subject,relation,object,feature_json,positive,confidence,
                            derivation_depth,key
                     FROM semantic_knowledge
-                    WHERE subject IN ('en:animal', 'en:bear', 'en:dog')
+                    WHERE kind='relation_composition'
+                      AND subject IN ('en:animal', 'en:bear', 'en:dog')
                       AND positive > negative
                       AND provenance IN ('derived', 'arbitrated')
-                    ORDER BY kind,subject,
-                             CASE relation
-                               WHEN 'antonym' THEN 0
-                               WHEN 'synonym' THEN 1
-                               WHEN 'related_to' THEN 2
-                               WHEN 'is_a->is_a' THEN 3
-                               ELSE 4
-                             END,
-                             object,positive DESC,confidence DESC,key
+                      AND relation='is_a->is_a'
+                      AND object != subject
+                    ORDER BY subject,object,positive DESC,confidence DESC,key
                     """,
                 ).fetchall()
         except sqlite3.Error:
             return []
 
-        by_kind_subject = {}
+        by_subject = {"en:animal": [], "en:bear": [], "en:dog": []}
+        preferred_targets = (
+            "animal", "mammal", "carnivore", "canine", "canid", "organism",
+            "living thing", "vertebrate", "quadruped", "predator",
+        )
         for row in rows:
-            key = (row[0], row[1])
-            if key not in by_kind_subject:
-                by_kind_subject[key] = (
-                    {
-                        "kind": row[0],
-                        "subject": row[1],
-                        "relation": row[2],
-                        "object": row[3],
-                        "feature": json.loads(row[4]),
-                        "positive": int(row[5]),
-                        "confidence": float(row[6]),
-                        "derivation_depth": int(row[7]),
-                        "key": row[8],
-                    }
-                )
-        selected = [
-            by_kind_subject[(kind, subject)]
-            for kind, subject, _ in self.FOCUSED_TOPIC_SPECS
-            if (kind, subject) in by_kind_subject
+            target = str(row[3]).removeprefix("en:")
+            if (
+                not any(term in target for term in preferred_targets)
+                or target in {
+                    "animal or body part", "mammal genus", "another word for animal companion",
+                    "non person animal",
+                }
+            ):
+                continue
+            by_subject[str(row[1])].append(row)
+        rows = [
+            row
+            for subject in ("en:animal", "en:bear", "en:dog")
+            for row in sorted(
+                by_subject[subject],
+                key=lambda row: (
+                    next(
+                        (
+                            index
+                            for index, term in enumerate(preferred_targets)
+                            if term in str(row[3]).removeprefix("en:")
+                        ),
+                        len(preferred_targets),
+                    ),
+                    str(row[3]),
+                ),
+            )
         ]
-        return selected[:int(limit)]
+        by_subject = {"en:animal": [], "en:bear": [], "en:dog": []}
+        seen_questions = set()
+        for row in rows:
+            discovery = {
+                "kind": row[0],
+                "subject": row[1],
+                "relation": row[2],
+                "object": row[3],
+                "feature": json.loads(row[4]),
+                "positive": int(row[5]),
+                "confidence": float(row[6]),
+                "derivation_depth": int(row[7]),
+                "key": row[8],
+            }
+            topic = self.topic_for(discovery)
+            if topic in seen_questions:
+                continue
+            seen_questions.add(topic)
+            by_subject[discovery["subject"]].append(discovery)
+        selected = []
+        for index in range(max(len(items) for items in by_subject.values())):
+            for subject in ("en:animal", "en:bear", "en:dog"):
+                if index < len(by_subject[subject]):
+                    selected.append(by_subject[subject][index])
+                    if len(selected) >= int(limit):
+                        return selected
+        return selected
 
-    @classmethod
-    def topic_for(cls, discovery):
-        for kind, subject, topic in cls.FOCUSED_TOPIC_SPECS:
-            if discovery["kind"] == kind and discovery["subject"] == subject:
-                return topic
-        return ""
+    @staticmethod
+    def topic_for(discovery):
+        target = discovery["object"].removeprefix("en:")
+        article = "an" if target[:1] in "aeiou" else "a"
+        return (
+            f"Is {discovery['subject'].removeprefix('en:')} "
+            f"{article} {target}?"
+        )
 
     def topics(self, limit=10):
         return [
-            topic
-            for _, _, topic in self.FOCUSED_TOPIC_SPECS[:int(limit)]
+            self.topic_for(discovery)
+            for discovery in self.discoveries(limit)
         ]
 
     def answer(self, question):
         normalized = str(question).strip().lower()
-        requested = next(
-            (
-                (kind, subject)
-                for kind, subject, topic in self.FOCUSED_TOPIC_SPECS
-                if topic.lower() == normalized
-            ),
-            None,
-        )
-        if not requested:
-            return None
-        kind, subject = requested
-        subject_label = subject.removeprefix("en:")
-        if not self.path.exists():
-            return self.no_evidence(subject, kind)
         for discovery in self.discoveries(limit=100):
-            if (
-                discovery["subject"] == subject
-                and discovery["kind"] == kind
-            ):
-                relation = str(discovery["relation"]).replace("_", " ")
-                target = str(discovery["object"] or "").removeprefix("en:")
-                middle = str(discovery["feature"].get("middle", "")).removeprefix("en:")
-                if kind == "relation_composition":
-                    first, second = relation.split("->", 1)
-                    summary = (
-                        f"{subject_label} → {middle} → {target} "
-                        f"via {first.replace('_', ' ')} then {second.replace('_', ' ')}"
-                    )
-                elif kind == "relation_interaction_statistics":
-                    summary = f"{relation.replace('+', ' and ')} facts co-occur around {subject_label}"
-                elif kind == "graph_health_sampling":
-                    summary = (
-                        f"{subject_label} has {discovery['feature']['edges']} outgoing "
-                        f"links across {discovery['feature']['unique_relations']} "
-                        "relationship types"
-                    )
-                else:
-                    summary = f"{subject_label} has a reciprocal {relation} link with {target}"
-                lead = (
-                    "Workers profiled the focused graph: "
-                    if kind == "graph_health_sampling"
-                    else "Workers found this derived graph pattern: "
-                )
+            if self.topic_for(discovery).lower() == normalized:
+                subject_label = discovery["subject"].removeprefix("en:")
+                target = discovery["object"].removeprefix("en:")
+                article = "an" if target[:1] in "aeiou" else "a"
                 return {
                     "answer": (
-                        f"{lead}{summary} "
-                        + f"; support={discovery['positive']}, "
-                        f"confidence={discovery['confidence']:.2f}, "
-                        f"derivation depth={discovery['derivation_depth']}."
+                        f"Yes, {subject_label} is {article} {target}."
                     ),
-                    "previous_relation": subject,
-                    "next_relation": discovery["object"] or discovery["relation"],
+                    "previous_relation": discovery["subject"],
+                    "next_relation": discovery["object"],
                     "count": discovery["positive"],
                     "confidence": discovery["confidence"],
                     "derivation_depth": discovery["derivation_depth"],
@@ -239,24 +220,7 @@ class WorkerDiscoveryReader:
                     "record_key": discovery["key"],
                     "available": True,
                 }
-        return self.no_evidence(subject, kind)
-
-    @staticmethod
-    def no_evidence(subject, kind):
-        return {
-            "answer": (
-                f"No derived {kind.replace('_', ' ')} evidence for "
-                f"{subject.removeprefix('en:')} is available yet. Keep the offline "
-                "workers running until their next checkpoint."
-            ),
-            "previous_relation": subject,
-            "next_relation": None,
-            "count": 0,
-            "confidence": 0.0,
-            "derivation_depth": 0,
-            "kind": kind,
-            "available": False,
-        }
+        return None
 
 
 class LocalLLMRuntime:

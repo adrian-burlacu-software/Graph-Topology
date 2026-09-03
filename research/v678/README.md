@@ -171,9 +171,8 @@ labelled as derived worker observations, never as semantic-graph facts:
 python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v678\worker_discovery_benchmark.jsonl" --normalization-variants --shared-memory ".\results\v678_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
-The chat always displays ten focused worker topics. Run the runtime with
-`--checkpoint-seconds 60`, then type `topics` after the first checkpoint to
-refresh them with evidence. Each offline lane explicitly inspects animal, bear,
-and dog, so its derived records become eligible for these prompts. Topics use
-ordinary questions about category paths, co-occurring fact types, graph
-connectivity, and reciprocal links rather than worker-internal terminology.
+After a checkpoint, chat displays up to ten focused, ordinary taxonomy
+questions backed by non-cyclic worker-discovered `is_a` paths for animal, bear,
+and dog. Worker provenance remains in the trace and benchmark instrumentation;
+it is not exposed in the user question or answer. Use a fresh shared database
+when changing worker-learning behavior so stale discoveries cannot appear.
