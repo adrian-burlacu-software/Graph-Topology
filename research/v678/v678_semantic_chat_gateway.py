@@ -96,16 +96,16 @@ class WorkerDiscoveryReader:
     """Read derived worker evidence without treating it as source graph truth."""
 
     FOCUSED_TOPIC_SPECS = (
-        ("relation_composition", "en:animal"),
-        ("relation_composition", "en:bear"),
-        ("relation_composition", "en:dog"),
-        ("relation_interaction_statistics", "en:animal"),
-        ("relation_interaction_statistics", "en:bear"),
-        ("relation_interaction_statistics", "en:dog"),
-        ("relation_inverse", "en:animal"),
-        ("relation_inverse", "en:dog"),
-        ("relation_symmetry", "en:bear"),
-        ("relation_symmetry", "en:dog"),
+        ("relation_composition", "en:animal", "How do workers connect animal to broader categories?"),
+        ("relation_composition", "en:bear", "How do workers connect bear to broader categories?"),
+        ("relation_composition", "en:dog", "How do workers connect dog to broader categories?"),
+        ("relation_interaction_statistics", "en:animal", "What kinds of facts tend to appear together for animal?"),
+        ("relation_interaction_statistics", "en:bear", "What kinds of facts tend to appear together for bear?"),
+        ("relation_interaction_statistics", "en:dog", "What kinds of facts tend to appear together for dog?"),
+        ("graph_health_sampling", "en:animal", "What did workers find about animal's graph connections?"),
+        ("graph_health_sampling", "en:bear", "What did workers find about bear's graph connections?"),
+        ("graph_health_sampling", "en:dog", "What did workers find about dog's graph connections?"),
+        ("relation_inverse", "en:dog", "Did workers find a reciprocal connection for dog?"),
     )
 
     def __init__(self, shared_memory):
@@ -121,108 +121,117 @@ class WorkerDiscoveryReader:
             ) as connection:
                 rows = connection.execute(
                     """
-                    SELECT kind,subject,relation,object,positive,confidence,
+                    SELECT kind,subject,relation,object,feature_json,positive,confidence,
                            derivation_depth,key
                     FROM semantic_knowledge
                     WHERE subject IN ('en:animal', 'en:bear', 'en:dog')
                       AND positive > negative
                       AND provenance IN ('derived', 'arbitrated')
-                    ORDER BY kind,subject,positive DESC,confidence DESC,key
+                    ORDER BY kind,subject,
+                             CASE relation
+                               WHEN 'antonym' THEN 0
+                               WHEN 'synonym' THEN 1
+                               WHEN 'related_to' THEN 2
+                               WHEN 'is_a->is_a' THEN 3
+                               ELSE 4
+                             END,
+                             object,positive DESC,confidence DESC,key
                     """,
                 ).fetchall()
         except sqlite3.Error:
             return []
 
-        selected = []
-        seen = set()
+        by_kind_subject = {}
         for row in rows:
             key = (row[0], row[1])
-            if key in seen:
-                continue
-            seen.add(key)
-            selected.append(
-                {
-                    "kind": row[0],
-                    "subject": row[1],
-                    "relation": row[2],
-                    "object": row[3],
-                    "positive": int(row[4]),
-                    "confidence": float(row[5]),
-                    "derivation_depth": int(row[6]),
-                    "key": row[7],
-                }
-            )
-            if len(selected) >= int(limit):
-                break
-        return selected
+            if key not in by_kind_subject:
+                by_kind_subject[key] = (
+                    {
+                        "kind": row[0],
+                        "subject": row[1],
+                        "relation": row[2],
+                        "object": row[3],
+                        "feature": json.loads(row[4]),
+                        "positive": int(row[5]),
+                        "confidence": float(row[6]),
+                        "derivation_depth": int(row[7]),
+                        "key": row[8],
+                    }
+                )
+        selected = [
+            by_kind_subject[(kind, subject)]
+            for kind, subject, _ in self.FOCUSED_TOPIC_SPECS
+            if (kind, subject) in by_kind_subject
+        ]
+        return selected[:int(limit)]
 
-    @staticmethod
-    def topic_for(discovery):
-        labels = {
-            "relation_composition": "relation composition",
-            "relation_interaction_statistics": "relation interaction",
-            "relation_inverse": "inverse pattern",
-            "relation_symmetry": "symmetric pattern",
-        }
-        subject = str(discovery["subject"]).removeprefix("en:")
-        return (
-            "What worker-derived "
-            f"{labels.get(discovery['kind'], discovery['kind'].replace('_', ' '))} "
-            f"did workers observe for {subject}?"
-        )
+    @classmethod
+    def topic_for(cls, discovery):
+        for kind, subject, topic in cls.FOCUSED_TOPIC_SPECS:
+            if discovery["kind"] == kind and discovery["subject"] == subject:
+                return topic
+        return ""
 
     def topics(self, limit=10):
         return [
-            self.topic_for({"kind": kind, "subject": subject})
-            for kind, subject in self.FOCUSED_TOPIC_SPECS[:int(limit)]
+            topic
+            for _, _, topic in self.FOCUSED_TOPIC_SPECS[:int(limit)]
         ]
 
     def answer(self, question):
-        match = re.fullmatch(
-            r"\s*what worker-derived .+ did workers observe for "
-            r"(animal|bear|dog)\?\s*",
-            str(question).lower(),
+        normalized = str(question).strip().lower()
+        requested = next(
+            (
+                (kind, subject)
+                for kind, subject, topic in self.FOCUSED_TOPIC_SPECS
+                if topic.lower() == normalized
+            ),
+            None,
         )
-        if not match:
+        if not requested:
             return None
-        subject = f"en:{match.group(1)}"
-        recognized_topic = str(question).strip().lower() in {
-            topic.lower() for topic in self.topics()
-        }
+        kind, subject = requested
+        subject_label = subject.removeprefix("en:")
         if not self.path.exists():
-            if recognized_topic:
-                return {
-                    "answer": (
-                        f"No derived worker evidence for {match.group(1)} is available "
-                        "yet. Start the offline workers and wait for a checkpoint."
-                    ),
-                    "previous_relation": subject,
-                    "next_relation": None,
-                    "count": 0,
-                    "confidence": 0.0,
-                    "derivation_depth": 0,
-                    "kind": None,
-                    "available": False,
-                }
-            return None
+            return self.no_evidence(subject, kind)
         for discovery in self.discoveries(limit=100):
             if (
                 discovery["subject"] == subject
-                and self.topic_for(discovery).lower() == str(question).strip().lower()
+                and discovery["kind"] == kind
             ):
-                relation = discovery["relation"] or discovery["key"]
-                target = discovery["object"] or relation
+                relation = str(discovery["relation"]).replace("_", " ")
+                target = str(discovery["object"] or "").removeprefix("en:")
+                middle = str(discovery["feature"].get("middle", "")).removeprefix("en:")
+                if kind == "relation_composition":
+                    first, second = relation.split("->", 1)
+                    summary = (
+                        f"{subject_label} → {middle} → {target} "
+                        f"via {first.replace('_', ' ')} then {second.replace('_', ' ')}"
+                    )
+                elif kind == "relation_interaction_statistics":
+                    summary = f"{relation.replace('+', ' and ')} facts co-occur around {subject_label}"
+                elif kind == "graph_health_sampling":
+                    summary = (
+                        f"{subject_label} has {discovery['feature']['edges']} outgoing "
+                        f"links across {discovery['feature']['unique_relations']} "
+                        "relationship types"
+                    )
+                else:
+                    summary = f"{subject_label} has a reciprocal {relation} link with {target}"
+                lead = (
+                    "Workers profiled the focused graph: "
+                    if kind == "graph_health_sampling"
+                    else "Workers found this derived graph pattern: "
+                )
                 return {
                     "answer": (
-                        f"Workers observed derived {discovery['kind'].replace('_', ' ')} "
-                        f"evidence for {match.group(1)} ({relation}"
-                        + (f" → {target}" if discovery["object"] else "")
+                        f"{lead}{summary} "
                         + f"; support={discovery['positive']}, "
                         f"confidence={discovery['confidence']:.2f}, "
-                        f"derivation depth={discovery['derivation_depth']})."
+                        f"derivation depth={discovery['derivation_depth']}."
                     ),
                     "previous_relation": subject,
-                    "next_relation": target,
+                    "next_relation": discovery["object"] or discovery["relation"],
                     "count": discovery["positive"],
                     "confidence": discovery["confidence"],
                     "derivation_depth": discovery["derivation_depth"],
@@ -230,21 +239,24 @@ class WorkerDiscoveryReader:
                     "record_key": discovery["key"],
                     "available": True,
                 }
-        if recognized_topic:
-            return {
-                "answer": (
-                    f"No derived worker evidence for {match.group(1)} is available "
-                    "yet. Keep the offline workers running until their next checkpoint."
-                ),
-                "previous_relation": subject,
-                "next_relation": None,
-                "count": 0,
-                "confidence": 0.0,
-                "derivation_depth": 0,
-                "kind": None,
-                "available": False,
-            }
-        return None
+        return self.no_evidence(subject, kind)
+
+    @staticmethod
+    def no_evidence(subject, kind):
+        return {
+            "answer": (
+                f"No derived {kind.replace('_', ' ')} evidence for "
+                f"{subject.removeprefix('en:')} is available yet. Keep the offline "
+                "workers running until their next checkpoint."
+            ),
+            "previous_relation": subject,
+            "next_relation": None,
+            "count": 0,
+            "confidence": 0.0,
+            "derivation_depth": 0,
+            "kind": kind,
+            "available": False,
+        }
 
 
 class LocalLLMRuntime:

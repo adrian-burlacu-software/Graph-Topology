@@ -55,6 +55,15 @@ RELATION_GROUPS = {
     "graph_health_sampling": [],
 }
 
+FOCUSED_PATTERN_RELATIONS = (
+    "is_a",
+    "has_a",
+    "has_property",
+    "capable_of",
+    "at_location",
+    "used_for",
+)
+
 
 def read_counts(conn):
     return {
@@ -200,18 +209,51 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no):
         for subject in subjects:
             if ram.composition_produced >= max_derived:
                 break
-            rows = fetch_outgoing(conn, subject, 24)
-            for row in rows[:fanout]:
+            subject_produced = 0
+            rows = conn.execute(
+                """
+                SELECT subject,relation,object FROM edges
+                WHERE subject=? AND relation='is_a' AND object != ?
+                ORDER BY object
+                LIMIT 256
+                """,
+                (subject, subject),
+            ).fetchall()
+            for row in rows:
+                if subject_produced >= fanout:
+                    break
                 if ram.composition_produced >= max_derived:
                     break
                 mid, rel1 = str(row[2]), str(row[1])
-                for row2 in fetch_outgoing(conn, mid, 12)[:fanout]:
+                placeholders = ",".join("?" for _ in FOCUSED_PATTERN_RELATIONS)
+                second_rows = conn.execute(
+                    f"""
+                    SELECT subject,relation,object FROM edges
+                    WHERE subject=? AND relation IN ({placeholders})
+                      AND object != ? AND object != ?
+                    ORDER BY CASE relation
+                      WHEN 'is_a' THEN 0
+                      WHEN 'has_a' THEN 1
+                      WHEN 'has_property' THEN 2
+                      WHEN 'capable_of' THEN 3
+                      WHEN 'used_for' THEN 4
+                      WHEN 'at_location' THEN 5
+                      ELSE 6 END,
+                      object
+                    LIMIT 64
+                    """,
+                    (mid, *FOCUSED_PATTERN_RELATIONS, subject, mid),
+                ).fetchall()
+                for row2 in second_rows[:fanout]:
+                    if subject_produced >= fanout:
+                        break
                     if ram.composition_produced >= max_derived:
                         break
                     rel2, obj = str(row2[1]), str(row2[2])
                     ram.upsert_transition(rel1, rel2, confidence=0.5, count=1, provenance="derived", derivation_depth=2)
                     ram.upsert_knowledge(lane, subject, rel1 + "->" + rel2, obj, {"middle": mid, "depth": 2}, positive=1, confidence=0.4, source="offline_composition", provenance="derived", derivation_depth=2)
                     learned += 1; inspected += 1; produced += 1
+                    subject_produced += 1
                     ram.composition_produced += 1
 
     elif lane == "relation_interaction_statistics":
@@ -219,7 +261,13 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no):
         # composition. Store it separately so composition statistics remain
         # interpretable and the controller can later learn contextual pairings.
         for subject in subjects:
-            relations = sorted({str(row[1]) for row in fetch_outgoing(conn, subject, 64)})
+            relations = [
+                relation for relation in FOCUSED_PATTERN_RELATIONS
+                if any(
+                    str(row[1]) == relation
+                    for row in fetch_outgoing(conn, subject, 96)
+                )
+            ]
             for index, first in enumerate(relations[:12]):
                 for second in relations[index + 1:12]:
                     ram.upsert_knowledge(
@@ -239,10 +287,23 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no):
 
     elif lane == "graph_health_sampling":
         for subject in subjects:
-            rows = fetch_outgoing(conn, subject, 32)
-            rels = [str(r[1]) for r in rows]
-            uniq = len(set(rels))
-            ram.upsert_knowledge(lane, subject, "degree_profile", None, {"edges": len(rows), "unique_relations": uniq}, positive=1, confidence=0.5, source="offline_graph_health")
+            edge_count, unique_relations = conn.execute(
+                """
+                SELECT COUNT(*),COUNT(DISTINCT relation)
+                FROM edges WHERE subject=?
+                """,
+                (subject,),
+            ).fetchone()
+            ram.upsert_knowledge(
+                lane,
+                subject,
+                "degree_profile",
+                None,
+                {"edges": int(edge_count), "unique_relations": int(unique_relations)},
+                positive=1,
+                confidence=0.5,
+                source="offline_graph_health",
+            )
             inspected += 1
 
     return inspected, learned

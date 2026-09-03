@@ -174,4 +174,6 @@ python .\research\v678\v678_focused_benchmark.py --database ".\data\v673_focused
 The chat always displays ten focused worker topics. Run the runtime with
 `--checkpoint-seconds 60`, then type `topics` after the first checkpoint to
 refresh them with evidence. Each offline lane explicitly inspects animal, bear,
-and dog, so its derived records become eligible for these prompts.
+and dog, so its derived records become eligible for these prompts. Topics use
+ordinary questions about category paths, co-occurring fact types, graph
+connectivity, and reciprocal links rather than worker-internal terminology.
