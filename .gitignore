@@ -141,3 +141,7 @@ data/v633_full_semantic.sqlite-shm
 data/v633_full_semantic.sqlite-wal
 data/v673_focused_semantic.sqlite-shm
 data/v673_focused_semantic.sqlite-wal
+results/v678_shared_memory.sqlite
+results/v678_shared_memory.sqlite-shm
+results/v678_shared_memory.sqlite-wal
+results/v678_workers/
