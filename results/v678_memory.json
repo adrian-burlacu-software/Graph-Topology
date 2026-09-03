@@ -1,5 +1,5 @@
 {
-  "active_subject": "en:dog",
+  "active_subject": "en:animal",
   "turns": [
     {
       "timestamp": 1788372690.6252835,
@@ -18623,6 +18623,4594 @@
         "llm_seconds": 2.400018274784088e-06,
         "total_seconds": 1.0924537000246346,
         "realization_seconds": 2.400018274784088e-06
+      }
+    },
+    {
+      "timestamp": 1788427698.7150888,
+      "question": "Can animal eat?",
+      "answer": "I couldn't verify that requested fact in the semantic graph.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": "en:animal"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:animal",
+        "relation": "",
+        "mode": "unverified",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "animal",
+        "canonical": "en:animal",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:animal",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "animal"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "Can animal eat?",
+        "tokens": [
+          {
+            "text": "Can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "animal",
+            "lemma": "animal",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "eat",
+            "lemma": "eat",
+            "pos": "VERB",
+            "dep": "ROOT"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "animal"
+        ],
+        "root": "eat",
+        "root_lemma": "eat",
+        "question": "QUESTION",
+        "subjects": [
+          "animal"
+        ],
+        "objects": []
+      },
+      "selected": {
+        "subject": "en:animal",
+        "relation": "",
+        "intent": "relation_lookup",
+        "lexical_score": 0.3333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "animal",
+            "canonical": "en:animal",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:animal",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "animal"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "dbpedia/genre",
+            "desires",
+            "distinct_from",
+            "has_a",
+            "has_context",
+            "has_property",
+            "has_sense",
+            "is_a",
+            "made_of"
+          ],
+          "target_terms": [
+            "eat"
+          ],
+          "argument_unverified": true
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:animal",
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "animal",
+              "canonical": "en:animal",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:animal",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "animal"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "dbpedia/genre",
+              "desires",
+              "distinct_from",
+              "has_a",
+              "has_context",
+              "has_property",
+              "has_sense",
+              "is_a",
+              "made_of"
+            ],
+            "target_terms": [
+              "eat"
+            ],
+            "argument_unverified": true
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "no_direct_argument_evidence",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.004109199973754585,
+        "hypothesis_seconds": 0.0009230999858118594,
+        "distillation_seconds": 0.0008477999945171177,
+        "search_seconds": 5.999987479299307e-06,
+        "llm_seconds": 1.4999532140791416e-06,
+        "total_seconds": 0.00590409996220842,
+        "realization_seconds": 1.4999532140791416e-06
+      }
+    },
+    {
+      "timestamp": 1788427702.426048,
+      "question": "Can animal eating?",
+      "answer": "Yes, the semantic graph verifies the requested capability for animal: eating.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:animal",
+        "selected_subject": "en:animal"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:animal",
+        "relation": "capability",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:eating",
+        "selected_fact_target": "en:eating",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "animal",
+        "canonical": "en:animal",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:animal",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "animal"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "Can animal eating?",
+        "tokens": [
+          {
+            "text": "Can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "animal",
+            "lemma": "animal",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "eating",
+            "lemma": "eating",
+            "pos": "NOUN",
+            "dep": "ROOT"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "animal"
+        ],
+        "root": "eating",
+        "root_lemma": "eating",
+        "question": "QUESTION",
+        "subjects": [
+          "animal"
+        ],
+        "objects": []
+      },
+      "selected": {
+        "subject": "en:animal",
+        "relation": "capability",
+        "intent": "relation_lookup",
+        "lexical_score": 0.3333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "animal",
+            "canonical": "en:animal",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:animal",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "animal"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "dbpedia/genre",
+            "desires",
+            "distinct_from",
+            "has_a",
+            "has_context",
+            "has_property",
+            "has_sense",
+            "is_a",
+            "made_of"
+          ],
+          "semantic_goal": "capability",
+          "semantic_goal_source": "direct_argument_evidence",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "QUESTION",
+            "root": "eating",
+            "subjects": [
+              "animal"
+            ],
+            "objects": [],
+            "predicate_tokens": [
+              "eating"
+            ],
+            "predicate_lemmas": [],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "QUESTION",
+            "root": "eating",
+            "pos": [
+              "AUX",
+              "NOUN",
+              "PUNCT"
+            ],
+            "dependencies": [
+              "ROOT",
+              "aux",
+              "nsubj",
+              "punct"
+            ],
+            "has_pronoun": false,
+            "has_auxiliary": true,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": false
+          },
+          "target_terms": [
+            "eating"
+          ],
+          "raw_relation": "capable_of",
+          "selected_fact_target": "en:eating",
+          "selected_fact_label": "eating",
+          "fact_source": "semantic_goal_adapter",
+          "fact_confidence": 1.0,
+          "fact_target_terms": [
+            "eating"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:animal",
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "animal",
+              "canonical": "en:animal",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:animal",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "animal"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "dbpedia/genre",
+              "desires",
+              "distinct_from",
+              "has_a",
+              "has_context",
+              "has_property",
+              "has_sense",
+              "is_a",
+              "made_of"
+            ],
+            "semantic_goal": "capability",
+            "semantic_goal_source": "direct_argument_evidence",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "QUESTION",
+              "root": "eating",
+              "subjects": [
+                "animal"
+              ],
+              "objects": [],
+              "predicate_tokens": [
+                "eating"
+              ],
+              "predicate_lemmas": [],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "QUESTION",
+              "root": "eating",
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "aux",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [
+              "eating"
+            ],
+            "raw_relation": "capable_of",
+            "selected_fact_target": "en:eating",
+            "selected_fact_label": "eating",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [
+              "eating"
+            ]
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:eating",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "semantic_goal": "capability",
+        "semantic_relation": "capability",
+        "subject_label": "animal",
+        "target_label": "eating"
+      },
+      "distillation": {
+        "source": "direct_argument_evidence",
+        "decision": "capability"
+      },
+      "realization_cache": null,
+      "realization_guard": "deterministic_polar_fact",
+      "timing": {
+        "parse_seconds": 0.0029242000309750438,
+        "hypothesis_seconds": 0.0006186999962665141,
+        "distillation_seconds": 0.0010639000101946294,
+        "search_seconds": 2.300000051036477e-05,
+        "llm_seconds": 2.3900007363408804e-05,
+        "total_seconds": 0.004669700050726533,
+        "realization_seconds": 2.3900007363408804e-05
+      }
+    },
+    {
+      "timestamp": 1788427892.4479134,
+      "question": "Can an animal eat?",
+      "answer": "I couldn't verify that requested fact in the semantic graph.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:animal",
+        "selected_subject": "en:animal"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:animal",
+        "relation": "",
+        "mode": "unverified",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "animal",
+        "canonical": "en:animal",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:animal",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "animal"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "Can an animal eat?",
+        "tokens": [
+          {
+            "text": "Can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "an",
+            "lemma": "an",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "animal",
+            "lemma": "animal",
+            "pos": "NOUN",
+            "dep": "compound"
+          },
+          {
+            "text": "eat",
+            "lemma": "eat",
+            "pos": "NOUN",
+            "dep": "ROOT"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "Can an animal eat"
+        ],
+        "root": "eat",
+        "root_lemma": "eat",
+        "question": "QUESTION",
+        "subjects": [],
+        "objects": []
+      },
+      "selected": {
+        "subject": "en:animal",
+        "relation": "",
+        "intent": "relation_lookup",
+        "lexical_score": 0.3333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "animal",
+            "canonical": "en:animal",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:animal",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "animal"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "dbpedia/genre",
+            "desires",
+            "distinct_from",
+            "has_a",
+            "has_context",
+            "has_property",
+            "has_sense",
+            "is_a",
+            "made_of"
+          ],
+          "target_terms": [
+            "can eat",
+            "eat"
+          ],
+          "argument_unverified": true
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:animal",
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "animal",
+              "canonical": "en:animal",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:animal",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "animal"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "dbpedia/genre",
+              "desires",
+              "distinct_from",
+              "has_a",
+              "has_context",
+              "has_property",
+              "has_sense",
+              "is_a",
+              "made_of"
+            ],
+            "target_terms": [
+              "can eat",
+              "eat"
+            ],
+            "argument_unverified": true
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "no_direct_argument_evidence",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.0034776999964378774,
+        "hypothesis_seconds": 0.0009331000037491322,
+        "distillation_seconds": 0.0015527999494224787,
+        "search_seconds": 6.099988240748644e-06,
+        "llm_seconds": 1.9000144675374031e-06,
+        "total_seconds": 0.005989299970678985,
+        "realization_seconds": 1.9000144675374031e-06
+      }
+    },
+    {
+      "timestamp": 1788427897.7550595,
+      "question": "Can animal eat?",
+      "answer": "Yes, the semantic graph verifies the requested capability for animal: eating.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:animal",
+        "selected_subject": "en:animal"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:animal",
+        "relation": "capability",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:eating",
+        "selected_fact_target": "en:eating",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "animal",
+        "canonical": "en:animal",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:animal",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "animal"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "Can animal eat?",
+        "tokens": [
+          {
+            "text": "Can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "animal",
+            "lemma": "animal",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "eat",
+            "lemma": "eat",
+            "pos": "VERB",
+            "dep": "ROOT"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "animal"
+        ],
+        "root": "eat",
+        "root_lemma": "eat",
+        "question": "QUESTION",
+        "subjects": [
+          "animal"
+        ],
+        "objects": []
+      },
+      "selected": {
+        "subject": "en:animal",
+        "relation": "capability",
+        "intent": "relation_lookup",
+        "lexical_score": 0.3333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "animal",
+            "canonical": "en:animal",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:animal",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "animal"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "dbpedia/genre",
+            "desires",
+            "distinct_from",
+            "has_a",
+            "has_context",
+            "has_property",
+            "has_sense",
+            "is_a",
+            "made_of"
+          ],
+          "semantic_goal": "capability",
+          "semantic_goal_source": "direct_argument_evidence",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "QUESTION",
+            "root": "eat",
+            "subjects": [
+              "animal"
+            ],
+            "objects": [],
+            "predicate_tokens": [
+              "eat"
+            ],
+            "predicate_lemmas": [],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "QUESTION",
+            "root": "eat",
+            "pos": [
+              "AUX",
+              "NOUN",
+              "PUNCT",
+              "VERB"
+            ],
+            "dependencies": [
+              "ROOT",
+              "aux",
+              "nsubj",
+              "punct"
+            ],
+            "has_pronoun": false,
+            "has_auxiliary": true,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": true
+          },
+          "target_terms": [
+            "eat"
+          ],
+          "raw_relation": "capable_of",
+          "selected_fact_target": "en:eating",
+          "selected_fact_label": "eating",
+          "fact_source": "semantic_goal_adapter",
+          "fact_confidence": 1.0,
+          "fact_target_terms": [
+            "eat"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:animal",
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "animal",
+              "canonical": "en:animal",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:animal",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "animal"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "dbpedia/genre",
+              "desires",
+              "distinct_from",
+              "has_a",
+              "has_context",
+              "has_property",
+              "has_sense",
+              "is_a",
+              "made_of"
+            ],
+            "semantic_goal": "capability",
+            "semantic_goal_source": "direct_argument_evidence",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "QUESTION",
+              "root": "eat",
+              "subjects": [
+                "animal"
+              ],
+              "objects": [],
+              "predicate_tokens": [
+                "eat"
+              ],
+              "predicate_lemmas": [],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "QUESTION",
+              "root": "eat",
+              "pos": [
+                "AUX",
+                "NOUN",
+                "PUNCT",
+                "VERB"
+              ],
+              "dependencies": [
+                "ROOT",
+                "aux",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": true
+            },
+            "target_terms": [
+              "eat"
+            ],
+            "raw_relation": "capable_of",
+            "selected_fact_target": "en:eating",
+            "selected_fact_label": "eating",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [
+              "eat"
+            ]
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:eating",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "semantic_goal": "capability",
+        "semantic_relation": "capability",
+        "subject_label": "animal",
+        "target_label": "eating"
+      },
+      "distillation": {
+        "source": "direct_argument_evidence",
+        "decision": "capability"
+      },
+      "realization_cache": null,
+      "realization_guard": "deterministic_polar_fact",
+      "timing": {
+        "parse_seconds": 0.0029211000073701143,
+        "hypothesis_seconds": 0.000590600015129894,
+        "distillation_seconds": 0.0015083999605849385,
+        "search_seconds": 3.520003519952297e-05,
+        "llm_seconds": 3.070000093430281e-05,
+        "total_seconds": 0.0051031000330112875,
+        "realization_seconds": 3.070000093430281e-05
+      }
+    },
+    {
+      "question": "can an animal eat",
+      "answer": "Yes, the semantic graph verifies the requested capability for animal: eating."
+    },
+    {
+      "timestamp": 1788428313.6831949,
+      "question": "what's a dog?",
+      "answer": "I couldn't verify that requested fact in the semantic graph.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:animal",
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "",
+        "mode": "unverified",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "what's a dog?",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "attr"
+          },
+          {
+            "text": "'s",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a dog"
+        ],
+        "root": "'s",
+        "root_lemma": "be",
+        "question": "QUESTION",
+        "subjects": [
+          "dog"
+        ],
+        "objects": [
+          "what"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "",
+        "intent": "relation_lookup",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "antonym",
+            "at_location",
+            "capable_of",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "definition",
+            "derived_from",
+            "desires",
+            "distinct_from"
+          ],
+          "target_terms": [
+            "what"
+          ],
+          "argument_unverified": true
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ],
+            "target_terms": [
+              "what"
+            ],
+            "argument_unverified": true
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "no_direct_argument_evidence",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.004119099990930408,
+        "hypothesis_seconds": 0.0011446999851614237,
+        "distillation_seconds": 0.0023098000092431903,
+        "search_seconds": 5.800044164061546e-06,
+        "llm_seconds": 1.800013706088066e-06,
+        "total_seconds": 0.007598600001074374,
+        "realization_seconds": 1.800013706088066e-06
+      }
+    },
+    {
+      "timestamp": 1788428319.2315822,
+      "question": "what is a dog?",
+      "answer": "dog is a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "definition",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds",
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 40
+        }
+      ],
+      "parse": {
+        "text": "what is a dog?",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "attr"
+          },
+          {
+            "text": "is",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a dog"
+        ],
+        "root": "is",
+        "root_lemma": "be",
+        "question": "WH_WHAT",
+        "subjects": [
+          "dog"
+        ],
+        "objects": [
+          "what"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "definition",
+        "intent": "relation_lookup",
+        "lexical_score": 0.6,
+        "evidence": {
+          "concept": "dog",
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "definition",
+            "antonym",
+            "at_location",
+            "capable_of",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "derived_from",
+            "desires",
+            "distinct_from"
+          ],
+          "relation_lexical_score": 0.6,
+          "semantic_goal": "definition",
+          "semantic_goal_source": "llm_teacher",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "WH_WHAT",
+            "root": "be",
+            "subjects": [
+              "dog"
+            ],
+            "objects": [
+              "what"
+            ],
+            "predicate_tokens": [
+              "what",
+              "is"
+            ],
+            "predicate_lemmas": [
+              "what"
+            ],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "WH_WHAT",
+            "root": "be",
+            "pos": [
+              "AUX",
+              "DET",
+              "NOUN",
+              "PRON",
+              "PUNCT"
+            ],
+            "dependencies": [
+              "ROOT",
+              "attr",
+              "det",
+              "nsubj",
+              "punct"
+            ],
+            "has_pronoun": true,
+            "has_auxiliary": true,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": false
+          },
+          "target_terms": [
+            "what"
+          ],
+          "semantic_goal_runtime_relation": "definition"
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "definition",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "evidence": {
+            "concept": "dog",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ],
+            "relation_lexical_score": 0.6,
+            "semantic_goal": "definition",
+            "semantic_goal_source": "llm_teacher",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "subjects": [
+                "dog"
+              ],
+              "objects": [
+                "what"
+              ],
+              "predicate_tokens": [
+                "what",
+                "is"
+              ],
+              "predicate_lemmas": [
+                "what"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "pos": [
+                "AUX",
+                "DET",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "attr",
+                "det",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": true,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [
+              "what"
+            ],
+            "semantic_goal_runtime_relation": "definition"
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "has_sense",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6,
+          "evidence": {
+            "concept": "dog",
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "definition",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ],
+            "relation_lexical_score": 0.6,
+            "semantic_goal": "definition",
+            "semantic_goal_source": "llm_teacher",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "subjects": [
+                "dog"
+              ],
+              "objects": [
+                "what"
+              ],
+              "predicate_tokens": [
+                "what",
+                "is"
+              ],
+              "predicate_lemmas": [
+                "what"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "WH_WHAT",
+              "root": "be",
+              "pos": [
+                "AUX",
+                "DET",
+                "NOUN",
+                "PRON",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "attr",
+                "det",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": true,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [
+              "what"
+            ],
+            "semantic_goal_runtime_relation": "has_sense"
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "intent_only": false,
+        "steps": 1,
+        "path": [
+          "definition"
+        ],
+        "target": "a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "definition_lookup",
+        "sense_node": null,
+        "semantic_goal": "definition",
+        "semantic_relation": "definition",
+        "subject_label": "dog",
+        "target_label": "a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds"
+      },
+      "distillation": {
+        "source": "llm_teacher",
+        "decision": "definition"
+      },
+      "realization_cache": null,
+      "realization_guard": "accepted",
+      "timing": {
+        "parse_seconds": 0.0031564999953843653,
+        "hypothesis_seconds": 0.0007204000139608979,
+        "distillation_seconds": 0.9666406000033021,
+        "search_seconds": 0.0010740000288933516,
+        "llm_seconds": 8.719996549189091e-05,
+        "total_seconds": 0.971698599983938,
+        "realization_seconds": 8.719996549189091e-05
+      }
+    },
+    {
+      "timestamp": 1788428413.4913478,
+      "question": "what's a dog's parts",
+      "answer": "I couldn't verify that entity in the semantic graph.",
+      "entity_resolution_kind": null,
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": null
+      },
+      "route": {
+        "intent": "entity_unresolved",
+        "subject": null,
+        "relation": "",
+        "mode": "unresolved",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "unresolved",
+        "mention": "parts",
+        "canonical": null,
+        "confidence": 0.0,
+        "candidates": []
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "what's a dog's parts",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "nsubj"
+          },
+          {
+            "text": "'s",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "poss"
+          },
+          {
+            "text": "'s",
+            "lemma": "'s",
+            "pos": "PART",
+            "dep": "case"
+          },
+          {
+            "text": "parts",
+            "lemma": "part",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "a dog's parts"
+        ],
+        "root": "'s",
+        "root_lemma": "be",
+        "question": "DECLARATIVE",
+        "subjects": [
+          "what",
+          "parts"
+        ],
+        "objects": []
+      },
+      "selected": {
+        "subject": null,
+        "relation": "",
+        "intent": "entity_unresolved",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "unresolved",
+            "mention": "parts",
+            "canonical": null,
+            "confidence": 0.0,
+            "candidates": []
+          }
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": null,
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "unresolved",
+              "mention": "parts",
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            }
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "none",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.003735699981916696,
+        "hypothesis_seconds": 0.0005307000246830285,
+        "distillation_seconds": 9.00006853044033e-07,
+        "search_seconds": 3.999972250312567e-06,
+        "llm_seconds": 1.200009137392044e-06,
+        "total_seconds": 0.004291399964131415,
+        "realization_seconds": 1.200009137392044e-06
+      }
+    },
+    {
+      "timestamp": 1788428420.9812536,
+      "question": "what are the parts of a dog",
+      "answer": "I couldn't verify that entity in the semantic graph.",
+      "entity_resolution_kind": null,
+      "context": {
+        "active_subject_before_turn": null,
+        "selected_subject": null
+      },
+      "route": {
+        "intent": "entity_unresolved",
+        "subject": null,
+        "relation": "",
+        "mode": "unresolved",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "unresolved",
+        "mention": "parts",
+        "canonical": null,
+        "confidence": 0.0,
+        "candidates": []
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "what are the parts of a dog",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "attr"
+          },
+          {
+            "text": "are",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "the",
+            "lemma": "the",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "parts",
+            "lemma": "part",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "of",
+            "lemma": "of",
+            "pos": "ADP",
+            "dep": "prep"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "pobj"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what",
+          "the parts",
+          "a dog"
+        ],
+        "root": "are",
+        "root_lemma": "be",
+        "question": "WH_WHAT",
+        "subjects": [
+          "parts"
+        ],
+        "objects": [
+          "what",
+          "dog"
+        ]
+      },
+      "selected": {
+        "subject": null,
+        "relation": "",
+        "intent": "entity_unresolved",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "unresolved",
+            "mention": "parts",
+            "canonical": null,
+            "confidence": 0.0,
+            "candidates": []
+          }
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": null,
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "unresolved",
+              "mention": "parts",
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            }
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "none",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.0033999999868683517,
+        "hypothesis_seconds": 0.0007116000051610172,
+        "distillation_seconds": 9.00006853044033e-07,
+        "search_seconds": 3.5999692045152187e-06,
+        "llm_seconds": 7.00005330145359e-07,
+        "total_seconds": 0.004127599997445941,
+        "realization_seconds": 7.00005330145359e-07
+      }
+    },
+    {
+      "timestamp": 1788428426.0452545,
+      "question": "what parts does dog have",
+      "answer": "I couldn't verify that entity in the semantic graph.",
+      "entity_resolution_kind": null,
+      "context": {
+        "active_subject_before_turn": null,
+        "selected_subject": null
+      },
+      "route": {
+        "intent": "entity_unresolved",
+        "subject": null,
+        "relation": "",
+        "mode": "unresolved",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "unresolved",
+        "mention": "parts",
+        "canonical": null,
+        "confidence": 0.0,
+        "candidates": []
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "what parts does dog have",
+        "tokens": [
+          {
+            "text": "what",
+            "lemma": "what",
+            "pos": "PRON",
+            "dep": "det"
+          },
+          {
+            "text": "parts",
+            "lemma": "part",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "does",
+            "lemma": "do",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "dobj"
+          },
+          {
+            "text": "have",
+            "lemma": "have",
+            "pos": "VERB",
+            "dep": "ROOT"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "what parts",
+          "dog"
+        ],
+        "root": "have",
+        "root_lemma": "have",
+        "question": "WH_WHAT",
+        "subjects": [
+          "parts"
+        ],
+        "objects": [
+          "dog"
+        ]
+      },
+      "selected": {
+        "subject": null,
+        "relation": "",
+        "intent": "entity_unresolved",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "unresolved",
+            "mention": "parts",
+            "canonical": null,
+            "confidence": 0.0,
+            "candidates": []
+          }
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": null,
+          "relation": "",
+          "intent": "entity_unresolved",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "unresolved",
+              "mention": "parts",
+              "canonical": null,
+              "confidence": 0.0,
+              "candidates": []
+            }
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "none",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.0032930999877862632,
+        "hypothesis_seconds": 0.00040220003575086594,
+        "distillation_seconds": 1.00000761449337e-06,
+        "search_seconds": 3.6999699659645557e-06,
+        "llm_seconds": 6.00004568696022e-07,
+        "total_seconds": 0.003711799974553287,
+        "realization_seconds": 6.00004568696022e-07
+      }
+    },
+    {
+      "timestamp": 1788428718.2978547,
+      "question": "is a dog larger than a cat?",
+      "answer": "I couldn't verify that requested fact in the semantic graph.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": null,
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "",
+        "mode": "unverified",
+        "success": false,
+        "direct_proof": false,
+        "proof_kind": null,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "selected_fact_target": null,
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": false,
+          "direct_proof": false,
+          "steps": 0
+        }
+      ],
+      "parse": {
+        "text": "is a dog larger than a cat?",
+        "tokens": [
+          {
+            "text": "is",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "attr"
+          },
+          {
+            "text": "larger",
+            "lemma": "large",
+            "pos": "ADJ",
+            "dep": "amod"
+          },
+          {
+            "text": "than",
+            "lemma": "than",
+            "pos": "ADP",
+            "dep": "prep"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "cat",
+            "lemma": "cat",
+            "pos": "NOUN",
+            "dep": "pobj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "a dog",
+          "a cat"
+        ],
+        "root": "is",
+        "root_lemma": "be",
+        "question": "QUESTION",
+        "subjects": [],
+        "objects": [
+          "dog",
+          "cat"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "",
+        "intent": "relation_lookup",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "antonym",
+            "at_location",
+            "capable_of",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "definition",
+            "derived_from",
+            "desires",
+            "distinct_from"
+          ],
+          "target_terms": [
+            "cat",
+            "larger than a cat"
+          ],
+          "argument_unverified": true
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ],
+            "target_terms": [
+              "cat",
+              "larger than a cat"
+            ],
+            "argument_unverified": true
+          }
+        }
+      ],
+      "search": {
+        "success": false,
+        "intent_only": false,
+        "steps": 0,
+        "path": [],
+        "target": null,
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": false,
+        "proof_kind": null
+      },
+      "distillation": {
+        "source": "no_direct_argument_evidence",
+        "decision": null
+      },
+      "realization_cache": null,
+      "realization_guard": "not_applicable",
+      "timing": {
+        "parse_seconds": 0.004091000009793788,
+        "hypothesis_seconds": 0.0016908000106923282,
+        "distillation_seconds": 0.002571099961642176,
+        "search_seconds": 5.499983672052622e-06,
+        "llm_seconds": 1.8999562598764896e-06,
+        "total_seconds": 0.008377799997106194,
+        "realization_seconds": 1.8999562598764896e-06
+      }
+    },
+    {
+      "timestamp": 1788428723.8324866,
+      "question": "is dog larger than cat?",
+      "answer": "Yes, the semantic graph verifies the requested property for dog: larger than cat.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "property",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "steps": 1,
+        "path": [
+          "has_property"
+        ],
+        "target": "en:larger than cat",
+        "selected_fact_target": "en:larger than cat",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "property",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "is dog larger than cat?",
+        "tokens": [
+          {
+            "text": "is",
+            "lemma": "be",
+            "pos": "AUX",
+            "dep": "ROOT"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "larger",
+            "lemma": "large",
+            "pos": "ADJ",
+            "dep": "amod"
+          },
+          {
+            "text": "than",
+            "lemma": "than",
+            "pos": "ADP",
+            "dep": "prep"
+          },
+          {
+            "text": "cat",
+            "lemma": "cat",
+            "pos": "NOUN",
+            "dep": "pobj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "dog",
+          "cat"
+        ],
+        "root": "is",
+        "root_lemma": "be",
+        "question": "QUESTION",
+        "subjects": [
+          "dog"
+        ],
+        "objects": [
+          "cat"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "property",
+        "intent": "relation_lookup",
+        "lexical_score": 0.0,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "antonym",
+            "at_location",
+            "capable_of",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "definition",
+            "derived_from",
+            "desires",
+            "distinct_from"
+          ],
+          "semantic_goal": "property",
+          "semantic_goal_source": "direct_argument_evidence",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "QUESTION",
+            "root": "be",
+            "subjects": [
+              "dog"
+            ],
+            "objects": [
+              "cat"
+            ],
+            "predicate_tokens": [
+              "is",
+              "cat"
+            ],
+            "predicate_lemmas": [
+              "cat"
+            ],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "QUESTION",
+            "root": "be",
+            "pos": [
+              "ADJ",
+              "ADP",
+              "AUX",
+              "NOUN",
+              "PUNCT"
+            ],
+            "dependencies": [
+              "ROOT",
+              "amod",
+              "nsubj",
+              "pobj",
+              "prep",
+              "punct"
+            ],
+            "has_pronoun": false,
+            "has_auxiliary": true,
+            "has_adjective": true,
+            "has_noun": true,
+            "has_verb": false
+          },
+          "target_terms": [
+            "cat",
+            "larger than cat"
+          ],
+          "raw_relation": "has_property",
+          "selected_fact_target": "en:larger than cat",
+          "selected_fact_label": "larger than cat",
+          "fact_source": "semantic_goal_adapter",
+          "fact_confidence": 1.0,
+          "fact_target_terms": [
+            "cat",
+            "larger than cat"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "property",
+          "intent": "relation_lookup",
+          "lexical_score": 0.0,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from",
+              "desires",
+              "distinct_from"
+            ],
+            "semantic_goal": "property",
+            "semantic_goal_source": "direct_argument_evidence",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "QUESTION",
+              "root": "be",
+              "subjects": [
+                "dog"
+              ],
+              "objects": [
+                "cat"
+              ],
+              "predicate_tokens": [
+                "is",
+                "cat"
+              ],
+              "predicate_lemmas": [
+                "cat"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "QUESTION",
+              "root": "be",
+              "pos": [
+                "ADJ",
+                "ADP",
+                "AUX",
+                "NOUN",
+                "PUNCT"
+              ],
+              "dependencies": [
+                "ROOT",
+                "amod",
+                "nsubj",
+                "pobj",
+                "prep",
+                "punct"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": true,
+              "has_adjective": true,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [
+              "cat",
+              "larger than cat"
+            ],
+            "raw_relation": "has_property",
+            "selected_fact_target": "en:larger than cat",
+            "selected_fact_label": "larger than cat",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [
+              "cat",
+              "larger than cat"
+            ]
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "has_property"
+        ],
+        "target": "en:larger than cat",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "semantic_goal": "property",
+        "semantic_relation": "property",
+        "subject_label": "dog",
+        "target_label": "larger than cat"
+      },
+      "distillation": {
+        "source": "direct_argument_evidence",
+        "decision": "property"
+      },
+      "realization_cache": null,
+      "realization_guard": "deterministic_polar_fact",
+      "timing": {
+        "parse_seconds": 0.003991700010374188,
+        "hypothesis_seconds": 0.0006392000359483063,
+        "distillation_seconds": 0.0023079999955371022,
+        "search_seconds": 3.289995947852731e-05,
+        "llm_seconds": 2.5500019546598196e-05,
+        "total_seconds": 0.007013499969616532,
+        "realization_seconds": 2.5500019546598196e-05
+      }
+    },
+    {
+      "question": "parts of a dog",
+      "answer": "I couldn't verify that entity in the semantic graph."
+    },
+    {
+      "timestamp": 1788428926.0414639,
+      "question": "parts of a dog",
+      "answer": "dog has: big heart, brains, fleas, four legs, fur, nose, one mouth, paws, penis, teeth, two ears.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": "en:dog"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:dog",
+        "relation": "has_a",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "direct_part_inventory",
+        "steps": 1,
+        "path": [
+          "has_a",
+          "has_part"
+        ],
+        "target": "en:big heart",
+        "selected_fact_target": "en:big heart",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "dog",
+        "canonical": "en:dog",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:dog",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "dog"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "has_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        },
+        {
+          "relation": "has_part",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "parts of a dog",
+        "tokens": [
+          {
+            "text": "parts",
+            "lemma": "part",
+            "pos": "NOUN",
+            "dep": "ROOT"
+          },
+          {
+            "text": "of",
+            "lemma": "of",
+            "pos": "ADP",
+            "dep": "prep"
+          },
+          {
+            "text": "a",
+            "lemma": "a",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "dog",
+            "lemma": "dog",
+            "pos": "NOUN",
+            "dep": "pobj"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "parts",
+          "a dog"
+        ],
+        "root": "parts",
+        "root_lemma": "part",
+        "question": "DECLARATIVE",
+        "subjects": [],
+        "objects": [
+          "dog"
+        ]
+      },
+      "selected": {
+        "subject": "en:dog",
+        "relation": "has_a",
+        "intent": "relation_lookup",
+        "lexical_score": 0.6666666666666666,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "dog",
+            "canonical": "en:dog",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:dog",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "dog"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "has_part",
+            "part_of",
+            "antonym",
+            "at_location",
+            "capable_of",
+            "causes",
+            "causes_desire",
+            "dbpedia/genre",
+            "dbpedia/genus",
+            "defined_as",
+            "definition",
+            "derived_from"
+          ],
+          "semantic_goal": "part",
+          "semantic_goal_source": "structural_part_inventory",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "DECLARATIVE",
+            "root": "part",
+            "subjects": [],
+            "objects": [
+              "dog"
+            ],
+            "predicate_tokens": [
+              "parts",
+              "dog"
+            ],
+            "predicate_lemmas": [
+              "dog"
+            ],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "DECLARATIVE",
+            "root": "part",
+            "pos": [
+              "ADP",
+              "DET",
+              "NOUN"
+            ],
+            "dependencies": [
+              "ROOT",
+              "det",
+              "pobj",
+              "prep"
+            ],
+            "has_pronoun": false,
+            "has_auxiliary": false,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": false
+          },
+          "target_terms": [],
+          "raw_relation": "has_a",
+          "selected_fact_target": "en:big heart",
+          "selected_fact_label": "big heart",
+          "fact_source": "semantic_goal_adapter",
+          "fact_confidence": 1.0,
+          "fact_target_terms": [],
+          "semantic_goal_runtime_relation": "has_a",
+          "all_part_labels": [
+            "big heart",
+            "brains",
+            "fleas",
+            "four legs",
+            "fur",
+            "nose",
+            "one mouth",
+            "paws",
+            "penis",
+            "teeth",
+            "two ears"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:dog",
+          "relation": "has_a",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "has_part",
+              "part_of",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from"
+            ],
+            "semantic_goal": "part",
+            "semantic_goal_source": "structural_part_inventory",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "DECLARATIVE",
+              "root": "part",
+              "subjects": [],
+              "objects": [
+                "dog"
+              ],
+              "predicate_tokens": [
+                "parts",
+                "dog"
+              ],
+              "predicate_lemmas": [
+                "dog"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "DECLARATIVE",
+              "root": "part",
+              "pos": [
+                "ADP",
+                "DET",
+                "NOUN"
+              ],
+              "dependencies": [
+                "ROOT",
+                "det",
+                "pobj",
+                "prep"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": false,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [],
+            "raw_relation": "has_a",
+            "selected_fact_target": "en:big heart",
+            "selected_fact_label": "big heart",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [],
+            "semantic_goal_runtime_relation": "has_a",
+            "all_part_labels": [
+              "big heart",
+              "brains",
+              "fleas",
+              "four legs",
+              "fur",
+              "nose",
+              "one mouth",
+              "paws",
+              "penis",
+              "teeth",
+              "two ears"
+            ]
+          }
+        },
+        {
+          "subject": "en:dog",
+          "relation": "has_part",
+          "intent": "relation_lookup",
+          "lexical_score": 0.6666666666666666,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "dog",
+              "canonical": "en:dog",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:dog",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "dog"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "has_part",
+              "part_of",
+              "antonym",
+              "at_location",
+              "capable_of",
+              "causes",
+              "causes_desire",
+              "dbpedia/genre",
+              "dbpedia/genus",
+              "defined_as",
+              "definition",
+              "derived_from"
+            ],
+            "semantic_goal": "part",
+            "semantic_goal_source": "structural_part_inventory",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "DECLARATIVE",
+              "root": "part",
+              "subjects": [],
+              "objects": [
+                "dog"
+              ],
+              "predicate_tokens": [
+                "parts",
+                "dog"
+              ],
+              "predicate_lemmas": [
+                "dog"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "DECLARATIVE",
+              "root": "part",
+              "pos": [
+                "ADP",
+                "DET",
+                "NOUN"
+              ],
+              "dependencies": [
+                "ROOT",
+                "det",
+                "pobj",
+                "prep"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": false,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": false
+            },
+            "target_terms": [],
+            "raw_relation": "has_a",
+            "selected_fact_target": "en:big heart",
+            "selected_fact_label": "big heart",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [],
+            "semantic_goal_runtime_relation": "has_part"
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "has_a",
+          "has_part"
+        ],
+        "target": "en:big heart",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "direct_part_inventory",
+        "semantic_goal": "part",
+        "semantic_relation": "part",
+        "subject_label": "dog",
+        "target_label": "big heart"
+      },
+      "distillation": {
+        "source": "structural_part_inventory",
+        "decision": "part"
+      },
+      "realization_cache": null,
+      "realization_guard": "deterministic_part_inventory",
+      "timing": {
+        "parse_seconds": 0.004307600029278547,
+        "hypothesis_seconds": 0.0015094000264070928,
+        "distillation_seconds": 0.00034689996391534805,
+        "search_seconds": 3.120000474154949e-05,
+        "llm_seconds": 8.629995863884687e-05,
+        "total_seconds": 0.006495499983429909,
+        "realization_seconds": 8.629995863884687e-05
+      }
+    },
+    {
+      "timestamp": 1788428960.5922427,
+      "question": "Can an animal feel pain?",
+      "answer": "Yes, the semantic graph verifies the requested capability for animal: feel pain.",
+      "entity_resolution_kind": "normalized_exact",
+      "context": {
+        "active_subject_before_turn": "en:dog",
+        "selected_subject": "en:animal"
+      },
+      "route": {
+        "intent": "relation_lookup",
+        "subject": "en:animal",
+        "relation": "capability",
+        "mode": "grounded",
+        "success": true,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:feel pain",
+        "selected_fact_target": "en:feel pain",
+        "attention": 0,
+        "exploration": 0
+      },
+      "entity_resolution": {
+        "status": "resolved",
+        "mention": "animal",
+        "canonical": "en:animal",
+        "confidence": 1.0,
+        "candidates": [
+          {
+            "node": "en:animal",
+            "kind": "normalized_exact",
+            "score": 1.0,
+            "accepted": true,
+            "label": "animal"
+          }
+        ]
+      },
+      "goal_selection": [
+        {
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "verified": true,
+          "direct_proof": true,
+          "steps": 1
+        }
+      ],
+      "parse": {
+        "text": "Can an animal feel pain?",
+        "tokens": [
+          {
+            "text": "Can",
+            "lemma": "can",
+            "pos": "AUX",
+            "dep": "aux"
+          },
+          {
+            "text": "an",
+            "lemma": "an",
+            "pos": "DET",
+            "dep": "det"
+          },
+          {
+            "text": "animal",
+            "lemma": "animal",
+            "pos": "NOUN",
+            "dep": "nsubj"
+          },
+          {
+            "text": "feel",
+            "lemma": "feel",
+            "pos": "VERB",
+            "dep": "ROOT"
+          },
+          {
+            "text": "pain",
+            "lemma": "pain",
+            "pos": "NOUN",
+            "dep": "dobj"
+          },
+          {
+            "text": "?",
+            "lemma": "?",
+            "pos": "PUNCT",
+            "dep": "punct"
+          }
+        ],
+        "entities": [],
+        "noun_chunks": [
+          "an animal",
+          "pain"
+        ],
+        "root": "feel",
+        "root_lemma": "feel",
+        "question": "QUESTION",
+        "subjects": [
+          "animal"
+        ],
+        "objects": [
+          "pain"
+        ]
+      },
+      "selected": {
+        "subject": "en:animal",
+        "relation": "capability",
+        "intent": "relation_lookup",
+        "lexical_score": 0.3333333333333333,
+        "evidence": {
+          "entity_resolution": {
+            "status": "resolved",
+            "mention": "animal",
+            "canonical": "en:animal",
+            "confidence": 1.0,
+            "candidates": [
+              {
+                "node": "en:animal",
+                "kind": "normalized_exact",
+                "score": 1.0,
+                "accepted": true,
+                "label": "animal"
+              }
+            ]
+          },
+          "candidate_relation_set": [
+            "capable_of",
+            "antonym",
+            "at_location",
+            "dbpedia/genre",
+            "desires",
+            "distinct_from",
+            "has_a",
+            "has_context",
+            "has_property",
+            "has_sense",
+            "is_a",
+            "made_of"
+          ],
+          "semantic_goal": "capability",
+          "semantic_goal_source": "direct_argument_evidence",
+          "semantic_goal_confidence": 1.0,
+          "semantic_goal_candidates": [
+            "definition",
+            "type",
+            "property",
+            "part",
+            "capability",
+            "location",
+            "purpose",
+            "cause",
+            "association",
+            "contrast"
+          ],
+          "semantic_goal_details": [
+            {
+              "goal": "definition",
+              "meaning": "what the subject is; its meaning or definition",
+              "available_relations": [
+                "definition",
+                "has_sense"
+              ]
+            },
+            {
+              "goal": "type",
+              "meaning": "what category or kind the subject belongs to",
+              "available_relations": [
+                "is_a"
+              ]
+            },
+            {
+              "goal": "property",
+              "meaning": "whether the subject has a characteristic or property",
+              "available_relations": [
+                "has_property"
+              ]
+            },
+            {
+              "goal": "part",
+              "meaning": "what physical or conceptual parts the subject has",
+              "available_relations": [
+                "has_part",
+                "has_a"
+              ]
+            },
+            {
+              "goal": "capability",
+              "meaning": "what the subject can do or is able to do",
+              "available_relations": [
+                "capable_of"
+              ]
+            },
+            {
+              "goal": "location",
+              "meaning": "where the subject is located or found",
+              "available_relations": [
+                "at_location"
+              ]
+            },
+            {
+              "goal": "purpose",
+              "meaning": "what the subject is used for or intended for",
+              "available_relations": [
+                "used_for"
+              ]
+            },
+            {
+              "goal": "cause",
+              "meaning": "what the subject causes or what causes it",
+              "available_relations": [
+                "causes"
+              ]
+            },
+            {
+              "goal": "association",
+              "meaning": "a general semantic association",
+              "available_relations": [
+                "related_to"
+              ]
+            },
+            {
+              "goal": "contrast",
+              "meaning": "an opposite or contrasting concept",
+              "available_relations": [
+                "antonym"
+              ]
+            }
+          ],
+          "argument_frame": {
+            "question": "QUESTION",
+            "root": "feel",
+            "subjects": [
+              "animal"
+            ],
+            "objects": [
+              "pain"
+            ],
+            "predicate_tokens": [
+              "feel",
+              "pain"
+            ],
+            "predicate_lemmas": [
+              "pain"
+            ],
+            "pronoun_subject": false
+          },
+          "syntax_frame": {
+            "question": "QUESTION",
+            "root": "feel",
+            "pos": [
+              "AUX",
+              "DET",
+              "NOUN",
+              "PUNCT",
+              "VERB"
+            ],
+            "dependencies": [
+              "ROOT",
+              "aux",
+              "det",
+              "dobj",
+              "nsubj",
+              "punct"
+            ],
+            "has_pronoun": false,
+            "has_auxiliary": true,
+            "has_adjective": false,
+            "has_noun": true,
+            "has_verb": true
+          },
+          "target_terms": [
+            "pain",
+            "feel pain"
+          ],
+          "raw_relation": "capable_of",
+          "selected_fact_target": "en:feel pain",
+          "selected_fact_label": "feel pain",
+          "fact_source": "semantic_goal_adapter",
+          "fact_confidence": 1.0,
+          "fact_target_terms": [
+            "pain",
+            "feel pain"
+          ]
+        }
+      },
+      "hypotheses": [
+        {
+          "subject": "en:animal",
+          "relation": "capability",
+          "intent": "relation_lookup",
+          "lexical_score": 0.3333333333333333,
+          "evidence": {
+            "entity_resolution": {
+              "status": "resolved",
+              "mention": "animal",
+              "canonical": "en:animal",
+              "confidence": 1.0,
+              "candidates": [
+                {
+                  "node": "en:animal",
+                  "kind": "normalized_exact",
+                  "score": 1.0,
+                  "accepted": true,
+                  "label": "animal"
+                }
+              ]
+            },
+            "candidate_relation_set": [
+              "capable_of",
+              "antonym",
+              "at_location",
+              "dbpedia/genre",
+              "desires",
+              "distinct_from",
+              "has_a",
+              "has_context",
+              "has_property",
+              "has_sense",
+              "is_a",
+              "made_of"
+            ],
+            "semantic_goal": "capability",
+            "semantic_goal_source": "direct_argument_evidence",
+            "semantic_goal_confidence": 1.0,
+            "semantic_goal_candidates": [
+              "definition",
+              "type",
+              "property",
+              "part",
+              "capability",
+              "location",
+              "purpose",
+              "cause",
+              "association",
+              "contrast"
+            ],
+            "semantic_goal_details": [
+              {
+                "goal": "definition",
+                "meaning": "what the subject is; its meaning or definition",
+                "available_relations": [
+                  "definition",
+                  "has_sense"
+                ]
+              },
+              {
+                "goal": "type",
+                "meaning": "what category or kind the subject belongs to",
+                "available_relations": [
+                  "is_a"
+                ]
+              },
+              {
+                "goal": "property",
+                "meaning": "whether the subject has a characteristic or property",
+                "available_relations": [
+                  "has_property"
+                ]
+              },
+              {
+                "goal": "part",
+                "meaning": "what physical or conceptual parts the subject has",
+                "available_relations": [
+                  "has_part",
+                  "has_a"
+                ]
+              },
+              {
+                "goal": "capability",
+                "meaning": "what the subject can do or is able to do",
+                "available_relations": [
+                  "capable_of"
+                ]
+              },
+              {
+                "goal": "location",
+                "meaning": "where the subject is located or found",
+                "available_relations": [
+                  "at_location"
+                ]
+              },
+              {
+                "goal": "purpose",
+                "meaning": "what the subject is used for or intended for",
+                "available_relations": [
+                  "used_for"
+                ]
+              },
+              {
+                "goal": "cause",
+                "meaning": "what the subject causes or what causes it",
+                "available_relations": [
+                  "causes"
+                ]
+              },
+              {
+                "goal": "association",
+                "meaning": "a general semantic association",
+                "available_relations": [
+                  "related_to"
+                ]
+              },
+              {
+                "goal": "contrast",
+                "meaning": "an opposite or contrasting concept",
+                "available_relations": [
+                  "antonym"
+                ]
+              }
+            ],
+            "argument_frame": {
+              "question": "QUESTION",
+              "root": "feel",
+              "subjects": [
+                "animal"
+              ],
+              "objects": [
+                "pain"
+              ],
+              "predicate_tokens": [
+                "feel",
+                "pain"
+              ],
+              "predicate_lemmas": [
+                "pain"
+              ],
+              "pronoun_subject": false
+            },
+            "syntax_frame": {
+              "question": "QUESTION",
+              "root": "feel",
+              "pos": [
+                "AUX",
+                "DET",
+                "NOUN",
+                "PUNCT",
+                "VERB"
+              ],
+              "dependencies": [
+                "ROOT",
+                "aux",
+                "det",
+                "dobj",
+                "nsubj",
+                "punct"
+              ],
+              "has_pronoun": false,
+              "has_auxiliary": true,
+              "has_adjective": false,
+              "has_noun": true,
+              "has_verb": true
+            },
+            "target_terms": [
+              "pain",
+              "feel pain"
+            ],
+            "raw_relation": "capable_of",
+            "selected_fact_target": "en:feel pain",
+            "selected_fact_label": "feel pain",
+            "fact_source": "semantic_goal_adapter",
+            "fact_confidence": 1.0,
+            "fact_target_terms": [
+              "pain",
+              "feel pain"
+            ]
+          }
+        }
+      ],
+      "search": {
+        "success": true,
+        "steps": 1,
+        "path": [
+          "capable_of"
+        ],
+        "target": "en:feel pain",
+        "attention": 0,
+        "exploration": 0,
+        "direct_proof": true,
+        "proof_kind": "selected_graph_fact",
+        "semantic_goal": "capability",
+        "semantic_relation": "capability",
+        "subject_label": "animal",
+        "target_label": "feel pain"
+      },
+      "distillation": {
+        "source": "direct_argument_evidence",
+        "decision": "capability"
+      },
+      "realization_cache": null,
+      "realization_guard": "deterministic_polar_fact",
+      "timing": {
+        "parse_seconds": 0.0032879000063985586,
+        "hypothesis_seconds": 0.0009532000403851271,
+        "distillation_seconds": 0.001891199965029955,
+        "search_seconds": 1.1300027836114168e-05,
+        "llm_seconds": 1.610000617802143e-05,
+        "total_seconds": 0.006175300048198551,
+        "realization_seconds": 1.610000617802143e-05
       }
     }
   ],
