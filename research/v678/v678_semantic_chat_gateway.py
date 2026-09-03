@@ -617,6 +617,15 @@ def is_definition_form(parse):
     )
 
 
+def restrict_definition_hypotheses(parse, hypotheses):
+    if is_definition_form(parse):
+        return hypotheses
+    return [
+        hypothesis for hypothesis in hypotheses
+        if hypothesis.relation not in {"definition", "has_sense"}
+    ]
+
+
 def choose_semantic_goal(
     teacher,
     graph,
@@ -1338,6 +1347,7 @@ def handle_turn(
         memory,
         max_n=args.max_hypotheses,
     )
+    hypotheses = restrict_definition_hypotheses(parse, hypotheses)
     hypothesis_seconds = (
         time.perf_counter()
         - t0
