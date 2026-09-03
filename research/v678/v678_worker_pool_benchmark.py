@@ -53,6 +53,7 @@ def run_configuration(args, worker_count, root):
         composition_fanout=args.composition_fanout,
         composition_max=args.composition_max,
         worker_query_batch_subjects=args.worker_query_batch_subjects,
+        task_poll_seconds=args.task_poll_seconds,
     )
     stop_event = mp.Event()
     started = time.perf_counter()
@@ -109,6 +110,7 @@ def main():
     parser.add_argument("--composition-fanout", type=int, default=4)
     parser.add_argument("--composition-max", type=int, default=2000)
     parser.add_argument("--worker-query-batch-subjects", type=int, default=128)
+    parser.add_argument("--task-poll-seconds", type=float, default=0.25)
     args = parser.parse_args()
     if args.duration_seconds <= 0:
         parser.error("--duration-seconds must be positive")

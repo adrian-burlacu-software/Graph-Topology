@@ -402,6 +402,7 @@ def worker_main(args, worker_id: int, stop_event=None):
     elapsed = 0.0
     learned = 0
     background_round = 0
+    next_task_poll = 0.0
     cpu_started = time.process_time()
     cpu_seconds = 0.0
     cpu_utilization = 0.0
@@ -428,19 +429,22 @@ def worker_main(args, worker_id: int, stop_event=None):
                 (worker_id + batches) % len(GENERAL_LANES)
             ]
             try:
-                task = shared.claim_query()
+                task = None
+                now = time.monotonic()
+                if now >= next_task_poll:
+                    task = shared.claim_query()
+                    next_task_poll = now + max(
+                        0.01,
+                        float(getattr(args, "task_poll_seconds", 0.25)),
+                    )
                 if task is None:
                     subject = QUERY_SUBJECTS[
                         (worker_id + background_round) % len(QUERY_SUBJECTS)
                     ]
-                    shared.enqueue_background_query(
-                        worker_id,
-                        f"Explore {subject.removeprefix('en:')} graph evidence.",
-                        subject,
-                    )
                     background_round += 1
-                    task = shared.claim_query()
-                focus_subjects = [task["subject"]] if task else None
+                    focus_subjects = [subject]
+                else:
+                    focus_subjects = [task["subject"]]
                 inspected, learned = run_lane(
                     conn, ram, lane, args.seed, worker_id, batches, focus_subjects,
                 )
@@ -512,6 +516,12 @@ def build_parser():
     ap.add_argument("--composition-fanout", type=int, default=4)
     ap.add_argument("--composition-max", type=int, default=2000,
                     help="Maximum derived compositions per worker run")
+    ap.add_argument(
+        "--task-poll-seconds",
+        type=float,
+        default=0.25,
+        help="Maximum delay before an idle worker checks for high-priority chat work.",
+    )
     return ap
 
 

@@ -57,6 +57,12 @@ def build_parser():
         default=128,
         help="Graph subjects each worker analyzes per queued task.",
     )
+    ap.add_argument(
+        "--task-poll-seconds",
+        type=float,
+        default=0.25,
+        help="Maximum delay before idle workers check for high-priority chat work.",
+    )
     return ap
 
 
@@ -142,6 +148,21 @@ def main():
                 p.terminate()
         for p in offline:
             p.join(timeout=1.0)
+        checkpoint = SharedCheckpoint(
+            args.shared_memory,
+            args.worker_count,
+            args.worker_count + 1,
+            args.checkpoint_seconds,
+        )
+        try:
+            checkpoint_result = checkpoint.checkpoint_wal()
+            print(
+                f"WAL checkpoint: busy={checkpoint_result[0]} "
+                f"pages={checkpoint_result[1]} checkpointed={checkpoint_result[2]}",
+                flush=True,
+            )
+        finally:
+            checkpoint.close()
         print("=== V678 RUNTIME COMPLETE ===", flush=True)
         print("offline exit codes:", {p.name: p.exitcode for p in offline}, flush=True)
 

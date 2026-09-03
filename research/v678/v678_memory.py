@@ -214,6 +214,7 @@ class SharedCheckpoint:
         self.conn=sqlite3.connect(str(self.path),timeout=10,check_same_thread=False); self.conn.row_factory=sqlite3.Row
         self.conn.execute("PRAGMA busy_timeout=10000"); self.conn.executescript("""
         PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
+        PRAGMA wal_autocheckpoint=256; PRAGMA journal_size_limit=67108864;
         CREATE TABLE IF NOT EXISTS semantic_decisions(
           key TEXT PRIMARY KEY, decision_type TEXT NOT NULL, surface TEXT NOT NULL, context_key TEXT NOT NULL,
           candidate_set TEXT NOT NULL, selected TEXT NOT NULL, count INTEGER NOT NULL, confidence REAL NOT NULL,
@@ -435,13 +436,22 @@ class SharedCheckpoint:
 
     def claim_query(self):
         with self.lock:
+            # Idle workers poll with a read transaction. Acquiring the writer lock
+            # only after finding work avoids WAL churn when --batch-sleep is zero.
+            queued = self.conn.execute(
+                """SELECT id FROM query_tasks
+                   WHERE worker_id=? AND status='queued'
+                   ORDER BY priority DESC,id LIMIT 1""",
+                (self.worker_id,),
+            ).fetchone()
+            if not queued:
+                return None
             self.conn.execute("BEGIN IMMEDIATE")
             try:
                 row = self.conn.execute(
-                    """SELECT id,query_id,question,subject FROM query_tasks
-                       WHERE worker_id=? AND status='queued'
-                       ORDER BY priority DESC,id LIMIT 1""",
-                    (self.worker_id,),
+                    """SELECT id,query_id,question,subject,priority FROM query_tasks
+                       WHERE id=? AND worker_id=? AND status='queued'""",
+                    (int(queued["id"]), self.worker_id),
                 ).fetchone()
                 if row:
                     self.conn.execute(
@@ -466,6 +476,17 @@ class SharedCheckpoint:
 
     def close(self):
         with self.lock:self.conn.close()
+
+    def checkpoint_wal(self, mode="TRUNCATE"):
+        """Run only after worker connections have stopped to reclaim WAL space."""
+        if str(mode).upper() not in {"PASSIVE", "FULL", "RESTART", "TRUNCATE"}:
+            raise ValueError(f"unsupported WAL checkpoint mode: {mode}")
+        with self.lock:
+            return tuple(
+                self.conn.execute(
+                    f"PRAGMA wal_checkpoint({str(mode).upper()})"
+                ).fetchone()
+            )
 
 
 class SharedDistilledMemory:

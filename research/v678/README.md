@@ -199,11 +199,18 @@ evidence and mark their task complete. The chat response remains
 graph-grounded; worker results are provenance-bearing supporting evidence in
 its trace.
 
-When no user task is queued, every worker continuously creates and claims one
-low-priority exploration task for animal, bear, or dog in round-robin order.
-This keeps the pool actively querying the graph while preserving one task per
-worker and giving user questions priority. `--batch-sleep 0` is the
-default; increase it only when you intentionally want to cap CPU usage.
+When no user task is queued, every worker locally rotates animal, bear, and dog
+exploration without inserting background tasks into the shared SQLite queue.
+Idle polling is read-only (default `--task-poll-seconds 0.25`), while only
+actual chat work claims, completes, and immediately shares a task result. This
+keeps `--batch-sleep 0` CPU-bound rather than SQLite-write-bound while preserving
+high-priority, one-task-per-worker fairness.
+
+Shared background evidence is still merged through the evenly staggered
+checkpoint slots. SQLite auto-checkpoints the WAL at 256 pages and the runtime
+runs a final truncate checkpoint after chat and all worker connections have
+closed. Increase `--batch-sleep` only when you intentionally want to cap CPU
+usage.
 Each queued task includes the focused subject plus a rotating batch of graph
 subjects (`--worker-query-batch-subjects`, default `128`) so lanes perform
 substantial graph work rather than repeatedly reading one edge.
