@@ -676,6 +676,19 @@ def choose_semantic_goal(
             "syntax_frame": structural_question_frame(parse),
         }
 
+    # Explicit arguments constrain the graph fact, not merely answer wording.
+    # Without a matching fact, selecting another relation would turn a failed
+    # breed/part/property request into an unrelated but provable answer.
+    if target_terms and not is_definition_form(parse):
+        return None, {
+            "source": "no_direct_argument_evidence",
+            "confidence": 0.0,
+            "candidates": [item["goal"] for item in goals],
+            "candidate_details": goals,
+            "frame": question_argument_frame(parse),
+            "syntax_frame": structural_question_frame(parse),
+        }
+
     # Definition is available only to grammatical definition requests. Other
     # questions must not return a definition merely because it is easy to prove.
     if not is_definition_form(parse):
@@ -1079,6 +1092,27 @@ def apply_live_distillation(
     )
 
     if not goal:
+        target_terms = question_target_terms(parse)
+        if (
+            info.get("source") == "no_direct_argument_evidence"
+            and base.subject
+        ):
+            return [
+                Hypothesis(
+                    base.subject,
+                    "",
+                    "relation_lookup",
+                    base.lexical_score,
+                    {
+                        **base.evidence,
+                        "target_terms": target_terms,
+                        "argument_unverified": True,
+                    },
+                )
+            ], {
+                "source": info["source"],
+                "decision": None,
+            }
         return hypotheses,{
             "source":info.get(
                 "source",
