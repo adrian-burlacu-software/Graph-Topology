@@ -575,14 +575,15 @@ def question_target_terms(parse):
     if (
         not subject_indexes
         and str(parse.question or "") == "QUESTION"
-        and str(parse.root_lemma or "").lower() == "be"
+        and tokens
+        and str(tokens[0].get("pos", "")).upper() == "AUX"
     ):
-        subject_indexes = {
+        copular_nouns = [
             index
             for index, item in enumerate(tokens[1:], 1)
             if str(item.get("pos", "")).upper() in {"NOUN", "PROPN"}
-        }
-        subject_indexes = set(list(subject_indexes)[:1])
+        ]
+        subject_indexes = set(copular_nouns[:1])
 
     stop={
         "a","an","the","it","he","she","they","them",
@@ -603,30 +604,61 @@ def question_target_terms(parse):
 
         if not any(form and form not in stop for form in forms):
             continue
-        if pos not in {"NOUN","PROPN","ADJ","ADV"} and not (
-            pos == "VERB" and dep == "root"
-        ):
+        if pos not in {"NOUN","PROPN","ADJ","ADV","NUM","VERB"}:
             continue
         if (
             index in subject_indexes
-            or dep in {"nsubj","nsubjpass","det","aux","auxpass","root"}
-            and pos != "VERB"
+            or dep in {"nsubj","nsubjpass","det","aux","auxpass"}
         ):
             continue
         for form in forms:
             if form and form not in stop and form not in terms:
                 terms.append(form)
 
+    phrase_terms = []
+    subject_surfaces = {
+        str(tokens[index].get("text") or "").lower()
+        for index in subject_indexes
+    }
+    for chunk in (parse.noun_chunks or []):
+        words = re.findall(r"[a-z0-9]+", str(chunk).lower())
+        phrase = " ".join(
+            word
+            for word in words
+            if word not in {"a", "an", "the"} | subject_surfaces
+        )
+        if (
+            phrase
+            and phrase not in subject_surfaces
+            and phrase not in phrase_terms
+        ):
+            phrase_terms.append(phrase)
+
+    if subject_indexes:
+        predicate_words = [
+            str(item.get("text") or "").lower()
+            for item in tokens[max(subject_indexes) + 1:]
+            if str(item.get("pos", "")).upper() != "PUNCT"
+        ]
+        while predicate_words and predicate_words[0] in {
+            "is", "are", "was", "were", "be", "have", "has",
+            "can", "could", "do", "does", "did", "a", "an", "the",
+        }:
+            predicate_words.pop(0)
+        predicate_phrase = " ".join(predicate_words)
+        if predicate_phrase and predicate_phrase not in phrase_terms:
+            phrase_terms.append(predicate_phrase)
+
     # Keep the explicit object/predicate ordering visible for the trace.
     if any(
         word in {"part", "parts", "component", "components"}
         for word in re.findall(r"[a-z]+", parse.text.lower())
     ):
-        terms = [
-            term for term in terms
+        phrase_terms = [
+            term for term in phrase_terms
             if term not in {"part", "parts", "component", "components"}
         ]
-    return terms[:8]
+    return (phrase_terms or terms)[:8]
 
 
 def is_definition_form(parse):

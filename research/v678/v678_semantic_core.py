@@ -1274,6 +1274,23 @@ class Graph:
             for row in rows
         ]
 
+        # If the question supplies an exact graph label, retain exact target
+        # evidence instead of a longer phrase that merely contains that word
+        # (for example, ``black`` versus ``see in black and white``).
+        if terms:
+            exact_facts = [
+                item for item in facts
+                if any(
+                    term in {
+                        str(item.get("normalized", "")).lower(),
+                        str(item.get("label", "")).lower(),
+                        str(item.get("object", "")).lower(),
+                    }
+                    for term in terms
+                )
+            ]
+            facts = exact_facts
+
         # Deterministic lexical evidence score for downstream diagnostics.
         # The teacher never sees these raw relation names.
         if terms:
