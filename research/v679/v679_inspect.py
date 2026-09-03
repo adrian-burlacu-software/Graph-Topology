@@ -19,6 +19,21 @@ def main():
     try:
         for r in con.execute("SELECT provenance,promotion_state,COUNT(*) n FROM semantic_knowledge GROUP BY provenance,promotion_state ORDER BY n DESC").fetchall(): print(f"  {r['provenance']:<12} {r['promotion_state']:<10} {r['n']:>8,}")
     except Exception as exc: print("  ERROR",repr(exc))
+    print("\nconfidence audit:")
+    try:
+        rows=con.execute("""
+            SELECT source,provenance,ROUND(confidence,3) confidence,
+                   COUNT(*) records,SUM(positive + negative) support
+            FROM knowledge_evidence
+            GROUP BY source,provenance,ROUND(confidence,3)
+            ORDER BY records DESC,source
+            LIMIT 20
+        """).fetchall()
+        for r in rows:
+            print(f"  {r['source']:<30} {r['provenance']:<11} "
+                  f"confidence={r['confidence']:.3f} records={r['records']:,} "
+                  f"support={r['support']:,}")
+    except Exception as exc: print("  ERROR",repr(exc))
     print("\n=== RELATION COMBINATIONS ===")
     print("top transitions:")
     try:

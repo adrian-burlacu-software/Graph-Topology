@@ -2661,6 +2661,7 @@ def search(
     budget=40,
     per_node=60,
     max_depth=3,
+    controller=None,
 ):
     base = {
         "success": False,
@@ -2807,6 +2808,13 @@ def search(
                 edge.relation,
             )
         )
+        if controller is not None:
+            edges = controller.select_traversal_targets(
+                hypothesis,
+                prefix,
+                edges,
+                score_by_relation,
+            )
 
         for edge in edges:
             next_prefix = prefix + (

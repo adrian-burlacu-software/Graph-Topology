@@ -72,6 +72,42 @@ def query_rows(connection, query, limit=12):
     return [dict(row) for row in connection.execute(query, (limit,)).fetchall()]
 
 
+def confidence_audit(connection):
+    tables = (
+        ("knowledge_evidence", "positive + negative", "source"),
+        ("decision_evidence", "count", "source"),
+        ("transition_evidence", "count", "'relation_transition'"),
+    )
+    by_source = []
+    half_confidence_records = 0
+    total_weight = 0
+    for table, weight, source in tables:
+        rows = connection.execute(
+            f"""SELECT {source} AS source,provenance,ROUND(confidence,3) AS confidence,
+                       COUNT(*) AS records,SUM({weight}) AS support
+                FROM {table}
+                GROUP BY source,provenance,ROUND(confidence,3)
+                ORDER BY records DESC,source
+                LIMIT 100"""
+        ).fetchall()
+        for row in rows:
+            item = {"table": table, **dict(row)}
+            by_source.append(item)
+            total_weight += int(item["support"] or 0)
+            if float(item["confidence"]) == 0.5:
+                half_confidence_records += int(item["records"])
+    return {
+        "total_support": total_weight,
+        "half_confidence_records": half_confidence_records,
+        "by_source": by_source,
+        "interpretation": (
+            "A 0.5 cluster identifies a default-confidence producer; confidence "
+            "is not evidence of agreement. V679 uses source-specific confidence "
+            "and reports support, contradiction, provenance, and specificity separately."
+        ),
+    }
+
+
 def shared_summary(path: Path):
     if not path.exists():
         return {"available": False}
@@ -118,6 +154,7 @@ def shared_summary(path: Path):
                    WHERE kind='relation_interaction_statistics'
                    GROUP BY relation ORDER BY support DESC,confidence DESC LIMIT ?""",
             ),
+            "confidence_audit": confidence_audit(connection),
         }
     finally:
         connection.close()

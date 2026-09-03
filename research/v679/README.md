@@ -1,9 +1,7 @@
-# V679 — Grounded Dialogue Reliability
+# V679 — Cognitive Attention and Evidence Arbitration
 
-V679 inherits V677 and hardens graph-grounded dialogue: canonical lexical
-definitions, plural concept resolution, pronoun carryover, and generic
-part/component questions. Definition answers bypass persisted realization
-caches so stale answers from a different lexical sense cannot be reused.
+V679 is based on V678. It makes the system decide which bounded, graph-backed
+evidence matters for the current turn. It does not merge graph structures.
 
 V679 includes all preceding experiment baselines. Its candidate-constrained
 teacher is for unresolved semantic ambiguity only; teacher selections remain
@@ -13,6 +11,28 @@ V679 mirrors V672 and turns its specialist evidence into a bounded semantic
 combination laboratory.
 
 ## What changed
+
+### Cognitive attention
+
+V678 assigned `0.5` to its primary observed lane, counterrelation mining,
+relation interaction statistics, and graph-health sampling. That value was a
+placeholder source default, not calibrated confidence. V679 assigns
+source-specific values and writes a confidence audit grouped by evidence table,
+source, provenance, confidence, record count, and support.
+
+For every semantic turn V679 now:
+
+1. exposes every bounded hypothesis and its candidate path evidence;
+2. prioritizes traversal targets from goal compatibility, prior attention,
+   target-term matches, and relation specificity;
+3. arbitrates each candidate using explicit support, contradiction,
+   specificity, provenance, and lexical components; and
+4. records the selected semantic decision and all rejected alternatives in the
+   chat trace.
+
+Only verified graph evidence can produce a grounded answer. Worker evidence
+remains provenance-bearing training evidence. Shared evidence aggregation is
+unchanged and is not graph-structure merging.
 
 ### 1. Checkpoints are actually spread across the whole interval
 
@@ -106,7 +126,9 @@ The useful signals are:
 
 ## Run
 
-Use a fresh V679 shared database for this experiment. Do not reuse the V671 shared database because V679 has a new evidence schema.
+Use a fresh V679 shared database for this experiment. Do not reuse a V678
+shared database because the V679 confidence audit expects source-specific
+evidence.
 
 ### Focused semantic graph
 
@@ -124,13 +146,13 @@ python .\research\v679\v679_semantic_network_builder.py --conceptnet ".\data\con
 ```
 
 ```powershell
-python .\research\v679\v679_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679_chat.json" --trace-output ".\results\v679_chat_traces.jsonl" --memory-output ".\results\v679_memory.json" --worker-log-dir ".\results\v679_workers" --shared-memory ".\results\v679_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67900 --worker-count 12 --batch-sleep 0
+python .\research\v679\v679_runtime.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679_chat.json" --trace-output ".\results\v679_chat_traces.jsonl" --memory-output ".\results\v679_memory.json" --worker-log-dir ".\results\v679_workers" --shared-memory ".\results\v679_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 300 --seed 67900 --worker-count 12 --batch-sleep 0
 ```
 
 For a faster checkpoint-spacing test:
 
 ```powershell
-python .\research\v679\v679_runtime.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679_chat.json" --trace-output ".\results\v679_chat_traces.jsonl" --memory-output ".\results\v679_memory.json" --worker-log-dir ".\results\v679_workers" --shared-memory ".\results\v679_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67900 --worker-count 12 --batch-sleep 0
+python .\research\v679\v679_runtime.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679_chat.json" --trace-output ".\results\v679_chat_traces.jsonl" --memory-output ".\results\v679_memory.json" --worker-log-dir ".\results\v679_workers" --shared-memory ".\results\v679_shared_memory_1min.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --mode chat --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000 --checkpoint-seconds 60 --seed 67900 --worker-count 12 --batch-sleep 0
 ```
 
 Inspect after a run:
@@ -154,14 +176,14 @@ fact, answer, pass/fail verdict, and complete internal routing/search/
 distillation/realization instrumentation for every case.
 
 ```powershell
-python .\research\v679\v679_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679\benchmark.jsonl" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\benchmark.jsonl" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
 Add equivalent determiner, contraction, and part-subject grammar forms for a
 93-case normalization run:
 
 ```powershell
-python .\research\v679\v679_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679\normalization_benchmark.jsonl" --normalization-variants --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\normalization_benchmark.jsonl" --normalization-variants --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
 After offline workers have populated the shared checkpoint, include up to ten
@@ -169,7 +191,7 @@ distinct worker-only discoveries for animal, bear, and dog. These answers are
 labelled as derived worker observations, never as semantic-graph facts:
 
 ```powershell
-python .\research\v679\v679_focused_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679\worker_discovery_benchmark.jsonl" --normalization-variants --shared-memory ".\results\v679_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
+python .\research\v679\v679_focused_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\worker_discovery_benchmark.jsonl" --normalization-variants --shared-memory ".\results\v679_shared_memory.sqlite" --spacy-model en_core_web_sm --llm-model "C:\Users\adria\Desktop\dev\Graph-Topology\llm\SmolLM3-3B" --max-hypotheses 12 --goal-budget 40 --per-node 60 --max-depth 3 --cache-entries 12000
 ```
 
 After a checkpoint, chat displays up to ten focused, ordinary taxonomy
@@ -225,7 +247,7 @@ in addition to throughput and sync metrics. To choose the best pool size on a
 specific machine, run the offline-only sweep (it does not load the LLM):
 
 ```powershell
-python .\research\v679\v679_worker_pool_benchmark.py --database ".\data\v673_focused_semantic.sqlite" --output ".\results\v679\worker_pool_benchmark.jsonl" --worker-counts 10,12,15 --duration-seconds 60
+python .\research\v679\v679_worker_pool_benchmark.py --database ".\data\v679_focused_semantic.sqlite" --output ".\results\v679\worker_pool_benchmark.jsonl" --worker-counts 10,12,15 --duration-seconds 60
 ```
 
 The final JSONL record contains the recommended `--worker-count`, selected by

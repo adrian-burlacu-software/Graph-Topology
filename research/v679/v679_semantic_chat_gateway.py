@@ -23,6 +23,7 @@ from v679_semantic_core import (
     normalize_question_text,
 )
 from v679_memory import RamSemanticMemory, SharedCheckpoint, SharedDistilledMemory
+from v679_attention import AttentionController
 
 
 def append_trace(
@@ -505,7 +506,7 @@ class LiveSemanticTeacher:
         try:
             payload=json.loads(match.group(0))
             selected_id=int(payload["selected_id"])
-            confidence=float(payload.get("confidence",0.5))
+            confidence=float(payload.get("confidence",0.0))
         except Exception:
             return None
 
@@ -1659,8 +1660,10 @@ def handle_turn(
     args,
     worker_discoveries=None,
     worker_pool=None,
+    controller=None,
 ):
     started = time.perf_counter()
+    controller = controller or AttentionController()
 
     t0 = time.perf_counter()
     parse = parser.parse(
@@ -1854,9 +1857,9 @@ def handle_turn(
         else:
             runtime_hypotheses.append(hypothesis)
 
-    for index,hypothesis in enumerate(
-        runtime_hypotheses
-    ):
+    runtime_hypotheses = controller.prioritize_hypotheses(runtime_hypotheses)
+
+    for index,hypothesis in enumerate(runtime_hypotheses):
         selected_fact = (
             hypothesis.evidence.get(
                 "selected_fact_target"
@@ -1900,6 +1903,7 @@ def handle_turn(
                 budget=args.goal_budget,
                 per_node=args.per_node,
                 max_depth=args.max_depth,
+                controller=controller,
             )
 
         semantic_match=float(
@@ -1940,9 +1944,12 @@ def handle_turn(
         - t0
     )
 
-    selected, result = choose_best(
-        ranked
-    )
+    semantic_decision = controller.arbitrate(ranked)
+    selected_index = semantic_decision["selected_candidate_index"]
+    if selected_index is None:
+        selected, result = choose_best(ranked)
+    else:
+        _, selected, result = ranked[selected_index]
 
     # A plural parts/components question requests the complete direct graph
     # inventory, not a single representative fact or a multi-hop substitute.
@@ -2284,6 +2291,11 @@ def handle_turn(
             }
             for _, h, r in ranked[:args.max_hypotheses]
         ],
+        "candidate_evidence": semantic_decision["candidates"],
+        "semantic_decision": semantic_decision,
+        "attention_controller": {
+            "traversal_targets": controller.traversal_targets,
+        },
         "parse": asdict(parse),
         "selected": asdict(selected),
         "hypotheses": [

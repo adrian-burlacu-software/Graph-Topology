@@ -238,7 +238,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                 obj = str(row[2])
                 feature = feature_for_pair(conn, subject, relation, obj)
                 feature["lane"] = lane
-                ram.upsert_knowledge(lane, subject, relation, obj, feature, positive=1, confidence=0.5, source="offline_graph_analysis")
+                ram.upsert_knowledge(lane, subject, relation, obj, feature, positive=1, confidence=0.95, source="offline_graph_analysis")
                 learned += 1
                 inspected += 1
                 if len(rows) > 20 and rng.random() < 0.08:
@@ -290,7 +290,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                             "reason": "contrasting_observed_relation",
                         },
                         negative=1,
-                        confidence=0.5,
+                        confidence=0.70,
                         source="offline_counterrelation",
                         provenance="derived",
                         derivation_depth=1,
@@ -334,7 +334,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                         continue
                     for previous, following in zip(relations, relations[1:]):
                         ram.upsert_transition(
-                            previous, following, confidence=0.5, count=1,
+                            previous, following, confidence=0.60, count=1,
                             provenance="derived", derivation_depth=len(relations),
                         )
                     ram.upsert_knowledge(
@@ -345,7 +345,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                             "depth": len(relations),
                             "relations": relations,
                         },
-                        positive=1, confidence=0.4, source="offline_composition",
+                        positive=1, confidence=0.55, source="offline_composition",
                         provenance="derived", derivation_depth=len(relations),
                     )
                     learned += 1; inspected += 1; produced += 1
@@ -381,7 +381,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                         None,
                         {"relations": [first, second], "interaction": "co_occurs"},
                         positive=1,
-                        confidence=0.5,
+                        confidence=0.65,
                         source="offline_relation_interaction",
                         provenance="derived",
                         derivation_depth=1,
@@ -405,7 +405,7 @@ def run_lane(conn, ram, lane, seed, worker_id, batch_no, focus_subjects=None):
                 None,
                 {"edges": int(edge_count), "unique_relations": int(unique_relations)},
                 positive=1,
-                confidence=0.5,
+                confidence=0.75,
                 source="offline_graph_health",
             )
             inspected += 1
