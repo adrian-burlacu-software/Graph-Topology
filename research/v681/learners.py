@@ -1,77 +1,66 @@
-"""Small orchestration adapters over existing V680 learners; no replacement algorithms."""
+"""V681 learner registry and orchestration over the one explicit V680 adapter."""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from dataclasses import dataclass
 
-from experience import ExperienceSource, ExperienceStore
-
-V680 = Path(__file__).resolve().parents[1] / "v680"
-if str(V680) not in sys.path:
-    sys.path.insert(0, str(V680))
+from .experience import ExperienceSource
+from .trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter, SequentialTransitionAdapter
 
 
-def attention_records(store, sources=(ExperienceSource.DAGGER,)):
-    episodes = {}
-    for item in store.load(training_only=True):
-        if item.source not in sources or "attention_step" not in item.payload:
-            continue
-        step = item.payload["attention_step"]
-        episodes.setdefault(item.episode_id, {"episode_id": item.episode_id, "split": step["split"],
-                                               "partition": step.get("partition", ""), "trajectory": []})["trajectory"].append(step)
-    return list(episodes.values())
+@dataclass(frozen=True)
+class LearnerDescriptor:
+    learner_type: str
+    accepted_sources: tuple
+    required_capabilities: tuple
+    training_mode: str
+    artifact_type: str
+
+
+REGISTRY = {
+    "attention_distillation": LearnerDescriptor("attention_distillation",
+        (ExperienceSource.DAGGER, ExperienceSource.CHAT_SEQUENTIAL, ExperienceSource.SYNTHETIC_CHAT),
+        ("sequential",), "imitation", "attention_checkpoint"),
+    "attention_dagger": LearnerDescriptor("attention_dagger", (ExperienceSource.DAGGER,),
+        ("sequential",), "bootstrap", "attention_checkpoint"),
+    "jepa_auxiliary": LearnerDescriptor("jepa_auxiliary",
+        (ExperienceSource.DAGGER, ExperienceSource.CHAT_SEQUENTIAL, ExperienceSource.SYNTHETIC_CHAT),
+        ("sequential",), "predictive_auxiliary", "jepa_checkpoint"),
+    "semantic_worker": LearnerDescriptor("semantic_worker", (ExperienceSource.OFFLINE_WORKER,),
+        ("knowledge_only",), "knowledge_evidence", "knowledge_manifest"),
+}
+
+
+def capability_report(experiences, descriptor, sources):
+    allowed = set(sources)
+    matching = [item for item in experiences if item.source in allowed]
+    compatible = [item for item in matching if item.sequence_capability in descriptor.required_capabilities]
+    if compatible:
+        return {"supported": True, "records": len(compatible), "reason": ""}
+    capability = sorted({item.sequence_capability for item in matching})
+    return {"supported": False, "records": 0,
+            "reason": "no compatible %s experience; found capabilities: %s" %
+                      ("/".join(descriptor.required_capabilities), ",".join(capability) or "none")}
 
 
 class AttentionDistillationLearner:
-    learner_type = "attention_distillation"
-    def collect(self, store): return attention_records(store)
-    def prepare(self, store): return self.collect(store)
-    def train(self, records, **configuration):
-        from attention_distill import train_distillation
-        return train_distillation(records, **configuration)
-    def evaluate(self, records, model, **configuration):
-        from attention_evaluate import evaluate
-        return evaluate(records, model, **configuration)
-    def save(self, model, path):
-        import torch
-        torch.save({"model": model.state_dict(), "learner_type": self.learner_type}, path)
-    def load(self, path): return path
+    descriptor = REGISTRY["attention_distillation"]
+    def prepare(self, experiences, sources, **filters):
+        return AttentionTrajectoryAdapter().extract(experiences, sources=sources, **filters)
+    def train(self, adapter, records_path, checkpoint_path, epochs, seed):
+        return adapter.train_attention(records_path, checkpoint_path, epochs, seed)
+    def evaluate(self, adapter, records_path, checkpoint_path, output_path):
+        return adapter.evaluate_attention(records_path, checkpoint_path, output_path)
 
 
 class JEPAAuxiliaryLearner:
-    learner_type = "jepa_auxiliary"
-    def collect(self, store):
-        return attention_records(store)
-    def prepare(self, store): return self.collect(store)
-    def train(self, records, **configuration):
-        from attention_jepa import train_jepa
-        return train_jepa(records, **configuration)
-    def evaluate(self, records, model, **configuration):
-        from attention_jepa import evaluate_jepa
-        return evaluate_jepa(records, model)
-    def save(self, model, path):
-        import torch
-        torch.save({"model": model.state_dict(), "learner_type": self.learner_type}, path)
-    def load(self, path): return path
+    descriptor = REGISTRY["jepa_auxiliary"]
+    def prepare(self, experiences, sources, **filters):
+        return SequentialTransitionAdapter().extract(experiences, sources=sources, **filters)
+    def train(self, adapter, records_path, checkpoint_path, output_path, epochs, seed):
+        return adapter.train_jepa(records_path, checkpoint_path, output_path, epochs, seed)
 
 
-class DaggerBootstrapLearner:
-    learner_type = "attention_dagger_bootstrap"
-    def collect(self, store): return attention_records(store, (ExperienceSource.DAGGER,))
-    def prepare(self, store): return self.collect(store)
-    def train(self, records, **configuration):
-        from attention_dagger import run_dagger
-        return run_dagger(records, **configuration)
-    def evaluate(self, *args, **kwargs): return {}
-    def save(self, artifact, path): return path
-    def load(self, path): return path
-
-
-class SemanticWorkerLearner:
-    learner_type = "semantic_worker"
-    def collect(self, store): return store.load(source=ExperienceSource.OFFLINE_WORKER)
-    def prepare(self, store): return self.collect(store)
-    def train(self, records, **configuration): return {"evidence_records": len(records), **configuration}
-    def evaluate(self, *args, **kwargs): return {}
-    def save(self, artifact, path): return path
-    def load(self, path): return path
+class OutcomeLearnerInterface:
+    """Future-RL-ready transitions only; this interface deliberately has no optimizer."""
+    def prepare(self, experiences):
+        return OutcomeTransitionAdapter().extract(experiences)

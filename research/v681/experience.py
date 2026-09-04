@@ -1,4 +1,4 @@
-"""Versioned, replayable learning experience envelope shared across V679 and V680."""
+"""Canonical V681 experience contract: model view, supervision, diagnostics."""
 from __future__ import annotations
 
 import json
@@ -9,12 +9,13 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 
-
-EXPERIENCE_VERSION = "v681-experience-1"
+EXPERIENCE_VERSION = "v681.2-experience-1"
 
 
 class ExperienceSource(str, Enum):
     CHAT = "chat"
+    CHAT_SEQUENTIAL = "chat_sequential"
+    CHAT_DECISION_ONLY = "chat_decision_only"
     SYNTHETIC_CHAT = "synthetic_chat"
     OFFLINE_WORKER = "offline_worker"
     DAGGER = "dagger"
@@ -32,163 +33,167 @@ class ExperienceQuality(str, Enum):
 
 
 _SPLITS = {"train", "validation", "heldout", "live"}
+_QUALITY_ORDER = {value: index for index, value in enumerate(ExperienceQuality)}
 
 
 @dataclass
 class Experience:
     source: ExperienceSource
     episode_id: str
+    model_view: dict = field(default_factory=dict)
+    supervision: dict = field(default_factory=dict)
+    diagnostics: dict = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
     split: str = "live"
     task: str = ""
-    state: dict | None = None
-    goal: dict | None = None
-    candidate_actions: list[dict] = field(default_factory=list)
-    selected_action: dict | None = None
-    available_actions: list[dict] = field(default_factory=list)
-    graph_context: dict = field(default_factory=dict)
-    evidence_acquired: list[dict] = field(default_factory=list)
-    next_state: dict | None = None
-    teacher_action: dict | None = None
-    outcome: dict | None = None
-    reward: float | None = None
-    confidence: float | None = None
-    provenance: dict = field(default_factory=dict)
     quality: ExperienceQuality = ExperienceQuality.UNVERIFIED
-    payload: dict = field(default_factory=dict)
+    provenance: dict = field(default_factory=dict)
     experience_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     version: str = EXPERIENCE_VERSION
 
     def __post_init__(self):
         self.source = ExperienceSource(self.source)
         self.quality = ExperienceQuality(self.quality)
-        if self.split not in _SPLITS:
-            raise ValueError(f"unknown experience split {self.split!r}")
-        if not self.episode_id:
-            raise ValueError("experience requires episode_id")
+        if self.split not in _SPLITS or not self.episode_id:
+            raise ValueError("experience requires a known split and episode_id")
         if self.source is ExperienceSource.ATTENTION_EVAL and self.split == "train":
             raise ValueError("evaluation experience cannot enter the training split")
-        if self.teacher_action is not None and self.outcome is not None:
-            # Their coexistence is intentional; separate fields prevent target conflation.
-            pass
+        if not isinstance(self.model_view, dict) or not isinstance(self.supervision, dict):
+            raise ValueError("model_view and supervision must be objects")
+        forbidden = {"teacher", "oracle", "reward", "terminal_outcome", "future_state"} & self.model_view.keys()
+        if forbidden:
+            raise ValueError(f"model_view contains supervision/diagnostic fields: {sorted(forbidden)}")
 
     def as_dict(self):
-        value = asdict(self)
-        value["source"] = self.source.value
-        value["quality"] = self.quality.value
-        return value
+        item = asdict(self)
+        item["source"], item["quality"] = self.source.value, self.quality.value
+        return item
 
     @classmethod
     def from_dict(cls, value):
         return cls(**dict(value))
 
+    @property
+    def sequence_capability(self):
+        return self.model_view.get("sequence_capability", "none")
+
 
 class ExperienceStore:
-    """SQLite append-only envelope store; learning readers explicitly exclude evaluation."""
+    """Append-only full-record SQLite persistence; every replay reads canonical JSON."""
     def __init__(self, path):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = Path(path); self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path, timeout=30)
         self.connection.execute("PRAGMA journal_mode=WAL")
-        self.connection.execute("PRAGMA busy_timeout=30000")
         self.connection.execute(
-            """CREATE TABLE IF NOT EXISTS experience (
+            """CREATE TABLE IF NOT EXISTS experience_v681 (
                experience_id TEXT PRIMARY KEY, source TEXT NOT NULL, episode_id TEXT NOT NULL,
                timestamp REAL NOT NULL, split TEXT NOT NULL, task TEXT NOT NULL, quality TEXT NOT NULL,
-               outcome_kind TEXT, payload TEXT NOT NULL)"""
+               sequence_capability TEXT NOT NULL, outcome_kind TEXT, record TEXT NOT NULL)"""
         )
-        self.connection.execute("CREATE INDEX IF NOT EXISTS experience_filter ON experience(source,split,task,quality)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS experience_v681_filter ON experience_v681(source,split,task,quality)")
         self.connection.commit()
 
-    def close(self):
-        self.connection.close()
+    def close(self): self.connection.close()
 
     def append(self, experience):
-        experience = experience if isinstance(experience, Experience) else Experience.from_dict(experience)
-        value = experience.as_dict()
+        item = experience if isinstance(experience, Experience) else Experience.from_dict(experience)
         self.connection.execute(
-            "INSERT OR IGNORE INTO experience VALUES(?,?,?,?,?,?,?,?,?)",
-            (experience.experience_id, experience.source.value, experience.episode_id, experience.timestamp,
-             experience.split, experience.task, experience.quality.value,
-             (experience.outcome or {}).get("kind"), json.dumps(value, sort_keys=True)),
+            "INSERT OR IGNORE INTO experience_v681 VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (item.experience_id, item.source.value, item.episode_id, item.timestamp, item.split, item.task,
+             item.quality.value, item.sequence_capability, item.supervision.get("outcome", {}).get("kind"),
+             json.dumps(item.as_dict(), sort_keys=True)),
         )
         self.connection.commit()
-        return experience.experience_id
+        return item.experience_id
 
-    def load(self, source=None, task=None, outcome=None, quality=None, training_only=False):
+    def load(self, source=None, task=None, outcome=None, quality=None, training_only=False,
+             allowed_splits=None, min_quality=None):
         clauses, values = [], []
-        for column, value in (("source", source.value if isinstance(source, Enum) else source), ("task", task),
-                              ("outcome_kind", outcome), ("quality", quality.value if isinstance(quality, Enum) else quality)):
-            if value is not None:
-                clauses.append(f"{column}=?"); values.append(value)
-        if training_only:
-            clauses.append("split='train'")
-        query = "SELECT payload FROM experience" + (" WHERE " + " AND ".join(clauses) if clauses else "") + " ORDER BY timestamp,experience_id"
-        return [Experience.from_dict(json.loads(row[0])) for row in self.connection.execute(query, values)]
+        filters = (("source", source.value if isinstance(source, Enum) else source), ("task", task),
+                   ("outcome_kind", outcome), ("quality", quality.value if isinstance(quality, Enum) else quality))
+        for column, value in filters:
+            if value is not None: clauses.append(f"{column}=?"); values.append(value)
+        if training_only: clauses.append("split='train'")
+        if allowed_splits:
+            clauses.append("split IN (%s)" % ",".join("?" * len(allowed_splits))); values.extend(allowed_splits)
+        rows = self.connection.execute("SELECT record FROM experience_v681" +
+            (" WHERE " + " AND ".join(clauses) if clauses else "") + " ORDER BY timestamp,experience_id", values)
+        items = [Experience.from_dict(json.loads(row[0])) for row in rows]
+        if min_quality is not None:
+            items = [item for item in items if _QUALITY_ORDER[item.quality] <= _QUALITY_ORDER[ExperienceQuality(min_quality)]]
+        return items
 
-    def sample_episodes(self, source=None, training_only=True, limit=None):
-        grouped = {}
-        for item in self.load(source=source, training_only=training_only):
-            grouped.setdefault(item.episode_id, []).append(item)
-        episodes = [sorted(items, key=lambda item: item.timestamp) for _, items in sorted(grouped.items())]
-        return episodes[:limit] if limit else episodes
+    def sample_episodes(self, **filters):
+        groups = {}
+        for item in self.load(**filters):
+            groups.setdefault(item.episode_id, []).append(item)
+        return [sorted(items, key=lambda item: item.timestamp) for _, items in sorted(groups.items())]
 
     def manifest(self):
         rows = self.connection.execute(
-            "SELECT source,split,quality,COUNT(*) FROM experience GROUP BY source,split,quality ORDER BY source,split,quality"
+            "SELECT source,split,quality,sequence_capability,COUNT(*) FROM experience_v681 "
+            "GROUP BY source,split,quality,sequence_capability ORDER BY source,split,quality"
         ).fetchall()
-        return {"experience_version": EXPERIENCE_VERSION,
-                "records": [{"source": row[0], "split": row[1], "quality": row[2], "count": row[3]} for row in rows]}
+        return {"experience_version": EXPERIENCE_VERSION, "records": [
+            {"source": row[0], "split": row[1], "quality": row[2], "sequence_capability": row[3], "count": row[4]}
+            for row in rows]}
 
 
 def attention_step_experience(step, source=ExperienceSource.DAGGER, quality=ExperienceQuality.TEACHER_LABELLED):
-    """Adapt V680 serialized trace without making teacher or oracle fields model-visible."""
+    """Translate V680 records into canonical V681 sections; the raw step is diagnostics only."""
     state = step["state"]
-    action = step["action"]
-    candidates = list(step["candidates"])
     return Experience(
-        source=source, episode_id=str(step["episode_id"]), split=_split(step["split"]),
-        task="attention", state=state, goal={"relation": state["goal_relation"], "terms": state["goal_terms"]},
-        candidate_actions=candidates, selected_action=action,
-        available_actions=[*candidates, {"kind": "stop"}, {"kind": "abstain"}],
-        next_state=step["next_state"], teacher_action={"selected_action": step["teacher"]["selected_action"]},
-        outcome={"kind": _attention_outcome(step["terminal_outcome"]), "verified": bool(step["oracle"].get("valid_proof_edge"))},
-        reward=float(step["reward"]), confidence=None, quality=quality,
-        provenance={"producer": "v680", "split": step["split"], "teacher_version": step.get("teacher_version", "")},
-        payload={"attention_step": step},
+        source=source, episode_id=str(step["episode_id"]), split=_split(step["split"]), task="attention",
+        model_view={"sequence_capability": "sequential", "state": state, "goal": {
+            "relation": state["goal_relation"], "terms": state["goal_terms"]}, "candidate_actions": step["candidates"],
+            "selected_action": step["action"], "available_actions": [*step["candidates"], {"kind": "stop"}, {"kind": "abstain"}],
+            "graph_context": {"graph_version": step.get("graph_version", "unknown")},
+            "evidence_acquired": [], "next_state": step["next_state"]},
+        supervision={"teacher": dict(step["teacher"]), "outcome": {
+            "kind": _attention_outcome(step["terminal_outcome"]), "verified": bool(step["oracle"].get("valid_proof_edge"))},
+            "reward": float(step["reward"])},
+        diagnostics={"raw_v680_step": step, "oracle": dict(step["oracle"])},
+        quality=quality, provenance={"producer": "v680", "graph_version": step.get("graph_version", "unknown"),
+                                      "teacher_version": step.get("teacher_version", "unknown"),
+                                      "dataset_version": step.get("dataset_version", "unknown")},
     )
 
 
-def chat_trace_experience(trace, source=ExperienceSource.CHAT):
-    route = dict(trace.get("route", {}))
-    verified = bool(route.get("success"))
+def chat_trace_experience(trace, source=ExperienceSource.CHAT_DECISION_ONLY):
+    """Sanitize V679 traces: they are decision-only unless an explicit sequential trace exists."""
+    route = dict(trace.get("route", {})); verified = bool(route.get("success"))
     return Experience(
-        source=source, episode_id=f"chat-{int(trace.get('timestamp', time.time()) * 1_000_000)}",
-        split="live", task="chat_attention",
-        goal={"relation": route.get("relation"), "subject": route.get("subject"), "intent": route.get("intent")},
-        candidate_actions=list(trace.get("candidate_evidence", [])),
-        selected_action={"kind": "traverse", "candidate_id": trace.get("semantic_decision", {}).get("selected_candidate_index")}
-                        if trace.get("semantic_decision", {}).get("selected_candidate_index") is not None else {"kind": "abstain"},
-        available_actions=[*trace.get("candidate_evidence", []), {"kind": "stop"}, {"kind": "abstain"}],
-        graph_context={"route": route, "search": trace.get("search", {})},
-        evidence_acquired=[{"path": route.get("path", []), "target": route.get("target"), "direct": route.get("direct_proof", False)}],
-        outcome={"kind": "verified_answer" if verified else "insufficient_evidence", "verified": verified},
-        confidence=1.0 if verified else 0.0, quality=ExperienceQuality.VERIFIED if verified else ExperienceQuality.UNVERIFIED,
-        provenance={"producer": "v679_semantic_chat_gateway", "trace_timestamp": trace.get("timestamp")},
-        payload={"chat_trace": trace},
+        source=source, episode_id=f"chat-{int(trace.get('timestamp', time.time()) * 1_000_000)}", task="chat_attention",
+        model_view={"sequence_capability": "decision_only", "goal": {
+            "relation": route.get("relation"), "subject": route.get("subject"), "intent": route.get("intent")},
+            "candidate_actions": list(trace.get("candidate_evidence", [])), "selected_action": {
+                "kind": "traverse", "candidate_id": trace.get("semantic_decision", {}).get("selected_candidate_index")}
+                if trace.get("semantic_decision", {}).get("selected_candidate_index") is not None else {"kind": "abstain"},
+            "available_actions": [*trace.get("candidate_evidence", []), {"kind": "stop"}, {"kind": "abstain"}],
+            "graph_context": {"graph_version": trace.get("graph_version", "unknown")}, "evidence_acquired": [
+                {"path": route.get("path", []), "target": route.get("target"), "direct": route.get("direct_proof", False)}]},
+        supervision={"outcome": {"kind": "verified_answer" if verified else "insufficient_evidence", "verified": verified},
+                     "confidence": 1.0 if verified else 0.0},
+        diagnostics={"raw_trace": trace}, quality=ExperienceQuality.VERIFIED if verified else ExperienceQuality.UNVERIFIED,
+        provenance={"producer": "v679_trace_import", "graph_version": trace.get("graph_version", "unknown")},
     )
 
 
 def worker_batch_experience(event):
+    """Telemetry/knowledge evidence only: never an attention label."""
     return Experience(
         source=ExperienceSource.OFFLINE_WORKER,
         episode_id=f"worker-{event.get('worker_id', 'unknown')}-batch-{event.get('batch', 0)}",
-        task="offline_graph_learning", graph_context={"lane": event.get("lane"), "ram": event.get("ram", {})},
-        evidence_acquired=[{"lane": event.get("lane"), "learned": event.get("learned", 0),
-                            "new_results": event.get("new_results", 0), "provenance": event.get("provenance", {})}],
-        confidence=None, quality=ExperienceQuality.GROUNDED,
-        provenance={"producer": "v679_offline_learning", "worker_id": event.get("worker_id")},
-        payload={"worker_event": event},
+        task="offline_graph_learning",
+        model_view={"sequence_capability": "knowledge_only", "graph_context": {
+            "graph_version": event.get("graph_version", "unknown"),
+            "before_graph_version": event.get("before_graph_version", "unknown"),
+            "after_graph_version": event.get("after_graph_version", "unknown")},
+            "knowledge_event": {"lane": event.get("lane"), "telemetry_only": True},
+            "knowledge_delta": None},
+        supervision={}, diagnostics={"raw_worker_event": event},
+        quality=ExperienceQuality.GROUNDED, provenance={"producer": "v679_worker_log",
+            "worker_id": event.get("worker_id"), "graph_version": event.get("graph_version", "unknown")},
     )
 
 

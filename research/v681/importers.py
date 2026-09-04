@@ -4,16 +4,25 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from experience import ExperienceSource, chat_trace_experience, worker_batch_experience
+from .experience import Experience, ExperienceSource, chat_trace_experience, worker_batch_experience
 
 
 def import_chat_traces(store, path, source=ExperienceSource.CHAT):
     """Append V679 JSONL traces after a chat run; never opens a chat runtime."""
     count = 0
     for line in Path(path).read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            store.append(chat_trace_experience(json.loads(line), source=source))
-            count += 1
+        if not line.strip():
+            continue
+        raw = json.loads(line)
+        # Sequential producers may emit canonical records directly. Legacy V679
+        # traces remain explicitly decision-only rather than invented trajectories.
+        if raw.get("version", "").startswith("v681") and raw.get("model_view", {}).get("sequence_capability") == "sequential":
+            item = Experience.from_dict(raw)
+            item.source = ExperienceSource.CHAT_SEQUENTIAL
+            store.append(item)
+        else:
+            store.append(chat_trace_experience(raw, source=source))
+        count += 1
     return count
 
 

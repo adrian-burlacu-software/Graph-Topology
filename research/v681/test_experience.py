@@ -1,69 +1,94 @@
-import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parent / "v680"))
 
-from experience import (Experience, ExperienceQuality, ExperienceSource, ExperienceStore,
-                        attention_step_experience, chat_trace_experience, worker_batch_experience)
-from importers import import_chat_traces, import_worker_logs
+from .experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
+from .importers import import_chat_traces, import_worker_logs
+from .learners import REGISTRY, capability_report
+from .trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
+from .v680_adapter import V680EngineAdapter
+
+
+def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
+    state = {"goal_relation": "is_a", "goal_terms": ["goal"], "current_focus": "a", "current_node": "a",
+             "relation_features": {}, "candidate_features": [{"relation": "is_a", "target": "b"}],
+             "relation_activation": {}, "candidate_activation": {}, "visited_nodes": [], "visited_relations": [],
+             "attention_history": [], "step": 0, "remaining_budget": 2}
+    return Experience(source, "episode", split=split, quality=ExperienceQuality.TEACHER_LABELLED,
+        model_view={"sequence_capability": "sequential", "state": state, "next_state": {**state, "step": 1},
+                    "selected_action": {"kind": "traverse", "candidate_id": 0},
+                    "candidate_actions": [{"action": {"kind": "traverse", "candidate_id": 0}, "features": state["candidate_features"][0]}]},
+        supervision={"teacher": {"logits": [1, 0, 0], "probabilities": [.6, .2, .2], "selected_action": 0, "outcome": "traverse"},
+                     "outcome": {"kind": "verified_answer"}, "reward": 1.0},
+        diagnostics={"oracle": {"valid_proof_edge": True}}, provenance={"graph_version": "snapshot-a"})
 
 
 class ExperienceTests(unittest.TestCase):
-    def test_replay_preserves_provenance_and_teacher_outcome_separation(self):
+    def test_complete_canonical_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             store = ExperienceStore(Path(directory) / "experience.sqlite")
-            value = Experience(ExperienceSource.DAGGER, "episode", split="train",
-                               teacher_action={"kind": "traverse"},
-                               outcome={"kind": "verified_answer"}, quality=ExperienceQuality.TEACHER_LABELLED,
-                               provenance={"teacher_version": "frozen"})
-            store.append(value)
-            replayed = store.sample_episodes()[0][0]
-            self.assertEqual(replayed.provenance["teacher_version"], "frozen")
-            self.assertEqual(replayed.teacher_action["kind"], "traverse")
-            self.assertEqual(replayed.outcome["kind"], "verified_answer")
+            item = sequential_experience(); item.model_view["graph_context"] = {"graph_version": "a"}
+            item.diagnostics["external_raw"] = {"must": "not be model input"}
+            store.append(item); store.close()
+            store = ExperienceStore(Path(directory) / "experience.sqlite")
+            self.assertEqual(store.load()[0].as_dict(), item.as_dict())
             store.close()
 
-    def test_evaluation_cannot_be_training_experience(self):
+    def test_model_view_and_evaluation_safety(self):
         with self.assertRaises(ValueError):
-            Experience(ExperienceSource.ATTENTION_EVAL, "evaluation", split="train")
+            Experience(ExperienceSource.DAGGER, "x", model_view={"oracle": {}})
+        with self.assertRaises(ValueError):
+            Experience(ExperienceSource.ATTENTION_EVAL, "x", split="train")
 
-    def test_chat_and_worker_adapters_keep_distinct_provenance(self):
+    def test_decision_chat_and_worker_are_not_attention_trajectories(self):
         chat = chat_trace_experience({"timestamp": 1, "route": {"success": False}, "candidate_evidence": []})
         worker = worker_batch_experience({"worker_id": 2, "batch": 3, "lane": "synonym_structure"})
-        self.assertEqual(chat.source, ExperienceSource.CHAT)
-        self.assertEqual(chat.quality, ExperienceQuality.UNVERIFIED)
-        self.assertEqual(worker.source, ExperienceSource.OFFLINE_WORKER)
-        self.assertIn("lane", worker.evidence_acquired[0])
+        report = capability_report([chat, worker], REGISTRY["attention_distillation"],
+                                   {ExperienceSource.CHAT_DECISION_ONLY})
+        self.assertFalse(report["supported"])
+        self.assertEqual(chat.sequence_capability, "decision_only")
+        self.assertEqual(worker.sequence_capability, "knowledge_only")
 
-    def test_dagger_adapter_replays_sequential_attention_step(self):
-        from attention_dataset import collect_teacher_episodes
-        from attention_env import benchmark_episodes
-        step = collect_teacher_episodes([benchmark_episodes()[0]])[0]["trajectory"][0]
-        item = attention_step_experience(step)
-        self.assertEqual(item.source, ExperienceSource.DAGGER)
-        self.assertIsNotNone(item.state)
-        self.assertIsNotNone(item.next_state)
-        self.assertIsNotNone(item.teacher_action)
-        self.assertIsNotNone(item.outcome)
+    def test_one_adapter_extracts_dagger_and_synthetic_chat(self):
+        dagger, chat = sequential_experience(), sequential_experience(ExperienceSource.SYNTHETIC_CHAT)
+        episodes, rejected = AttentionTrajectoryAdapter().extract(
+            [dagger, chat], {ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT})
+        self.assertEqual(len(episodes), 1)
+        self.assertFalse(rejected)
+        transition = OutcomeTransitionAdapter().extract([dagger])
+        self.assertEqual(len(transition), 1)
+        self.assertEqual(REGISTRY["attention_dagger"].training_mode, "bootstrap")
+        self.assertEqual(REGISTRY["jepa_auxiliary"].training_mode, "predictive_auxiliary")
 
-    def test_file_importers_do_not_require_live_v679_processes(self):
+    def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            trace = root / "chat.jsonl"
-            trace.write_text('{"timestamp": 1, "route": {"success": true}, "candidate_evidence": []}\n')
+            root = Path(directory); trace = root / "chat.jsonl"; trace.write_text('{"timestamp":1,"route":{}}\n')
             workers = root / "workers"; workers.mkdir()
-            (workers / "worker_00.jsonl").write_text(
-                '{"event":"analysis_batch","worker_id":0,"batch":1,"lane":"synonym_structure"}\n')
+            (workers / "worker_00.jsonl").write_text('{"event":"analysis_batch","worker_id":0,"batch":1}\n')
             store = ExperienceStore(root / "experience.sqlite")
-            self.assertEqual(import_chat_traces(store, trace), 1)
-            self.assertEqual(import_worker_logs(store, workers), 1)
-            self.assertEqual(len(store.load(source=ExperienceSource.CHAT)), 1)
-            self.assertEqual(len(store.load(source=ExperienceSource.OFFLINE_WORKER)), 1)
+            self.assertEqual(import_chat_traces(store, trace), 1); self.assertEqual(import_worker_logs(store, workers), 1)
             store.close()
+
+    def test_worker_graph_context_never_becomes_attention_supervision(self):
+        worker = worker_batch_experience({"worker_id": 0, "batch": 1, "lane": "graph_health_sampling",
+                                          "before_graph_version": "snapshot-a", "after_graph_version": "snapshot-b"})
+        self.assertEqual(worker.model_view["graph_context"]["before_graph_version"], "snapshot-a")
+        self.assertNotIn("teacher", worker.supervision)
+        self.assertIsNone(worker.model_view["knowledge_delta"])
+
+    def test_explicit_engine_boundary_validates_location(self):
+        with self.assertRaisesRegex(FileNotFoundError, "V681 requires the frozen V680 engine"):
+            V680EngineAdapter(HERE / "missing-engine")
+
+    def test_explicit_engine_adapter_generates_frozen_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "records.jsonl"
+            V680EngineAdapter().generate_teacher_records(output, 1)
+            self.assertTrue(output.exists())
+            self.assertIn("trajectory", json.loads(output.read_text().splitlines()[0]))
 
 
 if __name__ == "__main__":
