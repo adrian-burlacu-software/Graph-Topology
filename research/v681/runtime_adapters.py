@@ -38,6 +38,11 @@ class RepositoryRuntime:
             "v680_engine": _capability(self.v680_root / "attention_dataset.py", "frozen V680 engine"),
             "graph_database": _capability(self.graph_database, "V679 graph database"),
             "local_llm": _capability(self.llm_model, "local V679 LLM model"),
+            "learned_policy_application": {
+                "available": False,
+                "reason": ("V679 accepts only its relation-bias JSON policy, while frozen V680 checkpoints require "
+                           "a V679-to-V680 sequential observation adapter that the upstream runtime does not expose"),
+            },
         }
 
 

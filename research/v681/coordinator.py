@@ -174,11 +174,21 @@ class V681Coordinator:
     def _inspection(self):
         items = self.store.load()
         train = [item for item in items if item.split == "train" and item.sequence_capability == "sequential"]
+        composition = {}
+        for source in ExperienceSource:
+            sourced = [item for item in items if item.source is source]
+            composition[source.value] = {
+                "records": len(sourced),
+                "episodes": len({item.episode_id for item in sourced}),
+                "qualities": {quality.value: sum(item.quality is quality for item in sourced)
+                              for quality in type(items[0].quality)} if items else {},
+                "actions": _action_counts(sourced),
+            }
         return {"total_records": len(items), "chat_records": sum(item.source in {ExperienceSource.CHAT_DECISION_ONLY, ExperienceSource.CHAT_SEQUENTIAL} for item in items),
                 "worker_records": sum(item.source is ExperienceSource.OFFLINE_WORKER for item in items),
                 "decision_only_records": sum(item.sequence_capability == "decision_only" for item in items),
                 "train_sequential_records": len(train), "train_sequential_episodes": len({item.episode_id for item in train}),
-                "source_counts": {source.value: sum(item.source is source for item in items) for source in ExperienceSource}}
+                "source_composition": composition}
 
     def _finish(self, started, before, discovery, status):
         result = {"v681_version": V681_VERSION, "session_id": self.session_id, "status": status,
@@ -196,6 +206,11 @@ class V681Coordinator:
             f"Session `{self.session_id}` finished with status `{status}`.\n\n"
             f"- chat episodes captured: {self.chat_records}\n- worker events captured: {self.worker_events}\n"
             f"- training cycles: {len(self.cycles)}\n- failures: {len(self.failures)}\n")
+        (self.session_dir / "v681_session_manifest.json").write_text(
+            json.dumps(result, indent=2, sort_keys=True))
+        (self.output / "v681_latest_results.json").write_text(json.dumps(result, indent=2, sort_keys=True))
+        (self.output / "v681_latest_report.md").write_text(
+            (self.output / "v681_runtime_report.md").read_text())
         self.store.close()
         return result
 
@@ -217,3 +232,11 @@ def _append_engine_records(store, records, source, prefix, heldout_only=False):
             item.episode_id = prefix + item.episode_id
             item.provenance["supervision_source"] = "frozen_v680_teacher"
             store.append(item)
+
+
+def _action_counts(items):
+    counts = {}
+    for item in items:
+        kind = item.model_view.get("selected_action", {}).get("kind", "none")
+        counts[kind] = counts.get(kind, 0) + 1
+    return counts

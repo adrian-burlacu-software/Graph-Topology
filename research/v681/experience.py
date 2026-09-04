@@ -190,11 +190,14 @@ def worker_batch_experience(event):
             "graph_version": event.get("graph_version", "unknown"),
             "before_graph_version": event.get("before_graph_version", "unknown"),
             "after_graph_version": event.get("after_graph_version", "unknown")},
-            "knowledge_event": {"lane": event.get("lane"), "telemetry_only": True},
+            "knowledge_event": {"lane": event.get("lane"), "batch": event.get("batch"),
+                                "learned": event.get("learned"), "new_results": event.get("new_results"),
+                                "telemetry_only": True},
             "knowledge_delta": None},
         supervision={}, diagnostics={"raw_worker_event": event},
         quality=ExperienceQuality.GROUNDED, provenance={"producer": "v679_worker_log",
-            "worker_id": event.get("worker_id"), "graph_version": event.get("graph_version", "unknown")},
+            "worker_id": event.get("worker_id"), "worker_version": event.get("worker_version", "unknown"),
+            "batch": event.get("batch"), "graph_version": event.get("graph_version", "unknown")},
     )
 
 

@@ -1,46 +1,53 @@
-# V681.3 unified learning substrate
+# V681.4 unified learning runtime
 
-V681.3 owns canonical experience, storage, source ingestion, manifests, and
-orchestration. It reaches V680 only through `v680_adapter.py`, which validates
-the fixed `research/v680` engine path. It has no dynamic Python-path imports and
-does not modify V679. V679 artifacts are imported afterward. V680 remains the
-frozen attention/JEPA engine.
-
-Every record separates `model_view`, `supervision`, and `diagnostics`. Legacy
-V679 chat traces are explicitly `decision_only`; sequential synthetic/live chat
-and DAgGER use the same `AttentionTrajectoryAdapter`. Worker artifacts are
-knowledge-only events, never attention labels. JEPA remains auxiliary.
+## Normal operation
 
 ```powershell
+python -m research.v681.run_v681
+```
+
+V681 discovers the repository-relative V679 runtime, compatible focused graph,
+local LLM, V680 engine, existing V679 artifacts, and V681 store. It starts the
+real V679 chat/worker runtime with V681-owned internal outputs, appends observed
+chat and worker experience, batches eligible learning, evaluates candidate
+artifacts, and writes `results/v681/v681_runtime_results.json`,
+`v681_runtime_report.md`, and `v681_experience_manifest.json`.
+It also writes a per-session `v681_session_manifest.json` and the stable
+aliases `v681_latest_results.json` and `v681_latest_report.md`.
+
+No path to a chat trace, worker log, dataset, or checkpoint is needed. The
+runtime uses `GRAPH_TOPOLOGY_LLM_MODEL` when set, otherwise expects the local
+model at `llm/SmolLM3-3B`. If a runtime component is absent, V681 writes its
+precise capability failure and continues with the components that are available.
+
+V679 traces are collected through its real trace lifecycle, annotated with the
+V681 session ID, and classified as `decision_only` unless V679 supplies an
+explicit canonical sequential trajectory. V681 never fabricates steps. Worker
+events remain knowledge-only and are never attention labels.
+
+Training is batched: V681 bootstraps with frozen V680 DAgGER when fewer than
+eight trainable sequential episodes exist, then trains attention and auxiliary
+JEPA candidates. A new candidate is evaluated and preserved with provenance,
+but is not automatically promoted: explicit project safety criteria are required.
+The current V679 runtime has no compatible sequential observation adapter for a
+frozen V680 checkpoint, so V681 records that unavailable feedback capability
+rather than falsely applying an incompatible model to chat.
+
+```powershell
+# One-shot CI/developer lifecycle: discover, collect, learn, evaluate, report, exit.
+python -m research.v681.run_v681 --once
+
+# Discovery/report only; does not start chat or learners.
+python -m research.v681.run_v681 --dry-run
+
 # Package test discovery from repository root.
 python -m unittest discover -s research\v681 -p "test_*.py"
 
-# Synthetic self-test: package, store, sequential synthetic chat, DAgGER,
-# V680 attention/JEPA adapters, held-out evaluation, and reports.
+# V681.3 diagnostic smoke test.
 python -m research.v681.run_v681_experiment --output-dir ".\results\v681\selftest" --smoke
 
-# Real-chat ingestion only: sanitize/import completed V679 traces, write the
-# manifest/report/examples, and never initialize V680 or train weights.
+# V681.3 diagnostic ingestion inspection.
 python -m research.v681.run_v681_experiment --output-dir ".\results\v681\chat_ingest" --chat-traces ".\results\v679_chat_traces.jsonl" --inspect-experience
-
-# Full integration after inspecting ingestion. Legacy V679 traces are
-# decision_only and are excluded from sequential attention learning.
-python -m research.v681.run_v681_experiment --output-dir ".\results\v681\full" --chat-traces ".\results\v679_chat_traces.jsonl" --worker-logs ".\results\v679_workers" --epochs 8 --seed 7
-
-# Inspect an existing V681 store.
-python -m research.v681.run_v681_experiment --output-dir ".\results\v681\inspect" --inspect-experience
-
-# Materialize reviewed sequential live records into an immutable new train dataset view.
-python -m research.v681.run_v681_experiment --output-dir ".\results\v681\materialized" --materialize-live --min-quality verified --epochs 8
 ```
 
-The experiment writes `v681_learning_integration_results.json`,
-`v681_experience_manifest.json`, and `v681_learning_integration_report.md`.
-In ingestion-only mode it writes `chat_ingestion_report.json` and
-`chat_ingestion_examples.json`, with accepted capability/provenance descriptors
-and malformed-record reasons. Successful ingestion does not mean a trace has
-sequential attention supervision.
-Each trained V680 checkpoint has a companion V681 `<comparison>.provenance.json`
-that identifies sources, dataset version, engine version, seed, and configuration.
-It explicitly marks source comparisons unsupported when chat/worker data lacks
-compatible sequential attention observations; it does not fabricate results.
+The V681.3 commands are diagnostics only, not the normal workflow.
