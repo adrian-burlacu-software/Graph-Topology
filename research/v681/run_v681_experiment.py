@@ -1,4 +1,4 @@
-"""Operational V681.2 substrate orchestration; V680 is reached only by adapter."""
+"""Operational V681.3 substrate orchestration; V680 is reached only by adapter."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +11,7 @@ from .importers import import_chat_traces, import_worker_logs
 from .learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
 from .v680_adapter import V680_ENGINE_VERSION, V680EngineAdapter
 
-V681_VERSION = "v681.2-learning-substrate-1"
+V681_VERSION = "v681.3-learning-substrate-1"
 
 
 def _read_jsonl(path):
@@ -82,11 +82,15 @@ def _run_attention_comparison(name, sources, experiences, engine, output, epochs
 
 def _inspect(store):
     items = store.load()
+    sequential_train = [item for item in items if item.sequence_capability == "sequential" and item.split == "train"]
     return {"total_records": len(items), "episodes": len({item.episode_id for item in items}),
             "sources": {source.value: sum(item.source is source for item in items) for source in ExperienceSource},
             "qualities": {quality.value: sum(item.quality is quality for item in items) for quality in type(items[0].quality)} if items else {},
             "splits": {split: sum(item.split == split for item in items) for split in ("train", "validation", "heldout", "live")},
             "attention_capable_records": sum(item.sequence_capability == "sequential" for item in items),
+            "attention_trainable_records": len(sequential_train),
+            "attention_trainable_episodes": len({item.episode_id for item in sequential_train}),
+            "jepa_trainable_transitions": len(sequential_train),
             "decision_only_records": sum(item.sequence_capability == "decision_only" for item in items),
             "worker_knowledge_records": sum(item.sequence_capability == "knowledge_only" for item in items)}
 
@@ -105,8 +109,42 @@ def _materialize_live(store, min_quality):
     return created
 
 
+def _chat_examples(store, ingestion):
+    items = {item.experience_id: item for item in store.load()
+             if item.source in {ExperienceSource.CHAT_DECISION_ONLY, ExperienceSource.CHAT_SEQUENTIAL}}
+    examples, seen = [], set()
+    for descriptor in ingestion["accepted"]:
+        item = items[descriptor["experience_id"]]
+        labels = [item.sequence_capability, item.quality.value]
+        for label in labels:
+            if label not in seen:
+                examples.append({"kind": label, "experience": item.as_dict()}); seen.add(label)
+    for rejected in ingestion["rejected"]:
+        if "malformed" not in seen:
+            examples.append({"kind": "malformed_rejected", "rejection": rejected}); seen.add("malformed")
+    return examples
+
+
+def _write_ingestion_report(output, store, ingestion):
+    inspection = _inspect(store)
+    report = {"ingestion": ingestion, "aggregate": {
+        "total_chat_records": len(ingestion["accepted"]) + len(ingestion["rejected"]),
+        "accepted": len(ingestion["accepted"]), "rejected": len(ingestion["rejected"]),
+        "unknown_malformed": len(ingestion["rejected"]),
+        "sequential": sum(item["sequence_capability"] == "sequential" for item in ingestion["accepted"]),
+        "decision_only": sum(item["sequence_capability"] == "decision_only" for item in ingestion["accepted"]),
+        "verified": sum(item["quality"] == "verified" for item in ingestion["accepted"]),
+        "unverified": sum(item["quality"] == "unverified" for item in ingestion["accepted"]),
+        **{key: inspection[key] for key in ("attention_trainable_records", "attention_trainable_episodes",
+                                            "jepa_trainable_transitions", "decision_only_records")},
+    }}
+    (output / "chat_ingestion_report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+    (output / "chat_ingestion_examples.json").write_text(json.dumps(_chat_examples(store, ingestion), indent=2, sort_keys=True))
+    return report
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Run/inspect the self-contained V681.2 learning substrate.")
+    parser = argparse.ArgumentParser(description="Run/inspect the self-contained V681.3 learning substrate.")
     parser.add_argument("--output-dir", required=True); parser.add_argument("--v680-engine", default="")
     parser.add_argument("--chat-traces", default=""); parser.add_argument("--worker-logs", default="")
     parser.add_argument("--epochs", type=int, default=8); parser.add_argument("--seed", type=int, default=7)
@@ -116,11 +154,13 @@ def main():
                         help="Copy reviewed sequential live records into a new train version; never mutates live records.")
     args = parser.parse_args()
     output = Path(args.output_dir); output.mkdir(parents=True, exist_ok=True)
-    engine = V680EngineAdapter(args.v680_engine or None)
     store = ExperienceStore(output / "v681_experience.sqlite")
     if args.inspect_experience:
-        report = _inspect(store); (output / "v681_experience_manifest.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+        ingestion = import_chat_traces(store, args.chat_traces) if args.chat_traces else {"accepted": [], "rejected": []}
+        report = _write_ingestion_report(output, store, ingestion)
+        (output / "v681_experience_manifest.json").write_text(json.dumps(_inspect(store), indent=2, sort_keys=True))
         print(json.dumps(report, indent=2, sort_keys=True)); store.close(); return
+    engine = V680EngineAdapter(args.v680_engine or None)
     samples = 5 if args.smoke else 100
     raw_teacher = output / "v680_teacher.jsonl"
     engine.generate_teacher_records(raw_teacher, samples)
@@ -131,7 +171,8 @@ def main():
     # This is a true sequential synthetic-chat corpus generated by the frozen
     # engine benchmark, never a fabricated production chat outcome.
     _ingest_engine_records(store, records, ExperienceSource.SYNTHETIC_CHAT, "synthetic-chat-")
-    chat_records = import_chat_traces(store, args.chat_traces) if args.chat_traces else 0
+    chat_ingestion = import_chat_traces(store, args.chat_traces) if args.chat_traces else {"accepted": [], "rejected": []}
+    chat_records = len(chat_ingestion["accepted"])
     worker_records = import_worker_logs(store, args.worker_logs) if args.worker_logs else 0
     materialized = _materialize_live(store, args.min_quality or "unverified") if args.materialize_live else 0
     experiences = store.load()
@@ -173,13 +214,14 @@ def main():
                "knowledge_conditioned": knowledge, "promotion": {"promoted": False, "reason": "explicit evaluation required"}}
     (output / "v681_experience_manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
     (output / "v681_learning_integration_results.json").write_text(json.dumps(results, indent=2, sort_keys=True))
+    _write_ingestion_report(output, store, chat_ingestion)
     comparison_lines = "\n".join(
         f"- `{name}`: {'supported' if value['supported'] else 'unsupported'}"
         + (f" ({value.get('reason')})" if value.get("reason") else "")
         for name, value in results["source_comparisons"].items()
     )
     (output / "v681_learning_integration_report.md").write_text(
-        "# V681.2 learning integration\n\n"
+        "# V681.3 learning integration\n\n"
         f"V681 version `{V681_VERSION}` uses explicit frozen engine `{V680_ENGINE_VERSION}` at `{engine.root}`.\n\n"
         "DAgGER and sequential synthetic/live chat traverse the same V681 trajectory adapter. "
         "Decision-only chat and worker knowledge are retained but excluded from attention imitation. "

@@ -5,11 +5,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-from .experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
-from .importers import import_chat_traces, import_worker_logs
-from .learners import REGISTRY, capability_report
-from .trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
-from .v680_adapter import V680EngineAdapter
+from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
+from research.v681.importers import import_chat_traces, import_worker_logs
+from research.v681.learners import REGISTRY, capability_report
+from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
+from research.v681.v680_adapter import V680EngineAdapter
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -65,11 +65,22 @@ class ExperienceTests(unittest.TestCase):
 
     def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); trace = root / "chat.jsonl"; trace.write_text('{"timestamp":1,"route":{}}\n')
+            root = Path(directory); trace = root / "chat.jsonl"
+            trace.write_text('{"timestamp":1,"route":{},"candidate_evidence":[],"semantic_decision":{}}\n')
             workers = root / "workers"; workers.mkdir()
             (workers / "worker_00.jsonl").write_text('{"event":"analysis_batch","worker_id":0,"batch":1}\n')
             store = ExperienceStore(root / "experience.sqlite")
-            self.assertEqual(import_chat_traces(store, trace), 1); self.assertEqual(import_worker_logs(store, workers), 1)
+            self.assertEqual(len(import_chat_traces(store, trace)["accepted"]), 1)
+            self.assertEqual(import_worker_logs(store, workers), 1)
+            store.close()
+
+    def test_malformed_chat_trace_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bad.jsonl"; path.write_text("not json\n")
+            store = ExperienceStore(Path(directory) / "experience.sqlite")
+            report = import_chat_traces(store, path)
+            self.assertEqual(report["accepted"], [])
+            self.assertEqual(len(report["rejected"]), 1)
             store.close()
 
     def test_worker_graph_context_never_becomes_attention_supervision(self):
