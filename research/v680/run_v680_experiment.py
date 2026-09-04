@@ -108,7 +108,8 @@ def main():
     if "evaluation" in phases:
         if baseline is None or jepa_student is None or jepa is None:
             raise RuntimeError("evaluation requires existing baseline, JEPA, and JEPA-student artifacts")
-        test_specs = [spec for spec in specs if spec["partition"] != "train"]
+        # Keep in-distribution/train metrics visible, but never train on validation/held-out rows.
+        test_specs = specs
         result["attention_matrix"] = {
             "baseline": evaluate_rollouts(test_specs, baseline, policy_name="baseline",
                                           failure_path=output / "failures_baseline.jsonl"),
@@ -120,7 +121,8 @@ def main():
                                              policy_name="random_jepa", failure_path=output / "failures_random_jepa.jsonl"),
             "teacher": evaluate_rollouts(test_specs, TeacherPolicyAdapter(), policy_name="teacher"),
         }
-        heldout_no_proof = [spec for spec in test_specs if spec.get("no_proof")]
+        heldout_no_proof = [spec for spec in test_specs
+                            if spec.get("no_proof") and spec["partition"] == "heldout"]
         result["no_proof_generalization"] = {
             "baseline_before_dagger": evaluate_rollouts(heldout_no_proof, baseline, policy_name="baseline"),
             "jepa_before_dagger": evaluate_rollouts(heldout_no_proof, jepa_student, jepa=jepa, policy_name="jepa"),
