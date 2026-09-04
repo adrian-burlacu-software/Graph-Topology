@@ -92,7 +92,7 @@ class AttentionJEPA(nn.Module):
 
 class JEPAFeatureControl:
     """Frozen, shape-preserving causal feature control with no oracle inputs."""
-    def __init__(self, model, mode="real", seed=0, mean=0.0, std=1.0):
+    def __init__(self, model, mode="real", seed=0, mean=0.0, std=1.0, state_permutation=None):
         self.model = model
         self.mode = mode
         self.seed = int(seed)
@@ -100,6 +100,7 @@ class JEPAFeatureControl:
         self.mean = float(mean)
         self.std = float(std)
         self._sample_generator = torch.Generator().manual_seed(self.seed)
+        self.state_permutation = state_permutation or {}
 
     def _generator(self, state, per_state):
         source = str(state.as_dict()).encode() if per_state else b"fixed"
@@ -117,6 +118,11 @@ class JEPAFeatureControl:
         if self.mode == "dimension_permuted":
             order = torch.randperm(prediction.shape[-1], generator=self._generator(state, False))
             return prediction[:, order]
+        if self.mode == "state_permuted":
+            try:
+                return self.state_permutation[str(state.as_dict())].clone()
+            except KeyError as error:
+                raise ValueError("state permutation lacks this observable state") from error
         if self.mode == "zero":
             return torch.zeros_like(prediction)
         if self.mode in {"fixed_random", "per_state_random", "per_sample_random"}:

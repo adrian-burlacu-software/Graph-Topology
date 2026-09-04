@@ -64,7 +64,7 @@ python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680_1\smo
 Run the frozen five-seed JEPA causal audit. It writes
 `v680_1_jepa_causal_results.json`, `v680_1_jepa_causal_report.md`, and
 `v680_1_dagger_report.json`, including matched zero/fixed-random/per-state
-random/per-sample-random/action-shuffled/dimension-permuted controls:
+random/per-sample-random/action-shuffled/dimension-permuted/state-permuted controls:
 
 ```powershell
 python .\research\v680\run_v680_jepa_causal.py --output-dir ".\results\v680_1\causal" --seeds 1,2,3,4,5 --epochs 8 --samples-per-category 100 --dagger-rounds 4

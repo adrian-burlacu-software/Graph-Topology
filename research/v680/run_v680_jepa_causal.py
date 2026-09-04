@@ -22,7 +22,7 @@ from attention_types import DATASET_VERSION, JEPA_VERSION, STUDENT_VERSION, TEAC
 CONDITION_MODES = {
     "baseline_zero": "zero", "fixed_random": "fixed_random", "per_state_random": "per_state_random",
     "per_sample_random": "per_sample_random", "real": "real", "action_shuffled": "action_shuffled",
-    "dimension_permuted": "dimension_permuted",
+    "dimension_permuted": "dimension_permuted", "state_permuted": "state_permuted",
 }
 CONDITIONS = tuple(CONDITION_MODES)
 
@@ -185,6 +185,22 @@ def _dagger_table(rounds):
 
 
 @torch.no_grad()
+def state_permutation(records, model):
+    """Permute learned features between different observable states of equal action cardinality."""
+    groups = defaultdict(list)
+    for episode in records:
+        for step in episode["trajectory"]:
+            state = AttentionObservation.from_dict(step["state"])
+            groups[len(state.candidate_features) + 2].append(state)
+    mapping = {}
+    for states in groups.values():
+        predictions = [model.predict_actions(state) for state in states]
+        for index, state in enumerate(states):
+            mapping[str(state.as_dict())] = predictions[(index + 1) % len(predictions)]
+    return mapping
+
+
+@torch.no_grad()
 def synthetic_head_diagnostic(records, model, mean, std):
     """Oracle-free sensitivity probe; scenario names are never supplied to training."""
     scenarios = {
@@ -242,7 +258,9 @@ def main():
     for seed in seeds:
         jepa, _ = train_jepa(transitions, args.epochs, seed=seed, model=AttentionJEPA())
         calibration = representation_statistics(transitions, jepa)
-        providers = {name: JEPAFeatureControl(jepa, mode, seed, calibration["mean"], calibration["std"])
+        permutation = state_permutation(records, jepa)
+        providers = {name: JEPAFeatureControl(jepa, mode, seed, calibration["mean"], calibration["std"],
+                                              state_permutation=permutation)
                      for name, mode in CONDITION_MODES.items()}
         models = {
             name: train_distillation(records, args.epochs, seed=seed, jepa=provider, use_jepa=True)[0]
