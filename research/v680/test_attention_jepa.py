@@ -50,6 +50,24 @@ class JEPATests(unittest.TestCase):
         diagnostic = jepa_action_swap_diagnostic([benchmark_episodes()[0]], student, jepa)
         self.assertTrue(diagnostic["coupled"])
 
+    def test_causal_controls_preserve_action_shape_without_oracle_inputs(self):
+        from attention_jepa import AttentionJEPA, JEPAFeatureControl, representation_statistics
+        records = collect_jepa_transition_episodes(benchmark_episodes()[:2])
+        state = records[0]["trajectory"][0]["state"]
+        from attention_types import AttentionObservation
+        observation = AttentionObservation.from_dict(state)
+        model = AttentionJEPA()
+        baseline = model.predict_actions(observation)
+        stats = representation_statistics(records, model)
+        fixed = JEPAFeatureControl(model, "fixed_random", seed=3, mean=stats["mean"], std=stats["std"])
+        per_state = JEPAFeatureControl(model, "per_state_random", seed=3, mean=stats["mean"], std=stats["std"])
+        per_sample = JEPAFeatureControl(model, "per_sample_random", seed=3, mean=stats["mean"], std=stats["std"])
+        self.assertEqual(fixed.predict_actions(observation).shape, baseline.shape)
+        self.assertTrue((fixed.predict_actions(observation) == fixed.predict_actions(observation)).all())
+        self.assertTrue((per_state.predict_actions(observation) == per_state.predict_actions(observation)).all())
+        self.assertFalse((per_sample.predict_actions(observation) == per_sample.predict_actions(observation)).all())
+        self.assertEqual(len(stats["per_dimension_variance"]), model.representation_dim)
+
 
 if __name__ == "__main__":
     unittest.main()

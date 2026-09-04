@@ -61,6 +61,21 @@ Run the small smoke suite instead:
 python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680_1\smoke_seed7" --seed 7 --epochs 2 --rounds 4 --smoke
 ```
 
+Run the frozen five-seed JEPA causal audit. It writes
+`v680_1_jepa_causal_results.json`, `v680_1_jepa_causal_report.md`, and
+`v680_1_dagger_report.json`, including matched zero/fixed-random/per-state
+random/per-sample-random/action-shuffled/dimension-permuted controls:
+
+```powershell
+python .\research\v680\run_v680_jepa_causal.py --output-dir ".\results\v680_1\causal" --seeds 1,2,3,4,5 --epochs 8 --samples-per-category 100 --dagger-rounds 4
+```
+
+Use this reduced command only as a wiring check:
+
+```powershell
+python .\research\v680\run_v680_jepa_causal.py --output-dir ".\results\v680_1\causal_smoke" --seeds 1 --epochs 1 --dagger-rounds 1 --smoke
+```
+
 PPO is blocked unless the recorded gate passes. This command makes an explicitly
 labelled smoke-only PPO run:
 

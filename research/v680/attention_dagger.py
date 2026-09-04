@@ -111,7 +111,10 @@ def _round_metrics(new_records, checkpoint, failures, prior_state_ids=()):
                for step in steps)
     teacher_abstentions = [s for s in steps
                            if s["teacher"]["selected_action"] == len(s["state"]["candidate_features"]) + 1]
+    teacher_traversals = [s for s in steps
+                          if s["teacher"]["selected_action"] < len(s["state"]["candidate_features"])]
     false_positives = [s for s in teacher_abstentions if s["action"]["kind"] == "traverse"]
+    false_negatives = [s for s in teacher_traversals if s["action"]["kind"] != "traverse"]
     action_distribution = Counter(_action_name(step["teacher"]["selected_action"],
                                                 len(step["state"]["candidate_features"])) for step in steps)
     student_distribution = Counter(step["action"]["kind"] for step in steps)
@@ -123,6 +126,8 @@ def _round_metrics(new_records, checkpoint, failures, prior_state_ids=()):
             / max(1, len(teacher_abstentions)),
             "false_positive_attention_events": len(false_positives),
             "false_positive_attention_rate": len(false_positives) / max(1, len(teacher_abstentions)),
+            "false_negative_attention_events": len(false_negatives),
+            "false_negative_attention_rate": len(false_negatives) / max(1, len(teacher_traversals)),
             "unique_states": len(state_ids), "new_states": len(state_ids - set(prior_state_ids)),
             "revisited_states": len(state_ids & set(prior_state_ids)),
             "total_states": len(steps), "teacher_action_distribution": dict(action_distribution),

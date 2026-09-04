@@ -81,7 +81,9 @@ class NeuralAttentionPolicy(nn.Module):
                 if shuffled_jepa and len(future) > 1:
                     future = future.roll(1, 0)
                 if random_jepa:
-                    generator = torch.Generator().manual_seed(len(state.attention_history) + len(future) * 97)
+                    # Legacy evaluation-only option. Causal experiments use JEPAFeatureControl,
+                    # which records calibration and generation policy explicitly.
+                    generator = torch.Generator().manual_seed(0)
                     future = torch.randn(future.shape, generator=generator, dtype=future.dtype)
         logits, value, hidden = self(state_vector, candidate_vectors, hidden, self.action_mask(state), future)
         distribution = torch.distributions.Categorical(logits=logits)

@@ -99,6 +99,7 @@ class JEPAFeatureControl:
         self.representation_dim = model.representation_dim
         self.mean = float(mean)
         self.std = float(std)
+        self._sample_generator = torch.Generator().manual_seed(self.seed)
 
     def _generator(self, state, per_state):
         source = str(state.as_dict()).encode() if per_state else b"fixed"
@@ -118,8 +119,9 @@ class JEPAFeatureControl:
             return prediction[:, order]
         if self.mode == "zero":
             return torch.zeros_like(prediction)
-        if self.mode in {"fixed_random", "per_state_random"}:
-            generator = self._generator(state, self.mode == "per_state_random")
+        if self.mode in {"fixed_random", "per_state_random", "per_sample_random"}:
+            generator = (self._sample_generator if self.mode == "per_sample_random"
+                         else self._generator(state, self.mode == "per_state_random"))
             return torch.randn(prediction.shape, generator=generator, dtype=prediction.dtype) * self.std + self.mean
         raise ValueError(f"unknown JEPA control mode {self.mode!r}")
 
