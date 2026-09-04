@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import random
 from pathlib import Path
@@ -87,6 +88,55 @@ class AttentionJEPA(nn.Module):
     def update_target_encoder(self):
         for target, source in zip(self.target_encoder.parameters(), self.context_encoder.parameters()):
             target.mul_(self.target_momentum).add_(source, alpha=1 - self.target_momentum)
+
+
+class JEPAFeatureControl:
+    """Frozen, shape-preserving causal feature control with no oracle inputs."""
+    def __init__(self, model, mode="real", seed=0, mean=0.0, std=1.0):
+        self.model = model
+        self.mode = mode
+        self.seed = int(seed)
+        self.representation_dim = model.representation_dim
+        self.mean = float(mean)
+        self.std = float(std)
+
+    def _generator(self, state, per_state):
+        source = str(state.as_dict()).encode() if per_state else b"fixed"
+        digest = hashlib.sha256(source).digest()
+        value = int.from_bytes(digest[:8], "big") if per_state else 0
+        return torch.Generator().manual_seed(self.seed + value % (2**31 - 1))
+
+    @torch.no_grad()
+    def predict_actions(self, state):
+        prediction = self.model.predict_actions(state)
+        if self.mode == "real":
+            return prediction
+        if self.mode == "action_shuffled":
+            return prediction.roll(1, 0)
+        if self.mode == "dimension_permuted":
+            order = torch.randperm(prediction.shape[-1], generator=self._generator(state, False))
+            return prediction[:, order]
+        if self.mode == "zero":
+            return torch.zeros_like(prediction)
+        if self.mode in {"fixed_random", "per_state_random"}:
+            generator = self._generator(state, self.mode == "per_state_random")
+            return torch.randn(prediction.shape, generator=generator, dtype=prediction.dtype) * self.std + self.mean
+        raise ValueError(f"unknown JEPA control mode {self.mode!r}")
+
+
+@torch.no_grad()
+def representation_statistics(records, model):
+    """Control calibration data from observable, frozen JEPA outputs only."""
+    vectors = []
+    for state, _, _, _ in transition_records(records):
+        vectors.append(model.predict_actions(state))
+    values = torch.cat(vectors, dim=0)
+    return {
+        "mean": float(values.mean()), "std": float(values.std(unbiased=False)),
+        "min": float(values.min()), "max": float(values.max()),
+        "mean_l2_norm": float(values.norm(dim=1).mean()),
+        "per_dimension_variance": values.var(dim=0, unbiased=False).tolist(),
+    }
 
 
 def transition_records(records):
