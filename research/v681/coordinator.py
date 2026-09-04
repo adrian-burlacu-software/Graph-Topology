@@ -18,7 +18,7 @@ from .learners import AttentionDistillationLearner, JEPAAuxiliaryLearner
 from .native_learning.engine import NativeLearningEngine
 from .native_runtime.runtime import CHAT_CAPABILITIES, NativeRuntime
 
-V681_VERSION = "v681.7-sequential-learning-1"
+V681_VERSION = "v681.8-live-attention-stop-boundary-1"
 ATTENTION_TRAINING_SOURCES = {
     ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT, ExperienceSource.CHAT_SEQUENTIAL,
 }

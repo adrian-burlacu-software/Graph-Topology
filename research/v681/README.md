@@ -1,4 +1,4 @@
-# V681.7 self-contained learning runtime
+# V681.8 self-contained learning runtime
 
 ## Normal operation
 
