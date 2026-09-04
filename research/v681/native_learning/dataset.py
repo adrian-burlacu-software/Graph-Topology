@@ -154,7 +154,9 @@ def main():
     args = parser.parse_args()
     if args.decision_boundary:
         from .benchmark import decision_boundary_episodes
-        source = decision_boundary_episodes(args.samples_per_category)
+        from .environment import stop_boundary_training_episodes
+        source = (decision_boundary_episodes(args.samples_per_category)
+                  + stop_boundary_training_episodes(max(1, int(args.samples_per_category) // 4)))
         records = (collect_jepa_transition_episodes(source) if args.jepa_transitions
                    else collect_teacher_episodes(source, temperature=args.temperature))
     else:
