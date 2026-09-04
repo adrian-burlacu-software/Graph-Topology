@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from attention_env import AttentionEnv, benchmark_episodes, episodes_from_database
+from attention_env import AttentionEnv, adversarial_benchmark_episodes, benchmark_episodes, episodes_from_database, no_proof_episodes
 from attention_types import AttentionAction, AttentionActionKind
 
 
@@ -18,7 +18,7 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(next_state.visited_nodes, ["en:animal"])
 
     def test_oracle_never_appears_in_policy_observation(self):
-        env = AttentionEnv(benchmark_episodes()[-1])
+        env = AttentionEnv(next(episode for episode in benchmark_episodes() if episode["episode_id"] == "adversarial_no_proof"))
         state = env.reset()
         self.assertFalse({"proof_target", "oracle", "valid_paths", "terminal_answer"} & state.as_dict().keys())
         _, reward, done, info = env.step(AttentionAction(AttentionActionKind.ABSTAIN))
@@ -36,6 +36,17 @@ class EnvironmentTests(unittest.TestCase):
             episodes = episodes_from_database(path)
         self.assertEqual(len(episodes), 2)
         self.assertTrue(all(episode["nodes"] for episode in episodes))
+
+    def test_adversarial_corpus_has_disjoint_no_proof_partitions_and_categories(self):
+        episodes = adversarial_benchmark_episodes()
+        self.assertEqual(len(episodes), 39)
+        self.assertEqual({episode["partition"] for episode in episodes}, {"train", "validation", "heldout"})
+        self.assertEqual({episode["category"] for episode in episodes}, {
+            "no_valid_proof", "lexical_target_trap", "wrong_subject", "wrong_relation",
+            "related_to_association", "plausible_unsupported", "contradiction",
+            "invalid_longer_path", "worker_only", "direct_vs_indirect", "redundant_path",
+            "valid_abstain", "valid_stop"})
+        self.assertTrue(all(not episode["proof_edges"] for episode in no_proof_episodes()))
 
 
 if __name__ == "__main__":

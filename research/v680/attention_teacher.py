@@ -25,8 +25,8 @@ class V679AttentionTeacher:
         logits = []
         for candidate in candidates:
             logits.append(
-                3.0 * candidate.goal_relation_match
-                + .5 * candidate.target_term_match
+                2.75 * candidate.goal_relation_match
+                + .4 * candidate.target_term_match
                 + .25 * candidate.specificity
                 + .5 * candidate.lexical_score
                 + .5 * candidate.provenance

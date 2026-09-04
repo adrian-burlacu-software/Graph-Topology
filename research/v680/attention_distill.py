@@ -20,6 +20,12 @@ def flatten_steps(records):
     return [validate_step_record(step) for episode in records for step in episode["trajectory"]]
 
 
+def training_records(records):
+    """Keep validation and structurally held-out records out of all student fitting."""
+    return [record for record in records if record["split"] != "held_out_structural"
+            and record["split"] != "held_out_adversarial" and record.get("partition") != "validation"]
+
+
 def metadata(dataset, seed, **hyperparameters):
     path = Path(dataset)
     try:
@@ -38,32 +44,41 @@ def metadata(dataset, seed, **hyperparameters):
 
 def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
                        lambda_soft=1.0, lambda_rank=.2, lambda_hard=1.0,
-                       seed=0, model=None):
+                       seed=0, model=None, jepa=None, use_jepa=False):
     torch.manual_seed(seed); random.seed(seed)
-    model = model or NeuralAttentionPolicy()
+    if use_jepa and jepa is None:
+        raise ValueError("--use-jepa requires a trained JEPA model")
+    model = model or NeuralAttentionPolicy(jepa_dim=jepa.representation_dim if use_jepa else 0)
+    if bool(model.jepa_dim) != bool(use_jepa):
+        raise ValueError("student JEPA feature dimension does not match use_jepa")
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    records = training_records(records)
     steps = flatten_steps(records)
     if not steps:
         raise ValueError("distillation requires at least one teacher step")
     for _ in range(int(epochs)):
-        for step in steps:
-            state = AttentionObservation.from_dict(step["state"])
-            vector, candidates = tensors_from_observation(state)
-            logits, _, _ = model(vector, candidates, action_mask=model.action_mask(state))
-            teacher_logits = torch.tensor(step["teacher"]["logits"], dtype=torch.float32)
-            if len(teacher_logits) != len(logits):
-                raise ValueError("teacher logits do not match serialized candidate action space")
-            selected = int(step["teacher"]["selected_action"])
-            soft = F.kl_div(F.log_softmax(logits / temperature, -1),
-                            F.softmax(teacher_logits / temperature, -1),
-                            reduction="batchmean") * temperature ** 2
-            hard = F.cross_entropy(logits.unsqueeze(0), torch.tensor([selected]))
-            teacher_order = torch.argsort(teacher_logits, descending=True)
-            rank = torch.tensor(0.0)
-            for high, low in zip(teacher_order[:-1], teacher_order[1:]):
-                rank = rank + F.softplus(-(logits[high] - logits[low]))
-            loss = lambda_soft * soft + lambda_rank * rank + lambda_hard * hard
-            optimizer.zero_grad(); loss.backward(); optimizer.step()
+        for episode in records:
+            hidden, losses = None, []
+            for step in episode["trajectory"]:
+                step = validate_step_record(step)
+                state = AttentionObservation.from_dict(step["state"])
+                vector, candidates = tensors_from_observation(state)
+                future = jepa.predict_actions(state).detach() if use_jepa else None
+                logits, _, hidden = model(vector, candidates, hidden=hidden,
+                                          action_mask=model.action_mask(state), future_representations=future)
+                teacher_logits = torch.tensor(step["teacher"]["logits"], dtype=torch.float32)
+                if len(teacher_logits) != len(logits):
+                    raise ValueError("teacher logits do not match serialized candidate action space")
+                selected = int(step["teacher"]["selected_action"])
+                soft = F.kl_div(F.log_softmax(logits / temperature, -1),
+                                F.softmax(teacher_logits / temperature, -1),
+                                reduction="batchmean") * temperature ** 2
+                hard = F.cross_entropy(logits.unsqueeze(0), torch.tensor([selected]))
+                teacher_order = torch.argsort(teacher_logits, descending=True)
+                rank = sum((F.softplus(-(logits[high] - logits[low]))
+                            for high, low in zip(teacher_order[:-1], teacher_order[1:])), torch.tensor(0.0))
+                losses.append(lambda_soft * soft + lambda_rank * rank + lambda_hard * hard)
+            optimizer.zero_grad(); torch.stack(losses).mean().backward(); optimizer.step()
     return model, optimizer
 
 
@@ -78,17 +93,27 @@ def main():
     parser.add_argument("--lambda-soft", type=float, default=1.0)
     parser.add_argument("--lambda-rank", type=float, default=.2)
     parser.add_argument("--lambda-hard", type=float, default=1.0)
+    parser.add_argument("--use-jepa", action="store_true")
+    parser.add_argument("--jepa-checkpoint")
     args = parser.parse_args()
     records = read_jsonl(args.dataset)
+    jepa = None
+    if args.use_jepa:
+        if not args.jepa_checkpoint:
+            parser.error("--use-jepa requires --jepa-checkpoint")
+        from attention_jepa import load_jepa
+        jepa = load_jepa(args.jepa_checkpoint)
     model, optimizer = train_distillation(records, args.epochs, args.learning_rate,
                                           args.temperature, args.lambda_soft, args.lambda_rank,
-                                          args.lambda_hard, args.seed)
+                                          args.lambda_hard, args.seed, jepa=jepa, use_jepa=args.use_jepa)
     Path(args.checkpoint).parent.mkdir(parents=True, exist_ok=True)
     torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                "hidden_size": model.hidden_size, "jepa_dim": model.jepa_dim,
                 "metadata": metadata(args.dataset, args.seed, epochs=args.epochs,
                                      learning_rate=args.learning_rate, temperature=args.temperature,
                                      lambda_soft=args.lambda_soft, lambda_rank=args.lambda_rank,
-                                     lambda_hard=args.lambda_hard)}, args.checkpoint)
+                                     lambda_hard=args.lambda_hard, use_jepa=args.use_jepa,
+                                     jepa_checkpoint=args.jepa_checkpoint or "")}, args.checkpoint)
 
 
 if __name__ == "__main__":

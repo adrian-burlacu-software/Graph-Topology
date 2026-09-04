@@ -13,14 +13,14 @@ from attention_student import NeuralAttentionPolicy, tensors_from_observation
 from attention_teacher import V679AttentionTeacher
 
 
-def collect_rollouts(model, episodes, episode_count=8, seed=0):
+def collect_rollouts(model, episodes, episode_count=8, seed=0, jepa=None):
     random.seed(seed); torch.manual_seed(seed)
     transitions = []
     for episode_number in range(episode_count):
         env = AttentionEnv(episodes[episode_number % len(episodes)])
         state, hidden = env.reset(), None
         while not env.done:
-            chosen = model.select_action(state, deterministic=False, hidden=hidden)
+            chosen = model.select_action(state, deterministic=False, hidden=hidden, jepa=jepa)
             next_state, reward, done, oracle = env.step(chosen["action"])
             transitions.append({"state": state.as_dict(), "action": chosen["selected_action"],
                                 "reward": reward, "old_log_probability": chosen["log_probability"],
@@ -43,7 +43,7 @@ def gae(transitions, gamma=.99, gae_lambda=.95):
 
 
 def ppo_update(model, optimizer, transitions, ppo_epochs=4, minibatch_size=16, clip_epsilon=.2,
-               value_coef=.5, entropy_coef=.01, teacher_kl_coef=.05, gamma=.99, gae_lambda=.95):
+               value_coef=.5, entropy_coef=.01, teacher_kl_coef=.05, gamma=.99, gae_lambda=.95, jepa=None):
     advantages, returns = gae(transitions, gamma, gae_lambda)
     advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
     total_loss = 0.0
@@ -56,7 +56,9 @@ def ppo_update(model, optimizer, transitions, ppo_epochs=4, minibatch_size=16, c
                 from attention_types import AttentionObservation
                 state = AttentionObservation.from_dict(item["state"])
                 vector, candidates = tensors_from_observation(state)
-                logits, value, _ = model(vector, candidates, action_mask=model.action_mask(state))
+                future = jepa.predict_actions(state).detach() if jepa else None
+                logits, value, _ = model(vector, candidates, action_mask=model.action_mask(state),
+                                         future_representations=future)
                 distribution = torch.distributions.Categorical(logits=logits)
                 action = torch.tensor(item["action"])
                 ratio = torch.exp(distribution.log_prob(action) - torch.tensor(item["old_log_probability"]))
@@ -76,20 +78,27 @@ def ppo_update(model, optimizer, transitions, ppo_epochs=4, minibatch_size=16, c
 
 
 def run_ppo(episodes=None, episode_count=8, seed=0, checkpoint=None, resume=None,
-            initial_checkpoint=None, **hyperparameters):
+            initial_checkpoint=None, jepa=None, use_jepa=False, **hyperparameters):
     torch.manual_seed(seed); random.seed(seed)
-    model = NeuralAttentionPolicy(); optimizer = torch.optim.Adam(model.parameters(), lr=hyperparameters.pop("learning_rate", 3e-4))
+    if use_jepa and jepa is None:
+        raise ValueError("use_jepa requires a trained JEPA model")
+    payload = torch.load(resume or initial_checkpoint, map_location="cpu", weights_only=True) if (resume or initial_checkpoint) else {}
+    loaded_jepa_dim = payload.get("jepa_dim", jepa.representation_dim if use_jepa else 0)
+    if bool(loaded_jepa_dim) != bool(use_jepa):
+        raise ValueError("student checkpoint JEPA configuration does not match use_jepa")
+    model = NeuralAttentionPolicy(payload.get("hidden_size", 32), jepa_dim=loaded_jepa_dim)
+    optimizer = torch.optim.Adam(model.parameters(), lr=hyperparameters.pop("learning_rate", 3e-4))
     prior_step = prior_episode = 0
-    if resume or initial_checkpoint:
-        payload = torch.load(resume or initial_checkpoint, map_location="cpu", weights_only=True)
+    if payload:
         model.load_state_dict(payload["model"]); optimizer.load_state_dict(payload["optimizer"])
         prior_step, prior_episode = payload.get("step", 0), payload.get("episode", 0)
-    trajectories = collect_rollouts(model, episodes or benchmark_episodes(), episode_count, seed)
-    metrics = ppo_update(model, optimizer, trajectories, **hyperparameters)
+    trajectories = collect_rollouts(model, episodes or benchmark_episodes(), episode_count, seed, jepa)
+    metrics = ppo_update(model, optimizer, trajectories, jepa=jepa, **hyperparameters)
     if checkpoint:
         Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
         torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
                     "step": prior_step + len(trajectories), "episode": prior_episode + episode_count, "seed": seed,
+                    "hidden_size": model.hidden_size, "jepa_dim": model.jepa_dim,
                     "hyperparameters": hyperparameters}, checkpoint)
     return model, trajectories, metrics
 
@@ -99,12 +108,19 @@ def main():
     parser.add_argument("--episodes", type=int, default=8); parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--checkpoint", required=True); parser.add_argument("--ppo-epochs", type=int, default=4)
     parser.add_argument("--resume"); parser.add_argument("--student-checkpoint")
+    parser.add_argument("--use-jepa", action="store_true"); parser.add_argument("--jepa-checkpoint")
     parser.add_argument("--teacher-kl-coef", type=float, default=.05); parser.add_argument("--entropy-coef", type=float, default=.01)
     args = parser.parse_args()
+    if args.use_jepa != bool(args.jepa_checkpoint):
+        parser.error("--use-jepa and --jepa-checkpoint must be supplied together")
+    jepa = None
+    if args.use_jepa:
+        from attention_jepa import load_jepa
+        jepa = load_jepa(args.jepa_checkpoint)
     _, transitions, metrics = run_ppo(episode_count=args.episodes, seed=args.seed, checkpoint=args.checkpoint, resume=args.resume,
                                       initial_checkpoint=args.student_checkpoint,
                                       ppo_epochs=args.ppo_epochs, teacher_kl_coef=args.teacher_kl_coef,
-                                      entropy_coef=args.entropy_coef)
+                                      entropy_coef=args.entropy_coef, jepa=jepa, use_jepa=args.use_jepa)
     print({"transitions": len(transitions), **metrics})
 
 

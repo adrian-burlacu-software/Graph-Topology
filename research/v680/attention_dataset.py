@@ -7,7 +7,7 @@ from pathlib import Path
 
 from attention_env import AttentionEnv, benchmark_episodes, episodes_from_database
 from attention_teacher import V679AttentionTeacher
-from attention_types import validate_step_record
+from attention_types import AttentionAction, AttentionActionKind, validate_step_record
 
 
 def action_candidates(state):
@@ -18,7 +18,8 @@ def action_candidates(state):
          {"action": {"kind": "abstain", "candidate_id": None}, "features": {}}]
 
 
-def step_record(episode_id, split, step, state, teacher, action, next_state, reward, terminal_outcome, oracle, provenance):
+def step_record(episode_id, split, step, state, teacher, action, next_state, reward, terminal_outcome, oracle,
+                provenance, partition="", category="", no_proof=False):
     record = {
         "episode_id": episode_id, "split": split, "step": step,
         "state": state.as_dict(), "candidates": action_candidates(state),
@@ -29,6 +30,7 @@ def step_record(episode_id, split, step, state, teacher, action, next_state, rew
         "action": action.as_dict(), "next_state": next_state.as_dict(),
         "reward": float(reward), "terminal_outcome": terminal_outcome,
         "oracle": dict(oracle), "provenance": dict(provenance),
+        "partition": partition, "category": category, "no_proof": bool(no_proof),
     }
     return validate_step_record(record)
 
@@ -49,13 +51,43 @@ def collect_teacher_episodes(episodes=None, temperature=2.0, database=""):
                 spec["episode_id"], spec["split"], len(trajectory), state, decision,
                 decision["action"], next_state, reward, oracle["terminal_outcome"], oracle,
                 {"generator": "frozen_v679_teacher", "round": 0},
+                spec.get("partition", ""), spec.get("category", ""), spec.get("no_proof", False),
             ))
             state = next_state
         records.append({
             "episode_id": spec["episode_id"], "split": spec["split"],
+            "partition": spec.get("partition", ""), "category": spec.get("category", ""),
+            "no_proof": spec.get("no_proof", False),
             "trajectory": trajectory, "terminal_outcome": trajectory[-1]["terminal_outcome"],
             "provenance": {"generator": "frozen_v679_teacher", "round": 0},
         })
+    return records
+
+
+def collect_jepa_transition_episodes(episodes=None):
+    """Probe every bounded action once to train dynamics without policy labels leaking into it."""
+    teacher = V679AttentionTeacher()
+    records = []
+    for spec in episodes or benchmark_episodes():
+        env = AttentionEnv(spec)
+        initial = env.reset()
+        for action in env.available_actions():
+            env.reset()
+            state = env.state
+            decision = teacher.select_action(state, deterministic=True)
+            next_state, reward, _, oracle = env.step(action)
+            record = step_record(
+                f"{spec['episode_id']}_transition_{action.index(len(state.candidate_features))}",
+                spec["split"], 0, state, decision, action, next_state, reward,
+                oracle["terminal_outcome"], oracle,
+                {"generator": "observable_transition_probe", "round": 0},
+                spec.get("partition", ""), spec.get("category", ""), spec.get("no_proof", False),
+            )
+            records.append({"episode_id": record["episode_id"], "split": spec["split"],
+                            "partition": spec.get("partition", ""), "category": spec.get("category", ""),
+                            "no_proof": spec.get("no_proof", False), "trajectory": [record],
+                            "terminal_outcome": record["terminal_outcome"],
+                            "provenance": {"generator": "observable_transition_probe", "round": 0}})
     return records
 
 
@@ -91,8 +123,11 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--database", default="")
     parser.add_argument("--temperature", type=float, default=2.0)
+    parser.add_argument("--jepa-transitions", action="store_true")
     args = parser.parse_args()
-    write_jsonl(args.output, collect_teacher_episodes(temperature=args.temperature, database=args.database))
+    records = (collect_jepa_transition_episodes() if args.jepa_transitions else
+               collect_teacher_episodes(temperature=args.temperature, database=args.database))
+    write_jsonl(args.output, records)
 
 
 if __name__ == "__main__":

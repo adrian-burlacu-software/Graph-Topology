@@ -14,7 +14,7 @@ def candidate(relation, target, **values):
 
 
 def benchmark_episodes():
-    return [
+    episodes = [
         {
             "episode_id": "train_dog_tail", "split": "ordinary", "goal": "has_part",
             "terms": ["tail"], "start": "en:dog", "proof_target": "en:tail",
@@ -127,6 +127,86 @@ def benchmark_episodes():
             "proof_edges": [],
         },
     ]
+    return episodes + adversarial_benchmark_episodes()
+
+
+def _adversarial_episode(category, partition, index, valid_stop=False):
+    """Create disjoint graph shapes; proof membership remains environment-private."""
+    entities = {
+        "train": [("en:otter", "en:fin"), ("en:badger", "en:claw")],
+        "validation": [("en:lynx", "en:whisker"), ("en:yak", "en:horn")],
+        "heldout": [("en:gecko", "en:scale"), ("en:orca", "en:flipper")],
+    }[partition]
+    source, term = entities[index % len(entities)]
+    split = "held_out_adversarial" if partition == "heldout" else "adversarial"
+    goal = "has_part"
+    trap_relation = "related_to" if category == "related_to_association" else "has_part"
+    candidates = [
+        candidate(trap_relation, term, specificity=.15 if trap_relation == "related_to" else 1,
+                  lexical_score=1, provenance=.1),
+        candidate("has_part", f"en:distractor_{category}_{index}", goal_relation_match=1,
+                  specificity=1, lexical_score=.35, provenance=.4),
+        candidate("is_a", f"en:branch_{category}_{index}", specificity=1,
+                  contradiction=float(category == "contradiction")),
+    ]
+    if category == "wrong_relation":
+        candidates[0] = candidate("at_location", term, specificity=1, lexical_score=1)
+    elif category == "wrong_subject":
+        candidates[0] = candidate("has_part", f"en:other_{term.removeprefix('en:')}",
+                                  goal_relation_match=1, specificity=1, lexical_score=.7)
+    elif category == "invalid_longer_path":
+        candidates.append(candidate("related_to", f"en:dead_end_{index}", specificity=.15, lexical_score=.8,
+                                    path_length=3))
+    elif category == "redundant_path":
+        candidates[0] = candidate("has_part", f"en:visited_{index}", goal_relation_match=1,
+                                  specificity=1, lexical_score=.5, already_visited=1)
+    elif category == "worker_only":
+        candidates[0] = candidate("has_part", term, goal_relation_match=1, target_term_match=1,
+                                  specificity=1, lexical_score=.8, provenance=.05)
+    elif category == "plausible_unsupported":
+        candidates.append(candidate("has_property", f"en:likely_{index}", specificity=1, lexical_score=.7))
+    elif category == "direct_vs_indirect":
+        candidates.append(candidate("related_to", f"en:route_{index}", specificity=.15, lexical_score=.9))
+    target = f"en:proof_{term.removeprefix('en:')}" if valid_stop else None
+    if valid_stop:
+        candidates[1] = candidate("has_part", target, goal_relation_match=1, target_term_match=1,
+                                  specificity=1, lexical_score=.5, provenance=1)
+    nodes = {
+        source: candidates,
+        term: [candidate("related_to", f"en:dead_end_{index}", specificity=.15)],
+        candidates[1].target: [candidate("related_to", source, specificity=.15)],
+        candidates[2].target: [candidate("related_to", source, specificity=.15)],
+    }
+    if valid_stop:
+        nodes[target] = [candidate("has_part", target, goal_relation_match=1, target_term_match=1,
+                                   specificity=1, provenance=1, verified=1)]
+    return {
+        "episode_id": f"{partition}_{category}_{index}", "split": split, "partition": partition,
+        "category": category, "no_proof": not valid_stop, "goal": goal,
+        "terms": [term.removeprefix("en:")], "start": source, "proof_target": target,
+        "nodes": nodes, "proof_edges": [[source, target]] if target else [],
+    }
+
+
+def adversarial_benchmark_episodes():
+    """Train/validation/held-out adversarial graphs, with separate no-proof partitions."""
+    categories = (
+        "no_valid_proof", "lexical_target_trap", "wrong_subject", "wrong_relation",
+        "related_to_association", "plausible_unsupported", "contradiction",
+        "invalid_longer_path", "worker_only", "direct_vs_indirect", "redundant_path",
+        "valid_abstain", "valid_stop",
+    )
+    episodes = []
+    for partition in ("train", "validation", "heldout"):
+        for index, category in enumerate(categories):
+            episodes.append(_adversarial_episode(category, partition, index,
+                                                  valid_stop=category == "valid_stop"))
+    return episodes
+
+
+def no_proof_episodes(partition=None):
+    episodes = [episode for episode in adversarial_benchmark_episodes() if episode["no_proof"]]
+    return [episode for episode in episodes if episode["partition"] == partition] if partition else episodes
 
 
 def episodes_from_database(database, limit=32):

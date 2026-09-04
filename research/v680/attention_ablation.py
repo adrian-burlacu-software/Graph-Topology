@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 from attention_dataset import read_jsonl
-from attention_evaluate import evaluate, load_student
 
 
 def ablate(records, kind):
@@ -41,6 +40,7 @@ def main():
     parser.add_argument("--dataset", required=True); parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output", default="./results/v680/ablation.json")
     args = parser.parse_args()
+    from attention_evaluate import evaluate, load_student
     records = read_jsonl(args.dataset); model = load_student(args.checkpoint)
     report = {}
     for kind in ("full", "no_relation_activation", "no_candidate_activation", "no_history", "no_recurrent_state"):

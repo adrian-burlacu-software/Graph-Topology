@@ -15,6 +15,8 @@ class DaggerTests(unittest.TestCase):
         self.assertEqual([item["round"] for item in stats], [0, 1])
         self.assertTrue(all(item["states_collected"] > 0 for item in stats))
         self.assertTrue(all(item["teacher_labels"] == item["states_collected"] for item in stats))
+        self.assertTrue(all("false_positive_attention_events" in item for item in stats))
+        self.assertTrue(all("held_out_no_proof" in item for item in stats))
         self.assertGreater(len(aggregate), len(collect_teacher_episodes()))
 
 

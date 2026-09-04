@@ -22,10 +22,16 @@ student uses state and candidate feature encoders, a GRU state layer, a
 candidate-logit head, and a value head.
 
 Distillation uses configurable soft-teacher KL, pairwise rank, hard-label, and
-bounded-action masking losses. DAgger retrains after each aggregate round and
-records learner-induced states labeled by the frozen teacher. PPO collects
-stochastic rollouts before clipped minibatch updates with GAE, value loss,
-entropy, and teacher-KL regularization.
+bounded-action masking losses. DAgger retrains after each aggregate round,
+records learner-induced states labeled by the frozen teacher, and reports its
+held-out no-proof results separately.
+
+`AttentionJEPA` is a separate action-conditioned representation learner:
+`encoder(S_t) + action_embedding(A_i) -> predicted target-encoder Z_(t+1)`.
+Its target encoder is an EMA-stabilized, gradient-free copy of the context
+encoder. It predicts representations, never raw graph observations or hidden
+proof fields. PPO collects stochastic rollouts before clipped minibatch updates
+with GAE, value loss, entropy, and teacher-KL regularization.
 
 The experiment artifacts are `teacher_trajectories.jsonl`,
 `distillation_dataset.jsonl`, `dagger_dataset.jsonl`, `student_checkpoint.pt`,
@@ -33,10 +39,12 @@ The experiment artifacts are `teacher_trajectories.jsonl`,
 trajectory step records its input state, bounded candidates, teacher
 distribution, selected action, resulting state, reward, and terminal outcome.
 
-The built-in episodes include an ordinary direct-proof case, a structurally
-held-out bicycle/wheel case, and an adversarial no-proof case containing lexical,
-association, generic-relation, contradiction, weak-direct, and unrelated-match
-traps. Its correct terminal action is `ABSTAIN`.
+The built-in corpus has ordinary and held-out structural episodes plus 39
+adversarial episodes across disjoint train, validation, and held-out graph
+configurations. Categories cover no proof, lexical/wrong-subject/wrong-relation
+traps, associations, unsupported candidates, contradiction, longer paths,
+worker-only evidence, redundancy, direct-vs-indirect competition, STOP, and
+ABSTAIN. The no-proof subset is explicitly partitioned for generalization.
 
 ## Runlines
 
@@ -53,13 +61,13 @@ episode is retained in that dataset.
 Train the distilled student:
 
 ```powershell
-python .\research\v680\attention_evaluate.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\evaluation.json"
+python .\research\v680\attention_distill.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --epochs 8 --seed 7
 ```
 
 Evaluate the student, reporting ordinary, adversarial, and held-out structural results separately:
 
 ```powershell
-python .\research\v680\attention_distill.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --epochs 8 --seed 7
+python .\research\v680\attention_evaluate.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\evaluation.json"
 ```
 
 Run iterative DAgger:
@@ -68,10 +76,30 @@ Run iterative DAgger:
 python .\research\v680\attention_dagger.py --dataset ".\results\v680\distillation_dataset.jsonl" --rounds 2 --epochs 8 --seed 7 --checkpoint-dir ".\results\v680\dagger"
 ```
 
-Run PPO:
+Train and validate JEPA dynamics:
 
 ```powershell
-python .\research\v680\attention_ppo.py --student-checkpoint ".\results\v680\student_checkpoint.pt" --checkpoint ".\results\v680\ppo_checkpoint.pt" --episodes 8 --seed 7 --ppo-epochs 4 --teacher-kl-coef 0.05
+python .\research\v680\attention_dataset.py --jepa-transitions --output ".\results\v680\jepa_transitions.jsonl"
+python .\research\v680\attention_jepa.py --dataset ".\results\v680\jepa_transitions.jsonl" --checkpoint ".\results\v680\jepa.pt" --output ".\results\v680\jepa_evaluation.json" --epochs 8 --seed 7
+```
+
+Train/evaluate a student augmented with frozen JEPA predictions:
+
+```powershell
+python .\research\v680\attention_distill.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_jepa.pt" --epochs 8 --seed 7 --use-jepa --jepa-checkpoint ".\results\v680\jepa.pt"
+python .\research\v680\attention_evaluate.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_jepa.pt" --output ".\results\v680\jepa_evaluation.json" --use-jepa --jepa-checkpoint ".\results\v680\jepa.pt"
+```
+
+Run all non-PPO phases reproducibly:
+
+```powershell
+python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680\run_7" --seed 7 --epochs 8 --rounds 2 --phases distillation,dagger,jepa,evaluation --use-jepa
+```
+
+Run PPO only after the readiness gate succeeds; `--ppo-smoke` explicitly labels an otherwise blocked smoke run:
+
+```powershell
+python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680\run_7" --seed 7 --epochs 8 --rounds 2 --phases distillation,dagger,jepa,evaluation,ppo --use-jepa --ppo-smoke --ppo-episodes 2
 ```
 
 Run leak-free observation ablations:
