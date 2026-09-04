@@ -10,6 +10,8 @@ import torch
 from attention_dataset import collect_teacher_episodes, read_jsonl
 from attention_student import NeuralAttentionPolicy
 from attention_types import AttentionObservation
+from attention_env import AttentionEnv
+from attention_teacher import V679AttentionTeacher
 
 
 def load_student(path):
@@ -18,6 +20,19 @@ def load_student(path):
     model.load_state_dict(payload.get("model", payload.get("state_dict")))
     model.eval()
     return model
+
+
+class TeacherPolicyAdapter:
+    """Evaluation-only adapter so teacher rows use the same rollout metrics."""
+    jepa_dim = 0
+
+    def __init__(self):
+        self.teacher = V679AttentionTeacher()
+
+    def select_action(self, state, **_):
+        decision = self.teacher.select_action(state, deterministic=True)
+        return {"logits": decision["logits"], "selected_action": decision["selected_action"],
+                "action": decision["action"], "hidden": None}
 
 
 def _correlations(left, right):
@@ -120,6 +135,110 @@ def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
         metrics["abstain_f1"] = 2 * precision * recall / max(1e-12, precision + recall)
         metrics["teacher_student_final_decision_agreement"] /= max(1, len(metrics["teacher_final_decision"]))
     return totals
+
+
+def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_jepa=False,
+                      failure_path=None, policy_name="student"):
+    """Evaluate decisions on the policy-induced sequence, never teacher trajectories."""
+    if bool(model.jepa_dim) != bool(jepa):
+        raise ValueError("evaluation JEPA configuration must match the student checkpoint")
+    teacher = V679AttentionTeacher()
+    totals, failures = {}, []
+    for spec in episodes:
+        split = spec["split"]
+        metric = totals.setdefault(split, {
+            "episodes": 0, "decisions": 0, "overall_action_accuracy": 0, "traverse_accuracy": 0,
+            "traverse_count": 0, "stop_accuracy": 0, "stop_count": 0, "abstain_accuracy": 0,
+            "abstain_count": 0, "correct_candidate_top1": 0, "correct_candidate_top3": 0,
+            "candidate_mrr": 0,
+            "false_positive_traverse": 0, "false_negative_traverse": 0, "false_positive_abstain": 0,
+            "false_negative_abstain": 0, "premature_stop": 0, "premature_abstain": 0,
+            "confusion_matrix": {a: {b: 0 for b in ("traverse", "stop", "abstain")}
+                                 for a in ("traverse", "stop", "abstain")},
+            "episode_success": 0, "final_decision_accuracy": 0, "proof_completion_rate": 0,
+            "unnecessary_steps": 0, "redundant_steps": 0, "average_steps_to_success": 0,
+        })
+        env, state, hidden, teacher_final, student_final = AttentionEnv(spec), None, None, None, None
+        state = env.reset(); steps = 0; proof_steps = 0
+        while not env.done:
+            teacher_action = teacher.select_action(state, deterministic=True)
+            student = model.select_action(state, deterministic=True, hidden=hidden, jepa=jepa,
+                                          shuffled_jepa=shuffled_jepa, random_jepa=random_jepa)
+            teacher_name = _decision_name(teacher_action["selected_action"], len(state.candidate_features))
+            student_name = _decision_name(student["selected_action"], len(state.candidate_features))
+            metric["decisions"] += 1; metric["overall_action_accuracy"] += teacher_name == student_name
+            metric["confusion_matrix"][teacher_name][student_name] += 1
+            if teacher_name == "traverse":
+                metric["traverse_count"] += 1
+                metric["traverse_accuracy"] += teacher_action["selected_action"] == student["selected_action"]
+                ranked = sorted(range(len(student["logits"])), key=student["logits"].__getitem__, reverse=True)
+                metric["correct_candidate_top1"] += teacher_action["selected_action"] == ranked[0]
+                metric["correct_candidate_top3"] += teacher_action["selected_action"] in ranked[:3]
+                metric["candidate_mrr"] += 1 / (ranked.index(teacher_action["selected_action"]) + 1)
+                metric["false_negative_traverse"] += student_name != "traverse"
+                metric["premature_stop"] += student_name == "stop"
+                metric["premature_abstain"] += student_name == "abstain"
+            if teacher_name == "abstain":
+                metric["abstain_count"] += 1; metric["abstain_accuracy"] += student_name == "abstain"
+                metric["false_positive_traverse"] += student_name == "traverse"
+                metric["false_negative_abstain"] += student_name != "abstain"
+            if teacher_name == "stop":
+                metric["stop_count"] += 1; metric["stop_accuracy"] += student_name == "stop"
+            if student_name == "abstain" and teacher_name != "abstain":
+                metric["false_positive_abstain"] += 1
+            next_state, _, done, oracle = env.step(student["action"])
+            if student_name == "traverse":
+                proof_steps += bool(oracle.get("valid_proof_edge"))
+                metric["redundant_steps"] += bool(oracle.get("already_visited"))
+            if teacher_name != student_name:
+                failures.append({
+                    "policy": policy_name, "episode_id": spec["episode_id"], "category": spec.get("category", ""),
+                    "state_id": steps, "teacher_action": teacher_name, "student_action": student_name,
+                    "teacher_scores": teacher_action["logits"], "student_scores": student["logits"],
+                    "state": state.as_dict(), "oracle_outcome": oracle["terminal_outcome"],
+                })
+            steps += 1; state, hidden = next_state, student["hidden"]
+            teacher_final, student_final = teacher_name, student_name
+        metric["episodes"] += 1
+        success = env.valid_proof_seen and student_final == "stop"
+        metric["episode_success"] += success
+        metric["proof_completion_rate"] += env.valid_proof_seen
+        metric["final_decision_accuracy"] += teacher_final == student_final
+        metric["average_steps_to_success"] += steps if success else 0
+        metric["unnecessary_steps"] += max(0, steps - proof_steps - int(spec.get("initial_proof", False)))
+    for metric in totals.values():
+        decisions = max(1, metric["decisions"]); episodes_count = max(1, metric["episodes"])
+        for key in ("overall_action_accuracy", "false_positive_traverse", "false_negative_traverse",
+                    "false_positive_abstain", "false_negative_abstain", "premature_stop",
+                    "premature_abstain", "redundant_steps"):
+            metric[key] /= decisions
+        for key, count_key in (("traverse_accuracy", "traverse_count"), ("stop_accuracy", "stop_count"),
+                               ("abstain_accuracy", "abstain_count"), ("correct_candidate_top1", "traverse_count"),
+                               ("correct_candidate_top3", "traverse_count"), ("candidate_mrr", "traverse_count")):
+            metric[key] /= max(1, metric[count_key])
+        for key in ("episode_success", "proof_completion_rate", "final_decision_accuracy", "unnecessary_steps",
+                    "average_steps_to_success"):
+            metric[key] /= episodes_count
+    if failure_path:
+        Path(failure_path).write_text("\n".join(json.dumps(item, sort_keys=True) for item in failures) + "\n")
+    return totals
+
+
+def jepa_action_swap_diagnostic(episodes, model, jepa):
+    """Measures whether action-specific predictions materially affect policy logits/rankings."""
+    if not model.jepa_dim:
+        raise ValueError("JEPA action-swap diagnostic requires a JEPA-augmented policy")
+    deltas, rank_changes = [], 0
+    for spec in episodes:
+        state = AttentionEnv(spec).reset()
+        original = model.select_action(state, deterministic=True, jepa=jepa)["logits"]
+        swapped = model.select_action(state, deterministic=True, jepa=jepa, shuffled_jepa=True)["logits"]
+        deltas.append(sum(abs(left - right) for left, right in zip(original, swapped)) / len(original))
+        rank_changes += sorted(range(len(original)), key=original.__getitem__) != sorted(
+            range(len(swapped)), key=swapped.__getitem__)
+    return {"states": len(deltas), "mean_action_swap_logit_delta": sum(deltas) / max(1, len(deltas)),
+            "ranking_change_rate": rank_changes / max(1, len(deltas)),
+            "coupled": bool(deltas and any(value > 1e-6 for value in deltas))}
 
 
 def main():

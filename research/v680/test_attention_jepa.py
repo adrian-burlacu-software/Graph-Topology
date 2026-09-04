@@ -16,6 +16,14 @@ class JEPATests(unittest.TestCase):
         self.assertGreater(report["mean_action_conditioned_prediction_distance"], 1e-6)
         self.assertLess(report["prediction_error"]["jepa"], report["prediction_error"]["zero"])
         self.assertIn("misleading", report["by_transition_category"])
+        self.assertGreater(report["representation_std"], 1e-6)
+        self.assertGreater(report["prediction_error"]["shuffled_action"], report["prediction_error"]["jepa"])
+
+    def test_target_encoder_is_gradient_isolated(self):
+        from attention_jepa import AttentionJEPA
+        model = AttentionJEPA()
+        self.assertTrue(all(not parameter.requires_grad for parameter in model.target_encoder.parameters()))
+        self.assertTrue(all(parameter.grad is None for parameter in model.target_encoder.parameters()))
 
     def test_jepa_uses_observable_transitions_only(self):
         from attention_jepa import action_vector, observation_vector
@@ -30,6 +38,7 @@ class JEPATests(unittest.TestCase):
 
     def test_jepa_augmented_student_consumes_prediction_for_every_action(self):
         from attention_distill import train_distillation
+        from attention_evaluate import jepa_action_swap_diagnostic
         from attention_jepa import train_jepa
         from attention_evaluate import evaluate
         transitions = collect_jepa_transition_episodes()
@@ -38,6 +47,8 @@ class JEPATests(unittest.TestCase):
                                         jepa=jepa, use_jepa=True)
         report = evaluate(collect_teacher_episodes(), student, jepa=jepa)
         self.assertIn("held_out_adversarial", report)
+        diagnostic = jepa_action_swap_diagnostic([benchmark_episodes()[0]], student, jepa)
+        self.assertTrue(diagnostic["coupled"])
 
 
 if __name__ == "__main__":

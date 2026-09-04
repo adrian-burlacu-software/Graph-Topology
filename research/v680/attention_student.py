@@ -4,13 +4,14 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from attention_types import AttentionAction, AttentionActionKind
+from attention_types import AttentionAction, AttentionActionKind, audit_model_input
 
 STATE_DIM = 6
 CANDIDATE_DIM = 12
 
 
 def tensors_from_observation(state, recurrent=True):
+    audit_model_input(state.as_dict())
     return (
         torch.tensor([state.state_vector(recurrent=recurrent)], dtype=torch.float32),
         torch.tensor([candidate.vector() for candidate in state.candidate_features], dtype=torch.float32)
@@ -69,7 +70,8 @@ class NeuralAttentionPolicy(nn.Module):
     def action_mask(state):
         return torch.ones(len(state.candidate_features) + 2, dtype=torch.bool)
 
-    def distribution(self, state, hidden=None, deterministic=False, recurrent=None, jepa=None, shuffled_jepa=False):
+    def distribution(self, state, hidden=None, deterministic=False, recurrent=None, jepa=None,
+                     shuffled_jepa=False, random_jepa=False):
         recurrent = self.use_recurrent if recurrent is None else bool(recurrent)
         state_vector, candidate_vectors = tensors_from_observation(state, recurrent)
         future = None
@@ -78,17 +80,22 @@ class NeuralAttentionPolicy(nn.Module):
                 future = jepa.predict_actions(state)
                 if shuffled_jepa and len(future) > 1:
                     future = future.roll(1, 0)
+                if random_jepa:
+                    generator = torch.Generator().manual_seed(len(state.attention_history) + len(future) * 97)
+                    future = torch.randn(future.shape, generator=generator, dtype=future.dtype)
         logits, value, hidden = self(state_vector, candidate_vectors, hidden, self.action_mask(state), future)
         distribution = torch.distributions.Categorical(logits=logits)
         index = torch.argmax(logits) if deterministic else distribution.sample()
         return logits, distribution, int(index), value, hidden
 
-    def select_action(self, state, candidates=None, deterministic=False, hidden=None, jepa=None, shuffled_jepa=False):
+    def select_action(self, state, candidates=None, deterministic=False, hidden=None, jepa=None,
+                      shuffled_jepa=False, random_jepa=False):
         if candidates is not None and candidates is not state.candidate_features:
             from dataclasses import replace
             state = replace(state, candidate_features=candidates)
         logits, distribution, index, value, hidden = self.distribution(
-            state, hidden=hidden, deterministic=deterministic, jepa=jepa, shuffled_jepa=shuffled_jepa
+            state, hidden=hidden, deterministic=deterministic, jepa=jepa, shuffled_jepa=shuffled_jepa,
+            random_jepa=random_jepa
         )
         count = len(state.candidate_features)
         action = AttentionAction(

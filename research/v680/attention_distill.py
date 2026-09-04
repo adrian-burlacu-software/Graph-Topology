@@ -50,7 +50,7 @@ def metadata(dataset, seed, **hyperparameters):
 
 def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
                        lambda_soft=1.0, lambda_rank=.2, lambda_hard=1.0,
-                       seed=0, model=None, jepa=None, use_jepa=False):
+                       seed=0, model=None, jepa=None, use_jepa=False, class_balance=True):
     torch.manual_seed(seed); random.seed(seed)
     if use_jepa and jepa is None:
         raise ValueError("--use-jepa requires a trained JEPA model")
@@ -66,6 +66,8 @@ def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
               for kind in ("traverse", "stop", "abstain")}
     class_weights = {kind: len(steps) / (len(counts) * max(1, count))
                      for kind, count in counts.items()}
+    if not class_balance:
+        class_weights = {kind: 1.0 for kind in counts}
     for _ in range(int(epochs)):
         for episode in records:
             hidden, losses = None, []
@@ -106,6 +108,8 @@ def main():
     parser.add_argument("--lambda-hard", type=float, default=1.0)
     parser.add_argument("--use-jepa", action="store_true")
     parser.add_argument("--jepa-checkpoint")
+    parser.add_argument("--raw-class-loss", action="store_true",
+                        help="disable reported inverse-frequency class weighting")
     args = parser.parse_args()
     records = read_jsonl(args.dataset)
     jepa = None
@@ -116,7 +120,8 @@ def main():
         jepa = load_jepa(args.jepa_checkpoint)
     model, optimizer = train_distillation(records, args.epochs, args.learning_rate,
                                           args.temperature, args.lambda_soft, args.lambda_rank,
-                                          args.lambda_hard, args.seed, jepa=jepa, use_jepa=args.use_jepa)
+                                          args.lambda_hard, args.seed, jepa=jepa, use_jepa=args.use_jepa,
+                                          class_balance=not args.raw_class_loss)
     Path(args.checkpoint).parent.mkdir(parents=True, exist_ok=True)
     torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
                 "hidden_size": model.hidden_size, "jepa_dim": model.jepa_dim,
@@ -124,7 +129,8 @@ def main():
                                      learning_rate=args.learning_rate, temperature=args.temperature,
                                      lambda_soft=args.lambda_soft, lambda_rank=args.lambda_rank,
                                      lambda_hard=args.lambda_hard, use_jepa=args.use_jepa,
-                                     jepa_checkpoint=args.jepa_checkpoint or "")}, args.checkpoint)
+                                     jepa_checkpoint=args.jepa_checkpoint or "",
+                                     class_balance=not args.raw_class_loss)}, args.checkpoint)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from attention_env import AttentionEnv, benchmark_episodes, episodes_from_database
 from attention_teacher import V679AttentionTeacher
-from attention_types import AttentionAction, AttentionActionKind, validate_step_record
+from attention_types import DATASET_VERSION, JEPA_VERSION, STUDENT_VERSION, TEACHER_VERSION, validate_step_record
 
 
 def action_candidates(state):
@@ -31,6 +31,8 @@ def step_record(episode_id, split, step, state, teacher, action, next_state, rew
         "reward": float(reward), "terminal_outcome": terminal_outcome,
         "oracle": dict(oracle), "provenance": dict(provenance),
         "partition": partition, "category": category, "no_proof": bool(no_proof),
+        "teacher_version": TEACHER_VERSION, "dataset_version": DATASET_VERSION,
+        "student_version": STUDENT_VERSION, "jepa_version": JEPA_VERSION,
     }
     return validate_step_record(record)
 
@@ -60,6 +62,8 @@ def collect_teacher_episodes(episodes=None, temperature=2.0, database=""):
             "no_proof": spec.get("no_proof", False),
             "trajectory": trajectory, "terminal_outcome": trajectory[-1]["terminal_outcome"],
             "provenance": {"generator": "frozen_v679_teacher", "round": 0},
+            "teacher_version": teacher.version, "dataset_version": DATASET_VERSION,
+            "student_version": STUDENT_VERSION, "jepa_version": JEPA_VERSION,
         })
     return records
 
@@ -124,9 +128,17 @@ def main():
     parser.add_argument("--database", default="")
     parser.add_argument("--temperature", type=float, default=2.0)
     parser.add_argument("--jepa-transitions", action="store_true")
+    parser.add_argument("--decision-boundary", action="store_true")
+    parser.add_argument("--samples-per-category", type=int, default=100)
     args = parser.parse_args()
-    records = (collect_jepa_transition_episodes() if args.jepa_transitions else
-               collect_teacher_episodes(temperature=args.temperature, database=args.database))
+    if args.decision_boundary:
+        from attention_benchmark import decision_boundary_episodes
+        source = decision_boundary_episodes(args.samples_per_category)
+        records = (collect_jepa_transition_episodes(source) if args.jepa_transitions
+                   else collect_teacher_episodes(source, temperature=args.temperature))
+    else:
+        records = (collect_jepa_transition_episodes() if args.jepa_transitions else
+                   collect_teacher_episodes(temperature=args.temperature, database=args.database))
     write_jsonl(args.output, records)
 
 

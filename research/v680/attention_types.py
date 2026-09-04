@@ -17,6 +17,15 @@ CANDIDATE_VECTOR_FIELDS = (
     "lexical_score", "relation_activation", "candidate_activation",
     "provenance", "verified", "contradiction", "direct_proof", "already_visited",
 )
+TEACHER_VERSION = "v679-frozen-attention-teacher-1"
+DATASET_VERSION = "v680.1-decision-boundary-1"
+STUDENT_VERSION = "v680.1-attention-policy-1"
+JEPA_VERSION = "v680.1-action-conditioned-jepa-1"
+FORBIDDEN_MODEL_FIELDS = {
+    "teacher", "teacher_action", "proof_target", "proof_exists", "oracle", "valid_paths",
+    "valid_proof", "ground_truth_answer", "future_state", "next_state", "future_reward",
+    "reward", "terminal_outcome", "terminal_answer",
+}
 
 
 @dataclass(frozen=True)
@@ -46,7 +55,7 @@ class CandidateFeatures:
         missing = {"relation", "target"} - value.keys()
         if missing:
             raise ValueError(f"candidate features missing {sorted(missing)}")
-        leaked = {"proof_target", "oracle", "valid_proof", "terminal_answer"} & value.keys()
+        leaked = FORBIDDEN_MODEL_FIELDS & value.keys()
         if leaked:
             raise ValueError(f"oracle fields must not appear in candidate features: {sorted(leaked)}")
         return cls(**{key: value[key] for key in cls.__dataclass_fields__ if key in value})
@@ -114,8 +123,7 @@ class AttentionObservation:
         missing = required - value.keys()
         if missing:
             raise ValueError(f"attention state missing {sorted(missing)}")
-        forbidden = {"proof_target", "oracle", "valid_paths", "terminal_answer"}
-        leaked = forbidden & value.keys()
+        leaked = FORBIDDEN_MODEL_FIELDS & value.keys()
         if leaked:
             raise ValueError(f"oracle fields must not appear in observations: {sorted(leaked)}")
         return cls(
@@ -142,3 +150,17 @@ def validate_step_record(record):
         raise ValueError("teacher selected_action must be an available bounded action index")
     AttentionObservation.from_dict(record["next_state"])
     return record
+
+
+def audit_model_input(value):
+    """Fail closed if any recursively supplied model-visible data contains oracle metadata."""
+    if isinstance(value, dict):
+        leaked = FORBIDDEN_MODEL_FIELDS & value.keys()
+        if leaked:
+            raise ValueError(f"forbidden oracle/future fields in model input: {sorted(leaked)}")
+        for item in value.values():
+            audit_model_input(item)
+    elif isinstance(value, list):
+        for item in value:
+            audit_model_input(item)
+    return value

@@ -1,4 +1,4 @@
-# V680 — Learned Attention Policy
+# V680.1 — Learned Attention Policy
 
 V680 is a self-contained learning experiment built from the frozen V679
 symbolic controller. It does not modify V679, semantic workers, composition
@@ -46,7 +46,29 @@ traps, associations, unsupported candidates, contradiction, longer paths,
 worker-only evidence, redundancy, direct-vs-indirect competition, STOP, and
 ABSTAIN. The no-proof subset is explicitly partitioned for generalization.
 
-## Runlines
+## V680.1 runlines
+
+Run the full matched decision-boundary suite (100 examples/category; descriptive
+single-seed output in `v680_1_results.json` and `v680_1_report.txt`):
+
+```powershell
+python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680_1\full_seed7" --seed 7 --epochs 8 --rounds 4
+```
+
+Run the small smoke suite instead:
+
+```powershell
+python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680_1\smoke_seed7" --seed 7 --epochs 2 --rounds 4 --smoke
+```
+
+PPO is blocked unless the recorded gate passes. This command makes an explicitly
+labelled smoke-only PPO run:
+
+```powershell
+python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680_1\ppo_smoke" --seed 7 --epochs 8 --rounds 4 --phases distillation,dagger,jepa,evaluation,ppo --ppo-smoke --ppo-episodes 2
+```
+
+## Individual phases
 
 Generate frozen-teacher trajectories:
 
@@ -90,16 +112,17 @@ python .\research\v680\attention_distill.py --dataset ".\results\v680\distillati
 python .\research\v680\attention_evaluate.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_jepa.pt" --output ".\results\v680\jepa_evaluation.json" --use-jepa --jepa-checkpoint ".\results\v680\jepa.pt"
 ```
 
-Run all non-PPO phases reproducibly:
+Run only the matched decision-boundary dataset:
 
 ```powershell
-python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680\run_7" --seed 7 --epochs 8 --rounds 2 --phases distillation,dagger,jepa,evaluation --use-jepa
+python .\research\v680\attention_dataset.py --decision-boundary --samples-per-category 100 --output ".\results\v680_1\decision_boundary_teacher.jsonl"
 ```
 
-Run PPO only after the readiness gate succeeds; `--ppo-smoke` explicitly labels an otherwise blocked smoke run:
+Run DAgGER in raw and explicitly inverse-frequency-balanced modes:
 
 ```powershell
-python .\research\v680\run_v680_experiment.py --output-dir ".\results\v680\run_7" --seed 7 --epochs 8 --rounds 2 --phases distillation,dagger,jepa,evaluation,ppo --use-jepa --ppo-smoke --ppo-episodes 2
+python .\research\v680\attention_dagger.py --dataset ".\results\v680_1\decision_boundary_teacher.jsonl" --rounds 4 --epochs 8 --seed 7 --checkpoint-dir ".\results\v680_1\dagger_raw" --raw-class-loss
+python .\research\v680\attention_dagger.py --dataset ".\results\v680_1\decision_boundary_teacher.jsonl" --rounds 4 --epochs 8 --seed 7 --checkpoint-dir ".\results\v680_1\dagger_balanced"
 ```
 
 Run leak-free observation ablations:

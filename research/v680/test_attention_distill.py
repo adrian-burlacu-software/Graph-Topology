@@ -2,7 +2,7 @@ import importlib.util
 import unittest
 
 from attention_dataset import collect_teacher_episodes
-from attention_types import AttentionObservation
+from attention_types import AttentionObservation, audit_model_input
 from attention_ablation import ablate
 
 
@@ -22,6 +22,11 @@ class SchemaTests(unittest.TestCase):
             self.assertFalse(state["candidate_activation"])
             self.assertTrue(all(not item["already_visited"] and not item["relation_activation"]
                                 and not item["candidate_activation"] for item in state["candidate_features"]))
+
+    def test_recursive_audit_rejects_teacher_future_and_oracle_metadata(self):
+        for forbidden in ("teacher_action", "proof_exists", "future_state", "future_reward", "terminal_outcome"):
+            with self.subTest(forbidden=forbidden), self.assertRaisesRegex(ValueError, "forbidden"):
+                audit_model_input({"candidate": {forbidden: True}})
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "requires torch")

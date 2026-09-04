@@ -276,7 +276,7 @@ class AttentionEnv:
 
     def reset(self):
         self.done = False
-        self.valid_proof_seen = False
+        self.valid_proof_seen = bool(self.spec.get("initial_proof", False))
         self.state = self._observation(self.spec["start"], 0, self.budget, [], [], [], {}, {})
         return self.state
 

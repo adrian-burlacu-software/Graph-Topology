@@ -2,8 +2,14 @@
 from __future__ import annotations
 
 import math
+from types import MappingProxyType
 
-from attention_types import AttentionAction, AttentionActionKind
+from attention_types import AttentionAction, AttentionActionKind, TEACHER_VERSION, audit_model_input
+
+TEACHER_CONFIGURATION = MappingProxyType({
+    "version": TEACHER_VERSION, "candidate_weights": "fixed-v679-symbolic-1",
+    "actions": ("traverse", "stop", "abstain"),
+})
 
 
 def softmax(logits, temperature=2.0):
@@ -19,8 +25,11 @@ class V679AttentionTeacher:
 
     def __init__(self, temperature=2.0):
         self.temperature = float(temperature)
+        self.version = TEACHER_VERSION
+        self.configuration = TEACHER_CONFIGURATION
 
     def score_candidates(self, state, candidates=None):
+        audit_model_input(state.as_dict())
         candidates = candidates if candidates is not None else state.candidate_features
         logits = []
         for candidate in candidates:

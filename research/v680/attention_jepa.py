@@ -14,7 +14,7 @@ from torch import nn
 from attention_dataset import read_jsonl
 from attention_distill import training_records
 from attention_student import CANDIDATE_DIM, STATE_DIM
-from attention_types import AttentionAction, AttentionObservation, validate_step_record
+from attention_types import AttentionAction, AttentionObservation, audit_model_input, validate_step_record
 
 
 OBSERVATION_DIM = STATE_DIM + CANDIDATE_DIM
@@ -22,6 +22,7 @@ OBSERVATION_DIM = STATE_DIM + CANDIDATE_DIM
 
 def observation_vector(state):
     """Observable state summary only; it deliberately excludes the transition oracle."""
+    audit_model_input(state.as_dict())
     candidates = [candidate.vector() for candidate in state.candidate_features]
     mean_candidate = (torch.tensor(candidates, dtype=torch.float32).mean(0)
                       if candidates else torch.zeros(CANDIDATE_DIM))
@@ -139,7 +140,8 @@ def evaluate_jepa(records, model):
     transitions = transition_records(records)
     targets = torch.stack([model.encode_target(next_state) for _, _, next_state, _ in transitions])
     mean_target = targets.mean(0)
-    totals = {"jepa": 0.0, "zero": 0.0, "mean": 0.0, "persistence": 0.0}
+    totals = {"jepa": 0.0, "zero": 0.0, "mean": 0.0, "persistence": 0.0, "random": 0.0,
+              "shuffled_action": 0.0}
     categories, action_distances = {}, []
     for (state, action, next_state, record), target in zip(transitions, targets):
         prediction = model.predict_transition(state, action)
@@ -148,17 +150,26 @@ def evaluate_jepa(records, model):
         totals["zero"] += float(F.mse_loss(torch.zeros_like(target), target))
         totals["mean"] += float(F.mse_loss(mean_target, target))
         totals["persistence"] += float(F.mse_loss(model.encode_context(state), target))
+        generator = torch.Generator().manual_seed(action * 7919 + len(state.candidate_features))
+        totals["random"] += float(F.mse_loss(torch.randn(target.shape, generator=generator), target))
+        wrong_action = (action + 1) % (len(state.candidate_features) + 2)
+        totals["shuffled_action"] += float(F.mse_loss(model.predict_transition(state, wrong_action), target))
         bucket = transition_category(state, action, record)
         categories.setdefault(bucket, []).append(error)
         if len(state.candidate_features) > 1:
             predictions = model.predict_actions(state)
             action_distances.append(float(torch.pdist(predictions).mean()))
     count = len(transitions)
+    prediction_error = {name: value / count for name, value in totals.items()}
     return {
-        "prediction_error": {name: value / count for name, value in totals.items()},
+        "prediction_error": prediction_error,
+        "relative_improvement_vs_baseline": {
+            name: 1 - prediction_error["jepa"] / max(value, 1e-12)
+            for name, value in prediction_error.items() if name != "jepa"},
         "by_transition_category": {name: sum(values) / len(values) for name, values in categories.items()},
         "mean_action_conditioned_prediction_distance": sum(action_distances) / max(1, len(action_distances)),
         "action_conditioned": bool(action_distances and min(action_distances) > 1e-6),
+        "representation_std": float(targets.std(unbiased=False)),
         "transitions": count,
     }
 
