@@ -15,6 +15,7 @@ from attention_distill import train_distillation
 from attention_evaluate import evaluate
 from attention_jepa import AttentionJEPA, evaluate_jepa, load_jepa, train_jepa
 from attention_ppo import run_ppo
+from attention_env import no_proof_episodes
 
 
 def revision():
@@ -84,6 +85,17 @@ def main():
     if "dagger" in phases:
         _, _, manifest["dagger"] = run_dagger(records, args.rounds, args.epochs, args.seed,
                                                output / "dagger", jepa=jepa, use_jepa=args.use_jepa)
+        from attention_evaluate import load_student
+        heldout_no_proof = collect_teacher_episodes(no_proof_episodes("heldout"))
+        pre_dagger = (load_student(student_path) if student_path.exists() else
+                      train_distillation(records, args.epochs, seed=args.seed, jepa=jepa,
+                                         use_jepa=args.use_jepa)[0])
+        manifest["no_proof_generalization"] = {
+            "before_dagger": evaluate(heldout_no_proof, pre_dagger, jepa=jepa)
+            .get("held_out_adversarial", {}),
+            **{f"after_dagger_round_{item['round']}": item["held_out_no_proof"]
+               for item in manifest["dagger"]},
+        }
     if "ppo" in phases:
         adversarial = manifest.get("evaluation", {}).get("held_out_adversarial", {})
         dagger_no_proof = (manifest.get("dagger") or [{}])[-1].get("held_out_no_proof", {})
