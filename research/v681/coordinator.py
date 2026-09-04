@@ -1,242 +1,236 @@
-"""Central V681 lifecycle: discovery, capture, learning, evaluation, reporting."""
+"""V681-native closed learning loop: collect, batch, evaluate, promote, resume."""
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import sqlite3
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from .experience import ExperienceSource, ExperienceStore, attention_step_experience
-from .importers import import_chat_record, import_chat_traces, import_worker_event, import_worker_logs
+from .importers import import_chat_record, import_worker_event
 from .learners import AttentionDistillationLearner, JEPAAuxiliaryLearner
-from .runtime_adapters import RepositoryRuntime, V679ChatRuntimeAdapter
-from .trajectory import AttentionTrajectoryAdapter
-from .v680_adapter import V680EngineAdapter
+from .native_learning.engine import NativeLearningEngine
+from .native_runtime.runtime import NativeRuntime
 
-V681_VERSION = "v681.4-runtime-1"
+V681_VERSION = "v681.5-native-closed-loop-1"
 
 
 @dataclass
 class RuntimePolicy:
     min_sequential_episodes: int = 8
+    new_sequential_episodes: int = 1
     bootstrap_samples: int = 20
     epochs: int = 8
-    seed: int = 6814
+    seed: int = 6815
     poll_seconds: float = 1.0
-    training_interval_seconds: int = 300
 
 
 class V681Coordinator:
-    """Owns orchestration; source adapters only expose runtime records."""
-    def __init__(self, runtime=None, output_dir=None, policy=None, engine=None, chat_runtime=None):
-        self.runtime = runtime or RepositoryRuntime.discover()
-        self.output = Path(output_dir or self.runtime.results_root)
-        self.policy = policy or RuntimePolicy()
+    """The single owner of V681 runtime, store, learning cursor, and artifacts."""
+    def __init__(self, root=None, output_dir=None, policy=None, engine=None, chat_runtime=None):
+        self.root = Path(root or Path(__file__).resolve().parents[2]).resolve()
+        self.output = Path(output_dir or self.root / "results" / "v681")
+        self.policy, self.engine, self.chat = policy or RuntimePolicy(), engine, chat_runtime
         self.session_id = f"v681-{uuid.uuid4().hex}"
         self.session_dir = self.output / "sessions" / self.session_id
-        self.output.mkdir(parents=True, exist_ok=True)
-        self.session_dir.mkdir(parents=True, exist_ok=True)
-        self.store = ExperienceStore(self.output / "v681_experience.sqlite")
-        self.engine = engine
-        self.chat = chat_runtime or V679ChatRuntimeAdapter(self.runtime, self.session_dir, self.session_id)
+        self.output.mkdir(parents=True, exist_ok=True); self.session_dir.mkdir(parents=True, exist_ok=True)
+        self.store = ExperienceStore(self.output / "experience" / "experience.sqlite")
         self.cycles, self.failures, self.chat_records, self.worker_events = [], [], 0, 0
 
-    def run(self, once=False, dry_run=False):
-        started = time.time()
-        before = self._inspection()
-        discovery = self.runtime.capabilities()
-        self._ingest_discovered()
-        self._capture_runtime()
+    def run(self, once=False, dry_run=False, smoke=False):
+        started, before, discovery = time.time(), self._inspection(), self._discover()
+        if self.chat is not None:
+            self._capture()
         if dry_run:
             return self._finish(started, before, discovery, "dry_run")
-        self._learn_if_due("startup")
+        self._learn_if_due("startup", bootstrap=True)
         if once:
             return self._finish(started, before, discovery, "once")
-        available, reason = self.chat.available()
-        discovery["chat_runtime"] = {"available": available, **({"reason": reason} if reason else {})}
-        if not available:
-            self.failures.append({"stage": "chat_runtime", "reason": reason})
+        if not discovery["chat_runtime"]["available"]:
+            self.failures.append({"stage": "chat_runtime", "reason": discovery["chat_runtime"]["reason"]})
             return self._finish(started, before, discovery, "chat_unavailable")
+        self.chat = self.chat or NativeRuntime(discovery["graph_database"]["path"], discovery["local_llm"]["path"],
+                                               self.session_dir, self.session_id, mode="smoke" if smoke else "chat",
+                                               attention_policy=self.output / "models" / "current_attention.pt"
+                                               if (self.output / "models" / "current_attention.pt").is_file() else "")
         try:
             self.chat.start()
-            last_cycle = time.monotonic()
             while self.chat.running():
-                self._capture_runtime()
-                if time.monotonic() - last_cycle >= self.policy.training_interval_seconds:
-                    self._learn_if_due("interval")
-                    last_cycle = time.monotonic()
+                self._capture(); self._learn_if_due("new_experience")
                 time.sleep(self.policy.poll_seconds)
         except KeyboardInterrupt:
-            self.chat.stop()
+            pass
         finally:
-            self._capture_runtime()
-            self._learn_if_due("shutdown")
+            self.chat.stop(); self._capture(); self._learn_if_due("shutdown")
         return self._finish(started, before, discovery, "complete")
 
-    def _ingest_discovered(self):
-        trace = self.runtime.root / "results" / "v679_chat_traces.jsonl"
-        workers = self.runtime.root / "results" / "v679_workers"
-        if trace.is_file():
-            report = import_chat_traces(self.store, trace)
-            self.chat_records += len(report["accepted"])
-            self.failures.extend({"stage": "existing_chat", **item} for item in report["rejected"])
-        if workers.is_dir():
-            self.worker_events += import_worker_logs(self.store, workers)
+    def _discover(self):
+        graph = _discover_graph(self.root / "data")
+        configured = os.environ.get("GRAPH_TOPOLOGY_LLM_MODEL", "").strip()
+        model = Path(configured).expanduser() if configured else self.root / "llm" / "SmolLM3-3B"
+        ready = bool(graph and model.is_dir())
+        return {
+            "repository_root": str(self.root), "graph_database": {"available": bool(graph), "path": str(graph or "")},
+            "local_llm": {"available": model.is_dir(), "path": str(model) if model.is_dir() else ""},
+            "chat_runtime": {"available": ready, "reason": "" if ready else
+                             f"native chat needs a focused graph in {self.root / 'data'} and model at {model}"},
+            "native_learning": {"available": True, "source_learning_version": "v680.1"},
+        }
 
-    def _capture_runtime(self):
+    def _capture(self):
+        if self.chat is None:
+            return
         events = self.chat.poll()
         for event in events["chat"]:
-            if "invalid" in event:
-                self.failures.append({"stage": "chat_capture", **event})
-                continue
             try:
                 import_chat_record(self.store, event["value"], event["source_path"], event["line"])
                 self.chat_records += 1
-            except ValueError as error:
-                self.failures.append({"stage": "chat_capture", "line": event["line"], "reason": str(error)})
+            except (KeyError, ValueError) as error:
+                self.failures.append({"stage": "chat_capture", "reason": str(error), **event})
         for event in events["worker"]:
-            if "invalid" in event:
-                self.failures.append({"stage": "worker_capture", **event})
+            if event.get("value", {}).get("event") != "analysis_batch":
                 continue
-            if event["value"].get("event") == "analysis_batch":
-                try:
-                    import_worker_event(self.store, event["value"], event["source_path"], event["line"])
-                    self.worker_events += 1
-                except ValueError as error:
-                    self.failures.append({"stage": "worker_capture", "line": event["line"], "reason": str(error)})
+            try:
+                import_worker_event(self.store, event["value"], event["source_path"], event["line"])
+                self.worker_events += 1
+            except (KeyError, ValueError) as error:
+                self.failures.append({"stage": "worker_capture", "reason": str(error), **event})
 
-    def _learn_if_due(self, trigger):
-        inspection = self._inspection()
-        sequential = inspection["train_sequential_episodes"]
-        if sequential < self.policy.min_sequential_episodes:
+    def _learn_if_due(self, trigger, bootstrap=False):
+        self._materialize_live_sequential()
+        cursor = self.store.learning_cursor("attention")
+        if cursor and not self._new_eligible_episodes(cursor["last_experience_id"]):
+            self.cycles.append({"kind": "attention", "trigger": trigger, "status": "no_op",
+                                "reason": "no new training experience"})
+            return
+        if self._inspection()["train_sequential_episodes"] < self.policy.min_sequential_episodes and bootstrap:
             self._bootstrap(trigger)
-        inspection = self._inspection()
-        if inspection["train_sequential_episodes"] >= self.policy.min_sequential_episodes:
+        if self._inspection()["train_sequential_episodes"] >= self.policy.min_sequential_episodes:
             self._train_candidate(trigger)
 
     def _bootstrap(self, trigger):
         try:
-            engine = self._engine()
             path = self.session_dir / "bootstrap_teacher.jsonl"
-            engine.generate_teacher_records(path, self.policy.bootstrap_samples)
+            self._engine().generate_teacher_records(path, self.policy.bootstrap_samples)
             records = _read_jsonl(path)
-            _append_engine_records(self.store, records, ExperienceSource.ATTENTION_EVAL, "evaluation-", heldout_only=True)
-            dagger = engine.run_dagger(path, self.session_dir / "dagger", 1, self.policy.epochs, self.policy.seed)
-            _append_engine_records(self.store, _read_jsonl(dagger), ExperienceSource.DAGGER, "dagger-")
-            _append_engine_records(self.store, records, ExperienceSource.SYNTHETIC_CHAT, "synthetic-")
+            _append_records(self.store, records, ExperienceSource.ATTENTION_EVAL, "evaluation-", heldout_only=True)
+            aggregate = self._engine().run_dagger(path, self.session_dir / "dagger", 1, self.policy.epochs, self.policy.seed)
+            _append_records(self.store, _read_jsonl(aggregate), ExperienceSource.DAGGER, "dagger-")
+            _append_records(self.store, records, ExperienceSource.SYNTHETIC_CHAT, "synthetic-")
             self.cycles.append({"kind": "bootstrap", "trigger": trigger, "status": "completed"})
         except Exception as error:
             self.failures.append({"stage": "bootstrap", "trigger": trigger, "reason": str(error)})
 
     def _train_candidate(self, trigger):
         try:
-            engine, items = self._engine(), self.store.load()
-            learner = AttentionDistillationLearner()
+            items, learner = self.store.load(), AttentionDistillationLearner()
             sources = {ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT, ExperienceSource.CHAT_SEQUENTIAL}
             train, rejected = learner.prepare(items, sources)
             evaluation, rejected_eval = learner.prepare(items, {ExperienceSource.ATTENTION_EVAL}, allowed_splits=("heldout",))
             if not train or not evaluation:
-                self.cycles.append({"kind": "attention", "trigger": trigger, "status": "deferred",
-                                    "reason": "requires train and heldout sequential teacher-labelled experience"})
                 return
-            cycle_id = len(self.cycles) + 1
-            dataset = self.session_dir / f"attention_{cycle_id}_train.jsonl"
-            heldout = self.session_dir / f"attention_{cycle_id}_heldout.jsonl"
+            cycle = len(self.cycles) + 1
+            dataset, heldout = self.session_dir / f"attention-{cycle}.jsonl", self.session_dir / f"heldout-{cycle}.jsonl"
             _write_jsonl(dataset, train); _write_jsonl(heldout, evaluation)
-            candidate = self.output / "models" / f"attention_{self.session_id}_{cycle_id}.pt"
-            candidate.parent.mkdir(parents=True, exist_ok=True)
-            learner.train(engine, dataset, candidate, self.policy.epochs, self.policy.seed)
-            metrics_path = self.session_dir / f"attention_{cycle_id}_metrics.json"
-            metrics = learner.evaluate(engine, heldout, candidate, metrics_path)
-            jepa = JEPAAuxiliaryLearner()
-            transitions, jepa_rejected = jepa.prepare(items, sources)
-            jepa_data = self.session_dir / f"jepa_{cycle_id}.jsonl"
-            _write_jsonl(jepa_data, transitions)
-            jepa_result = jepa.train(engine, jepa_data, self.output / "models" / f"jepa_{self.session_id}_{cycle_id}.pt",
-                                     self.session_dir / f"jepa_{cycle_id}_metrics.json", self.policy.epochs, self.policy.seed)
-            provenance = {"v681_version": V681_VERSION, "session_id": self.session_id, "candidate": str(candidate),
-                          "dataset": str(dataset), "sources": sorted(source.value for source in sources),
-                          "metrics": metrics, "rejected": rejected, "jepa_rejected": jepa_rejected,
-                          "promotion": {"promoted": False, "reason": "automatic promotion is disabled pending explicit safety criteria"}}
-            provenance_path = candidate.with_suffix(".provenance.json")
-            provenance_path.write_text(json.dumps(provenance, indent=2, sort_keys=True))
-            self.cycles.append({"kind": "candidate", "trigger": trigger, "status": "evaluated", "candidate": str(candidate),
-                                "metrics": metrics, "jepa": jepa_result, "promotion": provenance["promotion"]})
+            candidate = self.output / "models" / f"attention-{self.session_id}-{cycle}.pt"
+            candidate.parent.mkdir(parents=True, exist_ok=True); (self.output / "evaluations").mkdir(parents=True, exist_ok=True)
+            learner.train(self._engine(), dataset, candidate, self.policy.epochs, self.policy.seed)
+            metrics = learner.evaluate(self._engine(), heldout, candidate, self.output / "evaluations" / f"attention-{cycle}.json")
+            jepa = JEPAAuxiliaryLearner(); transitions, jepa_rejected = jepa.prepare(items, sources)
+            jepa_data = self.session_dir / f"jepa-{cycle}.jsonl"; _write_jsonl(jepa_data, transitions)
+            jepa_result = jepa.train(self._engine(), jepa_data, self.output / "models" / f"jepa-{self.session_id}-{cycle}.pt",
+                                     self.output / "evaluations" / f"jepa-{cycle}.json", self.policy.epochs, self.policy.seed)
+            promotion = _promotion(metrics)
+            artifact = {"v681_version": V681_VERSION, "candidate": str(candidate), "metrics": metrics,
+                        "promotion": promotion, "sources": sorted(x.value for x in sources), "rejected": rejected,
+                        "heldout_rejected": rejected_eval, "jepa": jepa_result, "jepa_rejected": jepa_rejected}
+            provenance = candidate.with_suffix(".provenance.json"); provenance.write_text(json.dumps(artifact, indent=2, sort_keys=True))
+            if promotion["promoted"]:
+                current = self.output / "models" / "current_attention.pt"
+                staged = current.with_suffix(".staged")
+                shutil.copy2(candidate, staged); os.replace(staged, current)
+                artifact["promotion"]["current_model"] = str(current)
+                if self.chat is not None and hasattr(self.chat, "set_attention_policy"):
+                    self.chat.set_attention_policy(current)
+            self.store.update_learning_cursor("attention", self.store.latest_experience_id(), str(dataset), str(provenance))
+            self.cycles.append({"kind": "candidate", "trigger": trigger, "status": "evaluated", **artifact})
         except Exception as error:
             self.failures.append({"stage": "learning", "trigger": trigger, "reason": str(error)})
 
+    def _materialize_live_sequential(self):
+        """Create immutable train views once for eligible live trajectories."""
+        items = self.store.load()
+        existing = {item.provenance.get("materialized_from") for item in items}
+        for item in items:
+            if item.split != "live" or item.sequence_capability != "sequential" or item.experience_id in existing:
+                continue
+            record = item.as_dict()
+            record["experience_id"], record["split"], record["timestamp"] = uuid.uuid4().hex, "train", time.time()
+            record["provenance"] = {**record["provenance"], "materialized_from": item.experience_id,
+                                    "materialization_version": V681_VERSION}
+            self.store.append(record)
+
+    def _new_eligible_episodes(self, last_id):
+        items, seen = self.store.load(), False
+        fresh = []
+        for item in items:
+            if seen: fresh.append(item)
+            if item.experience_id == last_id: seen = True
+        return len({item.episode_id for item in fresh if item.split == "train" and item.sequence_capability == "sequential"})
+
     def _engine(self):
-        if self.engine is None:
-            self.engine = V680EngineAdapter(self.runtime.v680_root)
+        self.engine = self.engine or NativeLearningEngine()
         return self.engine
 
     def _inspection(self):
         items = self.store.load()
         train = [item for item in items if item.split == "train" and item.sequence_capability == "sequential"]
-        composition = {}
-        for source in ExperienceSource:
-            sourced = [item for item in items if item.source is source]
-            composition[source.value] = {
-                "records": len(sourced),
-                "episodes": len({item.episode_id for item in sourced}),
-                "qualities": {quality.value: sum(item.quality is quality for item in sourced)
-                              for quality in type(items[0].quality)} if items else {},
-                "actions": _action_counts(sourced),
-            }
         return {"total_records": len(items), "chat_records": sum(item.source in {ExperienceSource.CHAT_DECISION_ONLY, ExperienceSource.CHAT_SEQUENTIAL} for item in items),
                 "worker_records": sum(item.source is ExperienceSource.OFFLINE_WORKER for item in items),
-                "decision_only_records": sum(item.sequence_capability == "decision_only" for item in items),
-                "train_sequential_records": len(train), "train_sequential_episodes": len({item.episode_id for item in train}),
-                "source_composition": composition}
+                "train_sequential_episodes": len({item.episode_id for item in train}),
+                "source_composition": {source.value: sum(item.source is source for item in items) for source in ExperienceSource}}
 
     def _finish(self, started, before, discovery, status):
-        result = {"v681_version": V681_VERSION, "session_id": self.session_id, "status": status,
-                  "start_time": started, "end_time": time.time(), "experience_before": before,
-                  "experience_after": self._inspection(), "training_cycles": self.cycles,
-                  "models_created": [cycle["candidate"] for cycle in self.cycles if "candidate" in cycle],
-                  "evaluations": [cycle for cycle in self.cycles if cycle["kind"] == "candidate"],
-                  "worker_events": self.worker_events, "chat_episodes": self.chat_records,
-                  "discovery": discovery, "failures": self.failures}
-        (self.output / "v681_runtime_results.json").write_text(json.dumps(result, indent=2, sort_keys=True))
-        (self.output / "v681_experience_manifest.json").write_text(json.dumps(
-            {"v681_version": V681_VERSION, "inspection": result["experience_after"], "store": self.store.manifest()}, indent=2, sort_keys=True))
-        (self.output / "v681_runtime_report.md").write_text(
-            "# V681 runtime report\n\n"
-            f"Session `{self.session_id}` finished with status `{status}`.\n\n"
-            f"- chat episodes captured: {self.chat_records}\n- worker events captured: {self.worker_events}\n"
-            f"- training cycles: {len(self.cycles)}\n- failures: {len(self.failures)}\n")
-        (self.session_dir / "v681_session_manifest.json").write_text(
-            json.dumps(result, indent=2, sort_keys=True))
-        (self.output / "v681_latest_results.json").write_text(json.dumps(result, indent=2, sort_keys=True))
-        (self.output / "v681_latest_report.md").write_text(
-            (self.output / "v681_runtime_report.md").read_text())
+        result = {"v681_version": V681_VERSION, "session_id": self.session_id, "status": status, "start_time": started,
+                  "end_time": time.time(), "experience_before": before, "experience_after": self._inspection(),
+                  "training_cycles": self.cycles, "models_created": [x["candidate"] for x in self.cycles if "candidate" in x],
+                  "worker_events": self.worker_events, "chat_episodes": self.chat_records, "discovery": discovery,
+                  "failures": self.failures}
+        for name, value in (("runtime_results.json", result), ("experience_manifest.json", self.store.manifest()),
+                            ("current_model_manifest.json", self.store.learning_cursor("attention") or {})):
+            (self.output / name).write_text(json.dumps(value, indent=2, sort_keys=True))
+        (self.output / "runtime_report.md").write_text("# V681 runtime report\n\n" + json.dumps(result, indent=2, sort_keys=True))
+        (self.session_dir / "session_manifest.json").write_text(json.dumps(result, indent=2, sort_keys=True))
         self.store.close()
         return result
 
 
-def _read_jsonl(path):
-    return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+def _discover_graph(data):
+    for path in sorted(Path(data).glob("v*_focused_semantic.sqlite"), reverse=True):
+        try:
+            with sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True) as connection:
+                connection.execute("SELECT 1 FROM nodes LIMIT 1"); connection.execute("SELECT 1 FROM edges LIMIT 1")
+            return path.resolve()
+        except sqlite3.Error: continue
+    return None
 
 
-def _write_jsonl(path, records):
-    Path(path).write_text("".join(json.dumps(record, sort_keys=True) + "\n" for record in records))
-
-
-def _append_engine_records(store, records, source, prefix, heldout_only=False):
+def _read_jsonl(path): return [json.loads(x) for x in Path(path).read_text().splitlines() if x.strip()]
+def _write_jsonl(path, values):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text("".join(json.dumps(x, sort_keys=True) + "\n" for x in values))
+def _append_records(store, records, source, prefix, heldout_only=False):
     for episode in records:
         for step in episode["trajectory"]:
-            if heldout_only and not str(step["split"]).startswith("held_out"):
-                continue
-            item = attention_step_experience(step, source=source)
-            item.episode_id = prefix + item.episode_id
-            item.provenance["supervision_source"] = "frozen_v680_teacher"
-            store.append(item)
-
-
-def _action_counts(items):
-    counts = {}
-    for item in items:
-        kind = item.model_view.get("selected_action", {}).get("kind", "none")
-        counts[kind] = counts.get(kind, 0) + 1
-    return counts
+            if heldout_only and not str(step["split"]).startswith("held_out"): continue
+            item = attention_step_experience(step, source=source); item.episode_id = prefix + item.episode_id
+            item.provenance["supervision_source"] = "native_frozen_teacher"; store.append(item)
+def _promotion(metrics):
+    value = metrics.get("held_out", {}).get("teacher_action_accuracy")
+    return {"promoted": bool(value is not None and value >= .5),
+            "reason": "held-out accuracy passed conservative threshold" if value is not None and value >= .5
+            else "held-out evaluation did not pass promotion gate"}

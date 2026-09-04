@@ -9,7 +9,7 @@ from pathlib import Path
 from .experience import ExperienceQuality, ExperienceSource, ExperienceStore, attention_step_experience
 from .importers import import_chat_traces, import_worker_logs
 from .learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
-from .v680_adapter import V680_ENGINE_VERSION, V680EngineAdapter
+from .native_learning.engine import SOURCE_LEARNING_VERSION, NativeLearningEngine
 
 V681_VERSION = "v681.3-learning-substrate-1"
 
@@ -69,7 +69,7 @@ def _run_attention_comparison(name, sources, experiences, engine, output, epochs
     artifact_provenance = {
         "learner_type": learner.descriptor.learner_type, "artifact_type": learner.descriptor.artifact_type,
         "dataset_version": f"{V681_VERSION}:{name}", "sources": sorted(source.value for source in sources),
-        "v680_engine_version": V680_ENGINE_VERSION, "seed": seed, "training_configuration": {"epochs": epochs},
+        "source_learning_version": SOURCE_LEARNING_VERSION, "seed": seed, "training_configuration": {"epochs": epochs},
     }
     provenance_path = output / f"{name}.provenance.json"
     provenance_path.write_text(json.dumps(artifact_provenance, indent=2, sort_keys=True))
@@ -145,7 +145,7 @@ def _write_ingestion_report(output, store, ingestion):
 
 def main():
     parser = argparse.ArgumentParser(description="Run/inspect the self-contained V681.3 learning substrate.")
-    parser.add_argument("--output-dir", required=True); parser.add_argument("--v680-engine", default="")
+    parser.add_argument("--output-dir", required=True)
     parser.add_argument("--chat-traces", default=""); parser.add_argument("--worker-logs", default="")
     parser.add_argument("--epochs", type=int, default=8); parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--smoke", action="store_true"); parser.add_argument("--inspect-experience", action="store_true")
@@ -160,7 +160,7 @@ def main():
         report = _write_ingestion_report(output, store, ingestion)
         (output / "v681_experience_manifest.json").write_text(json.dumps(_inspect(store), indent=2, sort_keys=True))
         print(json.dumps(report, indent=2, sort_keys=True)); store.close(); return
-    engine = V680EngineAdapter(args.v680_engine or None)
+    engine = NativeLearningEngine()
     samples = 5 if args.smoke else 100
     raw_teacher = output / "v680_teacher.jsonl"
     engine.generate_teacher_records(raw_teacher, samples)
@@ -201,11 +201,11 @@ def main():
                           + knowledge["reason"])}
         for name in ("offline_only", "dagger_offline", "chat_offline", "dagger_chat_offline")
     }
-    manifest = {"v681_version": V681_VERSION, "v680_engine_version": V680_ENGINE_VERSION,
-                "teacher_version": records[0]["teacher_version"], "engine_root": str(engine.root),
+    manifest = {"v681_version": V681_VERSION, "source_learning_version": SOURCE_LEARNING_VERSION,
+                "teacher_version": records[0]["teacher_version"], "engine": "native",
                 "datasets": [_dataset_manifest(store, experiences, name, sources) for name, sources in source_sets.items()],
                 "experience": store.manifest(), "inspection": _inspect(store)}
-    results = {"v681_version": V681_VERSION, "v680_engine_version": V680_ENGINE_VERSION,
+    results = {"v681_version": V681_VERSION, "source_learning_version": SOURCE_LEARNING_VERSION,
                "teacher_version": records[0]["teacher_version"], "chat_imported": chat_records,
                "worker_imported": worker_records, "materialized_live_records": materialized,
                "source_comparisons": {**comparisons, **worker_combinations},
@@ -222,7 +222,7 @@ def main():
     )
     (output / "v681_learning_integration_report.md").write_text(
         "# V681.3 learning integration\n\n"
-        f"V681 version `{V681_VERSION}` uses explicit frozen engine `{V680_ENGINE_VERSION}` at `{engine.root}`.\n\n"
+        f"V681 version `{V681_VERSION}` uses its native learning implementation derived from `{SOURCE_LEARNING_VERSION}`.\n\n"
         "DAgGER and sequential synthetic/live chat traverse the same V681 trajectory adapter. "
         "Decision-only chat and worker knowledge are retained but excluded from attention imitation. "
         "JEPA is auxiliary; V680.1 direct attention gain was not demonstrated. PPO is not run.\n\n"

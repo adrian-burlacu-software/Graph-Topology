@@ -1,4 +1,5 @@
 import json
+import ast
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,9 +10,8 @@ from research.v681.experience import Experience, ExperienceQuality, ExperienceSo
 from research.v681.importers import import_chat_traces, import_worker_logs
 from research.v681.learners import REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
-from research.v681.v680_adapter import V680EngineAdapter
 from research.v681.coordinator import RuntimePolicy, V681Coordinator
-from research.v681.runtime_adapters import RepositoryRuntime
+from research.v681.native_learning.engine import NativeLearningEngine
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -44,6 +44,9 @@ class ExperienceTests(unittest.TestCase):
             Experience(ExperienceSource.DAGGER, "x", model_view={"oracle": {}})
         with self.assertRaises(ValueError):
             Experience(ExperienceSource.ATTENTION_EVAL, "x", split="train")
+        for forbidden in ("oracle", "ground_truth", "future_state", "teacher_action", "terminal_answer", "future_reward"):
+            with self.assertRaises(ValueError, msg=forbidden):
+                Experience(ExperienceSource.DAGGER, "x", model_view={"nested": {forbidden: "blocked"}})
 
     def test_decision_chat_and_worker_are_not_attention_trajectories(self):
         chat = chat_trace_experience({"timestamp": 1, "route": {"success": False}, "candidate_evidence": []})
@@ -92,23 +95,36 @@ class ExperienceTests(unittest.TestCase):
         self.assertNotIn("teacher", worker.supervision)
         self.assertIsNone(worker.model_view["knowledge_delta"])
 
-    def test_explicit_engine_boundary_validates_location(self):
-        with self.assertRaisesRegex(FileNotFoundError, "V681 requires the frozen V680 engine"):
-            V680EngineAdapter(HERE / "missing-engine")
-
-    def test_explicit_engine_adapter_generates_frozen_records(self):
+    def test_native_engine_generates_teacher_records(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "records.jsonl"
-            V680EngineAdapter().generate_teacher_records(output, 1)
+            NativeLearningEngine().generate_teacher_records(output, 1)
             self.assertTrue(output.exists())
             self.assertIn("trajectory", json.loads(output.read_text().splitlines()[0]))
 
+    def test_runtime_has_no_legacy_runtime_imports_or_dynamic_loading(self):
+        root = HERE
+        forbidden = ("v679", "v680")
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    self.assertFalse(any(name.name.startswith(forbidden) for name in node.names), path)
+                if isinstance(node, ast.ImportFrom):
+                    self.assertFalse(node.module and node.module.startswith(forbidden), path)
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Attribute):
+                    self.assertFalse(node.value.attr == "path" and node.attr == "insert", path)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    self.assertNotIn(node.func.id, {"__import__", "import_module"}, path)
+
     def test_one_command_coordinator_captures_fake_runtime_and_evaluates_candidate(self):
         class FakeChat:
+            policy_path = ""
             def available(self): return True, ""
             def start(self): pass
             def running(self): return False
             def stop(self): pass
+            def set_attention_policy(self, path): self.policy_path = str(path)
             def poll(self):
                 return {"chat": [{"source_path": "fake-chat", "line": 1, "value": {
                     "timestamp": 1, "route": {"success": True}, "candidate_evidence": [],
@@ -135,14 +151,15 @@ class ExperienceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repository"; root.mkdir()
-            runtime = RepositoryRuntime(root, root / "v679.py", root / "v680", None, None, root / "results" / "v681")
-            result = V681Coordinator(runtime=runtime, output_dir=Path(directory) / "v681", engine=FakeEngine(),
-                chat_runtime=FakeChat(), policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1, epochs=1)).run(once=True)
+            chat = FakeChat()
+            result = V681Coordinator(root=root, output_dir=Path(directory) / "v681", engine=FakeEngine(),
+                chat_runtime=chat, policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1, epochs=1)).run(once=True)
             self.assertEqual(result["status"], "once")
             self.assertEqual(result["chat_episodes"], 1)
             self.assertEqual(result["worker_events"], 1)
             self.assertTrue(result["models_created"])
-            self.assertEqual(result["evaluations"][0]["promotion"]["promoted"], False)
+            self.assertTrue(result["training_cycles"][-1]["promotion"]["promoted"])
+            self.assertTrue(chat.policy_path.endswith("current_attention.pt"))
 
     def test_failed_one_command_learning_preserves_captured_experience(self):
         class FakeChat:
@@ -159,12 +176,44 @@ class ExperienceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repository"; root.mkdir()
-            runtime = RepositoryRuntime(root, root / "v679.py", root / "v680", None, None, root / "results" / "v681")
-            result = V681Coordinator(runtime=runtime, output_dir=Path(directory) / "v681", engine=FailingEngine(),
+            result = V681Coordinator(root=root, output_dir=Path(directory) / "v681", engine=FailingEngine(),
                 chat_runtime=FakeChat(), policy=RuntimePolicy(min_sequential_episodes=1)).run(once=True)
             self.assertEqual(result["experience_after"]["chat_records"], 1)
             self.assertEqual(result["models_created"], [])
             self.assertEqual(result["failures"][0]["stage"], "bootstrap")
+
+    def test_learning_cursor_prevents_restart_retraining_without_new_experience(self):
+        class EmptyChat:
+            def start(self): pass
+            def running(self): return False
+            def stop(self): pass
+            def poll(self): return {"chat": [], "worker": []}
+        class CountingEngine:
+            def __init__(self): self.generated = 0
+            def generate_teacher_records(self, path, _):
+                self.generated += 1
+                path.write_text("\n".join(json.dumps(row) for row in [
+                    {"episode_id": "train", "trajectory": [_step("ordinary")]},
+                    {"episode_id": "heldout", "trajectory": [_step("held_out")]}]) + "\n")
+            def run_dagger(self, _, directory, *__):
+                directory.mkdir(parents=True, exist_ok=True); path = directory / "dagger_aggregate_round_0.jsonl"
+                path.write_text(json.dumps({"episode_id": "dagger", "trajectory": [_step("ordinary")]}) + "\n"); return path
+            def train_attention(self, _, checkpoint, *__): checkpoint.write_text("candidate")
+            def evaluate_attention(self, _, __, output):
+                value = {"held_out": {"teacher_action_accuracy": 1.0}}; output.write_text(json.dumps(value)); return value
+            def train_jepa(self, _, checkpoint, output, *__):
+                checkpoint.write_text("jepa"); output.write_text("{}"); return {}
+        with tempfile.TemporaryDirectory() as directory:
+            root, output = Path(directory) / "repository", Path(directory) / "v681"; root.mkdir()
+            first = CountingEngine()
+            V681Coordinator(root=root, output_dir=output, engine=first, chat_runtime=EmptyChat(),
+                            policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1)).run(once=True)
+            second = CountingEngine()
+            result = V681Coordinator(root=root, output_dir=output, engine=second, chat_runtime=EmptyChat(),
+                                     policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1)).run(once=True)
+            self.assertEqual(first.generated, 1)
+            self.assertEqual(second.generated, 0)
+            self.assertTrue(any(cycle["status"] == "no_op" for cycle in result["training_cycles"]))
 
 
 def _step(split):

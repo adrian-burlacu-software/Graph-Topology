@@ -34,6 +34,8 @@ class ExperienceQuality(str, Enum):
 
 _SPLITS = {"train", "validation", "heldout", "live"}
 _QUALITY_ORDER = {value: index for index, value in enumerate(ExperienceQuality)}
+_FORBIDDEN_MODEL_FIELDS = {"teacher", "teacher_action", "oracle", "ground_truth", "reward",
+                           "future_state", "future_reward", "terminal_outcome", "terminal_answer"}
 
 
 @dataclass
@@ -60,9 +62,7 @@ class Experience:
             raise ValueError("evaluation experience cannot enter the training split")
         if not isinstance(self.model_view, dict) or not isinstance(self.supervision, dict):
             raise ValueError("model_view and supervision must be objects")
-        forbidden = {"teacher", "oracle", "reward", "terminal_outcome", "future_state"} & self.model_view.keys()
-        if forbidden:
-            raise ValueError(f"model_view contains supervision/diagnostic fields: {sorted(forbidden)}")
+        _audit_model_view(self.model_view)
 
     def as_dict(self):
         item = asdict(self)
@@ -91,6 +91,11 @@ class ExperienceStore:
                sequence_capability TEXT NOT NULL, outcome_kind TEXT, record TEXT NOT NULL)"""
         )
         self.connection.execute("CREATE INDEX IF NOT EXISTS experience_v681_filter ON experience_v681(source,split,task,quality)")
+        self.connection.execute(
+            """CREATE TABLE IF NOT EXISTS learning_cursor_v681 (
+               learner TEXT PRIMARY KEY, last_experience_id TEXT NOT NULL,
+               dataset_path TEXT NOT NULL, artifact_path TEXT NOT NULL, updated_at REAL NOT NULL)"""
+        )
         self.connection.commit()
 
     def close(self): self.connection.close()
@@ -138,6 +143,25 @@ class ExperienceStore:
             {"source": row[0], "split": row[1], "quality": row[2], "sequence_capability": row[3], "count": row[4]}
             for row in rows]}
 
+    def learning_cursor(self, learner):
+        row = self.connection.execute(
+            "SELECT last_experience_id,dataset_path,artifact_path,updated_at FROM learning_cursor_v681 WHERE learner=?",
+            (learner,)).fetchone()
+        return dict(zip(("last_experience_id", "dataset_path", "artifact_path", "updated_at"), row)) if row else None
+
+    def latest_experience_id(self):
+        row = self.connection.execute(
+            "SELECT experience_id FROM experience_v681 ORDER BY timestamp DESC,experience_id DESC LIMIT 1").fetchone()
+        return row[0] if row else ""
+
+    def update_learning_cursor(self, learner, experience_id, dataset_path, artifact_path):
+        self.connection.execute(
+            """INSERT INTO learning_cursor_v681 VALUES(?,?,?,?,?)
+               ON CONFLICT(learner) DO UPDATE SET last_experience_id=excluded.last_experience_id,
+                 dataset_path=excluded.dataset_path,artifact_path=excluded.artifact_path,updated_at=excluded.updated_at""",
+            (learner, experience_id, dataset_path, artifact_path, time.time()))
+        self.connection.commit()
+
 
 def attention_step_experience(step, source=ExperienceSource.DAGGER, quality=ExperienceQuality.TEACHER_LABELLED):
     """Translate V680 records into canonical V681 sections; the raw step is diagnostics only."""
@@ -176,7 +200,8 @@ def chat_trace_experience(trace, source=ExperienceSource.CHAT_DECISION_ONLY):
                      "confidence": 1.0 if verified else 0.0},
         diagnostics={"raw_trace": trace}, quality=ExperienceQuality.VERIFIED if verified else ExperienceQuality.UNVERIFIED,
         provenance={"producer": "v679_trace_import", "graph_version": trace.get("graph_version", "unknown"),
-                    "session_id": trace.get("v681_session_id", "unknown")},
+                    "session_id": trace.get("v681_session_id", "unknown"),
+                    "policy_model_version": trace.get("attention_controller", {}).get("policy_model_version", "fallback")},
     )
 
 
@@ -207,3 +232,15 @@ def _split(value):
 
 def _attention_outcome(value):
     return "verified_answer" if value == "success" else ("verified_no_proof" if value == "abstain" else "unknown")
+
+
+def _audit_model_view(value):
+    if isinstance(value, dict):
+        forbidden = _FORBIDDEN_MODEL_FIELDS & value.keys()
+        if forbidden:
+            raise ValueError(f"model_view contains supervision/diagnostic fields: {sorted(forbidden)}")
+        for child in value.values():
+            _audit_model_view(child)
+    elif isinstance(value, list):
+        for child in value:
+            _audit_model_view(child)
