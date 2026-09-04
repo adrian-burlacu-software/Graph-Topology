@@ -5,11 +5,27 @@ import hashlib
 import os
 import random
 import sqlite3
+import sys
 import time
 import json
 from pathlib import Path
 
 from v679_memory import RamSemanticMemory, SharedCheckpoint
+
+
+def emit_worker_experience(store_path, event):
+    """Optional V681 bridge: worker evidence remains graph evidence, not an action label."""
+    if not store_path:
+        return
+    v681_dir = Path(__file__).resolve().parents[1] / "v681"
+    if str(v681_dir) not in sys.path:
+        sys.path.insert(0, str(v681_dir))
+    from experience import ExperienceStore, worker_batch_experience
+    store = ExperienceStore(store_path)
+    try:
+        store.append(worker_batch_experience(event))
+    finally:
+        store.close()
 
 SPECIALIST_LANES = [
     "antonym_structure",
@@ -490,7 +506,17 @@ def worker_main(args, worker_id: int, stop_event=None):
                 batch_cpu_seconds = time.process_time() - batch_cpu_started
                 cpu_seconds = time.process_time() - cpu_started
                 cpu_utilization = batch_cpu_seconds / max(elapsed, 1e-9)
-                log("analysis_batch", batch=batches, lane=lane, inspected=inspected, learned=learned, new_results=new_results, no_new_streak=no_new_streak, duration_s=elapsed, cpu_seconds=batch_cpu_seconds, cpu_utilization=cpu_utilization, inspected_per_s=(inspected/max(elapsed,1e-9)), learned_per_s=(learned/max(elapsed,1e-9)), ram=ram.counts(), provenance=ram.provenance_counts())
+                event = {"timestamp": time.time(), "worker_id": worker_id, "role": role,
+                         "event": "analysis_batch", "batch": batches, "lane": lane,
+                         "inspected": inspected, "learned": learned, "new_results": new_results,
+                         "no_new_streak": no_new_streak, "duration_s": elapsed,
+                         "cpu_seconds": batch_cpu_seconds, "cpu_utilization": cpu_utilization,
+                         "inspected_per_s": inspected/max(elapsed, 1e-9),
+                         "learned_per_s": learned/max(elapsed, 1e-9), "ram": ram.counts(),
+                         "provenance": ram.provenance_counts()}
+                log("analysis_batch", **{key: value for key, value in event.items()
+                                         if key not in {"timestamp", "worker_id", "role", "event"}})
+                emit_worker_experience(getattr(args, "experience_store", ""), event)
                 if task:
                     sync = shared.sync(ram, role, os.getpid(), force=True)
                     shared.complete_query(task["id"], {

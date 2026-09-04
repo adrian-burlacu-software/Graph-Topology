@@ -24,6 +24,8 @@ def build_parser():
     ap.add_argument("--memory-output", default="./results/v679_memory.json")
     ap.add_argument("--worker-log-dir", default="./results/v679_workers")
     ap.add_argument("--shared-memory", default="./results/v679_shared_memory.sqlite")
+    ap.add_argument("--experience-store", default="",
+                    help="Optional V681 SQLite experience store; collection never updates model weights.")
     ap.add_argument("--spacy-model", default="en_core_web_sm")
     ap.add_argument("--llm-model", required=True)
     ap.add_argument("--mode", choices=("chat", "smoke"), default="chat")
