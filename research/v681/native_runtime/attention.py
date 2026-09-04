@@ -249,7 +249,6 @@ class EvidenceArbitrator:
 
 class AttentionController:
     """Coordinates temporal state, replaceable scoring policy, and arbitration."""
-
     def __init__(self, policy=None, state=None, max_trace_targets=256):
         self.policy = policy or HandCodedAttentionPolicy()
         self.state = state or AttentionState()
@@ -257,9 +256,26 @@ class AttentionController:
         self.max_trace_targets = max(1, int(max_trace_targets))
         self.traversal_targets = []
         self.policy_examples = []
+        self.episode_id = ""
+        self._turn_index = 0
+        self._capture_step = 0
+        self._remaining_budget = 0
+        self._pending_targets = {}
+        self._pending_scores = {}
+        self._transitions = []
+        self._graph_provenance = {}
 
-    def begin_turn(self, focus):
+    def begin_turn(self, focus, episode_id="", episode_prefix="native-chat", remaining_budget=0,
+                   graph_provenance=None):
         self.state.begin_turn("semantic_turn", focus)
+        self._turn_index += 1
+        self.episode_id = str(episode_id or f"{episode_prefix}-{self._turn_index}")
+        self._capture_step = 0
+        self._remaining_budget = max(0, int(remaining_budget))
+        self._pending_targets = {}
+        self._pending_scores = {}
+        self._transitions = []
+        self._graph_provenance = dict(graph_provenance or {})
 
     def begin_hypothesis(self, hypothesis):
         self.state.focus_hypothesis(hypothesis.relation, hypothesis.subject)
@@ -292,19 +308,62 @@ class AttentionController:
     def record_visit(self, node):
         self.state.visit(node)
 
-    def record_direct_proof(self, hypothesis, target):
+    def record_direct_proof(self, hypothesis, target, relation=None):
         if target is None:
             return
-        self.state.visit(hypothesis.subject, hypothesis.relation, target)
+        relation = str(relation or hypothesis.relation)
+        features = {
+            "goal_relation_match": 1.0,
+            "relation_activation": self.state.relation_activation.get(relation, 0.0),
+            "candidate_activation": self.state.candidate_activation.get(str(target), 0.0),
+            "target_term_match": 0.0,
+            "specificity": self.policy.relation_specificity(relation),
+        }
+        candidates = [self._candidate(relation, target, hypothesis, (), features=features)]
+        state = self._observation(hypothesis, candidates)
+        self.state.visit(target, relation, target)
         self.state.reinforce(
-            hypothesis.relation, target, 1.0, "direct_graph_proof"
+            relation, target, 1.0, "direct_graph_proof"
+        )
+        self._capture(
+            hypothesis, state, candidates, 0,
+            {"kind": "direct_graph_proof", "relation": relation, "target": target},
+            {"kind": "verified_transition", "verified": True, "proof_kind": "direct_edge"},
+            [self.policy.score_traversal(features)],
         )
 
-    def record_traversal_target(self, relation, target):
-        self.state.visit(self.state.current_focus or "", relation, target)
+    def record_traversal_target(self, hypothesis, prefix, edge):
+        key = tuple(prefix)
+        candidates = self._pending_targets.get(key, [])
+        scores = self._pending_scores.get(key, [])
+        selected = next((
+            index for index, candidate in enumerate(candidates)
+            if candidate["relation"] == edge.relation and candidate["target"] == edge.object
+        ), None)
+        if selected is None:
+            return
+        state = self._observation(hypothesis, candidates)
+        self.state.visit(edge.object, edge.relation, edge.object)
         self.state.reinforce(
-            relation, target, 0.1, "selected_traversal_target"
+            edge.relation, edge.object, 0.1, "selected_traversal_target"
         )
+        self._capture(
+            hypothesis, state, candidates, selected,
+            {"kind": "traversed_edge", "subject": edge.subject, "relation": edge.relation,
+             "target": edge.object, "path_prefix": list(prefix)},
+            {"kind": "transition_applied", "verified": False},
+            scores,
+        )
+        del candidates[selected]
+        if selected < len(scores):
+            del scores[selected]
+
+    def discard_traversal_target(self, prefix, edge):
+        candidates = self._pending_targets.get(tuple(prefix), [])
+        self._pending_targets[tuple(prefix)] = [
+            candidate for candidate in candidates
+            if not (candidate["relation"] == edge.relation and candidate["target"] == edge.object)
+        ]
 
     def select_traversal_targets(self, hypothesis, prefix, edges):
         query_terms = set(re.findall(
@@ -352,6 +411,14 @@ class AttentionController:
                 "score": round(score, 6),
             })
         targets.sort(key=lambda item: (-item["score"], item["relation"], item["target"]))
+        self._pending_targets[tuple(prefix)] = [
+            self._candidate(
+                item["relation"], item["target"], hypothesis, prefix,
+                features=item["features"],
+            )
+            for item in targets
+        ]
+        self._pending_scores[tuple(prefix)] = [item["score"] for item in targets]
         if len(self.traversal_targets) < self.max_trace_targets:
             self.traversal_targets.extend(
                 targets[:self.max_trace_targets - len(self.traversal_targets)]
@@ -392,3 +459,76 @@ class AttentionController:
             "policy_model_version": getattr(self.policy, "version", "fallback"),
             "distillation_examples": list(self.policy_examples[-256:]),
         }
+
+    def transitions(self):
+        return list(self._transitions)
+
+    def record_transition_outcome(self, outcome, evidence=None):
+        if not self._transitions:
+            return
+        transition = self._transitions[-1]
+        transition["outcome"] = dict(outcome)
+        if evidence:
+            transition["evidence"] = {**transition["evidence"], **dict(evidence)}
+
+    def _candidate(self, relation, target, hypothesis, prefix, features=None, **overrides):
+        value = dict(features or {})
+        value.update({
+            "relation": str(relation),
+            "target": str(target),
+            "path_length": max(1, len(prefix) + 1),
+            "lexical_score": min(1.0, float(hypothesis.lexical_score)),
+            "provenance": 0.0,
+            "verified": 0.0,
+            "contradiction": 0.0,
+            "direct_proof": 0.0,
+            "already_visited": float(str(target) in self.state.visited_nodes),
+            **overrides,
+        })
+        return value
+
+    def _observation(self, hypothesis, candidates, step=None):
+        snapshot = self.state.snapshot()
+        return {
+            "goal_relation": str(hypothesis.relation),
+            "goal_terms": list(hypothesis.evidence.get("target_terms", []) or []),
+            "current_focus": str(snapshot["current_focus"] or ""),
+            "current_node": str(snapshot["current_focus"] or ""),
+            "relation_features": {},
+            "candidate_features": [dict(candidate) for candidate in candidates],
+            "relation_activation": dict(snapshot["relation_activation"]),
+            "candidate_activation": dict(snapshot["candidate_activation"]),
+            "visited_nodes": list(snapshot["visited_nodes"]),
+            "visited_relations": list(snapshot["visited_relations"]),
+            "attention_history": list(snapshot["history"]),
+            "step": self._capture_step if step is None else int(step),
+            "remaining_budget": self._remaining_budget,
+        }
+
+    def _capture(self, hypothesis, state, candidates, selected, evidence, outcome, policy_scores):
+        next_candidates = [
+            candidate for index, candidate in enumerate(candidates) if index != selected
+        ]
+        next_state = self._observation(hypothesis, next_candidates, self._capture_step + 1)
+        next_state["remaining_budget"] = max(0, self._remaining_budget - 1)
+        self._transitions.append({
+            "episode_id": self.episode_id,
+            "step": self._capture_step,
+            "state": state,
+            "candidate_actions": [
+                {"action": {"kind": "traverse", "candidate_id": index}, "features": dict(candidate)}
+                for index, candidate in enumerate(candidates)
+            ],
+            "selected_action": {"kind": "traverse", "candidate_id": selected},
+            "next_state": next_state,
+            "evidence": dict(evidence),
+            "outcome": dict(outcome),
+            "graph_provenance": dict(self._graph_provenance),
+            "policy": {
+                "class": type(self.policy).__name__,
+                "model_version": getattr(self.policy, "version", "fallback"),
+                "candidate_scores": [round(float(score), 6) for score in policy_scores],
+            },
+        })
+        self._capture_step += 1
+        self._remaining_budget = max(0, self._remaining_budget - 1)

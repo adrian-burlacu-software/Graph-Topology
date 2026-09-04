@@ -15,14 +15,13 @@ from .live_policy import PolicyProvider
 from .workers import worker_main
 
 SOURCE_RUNTIME_VERSION = "v679"
-V681_RUNTIME_VERSION = "v681.7-native-runtime-1"
+V681_RUNTIME_VERSION = "v681.8-native-sequential-capture-1"
 CHAT_CAPABILITIES = {
     "attention_trace": {"available": True},
     "decision_only": {"available": True},
     "sequential_attention_capture": {
-        "available": False,
-        "reason": ("the live controller records traversal ordering and final arbitration, but does not expose "
-                   "a bounded policy state, one selected action, and its next state for each transition"),
+        "available": True,
+        "reason": "",
     },
 }
 
@@ -32,6 +31,7 @@ class NativeRuntime:
     def __init__(self, database, llm_model, session_dir, session_id, worker_count=10, mode="chat", attention_policy=""):
         self.session_dir, self.session_id = Path(session_dir), session_id
         self.events, self.stop_event, self.workers, self.thread = queue.Queue(), mp.Event(), [], None
+        self._chat_event_line = 0
         self.policy_provider = PolicyProvider(attention_policy)
         self.args = argparse.Namespace(
             database=str(database), output=str(self.session_dir / "chat.json"),
@@ -92,8 +92,12 @@ class NativeRuntime:
         return {name: dict(value) for name, value in CHAT_CAPABILITIES.items()}
 
     def _emit_chat(self, trace):
-        self.events.put({"source_path": "native-chat", "line": 0,
-                         "value": {**trace, "v681_session_id": self.session_id}})
+        self._chat_event_line += 1
+        value = trace if str(trace.get("version", "")).startswith("v681") else {
+            **trace, "v681_session_id": self.session_id,
+        }
+        self.events.put({"source_path": "native-chat", "line": self._chat_event_line,
+                         "value": value})
 
     def _worker_events(self):
         for path in sorted(Path(self.args.worker_log_dir).glob("worker_*.jsonl")):

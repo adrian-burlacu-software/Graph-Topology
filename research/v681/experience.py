@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import time
 import uuid
@@ -137,7 +138,11 @@ class ExperienceStore:
         groups = {}
         for item in self.load(**filters):
             groups.setdefault(item.episode_id, []).append(item)
-        return [sorted(items, key=lambda item: item.timestamp) for _, items in sorted(groups.items())]
+        return [sorted(items, key=lambda item: (
+            item.model_view.get("state", {}).get("step", -1),
+            item.timestamp,
+            item.experience_id,
+        )) for _, items in sorted(groups.items())]
 
     def manifest(self):
         rows = self.connection.execute(
@@ -220,6 +225,87 @@ def chat_trace_experience(trace, source=ExperienceSource.CHAT_DECISION_ONLY):
                     "session_id": trace.get("v681_session_id", "unknown"),
                     "policy_model_version": trace.get("attention_controller", {}).get("policy_model_version", "fallback")},
     )
+
+
+def native_chat_transition_experience(transition, graph_provenance=None):
+    """Build one canonical live record from a controller-captured transition."""
+    required = {"episode_id", "step", "state", "candidate_actions", "selected_action",
+                "next_state", "evidence", "outcome", "policy"}
+    missing = required - transition.keys()
+    if missing:
+        raise ValueError(f"native chat transition missing {sorted(missing)}")
+    state, next_state = transition["state"], transition["next_state"]
+    if not isinstance(state, dict) or not isinstance(next_state, dict):
+        raise ValueError("native chat transition states must be objects")
+    if state.get("step") != transition["step"] or next_state.get("step") != state["step"] + 1:
+        raise ValueError("native chat transition steps must be ordered")
+    candidates = list(transition["candidate_actions"])
+    selected = dict(transition["selected_action"])
+    if selected.get("kind") != "traverse" or not isinstance(selected.get("candidate_id"), int):
+        raise ValueError("native chat transition requires a selected traversal action")
+    if not 0 <= selected["candidate_id"] < len(candidates):
+        raise ValueError("native chat transition action is not a candidate")
+    policy = dict(transition["policy"])
+    teacher = _native_policy_teacher(policy, len(candidates), selected["candidate_id"])
+    provenance = {
+        "producer": "v681_native_attention_controller",
+        **dict(transition.get("graph_provenance", {})),
+        **dict(graph_provenance or {}),
+        "policy_class": policy.get("class", "unknown"),
+        "policy_type": _native_policy_type(policy),
+        "policy_version": policy.get("model_version", "fallback"),
+        "policy_model_version": policy.get("model_version", "fallback"),
+        "step": state["step"],
+    }
+    return Experience(
+        source=ExperienceSource.CHAT_SEQUENTIAL,
+        episode_id=str(transition["episode_id"]),
+        split="live",
+        task="chat_attention",
+        quality=ExperienceQuality.GROUNDED,
+        model_view={
+            "sequence_capability": "sequential",
+            "state": state,
+            "candidate_actions": candidates,
+            "selected_action": selected,
+            "available_actions": [
+                *candidates,
+                {"kind": "stop"},
+                {"kind": "abstain"},
+            ],
+            "graph_context": {"graph_version": provenance.get("graph_version", "unknown")},
+            "next_state": next_state,
+        },
+        supervision={
+            "teacher": teacher,
+            "evidence": dict(transition["evidence"]),
+            "outcome": dict(transition["outcome"]),
+        },
+        diagnostics={"native_capture": {"step": state["step"], "policy": policy}},
+        provenance=provenance,
+    )
+
+
+def _native_policy_teacher(policy, candidate_count, selected_action):
+    scores = list(policy.get("candidate_scores", []))
+    if len(scores) != candidate_count:
+        raise ValueError("native chat transition policy scores must match candidates")
+    logits = [float(score) for score in scores] + [0.0, 0.0]
+    offset = max(logits)
+    weights = [math.exp(value - offset) for value in logits]
+    total = sum(weights)
+    return {
+        "logits": logits,
+        "probabilities": [weight / total for weight in weights],
+        "selected_action": selected_action,
+        "outcome": "traverse",
+    }
+
+
+def _native_policy_type(policy):
+    if policy.get("model_version", "fallback") != "fallback":
+        return "LEARNED_POLICY"
+    return "FALLBACK"
 
 
 def worker_batch_experience(event):

@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 
 from .experience import Experience, ExperienceSource, chat_trace_experience, worker_batch_experience
+from .native_learning.types import AttentionAction, AttentionObservation
 
 
 def import_chat_traces(store, path, source=ExperienceSource.CHAT_DECISION_ONLY):
@@ -24,13 +25,14 @@ def import_chat_traces(store, path, source=ExperienceSource.CHAT_DECISION_ONLY):
 
 def import_chat_record(store, raw, source_path="runtime", line_number=0,
                        source=ExperienceSource.CHAT_DECISION_ONLY):
-    """Append one V679 runtime trace with a stable source identity."""
+    """Append one canonical native transition or decision-only trace with a stable identity."""
     if not isinstance(raw, dict):
         raise ValueError("record is not an object")
     if raw.get("version", "").startswith("v681"):
         item = Experience.from_dict(raw)
-        if item.sequence_capability != "sequential":
+        if item.source is not ExperienceSource.CHAT_SEQUENTIAL or item.sequence_capability != "sequential":
             raise ValueError("canonical chat record must declare sequence_capability=sequential")
+        _validate_native_chat_transition(item)
         item.source, item.split = ExperienceSource.CHAT_SEQUENTIAL, "live"
     else:
         _validate_v679_chat_trace(raw)
@@ -77,6 +79,29 @@ def _validate_v679_chat_trace(value):
         raise ValueError("missing candidate_evidence list")
     if "semantic_decision" not in value or not isinstance(value["semantic_decision"], dict):
         raise ValueError("missing semantic_decision object")
+
+
+def _validate_native_chat_transition(item):
+    view = item.model_view
+    state, next_state = view.get("state"), view.get("next_state")
+    if not isinstance(state, dict) or not isinstance(next_state, dict):
+        raise ValueError("canonical chat transition requires state and next_state")
+    if not isinstance(state.get("step"), int) or next_state.get("step") != state["step"] + 1:
+        raise ValueError("canonical chat transition steps must be ordered")
+    observation = AttentionObservation.from_dict(state)
+    AttentionObservation.from_dict(next_state)
+    AttentionAction.from_dict(view.get("selected_action"), len(observation.candidate_features))
+    candidates = view.get("candidate_actions")
+    if not isinstance(candidates, list) or len(candidates) != len(observation.candidate_features):
+        raise ValueError("canonical chat transition candidates must match its state")
+    selected = view["selected_action"]
+    if selected.get("kind") != "traverse":
+        raise ValueError("canonical chat transition must capture an applied traversal")
+    teacher = item.supervision.get("teacher", {})
+    if (not isinstance(teacher, dict) or len(teacher.get("logits", [])) != len(candidates) + 2
+            or len(teacher.get("probabilities", [])) != len(candidates) + 2
+            or teacher.get("selected_action") != selected.get("candidate_id")):
+        raise ValueError("canonical chat transition requires matching policy supervision")
 
 
 def _descriptor(item, line_number):

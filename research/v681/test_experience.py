@@ -8,7 +8,7 @@ from types import SimpleNamespace
 HERE = Path(__file__).resolve().parent
 
 from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, native_chat_transition_experience, worker_batch_experience
-from research.v681.importers import import_chat_traces, import_worker_logs
+from research.v681.importers import import_chat_record, import_chat_traces, import_worker_logs
 from research.v681.learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter, SequentialTransitionAdapter
 from research.v681.coordinator import ATTENTION_TRAINING_SOURCES, RuntimePolicy, V681Coordinator, _promotion
@@ -20,6 +20,7 @@ from research.v681.native_learning.evaluate import evaluate, evaluate_rollouts
 from research.v681.native_learning.types import AttentionAction, AttentionActionKind
 from research.v681.native_runtime.attention import AttentionController
 from research.v681.native_runtime.chat import emit_trace, preflight_symbol_audit
+from research.v681.native_runtime.runtime import NativeRuntime
 from research.v681.native_runtime.semantic_core import Edge, Hypothesis, search
 
 
@@ -292,7 +293,62 @@ class ExperienceTests(unittest.TestCase):
             capabilities = result["chat"]["capabilities"]
             self.assertTrue(capabilities["attention_trace"]["available"])
             self.assertTrue(capabilities["decision_only"]["available"])
-            self.assertFalse(capabilities["sequential_attention_capture"]["available"])
+            self.assertTrue(capabilities["sequential_attention_capture"]["available"])
+
+    def test_native_live_capture_emits_one_canonical_record_per_applied_transition(self):
+        class Graph:
+            edges = {
+                "en:start": [Edge("en:start", "is_a", "en:middle")],
+                "en:middle": [Edge("en:middle", "is_a", "en:goal")],
+            }
+            def outgoing_relation(self, node, _relation, _limit):
+                return self.edges.get(node, [])
+            @staticmethod
+            def target_matches_exact_terms(target, terms):
+                return target.removeprefix("en:") in terms
+
+        controller = AttentionController()
+        hypothesis = Hypothesis("en:start", "is_a", "relation_lookup", .8, {"target_terms": ["goal"]})
+        controller.begin_turn("en:start", episode_prefix="native-chat-session", remaining_budget=2)
+        controller.begin_hypothesis(hypothesis)
+        result = search(Graph(), None, hypothesis, budget=2, per_node=8, max_depth=2, controller=controller)
+        self.assertTrue(result["success"])
+        transitions = controller.transitions()
+        self.assertEqual(len(transitions), 2)
+        records = [native_chat_transition_experience(
+            transition, {"graph_version": "fixture-graph", "graph_path": "fixture.sqlite"},
+        ).as_dict() for transition in transitions]
+        self.assertEqual([record["episode_id"] for record in records], ["native-chat-session-1"] * 2)
+        self.assertEqual([record["model_view"]["state"]["step"] for record in records], [0, 1])
+        record = records[1]
+        view = record["model_view"]
+        self.assertEqual(record["source"], ExperienceSource.CHAT_SEQUENTIAL.value)
+        self.assertEqual(record["episode_id"], "native-chat-session-1")
+        self.assertEqual((view["state"]["step"], view["next_state"]["step"]), (1, 2))
+        self.assertEqual(view["selected_action"], {"kind": "traverse", "candidate_id": 0})
+        self.assertEqual(view["next_state"]["current_node"], "en:goal")
+        self.assertNotIn("evidence", view)
+        self.assertEqual(record["supervision"]["outcome"]["kind"], "verified_transition")
+        self.assertEqual(record["supervision"]["teacher"]["selected_action"], 0)
+        self.assertEqual(record["provenance"]["graph_version"], "fixture-graph")
+        self.assertEqual(record["provenance"]["policy_type"], "FALLBACK")
+        self.assertEqual(record["provenance"]["policy_version"], "fallback")
+        self.assertIn("policy_model_version", record["provenance"])
+
+        emitted = []
+        emit_trace(SimpleNamespace(experience_sink=emitted.append), {"sequential_experiences": records})
+        emit_trace(SimpleNamespace(experience_sink=emitted.append), {"timestamp": 1, "route": {}})
+        self.assertEqual(emitted, [*records, {"timestamp": 1, "route": {}}])
+        runtime = NativeRuntime("fixture.sqlite", "model", "session", "runtime-session", worker_count=0)
+        for emitted_record in records:
+            runtime._emit_chat(emitted_record)
+        native_events = runtime.poll()["chat"]
+        self.assertEqual([event["value"] for event in native_events], records)
+        self.assertEqual([event["line"] for event in native_events], [1, 2])
+        appended = []
+        descriptor = import_chat_record(SimpleNamespace(append=appended.append), records[0], "native-chat", 1)
+        self.assertEqual(len(appended), 1)
+        self.assertEqual(descriptor["episode_id"], "native-chat-session-1")
 
     def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:

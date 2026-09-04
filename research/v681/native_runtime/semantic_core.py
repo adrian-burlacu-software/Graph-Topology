@@ -2745,6 +2745,8 @@ def search(
                 else graph.target_matches_terms(edge.object, target_terms)
             )
         ):
+            if controller is not None:
+                controller.record_direct_proof(hypothesis, edge.object, edge.relation)
             return {
                 **base,
                 "success": True,
@@ -2809,11 +2811,13 @@ def search(
             )
 
             if state in seen:
+                if controller is not None:
+                    controller.discard_traversal_target(prefix, edge)
                 continue
 
             seen.add(state)
             if controller is not None:
-                controller.record_traversal_target(edge.relation, edge.object)
+                controller.record_traversal_target(hypothesis, prefix, edge)
 
             if controller is not None and controller.state.relation_activation.get(
                 edge.relation, 0.0
@@ -2822,11 +2826,17 @@ def search(
             else:
                 exploration += 1
 
-            goals = (
+            goals = list(
                 graph.outgoing_relation(edge.object, hypothesis.relation, per_node)
                 if hypothesis.relation == "is_a"
                 else graph.outgoing(edge.object, per_node)
             )
+            if controller is not None:
+                goals = controller.select_traversal_targets(
+                    hypothesis,
+                    next_prefix,
+                    goals,
+                )
             for goal in goals:
                 if (
                     goal.relation == hypothesis.relation
@@ -2836,6 +2846,12 @@ def search(
                         else graph.target_matches_terms(goal.object, target_terms)
                     )
                 ):
+                    if controller is not None:
+                        controller.record_traversal_target(hypothesis, next_prefix, goal)
+                        controller.record_transition_outcome(
+                            {"kind": "verified_transition", "verified": True, "proof_kind": "path"},
+                            {"verified_goal": {"relation": goal.relation, "target": goal.object}},
+                        )
                     return {
                         **base,
                         "success": True,

@@ -27,6 +27,7 @@ from .semantic_core import (
 from .memory import RamSemanticMemory, SharedCheckpoint, SharedDistilledMemory
 from .attention import AttentionController, DistilledAttentionPolicy
 from .live_policy import PromotedAttentionPolicy, ReloadingAttentionPolicy
+from ..experience import native_chat_transition_experience
 
 
 def append_trace(
@@ -55,7 +56,13 @@ def append_trace(
 
 def emit_trace(args, trace):
     sink = getattr(args, "experience_sink", None)
-    if sink is not None:
+    if sink is None:
+        return
+    transitions = trace.get("sequential_experiences", [])
+    if transitions:
+        for transition in transitions:
+            sink(transition)
+    else:
         sink(trace)
 
 
@@ -1867,8 +1874,12 @@ def handle_turn(
             runtime_hypotheses.append(hypothesis)
 
     runtime_hypotheses = controller.prioritize_hypotheses(runtime_hypotheses)
+    graph_provenance = _graph_capture_provenance(graph)
     controller.begin_turn(
-        runtime_hypotheses[0].subject if runtime_hypotheses else None
+        runtime_hypotheses[0].subject if runtime_hypotheses else None,
+        episode_prefix=f"native-chat-{getattr(args, 'v681_session_id', '') or 'standalone'}",
+        remaining_budget=args.goal_budget,
+        graph_provenance=graph_provenance,
     )
 
     for index,hypothesis in enumerate(runtime_hypotheses):
@@ -1909,7 +1920,7 @@ def handle_turn(
                 selected_fact,
             )
             if result.get("success"):
-                controller.record_direct_proof(hypothesis, result.get("target"))
+                controller.record_direct_proof(hypothesis, result.get("target"), raw_relation)
         else:
             result=search(
                 graph,
@@ -2315,6 +2326,13 @@ def handle_turn(
         "candidate_evidence": semantic_decision["candidates"],
         "semantic_decision": semantic_decision,
         "attention_controller": controller.trace(),
+        "sequential_experiences": [
+            native_chat_transition_experience(
+                transition,
+                graph_provenance=graph_provenance,
+            ).as_dict()
+            for transition in controller.transitions()
+        ],
         "parse": asdict(parse),
         "selected": asdict(selected),
         "hypotheses": [
@@ -2351,6 +2369,15 @@ def handle_turn(
     memory.save()
 
     return answer, trace
+
+
+def _graph_capture_provenance(graph):
+    try:
+        stat = graph.db.stat()
+        version = f"{graph.db.name}:{stat.st_size}:{stat.st_mtime_ns}"
+    except OSError:
+        version = "unknown"
+    return {"graph_version": version, "graph_path": str(graph.db)}
 
 
 def preflight_symbol_audit():
