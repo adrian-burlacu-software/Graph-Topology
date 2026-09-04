@@ -12,7 +12,7 @@ import torch
 
 from .dataset import collect_teacher_episodes, dataset_stats, read_jsonl, step_record, write_jsonl
 from .distill import train_distillation, training_records
-from .environment import AttentionEnv, benchmark_episodes, no_proof_episodes
+from .environment import AttentionEnv, training_benchmark_episodes
 from .evaluate import evaluate_rollouts
 from .teacher import V679AttentionTeacher
 from .types import TEACHER_VERSION
@@ -89,12 +89,13 @@ def student_labeled_rollouts(model, episodes, round_number, seed, jepa=None):
                 {"generator": "student_rollout_teacher_label", "round": round_number,
                  "student_action": student["action"].as_dict(),
                  "student_logits": student["logits"]},
-                spec.get("partition", ""), spec.get("category", ""), spec.get("no_proof", False),
+                spec.get("partition", ""), spec.get("category", ""), spec.get("no_proof", False), "dagger",
             ))
             state, hidden = next_state, student["hidden"]
         records.append({"episode_id": f"{spec['episode_id']}_dagger_{round_number}",
                         "split": spec["split"], "trajectory": trajectory,
                         "partition": spec.get("partition", ""), "category": spec.get("category", ""),
+                        "source": "dagger",
                         "no_proof": spec.get("no_proof", False),
                         "terminal_outcome": trajectory[-1]["terminal_outcome"],
                         "provenance": {"generator": "student_rollout_teacher_label",
@@ -133,6 +134,9 @@ def _round_metrics(new_records, checkpoint, failures, prior_state_ids=()):
             "revisited_states": len(state_ids & set(prior_state_ids)),
             "total_states": len(steps), "teacher_action_distribution": dict(action_distribution),
             "student_action_distribution": dict(student_distribution),
+            "action_distribution_by_source": {"dagger": {
+                "teacher": {kind: action_distribution[kind] for kind in ("traverse", "stop", "abstain")},
+                "student": {kind: student_distribution[kind] for kind in ("traverse", "stop", "abstain")}}},
             "failure_distribution": dict(Counter(failure["error_type"] for failure in failures))}
 
 
@@ -140,7 +144,7 @@ def run_dagger(dataset, rounds=2, epochs=8, seed=0, checkpoint_dir="checkpoints"
                jepa=None, use_jepa=False, class_balance=True):
     input_records = read_jsonl(dataset) if isinstance(dataset, (str, Path)) else list(dataset)
     aggregate = training_records(input_records)
-    source = episodes or benchmark_episodes()
+    source = episodes or training_benchmark_episodes()
     specs = [spec for spec in source if spec.get("partition", "train") == "train"]
     heldout = collect_teacher_episodes([spec for spec in source if spec.get("partition") == "heldout"])
     heldout_no_proof = collect_teacher_episodes([spec for spec in source if spec.get("partition") == "heldout"

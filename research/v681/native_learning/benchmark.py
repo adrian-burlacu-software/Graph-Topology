@@ -6,7 +6,7 @@ from .environment import candidate
 from .types import DATASET_VERSION
 
 
-DECISION_BOUNDARY_VERSION = "v680.1-matched-boundary-1"
+DECISION_BOUNDARY_VERSION = "v681.7-matched-boundary-2"
 CATEGORIES = (
     "immediate_proof", "one_step_useful", "multi_step_useful", "genuine_no_proof",
     "locally_attractive_irrelevant", "contradictory", "redundant", "premature_stop",

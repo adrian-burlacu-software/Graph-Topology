@@ -14,6 +14,8 @@ from .types import AttentionObservation
 from .environment import AttentionEnv
 from .teacher import V679AttentionTeacher
 
+ACTION_KINDS = ("traverse", "stop", "abstain")
+
 
 def load_student(path):
     payload = torch.load(path, map_location="cpu", weights_only=True)
@@ -57,6 +59,31 @@ def _decision_name(index, candidate_count):
     return "traverse" if index < candidate_count else ("stop" if index == candidate_count else "abstain")
 
 
+def _action_distribution(metric, source, teacher_name, student_name):
+    counts = metric["action_distribution_by_source"].setdefault(
+        source, {"teacher": {kind: 0 for kind in ACTION_KINDS}, "student": {kind: 0 for kind in ACTION_KINDS}})
+    counts["teacher"][teacher_name] += 1
+    counts["student"][student_name] += 1
+
+
+def _finalize_stop_metrics(metric):
+    true_positive = metric["stop_true_positive"]
+    false_positive = metric["stop_false_positive"]
+    false_negative = metric["stop_false_negative"]
+    precision = true_positive / max(1, true_positive + false_positive)
+    recall = true_positive / max(1, true_positive + false_negative)
+    metric["stop_confusion"] = {
+        "true_positive": true_positive,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+        "true_negative": metric.get("decisions", metric.get("count", 0))
+        - true_positive - false_positive - false_negative,
+    }
+    metric["stop_precision"] = precision
+    metric["stop_recall"] = recall
+    metric["stop_f1"] = 2 * precision * recall / max(1e-12, precision + recall)
+
+
 def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
     if bool(model.jepa_dim) != bool(jepa):
         raise ValueError("evaluation JEPA configuration must match the student checkpoint")
@@ -69,6 +96,9 @@ def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
             "stop_accuracy": 0, "stop_count": 0, "false_positive_attention_events": 0,
             "false_negative_attention_events": 0, "abstain_true_positive": 0,
             "abstain_false_positive": 0, "abstain_false_negative": 0,
+            "stop_true_positive": 0, "stop_false_positive": 0, "stop_false_negative": 0,
+            "confusion_matrix": {action: {prediction: 0 for prediction in ACTION_KINDS} for action in ACTION_KINDS},
+            "action_distribution_by_source": {},
             "mean_attention_steps": 0, "episode_count": 0,
             "teacher_final_decision": [], "student_final_decision": [],
             "teacher_student_final_decision_agreement": 0})
@@ -89,11 +119,16 @@ def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
             rank_error = sum(abs(teacher_order.index(i) - student_order.index(i)) for i in range(len(logits))) / len(logits)
             teacher_probs = torch.softmax(torch.tensor(teacher_logits) / 2, -1)
             student_log_probs = torch.log_softmax(torch.tensor(logits) / 2, -1)
+            teacher_name = _decision_name(target, len(state.candidate_features))
+            student_name = _decision_name(predicted, len(state.candidate_features))
             metrics["count"] += 1; metrics["teacher_action_accuracy"] += predicted == target
             metrics["top1_attention_accuracy"] += predicted == target; metrics["top3_attention_recall"] += target in top3
             metrics["spearman_rank_correlation"] += spearman; metrics["kendall_tau"] += kendall
             metrics["mean_rank_position_error"] += rank_error
             metrics["KL_divergence"] += float(torch.sum(teacher_probs * (torch.log(teacher_probs) - student_log_probs)))
+            metrics["confusion_matrix"][teacher_name][student_name] += 1
+            _action_distribution(metrics, step.get("source", episode.get("source", "unknown")),
+                                 teacher_name, student_name)
             if target == len(state.candidate_features) + 1:
                 metrics["abstention_count"] += 1
                 metrics["abstention_accuracy"] += predicted == target
@@ -106,8 +141,12 @@ def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
             elif target == len(state.candidate_features):
                 metrics["stop_count"] += 1
                 metrics["stop_accuracy"] += predicted == target
-            final_student = _decision_name(predicted, len(state.candidate_features))
-            final_teacher = _decision_name(target, len(state.candidate_features))
+                metrics["stop_true_positive"] += predicted == target
+                metrics["stop_false_negative"] += predicted != target
+            elif predicted == len(state.candidate_features):
+                metrics["stop_false_positive"] += 1
+            final_student = student_name
+            final_teacher = teacher_name
         metrics["mean_attention_steps"] += len(episode["trajectory"])
         metrics["episode_count"] += 1
         metrics["teacher_final_decision"].append(final_teacher)
@@ -134,6 +173,7 @@ def evaluate(records, model, recurrent=True, jepa=None, shuffled_jepa=False):
         metrics["abstain_precision"] = precision
         metrics["abstain_recall"] = recall
         metrics["abstain_f1"] = 2 * precision * recall / max(1e-12, precision + recall)
+        _finalize_stop_metrics(metrics)
         metrics["teacher_student_final_decision_agreement"] /= max(1, len(metrics["teacher_final_decision"]))
     return totals
 
@@ -154,8 +194,9 @@ def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_je
             "candidate_mrr": 0,
             "false_positive_traverse": 0, "false_negative_traverse": 0, "false_positive_abstain": 0,
             "false_negative_abstain": 0, "premature_stop": 0, "premature_abstain": 0,
-            "confusion_matrix": {a: {b: 0 for b in ("traverse", "stop", "abstain")}
-                                 for a in ("traverse", "stop", "abstain")},
+            "stop_true_positive": 0, "stop_false_positive": 0, "stop_false_negative": 0,
+            "confusion_matrix": {a: {b: 0 for b in ACTION_KINDS} for a in ACTION_KINDS},
+            "action_distribution_by_source": {},
             "episode_success": 0, "final_decision_accuracy": 0, "proof_completion_rate": 0,
             "unnecessary_steps": 0, "redundant_steps": 0, "average_steps_to_success": 0,
         })
@@ -169,6 +210,7 @@ def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_je
             student_name = _decision_name(student["selected_action"], len(state.candidate_features))
             metric["decisions"] += 1; metric["overall_action_accuracy"] += teacher_name == student_name
             metric["confusion_matrix"][teacher_name][student_name] += 1
+            _action_distribution(metric, spec.get("source", "heldout_benchmark"), teacher_name, student_name)
             if teacher_name == "traverse":
                 metric["traverse_count"] += 1
                 metric["traverse_accuracy"] += teacher_action["selected_action"] == student["selected_action"]
@@ -185,6 +227,10 @@ def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_je
                 metric["false_negative_abstain"] += student_name != "abstain"
             if teacher_name == "stop":
                 metric["stop_count"] += 1; metric["stop_accuracy"] += student_name == "stop"
+                metric["stop_true_positive"] += student_name == "stop"
+                metric["stop_false_negative"] += student_name != "stop"
+            elif student_name == "stop":
+                metric["stop_false_positive"] += 1
             if student_name == "abstain" and teacher_name != "abstain":
                 metric["false_positive_abstain"] += 1
             next_state, _, done, oracle = env.step(student["action"])
@@ -220,6 +266,7 @@ def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_je
         for key in ("episode_success", "proof_completion_rate", "final_decision_accuracy", "unnecessary_steps",
                     "average_steps_to_success"):
             metric[key] /= episodes_count
+        _finalize_stop_metrics(metric)
     if failure_path:
         Path(failure_path).write_text("\n".join(json.dumps(item, sort_keys=True) for item in failures) + "\n")
     return totals

@@ -13,7 +13,9 @@ class NativeLearningEngine:
     def generate_teacher_records(self, output_path, samples_per_category, transitions=False):
         from .dataset import collect_jepa_transition_episodes, collect_teacher_episodes, write_jsonl
         from .benchmark import decision_boundary_episodes
-        source = decision_boundary_episodes(samples_per_category)
+        from .environment import stop_boundary_training_episodes
+        source = (decision_boundary_episodes(samples_per_category)
+                  + stop_boundary_training_episodes(max(1, int(samples_per_category) // 4)))
         records = collect_jepa_transition_episodes(source) if transitions else collect_teacher_episodes(source)
         write_jsonl(output_path, records)
 
@@ -38,14 +40,16 @@ class NativeLearningEngine:
                     "metadata": metadata(records_path, seed, epochs=epochs, learning_rate=1e-3,
                                          temperature=2.0, lambda_soft=1.0, lambda_rank=.2,
                                          lambda_hard=1.0, use_jepa=False, jepa_checkpoint="",
-                                         class_balance=True)}, checkpoint_path)
+                                         class_balance=True, candidate_order_augmentation=True)}, checkpoint_path)
 
     def evaluate_attention(self, records_path, checkpoint_path, output_path):
-        from .dataset import read_jsonl
+        from .dataset import dataset_stats, read_jsonl
         from .environment import benchmark_episodes
         from .evaluate import evaluate, evaluate_rollouts, load_student
         model = load_student(checkpoint_path)
-        result = {"teacher_trajectory": evaluate(read_jsonl(records_path), model),
+        records = read_jsonl(records_path)
+        result = {"evaluation_dataset": dataset_stats(records),
+                  "teacher_trajectory": evaluate(records, model),
                   "rollout": evaluate_rollouts([episode for episode in benchmark_episodes()
                                                 if episode.get("split", "").startswith("held_out")],
                                                model)}

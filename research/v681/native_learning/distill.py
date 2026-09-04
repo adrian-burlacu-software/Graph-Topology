@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import hashlib
 import json
 import random
@@ -23,8 +24,40 @@ def flatten_steps(records):
 
 def training_records(records):
     """Keep validation and structurally held-out records out of all student fitting."""
-    return [record for record in records if record["split"] != "held_out_structural"
-            and record["split"] != "held_out_adversarial" and record.get("partition") != "validation"]
+    return [record for record in records if not str(record["split"]).startswith("held_out")
+            and record["split"] != "heldout" and record.get("partition") != "validation"]
+
+
+def augment_training_candidate_order(records):
+    """Cycle candidate order in train copies while retaining STOP/ABSTAIN terminal slots."""
+    augmented = list(records)
+    for record in records:
+        candidate_count = max((len(step["state"]["candidate_features"]) for step in record["trajectory"]), default=0)
+        for shift in range(1, candidate_count):
+            variant = deepcopy(record)
+            variant["episode_id"] = f"{record['episode_id']}_candidate_rotation_{shift}"
+            variant["candidate_order_augmentation"] = f"rotate:{shift}"
+            for step in variant["trajectory"]:
+                step["episode_id"] = variant["episode_id"]
+                count = len(step["state"]["candidate_features"])
+                if count < 2:
+                    continue
+                order = list(range(shift % count, count)) + list(range(shift % count))
+                inverse = {old: new for new, old in enumerate(order)}
+                step["state"]["candidate_features"] = [step["state"]["candidate_features"][old] for old in order]
+                step["candidates"] = [step["candidates"][old] for old in order] + step["candidates"][count:]
+                for candidate_id, candidate in enumerate(step["candidates"][:count]):
+                    candidate["action"]["candidate_id"] = candidate_id
+                teacher = step["teacher"]
+                teacher["logits"] = [teacher["logits"][old] for old in order] + teacher["logits"][count:]
+                teacher["probabilities"] = [teacher["probabilities"][old] for old in order] + teacher["probabilities"][count:]
+                if teacher["selected_action"] < count:
+                    teacher["selected_action"] = inverse[teacher["selected_action"]]
+                if step["action"]["kind"] == "traverse":
+                    step["action"]["candidate_id"] = inverse[step["action"]["candidate_id"]]
+                step["provenance"] = {**step["provenance"], "candidate_order_augmentation": f"rotate:{shift}"}
+            augmented.append(variant)
+    return augmented
 
 
 def teacher_action_kind(step):
@@ -51,7 +84,8 @@ def metadata(dataset, seed, **hyperparameters):
 
 def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
                        lambda_soft=1.0, lambda_rank=.2, lambda_hard=1.0,
-                       seed=0, model=None, jepa=None, use_jepa=False, class_balance=True):
+                       seed=0, model=None, jepa=None, use_jepa=False, class_balance=True,
+                       candidate_order_augmentation=True):
     torch.manual_seed(seed); random.seed(seed)
     if use_jepa and jepa is None:
         raise ValueError("--use-jepa requires a trained JEPA model")
@@ -60,6 +94,8 @@ def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
         raise ValueError("student JEPA feature dimension does not match use_jepa")
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     records = training_records(records)
+    if candidate_order_augmentation:
+        records = augment_training_candidate_order(records)
     steps = flatten_steps(records)
     if not steps:
         raise ValueError("distillation requires at least one teacher step")
@@ -131,7 +167,8 @@ def main():
                                      lambda_soft=args.lambda_soft, lambda_rank=args.lambda_rank,
                                      lambda_hard=args.lambda_hard, use_jepa=args.use_jepa,
                                      jepa_checkpoint=args.jepa_checkpoint or "",
-                                     class_balance=not args.raw_class_loss)}, args.checkpoint)
+                                     class_balance=not args.raw_class_loss,
+                                     candidate_order_augmentation=True)}, args.checkpoint)
 
 
 if __name__ == "__main__":

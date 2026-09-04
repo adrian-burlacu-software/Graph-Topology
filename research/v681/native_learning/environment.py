@@ -131,6 +131,63 @@ def benchmark_episodes():
     return episodes + adversarial_benchmark_episodes()
 
 
+def _rotated_candidates(values, offset):
+    offset %= len(values)
+    return values[offset:] + values[:offset]
+
+
+def stop_boundary_training_episodes(samples_per_pattern=5):
+    """Train-only matched STOP boundaries; held-out graph suites remain untouched."""
+    episodes = []
+    for index in range(int(samples_per_pattern)):
+        term = f"en:verified_part_{index}"
+        quiet_candidates = _rotated_candidates([
+            candidate("related_to", f"en:association_{index}", specificity=.15, lexical_score=.95),
+            candidate("has_part", term, goal_relation_match=1, target_term_match=1,
+                      specificity=1, lexical_score=.2, provenance=.2),
+            candidate("is_a", f"en:class_{index}", specificity=1, lexical_score=.4),
+        ], index)
+        strong_candidates = _rotated_candidates([
+            candidate("related_to", f"en:association_{index}", specificity=.15, lexical_score=.95),
+            candidate("has_part", term, goal_relation_match=1, target_term_match=1,
+                      specificity=1, lexical_score=.7, provenance=1),
+            candidate("is_a", f"en:class_{index}", specificity=1, lexical_score=.4),
+        ], index + 1)
+        common = {"partition": "train", "split": "ordinary", "goal": "has_part",
+                  "terms": [term.removeprefix("en:")], "category": "stop_boundary_train_only",
+                  "dataset_version": "v681.7-stop-boundary-2"}
+        episodes.extend((
+            {**common, "episode_id": f"train_stop_vs_abstain_stop_{index}",
+             "matched_triplet": f"stop_vs_abstain_{index}", "boundary_pair": "stop_vs_abstain",
+             "start": f"{term}_confirmed", "proof_target": term, "nodes": {f"{term}_confirmed": quiet_candidates},
+             "proof_edges": [], "initial_proof": True, "no_proof": False, "expected_initial_action": "stop"},
+            {**common, "episode_id": f"train_stop_vs_abstain_abstain_{index}",
+             "matched_triplet": f"stop_vs_abstain_{index}", "boundary_pair": "stop_vs_abstain",
+             "start": f"en:unverified_context_{index}", "proof_target": None,
+             "nodes": {f"en:unverified_context_{index}": quiet_candidates},
+             "proof_edges": [], "initial_proof": False, "no_proof": True, "expected_initial_action": "abstain"},
+            {**common, "episode_id": f"train_stop_vs_traverse_stop_{index}",
+             "matched_triplet": f"stop_vs_traverse_{index}", "boundary_pair": "stop_vs_traverse",
+             "start": f"{term}_confirmed_again", "proof_target": term,
+             "nodes": {f"{term}_confirmed_again": strong_candidates},
+             "proof_edges": [], "initial_proof": True, "no_proof": False, "expected_initial_action": "stop"},
+            {**common, "episode_id": f"train_stop_vs_traverse_traverse_{index}",
+             "matched_triplet": f"stop_vs_traverse_{index}", "boundary_pair": "stop_vs_traverse",
+             "start": f"en:needs_verification_{index}", "proof_target": term,
+             "nodes": {f"en:needs_verification_{index}": strong_candidates,
+                       term: [candidate("has_part", term, goal_relation_match=1, target_term_match=1,
+                                        specificity=1, provenance=1, verified=1)]},
+             "proof_edges": [[f"en:needs_verification_{index}", term]], "initial_proof": False,
+             "no_proof": False, "expected_initial_action": "traverse"},
+        ))
+    return episodes
+
+
+def training_benchmark_episodes():
+    """Training and DAgger source with extra STOP cases, never additional held-out cases."""
+    return benchmark_episodes() + stop_boundary_training_episodes()
+
+
 def _adversarial_episode(category, partition, index, valid_stop=False):
     """Create disjoint graph shapes; proof membership remains environment-private."""
     entities = {

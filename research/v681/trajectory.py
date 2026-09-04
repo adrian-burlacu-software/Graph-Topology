@@ -41,6 +41,7 @@ class AttentionTrajectoryAdapter:
             "teacher": teacher, "action": view["selected_action"], "next_state": view["next_state"],
             "reward": supervision.get("reward", 0.0), "terminal_outcome": diagnostic.get("terminal_outcome", "unknown"),
             "oracle": diagnostic.get("oracle", {}), "provenance": item.provenance,
+            "source": item.source.value,
             "partition": diagnostic.get("partition", ""), "category": diagnostic.get("category", ""),
             "no_proof": diagnostic.get("no_proof", False),
             "teacher_version": item.provenance.get("teacher_version", "unknown"),

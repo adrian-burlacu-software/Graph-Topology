@@ -21,7 +21,7 @@ def action_candidates(state):
 
 
 def step_record(episode_id, split, step, state, teacher, action, next_state, reward, terminal_outcome, oracle,
-                provenance, partition="", category="", no_proof=False):
+                provenance, partition="", category="", no_proof=False, source="native_teacher"):
     record = {
         "episode_id": episode_id, "split": split, "step": step,
         "state": state.as_dict(), "candidates": action_candidates(state),
@@ -33,6 +33,7 @@ def step_record(episode_id, split, step, state, teacher, action, next_state, rew
         "reward": float(reward), "terminal_outcome": terminal_outcome,
         "oracle": dict(oracle), "provenance": dict(provenance),
         "partition": partition, "category": category, "no_proof": bool(no_proof),
+        "source": source,
         "teacher_version": TEACHER_VERSION, "dataset_version": DATASET_VERSION,
         "student_version": STUDENT_VERSION, "jepa_version": JEPA_VERSION,
     }
@@ -68,6 +69,7 @@ def collect_teacher_episodes(episodes=None, temperature=2.0, database=""):
         records.append({
             "episode_id": spec["episode_id"], "split": spec["split"],
             "partition": spec.get("partition", ""), "category": spec.get("category", ""),
+            "source": spec.get("source", "native_teacher"),
             "no_proof": spec.get("no_proof", False),
             "trajectory": trajectory, "terminal_outcome": trajectory[-1]["terminal_outcome"],
             "provenance": {"generator": "frozen_v679_teacher", "round": 0},
@@ -121,11 +123,24 @@ def read_jepa_jsonl(path):
 
 def dataset_stats(records):
     steps = [step for episode in records for step in episode["trajectory"]]
+    distributions = {}
+    for episode in records:
+        for step in episode["trajectory"]:
+            source = step.get("source", episode.get("source", "unknown"))
+            source_counts = distributions.setdefault(source, {"traverse": 0, "stop": 0, "abstain": 0})
+            source_counts[teacher_action_kind(step)] += 1
     return {
         "episodes": len(records), "states": len(steps),
         "unique_states": len({json.dumps(step["state"], sort_keys=True) for step in steps}),
         "teacher_labels": len(steps),
+        "teacher_action_distribution_by_source": distributions,
     }
+
+
+def teacher_action_kind(step):
+    count = len(step["state"]["candidate_features"])
+    selected = step["teacher"]["selected_action"]
+    return "traverse" if selected < count else ("stop" if selected == count else "abstain")
 
 
 def main():

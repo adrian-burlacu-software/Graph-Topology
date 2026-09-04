@@ -19,7 +19,7 @@ CANDIDATE_VECTOR_FIELDS = (
     "provenance", "verified", "contradiction", "direct_proof", "already_visited",
 )
 TEACHER_VERSION = "v679-frozen-attention-teacher-1"
-DATASET_VERSION = "v680.1-decision-boundary-1"
+DATASET_VERSION = "v681.7-stop-boundary-2"
 STUDENT_VERSION = "v680.1-attention-policy-1"
 JEPA_VERSION = "v680.1-action-conditioned-jepa-1"
 FORBIDDEN_MODEL_FIELDS = {

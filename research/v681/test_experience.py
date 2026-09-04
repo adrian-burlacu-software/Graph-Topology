@@ -3,17 +3,24 @@ import ast
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 
-from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
+from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, native_chat_transition_experience, worker_batch_experience
 from research.v681.importers import import_chat_traces, import_worker_logs
 from research.v681.learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter, SequentialTransitionAdapter
 from research.v681.coordinator import ATTENTION_TRAINING_SOURCES, RuntimePolicy, V681Coordinator, _promotion
-from research.v681.native_learning.dataset import collect_jepa_transition_episodes
+from research.v681.native_learning.dataset import collect_jepa_transition_episodes, collect_teacher_episodes
+from research.v681.native_learning.distill import augment_training_candidate_order, training_records
 from research.v681.native_learning.engine import NativeLearningEngine
-from research.v681.native_runtime.chat import preflight_symbol_audit
+from research.v681.native_learning.environment import stop_boundary_training_episodes, training_benchmark_episodes
+from research.v681.native_learning.evaluate import evaluate, evaluate_rollouts
+from research.v681.native_learning.types import AttentionAction, AttentionActionKind
+from research.v681.native_runtime.attention import AttentionController
+from research.v681.native_runtime.chat import emit_trace, preflight_symbol_audit
+from research.v681.native_runtime.semantic_core import Edge, Hypothesis, search
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -31,6 +38,80 @@ def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
 
 
 class ExperienceTests(unittest.TestCase):
+    def test_train_only_stop_boundaries_are_matched_and_sequential(self):
+        episodes = stop_boundary_training_episodes(1)
+        self.assertTrue(episodes)
+        self.assertTrue(all(episode["partition"] == "train" and episode["split"] == "ordinary"
+                            for episode in episodes))
+        expected = {episode["boundary_pair"]: set() for episode in episodes}
+        for episode in episodes:
+            expected[episode["boundary_pair"]].add(episode["expected_initial_action"])
+        self.assertEqual(expected["stop_vs_abstain"], {"stop", "abstain"})
+        self.assertEqual(expected["stop_vs_traverse"], {"stop", "traverse"})
+        by_pair = {}
+        for episode in episodes:
+            by_pair.setdefault(episode["matched_triplet"], []).append(episode)
+        for pair in by_pair.values():
+            self.assertEqual(pair[0]["nodes"][pair[0]["start"]], pair[1]["nodes"][pair[1]["start"]])
+        self.assertFalse(any(episode["category"] == "stop_boundary_train_only"
+                             for episode in training_benchmark_episodes()
+                             if episode.get("partition") == "heldout"))
+        records = collect_teacher_episodes(episodes)
+        self.assertTrue(any(len(record["trajectory"]) > 1 for record in records))
+        for record in records:
+            first = record["trajectory"][0]
+            count = len(first["state"]["candidate_features"])
+            actual = ("traverse" if first["teacher"]["selected_action"] < count else
+                      ("stop" if first["teacher"]["selected_action"] == count else "abstain"))
+            self.assertEqual(actual, next(episode["expected_initial_action"] for episode in episodes
+                                          if episode["episode_id"] == record["episode_id"]))
+
+    def test_candidate_order_augmentation_remaps_train_labels_without_terminal_bias(self):
+        source = [episode for episode in stop_boundary_training_episodes(1)
+                  if episode["expected_initial_action"] == "traverse"]
+        original = collect_teacher_episodes(source)
+        augmented = augment_training_candidate_order(original)
+        self.assertGreater(len(augmented), len(original))
+        rotations = [record for record in augmented if "candidate_order_augmentation" in record]
+        self.assertTrue(rotations)
+        for record in rotations:
+            for step in record["trajectory"]:
+                candidate_count = len(step["state"]["candidate_features"])
+                if step["action"]["kind"] == "traverse":
+                    self.assertEqual(step["action"]["candidate_id"], step["teacher"]["selected_action"])
+                if step["teacher"]["selected_action"] >= candidate_count:
+                    self.assertIn(step["teacher"]["selected_action"], (candidate_count, candidate_count + 1))
+
+    def test_stop_metrics_report_confusion_f1_and_source_distribution(self):
+        class AlwaysStop:
+            jepa_dim = 0
+            def select_action(self, state, **_):
+                count = len(state.candidate_features)
+                return {"logits": [-1.0] * count + [1.0, 0.0], "selected_action": count,
+                        "action": AttentionAction(AttentionActionKind.STOP), "hidden": None}
+
+        episodes = [episode for episode in stop_boundary_training_episodes(1)
+                    if episode["boundary_pair"] == "stop_vs_abstain"]
+        metrics = evaluate(collect_teacher_episodes(episodes), AlwaysStop())["ordinary"]
+        self.assertEqual(metrics["stop_confusion"], {
+            "true_positive": 1, "false_positive": 1, "false_negative": 0, "true_negative": 0})
+        self.assertEqual(metrics["stop_precision"], .5)
+        self.assertEqual(metrics["stop_recall"], 1.0)
+        self.assertAlmostEqual(metrics["stop_f1"], 2 / 3)
+        self.assertEqual(metrics["action_distribution_by_source"]["native_teacher"]["student"]["stop"], 2)
+        rollout = evaluate_rollouts([{**episode, "source": "stop_boundary_test"} for episode in episodes],
+                                    AlwaysStop())["ordinary"]
+        self.assertEqual(rollout["stop_confusion"]["false_positive"], 1)
+        self.assertEqual(rollout["action_distribution_by_source"]["stop_boundary_test"]["teacher"]["stop"], 1)
+
+    def test_training_filter_excludes_all_heldout_forms(self):
+        records = [{"split": "ordinary", "partition": "train"},
+                   {"split": "held_out_structural", "partition": "heldout"},
+                   {"split": "held_out_adversarial", "partition": "heldout"},
+                   {"split": "heldout", "partition": "heldout"},
+                   {"split": "ordinary", "partition": "validation"}]
+        self.assertEqual(training_records(records), [records[0]])
+
     def test_promotion_gate_accepts_strong_candidate(self):
         decision = _promotion(_promotion_metrics(),
                               _promotion_metrics(overall_action_accuracy=.88, abstain_accuracy=.88,

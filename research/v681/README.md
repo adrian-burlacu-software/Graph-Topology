@@ -69,6 +69,13 @@ rollout set. It requires at least 0.75 `overall_action_accuracy`, at least
 `false_positive_traverse`, `premature_stop`, and `premature_abstain`. Missing
 any required rollout metric rejects the candidate.
 
+The native training corpus also adds train-only matched STOP boundaries:
+verified STOP versus abstain, and verified STOP versus useful traversal. Their
+candidate order is rotated during generation and cyclically augmented while
+fitting; the held-out structural and adversarial suites are unchanged.
+Evaluation artifacts report action distributions by source plus STOP confusion,
+precision, recall, and F1 alongside the existing rollout metrics.
+
 When a promoted attention model exists, it is evaluated on the identical
 held-out set. A candidate may lose at most 0.02 overall accuracy and 0.01 on
 `abstain_accuracy`; each of the three safety error rates may increase by at

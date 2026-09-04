@@ -166,7 +166,11 @@ class V681Coordinator:
             candidate = self.output / "models" / f"attention-{self.session_id}-{cycle}.pt"
             candidate.parent.mkdir(parents=True, exist_ok=True); (self.output / "evaluations").mkdir(parents=True, exist_ok=True)
             learner.train(self._engine(), dataset, candidate, self.policy.epochs, self.policy.seed)
-            metrics = learner.evaluate(self._engine(), heldout, candidate, self.output / "evaluations" / f"attention-{cycle}.json")
+            evaluation_path = self.output / "evaluations" / f"attention-{cycle}.json"
+            metrics = learner.evaluate(self._engine(), heldout, candidate, evaluation_path)
+            from .native_learning.dataset import dataset_stats
+            metrics["training_dataset"] = dataset_stats(train)
+            evaluation_path.write_text(json.dumps(metrics, indent=2, sort_keys=True))
             jepa = JEPAAuxiliaryLearner(); transitions, jepa_rejected = jepa.prepare(items, sources)
             jepa_data = self.session_dir / f"jepa-{cycle}.jsonl"; _write_jsonl(jepa_data, transitions)
             jepa_result = jepa.train(self._engine(), jepa_data, self.output / "models" / f"jepa-{self.session_id}-{cycle}.pt",
