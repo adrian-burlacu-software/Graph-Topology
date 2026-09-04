@@ -28,18 +28,16 @@ class V679AttentionTeacher:
                 3.0 * candidate.goal_relation_match
                 + .5 * candidate.target_term_match
                 + .25 * candidate.specificity
+                + .5 * candidate.lexical_score
                 + candidate.relation_activation
                 + .25 * candidate.candidate_activation
                 - 2.0 * candidate.contradiction
                 - 2.0 * candidate.already_visited
             )
-        # STOP is correct after an observed verified candidate has been inspected.
-        inspected_proof = max((
-            candidate.verified * candidate.already_visited for candidate in candidates
-        ), default=0.0)
-        logits.append(inspected_proof * 6.0 - 1.0)
-        # ABSTAIN is attractive only when no available evidence verifies the goal.
-        logits.append((1.0 - max((candidate.verified for candidate in candidates), default=0.0)) * 4.0)
+        # The current focus is observable, while proof-path membership remains oracle-only.
+        proof_focus = any(term in state.current_focus for term in state.goal_terms)
+        logits.append(5.0 if proof_focus else -1.0)
+        logits.append(4.0 if not proof_focus else -2.0)
         return logits
 
     def select_action(self, state, candidates=None, deterministic=False):

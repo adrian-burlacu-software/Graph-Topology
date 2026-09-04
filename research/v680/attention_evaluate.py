@@ -1,4 +1,4 @@
-"""Teacher/student metrics with ordinary and adversarial splits reported separately."""
+"""Teacher/student attention metrics, retaining split boundaries."""
 from __future__ import annotations
 
 import argparse
@@ -9,81 +9,91 @@ import torch
 
 from attention_dataset import collect_teacher_episodes, read_jsonl
 from attention_student import NeuralAttentionPolicy
+from attention_types import AttentionObservation
 
 
 def load_student(path):
     payload = torch.load(path, map_location="cpu", weights_only=True)
-    model = NeuralAttentionPolicy(payload["hidden_size"])
-    model.load_state_dict(payload["state_dict"]); model.eval()
+    model = NeuralAttentionPolicy(payload.get("hidden_size", 32))
+    model.load_state_dict(payload.get("model", payload.get("state_dict")))
+    model.eval()
     return model
 
 
-def evaluate(records, model):
+def _correlations(left, right):
+    size = len(left)
+    if size < 2:
+        return 1.0, 1.0
+    ranks_left = {item: rank for rank, item in enumerate(sorted(range(size), key=left.__getitem__))}
+    ranks_right = {item: rank for rank, item in enumerate(sorted(range(size), key=right.__getitem__))}
+    delta = sum((ranks_left[index] - ranks_right[index]) ** 2 for index in range(size))
+    spearman = 1 - 6 * delta / (size * (size ** 2 - 1))
+    concordant = discordant = 0
+    for first in range(size):
+        for second in range(first + 1, size):
+            pair = (left[first] - left[second]) * (right[first] - right[second])
+            concordant += pair > 0; discordant += pair < 0
+    denominator = concordant + discordant
+    return spearman, (concordant - discordant) / denominator if denominator else 0.0
+
+
+def evaluate(records, model, recurrent=True):
     totals = {}
-    for record in records:
-        split = record["split"]
-        metrics = totals.setdefault(split, {
-            "count": 0, "teacher_action_accuracy": 0, "top1_attention_accuracy": 0,
-            "top3_recall": 0, "ranking_correlation": 0, "KL_divergence": 0,
-            "abstention_accuracy": 0, "abstention_count": 0, "false_positive_attention_rate": 0,
-            "average_steps_to_evidence": 0, "student_vs_teacher_final_decision": 0,
-        })
-        final_match = True
-        for step in record["trajectory"]:
-            state_data = step["state"]
-            from attention_types import AttentionObservation, CandidateFeatures
-            state = AttentionObservation(
-                **{**state_data, "candidate_features": [
-                    CandidateFeatures(**candidate) for candidate in state_data["candidate_features"]
-                ]}
-            )
-            logits = model.score_candidates(state)
-            teacher = step["teacher"]
+    for episode in records:
+        metrics = totals.setdefault(episode["split"], {"count": 0, "teacher_action_accuracy": 0,
+            "top1_attention_accuracy": 0, "top3_attention_recall": 0,
+            "spearman_rank_correlation": 0, "kendall_tau": 0, "mean_rank_position_error": 0,
+            "KL_divergence": 0, "abstention_accuracy": 0, "abstention_count": 0,
+            "false_positive_attention_rate": 0, "mean_attention_steps": 0,
+            "teacher_final_decision": [], "student_final_decision": [], "agreement": 0})
+        final_student = final_teacher = None
+        hidden = None
+        for step in episode["trajectory"]:
+            state = AttentionObservation.from_dict(step["state"])
+            selected = model.select_action(state, deterministic=True, hidden=hidden)
+            logits = selected["logits"]
+            hidden = selected["hidden"] if recurrent else None
+            teacher_logits = step["teacher"]["logits"]; target = step["teacher"]["selected_action"]
             predicted = max(range(len(logits)), key=logits.__getitem__)
-            target = teacher["selected_action"]
-            metrics["count"] += 1
-            metrics["teacher_action_accuracy"] += predicted == target
-            metrics["top1_attention_accuracy"] += predicted == target
-            metrics["top3_recall"] += target in sorted(range(len(logits)), key=logits.__getitem__, reverse=True)[:3]
-            teacher_order = sorted(range(len(logits)), key=teacher["logits"].__getitem__)
+            top3 = sorted(range(len(logits)), key=logits.__getitem__, reverse=True)[:3]
+            spearman, kendall = _correlations(teacher_logits, logits)
+            teacher_order = sorted(range(len(logits)), key=teacher_logits.__getitem__)
             student_order = sorted(range(len(logits)), key=logits.__getitem__)
-            metrics["ranking_correlation"] += sum(
-                (teacher_order.index(i) - student_order.index(i)) ** 2
-                for i in range(len(logits))
-            ) / max(len(logits) ** 2, 1)
-            teacher_probs = torch.softmax(torch.tensor(teacher["logits"]) / 2.0, dim=-1)
-            student_log_probs = torch.log_softmax(torch.tensor(logits) / 2.0, dim=-1)
+            rank_error = sum(abs(teacher_order.index(i) - student_order.index(i)) for i in range(len(logits))) / len(logits)
+            teacher_probs = torch.softmax(torch.tensor(teacher_logits) / 2, -1)
+            student_log_probs = torch.log_softmax(torch.tensor(logits) / 2, -1)
+            metrics["count"] += 1; metrics["teacher_action_accuracy"] += predicted == target
+            metrics["top1_attention_accuracy"] += predicted == target; metrics["top3_attention_recall"] += target in top3
+            metrics["spearman_rank_correlation"] += spearman; metrics["kendall_tau"] += kendall
+            metrics["mean_rank_position_error"] += rank_error
             metrics["KL_divergence"] += float(torch.sum(teacher_probs * (torch.log(teacher_probs) - student_log_probs)))
-            abstain = target == len(state.candidate_features) + 1
-            if abstain:
-                metrics["abstention_count"] += 1
-                metrics["abstention_accuracy"] += predicted == target
-            metrics["false_positive_attention_rate"] += int(abstain and predicted != target)
-            final_match = final_match and predicted == target
-        metrics["student_vs_teacher_final_decision"] += final_match
+            if target == len(state.candidate_features) + 1:
+                metrics["abstention_count"] += 1; metrics["abstention_accuracy"] += predicted == target
+                metrics["false_positive_attention_rate"] += predicted != target
+            final_student, final_teacher = predicted, target
+        metrics["mean_attention_steps"] += len(episode["trajectory"])
+        metrics["teacher_final_decision"].append(final_teacher)
+        metrics["student_final_decision"].append(final_student)
+        metrics["agreement"] += final_student == final_teacher
     for metrics in totals.values():
-        count = max(metrics["count"], 1)
-        for key in ("teacher_action_accuracy", "top1_attention_accuracy", "top3_recall",
-                    "ranking_correlation", "KL_divergence",
-                    "false_positive_attention_rate", "student_vs_teacher_final_decision"):
+        count = max(1, metrics["count"])
+        for key in ("teacher_action_accuracy", "top1_attention_accuracy", "top3_attention_recall",
+                    "spearman_rank_correlation", "kendall_tau", "mean_rank_position_error",
+                    "KL_divergence", "false_positive_attention_rate", "mean_attention_steps"):
             metrics[key] /= count
-        metrics["abstention_accuracy"] /= max(metrics.pop("abstention_count"), 1)
-        metrics["average_steps_to_evidence"] = 1.0
+        metrics["abstention_accuracy"] /= max(1, metrics.pop("abstention_count"))
+        metrics["agreement"] /= max(1, len(metrics["teacher_final_decision"]))
     return totals
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate V680 student against frozen V679 teacher.")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="./results/v680/distillation_dataset.jsonl")
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--output", default="./results/v680/evaluation.json")
+    parser.add_argument("--checkpoint", required=True); parser.add_argument("--output", default="./results/v680/evaluation.json")
     args = parser.parse_args()
-    report = evaluate(
-        read_jsonl(args.dataset) if Path(args.dataset).exists() else collect_teacher_episodes(),
-        load_student(args.checkpoint),
-    )
+    report = evaluate(read_jsonl(args.dataset) if Path(args.dataset).exists() else collect_teacher_episodes(), load_student(args.checkpoint))
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.output).write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    Path(args.output).write_text(json.dumps(report, indent=2, sort_keys=True))
     print(json.dumps(report, indent=2, sort_keys=True))
 
 

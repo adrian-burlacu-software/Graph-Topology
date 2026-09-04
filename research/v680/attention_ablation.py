@@ -1,9 +1,8 @@
-"""Evaluate which symbolic observation fields the student depends on."""
+"""Observation-level ablations that remove information from every model input."""
 from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import replace
 from pathlib import Path
 
 from attention_dataset import read_jsonl
@@ -11,32 +10,37 @@ from attention_evaluate import evaluate, load_student
 
 
 def ablate(records, kind):
-    copied = []
-    for record in records:
-        record = json.loads(json.dumps(record))
-        for step in record["trajectory"]:
+    output = json.loads(json.dumps(records))
+    for episode in output:
+        for step in episode["trajectory"]:
             state = step["state"]
             if kind == "no_relation_activation":
                 state["relation_activation"] = {}
             elif kind == "no_candidate_activation":
                 state["candidate_activation"] = {}
             elif kind == "no_history":
-                state["visited_nodes"] = []; state["visited_relations"] = []
-        copied.append(record)
-    return copied
+                state["visited_nodes"] = []; state["visited_relations"] = []; state["attention_history"] = []
+                for candidate in state["candidate_features"]:
+                    candidate["already_visited"] = 0.0
+            elif kind == "no_recurrent_state":
+                state["attention_history"] = []
+            elif kind != "full":
+                raise ValueError(f"unknown ablation {kind}")
+    return output
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run V680 symbolic-state ablations.")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True); parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output", default="./results/v680/ablation.json")
     args = parser.parse_args()
     records = read_jsonl(args.dataset); model = load_student(args.checkpoint)
-    report = {"full_state": evaluate(records, model)}
-    for kind in ("no_relation_activation", "no_candidate_activation", "no_history"):
-        report[kind] = evaluate(ablate(records, kind), model)
+    report = {}
+    for kind in ("full", "no_relation_activation", "no_candidate_activation", "no_history", "no_recurrent_state"):
+        model.use_recurrent = kind != "no_recurrent_state"
+        report[kind] = evaluate(ablate(records, kind), model, recurrent=model.use_recurrent)
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.output).write_text(json.dumps(report, indent=2), encoding="utf-8")
+    Path(args.output).write_text(json.dumps(report, indent=2))
 
 
 if __name__ == "__main__":

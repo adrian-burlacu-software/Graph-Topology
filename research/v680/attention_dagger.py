@@ -1,59 +1,88 @@
-"""Dataset aggregation: student-induced states receive frozen-teacher labels."""
+"""Deterministic iterative DAgger: retrain, roll out, label, aggregate."""
 from __future__ import annotations
 
 import argparse
+import json
+import random
 from pathlib import Path
 
-from attention_dataset import collect_teacher_episodes, write_jsonl
-from attention_distill import train
+import torch
+
+from attention_dataset import dataset_stats, read_jsonl, step_record, write_jsonl
+from attention_distill import train_distillation
 from attention_env import AttentionEnv, benchmark_episodes
-from attention_evaluate import load_student
 from attention_teacher import V679AttentionTeacher
 
 
-def collect_dagger(model, rounds=4):
+def student_labeled_rollouts(model, episodes, round_number, seed):
     teacher = V679AttentionTeacher()
     records = []
-    for round_index in range(rounds):
-        teacher_fraction = max(.25, 1.0 - round_index * .25)
-        for spec in benchmark_episodes():
-            env = AttentionEnv(spec); state = env.reset(); trajectory = []
-            while not env.done:
-                label = teacher.select_action(state, deterministic=True)
-                student_action = model.select_action(state, deterministic=True)["action"]
-                use_teacher = (round_index == 0 or teacher_fraction >= .5)
-                action = label["action"] if use_teacher else student_action
-                next_state, reward, _, info = env.step(action)
-                trajectory.append({
-                    "state": state.as_dict(), "teacher": {
-                        "logits": label["logits"], "probabilities": label["probabilities"],
-                        "selected_action": label["selected_action"], "outcome": label["outcome"],
-                    }, "student_action": {"kind": student_action.kind.value, "candidate_id": student_action.candidate_id},
-                    "executed_action": {"kind": action.kind.value, "candidate_id": action.candidate_id},
-                    "reward": reward, "resulting_state": next_state.as_dict(), "terminal_outcome": info["terminal_outcome"],
-                })
-                state = next_state
-            records.append({"episode_id": f"dagger_{round_index}_{spec['episode_id']}",
-                            "split": spec["split"], "round": round_index, "trajectory": trajectory})
+    random.seed(seed + round_number); torch.manual_seed(seed + round_number)
+    for spec in episodes:
+        env = AttentionEnv(spec)
+        state, hidden, trajectory = env.reset(), None, []
+        while not env.done:
+            student = model.select_action(state, deterministic=False, hidden=hidden)
+            teacher_label = teacher.select_action(state, deterministic=True)
+            next_state, reward, _, oracle = env.step(student["action"])
+            trajectory.append(step_record(
+                spec["episode_id"], spec["split"], len(trajectory), state, teacher_label,
+                student["action"], next_state, reward, oracle["terminal_outcome"], oracle,
+                {"generator": "student_rollout_teacher_label", "round": round_number,
+                 "student_action": student["action"].as_dict()},
+            ))
+            state, hidden = next_state, student["hidden"]
+        records.append({"episode_id": f"{spec['episode_id']}_dagger_{round_number}",
+                        "split": spec["split"], "trajectory": trajectory,
+                        "terminal_outcome": trajectory[-1]["terminal_outcome"],
+                        "provenance": {"generator": "student_rollout_teacher_label",
+                                       "round": round_number}})
     return records
 
 
+def _round_metrics(new_records, checkpoint):
+    steps = [step for episode in new_records for step in episode["trajectory"]]
+    agreement = sum(step["action"] == step["candidates"][step["teacher"]["selected_action"]]["action"]
+                    for step in steps)
+    top3 = sum(step["teacher"]["selected_action"] in sorted(
+        range(len(step["teacher"]["logits"])), key=lambda i: step["teacher"]["logits"][i], reverse=True)[:3]
+               for step in steps)
+    abstentions = [s for s in steps if s["action"]["kind"] == "abstain"]
+    return {"student_checkpoint": str(checkpoint), "states_collected": len(steps),
+            "teacher_labels": len(steps), "teacher_action_agreement": agreement / max(1, len(steps)),
+            "top3_recall": top3 / max(1, len(steps)),
+            "abstention_accuracy": sum(s["terminal_outcome"] == "no_verified_evidence"
+                                       for s in abstentions) / max(1, len(abstentions))}
+
+
+def run_dagger(dataset, rounds=2, epochs=8, seed=0, checkpoint_dir="checkpoints", episodes=None):
+    aggregate = read_jsonl(dataset) if isinstance(dataset, (str, Path)) else list(dataset)
+    specs = episodes or benchmark_episodes()
+    output = Path(checkpoint_dir); output.mkdir(parents=True, exist_ok=True)
+    stats = []
+    for round_number in range(int(rounds)):
+        model, optimizer = train_distillation(aggregate, epochs=epochs, seed=seed + round_number)
+        checkpoint = output / f"dagger_round_{round_number}.pt"
+        torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                    "round": round_number, "seed": seed, "epochs": epochs}, checkpoint)
+        collected = student_labeled_rollouts(model, specs, round_number, seed)
+        aggregate.extend(collected)
+        metrics = {"round": round_number, **_round_metrics(collected, checkpoint),
+                   "aggregate": dataset_stats(aggregate)}
+        stats.append(metrics)
+        write_jsonl(output / f"dagger_aggregate_round_{round_number}.jsonl", aggregate)
+        (output / f"dagger_round_{round_number}.json").write_text(json.dumps(metrics, indent=2))
+    return model, aggregate, stats
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Collect V680 DAgger attention states.")
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--output", default="./results/v680/dagger_dataset.jsonl")
-    parser.add_argument("--retrained-checkpoint", default="./results/v680/student_dagger_checkpoint.pt")
-    parser.add_argument("--rounds", type=int, default=4)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", required=True); parser.add_argument("--rounds", type=int, default=2)
+    parser.add_argument("--epochs", type=int, default=8); parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--checkpoint-dir", default="checkpoints")
     args = parser.parse_args()
-    records = collect_teacher_episodes() + collect_dagger(
-        load_student(args.checkpoint), args.rounds
-    )
-    write_jsonl(args.output, records)
-    model = train(records, epochs=80)
-    Path(args.retrained_checkpoint).parent.mkdir(parents=True, exist_ok=True)
-    import torch
-    torch.save({"state_dict": model.state_dict(), "hidden_size": model.hidden_size},
-               args.retrained_checkpoint)
+    _, _, stats = run_dagger(args.dataset, args.rounds, args.epochs, args.seed, args.checkpoint_dir)
+    print(json.dumps(stats, indent=2))
 
 
 if __name__ == "__main__":

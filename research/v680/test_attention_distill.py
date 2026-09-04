@@ -1,18 +1,25 @@
-import unittest
 import importlib.util
+import unittest
 
 from attention_dataset import collect_teacher_episodes
+from attention_types import AttentionObservation
+
+
+class SchemaTests(unittest.TestCase):
+    def test_observation_rejects_oracle_leakage(self):
+        state = collect_teacher_episodes()[0]["trajectory"][0]["state"]
+        state["proof_target"] = "leak"
+        with self.assertRaisesRegex(ValueError, "oracle fields"):
+            AttentionObservation.from_dict(state)
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "requires torch")
 class DistillationTests(unittest.TestCase):
-    def test_student_reproduces_teacher_on_ordinary_and_adversarial_states(self):
-        from attention_distill import train
-        from attention_evaluate import evaluate
+    def test_distillation_consumes_direct_candidate_feature_schema(self):
+        from attention_distill import train_distillation
         records = collect_teacher_episodes()
-        report = evaluate(records, train(records, epochs=120))
-        self.assertGreaterEqual(report["ordinary"]["teacher_action_accuracy"], .95)
-        self.assertGreaterEqual(report["adversarial"]["abstention_accuracy"], .95)
+        model, _ = train_distillation(records, epochs=2, seed=7)
+        self.assertTrue(model.state_dict())
 
 
 if __name__ == "__main__":

@@ -1,16 +1,18 @@
-import unittest
 import importlib.util
-
-from attention_dataset import collect_teacher_episodes
+import tempfile
+import unittest
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "requires torch")
 class PPOTests(unittest.TestCase):
-    def test_teacher_regularized_ppo_produces_a_usable_policy(self):
-        from attention_distill import train
-        from attention_ppo import train_ppo
-        model = train(collect_teacher_episodes(), epochs=10)
-        self.assertTrue(train_ppo(model, episodes=1, beta=.5).state_dict())
+    def test_batched_ppo_stores_old_log_probs_and_checkpoint(self):
+        from attention_ppo import run_ppo
+        with tempfile.TemporaryDirectory() as root:
+            _, trajectories, metrics = run_ppo(episode_count=2, seed=7, checkpoint=f"{root}/ppo.pt",
+                                               ppo_epochs=1, minibatch_size=2)
+        self.assertTrue(trajectories)
+        self.assertTrue(all("old_log_probability" in item and "value" in item for item in trajectories))
+        self.assertIn("loss", metrics)
 
 
 if __name__ == "__main__":

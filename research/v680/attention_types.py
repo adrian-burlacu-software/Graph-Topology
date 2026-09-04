@@ -1,4 +1,4 @@
-"""Serializable bounded-action representations for the V680 experiment."""
+"""One validated, serializable schema for every V680 policy record."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -10,6 +10,13 @@ class AttentionActionKind(str, Enum):
     TRAVERSE = "traverse"
     STOP = "stop"
     ABSTAIN = "abstain"
+
+
+CANDIDATE_VECTOR_FIELDS = (
+    "path_length", "goal_relation_match", "target_term_match", "specificity",
+    "lexical_score", "relation_activation", "candidate_activation",
+    "provenance", "verified", "contradiction", "direct_proof", "already_visited",
+)
 
 
 @dataclass(frozen=True)
@@ -30,12 +37,16 @@ class CandidateFeatures:
     already_visited: float = 0.0
 
     def vector(self):
-        return [
-            self.path_length, self.goal_relation_match, self.target_term_match,
-            self.specificity, self.lexical_score, self.relation_activation,
-            self.candidate_activation, self.provenance, self.verified,
-            self.contradiction, self.direct_proof, self.already_visited,
-        ]
+        return [float(getattr(self, name)) for name in CANDIDATE_VECTOR_FIELDS]
+
+    @classmethod
+    def from_dict(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError("candidate features must be an object")
+        missing = {"relation", "target"} - value.keys()
+        if missing:
+            raise ValueError(f"candidate features missing {sorted(missing)}")
+        return cls(**{key: value[key] for key in cls.__dataclass_fields__ if key in value})
 
 
 @dataclass(frozen=True)
@@ -50,6 +61,20 @@ class AttentionAction:
             return self.candidate_id
         return candidate_count + (0 if self.kind is AttentionActionKind.STOP else 1)
 
+    def as_dict(self):
+        return {"kind": self.kind.value, "candidate_id": self.candidate_id}
+
+    @classmethod
+    def from_dict(cls, value, candidate_count):
+        if not isinstance(value, dict) or "kind" not in value:
+            raise ValueError("action must contain kind")
+        try:
+            action = cls(AttentionActionKind(value["kind"]), value.get("candidate_id"))
+        except ValueError as exc:
+            raise ValueError(f"unknown attention action: {value.get('kind')!r}") from exc
+        action.index(candidate_count)
+        return action
+
 
 @dataclass
 class AttentionObservation:
@@ -63,36 +88,53 @@ class AttentionObservation:
     candidate_activation: dict[str, float]
     visited_nodes: list[str]
     visited_relations: list[str]
+    attention_history: list[dict[str, Any]]
     step: int
     remaining_budget: int
 
-    def state_vector(self):
+    def state_vector(self, recurrent=True):
         return [
             float(self.step), float(self.remaining_budget),
-            float(len(self.candidate_features)), float(len(self.visited_nodes)),
-            float(len(self.visited_relations)),
+            float(len(self.candidate_features)), float(len(self.visited_nodes)) if recurrent else 0.0,
+            float(len(self.visited_relations)) if recurrent else 0.0,
             self.relation_activation.get(self.goal_relation, 0.0),
         ]
 
     def as_dict(self):
         return asdict(self)
 
+    @classmethod
+    def from_dict(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError("attention state must be an object")
+        required = set(cls.__dataclass_fields__) - {"relation_features"}
+        missing = required - value.keys()
+        if missing:
+            raise ValueError(f"attention state missing {sorted(missing)}")
+        forbidden = {"proof_target", "oracle", "valid_paths", "terminal_answer"}
+        leaked = forbidden & value.keys()
+        if leaked:
+            raise ValueError(f"oracle fields must not appear in observations: {sorted(leaked)}")
+        return cls(
+            **{key: value.get(key, {}) if key == "relation_features" else value[key]
+               for key in cls.__dataclass_fields__ if key != "candidate_features"},
+            candidate_features=[CandidateFeatures.from_dict(item) for item in value["candidate_features"]],
+        )
 
-@dataclass
-class AttentionEpisode:
-    episode_id: str
-    split: str
-    observations: list[AttentionObservation]
-    actions: list[AttentionAction]
-    rewards: list[float] = field(default_factory=list)
-    terminal_outcome: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def as_dict(self):
-        return {
-            **asdict(self),
-            "actions": [
-                {"kind": action.kind.value, "candidate_id": action.candidate_id}
-                for action in self.actions
-            ],
-        }
+def validate_step_record(record):
+    required = {"episode_id", "split", "step", "state", "candidates", "teacher",
+                "action", "next_state", "reward", "terminal_outcome", "oracle"}
+    missing = required - record.keys()
+    if missing:
+        raise ValueError(f"trajectory record missing {sorted(missing)}")
+    state = AttentionObservation.from_dict(record["state"])
+    action = AttentionAction.from_dict(record["action"], len(state.candidate_features))
+    teacher = record["teacher"]
+    action_count = len(state.candidate_features) + 2
+    if len(teacher.get("logits", [])) != action_count or len(teacher.get("probabilities", [])) != action_count:
+        raise ValueError("teacher logits and probabilities must match bounded action count")
+    if action.index(len(state.candidate_features)) != teacher.get("selected_action"):
+        raise ValueError("serialized action and teacher selected_action disagree")
+    AttentionObservation.from_dict(record["next_state"])
+    return record
