@@ -175,7 +175,8 @@ def chat_trace_experience(trace, source=ExperienceSource.CHAT_DECISION_ONLY):
         supervision={"outcome": {"kind": "verified_answer" if verified else "insufficient_evidence", "verified": verified},
                      "confidence": 1.0 if verified else 0.0},
         diagnostics={"raw_trace": trace}, quality=ExperienceQuality.VERIFIED if verified else ExperienceQuality.UNVERIFIED,
-        provenance={"producer": "v679_trace_import", "graph_version": trace.get("graph_version", "unknown")},
+        provenance={"producer": "v679_trace_import", "graph_version": trace.get("graph_version", "unknown"),
+                    "session_id": trace.get("v681_session_id", "unknown")},
     )
 
 

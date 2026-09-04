@@ -1,0 +1,70 @@
+{
+  "chat_episodes": 3,
+  "discovery": {
+    "graph_database": {
+      "available": true,
+      "path": "/home/runner/work/Graph-Topology/Graph-Topology/data/v673_focused_semantic.sqlite"
+    },
+    "local_llm": {
+      "available": false,
+      "reason": "local V679 LLM model not found"
+    },
+    "repository_root": "/home/runner/work/Graph-Topology/Graph-Topology",
+    "v679_runtime": {
+      "available": true,
+      "path": "/home/runner/work/Graph-Topology/Graph-Topology/research/v679/v679_runtime.py"
+    },
+    "v680_engine": {
+      "available": true,
+      "path": "/home/runner/work/Graph-Topology/Graph-Topology/research/v680/attention_dataset.py"
+    }
+  },
+  "end_time": 1788540637.7087183,
+  "evaluations": [],
+  "experience_after": {
+    "chat_records": 3,
+    "decision_only_records": 3,
+    "source_counts": {
+      "attention_eval": 128,
+      "chat": 0,
+      "chat_decision_only": 3,
+      "chat_sequential": 0,
+      "dagger": 0,
+      "jepa": 0,
+      "offline_worker": 0,
+      "other": 0,
+      "synthetic_chat": 0
+    },
+    "total_records": 131,
+    "train_sequential_episodes": 0,
+    "train_sequential_records": 0,
+    "worker_records": 0
+  },
+  "experience_before": {
+    "chat_records": 3,
+    "decision_only_records": 3,
+    "source_counts": {
+      "attention_eval": 128,
+      "chat": 0,
+      "chat_decision_only": 3,
+      "chat_sequential": 0,
+      "dagger": 0,
+      "jepa": 0,
+      "offline_worker": 0,
+      "other": 0,
+      "synthetic_chat": 0
+    },
+    "total_records": 131,
+    "train_sequential_episodes": 0,
+    "train_sequential_records": 0,
+    "worker_records": 0
+  },
+  "failures": [],
+  "models_created": [],
+  "session_id": "v681-90871104c0544b88929f151bc716d12a",
+  "start_time": 1788540637.6893928,
+  "status": "dry_run",
+  "training_cycles": [],
+  "v681_version": "v681.4-runtime-1",
+  "worker_events": 0
+}

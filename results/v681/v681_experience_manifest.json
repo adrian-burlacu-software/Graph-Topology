@@ -1,0 +1,41 @@
+{
+  "inspection": {
+    "chat_records": 3,
+    "decision_only_records": 3,
+    "source_counts": {
+      "attention_eval": 128,
+      "chat": 0,
+      "chat_decision_only": 3,
+      "chat_sequential": 0,
+      "dagger": 0,
+      "jepa": 0,
+      "offline_worker": 0,
+      "other": 0,
+      "synthetic_chat": 0
+    },
+    "total_records": 131,
+    "train_sequential_episodes": 0,
+    "train_sequential_records": 0,
+    "worker_records": 0
+  },
+  "store": {
+    "experience_version": "v681.3-experience-1",
+    "records": [
+      {
+        "count": 128,
+        "quality": "teacher_labelled",
+        "sequence_capability": "sequential",
+        "source": "attention_eval",
+        "split": "heldout"
+      },
+      {
+        "count": 3,
+        "quality": "verified",
+        "sequence_capability": "decision_only",
+        "source": "chat_decision_only",
+        "split": "live"
+      }
+    ]
+  },
+  "v681_version": "v681.4-runtime-1"
+}

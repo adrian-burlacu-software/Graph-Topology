@@ -21,6 +21,8 @@ def build_parser():
     ap.add_argument("--database", required=True)
     ap.add_argument("--output", default="./results/v679_chat.json")
     ap.add_argument("--trace-output", default="./results/v679_chat_traces.jsonl")
+    ap.add_argument("--v681-session-id", default="",
+                    help="Optional V681 session provenance attached to every emitted chat trace.")
     ap.add_argument("--memory-output", default="./results/v679_memory.json")
     ap.add_argument("--worker-log-dir", default="./results/v679_workers")
     ap.add_argument("--shared-memory", default="./results/v679_shared_memory.sqlite")

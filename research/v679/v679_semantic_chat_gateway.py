@@ -2745,7 +2745,7 @@ def run_chat_worker(args):
             )
             append_trace(
                 trace_path,
-                trace,
+                {**trace, "v681_session_id": getattr(args, "v681_session_id", "")},
             )
             try:
                 if checkpoint.should_sync():
@@ -2843,7 +2843,7 @@ def run_chat_worker(args):
 
             append_trace(
                 trace_path,
-                trace,
+                {**trace, "v681_session_id": getattr(args, "v681_session_id", "")},
             )
             try:
                 if checkpoint.should_sync():

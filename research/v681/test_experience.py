@@ -10,6 +10,8 @@ from research.v681.importers import import_chat_traces, import_worker_logs
 from research.v681.learners import REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
 from research.v681.v680_adapter import V680EngineAdapter
+from research.v681.coordinator import RuntimePolicy, V681Coordinator
+from research.v681.runtime_adapters import RepositoryRuntime
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -100,6 +102,82 @@ class ExperienceTests(unittest.TestCase):
             V680EngineAdapter().generate_teacher_records(output, 1)
             self.assertTrue(output.exists())
             self.assertIn("trajectory", json.loads(output.read_text().splitlines()[0]))
+
+    def test_one_command_coordinator_captures_fake_runtime_and_evaluates_candidate(self):
+        class FakeChat:
+            def available(self): return True, ""
+            def start(self): pass
+            def running(self): return False
+            def stop(self): pass
+            def poll(self):
+                return {"chat": [{"source_path": "fake-chat", "line": 1, "value": {
+                    "timestamp": 1, "route": {"success": True}, "candidate_evidence": [],
+                    "semantic_decision": {}, "v681_session_id": "fake-session"}}],
+                    "worker": [{"source_path": "fake-worker", "line": 1, "value": {
+                        "event": "analysis_batch", "timestamp": 1, "worker_id": 0, "batch": 1}}]}
+
+        class FakeEngine:
+            def generate_teacher_records(self, path, _samples):
+                records = [{"episode_id": "train", "trajectory": [_step("ordinary")]},
+                           {"episode_id": "heldout", "trajectory": [_step("held_out")]}]
+                path.write_text("\n".join(json.dumps(row) for row in records) + "\n")
+            def run_dagger(self, records_path, directory, *_):
+                directory.mkdir(parents=True, exist_ok=True)
+                path = directory / "dagger_aggregate_round_0.jsonl"
+                path.write_text(json.dumps({"episode_id": "dagger", "trajectory": [_step("ordinary")]}) + "\n")
+                return path
+            def train_attention(self, _data, checkpoint, *_): checkpoint.write_text("candidate")
+            def evaluate_attention(self, _data, _checkpoint, output):
+                value = {"held_out": {"teacher_action_accuracy": 1.0}}
+                output.write_text(json.dumps(value)); return value
+            def train_jepa(self, _data, checkpoint, output, *_):
+                checkpoint.write_text("jepa"); value = {"status": "ok"}; output.write_text(json.dumps(value)); return value
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"; root.mkdir()
+            runtime = RepositoryRuntime(root, root / "v679.py", root / "v680", None, None, root / "results" / "v681")
+            result = V681Coordinator(runtime=runtime, output_dir=Path(directory) / "v681", engine=FakeEngine(),
+                chat_runtime=FakeChat(), policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1, epochs=1)).run(once=True)
+            self.assertEqual(result["status"], "once")
+            self.assertEqual(result["chat_episodes"], 1)
+            self.assertEqual(result["worker_events"], 1)
+            self.assertTrue(result["models_created"])
+            self.assertEqual(result["evaluations"][0]["promotion"]["promoted"], False)
+
+    def test_failed_one_command_learning_preserves_captured_experience(self):
+        class FakeChat:
+            def available(self): return True, ""
+            def start(self): pass
+            def running(self): return False
+            def stop(self): pass
+            def poll(self):
+                return {"chat": [{"source_path": "fake-chat", "line": 1, "value": {
+                    "timestamp": 2, "route": {"success": False}, "candidate_evidence": [],
+                    "semantic_decision": {}}}], "worker": []}
+        class FailingEngine:
+            def generate_teacher_records(self, *_): raise RuntimeError("simulated learner failure")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"; root.mkdir()
+            runtime = RepositoryRuntime(root, root / "v679.py", root / "v680", None, None, root / "results" / "v681")
+            result = V681Coordinator(runtime=runtime, output_dir=Path(directory) / "v681", engine=FailingEngine(),
+                chat_runtime=FakeChat(), policy=RuntimePolicy(min_sequential_episodes=1)).run(once=True)
+            self.assertEqual(result["experience_after"]["chat_records"], 1)
+            self.assertEqual(result["models_created"], [])
+            self.assertEqual(result["failures"][0]["stage"], "bootstrap")
+
+
+def _step(split):
+    state = {"goal_relation": "is_a", "goal_terms": ["goal"], "current_focus": "a", "current_node": "a",
+             "relation_features": {}, "candidate_features": [{"relation": "is_a", "target": "b"}],
+             "relation_activation": {}, "candidate_activation": {}, "visited_nodes": [], "visited_relations": [],
+             "attention_history": [], "step": 0, "remaining_budget": 2}
+    return {"episode_id": "episode", "split": split, "state": state, "candidates": [
+        {"action": {"kind": "traverse", "candidate_id": 0}, "features": state["candidate_features"][0]}],
+        "teacher": {"logits": [1, 0, 0], "probabilities": [.6, .2, .2], "selected_action": 0, "outcome": "traverse"},
+        "action": {"kind": "traverse", "candidate_id": 0}, "next_state": {**state, "step": 1},
+        "reward": 1.0, "terminal_outcome": "success", "oracle": {"valid_proof_edge": True},
+        "teacher_version": "fake", "dataset_version": "fake"}
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 from .experience import Experience, ExperienceSource, chat_trace_experience, worker_batch_experience
@@ -15,35 +16,54 @@ def import_chat_traces(store, path, source=ExperienceSource.CHAT_DECISION_ONLY):
             continue
         try:
             raw = json.loads(line)
-            if not isinstance(raw, dict):
-                raise ValueError("record is not an object")
-            if raw.get("version", "").startswith("v681"):
-                item = Experience.from_dict(raw)
-                if item.sequence_capability != "sequential":
-                    raise ValueError("canonical chat record must declare sequence_capability=sequential")
-                item.source, item.split = ExperienceSource.CHAT_SEQUENTIAL, "live"
-            else:
-                _validate_v679_chat_trace(raw)
-                item = chat_trace_experience(raw, source=source)
-            store.append(item)
-            report["accepted"].append(_descriptor(item, line_number))
+            report["accepted"].append(import_chat_record(store, raw, str(Path(path).resolve()), line_number, source))
         except (json.JSONDecodeError, TypeError, ValueError) as error:
             report["rejected"].append({"line": line_number, "reason": str(error)})
     return report
+
+
+def import_chat_record(store, raw, source_path="runtime", line_number=0,
+                       source=ExperienceSource.CHAT_DECISION_ONLY):
+    """Append one V679 runtime trace with a stable source identity."""
+    if not isinstance(raw, dict):
+        raise ValueError("record is not an object")
+    if raw.get("version", "").startswith("v681"):
+        item = Experience.from_dict(raw)
+        if item.sequence_capability != "sequential":
+            raise ValueError("canonical chat record must declare sequence_capability=sequential")
+        item.source, item.split = ExperienceSource.CHAT_SEQUENTIAL, "live"
+    else:
+        _validate_v679_chat_trace(raw)
+        item = chat_trace_experience(raw, source=source)
+    item.experience_id = _source_id("chat", source_path, line_number, raw)
+    item.provenance = {**item.provenance, "source_path": source_path, "source_line": line_number}
+    store.append(item)
+    return _descriptor(item, line_number)
 
 
 def import_worker_logs(store, directory):
     """Append offline evidence events after worker completion, not action labels."""
     count = 0
     for path in sorted(Path(directory).glob("worker_*.jsonl")):
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             if not line.strip():
                 continue
             event = json.loads(line)
             if event.get("event") == "analysis_batch":
-                store.append(worker_batch_experience(event))
+                import_worker_event(store, event, str(path.resolve()), line_number)
                 count += 1
     return count
+
+
+def import_worker_event(store, event, source_path="runtime", line_number=0):
+    """Append one analysis event as knowledge-only experience."""
+    if not isinstance(event, dict) or event.get("event") != "analysis_batch":
+        raise ValueError("worker event must be an analysis_batch object")
+    item = worker_batch_experience(event)
+    item.experience_id = _source_id("worker", source_path, line_number, event)
+    item.provenance = {**item.provenance, "source_path": source_path, "source_line": line_number}
+    store.append(item)
+    return item.experience_id
 
 
 def _validate_v679_chat_trace(value):
@@ -51,6 +71,8 @@ def _validate_v679_chat_trace(value):
         raise ValueError("missing numeric timestamp")
     if not isinstance(value.get("route"), dict):
         raise ValueError("missing route object")
+    if value["route"].get("mode") == "conversation":
+        return
     if "candidate_evidence" not in value or not isinstance(value["candidate_evidence"], list):
         raise ValueError("missing candidate_evidence list")
     if "semantic_decision" not in value or not isinstance(value["semantic_decision"], dict):
@@ -63,3 +85,8 @@ def _descriptor(item, line_number):
             "quality": item.quality.value, "episode_id": item.episode_id,
             "graph_version": item.provenance.get("graph_version", "unknown"),
             "provenance": item.provenance}
+
+
+def _source_id(kind, source_path, line_number, payload):
+    value = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(f"{kind}:{source_path}:{line_number}:{value}".encode("utf-8")).hexdigest()[:32]
