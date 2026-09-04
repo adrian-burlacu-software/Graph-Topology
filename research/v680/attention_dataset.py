@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 from pathlib import Path
 
 from attention_env import AttentionEnv, benchmark_episodes, episodes_from_database
@@ -83,3 +84,16 @@ def dataset_stats(records):
         "unique_states": len({json.dumps(step["state"], sort_keys=True) for step in steps}),
         "teacher_labels": len(steps),
     }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate serialized frozen-V679 teacher trajectories.")
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--database", default="")
+    parser.add_argument("--temperature", type=float, default=2.0)
+    args = parser.parse_args()
+    write_jsonl(args.output, collect_teacher_episodes(temperature=args.temperature, database=args.database))
+
+
+if __name__ == "__main__":
+    main()

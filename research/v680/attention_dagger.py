@@ -29,7 +29,8 @@ def student_labeled_rollouts(model, episodes, round_number, seed):
                 spec["episode_id"], spec["split"], len(trajectory), state, teacher_label,
                 student["action"], next_state, reward, oracle["terminal_outcome"], oracle,
                 {"generator": "student_rollout_teacher_label", "round": round_number,
-                 "student_action": student["action"].as_dict()},
+                 "student_action": student["action"].as_dict(),
+                 "student_logits": student["logits"]},
             ))
             state, hidden = next_state, student["hidden"]
         records.append({"episode_id": f"{spec['episode_id']}_dagger_{round_number}",
@@ -45,7 +46,8 @@ def _round_metrics(new_records, checkpoint):
     agreement = sum(step["action"] == step["candidates"][step["teacher"]["selected_action"]]["action"]
                     for step in steps)
     top3 = sum(step["teacher"]["selected_action"] in sorted(
-        range(len(step["teacher"]["logits"])), key=lambda i: step["teacher"]["logits"][i], reverse=True)[:3]
+        range(len(step["provenance"]["student_logits"])),
+        key=lambda i: step["provenance"]["student_logits"][i], reverse=True)[:3]
                for step in steps)
     abstentions = [s for s in steps if s["action"]["kind"] == "abstain"]
     return {"student_checkpoint": str(checkpoint), "states_collected": len(steps),

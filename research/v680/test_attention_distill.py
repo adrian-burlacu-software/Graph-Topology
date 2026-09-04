@@ -3,6 +3,7 @@ import unittest
 
 from attention_dataset import collect_teacher_episodes
 from attention_types import AttentionObservation
+from attention_ablation import ablate
 
 
 class SchemaTests(unittest.TestCase):
@@ -11,6 +12,16 @@ class SchemaTests(unittest.TestCase):
         state["proof_target"] = "leak"
         with self.assertRaisesRegex(ValueError, "oracle fields"):
             AttentionObservation.from_dict(state)
+
+    def test_no_history_removes_all_history_derived_inputs(self):
+        records = ablate(collect_teacher_episodes(), "no_history")
+        for step in [s for episode in records for s in episode["trajectory"]]:
+            state = step["state"]
+            self.assertFalse(state["visited_nodes"]); self.assertFalse(state["visited_relations"])
+            self.assertFalse(state["attention_history"]); self.assertFalse(state["relation_activation"])
+            self.assertFalse(state["candidate_activation"])
+            self.assertTrue(all(not item["already_visited"] and not item["relation_activation"]
+                                and not item["candidate_activation"] for item in state["candidate_features"]))
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "requires torch")

@@ -29,6 +29,7 @@ class V679AttentionTeacher:
                 + .5 * candidate.target_term_match
                 + .25 * candidate.specificity
                 + .5 * candidate.lexical_score
+                + .5 * candidate.provenance
                 + candidate.relation_activation
                 + .25 * candidate.candidate_activation
                 - 2.0 * candidate.contradiction

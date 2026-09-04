@@ -11,11 +11,10 @@ CANDIDATE_DIM = 12
 
 
 def tensors_from_observation(state, recurrent=True):
-    if not state.candidate_features:
-        raise ValueError("attention observation must have at least one candidate")
     return (
         torch.tensor([state.state_vector(recurrent=recurrent)], dtype=torch.float32),
-        torch.tensor([candidate.vector() for candidate in state.candidate_features], dtype=torch.float32),
+        torch.tensor([candidate.vector() for candidate in state.candidate_features], dtype=torch.float32)
+        .reshape(len(state.candidate_features), CANDIDATE_DIM),
     )
 
 
@@ -33,8 +32,8 @@ class NeuralAttentionPolicy(nn.Module):
         self.value_head = nn.Linear(hidden_size, 1)
 
     def forward(self, state_vector, candidate_vectors, hidden=None, action_mask=None):
-        if candidate_vectors.ndim != 2 or not candidate_vectors.shape[0]:
-            raise ValueError("candidate vectors must be nonempty [candidate, feature]")
+        if candidate_vectors.ndim != 2:
+            raise ValueError("candidate vectors must be [candidate, feature]")
         state_embedding = self.state_encoder(state_vector)
         if self.use_recurrent:
             prior = hidden if hidden is not None else torch.zeros_like(state_embedding)

@@ -21,10 +21,11 @@ a softened distribution over every available action. The recurrent PyTorch
 student uses state and candidate feature encoders, a GRU state layer, a
 candidate-logit head, and a value head.
 
-Distillation uses configurable KL, pairwise rank, hard-label, and
-invalid-action-masking losses. DAgger records learner-induced states and asks
-the frozen teacher to label each state. PPO starts from the distilled
-checkpoint and has teacher KL regularization.
+Distillation uses configurable soft-teacher KL, pairwise rank, hard-label, and
+bounded-action masking losses. DAgger retrains after each aggregate round and
+records learner-induced states labeled by the frozen teacher. PPO collects
+stochastic rollouts before clipped minibatch updates with GAE, value loss,
+entropy, and teacher-KL regularization.
 
 The experiment artifacts are `teacher_trajectories.jsonl`,
 `distillation_dataset.jsonl`, `dagger_dataset.jsonl`, `student_checkpoint.pt`,
@@ -39,36 +40,41 @@ traps. Its correct terminal action is `ABSTAIN`.
 
 ## Runlines
 
-Generate teacher trajectories, the distillation dataset, and a student
-checkpoint:
+Generate frozen-teacher trajectories:
 
 ```powershell
-python .\research\v680\attention_distill.py --dataset ".\results\v680\distillation_dataset.jsonl" --teacher-output ".\results\v680\teacher_trajectories.jsonl" --trace-output ".\results\v680\attention_traces.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --epochs 120
+python .\research\v680\attention_dataset.py --output ".\results\v680\distillation_dataset.jsonl"
 ```
 
 Add `--database ".\data\v679_focused_semantic.sqlite"` to derive ordinary
 direct-proof episodes from the frozen semantic graph; the adversarial no-proof
 episode is retained in that dataset.
 
-Evaluate the student, reporting ordinary and adversarial results separately:
+Train the distilled student:
 
 ```powershell
 python .\research\v680\attention_evaluate.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\evaluation.json"
 ```
 
-Collect DAgger trajectories:
+Evaluate the student, reporting ordinary, adversarial, and held-out structural results separately:
 
 ```powershell
-python .\research\v680\attention_dagger.py --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\dagger_dataset.jsonl" --rounds 4
+python .\research\v680\attention_distill.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --epochs 8 --seed 7
 ```
 
-Run teacher-regularized PPO initialized from the distilled student:
+Run iterative DAgger:
 
 ```powershell
-python .\research\v680\attention_ppo.py --student-checkpoint ".\results\v680\student_checkpoint.pt" --checkpoint ".\results\v680\ppo_checkpoint.pt" --episodes 20 --teacher-kl-beta 0.5
+python .\research\v680\attention_dagger.py --dataset ".\results\v680\distillation_dataset.jsonl" --rounds 2 --epochs 8 --seed 7 --checkpoint-dir ".\results\v680\dagger"
 ```
 
-Run state ablations:
+Run PPO:
+
+```powershell
+python .\research\v680\attention_ppo.py --student-checkpoint ".\results\v680\student_checkpoint.pt" --checkpoint ".\results\v680\ppo_checkpoint.pt" --episodes 8 --seed 7 --ppo-epochs 4 --teacher-kl-coef 0.05
+```
+
+Run leak-free observation ablations:
 
 ```powershell
 python .\research\v680\attention_ablation.py --dataset ".\results\v680\distillation_dataset.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\ablation.json"

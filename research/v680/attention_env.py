@@ -48,6 +48,38 @@ def benchmark_episodes():
             "proof_edges": [["en:car", "en:wheel"]],
         },
         {
+            "episode_id": "train_authority_over_worker", "split": "ordinary", "goal": "has_part",
+            "terms": ["tail"], "start": "en:fox", "proof_target": "en:tail",
+            "nodes": {
+                "en:fox": [
+                    candidate("related_to", "en:tail", specificity=.15, lexical_score=1, provenance=.1),
+                    candidate("has_part", "en:tail", goal_relation_match=1, target_term_match=1,
+                              specificity=1, lexical_score=.3, provenance=1),
+                    candidate("has_part", "en:brush", goal_relation_match=1, specificity=1, provenance=1),
+                ],
+                "en:tail": [candidate("has_part", "en:tail", goal_relation_match=1,
+                                       target_term_match=1, specificity=1, provenance=1, verified=1)],
+                "en:brush": [candidate("related_to", "en:fox", specificity=.15)],
+            },
+            "proof_edges": [["en:fox", "en:tail"]],
+        },
+        {
+            "episode_id": "train_direct_over_indirect", "split": "ordinary", "goal": "has_part",
+            "terms": ["wheel"], "start": "en:scooter", "proof_target": "en:wheel",
+            "nodes": {
+                "en:scooter": [
+                    candidate("related_to", "en:vehicle", specificity=.15, lexical_score=.9),
+                    candidate("has_part", "en:wheel", goal_relation_match=1, target_term_match=1,
+                              specificity=1, lexical_score=.4, provenance=1),
+                ],
+                "en:vehicle": [candidate("has_part", "en:wheel", goal_relation_match=1,
+                                          target_term_match=1, specificity=1, provenance=.5)],
+                "en:wheel": [candidate("has_part", "en:wheel", goal_relation_match=1,
+                                        target_term_match=1, specificity=1, provenance=1, verified=1)],
+            },
+            "proof_edges": [["en:scooter", "en:wheel"]],
+        },
+        {
             "episode_id": "held_out_wolf_tail", "split": "held_out_structural",
             "goal": "has_part", "terms": ["tail"], "start": "en:wolf", "proof_target": "en:tail",
             "nodes": {
@@ -164,6 +196,7 @@ class AttentionEnv:
 
     def reset(self):
         self.done = False
+        self.valid_proof_seen = False
         self.state = self._observation(self.spec["start"], 0, self.budget, [], [], [], {}, {})
         return self.state
 
@@ -193,14 +226,14 @@ class AttentionEnv:
                                            visited_nodes, visited_relations, history,
                                            relation_activation, candidate_activation)
             valid_edge = [state.current_node, node] in self.spec["proof_edges"]
+            self.valid_proof_seen = self.valid_proof_seen or valid_edge
             if state.remaining_budget <= 1:
                 outcome = "budget_exhausted"
             else:
                 outcome = "continue"
         elif action.kind is AttentionActionKind.STOP:
             valid_edge = False
-            outcome = ("verified" if any(item.verified for item in self.spec["nodes"].get(state.current_node, []))
-                       else "unsupported_stop")
+            outcome = "verified" if self.valid_proof_seen else "unsupported_stop"
         else:
             valid_edge = False
             outcome = "no_verified_evidence" if self.spec["proof_target"] is None else "false_abstain"

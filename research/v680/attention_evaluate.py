@@ -37,6 +37,10 @@ def _correlations(left, right):
     return spearman, (concordant - discordant) / denominator if denominator else 0.0
 
 
+def _decision_name(index, candidate_count):
+    return "traverse" if index < candidate_count else ("stop" if index == candidate_count else "abstain")
+
+
 def evaluate(records, model, recurrent=True):
     totals = {}
     for episode in records:
@@ -44,7 +48,7 @@ def evaluate(records, model, recurrent=True):
             "top1_attention_accuracy": 0, "top3_attention_recall": 0,
             "spearman_rank_correlation": 0, "kendall_tau": 0, "mean_rank_position_error": 0,
             "KL_divergence": 0, "abstention_accuracy": 0, "abstention_count": 0,
-            "false_positive_attention_rate": 0, "mean_attention_steps": 0,
+            "false_positive_attention_rate": 0, "mean_attention_steps": 0, "episode_count": 0,
             "teacher_final_decision": [], "student_final_decision": [], "agreement": 0})
         final_student = final_teacher = None
         hidden = None
@@ -70,8 +74,10 @@ def evaluate(records, model, recurrent=True):
             if target == len(state.candidate_features) + 1:
                 metrics["abstention_count"] += 1; metrics["abstention_accuracy"] += predicted == target
                 metrics["false_positive_attention_rate"] += predicted != target
-            final_student, final_teacher = predicted, target
+            final_student = _decision_name(predicted, len(state.candidate_features))
+            final_teacher = _decision_name(target, len(state.candidate_features))
         metrics["mean_attention_steps"] += len(episode["trajectory"])
+        metrics["episode_count"] += 1
         metrics["teacher_final_decision"].append(final_teacher)
         metrics["student_final_decision"].append(final_student)
         metrics["agreement"] += final_student == final_teacher
@@ -79,8 +85,9 @@ def evaluate(records, model, recurrent=True):
         count = max(1, metrics["count"])
         for key in ("teacher_action_accuracy", "top1_attention_accuracy", "top3_attention_recall",
                     "spearman_rank_correlation", "kendall_tau", "mean_rank_position_error",
-                    "KL_divergence", "false_positive_attention_rate", "mean_attention_steps"):
+                    "KL_divergence", "false_positive_attention_rate"):
             metrics[key] /= count
+        metrics["mean_attention_steps"] /= metrics.pop("episode_count")
         metrics["abstention_accuracy"] /= max(1, metrics.pop("abstention_count"))
         metrics["agreement"] /= max(1, len(metrics["teacher_final_decision"]))
     return totals

@@ -75,15 +75,21 @@ def ppo_update(model, optimizer, transitions, ppo_epochs=4, minibatch_size=16, c
     return {"loss": total_loss / max(1, ppo_epochs)}
 
 
-def run_ppo(episodes=None, episode_count=8, seed=0, checkpoint=None, **hyperparameters):
+def run_ppo(episodes=None, episode_count=8, seed=0, checkpoint=None, resume=None,
+            initial_checkpoint=None, **hyperparameters):
     torch.manual_seed(seed); random.seed(seed)
     model = NeuralAttentionPolicy(); optimizer = torch.optim.Adam(model.parameters(), lr=hyperparameters.pop("learning_rate", 3e-4))
+    prior_step = prior_episode = 0
+    if resume or initial_checkpoint:
+        payload = torch.load(resume or initial_checkpoint, map_location="cpu", weights_only=True)
+        model.load_state_dict(payload["model"]); optimizer.load_state_dict(payload["optimizer"])
+        prior_step, prior_episode = payload.get("step", 0), payload.get("episode", 0)
     trajectories = collect_rollouts(model, episodes or benchmark_episodes(), episode_count, seed)
     metrics = ppo_update(model, optimizer, trajectories, **hyperparameters)
     if checkpoint:
         Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
         torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
-                    "step": len(trajectories), "episode": episode_count, "seed": seed,
+                    "step": prior_step + len(trajectories), "episode": prior_episode + episode_count, "seed": seed,
                     "hyperparameters": hyperparameters}, checkpoint)
     return model, trajectories, metrics
 
@@ -92,9 +98,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--episodes", type=int, default=8); parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--checkpoint", required=True); parser.add_argument("--ppo-epochs", type=int, default=4)
+    parser.add_argument("--resume"); parser.add_argument("--student-checkpoint")
     parser.add_argument("--teacher-kl-coef", type=float, default=.05); parser.add_argument("--entropy-coef", type=float, default=.01)
     args = parser.parse_args()
-    _, transitions, metrics = run_ppo(episode_count=args.episodes, seed=args.seed, checkpoint=args.checkpoint,
+    _, transitions, metrics = run_ppo(episode_count=args.episodes, seed=args.seed, checkpoint=args.checkpoint, resume=args.resume,
+                                      initial_checkpoint=args.student_checkpoint,
                                       ppo_epochs=args.ppo_epochs, teacher_kl_coef=args.teacher_kl_coef,
                                       entropy_coef=args.entropy_coef)
     print({"transitions": len(transitions), **metrics})

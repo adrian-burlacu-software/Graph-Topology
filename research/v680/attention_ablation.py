@@ -16,12 +16,19 @@ def ablate(records, kind):
             state = step["state"]
             if kind == "no_relation_activation":
                 state["relation_activation"] = {}
+                for candidate in state["candidate_features"]:
+                    candidate["relation_activation"] = 0.0
             elif kind == "no_candidate_activation":
                 state["candidate_activation"] = {}
+                for candidate in state["candidate_features"]:
+                    candidate["candidate_activation"] = 0.0
             elif kind == "no_history":
                 state["visited_nodes"] = []; state["visited_relations"] = []; state["attention_history"] = []
+                state["relation_activation"] = {}; state["candidate_activation"] = {}
                 for candidate in state["candidate_features"]:
                     candidate["already_visited"] = 0.0
+                    candidate["relation_activation"] = 0.0
+                    candidate["candidate_activation"] = 0.0
             elif kind == "no_recurrent_state":
                 state["attention_history"] = []
             elif kind != "full":

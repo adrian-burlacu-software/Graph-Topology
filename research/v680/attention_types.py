@@ -46,6 +46,9 @@ class CandidateFeatures:
         missing = {"relation", "target"} - value.keys()
         if missing:
             raise ValueError(f"candidate features missing {sorted(missing)}")
+        leaked = {"proof_target", "oracle", "valid_proof", "terminal_answer"} & value.keys()
+        if leaked:
+            raise ValueError(f"oracle fields must not appear in candidate features: {sorted(leaked)}")
         return cls(**{key: value[key] for key in cls.__dataclass_fields__ if key in value})
 
 
@@ -124,7 +127,7 @@ class AttentionObservation:
 
 def validate_step_record(record):
     required = {"episode_id", "split", "step", "state", "candidates", "teacher",
-                "action", "next_state", "reward", "terminal_outcome", "oracle"}
+                "action", "next_state", "reward", "terminal_outcome", "oracle", "provenance"}
     missing = required - record.keys()
     if missing:
         raise ValueError(f"trajectory record missing {sorted(missing)}")
@@ -134,7 +137,8 @@ def validate_step_record(record):
     action_count = len(state.candidate_features) + 2
     if len(teacher.get("logits", [])) != action_count or len(teacher.get("probabilities", [])) != action_count:
         raise ValueError("teacher logits and probabilities must match bounded action count")
-    if action.index(len(state.candidate_features)) != teacher.get("selected_action"):
-        raise ValueError("serialized action and teacher selected_action disagree")
+    selected = teacher.get("selected_action")
+    if not isinstance(selected, int) or not 0 <= selected < action_count:
+        raise ValueError("teacher selected_action must be an available bounded action index")
     AttentionObservation.from_dict(record["next_state"])
     return record
