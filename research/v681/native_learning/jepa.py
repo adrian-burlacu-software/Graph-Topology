@@ -13,10 +13,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .dataset import read_jsonl
-from .distill import training_records
+from .dataset import read_jepa_jsonl
 from .student import CANDIDATE_DIM, STATE_DIM
-from .types import AttentionAction, AttentionObservation, audit_model_input, validate_step_record
+from .types import AttentionAction, AttentionObservation, audit_model_input, validate_jepa_transition_record
 
 
 OBSERVATION_DIM = STATE_DIM + CANDIDATE_DIM
@@ -150,25 +149,24 @@ def representation_statistics(records, model):
 
 def transition_records(records):
     output = []
-    for episode in records:
-        for step in episode["trajectory"]:
-            step = validate_step_record(step)
-            state = AttentionObservation.from_dict(step["state"])
-            action = AttentionAction.from_dict(step["action"], len(state.candidate_features))
-            output.append((state, action.index(len(state.candidate_features)),
-                           AttentionObservation.from_dict(step["next_state"]), step))
+    for record in records:
+        record = validate_jepa_transition_record(record)
+        state = AttentionObservation.from_dict(record["state"])
+        action = AttentionAction.from_dict(record["action"], len(state.candidate_features))
+        output.append((state, action.index(len(state.candidate_features)),
+                       AttentionObservation.from_dict(record["next_state"]), record))
     if not output:
         raise ValueError("JEPA requires sequential transition records")
     return output
 
 
 def transition_category(state, action_index, record):
-    if record["oracle"].get("valid_proof_edge"):
-        return "useful"
-    if record["oracle"].get("already_visited"):
+    if action_index < len(state.candidate_features) and state.candidate_features[action_index].already_visited:
         return "invalid"
     if action_index < len(state.candidate_features):
         candidate = state.candidate_features[action_index]
+        if candidate.goal_relation_match and candidate.target_term_match:
+            return "useful"
         if candidate.lexical_score or candidate.relation == "related_to":
             return "misleading"
     return "irrelevant"
@@ -180,7 +178,7 @@ def train_jepa(records, epochs=8, learning_rate=1e-3, seed=0, model=None):
     optimizer = torch.optim.Adam(
         list(model.context_encoder.parameters()) + list(model.action_encoder.parameters())
         + list(model.predictor.parameters()), lr=learning_rate)
-    transitions = transition_records(training_records(records))
+    transitions = transition_records(records)
     for _ in range(int(epochs)):
         order = torch.randperm(len(transitions)).tolist()
         for index in order:
@@ -248,7 +246,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0); parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--representation-dim", type=int, default=24); parser.add_argument("--target-momentum", type=float, default=.99)
     args = parser.parse_args()
-    records = read_jsonl(args.dataset)
+    records = read_jepa_jsonl(args.dataset)
     model, optimizer = train_jepa(records, args.epochs, args.learning_rate, args.seed,
                                   AttentionJEPA(args.representation_dim, target_momentum=args.target_momentum))
     result = evaluate_jepa(records, model)

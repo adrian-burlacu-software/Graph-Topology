@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import Counter
 
 from .experience import Experience, ExperienceQuality, ExperienceSource
+from .native_learning.types import validate_jepa_transition_record
 
 
 class AttentionTrajectoryAdapter:
@@ -49,9 +50,27 @@ class AttentionTrajectoryAdapter:
 
 
 class SequentialTransitionAdapter:
-    """JEPA consumes only model-view transitions; teacher/outcome are excluded."""
+    """JEPA consumes one observable state/action/next-state transition per step."""
     def extract(self, experiences, sources=None, allowed_splits=("train",)):
-        return AttentionTrajectoryAdapter().extract(experiences, sources, allowed_splits)
+        transitions, rejected = [], Counter()
+        selected = set(sources) if sources else None
+        for item in experiences:
+            if selected and item.source not in selected: rejected["source"] += 1; continue
+            if item.split not in allowed_splits: rejected["split"] += 1; continue
+            if item.sequence_capability != "sequential": rejected[item.sequence_capability] += 1; continue
+            view = item.model_view
+            try:
+                transitions.append(validate_jepa_transition_record({
+                    "episode_id": item.episode_id,
+                    "step": view["state"]["step"],
+                    "state": view["state"],
+                    "action": view["selected_action"],
+                    "next_state": view["next_state"],
+                    "provenance": dict(item.provenance),
+                }))
+            except (KeyError, TypeError, ValueError):
+                rejected["invalid_transition"] += 1
+        return transitions, dict(rejected)
 
 
 class OutcomeTransitionAdapter:

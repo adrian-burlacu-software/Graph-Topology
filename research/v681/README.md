@@ -1,4 +1,4 @@
-# V681.5 self-contained learning runtime
+# V681.7 self-contained learning runtime
 
 ## Normal operation
 
@@ -39,6 +39,28 @@ conservative gate; otherwise the current model remains active. Live model
 scoring uses only observable state/candidate features and retains
 verified-evidence abstention safety.
 
+Attention imitation accepts only sequential `DAGGER`, `SYNTHETIC_CHAT`, and
+`CHAT_SEQUENTIAL` records. Offline worker telemetry, held-out evaluation, and
+decision-only chat traces cannot become attention labels. JEPA receives a
+separate observable transition dataset of `state`, `action`, and `next_state`
+records; it remains auxiliary and is not routed directly into live attention
+logits.
+
+The runtime reports native chat capabilities at startup. It currently emits
+attention and decision-only traces, but does not emit `CHAT_SEQUENTIAL`
+transitions: the live graph controller exposes ranked traversal targets and a
+final arbitration result, not one bounded policy state/action/next-state tuple
+per traversal. The limitation is recorded as
+`sequential_attention_capture: unavailable`; no trajectory is reconstructed
+from final chat text.
+
+If candidate learning fails for a dataset/configuration version, V681 records
+the learner, version, failure, and timestamp, then suppresses repeated
+attempts for that running session. A new eligible record, configuration change,
+restart, or `--retry-failed-learning` permits another attempt. Runtime reports
+separately list bootstrap, candidate training, JEPA, worker telemetry, model
+creation/evaluation/promotion, and failures.
+
 ## Promotion safety gate
 
 Promotion evaluates the candidate on the held-out structural and adversarial
@@ -66,6 +88,9 @@ python -m unittest discover -s research\v681 -p "test_*.py"
 
 # Native bounded runtime smoke test.
 python -m research.v681.run_v681 --smoke
+
+# Retry a failed learner for the current dataset/configuration version.
+python -m research.v681.run_v681 --once --retry-failed-learning
 ```
 
 The remaining options are diagnostics only, not the normal workflow.

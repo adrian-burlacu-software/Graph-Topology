@@ -8,7 +8,8 @@ from pathlib import Path
 
 from .environment import AttentionEnv, benchmark_episodes, episodes_from_database
 from .teacher import V679AttentionTeacher
-from .types import DATASET_VERSION, JEPA_VERSION, STUDENT_VERSION, TEACHER_VERSION, validate_step_record
+from .types import (DATASET_VERSION, JEPA_VERSION, STUDENT_VERSION, TEACHER_VERSION,
+                    validate_jepa_transition_record, validate_step_record)
 
 
 def action_candidates(state):
@@ -36,6 +37,13 @@ def step_record(episode_id, split, step, state, teacher, action, next_state, rew
         "student_version": STUDENT_VERSION, "jepa_version": JEPA_VERSION,
     }
     return validate_step_record(record)
+
+
+def jepa_transition_record(episode_id, step, state, action, next_state, provenance):
+    return validate_jepa_transition_record({
+        "episode_id": episode_id, "step": step, "state": state.as_dict(),
+        "action": action.as_dict(), "next_state": next_state.as_dict(), "provenance": dict(provenance),
+    })
 
 
 def collect_teacher_episodes(episodes=None, temperature=2.0, database=""):
@@ -71,28 +79,19 @@ def collect_teacher_episodes(episodes=None, temperature=2.0, database=""):
 
 def collect_jepa_transition_episodes(episodes=None):
     """Probe every bounded action once to train dynamics without policy labels leaking into it."""
-    teacher = V679AttentionTeacher()
     records = []
     for spec in episodes or benchmark_episodes():
         env = AttentionEnv(spec)
-        initial = env.reset()
+        env.reset()
         for action in env.available_actions():
             env.reset()
             state = env.state
-            decision = teacher.select_action(state, deterministic=True)
-            next_state, reward, _, oracle = env.step(action)
-            record = step_record(
+            next_state, _, _, _ = env.step(action)
+            records.append(jepa_transition_record(
                 f"{spec['episode_id']}_transition_{action.index(len(state.candidate_features))}",
-                spec["split"], 0, state, decision, action, next_state, reward,
-                oracle["terminal_outcome"], oracle,
+                0, state, action, next_state,
                 {"generator": "observable_transition_probe", "round": 0},
-                spec.get("partition", ""), spec.get("category", ""), spec.get("no_proof", False),
-            )
-            records.append({"episode_id": record["episode_id"], "split": spec["split"],
-                            "partition": spec.get("partition", ""), "category": spec.get("category", ""),
-                            "no_proof": spec.get("no_proof", False), "trajectory": [record],
-                            "terminal_outcome": record["terminal_outcome"],
-                            "provenance": {"generator": "observable_transition_probe", "round": 0}})
+            ))
     return records
 
 
@@ -112,6 +111,12 @@ def read_jsonl(path):
         for record in episode["trajectory"]:
             validate_step_record(record)
     return records
+
+
+def read_jepa_jsonl(path):
+    with Path(path).open(encoding="utf-8") as handle:
+        records = [json.loads(line) for line in handle if line.strip()]
+    return [validate_jepa_transition_record(record) for record in records]
 
 
 def dataset_stats(records):

@@ -8,9 +8,10 @@ HERE = Path(__file__).resolve().parent
 
 from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
 from research.v681.importers import import_chat_traces, import_worker_logs
-from research.v681.learners import JEPAAuxiliaryLearner, REGISTRY, capability_report
-from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
-from research.v681.coordinator import RuntimePolicy, V681Coordinator, _promotion
+from research.v681.learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
+from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter, SequentialTransitionAdapter
+from research.v681.coordinator import ATTENTION_TRAINING_SOURCES, RuntimePolicy, V681Coordinator, _promotion
+from research.v681.native_learning.dataset import collect_jepa_transition_episodes
 from research.v681.native_learning.engine import NativeLearningEngine
 from research.v681.native_runtime.chat import preflight_symbol_audit
 
@@ -99,8 +100,10 @@ class ExperienceTests(unittest.TestCase):
 
     def test_one_adapter_extracts_dagger_and_synthetic_chat(self):
         dagger, chat = sequential_experience(), sequential_experience(ExperienceSource.SYNTHETIC_CHAT)
-        episodes, rejected = AttentionTrajectoryAdapter().extract(
+        prepared = AttentionDistillationLearner().prepare(
             [dagger, chat], {ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT})
+        self.assertIsInstance(prepared, tuple)
+        episodes, rejected = prepared
         self.assertEqual(len(episodes), 1)
         self.assertFalse(rejected)
         transition = OutcomeTransitionAdapter().extract([dagger])
@@ -108,13 +111,107 @@ class ExperienceTests(unittest.TestCase):
         self.assertEqual(REGISTRY["attention_dagger"].training_mode, "bootstrap")
         self.assertEqual(REGISTRY["jepa_auxiliary"].training_mode, "predictive_auxiliary")
 
-    def test_jepa_preparation_returns_episodes_and_rejections(self):
+    def test_jepa_preparation_returns_transitions_and_rejections(self):
         first, second, third = sequential_experience(), sequential_experience(), sequential_experience()
         first.episode_id, second.episode_id, third.episode_id = "first", "second", "third"
-        episodes, rejected = JEPAAuxiliaryLearner().prepare(
-            [first, second, third], {ExperienceSource.DAGGER})
-        self.assertEqual(len(episodes), 3)
+        prepared = JEPAAuxiliaryLearner().prepare([first, second, third], {ExperienceSource.DAGGER})
+        self.assertIsInstance(prepared, tuple)
+        transitions, rejected = prepared
+        self.assertEqual(len(transitions), 3)
         self.assertEqual(rejected, {})
+        self.assertEqual(set(transitions[0]), {"episode_id", "step", "state", "action", "next_state", "provenance"})
+
+    def test_jepa_probe_records_are_observable_transitions_only(self):
+        records = collect_jepa_transition_episodes()[:3]
+        self.assertTrue(records)
+        self.assertTrue(all(set(record) == {"episode_id", "step", "state", "action", "next_state", "provenance"}
+                            for record in records))
+
+    def test_attention_and_jepa_adapters_have_intentionally_different_records(self):
+        steps = [_sequential_step("three-step", index) for index in range(3)]
+        episodes, _ = AttentionTrajectoryAdapter().extract(steps, {ExperienceSource.DAGGER})
+        transitions, _ = SequentialTransitionAdapter().extract(steps, {ExperienceSource.DAGGER})
+        self.assertEqual(len(episodes), 1)
+        self.assertEqual(len(episodes[0]["trajectory"]), 3)
+        self.assertTrue(all("teacher" in step for step in episodes[0]["trajectory"]))
+        self.assertEqual([(record["state"]["step"], record["action"], record["next_state"]["step"])
+                          for record in transitions],
+                         [(0, {"kind": "traverse", "candidate_id": 0}, 1),
+                          (1, {"kind": "traverse", "candidate_id": 0}, 2),
+                          (2, {"kind": "traverse", "candidate_id": 0}, 3)])
+        self.assertTrue(all(not {"teacher", "oracle", "reward", "terminal_outcome"} & record.keys()
+                            for record in transitions))
+
+    def test_attention_training_sources_exclude_evaluation_workers_and_decision_only_chat(self):
+        train = sequential_experience(ExperienceSource.DAGGER)
+        synthetic = sequential_experience(ExperienceSource.SYNTHETIC_CHAT)
+        synthetic.episode_id = "synthetic"
+        worker = worker_batch_experience({"worker_id": 1, "batch": 1})
+        decision = chat_trace_experience({"timestamp": 1, "route": {}, "candidate_evidence": []})
+        evaluation = sequential_experience(ExperienceSource.ATTENTION_EVAL, split="heldout")
+        records, rejected = AttentionDistillationLearner().prepare(
+            [train, synthetic, worker, decision, evaluation], ATTENTION_TRAINING_SOURCES)
+        self.assertEqual({record["episode_id"] for record in records}, {"episode", "synthetic"})
+        self.assertEqual(rejected["source"], 3)
+        self.assertFalse(capability_report([worker], REGISTRY["attention_distillation"],
+                                           ATTENTION_TRAINING_SOURCES)["supported"])
+
+    def test_live_chat_sequential_materializes_once_and_survives_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, output = Path(directory) / "repository", Path(directory) / "v681"; root.mkdir()
+            coordinator = V681Coordinator(root=root, output_dir=output)
+            live = sequential_experience(ExperienceSource.CHAT_SEQUENTIAL, split="live")
+            coordinator.store.append(live)
+            coordinator._materialize_live_sequential(); coordinator._materialize_live_sequential()
+            items = coordinator.store.load()
+            materialized = [item for item in items if item.provenance.get("materialized_from") == live.experience_id]
+            self.assertEqual(len(materialized), 1)
+            self.assertEqual(live.split, "live")
+            self.assertEqual(materialized[0].split, "train")
+            coordinator.store.close()
+            restarted = V681Coordinator(root=root, output_dir=output)
+            restarted._materialize_live_sequential()
+            self.assertEqual(len([item for item in restarted.store.load()
+                                  if item.provenance.get("materialized_from") == live.experience_id]), 1)
+            restarted.store.close()
+
+    def test_failed_learning_is_suppressed_until_new_eligible_experience_arrives(self):
+        class FailingCandidateEngine:
+            def __init__(self): self.train_calls = 0
+            def generate_teacher_records(self, path, _):
+                path.write_text("\n".join(json.dumps(row) for row in [
+                    {"episode_id": "train", "trajectory": [_step("ordinary")]},
+                    {"episode_id": "heldout", "trajectory": [_step("held_out")]}]) + "\n")
+            def run_dagger(self, _, directory, *__):
+                directory.mkdir(parents=True, exist_ok=True); path = directory / "dagger.jsonl"
+                path.write_text(json.dumps({"episode_id": "dagger", "trajectory": [_step("ordinary")]}) + "\n"); return path
+            def train_attention(self, *_):
+                self.train_calls += 1
+                raise RuntimeError("deterministic candidate failure")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root, output = Path(directory) / "repository", Path(directory) / "v681"; root.mkdir()
+            engine = FailingCandidateEngine()
+            coordinator = V681Coordinator(root=root, output_dir=output, engine=engine,
+                                           policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1))
+            coordinator._learn_if_due("startup", bootstrap=True)
+            coordinator._learn_if_due("poll")
+            self.assertEqual(engine.train_calls, 1)
+            self.assertEqual(coordinator.cycles[-1]["status"], "suppressed")
+            coordinator.store.append(sequential_experience(ExperienceSource.CHAT_SEQUENTIAL))
+            coordinator._learn_if_due("new_experience")
+            self.assertEqual(engine.train_calls, 2)
+            self.assertEqual(coordinator.cycles[-1]["status"], "failed")
+            coordinator.store.close()
+
+    def test_runtime_reports_chat_capabilities(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"; root.mkdir()
+            result = V681Coordinator(root=root, output_dir=Path(directory) / "v681").run(dry_run=True)
+            capabilities = result["chat"]["capabilities"]
+            self.assertTrue(capabilities["attention_trace"]["available"])
+            self.assertTrue(capabilities["decision_only"]["available"])
+            self.assertFalse(capabilities["sequential_attention_capture"]["available"])
 
     def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -240,7 +337,7 @@ class ExperienceTests(unittest.TestCase):
             def stop(self): pass
             def poll(self): return {"chat": [], "worker": []}
         class CountingEngine:
-            def __init__(self): self.generated = 0
+            def __init__(self): self.generated = self.trained = 0
             def generate_teacher_records(self, path, _):
                 self.generated += 1
                 path.write_text("\n".join(json.dumps(row) for row in [
@@ -249,7 +346,8 @@ class ExperienceTests(unittest.TestCase):
             def run_dagger(self, _, directory, *__):
                 directory.mkdir(parents=True, exist_ok=True); path = directory / "dagger_aggregate_round_0.jsonl"
                 path.write_text(json.dumps({"episode_id": "dagger", "trajectory": [_step("ordinary")]}) + "\n"); return path
-            def train_attention(self, _, checkpoint, *__): checkpoint.write_text("candidate")
+            def train_attention(self, _, checkpoint, *__):
+                self.trained += 1; checkpoint.write_text("candidate")
             def evaluate_attention(self, _, __, output):
                 value = _promotion_metrics(); output.write_text(json.dumps(value)); return value
             def train_jepa(self, _, checkpoint, output, *__):
@@ -264,7 +362,15 @@ class ExperienceTests(unittest.TestCase):
                                      policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1)).run(once=True)
             self.assertEqual(first.generated, 1)
             self.assertEqual(second.generated, 0)
+            self.assertEqual(first.trained, 1)
+            self.assertEqual(second.trained, 0)
             self.assertTrue(any(cycle["status"] == "no_op" for cycle in result["training_cycles"]))
+            store = ExperienceStore(output / "experience" / "experience.sqlite")
+            store.append(sequential_experience(ExperienceSource.CHAT_SEQUENTIAL, split="live")); store.close()
+            third = CountingEngine()
+            V681Coordinator(root=root, output_dir=output, engine=third, chat_runtime=EmptyChat(),
+                            policy=RuntimePolicy(min_sequential_episodes=1, bootstrap_samples=1)).run(once=True)
+            self.assertEqual(third.trained, 1)
 
 
 def _step(split):
@@ -278,6 +384,15 @@ def _step(split):
         "action": {"kind": "traverse", "candidate_id": 0}, "next_state": {**state, "step": 1},
         "reward": 1.0, "terminal_outcome": "success", "oracle": {"valid_proof_edge": True},
         "teacher_version": "fake", "dataset_version": "fake"}
+
+
+def _sequential_step(episode_id, index):
+    item = sequential_experience()
+    item.episode_id = episode_id
+    item.model_view["state"] = {**item.model_view["state"], "step": index, "current_node": f"n{index}"}
+    item.model_view["next_state"] = {**item.model_view["next_state"], "step": index + 1,
+                                     "current_node": f"n{index + 1}"}
+    return item
 
 
 def _promotion_metrics(**overrides):

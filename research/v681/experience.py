@@ -96,6 +96,11 @@ class ExperienceStore:
                learner TEXT PRIMARY KEY, last_experience_id TEXT NOT NULL,
                dataset_path TEXT NOT NULL, artifact_path TEXT NOT NULL, updated_at REAL NOT NULL)"""
         )
+        self.connection.execute(
+            """CREATE TABLE IF NOT EXISTS learning_failure_v681 (
+               learner TEXT NOT NULL, dataset_version TEXT NOT NULL, failure TEXT NOT NULL,
+               timestamp REAL NOT NULL, PRIMARY KEY(learner,dataset_version))"""
+        )
         self.connection.commit()
 
     def close(self): self.connection.close()
@@ -160,6 +165,18 @@ class ExperienceStore:
                ON CONFLICT(learner) DO UPDATE SET last_experience_id=excluded.last_experience_id,
                  dataset_path=excluded.dataset_path,artifact_path=excluded.artifact_path,updated_at=excluded.updated_at""",
             (learner, experience_id, dataset_path, artifact_path, time.time()))
+        self.connection.commit()
+
+    def learning_failure(self, learner, dataset_version):
+        row = self.connection.execute(
+            "SELECT failure,timestamp FROM learning_failure_v681 WHERE learner=? AND dataset_version=?",
+            (learner, dataset_version)).fetchone()
+        return dict(zip(("failure", "timestamp"), row)) if row else None
+
+    def record_learning_failure(self, learner, dataset_version, failure):
+        self.connection.execute(
+            """INSERT OR REPLACE INTO learning_failure_v681 VALUES(?,?,?,?)""",
+            (learner, dataset_version, str(failure), time.time()))
         self.connection.commit()
 
 

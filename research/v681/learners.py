@@ -1,4 +1,4 @@
-"""V681 learner registry and orchestration over the one explicit V680 adapter."""
+"""V681 learner contracts: prepare returns (records, rejected), train returns an artifact, evaluate returns metrics."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,6 +45,7 @@ def capability_report(experiences, descriptor, sources):
 class AttentionDistillationLearner:
     descriptor = REGISTRY["attention_distillation"]
     def prepare(self, experiences, sources, **filters):
+        """Return attention episodes and their rejection report."""
         return AttentionTrajectoryAdapter().extract(experiences, sources=sources, **filters)
     def train(self, adapter, records_path, checkpoint_path, epochs, seed):
         return adapter.train_attention(records_path, checkpoint_path, epochs, seed)
@@ -55,6 +56,7 @@ class AttentionDistillationLearner:
 class JEPAAuxiliaryLearner:
     descriptor = REGISTRY["jepa_auxiliary"]
     def prepare(self, experiences, sources, **filters):
+        """Return observable JEPA transitions and their rejection report."""
         return SequentialTransitionAdapter().extract(experiences, sources=sources, **filters)
     def train(self, adapter, records_path, checkpoint_path, output_path, epochs, seed):
         return adapter.train_jepa(records_path, checkpoint_path, output_path, epochs, seed)

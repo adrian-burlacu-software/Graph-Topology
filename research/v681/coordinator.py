@@ -3,21 +3,25 @@ from __future__ import annotations
 
 import json
 import math
+import hashlib
 import os
 import shutil
 import sqlite3
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .experience import ExperienceSource, ExperienceStore, attention_step_experience
 from .importers import import_chat_record, import_worker_event
 from .learners import AttentionDistillationLearner, JEPAAuxiliaryLearner
 from .native_learning.engine import NativeLearningEngine
-from .native_runtime.runtime import NativeRuntime
+from .native_runtime.runtime import CHAT_CAPABILITIES, NativeRuntime
 
-V681_VERSION = "v681.5-native-closed-loop-1"
+V681_VERSION = "v681.7-sequential-learning-1"
+ATTENTION_TRAINING_SOURCES = {
+    ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT, ExperienceSource.CHAT_SEQUENTIAL,
+}
 
 
 @dataclass
@@ -28,6 +32,7 @@ class RuntimePolicy:
     epochs: int = 8
     seed: int = 6815
     poll_seconds: float = 1.0
+    retry_failed_learning: bool = False
     minimum_overall_action_accuracy: float = .75
     minimum_abstain_accuracy: float = .80
     maximum_false_positive_traverse: float = .10
@@ -48,6 +53,7 @@ class V681Coordinator:
         self.output.mkdir(parents=True, exist_ok=True); self.session_dir.mkdir(parents=True, exist_ok=True)
         self.store = ExperienceStore(self.output / "experience" / "experience.sqlite")
         self.cycles, self.failures, self.chat_records, self.worker_events = [], [], 0, 0
+        self._failed_datasets = set()
 
     def run(self, once=False, dry_run=False, smoke=False):
         started, before, discovery = time.time(), self._inspection(), self._discover()
@@ -86,6 +92,7 @@ class V681Coordinator:
             "local_llm": {"available": model.is_dir(), "path": str(model) if model.is_dir() else ""},
             "chat_runtime": {"available": ready, "reason": "" if ready else
                              f"native chat needs a focused graph in {self.root / 'data'} and model at {model}"},
+            "chat_capabilities": {name: dict(value) for name, value in CHAT_CAPABILITIES.items()},
             "native_learning": {"available": True, "source_learning_version": "v680.1"},
         }
 
@@ -118,7 +125,15 @@ class V681Coordinator:
         if self._inspection()["train_sequential_episodes"] < self.policy.min_sequential_episodes and bootstrap:
             self._bootstrap(trigger)
         if self._inspection()["train_sequential_episodes"] >= self.policy.min_sequential_episodes:
-            self._train_candidate(trigger)
+            dataset_version = self._attention_dataset_version()
+            failure_key = ("attention", dataset_version)
+            previous = self.store.learning_failure(*failure_key)
+            if previous and failure_key in self._failed_datasets and not self.policy.retry_failed_learning:
+                self.cycles.append({"kind": "candidate_training", "trigger": trigger, "status": "suppressed",
+                                    "dataset_version": dataset_version, "reason": previous["failure"],
+                                    "failure_timestamp": previous["timestamp"]})
+                return
+            self._train_candidate(trigger, dataset_version)
 
     def _bootstrap(self, trigger):
         try:
@@ -132,14 +147,18 @@ class V681Coordinator:
             self.cycles.append({"kind": "bootstrap", "trigger": trigger, "status": "completed"})
         except Exception as error:
             self.failures.append({"stage": "bootstrap", "trigger": trigger, "reason": str(error)})
+            self.cycles.append({"kind": "bootstrap", "trigger": trigger, "status": "failed", "reason": str(error)})
 
-    def _train_candidate(self, trigger):
+    def _train_candidate(self, trigger, dataset_version):
+        candidate = None
         try:
             items, learner = self.store.load(), AttentionDistillationLearner()
-            sources = {ExperienceSource.DAGGER, ExperienceSource.SYNTHETIC_CHAT, ExperienceSource.CHAT_SEQUENTIAL}
+            sources = ATTENTION_TRAINING_SOURCES
             train, rejected = learner.prepare(items, sources)
             evaluation, rejected_eval = learner.prepare(items, {ExperienceSource.ATTENTION_EVAL}, allowed_splits=("heldout",))
             if not train or not evaluation:
+                self.cycles.append({"kind": "candidate_training", "trigger": trigger, "status": "skipped",
+                                    "dataset_version": dataset_version, "reason": "missing train or held-out records"})
                 return
             cycle = len(self.cycles) + 1
             dataset, heldout = self.session_dir / f"attention-{cycle}.jsonl", self.session_dir / f"heldout-{cycle}.jsonl"
@@ -168,16 +187,24 @@ class V681Coordinator:
                 if self.chat is not None and hasattr(self.chat, "set_attention_policy"):
                     self.chat.set_attention_policy(current)
             self.store.update_learning_cursor("attention", self.store.latest_experience_id(), str(dataset), str(provenance))
-            self.cycles.append({"kind": "candidate", "trigger": trigger, "status": "evaluated", **artifact})
+            self.cycles.append({"kind": "candidate_training", "trigger": trigger, "status": "evaluated",
+                                "dataset_version": dataset_version, **artifact})
         except Exception as error:
-            self.failures.append({"stage": "learning", "trigger": trigger, "reason": str(error)})
+            failure = {"learner": "attention", "dataset_version": dataset_version, "failure": str(error),
+                       "timestamp": time.time()}
+            self.store.record_learning_failure("attention", dataset_version, str(error))
+            self._failed_datasets.add(("attention", dataset_version))
+            self.failures.append({"stage": "learning", "trigger": trigger, "reason": str(error), **failure})
+            self.cycles.append({"kind": "candidate_training", "trigger": trigger, "status": "failed", **failure,
+                                "candidate": str(candidate) if candidate else ""})
 
     def _materialize_live_sequential(self):
         """Create immutable train views once for eligible live trajectories."""
         items = self.store.load()
         existing = {item.provenance.get("materialized_from") for item in items}
         for item in items:
-            if item.split != "live" or item.sequence_capability != "sequential" or item.experience_id in existing:
+            if (item.source is not ExperienceSource.CHAT_SEQUENTIAL or item.split != "live"
+                    or item.sequence_capability != "sequential" or item.experience_id in existing):
                 continue
             record = item.as_dict()
             record["experience_id"], record["split"], record["timestamp"] = uuid.uuid4().hex, "train", time.time()
@@ -191,7 +218,17 @@ class V681Coordinator:
         for item in items:
             if seen: fresh.append(item)
             if item.experience_id == last_id: seen = True
-        return len({item.episode_id for item in fresh if item.split == "train" and item.sequence_capability == "sequential"})
+        return len({item.episode_id for item in fresh if item.source in ATTENTION_TRAINING_SOURCES
+                    and item.split == "train" and item.sequence_capability == "sequential"})
+
+    def _attention_dataset_version(self):
+        records = [{"experience_id": item.experience_id, "source": item.source.value}
+                   for item in self.store.load()
+                   if item.source in ATTENTION_TRAINING_SOURCES and item.split == "train"
+                   and item.sequence_capability == "sequential"]
+        payload = json.dumps({"records": records, "policy": asdict(self.policy), "version": V681_VERSION},
+                             sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
     def _engine(self):
         self.engine = self.engine or NativeLearningEngine()
@@ -199,18 +236,37 @@ class V681Coordinator:
 
     def _inspection(self):
         items = self.store.load()
-        train = [item for item in items if item.split == "train" and item.sequence_capability == "sequential"]
+        train = [item for item in items if item.source in ATTENTION_TRAINING_SOURCES
+                 and item.split == "train" and item.sequence_capability == "sequential"]
         return {"total_records": len(items), "chat_records": sum(item.source in {ExperienceSource.CHAT_DECISION_ONLY, ExperienceSource.CHAT_SEQUENTIAL} for item in items),
                 "worker_records": sum(item.source is ExperienceSource.OFFLINE_WORKER for item in items),
                 "train_sequential_episodes": len({item.episode_id for item in train}),
                 "source_composition": {source.value: sum(item.source is source for item in items) for source in ExperienceSource}}
 
     def _finish(self, started, before, discovery, status):
-        result = {"v681_version": V681_VERSION, "session_id": self.session_id, "status": status, "start_time": started,
+        candidates = [cycle for cycle in self.cycles if cycle["kind"] == "candidate_training"]
+        created = [cycle["candidate"] for cycle in candidates if cycle["status"] == "evaluated"]
+        result = {"v681_version": V681_VERSION, "session_id": self.session_id,
+                  "status": f"{status}_with_failures" if self.failures and status in {"complete", "once"} else status,
+                  "start_time": started,
                   "end_time": time.time(), "experience_before": before, "experience_after": self._inspection(),
-                  "training_cycles": self.cycles, "models_created": [x["candidate"] for x in self.cycles if "candidate" in x],
+                  "training_cycles": self.cycles, "models_created": created,
                   "worker_events": self.worker_events, "chat_episodes": self.chat_records, "discovery": discovery,
-                  "failures": self.failures}
+                  "failures": self.failures,
+                  "chat": {"decision_only_records": sum(item.source is ExperienceSource.CHAT_DECISION_ONLY
+                                                         for item in self.store.load()),
+                           "sequential_records": sum(item.source is ExperienceSource.CHAT_SEQUENTIAL
+                                                     for item in self.store.load()),
+                           "capabilities": discovery["chat_capabilities"]},
+                  "learning": {"bootstrap": [cycle for cycle in self.cycles if cycle["kind"] == "bootstrap"],
+                               "candidate_training": candidates,
+                               "jepa": [cycle.get("jepa") for cycle in candidates if "jepa" in cycle],
+                               "failures": [failure for failure in self.failures if failure["stage"] in {"bootstrap", "learning"}]},
+                  "worker": {"telemetry_records": self._inspection()["worker_records"]},
+                  "models": {"created": created, "evaluated": [cycle["candidate"] for cycle in candidates
+                                                                if cycle["status"] == "evaluated"],
+                             "promoted": [cycle["candidate"] for cycle in candidates
+                                          if cycle.get("promotion", {}).get("promoted")]}}
         for name, value in (("runtime_results.json", result), ("experience_manifest.json", self.store.manifest()),
                             ("current_model_manifest.json", self.store.learning_cursor("attention") or {})):
             (self.output / name).write_text(json.dumps(value, indent=2, sort_keys=True))

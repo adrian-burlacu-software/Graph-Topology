@@ -15,7 +15,16 @@ from .live_policy import PolicyProvider
 from .workers import worker_main
 
 SOURCE_RUNTIME_VERSION = "v679"
-V681_RUNTIME_VERSION = "v681.5-native-runtime-1"
+V681_RUNTIME_VERSION = "v681.7-native-runtime-1"
+CHAT_CAPABILITIES = {
+    "attention_trace": {"available": True},
+    "decision_only": {"available": True},
+    "sequential_attention_capture": {
+        "available": False,
+        "reason": ("the live controller records traversal ordering and final arbitration, but does not expose "
+                   "a bounded policy state, one selected action, and its next state for each transition"),
+    },
+}
 
 
 class NativeRuntime:
@@ -77,6 +86,10 @@ class NativeRuntime:
 
     def set_attention_policy(self, path):
         self.policy_provider.set(path)
+
+    @staticmethod
+    def capabilities():
+        return {name: dict(value) for name, value in CHAT_CAPABILITIES.items()}
 
     def _emit_chat(self, trace):
         self.events.put({"source_path": "native-chat", "line": 0,

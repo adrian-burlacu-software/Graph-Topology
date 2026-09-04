@@ -153,6 +153,21 @@ def validate_step_record(record):
     return record
 
 
+def validate_jepa_transition_record(record):
+    """Validate a JEPA-only transition without accepting teacher or oracle data."""
+    required = {"episode_id", "step", "state", "action", "next_state", "provenance"}
+    missing = required - record.keys()
+    if missing:
+        raise ValueError(f"JEPA transition missing {sorted(missing)}")
+    forbidden = {"teacher", "oracle", "reward", "terminal_outcome", "terminal_answer"} & record.keys()
+    if forbidden:
+        raise ValueError(f"JEPA transition contains forbidden fields: {sorted(forbidden)}")
+    state = AttentionObservation.from_dict(record["state"])
+    AttentionAction.from_dict(record["action"], len(state.candidate_features))
+    AttentionObservation.from_dict(record["next_state"])
+    return record
+
+
 def audit_model_input(value):
     """Fail closed if any recursively supplied model-visible data contains oracle metadata."""
     if isinstance(value, dict):

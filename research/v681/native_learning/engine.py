@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 SOURCE_LEARNING_VERSION = "v680.1-frozen-attention-jepa-engine"
-V681_LEARNING_VERSION = "v681.5-native-learning-1"
+V681_LEARNING_VERSION = "v681.7-native-learning-1"
 
 
 class NativeLearningEngine:
@@ -54,9 +54,9 @@ class NativeLearningEngine:
 
     def train_jepa(self, records_path, checkpoint_path, output_path, epochs, seed):
         import torch
-        from .dataset import read_jsonl
+        from .dataset import read_jepa_jsonl
         from .jepa import AttentionJEPA, evaluate_jepa, train_jepa
-        records = read_jsonl(records_path)
+        records = read_jepa_jsonl(records_path)
         model, optimizer = train_jepa(records, epochs=epochs, seed=seed, model=AttentionJEPA())
         result = evaluate_jepa(records, model)
         checkpoint_path = Path(checkpoint_path); checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
