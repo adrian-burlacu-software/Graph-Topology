@@ -39,6 +39,21 @@ conservative gate; otherwise the current model remains active. Live model
 scoring uses only observable state/candidate features and retains
 verified-evidence abstention safety.
 
+## Promotion safety gate
+
+Promotion evaluates the candidate on the held-out structural and adversarial
+rollout set. It requires at least 0.75 `overall_action_accuracy`, at least
+0.80 `abstain_accuracy`, and no more than 0.10 each of
+`false_positive_traverse`, `premature_stop`, and `premature_abstain`. Missing
+any required rollout metric rejects the candidate.
+
+When a promoted attention model exists, it is evaluated on the identical
+held-out set. A candidate may lose at most 0.02 overall accuracy and 0.01 on
+`abstain_accuracy`; each of the three safety error rates may increase by at
+most 0.01. The first learned model has no relative baseline but must pass every
+absolute check. Each candidate provenance artifact records the metrics,
+thresholds, individual checks, promotion result, and reason.
+
 ```powershell
 # One-shot CI/developer lifecycle: discover, collect, learn, evaluate, report, exit.
 python -m research.v681.run_v681 --once

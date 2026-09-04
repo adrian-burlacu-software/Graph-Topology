@@ -42,8 +42,13 @@ class NativeLearningEngine:
 
     def evaluate_attention(self, records_path, checkpoint_path, output_path):
         from .dataset import read_jsonl
-        from .evaluate import evaluate, load_student
-        result = evaluate(read_jsonl(records_path), load_student(checkpoint_path))
+        from .environment import benchmark_episodes
+        from .evaluate import evaluate, evaluate_rollouts, load_student
+        model = load_student(checkpoint_path)
+        result = {"teacher_trajectory": evaluate(read_jsonl(records_path), model),
+                  "rollout": evaluate_rollouts([episode for episode in benchmark_episodes()
+                                                if episode.get("split", "").startswith("held_out")],
+                                               model)}
         Path(output_path).write_text(json.dumps(result, indent=2, sort_keys=True))
         return result
 

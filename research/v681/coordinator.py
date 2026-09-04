@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import sqlite3
@@ -27,6 +28,13 @@ class RuntimePolicy:
     epochs: int = 8
     seed: int = 6815
     poll_seconds: float = 1.0
+    minimum_overall_action_accuracy: float = .75
+    minimum_abstain_accuracy: float = .80
+    maximum_false_positive_traverse: float = .10
+    maximum_premature_stop: float = .10
+    maximum_premature_abstain: float = .10
+    accuracy_regression_tolerance: float = .02
+    safety_regression_tolerance: float = .01
 
 
 class V681Coordinator:
@@ -144,13 +152,16 @@ class V681Coordinator:
             jepa_data = self.session_dir / f"jepa-{cycle}.jsonl"; _write_jsonl(jepa_data, transitions)
             jepa_result = jepa.train(self._engine(), jepa_data, self.output / "models" / f"jepa-{self.session_id}-{cycle}.pt",
                                      self.output / "evaluations" / f"jepa-{cycle}.json", self.policy.epochs, self.policy.seed)
-            promotion = _promotion(metrics)
+            current = self.output / "models" / "current_attention.pt"
+            current_metrics = (learner.evaluate(self._engine(), heldout, current,
+                                                self.output / "evaluations" / f"current-{cycle}.json")
+                               if current.is_file() else None)
+            promotion = _promotion(metrics, current_metrics, self.policy)
             artifact = {"v681_version": V681_VERSION, "candidate": str(candidate), "metrics": metrics,
                         "promotion": promotion, "sources": sorted(x.value for x in sources), "rejected": rejected,
                         "heldout_rejected": rejected_eval, "jepa": jepa_result, "jepa_rejected": jepa_rejected}
             provenance = candidate.with_suffix(".provenance.json"); provenance.write_text(json.dumps(artifact, indent=2, sort_keys=True))
             if promotion["promoted"]:
-                current = self.output / "models" / "current_attention.pt"
                 staged = current.with_suffix(".staged")
                 shutil.copy2(candidate, staged); os.replace(staged, current)
                 artifact["promotion"]["current_model"] = str(current)
@@ -229,8 +240,71 @@ def _append_records(store, records, source, prefix, heldout_only=False):
             if heldout_only and not str(step["split"]).startswith("held_out"): continue
             item = attention_step_experience(step, source=source); item.episode_id = prefix + item.episode_id
             item.provenance["supervision_source"] = "native_frozen_teacher"; store.append(item)
-def _promotion(metrics):
-    value = metrics.get("held_out", {}).get("teacher_action_accuracy")
-    return {"promoted": bool(value is not None and value >= .5),
-            "reason": "held-out accuracy passed conservative threshold" if value is not None and value >= .5
-            else "held-out evaluation did not pass promotion gate"}
+def _promotion(candidate_metrics, current_metrics, policy):
+    """Fail closed on absent rollout safety metrics and preserve current model on regressions."""
+    candidate = _safety_metrics(candidate_metrics)
+    current = _safety_metrics(current_metrics) if current_metrics is not None else None
+    thresholds = {
+        "minimum_overall_action_accuracy": policy.minimum_overall_action_accuracy,
+        "minimum_abstain_accuracy": policy.minimum_abstain_accuracy,
+        "maximum_false_positive_traverse": policy.maximum_false_positive_traverse,
+        "maximum_premature_stop": policy.maximum_premature_stop,
+        "maximum_premature_abstain": policy.maximum_premature_abstain,
+        "accuracy_regression_tolerance": policy.accuracy_regression_tolerance,
+        "safety_regression_tolerance": policy.safety_regression_tolerance,
+    }
+    required = ("overall_action_accuracy", "abstain_accuracy", "false_positive_traverse",
+                "premature_stop", "premature_abstain")
+    missing = [name for name in required if name not in candidate]
+    checks = {
+        "overall_accuracy": "overall_action_accuracy" in candidate and
+                            candidate["overall_action_accuracy"] >= policy.minimum_overall_action_accuracy,
+        "abstain_accuracy": "abstain_accuracy" in candidate and
+                            candidate["abstain_accuracy"] >= policy.minimum_abstain_accuracy,
+        "false_positive_traverse": "false_positive_traverse" in candidate and
+                                   candidate["false_positive_traverse"] <= policy.maximum_false_positive_traverse,
+        "premature_stop": "premature_stop" in candidate and
+                          candidate["premature_stop"] <= policy.maximum_premature_stop,
+        "premature_abstain": "premature_abstain" in candidate and
+                             candidate["premature_abstain"] <= policy.maximum_premature_abstain,
+    }
+    checks["non_regression"] = _non_regression(candidate, current, policy) if current is not None else True
+    promoted = not missing and all(checks.values())
+    failed = [name for name, passed in checks.items() if not passed]
+    reason = ("missing required rollout metrics: " + ", ".join(missing) if missing else
+              "failed promotion checks: " + ", ".join(failed) if failed else
+              "passed absolute safety and non-regression gates")
+    return {"promoted": promoted, "candidate_metrics": candidate_metrics, "current_metrics": current_metrics,
+            "safety_metrics": {"candidate": candidate, "current": current},
+            "thresholds": thresholds, "checks": checks, "reason": reason}
+
+
+def _safety_metrics(metrics):
+    """Aggregate the existing evaluator's held-out rollout measurements by decision count."""
+    if not metrics:
+        return {}
+    rollout = metrics.get("rollout", metrics)
+    groups = [value for value in rollout.values()
+              if isinstance(value, dict) and "overall_action_accuracy" in value]
+    if not groups and "overall_action_accuracy" in rollout:
+        groups = [rollout]
+    if not groups:
+        return {}
+    weights = [max(1, group.get("decisions", 0)) for group in groups]
+    return {metric: sum(group[metric] * weight for group, weight in zip(groups, weights)) / sum(weights)
+            for metric in ("overall_action_accuracy", "abstain_accuracy", "false_positive_traverse",
+                           "premature_stop", "premature_abstain")
+            if all(isinstance(group.get(metric), (int, float)) and math.isfinite(group[metric])
+                   for group in groups)}
+
+
+def _non_regression(candidate, current, policy):
+    required = ("overall_action_accuracy", "abstain_accuracy", "false_positive_traverse",
+                "premature_stop", "premature_abstain")
+    if any(name not in candidate or name not in current for name in required):
+        return False
+    return (candidate["overall_action_accuracy"] >= current["overall_action_accuracy"] - policy.accuracy_regression_tolerance
+            and candidate["abstain_accuracy"] >= current["abstain_accuracy"] - policy.safety_regression_tolerance
+            and candidate["false_positive_traverse"] <= current["false_positive_traverse"] + policy.safety_regression_tolerance
+            and candidate["premature_stop"] <= current["premature_stop"] + policy.safety_regression_tolerance
+            and candidate["premature_abstain"] <= current["premature_abstain"] + policy.safety_regression_tolerance)

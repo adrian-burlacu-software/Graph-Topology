@@ -10,7 +10,7 @@ from research.v681.experience import Experience, ExperienceQuality, ExperienceSo
 from research.v681.importers import import_chat_traces, import_worker_logs
 from research.v681.learners import REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
-from research.v681.coordinator import RuntimePolicy, V681Coordinator
+from research.v681.coordinator import RuntimePolicy, V681Coordinator, _promotion
 from research.v681.native_learning.engine import NativeLearningEngine
 
 
@@ -29,6 +29,45 @@ def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
 
 
 class ExperienceTests(unittest.TestCase):
+    def test_promotion_gate_accepts_strong_candidate(self):
+        decision = _promotion(_promotion_metrics(),
+                              _promotion_metrics(overall_action_accuracy=.88, abstain_accuracy=.88,
+                                                 false_positive_traverse=.06, premature_stop=.06,
+                                                 premature_abstain=.06),
+                              RuntimePolicy())
+        self.assertTrue(decision["promoted"])
+        self.assertTrue(decision["checks"]["non_regression"])
+
+    def test_promotion_gate_accepts_strong_first_candidate(self):
+        decision = _promotion(_promotion_metrics(), None, RuntimePolicy())
+        self.assertTrue(decision["promoted"])
+        self.assertTrue(decision["checks"]["non_regression"])
+        self.assertIsNone(decision["current_metrics"])
+        self.assertEqual(decision["safety_metrics"]["candidate"]["overall_action_accuracy"], .90)
+
+    def test_promotion_gate_rejects_weak_candidate(self):
+        decision = _promotion(_promotion_metrics(overall_action_accuracy=.5), None, RuntimePolicy())
+        self.assertFalse(decision["promoted"])
+        self.assertFalse(decision["checks"]["overall_accuracy"])
+
+    def test_promotion_gate_rejects_bad_abstention(self):
+        decision = _promotion(_promotion_metrics(abstain_accuracy=.5), None, RuntimePolicy())
+        self.assertFalse(decision["promoted"])
+        self.assertFalse(decision["checks"]["abstain_accuracy"])
+
+    def test_promotion_gate_rejects_missing_safety_metric(self):
+        metrics = _promotion_metrics()
+        del metrics["rollout"]["held_out"]["premature_stop"]
+        decision = _promotion(metrics, None, RuntimePolicy())
+        self.assertFalse(decision["promoted"])
+        self.assertIn("premature_stop", decision["reason"])
+
+    def test_promotion_gate_rejects_current_model_safety_regression(self):
+        decision = _promotion(_promotion_metrics(false_positive_traverse=.08),
+                              _promotion_metrics(false_positive_traverse=.01), RuntimePolicy())
+        self.assertFalse(decision["promoted"])
+        self.assertFalse(decision["checks"]["non_regression"])
+
     def test_complete_canonical_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             store = ExperienceStore(Path(directory) / "experience.sqlite")
@@ -144,7 +183,7 @@ class ExperienceTests(unittest.TestCase):
                 return path
             def train_attention(self, _data, checkpoint, *_): checkpoint.write_text("candidate")
             def evaluate_attention(self, _data, _checkpoint, output):
-                value = {"held_out": {"teacher_action_accuracy": 1.0}}
+                value = _promotion_metrics()
                 output.write_text(json.dumps(value)); return value
             def train_jepa(self, _data, checkpoint, output, *_):
                 checkpoint.write_text("jepa"); value = {"status": "ok"}; output.write_text(json.dumps(value)); return value
@@ -200,7 +239,7 @@ class ExperienceTests(unittest.TestCase):
                 path.write_text(json.dumps({"episode_id": "dagger", "trajectory": [_step("ordinary")]}) + "\n"); return path
             def train_attention(self, _, checkpoint, *__): checkpoint.write_text("candidate")
             def evaluate_attention(self, _, __, output):
-                value = {"held_out": {"teacher_action_accuracy": 1.0}}; output.write_text(json.dumps(value)); return value
+                value = _promotion_metrics(); output.write_text(json.dumps(value)); return value
             def train_jepa(self, _, checkpoint, output, *__):
                 checkpoint.write_text("jepa"); output.write_text("{}"); return {}
         with tempfile.TemporaryDirectory() as directory:
@@ -227,6 +266,19 @@ def _step(split):
         "action": {"kind": "traverse", "candidate_id": 0}, "next_state": {**state, "step": 1},
         "reward": 1.0, "terminal_outcome": "success", "oracle": {"valid_proof_edge": True},
         "teacher_version": "fake", "dataset_version": "fake"}
+
+
+def _promotion_metrics(**overrides):
+    values = {
+        "overall_action_accuracy": .90,
+        "abstain_accuracy": .90,
+        "false_positive_traverse": .05,
+        "premature_stop": .05,
+        "premature_abstain": .05,
+        "decisions": 20,
+    }
+    values.update(overrides)
+    return {"rollout": {"held_out": values}}
 
 
 if __name__ == "__main__":
