@@ -8,8 +8,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 V680 = HERE.parent / "v680"
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(V680))
-from experience import (ExperienceSource, ExperienceStore, attention_step_experience,
-                        chat_trace_experience, worker_batch_experience)
+from experience import ExperienceSource, ExperienceStore, attention_step_experience, chat_trace_experience
+from importers import import_chat_traces, import_worker_logs
 from learners import AttentionDistillationLearner, JEPAAuxiliaryLearner
 from attention_benchmark import decision_boundary_episodes
 from attention_dataset import collect_jepa_transition_episodes, collect_teacher_episodes
@@ -33,20 +33,14 @@ def main():
             store.append(attention_step_experience(step))
     chat_count = worker_count = 0
     if args.chat_traces:
-        for line in Path(args.chat_traces).read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                store.append(chat_trace_experience(json.loads(line))); chat_count += 1
+        chat_count = import_chat_traces(store, args.chat_traces)
     else:
         # A schema-only fixture, deliberately not a production outcome or attention-training example.
         store.append(chat_trace_experience({"timestamp": 0, "route": {}, "candidate_evidence": []},
                                            source=ExperienceSource.SYNTHETIC_CHAT))
         chat_count = 1
     if args.worker_logs:
-        for path in Path(args.worker_logs).glob("worker_*.jsonl"):
-            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-                event = json.loads(line)
-                if event.get("event") == "analysis_batch":
-                    store.append(worker_batch_experience(event)); worker_count += 1
+        worker_count = import_worker_logs(store, args.worker_logs)
     attention = AttentionDistillationLearner()
     attention_data = attention.prepare(store)
     model, _ = attention.train(attention_data, epochs=args.epochs, seed=args.seed)

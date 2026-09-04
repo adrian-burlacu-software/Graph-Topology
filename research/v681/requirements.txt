@@ -1,0 +1,2 @@
+# V681 delegates frozen attention/JEPA execution to the V680 engine.
+torch>=2.6.0

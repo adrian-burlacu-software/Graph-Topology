@@ -29,7 +29,6 @@ from v679_attention import AttentionController, DistilledAttentionPolicy
 def append_trace(
     path,
     payload,
-    experience_store="",
 ):
     path = Path(path)
     path.parent.mkdir(
@@ -49,17 +48,6 @@ def append_trace(
             + "\n"
         )
         handle.flush()
-    if experience_store:
-        import sys
-        v681_dir = Path(__file__).resolve().parents[1] / "v681"
-        if str(v681_dir) not in sys.path:
-            sys.path.insert(0, str(v681_dir))
-        from experience import ExperienceStore, chat_trace_experience
-        store = ExperienceStore(experience_store)
-        try:
-            store.append(chat_trace_experience(payload))
-        finally:
-            store.close()
 
 
 class MemoryContext(Context):
@@ -2758,7 +2746,6 @@ def run_chat_worker(args):
             append_trace(
                 trace_path,
                 trace,
-                getattr(args, "experience_store", ""),
             )
             try:
                 if checkpoint.should_sync():
@@ -2857,7 +2844,6 @@ def run_chat_worker(args):
             append_trace(
                 trace_path,
                 trace,
-                getattr(args, "experience_store", ""),
             )
             try:
                 if checkpoint.should_sync():

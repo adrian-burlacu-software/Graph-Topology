@@ -9,6 +9,7 @@ sys.path.insert(0, str(HERE.parent / "v680"))
 
 from experience import (Experience, ExperienceQuality, ExperienceSource, ExperienceStore,
                         attention_step_experience, chat_trace_experience, worker_batch_experience)
+from importers import import_chat_traces, import_worker_logs
 
 
 class ExperienceTests(unittest.TestCase):
@@ -48,6 +49,21 @@ class ExperienceTests(unittest.TestCase):
         self.assertIsNotNone(item.next_state)
         self.assertIsNotNone(item.teacher_action)
         self.assertIsNotNone(item.outcome)
+
+    def test_file_importers_do_not_require_live_v679_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            trace = root / "chat.jsonl"
+            trace.write_text('{"timestamp": 1, "route": {"success": true}, "candidate_evidence": []}\n')
+            workers = root / "workers"; workers.mkdir()
+            (workers / "worker_00.jsonl").write_text(
+                '{"event":"analysis_batch","worker_id":0,"batch":1,"lane":"synonym_structure"}\n')
+            store = ExperienceStore(root / "experience.sqlite")
+            self.assertEqual(import_chat_traces(store, trace), 1)
+            self.assertEqual(import_worker_logs(store, workers), 1)
+            self.assertEqual(len(store.load(source=ExperienceSource.CHAT)), 1)
+            self.assertEqual(len(store.load(source=ExperienceSource.OFFLINE_WORKER)), 1)
+            store.close()
 
 
 if __name__ == "__main__":
