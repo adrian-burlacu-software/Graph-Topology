@@ -110,6 +110,11 @@ def main():
                 .get("top1_attention_accuracy", 0.0)
                 > manifest.get("jepa_ablation", {}).get("baseline", {}).get("held_out_adversarial", {})
                 .get("top1_attention_accuracy", float("inf"))),
+            "jepa_action_conditioned_attention_gain": (
+                manifest.get("jepa_ablation", {}).get("jepa", {}).get("held_out_adversarial", {})
+                .get("top1_attention_accuracy", 0.0)
+                > manifest.get("jepa_ablation", {}).get("shuffled_jepa", {}).get("held_out_adversarial", {})
+                .get("top1_attention_accuracy", float("inf"))),
             "dagger_failure_curve": (
                 len(manifest.get("dagger", [])) >= 2
                 and manifest["dagger"][-1]["false_positive_attention_rate"]

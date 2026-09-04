@@ -26,6 +26,12 @@ def training_records(records):
             and record["split"] != "held_out_adversarial" and record.get("partition") != "validation"]
 
 
+def teacher_action_kind(step):
+    count = len(step["state"]["candidate_features"])
+    selected = step["teacher"]["selected_action"]
+    return "traverse" if selected < count else ("stop" if selected == count else "abstain")
+
+
 def metadata(dataset, seed, **hyperparameters):
     path = Path(dataset)
     try:
@@ -56,6 +62,10 @@ def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
     steps = flatten_steps(records)
     if not steps:
         raise ValueError("distillation requires at least one teacher step")
+    counts = {kind: sum(teacher_action_kind(step) == kind for step in steps)
+              for kind in ("traverse", "stop", "abstain")}
+    class_weights = {kind: len(steps) / (len(counts) * max(1, count))
+                     for kind, count in counts.items()}
     for _ in range(int(epochs)):
         for episode in records:
             hidden, losses = None, []
@@ -77,7 +87,8 @@ def train_distillation(records, epochs=8, learning_rate=1e-3, temperature=2.0,
                 teacher_order = torch.argsort(teacher_logits, descending=True)
                 rank = sum((F.softplus(-(logits[high] - logits[low]))
                             for high, low in zip(teacher_order[:-1], teacher_order[1:])), torch.tensor(0.0))
-                losses.append(lambda_soft * soft + lambda_rank * rank + lambda_hard * hard)
+                losses.append(lambda_soft * soft + lambda_rank * rank
+                              + lambda_hard * class_weights[teacher_action_kind(step)] * hard)
             optimizer.zero_grad(); torch.stack(losses).mean().backward(); optimizer.step()
     return model, optimizer
 

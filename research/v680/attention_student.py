@@ -29,7 +29,7 @@ class NeuralAttentionPolicy(nn.Module):
         self.candidate_encoder = nn.Sequential(nn.Linear(CANDIDATE_DIM, hidden_size), nn.Tanh())
         self.gru = nn.GRUCell(hidden_size, hidden_size)
         self.candidate_head = nn.Linear(hidden_size * 2 + self.jepa_dim, 1)
-        self.terminal_head = nn.Linear(hidden_size + self.jepa_dim, 1)
+        self.terminal_head = nn.Linear(hidden_size + self.jepa_dim + 2, 1)
         self.value_head = nn.Linear(hidden_size, 1)
 
     def forward(self, state_vector, candidate_vectors, hidden=None, action_mask=None, future_representations=None):
@@ -54,7 +54,10 @@ class NeuralAttentionPolicy(nn.Module):
             hidden.expand(candidate_embeddings.shape[0], -1), candidate_embeddings, candidate_future
         ], dim=-1)).squeeze(-1)
         terminal_future = future_representations[-2:].reshape(-1, self.jepa_dim) if self.jepa_dim else hidden.new_zeros((2, 0))
-        terminal_logits = self.terminal_head(torch.cat([hidden.expand(2, -1), terminal_future], dim=-1)).squeeze(-1)
+        terminal_kind = torch.eye(2, dtype=hidden.dtype, device=hidden.device)
+        terminal_logits = self.terminal_head(torch.cat([
+            hidden.expand(2, -1), terminal_future, terminal_kind
+        ], dim=-1)).squeeze(-1)
         logits = torch.cat([candidate_logits, terminal_logits])
         if action_mask is not None:
             if len(action_mask) != len(logits):
