@@ -2378,6 +2378,7 @@ def preflight_symbol_audit():
     }
 
     imported = set()
+    assigned = set()
 
     for node in _ast.walk(tree):
         if isinstance(node, _ast.Import):
@@ -2390,6 +2391,10 @@ def preflight_symbol_audit():
                 alias.asname or alias.name
                 for alias in node.names
             )
+        elif isinstance(node, _ast.Name) and isinstance(node.ctx, _ast.Store):
+            assigned.add(node.id)
+        elif isinstance(node, _ast.arg):
+            assigned.add(node.arg)
 
     builtins_set = set(
         dir(builtins)
@@ -2407,6 +2412,7 @@ def preflight_symbol_audit():
         for name in calls
         if name not in defined
         and name not in imported
+        and name not in assigned
         and name not in builtins_set
     )
 

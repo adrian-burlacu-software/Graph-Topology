@@ -12,6 +12,7 @@ from research.v681.learners import REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
 from research.v681.coordinator import RuntimePolicy, V681Coordinator, _promotion
 from research.v681.native_learning.engine import NativeLearningEngine
+from research.v681.native_runtime.chat import preflight_symbol_audit
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -140,6 +141,9 @@ class ExperienceTests(unittest.TestCase):
             NativeLearningEngine().generate_teacher_records(output, 1)
             self.assertTrue(output.exists())
             self.assertIn("trajectory", json.loads(output.read_text().splitlines()[0]))
+
+    def test_chat_preflight_symbol_audit_allows_local_callbacks(self):
+        self.assertTrue(preflight_symbol_audit())
 
     def test_runtime_has_no_legacy_runtime_imports_or_dynamic_loading(self):
         root = HERE
