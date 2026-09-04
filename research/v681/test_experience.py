@@ -8,7 +8,7 @@ HERE = Path(__file__).resolve().parent
 
 from research.v681.experience import Experience, ExperienceQuality, ExperienceSource, ExperienceStore, chat_trace_experience, worker_batch_experience
 from research.v681.importers import import_chat_traces, import_worker_logs
-from research.v681.learners import REGISTRY, capability_report
+from research.v681.learners import JEPAAuxiliaryLearner, REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter
 from research.v681.coordinator import RuntimePolicy, V681Coordinator, _promotion
 from research.v681.native_learning.engine import NativeLearningEngine
@@ -107,6 +107,14 @@ class ExperienceTests(unittest.TestCase):
         self.assertEqual(len(transition), 1)
         self.assertEqual(REGISTRY["attention_dagger"].training_mode, "bootstrap")
         self.assertEqual(REGISTRY["jepa_auxiliary"].training_mode, "predictive_auxiliary")
+
+    def test_jepa_preparation_returns_episodes_and_rejections(self):
+        first, second, third = sequential_experience(), sequential_experience(), sequential_experience()
+        first.episode_id, second.episode_id, third.episode_id = "first", "second", "third"
+        episodes, rejected = JEPAAuxiliaryLearner().prepare(
+            [first, second, third], {ExperienceSource.DAGGER})
+        self.assertEqual(len(episodes), 3)
+        self.assertEqual(rejected, {})
 
     def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:

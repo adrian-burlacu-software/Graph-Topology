@@ -51,7 +51,7 @@ class AttentionTrajectoryAdapter:
 class SequentialTransitionAdapter:
     """JEPA consumes only model-view transitions; teacher/outcome are excluded."""
     def extract(self, experiences, sources=None, allowed_splits=("train",)):
-        return AttentionTrajectoryAdapter().extract(experiences, sources, allowed_splits)[0]
+        return AttentionTrajectoryAdapter().extract(experiences, sources, allowed_splits)
 
 
 class OutcomeTransitionAdapter:
