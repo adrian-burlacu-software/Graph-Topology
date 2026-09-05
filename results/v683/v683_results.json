@@ -1,0 +1,769 @@
+{
+  "database": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\v633_full_semantic.sqlite",
+  "optimality": {
+    "global_coverage_hits_optimum": 199,
+    "h4_greedy_is_near_optimal": {
+      "criterion": "mean excess over the exhaustive optimum below 0.5 nodes",
+      "holds": true
+    },
+    "hit_rate": 0.995,
+    "max_excess_nodes": 1,
+    "max_predicate_universe": 8,
+    "mean_excess_nodes": 0.005,
+    "records": [
+      {
+        "adaptive_coverage": 4,
+        "anti_coverage": 6,
+        "global_coverage": 4,
+        "individuals": 9,
+        "lexical": 5,
+        "optimal": 4,
+        "predicates": 4,
+        "shuffled": 5
+      },
+      {
+        "adaptive_coverage": 5,
+        "anti_coverage": 8,
+        "global_coverage": 5,
+        "individuals": 7,
+        "lexical": 7,
+        "optimal": 5,
+        "predicates": 5,
+        "shuffled": 8
+      },
+      {
+        "adaptive_coverage": 4,
+        "anti_coverage": 6,
+        "global_coverage": 4,
+        "individuals": 8,
+        "lexical": 6,
+        "optimal": 4,
+        "predicates": 4,
+        "shuffled": 4
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 11,
+        "global_coverage": 8,
+        "individuals": 6,
+        "lexical": 10,
+        "optimal": 8,
+        "predicates": 8,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 6,
+        "anti_coverage": 10,
+        "global_coverage": 6,
+        "individuals": 10,
+        "lexical": 8,
+        "optimal": 6,
+        "predicates": 6,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 7,
+        "anti_coverage": 12,
+        "global_coverage": 7,
+        "individuals": 9,
+        "lexical": 8,
+        "optimal": 7,
+        "predicates": 7,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 3,
+        "anti_coverage": 5,
+        "global_coverage": 3,
+        "individuals": 9,
+        "lexical": 4,
+        "optimal": 3,
+        "predicates": 3,
+        "shuffled": 5
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 13,
+        "global_coverage": 8,
+        "individuals": 8,
+        "lexical": 11,
+        "optimal": 8,
+        "predicates": 8,
+        "shuffled": 13
+      },
+      {
+        "adaptive_coverage": 6,
+        "anti_coverage": 9,
+        "global_coverage": 6,
+        "individuals": 6,
+        "lexical": 9,
+        "optimal": 6,
+        "predicates": 6,
+        "shuffled": 6
+      },
+      {
+        "adaptive_coverage": 3,
+        "anti_coverage": 5,
+        "global_coverage": 3,
+        "individuals": 10,
+        "lexical": 3,
+        "optimal": 3,
+        "predicates": 3,
+        "shuffled": 4
+      },
+      {
+        "adaptive_coverage": 7,
+        "anti_coverage": 10,
+        "global_coverage": 7,
+        "individuals": 9,
+        "lexical": 9,
+        "optimal": 7,
+        "predicates": 7,
+        "shuffled": 9
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 10,
+        "global_coverage": 8,
+        "individuals": 7,
+        "lexical": 10,
+        "optimal": 8,
+        "predicates": 8,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 4,
+        "anti_coverage": 6,
+        "global_coverage": 4,
+        "individuals": 5,
+        "lexical": 4,
+        "optimal": 4,
+        "predicates": 4,
+        "shuffled": 6
+      },
+      {
+        "adaptive_coverage": 6,
+        "anti_coverage": 10,
+        "global_coverage": 6,
+        "individuals": 6,
+        "lexical": 8,
+        "optimal": 6,
+        "predicates": 6,
+        "shuffled": 9
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 12,
+        "global_coverage": 8,
+        "individuals": 6,
+        "lexical": 10,
+        "optimal": 8,
+        "predicates": 8,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 13,
+        "global_coverage": 8,
+        "individuals": 6,
+        "lexical": 13,
+        "optimal": 8,
+        "predicates": 8,
+        "shuffled": 9
+      },
+      {
+        "adaptive_coverage": 7,
+        "anti_coverage": 11,
+        "global_coverage": 7,
+        "individuals": 5,
+        "lexical": 10,
+        "optimal": 7,
+        "predicates": 6,
+        "shuffled": 10
+      },
+      {
+        "adaptive_coverage": 8,
+        "anti_coverage": 18,
+        "global_coverage": 8,
+        "individuals": 8,
+        "lexical": 11,
+        "optimal": 8,
+        "predicates": 7,
+        "shuffled": 14
+      },
+      {
+        "adaptive_coverage": 5,
+        "anti_coverage": 9,
+        "global_coverage": 5,
+        "individuals": 10,
+        "lexical": 5,
+        "optimal": 5,
+        "predicates": 5,
+        "shuffled": 6
+      },
+      {
+        "adaptive_coverage": 7,
+        "anti_coverage": 10,
+        "global_coverage": 7,
+        "individuals": 7,
+        "lexical": 10,
+        "optimal": 7,
+        "predicates": 7,
+        "shuffled": 9
+      }
+    ],
+    "samples": 200
+  },
+  "paper_reproduction": {
+    "figure_20_expected": {
+      "Border Collie": [
+        "Big"
+      ],
+      "Briard": [
+        "Big",
+        "Long Hair"
+      ],
+      "Dalmatian": [
+        "Big",
+        "Spots"
+      ],
+      "Jack Russell Terrier": [
+        "Spots"
+      ],
+      "Saint Bernard": [
+        "Big",
+        "Long Hair",
+        "Loud"
+      ]
+    },
+    "figure_20_reproduced": {
+      "adaptive_coverage": true,
+      "global_coverage": true,
+      "optimal": true
+    },
+    "nodes": {
+      "adaptive_coverage": 5,
+      "global_coverage": 5,
+      "optimal": 5
+    },
+    "note": "All three agree here at five nodes, which exhaustive search confirms is minimal. The paper's own example cannot separate its global description from its branch-local figure, so H2 needs real data.",
+    "table_1_coverage": {
+      "Big": 4,
+      "Long Hair": 2,
+      "Loud": 1,
+      "Spots": 2
+    }
+  },
+  "scaling": {
+    "curve": [
+      {
+        "flat_cells": 64373,
+        "individuals": 28803,
+        "max_depth": 249,
+        "mean_depth": 2.2349,
+        "median_depth": 1,
+        "nodes": 49549,
+        "p99_depth": 22
+      },
+      {
+        "flat_cells": 128269,
+        "individuals": 57607,
+        "max_depth": 415,
+        "mean_depth": 2.2266,
+        "median_depth": 1,
+        "nodes": 92484,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 191954,
+        "individuals": 86410,
+        "max_depth": 541,
+        "mean_depth": 2.2214,
+        "median_depth": 1.0,
+        "nodes": 132599,
+        "p99_depth": 20
+      },
+      {
+        "flat_cells": 255310,
+        "individuals": 115214,
+        "max_depth": 541,
+        "mean_depth": 2.216,
+        "median_depth": 1.0,
+        "nodes": 170913,
+        "p99_depth": 20
+      },
+      {
+        "flat_cells": 325232,
+        "individuals": 144017,
+        "max_depth": 6231,
+        "mean_depth": 2.2583,
+        "median_depth": 1,
+        "nodes": 214803,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 388832,
+        "individuals": 172821,
+        "max_depth": 6231,
+        "mean_depth": 2.2499,
+        "median_depth": 1,
+        "nodes": 251419,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 454576,
+        "individuals": 201624,
+        "max_depth": 6231,
+        "mean_depth": 2.2546,
+        "median_depth": 1.0,
+        "nodes": 289553,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 517120,
+        "individuals": 230428,
+        "max_depth": 6231,
+        "mean_depth": 2.2442,
+        "median_depth": 1.0,
+        "nodes": 324112,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 580619,
+        "individuals": 259231,
+        "max_depth": 6231,
+        "mean_depth": 2.2398,
+        "median_depth": 1,
+        "nodes": 359012,
+        "p99_depth": 21
+      },
+      {
+        "flat_cells": 642738,
+        "individuals": 288035,
+        "max_depth": 6231,
+        "mean_depth": 2.2315,
+        "median_depth": 1,
+        "nodes": 392183,
+        "p99_depth": 20
+      }
+    ],
+    "h3_depth_independent_of_vocabulary": {
+      "criterion": "median access depth changes by less than 10% while the vocabulary grows by the factor reported above",
+      "first_mean_depth": 2.2349,
+      "first_median_depth": 1,
+      "holds": true,
+      "last_mean_depth": 2.2315,
+      "last_median_depth": 1
+    },
+    "mean_depth_growth": 0.9985,
+    "median_depth_growth": 1.0,
+    "node_growth": 7.9151,
+    "vocabulary_growth": 10.0002
+  },
+  "slices": {
+    "attributes": {
+      "corpus": "attributes",
+      "distinct_predicates": 264656,
+      "flat_cells": 642738,
+      "h1_coverage_beats_arbitrary": {
+        "holds": true,
+        "nodes_saved": 31561,
+        "relative": 0.074481
+      },
+      "h2_branch_local_beats_global": {
+        "holds": true,
+        "nodes_saved": 6557,
+        "relative": 0.016719
+      },
+      "individuals": 288035,
+      "measurements": [
+        {
+          "corpus": "attributes",
+          "distinct_predicates": 264656,
+          "flat_cells": 642738,
+          "individuals": 288035,
+          "max_depth": 6231,
+          "mean_depth": 2.2315,
+          "median_depth": 1,
+          "nodes": 385626,
+          "ordering": "adaptive_coverage",
+          "p99_depth": 20,
+          "reuse_rate": 0.400026,
+          "terminal_nodes": 136640
+        },
+        {
+          "corpus": "attributes",
+          "distinct_predicates": 264656,
+          "flat_cells": 642738,
+          "individuals": 288035,
+          "max_depth": 6231,
+          "mean_depth": 2.2315,
+          "median_depth": 1,
+          "nodes": 392183,
+          "ordering": "global_coverage",
+          "p99_depth": 20,
+          "reuse_rate": 0.389824,
+          "terminal_nodes": 136640
+        },
+        {
+          "corpus": "attributes",
+          "distinct_predicates": 264656,
+          "flat_cells": 642738,
+          "individuals": 288035,
+          "max_depth": 6231,
+          "mean_depth": 2.2315,
+          "median_depth": 1,
+          "nodes": 417843,
+          "ordering": "lexical",
+          "p99_depth": 20,
+          "reuse_rate": 0.349902,
+          "terminal_nodes": 136640
+        },
+        {
+          "corpus": "attributes",
+          "distinct_predicates": 264656,
+          "flat_cells": 642738,
+          "individuals": 288035,
+          "max_depth": 6231,
+          "mean_depth": 2.2315,
+          "median_depth": 1,
+          "nodes": 423744,
+          "ordering": "shuffled",
+          "p99_depth": 20,
+          "reuse_rate": 0.34072,
+          "terminal_nodes": 136640
+        },
+        {
+          "corpus": "attributes",
+          "distinct_predicates": 264656,
+          "flat_cells": 642738,
+          "individuals": 288035,
+          "max_depth": 6231,
+          "mean_depth": 2.2315,
+          "median_depth": 1,
+          "nodes": 448311,
+          "ordering": "anti_coverage",
+          "p99_depth": 20,
+          "reuse_rate": 0.302498,
+          "terminal_nodes": 136640
+        }
+      ],
+      "ordering_spread": {
+        "best": "adaptive_coverage",
+        "nodes": 62685,
+        "note": "How much of the stored size ordering alone decides.",
+        "worst": "anti_coverage"
+      },
+      "seconds": {
+        "adaptive_coverage": 19.427,
+        "anti_coverage": 0.986,
+        "global_coverage": 0.988,
+        "lexical": 0.293,
+        "shuffled": 0.974
+      }
+    },
+    "attributes_multi_predicate": {
+      "corpus": "attributes>=2",
+      "distinct_predicates": 224624,
+      "flat_cells": 444543,
+      "h1_coverage_beats_arbitrary": {
+        "holds": true,
+        "nodes_saved": 30861,
+        "relative": 0.082915
+      },
+      "h2_branch_local_beats_global": {
+        "holds": true,
+        "nodes_saved": 6906,
+        "relative": 0.020232
+      },
+      "individuals": 89840,
+      "measurements": [
+        {
+          "corpus": "attributes>=2",
+          "distinct_predicates": 224624,
+          "flat_cells": 444543,
+          "individuals": 89840,
+          "max_depth": 6231,
+          "mean_depth": 4.9482,
+          "median_depth": 2.0,
+          "nodes": 334434,
+          "ordering": "adaptive_coverage",
+          "p99_depth": 65,
+          "reuse_rate": 0.24769,
+          "terminal_nodes": 75570
+        },
+        {
+          "corpus": "attributes>=2",
+          "distinct_predicates": 224624,
+          "flat_cells": 444543,
+          "individuals": 89840,
+          "max_depth": 6231,
+          "mean_depth": 4.9482,
+          "median_depth": 2.0,
+          "nodes": 341340,
+          "ordering": "global_coverage",
+          "p99_depth": 65,
+          "reuse_rate": 0.232155,
+          "terminal_nodes": 75570
+        },
+        {
+          "corpus": "attributes>=2",
+          "distinct_predicates": 224624,
+          "flat_cells": 444543,
+          "individuals": 89840,
+          "max_depth": 6231,
+          "mean_depth": 4.9482,
+          "median_depth": 2.0,
+          "nodes": 367033,
+          "ordering": "lexical",
+          "p99_depth": 65,
+          "reuse_rate": 0.174359,
+          "terminal_nodes": 75570
+        },
+        {
+          "corpus": "attributes>=2",
+          "distinct_predicates": 224624,
+          "flat_cells": 444543,
+          "individuals": 89840,
+          "max_depth": 6231,
+          "mean_depth": 4.9482,
+          "median_depth": 2.0,
+          "nodes": 372201,
+          "ordering": "shuffled",
+          "p99_depth": 65,
+          "reuse_rate": 0.162733,
+          "terminal_nodes": 75570
+        },
+        {
+          "corpus": "attributes>=2",
+          "distinct_predicates": 224624,
+          "flat_cells": 444543,
+          "individuals": 89840,
+          "max_depth": 6231,
+          "mean_depth": 4.9482,
+          "median_depth": 2.0,
+          "nodes": 398992,
+          "ordering": "anti_coverage",
+          "p99_depth": 65,
+          "reuse_rate": 0.102467,
+          "terminal_nodes": 75570
+        }
+      ],
+      "ordering_spread": {
+        "best": "adaptive_coverage",
+        "nodes": 64558,
+        "note": "How much of the stored size ordering alone decides.",
+        "worst": "anti_coverage"
+      },
+      "seconds": {
+        "adaptive_coverage": 18.479,
+        "anti_coverage": 0.625,
+        "global_coverage": 0.668,
+        "lexical": 0.178,
+        "shuffled": 0.64
+      }
+    },
+    "attributes_plus_related_to": {
+      "corpus": "attributes_plus_related_to",
+      "distinct_predicates": 540336,
+      "flat_cells": 2320888,
+      "h1_coverage_beats_arbitrary": {
+        "holds": true,
+        "nodes_saved": 113835,
+        "relative": 0.064632
+      },
+      "h2_branch_local_beats_global": {
+        "holds": true,
+        "nodes_saved": 59612,
+        "relative": 0.036184
+      },
+      "individuals": 704575,
+      "measurements": [
+        {
+          "corpus": "attributes_plus_related_to",
+          "distinct_predicates": 540336,
+          "flat_cells": 2320888,
+          "individuals": 704575,
+          "max_depth": 6354,
+          "mean_depth": 3.294,
+          "median_depth": 2,
+          "nodes": 1587839,
+          "ordering": "adaptive_coverage",
+          "p99_depth": 24,
+          "reuse_rate": 0.315849,
+          "terminal_nodes": 485015
+        },
+        {
+          "corpus": "attributes_plus_related_to",
+          "distinct_predicates": 540336,
+          "flat_cells": 2320888,
+          "individuals": 704575,
+          "max_depth": 6354,
+          "mean_depth": 3.294,
+          "median_depth": 2,
+          "nodes": 1647451,
+          "ordering": "global_coverage",
+          "p99_depth": 24,
+          "reuse_rate": 0.290164,
+          "terminal_nodes": 485015
+        },
+        {
+          "corpus": "attributes_plus_related_to",
+          "distinct_predicates": 540336,
+          "flat_cells": 2320888,
+          "individuals": 704575,
+          "max_depth": 6354,
+          "mean_depth": 3.294,
+          "median_depth": 2,
+          "nodes": 1753240,
+          "ordering": "lexical",
+          "p99_depth": 24,
+          "reuse_rate": 0.244582,
+          "terminal_nodes": 485015
+        },
+        {
+          "corpus": "attributes_plus_related_to",
+          "distinct_predicates": 540336,
+          "flat_cells": 2320888,
+          "individuals": 704575,
+          "max_depth": 6354,
+          "mean_depth": 3.294,
+          "median_depth": 2,
+          "nodes": 1761286,
+          "ordering": "shuffled",
+          "p99_depth": 24,
+          "reuse_rate": 0.241115,
+          "terminal_nodes": 485015
+        },
+        {
+          "corpus": "attributes_plus_related_to",
+          "distinct_predicates": 540336,
+          "flat_cells": 2320888,
+          "individuals": 704575,
+          "max_depth": 6354,
+          "mean_depth": 3.294,
+          "median_depth": 2,
+          "nodes": 1872979,
+          "ordering": "anti_coverage",
+          "p99_depth": 24,
+          "reuse_rate": 0.19299,
+          "terminal_nodes": 485015
+        }
+      ],
+      "ordering_spread": {
+        "best": "adaptive_coverage",
+        "nodes": 285140,
+        "note": "How much of the stored size ordering alone decides.",
+        "worst": "anti_coverage"
+      },
+      "seconds": {
+        "adaptive_coverage": 38.069,
+        "anti_coverage": 2.989,
+        "global_coverage": 2.946,
+        "lexical": 0.899,
+        "shuffled": 3.02
+      }
+    },
+    "taxonomy": {
+      "corpus": "taxonomy",
+      "distinct_predicates": 197771,
+      "flat_cells": 480785,
+      "h1_coverage_beats_arbitrary": {
+        "holds": true,
+        "nodes_saved": 34962,
+        "relative": 0.11833
+      },
+      "h2_branch_local_beats_global": {
+        "holds": true,
+        "nodes_saved": 3944,
+        "relative": 0.01514
+      },
+      "individuals": 238033,
+      "measurements": [
+        {
+          "corpus": "taxonomy",
+          "distinct_predicates": 197771,
+          "flat_cells": 480785,
+          "individuals": 238033,
+          "max_depth": 671,
+          "mean_depth": 2.0198,
+          "median_depth": 1,
+          "nodes": 256556,
+          "ordering": "adaptive_coverage",
+          "p99_depth": 12,
+          "reuse_rate": 0.466381,
+          "terminal_nodes": 117857
+        },
+        {
+          "corpus": "taxonomy",
+          "distinct_predicates": 197771,
+          "flat_cells": 480785,
+          "individuals": 238033,
+          "max_depth": 671,
+          "mean_depth": 2.0198,
+          "median_depth": 1,
+          "nodes": 260500,
+          "ordering": "global_coverage",
+          "p99_depth": 12,
+          "reuse_rate": 0.458178,
+          "terminal_nodes": 117857
+        },
+        {
+          "corpus": "taxonomy",
+          "distinct_predicates": 197771,
+          "flat_cells": 480785,
+          "individuals": 238033,
+          "max_depth": 671,
+          "mean_depth": 2.0198,
+          "median_depth": 1,
+          "nodes": 294946,
+          "ordering": "lexical",
+          "p99_depth": 12,
+          "reuse_rate": 0.386532,
+          "terminal_nodes": 117857
+        },
+        {
+          "corpus": "taxonomy",
+          "distinct_predicates": 197771,
+          "flat_cells": 480785,
+          "individuals": 238033,
+          "max_depth": 671,
+          "mean_depth": 2.0198,
+          "median_depth": 1,
+          "nodes": 295462,
+          "ordering": "shuffled",
+          "p99_depth": 12,
+          "reuse_rate": 0.385459,
+          "terminal_nodes": 117857
+        },
+        {
+          "corpus": "taxonomy",
+          "distinct_predicates": 197771,
+          "flat_cells": 480785,
+          "individuals": 238033,
+          "max_depth": 671,
+          "mean_depth": 2.0198,
+          "median_depth": 1,
+          "nodes": 319777,
+          "ordering": "anti_coverage",
+          "p99_depth": 12,
+          "reuse_rate": 0.334886,
+          "terminal_nodes": 117857
+        }
+      ],
+      "ordering_spread": {
+        "best": "adaptive_coverage",
+        "nodes": 63221,
+        "note": "How much of the stored size ordering alone decides.",
+        "worst": "anti_coverage"
+      },
+      "seconds": {
+        "adaptive_coverage": 2.914,
+        "anti_coverage": 0.748,
+        "global_coverage": 0.718,
+        "lexical": 0.241,
+        "shuffled": 0.68
+      }
+    }
+  }
+}
