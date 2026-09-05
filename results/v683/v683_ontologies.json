@@ -1,0 +1,120 @@
+{
+  "results": [
+    {
+      "acyclic": true,
+      "ancestors_max": 28,
+      "ancestors_mean": 8.2,
+      "ancestors_median": 8.0,
+      "components": 317,
+      "confidence_scores": false,
+      "contradictions": {
+        "checkable": false,
+        "reason": "source ships no disjointness or domain constraints"
+      },
+      "cycle_example": [],
+      "cycles_found": 0,
+      "fact_edges": 67666,
+      "grounded_share": 0.251,
+      "largest_component_share": 0.8584,
+      "mean_parents": 1.025,
+      "multi_parent_share": 0.0235,
+      "nodes": 95657,
+      "repaired_mutual_subsumptions": 1,
+      "sense_disambiguated": true,
+      "ships_constraints": false,
+      "source": "wordnet",
+      "taxonomy_edges": 97665
+    },
+    {
+      "acyclic": false,
+      "ancestors_max": 6546,
+      "ancestors_mean": 5946.7,
+      "ancestors_median": 6451.0,
+      "components": 5911,
+      "confidence_scores": false,
+      "contradictions": {
+        "checkable": false,
+        "reason": "source ships no disjointness or domain constraints"
+      },
+      "cycle_example": [
+        "part",
+        "concept",
+        "abstraction",
+        "theorization",
+        "conjecture",
+        "reasoning"
+      ],
+      "cycles_found": 5,
+      "fact_edges": 240488,
+      "grounded_share": 0.133,
+      "largest_component_share": 0.9106,
+      "mean_parents": 1.61,
+      "multi_parent_share": 0.3155,
+      "nodes": 155594,
+      "sense_disambiguated": false,
+      "ships_constraints": false,
+      "source": "conceptnet",
+      "taxonomy_edges": 223354
+    },
+    {
+      "acyclic": true,
+      "ancestors_max": 41,
+      "ancestors_mean": 9.8,
+      "ancestors_median": 9.0,
+      "components": 3,
+      "confidence_scores": false,
+      "contradictions": {
+        "checkable": true,
+        "examples": [
+          "yago:Honor_board: schema:Intangible vs schema:Place",
+          "yago:Airport_authority: schema:Organization vs schema:Product"
+        ],
+        "rate": 0.0005,
+        "sampled": 4000,
+        "violations": 2
+      },
+      "cycle_example": [],
+      "cycles_found": 0,
+      "disjoint_pairs": 29,
+      "fact_edges": 0,
+      "grounded_share": 0.0,
+      "largest_component_share": 0.9999,
+      "mean_parents": 1.127,
+      "multi_parent_share": 0.112,
+      "nodes": 206339,
+      "sense_disambiguated": true,
+      "ships_constraints": true,
+      "source": "yago",
+      "taxonomy_edges": 232531
+    },
+    {
+      "acyclic": false,
+      "ancestors_max": 353,
+      "ancestors_mean": 16.4,
+      "ancestors_median": 3.0,
+      "components": 2254,
+      "confidence_scores": true,
+      "contradictions": {
+        "checkable": false,
+        "reason": "source ships no disjointness or domain constraints"
+      },
+      "cycle_example": [
+        "abbreviation",
+        "acronym",
+        "abbreviation"
+      ],
+      "cycles_found": 5,
+      "fact_edges": 1884031,
+      "grounded_share": 0.3346,
+      "largest_component_share": 0.7389,
+      "mean_parents": 3.233,
+      "multi_parent_share": 0.4977,
+      "nodes": 22261,
+      "sense_disambiguated": false,
+      "ships_constraints": false,
+      "source": "ascentpp",
+      "subgroups": "lexical, not word senses",
+      "taxonomy_edges": 24244
+    }
+  ]
+}
