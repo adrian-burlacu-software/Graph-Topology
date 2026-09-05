@@ -35,6 +35,15 @@ class V682RealGraphTests(unittest.TestCase):
         self.assertTrue(all(fact not in self.graph.direct for fact in inferred))
         self.assertTrue(all(proof.kind == "INFERRED" and proof.premises for proof in inferred.values()))
 
+    def test_clean_graph_is_a_smaller_canonical_projection_with_provenance(self):
+        clean = self.graph.build_clean_graph(self.discovery)
+        self.assertLess(len(clean.nodes), len(self.graph.nodes))
+        self.assertLess(len(clean.edges), len(self.graph.edges))
+        dog = clean.resolve_node("dog")
+        self.assertIsNotNone(dog)
+        self.assertIn("dog", [clean.nodes[dog]["label"], *clean.nodes[dog]["aliases"]])
+        self.assertTrue(all(edge.source for edge in clean.edges))
+
     def test_grounded_dog_query_is_evidence_backed_when_real_graph_supports_it(self):
         result = self.graph.query_natural_language("is dog a mammal?", self.accepted)
         self.assertEqual(result["status"], "VERIFIED")
@@ -46,15 +55,19 @@ class V682RealGraphTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             result = run(DEFAULT_DATABASE, output)
-            self.assertEqual(result["stats"]["database"], str(DEFAULT_DATABASE.resolve()))
+            self.assertEqual(result["stats"]["source_database"], str(DEFAULT_DATABASE.resolve()))
             for name in (
-                "graph_stats.json", "relations.json", "relation_rules.json",
-                "inferred_facts.json", "proofs.json", "evaluation.json", "ontology.html",
+                "clean_graph.json", "concepts.json", "relations.json", "rules.json",
+                "inferred_facts.json", "proofs.json", "evaluation.json", "knowledge_globe.html",
             ):
                 self.assertTrue((output / name).is_file())
-            rules = json.loads((output / "relation_rules.json").read_text(encoding="utf-8"))
+            rules = json.loads((output / "rules.json").read_text(encoding="utf-8"))
             self.assertEqual(rules["candidate_rules"], result["discovery"]["candidate_rules"])
-            page = (output / "ontology.html").read_text(encoding="utf-8")
-            self.assertIn("Interactive 3D semantic graph", page)
-            self.assertIn("Full focused SQLite graph embedded", page)
-            self.assertIn('"related_to"', page)
+            clean = json.loads((output / "clean_graph.json").read_text(encoding="utf-8"))
+            self.assertTrue(clean["stats"]["raw_database_mutated"] is False)
+            self.assertLess(clean["stats"]["canonical_direct_relationships"],
+                            clean["stats"]["raw_edges_considered"])
+            page = (output / "knowledge_globe.html").read_text(encoding="utf-8")
+            self.assertIn("Interactive 3D clean semantic graph", page)
+            self.assertIn("Canonical concepts and verified relationships", page)
+            self.assertIn('"aliases"', page)

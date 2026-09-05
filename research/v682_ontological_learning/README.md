@@ -1,4 +1,4 @@
-# V682: real semantic graph rule discovery
+# V682: clean semantic world
 
 Run the self-contained experiment from the repository root:
 
@@ -6,19 +6,21 @@ Run the self-contained experiment from the repository root:
 python -m research.v682.run_v682
 ```
 
-The command fails loudly unless it can open the repository's focused semantic
-database at `data/v673_focused_semantic.sqlite` (or the supplied `--database`
-path). It loads every direct `subject, relation, object, source` edge, analyzes
-all relation pairs, and empirically certifies composition candidates against a
-deterministic held-out path split. No fixture graph, predefined aliases, or
-predefined composition rules are used.
+The command fails loudly unless it can open the repository's immutable focused
+semantic database at `data/v673_focused_semantic.sqlite` (or the supplied
+`--database` path). It loads every source edge, normalizes concepts only where
+direct structural evidence supports it, retains all relation distinctions, and
+bounds dense low-information evidence in the clean projection. It discovers and
+certifies composition candidates with held-out precision and lift over the
+direct relation base rate. No fixture graph, predefined aliases, or predefined
+composition rules are used.
 
-It writes `graph_stats.json`, `relations.json`, `relation_rules.json`,
-`inferred_facts.json`, `proofs.json`, `evaluation.json`, and `ontology.html`.
-The self-contained HTML contains the full real graph data and an interactive
-canvas 3D globe with level-of-detail rendering, relation filtering, graph-backed
-queries, search, node focus, dragging, rotation, pan, zoom, and direct/inferred
-proof inspection.
+It writes `clean_graph.json`, `concepts.json`, `relations.json`, `rules.json`,
+`inferred_facts.json`, `proofs.json`, `evaluation.json`, and
+`knowledge_globe.html`. The self-contained globe contains the actual clean
+canonical graph, with level-of-detail rendering, relation filtering, graph-backed
+queries, search, node focus, dragging, rotation, pan, zoom, provenance, and
+direct/inferred proof inspection.
 
 Run the permanent regression suite with:
 

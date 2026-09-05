@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from hashlib import sha256
-from math import sqrt
+from math import isqrt, sqrt
 from pathlib import Path
 import re
 import sqlite3
@@ -20,7 +20,7 @@ REQUIRED_COLUMNS = {
 }
 TRAINING_FOLDS = 5
 MAX_INFERRED_FACTS = 5_000
-MAX_INFERENCE_DEPTH = 2
+MAX_INFERENCE_DEPTH = 3
 
 
 @dataclass(frozen=True, order=True)
@@ -181,6 +181,117 @@ class SemanticGraph:
             "edge_direction": "subject -> object",
         }
 
+    def build_clean_graph(self, raw_discovery: dict[str, Any]) -> "CleanSemanticGraph":
+        """Conservatively project raw evidence into canonical concepts and sparse facts.
+
+        Nodes are merged only by direct structural equivalence: identical normalized
+        forms within the same node kind or reciprocal synonym evidence. A lexical
+        node and a WordNet sense intentionally remain separate concepts.
+        """
+        parent = {node_id: node_id for node_id in self.nodes}
+
+        def find(node_id: str) -> str:
+            while parent[node_id] != node_id:
+                parent[node_id] = parent[parent[node_id]]
+                node_id = parent[node_id]
+            return node_id
+
+        def union(left: str, right: str) -> None:
+            left, right = find(left), find(right)
+            if left != right:
+                parent[max(left, right)] = min(left, right)
+
+        normalized: dict[tuple[str, str], list[str]] = defaultdict(list)
+        for node_id, node in self.nodes.items():
+            key = (node["node_type"], node["normalized"].strip().lower())
+            if key[1]:
+                normalized[key].append(node_id)
+        for group in normalized.values():
+            if len(group) > 1:
+                for node_id in group[1:]:
+                    union(group[0], node_id)
+        synonym_pairs = {
+            (edge.fact.subject, edge.fact.object)
+            for edge in self.by_relation.get("synonym", ())
+        }
+        for left, right in synonym_pairs:
+            if (right, left) in synonym_pairs:
+                union(left, right)
+
+        groups: dict[str, list[str]] = defaultdict(list)
+        for node_id in self.nodes:
+            groups[find(node_id)].append(node_id)
+        raw_degree = Counter(value for edge in self.edges for value in (edge.fact.subject, edge.fact.object))
+        canonical_node = {
+            node_id: sorted(members, key=lambda member: (-raw_degree[member], member))[0]
+            for members in groups.values()
+            for node_id in members
+        }
+        concepts = {}
+        for members in sorted(groups.values()):
+            canonical_id = canonical_node[members[0]]
+            representative = self.nodes[canonical_id]
+            concepts[canonical_id] = {
+                **representative,
+                "id": canonical_id,
+                "aliases": sorted({
+                    self.nodes[member]["label"] for member in members if member != canonical_id
+                }),
+                "raw_node_ids": sorted(members),
+                "provenance": sorted({
+                    "wordnet" if self.nodes[member]["source_mask"] & 1 else "conceptnet"
+                    for member in members
+                }),
+            }
+
+        relation_counts = Counter(edge.fact.relation for edge in self.edges)
+        dense_threshold = max(50, len(self.edges) // 2)
+        retained_per_subject: Counter[tuple[str, str]] = Counter()
+        retained_dense: Counter[str] = Counter()
+        clean_edges: list[Edge] = []
+        omitted: Counter[str] = Counter()
+        seen: set[Fact] = set()
+        degree = Counter(value for edge in self.edges for value in (edge.fact.subject, edge.fact.object))
+        ordered_edges = sorted(
+            self.edges,
+            key=lambda edge: (
+                relation_counts[edge.fact.relation] > dense_threshold,
+                -(degree[edge.fact.subject] + degree[edge.fact.object]),
+                edge.fact,
+            ),
+        )
+        for edge in ordered_edges:
+            fact = edge.fact
+            if fact.subject not in canonical_node or fact.object not in canonical_node:
+                continue
+            clean_fact = Fact(
+                canonical_node[fact.subject], fact.relation, canonical_node[fact.object]
+            )
+            dense = relation_counts[fact.relation] > dense_threshold
+            subject_key = clean_fact.subject, clean_fact.relation
+            # Dense relation evidence is retained as a bounded representative
+            # neighborhood, selected deterministically by endpoint specificity.
+            dense_budget = max(32, 6 * isqrt(relation_counts[fact.relation]))
+            if dense and (retained_per_subject[subject_key] >= 3 or
+                          retained_dense[fact.relation] >= dense_budget):
+                omitted[fact.relation] += 1
+                continue
+            if clean_fact in seen:
+                continue
+            seen.add(clean_fact)
+            retained_per_subject[subject_key] += 1
+            if dense:
+                retained_dense[fact.relation] += 1
+            clean_edges.append(Edge(clean_fact, edge.source))
+        return CleanSemanticGraph(
+            raw=self,
+            concepts=concepts,
+            edges=clean_edges,
+            canonical_node=canonical_node,
+            omitted_by_relation=omitted,
+            raw_discovery=raw_discovery,
+        )
+
     def relation_models(self, discovery: dict[str, Any]) -> list[dict[str, Any]]:
         pairs = {
             relation: {(edge.fact.subject, edge.fact.object) for edge in edges}
@@ -223,6 +334,20 @@ class SemanticGraph:
             inverse_score, inverse = max(inverse_scores, default=(0.0, None))
             symmetric = len(relation_pairs & {(object_, subject) for subject, object_ in relation_pairs})
             transitivity = discovery["pair_metrics"].get((relation, relation), {})
+            self_rule = next((
+                rule for rule in discovery["rules"]
+                if rule["left_relation"] == relation
+                and rule["right_relation"] == relation
+                and rule["result_relation"] == relation
+            ), None)
+            subject_kinds = Counter(
+                self.nodes.get(edge.fact.subject, {}).get("node_type", "external")
+                for edge in self.by_relation[relation]
+            )
+            object_kinds = Counter(
+                self.nodes.get(edge.fact.object, {}).get("node_type", "external")
+                for edge in self.by_relation[relation]
+            )
             models.append({
                 "canonical_relation": relation,
                 "source_relations": [relation],
@@ -239,6 +364,19 @@ class SemanticGraph:
                     "support": transitivity.get("outcomes", 0),
                     "two_hop_paths": transitivity.get("paths", 0),
                     "precision": transitivity.get("precision", 0.0),
+                },
+                "semantic_behavior": {
+                    "directional": round(inverse_score, 4) < 0.80,
+                    "candidate_symmetric": round(symmetric / len(relation_pairs), 4) >= 0.80 if relation_pairs else False,
+                    "candidate_transitive": bool(self_rule and self_rule["status"] == "ACCEPTED"),
+                    "subject_node_kinds": dict(sorted(subject_kinds.items())),
+                    "object_node_kinds": dict(sorted(object_kinds.items())),
+                    "inference_rules": [
+                        rule["result_relation"]
+                        for rule in discovery["rules"]
+                        if rule["status"] == "ACCEPTED"
+                        and (rule["left_relation"] == relation or rule["right_relation"] == relation)
+                    ],
                 },
                 "equivalence_candidates": [
                     item for item in equivalence_candidates
@@ -304,11 +442,14 @@ class SemanticGraph:
                 if validation_paths[left, right] else 0.0
             )
             precision = support / total
+            baseline_precision = len(self.by_relation[result]) / len(self.edges)
+            lift = precision / baseline_precision if baseline_precision else 0.0
             accepted = (
                 train_support >= 8
                 and validation_support >= 2
-                and precision >= 0.10
-                and validation_precision >= 0.10
+                and precision >= 0.05
+                and validation_precision >= 0.05
+                and lift >= 1.25
             )
             confidence = min(
                 1.0,
@@ -323,6 +464,8 @@ class SemanticGraph:
                 "support": support,
                 "coverage": round(len(unique_outcomes[key]) / len(self.by_relation[result]), 4),
                 "precision": round(precision, 4),
+                "baseline_precision": round(baseline_precision, 4),
+                "lift": round(lift, 4),
                 "contradictions": total - support,
                 "observed_two_hop_paths": total,
                 "matching_direct_outcomes": support,
@@ -349,7 +492,8 @@ class SemanticGraph:
             ),
             "certification_method": (
                 "A deterministic 80/20 path split requires at least 8 training matches, "
-                "2 held-out matches, and >=0.10 training-independent held-out precision."
+                "2 held-out matches, >=0.05 held-out precision, and >=1.25 lift over "
+                "the direct result-relation base rate."
             ),
             "relation_pairs_examined": len(paths),
             "observed_two_hop_paths": sum(paths.values()),
@@ -418,43 +562,113 @@ class SemanticGraph:
 
     def resolve_node(self, text: str) -> str | None:
         cleaned = str(text).strip().lower()
+        singular = cleaned[:-1] if cleaned.endswith("s") else cleaned
         candidates = (
             cleaned, f"en:{cleaned}", cleaned.replace(" ", "_"), f"en:{cleaned.replace(' ', '_')}",
+            singular, f"en:{singular}", singular.replace(" ", "_"), f"en:{singular.replace(' ', '_')}",
         )
         for candidate in candidates:
             if candidate in self.nodes:
                 return candidate
+            if hasattr(self, "raw_node_map") and candidate in self.raw_node_map:
+                return self.raw_node_map[candidate]
         matches = [
             node_id for node_id, node in self.nodes.items()
-            if node["label"].lower() == cleaned or node["normalized"].lower() == cleaned
+            if (node["label"].lower() == cleaned or node["normalized"].lower() == cleaned or
+                cleaned in {str(alias).lower() for alias in node.get("aliases", ())})
         ]
         return sorted(matches)[0] if matches else None
 
     def query_natural_language(self, text: str, accepted_rules: Iterable[dict[str, Any]]) -> dict[str, Any]:
-        cleaned = re.sub(
-            r"^(?:so|then|and)\s*,?\s*", "", str(text).lower().strip()
-        ).rstrip("?.! ")
-        match = re.fullmatch(r"is\s+(.+?)\s+(?:a|an)\s+(.+)", cleaned)
-        if not match:
-            return {"status": "UNVERIFIED", "reason": "Unsupported grounded semantic query."}
-        subject, object_ = (self.resolve_node(value) for value in match.groups())
-        if not subject or not object_:
-            return {"status": "UNVERIFIED", "reason": "A query term is absent from the focused graph."}
-        relations = [
-            relation for relation, phrases in self.relation_phrases.items()
-            if "is a" in phrases.lower()
-        ] or list(self.relations)
-        for relation in sorted(relations):
-            fact = Fact(subject, relation, object_)
-            proof = self.prove(fact, accepted_rules)
-            if proof:
-                return {
-                    "status": "VERIFIED", "evidence_kind": proof.kind,
-                    "query": fact.as_dict(), "proof": proof.as_dict(),
-                }
+        """Ground arbitrary language in actual labels/relation descriptions, then graph facts."""
+        cleaned = re.sub(r"^(?:so|then|and)\s*,?\s*", "", str(text).lower().strip()).rstrip("?.! ")
+        tokens = set(re.findall(r"[a-z0-9]+", cleaned))
+        node_mentions = []
+        for node_id, node in self.nodes.items():
+            labels = [node["label"], *node.get("aliases", ())]
+            if any(label and re.search(
+                rf"(?<![a-z0-9]){re.escape(label.lower())}(?![a-z0-9])", cleaned
+            ) for label in labels):
+                node_mentions.append((max(len(label) for label in labels), node_id))
+        nodes = [node_id for _, node_id in sorted(node_mentions, reverse=True)]
+        nodes = list(dict.fromkeys(nodes))
+        relation_scores = []
+        for relation in self.relations:
+            vocabulary = set(re.findall(
+                r"[a-z0-9]+", relation.replace("_", " ") + " " + self.relation_phrases.get(relation, "")
+            ))
+            score = len(tokens & vocabulary) / max(1, len(vocabulary))
+            relation_scores.append((score, relation))
+        ranked_relations = [relation for score, relation in sorted(relation_scores, reverse=True) if score > 0]
+        if not ranked_relations:
+            ranked_relations = list(self.relations)
+        if len(nodes) >= 2:
+            subject, object_ = nodes[0], nodes[1]
+            for relation in ranked_relations:
+                proof = self.prove(Fact(subject, relation, object_), accepted_rules)
+                if proof:
+                    return {
+                        "status": "VERIFIED", "evidence_kind": proof.kind,
+                        "query": proof.fact.as_dict(), "proof": proof.as_dict(),
+                    }
+                proof = self.prove(Fact(object_, relation, subject), accepted_rules)
+                if proof:
+                    return {
+                        "status": "VERIFIED", "evidence_kind": proof.kind,
+                        "query": proof.fact.as_dict(), "proof": proof.as_dict(),
+                    }
+            return {"status": "UNKNOWN", "query": {"concepts": nodes[:2], "relations": ranked_relations[:8]}}
+        if nodes:
+            node_id = nodes[0]
+            matches = [
+                proof for proof in {**self.direct, **self.infer(accepted_rules)}.values()
+                if (proof.fact.subject == node_id or proof.fact.object == node_id)
+                and proof.fact.relation in ranked_relations
+            ]
+            return {
+                "status": "VERIFIED" if matches else "UNKNOWN",
+                "query": {"concept": node_id, "relations": ranked_relations[:8]},
+                "facts": [proof.as_dict() for proof in matches[:50]],
+            }
+        return {"status": "UNKNOWN", "reason": "No concept in the question matches a clean graph concept."}
+
+
+class CleanSemanticGraph(SemanticGraph):
+    """Canonical clean graph that retains raw provenance without mutating raw evidence."""
+
+    def __init__(self, raw: SemanticGraph, concepts: dict[str, dict[str, Any]], edges: list[Edge],
+                 canonical_node: dict[str, str], omitted_by_relation: Counter[str],
+                 raw_discovery: dict[str, Any]) -> None:
+        self.database = raw.database
+        self.tables = raw.tables
+        self.metadata = raw.metadata
+        self.nodes = concepts
+        self.relation_phrases = raw.relation_phrases
+        self.edges = sorted(edges, key=lambda edge: edge.fact)
+        self.direct = {}
+        self.outgoing = defaultdict(list)
+        self.by_relation = defaultdict(list)
+        self.pair_relations = defaultdict(set)
+        self.raw_node_map = canonical_node
+        self.omitted_by_relation = omitted_by_relation
+        self.raw_discovery = raw_discovery
+        for edge in self.edges:
+            self.direct[edge.fact] = Proof(edge.fact, "DIRECT", source=edge.source)
+            self.outgoing[edge.fact.subject].append(edge)
+            self.by_relation[edge.fact.relation].append(edge)
+            self.pair_relations[edge.fact.subject, edge.fact.object].add(edge.fact.relation)
+
+    def graph_stats(self) -> dict[str, Any]:
         return {
-            "status": "UNVERIFIED",
-            "query": {"subject": subject, "relation_candidates": sorted(relations), "object": object_},
+            "source_database": str(self.database),
+            "raw_entities": len(self.raw_node_map),
+            "canonical_concepts": len(self.nodes),
+            "canonical_direct_relationships": len(self.edges),
+            "raw_edges_considered": self.tables["edges"]["rows"],
+            "unique_canonical_relations": len(self.relations),
+            "collapsed_aliases": len(self.raw_node_map) - len(self.nodes),
+            "dense_evidence_edges_kept_out_of_default_clean_graph": sum(self.omitted_by_relation.values()),
+            "raw_database_mutated": False,
         }
 
 
