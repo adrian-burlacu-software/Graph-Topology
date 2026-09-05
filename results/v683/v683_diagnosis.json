@@ -1,0 +1,276 @@
+{
+  "cross_validation": {
+    "confirmed": 7598,
+    "contradicted": 1453,
+    "precision_among_judgeable": 0.8395,
+    "probe_edges": {
+      "en:dog is_a en:mammal": true,
+      "en:dog is_a en:thing": false,
+      "en:hammer is_a en:match": false,
+      "en:hammer is_a en:sports equipment": true,
+      "en:hammer is_a en:tool": true,
+      "en:violin is_a en:stringed instrument": true
+    },
+    "sampled": 20000,
+    "total_edges": 221566,
+    "unjudgeable": 10949
+  },
+  "database": "C:\\Users\\adria\\Desktop\\dev\\Graph-Topology\\data\\v633_full_semantic.sqlite",
+  "gates": {
+    "rows": [
+      {
+        "barren_concepts_covered": 0.7469,
+        "gate": "none",
+        "max": 12923,
+        "mean": 1548.2,
+        "median": 23.5,
+        "p99": 9355
+      },
+      {
+        "barren_concepts_covered": 0.7069,
+        "gate": "information>=8bits",
+        "max": 6669,
+        "mean": 323.8,
+        "median": 7.5,
+        "p99": 3061
+      },
+      {
+        "barren_concepts_covered": 0.0257,
+        "gate": "agreement>=0.02",
+        "max": 298,
+        "mean": 1.2,
+        "median": 0.0,
+        "p99": 37
+      },
+      {
+        "barren_concepts_covered": 0.255,
+        "gate": "wordnet_confirmed",
+        "max": 9129,
+        "mean": 565.8,
+        "median": 0.0,
+        "p99": 6903
+      },
+      {
+        "barren_concepts_covered": 0.1361,
+        "gate": "sense_scoped",
+        "max": 6217,
+        "mean": 21.9,
+        "median": 0.0,
+        "p99": 149
+      }
+    ],
+    "violin_sources_depth_2": {
+      "agreement>=0.02": [
+        "musical instrument",
+        "stringed instrument"
+      ],
+      "information>=8bits": [
+        "instrument",
+        "musical instrument",
+        "stringed instrument"
+      ],
+      "none": [
+        "instrument",
+        "musical instrument",
+        "stringed instrument"
+      ],
+      "sense_scoped": [
+        "stringed instrument"
+      ],
+      "wordnet_confirmed": [
+        "musical instrument",
+        "stringed instrument"
+      ]
+    }
+  },
+  "individuals": 277806,
+  "inheritance": {
+    "concepts_with_no_direct_facts": 0.8758,
+    "derived_max": 12923,
+    "derived_mean": 1548.2,
+    "derived_median": 23.5,
+    "direct_mean": 0.437,
+    "direct_median": 0.0,
+    "examples": {
+      "en:dog": {
+        "direct_facts": 265,
+        "inherited_depth_1": 31,
+        "sample": [
+          [
+            "domesticated animal",
+            "receives_action",
+            "kept as pet"
+          ],
+          [
+            "chap",
+            "manner_of",
+            "crack"
+          ],
+          [
+            "good friend",
+            "capable_of",
+            "arm with confidence"
+          ],
+          [
+            "mammal",
+            "capable_of",
+            "mate"
+          ],
+          [
+            "mammal",
+            "capable_of",
+            "drink liquids"
+          ],
+          [
+            "mammal",
+            "capable_of",
+            "trip on lysurgic acid dyethylamide"
+          ]
+        ],
+        "sources": [
+          "artwork",
+          "chap",
+          "domesticated animal",
+          "good friend",
+          "mammal",
+          "pet",
+          "thing"
+        ]
+      },
+      "en:hammer": {
+        "direct_facts": 84,
+        "inherited_depth_1": 82,
+        "sample": [
+          [
+            "sports equipment",
+            "used_for",
+            "play sports"
+          ],
+          [
+            "sports equipment",
+            "used_for",
+            "protecting against injury"
+          ],
+          [
+            "sports equipment",
+            "at_location",
+            "sporting event"
+          ],
+          [
+            "sports equipment",
+            "receives_action",
+            "used in playing sports"
+          ],
+          [
+            "sports equipment",
+            "used_for",
+            "play game"
+          ],
+          [
+            "sports equipment",
+            "used_for",
+            "waste time"
+          ]
+        ],
+        "sources": [
+          "blow",
+          "field event",
+          "sports equipment",
+          "striker",
+          "tool"
+        ]
+      },
+      "en:violin": {
+        "direct_facts": 26,
+        "inherited_depth_1": 19,
+        "sample": [
+          [
+            "stringed instrument",
+            "at_location",
+            "rock band"
+          ],
+          [
+            "stringed instrument",
+            "used_for",
+            "play music"
+          ],
+          [
+            "stringed instrument",
+            "used_for",
+            "playing music"
+          ],
+          [
+            "stringed instrument",
+            "at_location",
+            "concert"
+          ],
+          [
+            "stringed instrument",
+            "receives_action",
+            "tuned"
+          ],
+          [
+            "stringed instrument",
+            "used_for",
+            "lovely music"
+          ]
+        ],
+        "sources": [
+          "stringed instrument"
+        ]
+      }
+    },
+    "sample": 1200
+  },
+  "navigable": {
+    "components": 6227,
+    "cycle_examples": [
+      [
+        "abstraction",
+        "theorization",
+        "conjecture",
+        "theory",
+        "explanation",
+        "thinking"
+      ],
+      [
+        "condition",
+        "good health",
+        "physiological state",
+        "condition"
+      ],
+      [
+        "localized spatial thing",
+        "boundary",
+        "area",
+        "extent",
+        "degree",
+        "intangible object describing predicate"
+      ],
+      [
+        "cognition",
+        "partially mental event",
+        "event",
+        "physical phenomenon",
+        "natural phenomenon",
+        "phenomenon"
+      ],
+      [
+        "partially mental event",
+        "event",
+        "physical phenomenon",
+        "natural phenomenon",
+        "phenomenon",
+        "development"
+      ]
+    ],
+    "cycles_found": 5,
+    "is_a_edges": 321020,
+    "largest_component": 141683,
+    "largest_share": 0.5639,
+    "nodes": 251251,
+    "second_component": 82115
+  },
+  "normalization": "safe",
+  "verdict": "The graph supports direct, provenance-carrying lookup over 3.9M edges. It does\nnot yet support multi-hop inference, and no gate tested here fixes that.\n\nInheritance is either explosive or over-pruned, with nothing usable between:\ntrusting every is_a edge yields a mean of ~1,550 derived facts per concept and\na maximum near 13,000, most of it wrong; sense-scoping cuts the mean to ~22 but\ndrops coverage of fact-less concepts from ~75% to ~14%, and it removes correct\nparents (violin loses `musical instrument`) while keeping wrong ones (hammer\nkeeps `sports equipment`, correct only for the throwing sense).\n\nInformation content and profile agreement both fail outright. The database is\ntoo sparse for any statistical agreement measure: `dog is_a mammal` scores\n0.0034 agreement, below the junk it is meant to outrank.\n\nWhat is missing is not another heuristic. It is a labelled set saying which\nderived facts are true. Without one, every gate above is tuned against an\nunmeasurable target -- which is exactly how V682's benchmark ended up asserting\n`actual = expected` and reporting 1.0 accuracy.\n"
+}
