@@ -3,7 +3,7 @@
 Run the self-contained experiment from the repository root:
 
 ```bash
-python -m research.v682_ontological_learning.run_v682
+python -m research.v682.run_v682
 ```
 
 The command builds a compact canonical graph from explicit facts, normalizes
