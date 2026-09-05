@@ -94,14 +94,13 @@
   input[type=range] { flex:1; min-width:130px; accent-color:var(--accent); }
 
   /* graph view */
-  #graph { width:100%; height:520px; display:block; border-radius:9px;
-           border:1px solid var(--line); margin-bottom:12px;
-           background:radial-gradient(circle at 50% 50%, #1b2330 0%, #141821 46%, #10131a 100%); }
-  #graph .ring { fill:none; stroke:var(--line); stroke-width:1; opacity:.3;
-                 stroke-dasharray:3 7; }
+  #graph { width:100%; display:block; border-radius:9px;
+           border:1px solid var(--line); margin-bottom:12px; background:#12151c; }
   #graph .edge { stroke:var(--line); stroke-width:1.5; fill:none;
                  transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.45; }
+  #graph .edge.shortcut { stroke-dasharray:5 4; opacity:.3; }
   #graph .edge.walked { stroke:var(--accent); stroke-width:2.2; opacity:.95; }
+  #graph .edge.shortcut.walked { opacity:.6; }
   #graph .gnode circle {
     fill:var(--panel2); stroke:var(--line); stroke-width:1.5; r:7;
     transition:fill .35s ease, stroke .35s ease, r .3s ease;
@@ -139,6 +138,8 @@
   .legend i.k-seen { background:#232c3a; border-color:var(--faint); }
   .legend i.k-hit { background:var(--yes); border-color:var(--yes); }
   .legend i.k-blocked { background:var(--no); border-color:var(--no); }
+  .legend i.k-short { width:16px; height:0; border-radius:0; background:none;
+                      border:0; border-top:1.5px dashed var(--faint); }
   .nowstep .rule { margin-right:7px; }
 
   details#stepsbox { border-top:1px solid var(--line); padding-top:10px; }
@@ -215,6 +216,7 @@
           <span><i class="k-seen"></i>passed through</span>
           <span><i class="k-hit"></i>answered</span>
           <span><i class="k-blocked"></i>blocked / stopped</span>
+          <span><i class="k-short"></i>dashed = DAG shortcut</span>
         </div>
         <details id="stepsbox">
           <summary><span id="stepsummary">All steps</span></summary>
@@ -401,67 +403,39 @@ function buildGraph() {
   });
   if (!byDist.size) return;
 
-  // Concentric rings: the asked concept at the centre, each ring one step of
-  // generalisation outward. A radial layout suits this better than rows,
-  // because the taxonomy is a DAG -- `animal` is two steps from `dog` and also
-  // the parent of `chordate` six steps out, and that shortcut is a chord here
-  // rather than a line doubling back across the diagram.
-  const W = 860, H = 560, cx = W / 2, cy = H / 2;
+  // One row per level of generalisation, asked concept at the bottom. Rows,
+  // not rings: a ring layout leaves no room for a label beside a node, and the
+  // names are the point. Height grows with the number of levels so rows never
+  // crowd.
   const levels = [...byDist.keys()].sort((a, b) => a - b);
-  const maxRing = Math.min(H, W) / 2 - 74;
-  const ringOf = d => levels.length < 2 ? 0
-    : 46 + (maxRing - 46) * (levels.indexOf(d) / (levels.length - 1));
+  const widest = Math.max(...levels.map(d => byDist.get(d).length));
+  const rowGap = 64, padY = 40, padX = 30;
+  const W = Math.max(760, 300 + widest * 210);
+  const H = padY * 2 + Math.max(1, levels.length - 1) * rowGap;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.height = H + "px";
 
-  // faint ring guides
-  levels.forEach(d => {
-    if (!d) return;
-    const ring = document.createElementNS(SVG_NS, "circle");
-    ring.setAttribute("class", "ring");
-    ring.setAttribute("cx", cx); ring.setAttribute("cy", cy);
-    ring.setAttribute("r", ringOf(d));
-    svg.appendChild(ring);
+  const pos = new Map();
+  levels.forEach((d, li) => {
+    const row = byDist.get(d);
+    const y = H - padY - li * rowGap;         // distance 0 at the bottom
+    const usable = W - padX * 2 - 150;
+    row.forEach((c, i) => {
+      const x = row.length === 1 ? padX + 90
+        : padX + 90 + (i * usable) / (row.length - 1);
+      pos.set(c, { x, y, d });
+    });
     const tag = document.createElementNS(SVG_NS, "text");
     tag.setAttribute("class", "lvl");
-    tag.setAttribute("x", cx + 3); tag.setAttribute("y", cy - ringOf(d) - 5);
-    tag.textContent = "+" + d;
+    tag.setAttribute("x", 8); tag.setAttribute("y", y + 4);
+    tag.textContent = d === 0 ? "asked" : "+" + d;
     svg.appendChild(tag);
   });
 
-  // Place each ring, ordering nodes by where their children already sit so a
-  // lineage stays roughly radial instead of wrapping around the circle.
-  const pos = new Map();
-  const angle = new Map();
-  levels.forEach((d, li) => {
-    const row = byDist.get(d);
-    if (d === 0) {
-      row.forEach(c => { pos.set(c, { x: cx, y: cy, d }); angle.set(c, -Math.PI / 2); });
-      return;
-    }
-    const preferred = row.map(c => {
-      const kids = [];
-      steps.forEach(st => {
-        if ((st.parents || []).includes(c) && angle.has(st.concept))
-          kids.push(angle.get(st.concept));
-      });
-      if (!kids.length) return { c, a: null };
-      const x = kids.reduce((s, a) => s + Math.cos(a), 0) / kids.length;
-      const y = kids.reduce((s, a) => s + Math.sin(a), 0) / kids.length;
-      return { c, a: Math.atan2(y, x) };
-    });
-    preferred.sort((p, q) => (p.a == null ? 9 : p.a) - (q.a == null ? 9 : q.a));
-    const span = Math.PI * 2;
-    const start = -Math.PI / 2 - span / 2 + span / (row.length * 2);
-    preferred.forEach((p, i) => {
-      const a = row.length === 1 && p.a != null ? p.a
-        : start + (i * span) / row.length;
-      const r = ringOf(d);
-      pos.set(p.c, { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), d });
-      angle.set(p.c, a);
-    });
-  });
-
-  // edges: each step's concept to the parents it named, bowed toward centre
+  // Edges. A parent nearer the root than its child is a shortcut across the
+  // DAG -- `chordate` at +6 has `animal` as a parent, and `animal` is already
+  // at +2 by a shorter route. Those are drawn dashed so a line running back
+  // down the diagram reads as the shortcut it is, not as an error.
   const edgeEls = new Map();
   const drawn = new Set();
   steps.forEach(st => {
@@ -470,11 +444,10 @@ function buildGraph() {
       if (drawn.has(key) || !pos.has(st.concept) || !pos.has(p)) return;
       drawn.add(key);
       const a = pos.get(st.concept), b = pos.get(p);
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const line = document.createElementNS(SVG_NS, "path");
-      line.setAttribute("class", "edge");
-      line.setAttribute("d",
-        `M${a.x},${a.y} Q${mx + (cx - mx) * 0.22},${my + (cy - my) * 0.22} ${b.x},${b.y}`);
+      const my = (a.y + b.y) / 2;
+      line.setAttribute("class", "edge" + (b.d <= a.d ? " shortcut" : ""));
+      line.setAttribute("d", `M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}`);
       svg.appendChild(line);
       edgeEls.set(key, line);
     });
@@ -490,11 +463,7 @@ function buildGraph() {
     const dot = document.createElementNS(SVG_NS, "circle");
     dot.setAttribute("r", 7);
     const label = document.createElementNS(SVG_NS, "text");
-    const left = p.x < cx - 6;
-    label.setAttribute("x", left ? -13 : 13);
-    label.setAttribute("y", p.d === 0 ? 26 : 4);
-    if (p.d === 0) label.setAttribute("x", 0);
-    label.setAttribute("text-anchor", p.d === 0 ? "middle" : (left ? "end" : "start"));
+    label.setAttribute("x", 14); label.setAttribute("y", 4);
     label.textContent = shortName(c);
     const title = document.createElementNS(SVG_NS, "title");
     title.textContent = c;
