@@ -1,477 +1,361 @@
 {
-  "cases": [
-    {
-      "actual": "DIRECT",
-      "expected": "DIRECT",
-      "name": "dog type mammal",
-      "passed": true,
-      "result": {
-        "proof": {
+  "automatic_equivalent_chain": {
+    "kind": "automatically_selected_real_two_hop_chain",
+    "proof": {
+      "fact": {
+        "object": "wn:synset:suffer.v.03",
+        "relation": "has_sense",
+        "subject": "en:abide"
+      },
+      "kind": "INFERRED",
+      "premises": [
+        {
           "fact": {
-            "object": "mammal",
-            "relation": "type",
-            "subject": "dog"
+            "object": "wn:synset:digest.v.03",
+            "relation": "has_sense",
+            "subject": "en:abide"
           },
           "kind": "DIRECT",
           "proof_depth": 0,
-          "source_relation": "instance_of"
+          "source": "wordnet"
         },
-        "query": {
-          "object": "mammal",
-          "relation": "type",
-          "subject": "dog"
-        },
-        "status": "DIRECT"
+        {
+          "fact": {
+            "object": "wn:synset:suffer.v.03",
+            "relation": "verb_group",
+            "subject": "wn:synset:digest.v.03"
+          },
+          "kind": "DIRECT",
+          "proof_depth": 0,
+          "source": "wordnet"
+        }
+      ],
+      "proof_depth": 1,
+      "rule": {
+        "confidence": 0.2326,
+        "left_relation": "has_sense",
+        "result_relation": "has_sense",
+        "right_relation": "verb_group"
       }
     },
+    "result": {
+      "object": "wn:synset:suffer.v.03",
+      "relation": "has_sense",
+      "subject": "en:abide"
+    }
+  },
+  "grounded_queries": [
     {
-      "actual": "INFERRED",
-      "expected": "INFERRED",
-      "name": "mammal is_a organism",
-      "passed": true,
-      "result": {
-        "proof": {
-          "fact": {
-            "object": "organism",
-            "relation": "is_a",
-            "subject": "mammal"
-          },
-          "kind": "INFERRED",
-          "premises": [
-            {
-              "fact": {
-                "object": "animal",
-                "relation": "is_a",
-                "subject": "mammal"
-              },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "vertebrate",
-                    "relation": "is_a",
-                    "subject": "mammal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "hypernym"
-                },
-                {
-                  "fact": {
-                    "object": "animal",
-                    "relation": "is_a",
-                    "subject": "vertebrate"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "subclass_of"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "is_a + is_a -> is_a"
-            },
-            {
-              "fact": {
-                "object": "organism",
-                "relation": "is_a",
-                "subject": "animal"
-              },
-              "kind": "DIRECT",
-              "proof_depth": 0,
-              "source_relation": "is_a"
-            }
-          ],
-          "proof_depth": 2,
-          "rule": "is_a + is_a -> is_a"
-        },
-        "query": {
-          "object": "organism",
+      "evidence_kind": "DIRECT",
+      "proof": {
+        "fact": {
+          "object": "en:mammal",
           "relation": "is_a",
-          "subject": "mammal"
+          "subject": "en:dog"
         },
-        "status": "INFERRED"
-      }
+        "kind": "DIRECT",
+        "proof_depth": 0,
+        "source": "conceptnet"
+      },
+      "query": {
+        "object": "en:mammal",
+        "relation": "is_a",
+        "subject": "en:dog"
+      },
+      "status": "VERIFIED"
     },
     {
-      "actual": "INFERRED",
-      "expected": "INFERRED",
-      "name": "dog type organism",
-      "passed": true,
-      "result": {
-        "proof": {
-          "fact": {
-            "object": "organism",
-            "relation": "type",
-            "subject": "dog"
-          },
-          "kind": "INFERRED",
-          "premises": [
-            {
-              "fact": {
-                "object": "vertebrate",
-                "relation": "type",
-                "subject": "dog"
-              },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "mammal",
-                    "relation": "type",
-                    "subject": "dog"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "instance_of"
-                },
-                {
-                  "fact": {
-                    "object": "vertebrate",
-                    "relation": "is_a",
-                    "subject": "mammal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "hypernym"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "type + is_a -> type"
+      "evidence_kind": "INFERRED",
+      "proof": {
+        "fact": {
+          "object": "en:organism",
+          "relation": "is_a",
+          "subject": "en:dog"
+        },
+        "kind": "INFERRED",
+        "premises": [
+          {
+            "fact": {
+              "object": "en:canine",
+              "relation": "is_a",
+              "subject": "en:dog"
             },
-            {
-              "fact": {
-                "object": "organism",
-                "relation": "is_a",
-                "subject": "vertebrate"
-              },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "animal",
-                    "relation": "is_a",
-                    "subject": "vertebrate"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "subclass_of"
+            "kind": "DIRECT",
+            "proof_depth": 0,
+            "source": "conceptnet"
+          },
+          {
+            "fact": {
+              "object": "en:organism",
+              "relation": "is_a",
+              "subject": "en:canine"
+            },
+            "kind": "INFERRED",
+            "premises": [
+              {
+                "fact": {
+                  "object": "en:animal",
+                  "relation": "is_a",
+                  "subject": "en:canine"
                 },
-                {
-                  "fact": {
-                    "object": "organism",
-                    "relation": "is_a",
-                    "subject": "animal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "is_a"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "is_a + is_a -> is_a"
+                "kind": "DIRECT",
+                "proof_depth": 0,
+                "source": "conceptnet"
+              },
+              {
+                "fact": {
+                  "object": "en:organism",
+                  "relation": "is_a",
+                  "subject": "en:animal"
+                },
+                "kind": "DIRECT",
+                "proof_depth": 0,
+                "source": "conceptnet"
+              }
+            ],
+            "proof_depth": 1,
+            "rule": {
+              "confidence": 0.1048,
+              "left_relation": "is_a",
+              "result_relation": "is_a",
+              "right_relation": "is_a"
             }
-          ],
-          "proof_depth": 2,
-          "rule": "type + is_a -> type"
-        },
-        "query": {
-          "object": "organism",
-          "relation": "type",
-          "subject": "dog"
-        },
-        "status": "INFERRED"
-      }
+          }
+        ],
+        "proof_depth": 2,
+        "rule": {
+          "confidence": 0.1048,
+          "left_relation": "is_a",
+          "result_relation": "is_a",
+          "right_relation": "is_a"
+        }
+      },
+      "query": {
+        "object": "en:organism",
+        "relation": "is_a",
+        "subject": "en:dog"
+      },
+      "status": "VERIFIED"
     },
     {
-      "actual": "UNVERIFIED",
-      "expected": "UNVERIFIED",
-      "name": "dog type mineral",
-      "passed": true,
-      "result": {
-        "query": {
-          "object": "mineral",
-          "relation": "type",
-          "subject": "dog"
+      "evidence_kind": "INFERRED",
+      "proof": {
+        "fact": {
+          "object": "en:organism",
+          "relation": "is_a",
+          "subject": "en:dog"
         },
-        "status": "UNVERIFIED"
-      }
-    },
-    {
-      "actual": "UNVERIFIED",
-      "expected": "UNVERIFIED",
-      "name": "mammal type plant",
-      "passed": true,
-      "result": {
-        "query": {
-          "object": "plant",
-          "relation": "type",
-          "subject": "mammal"
+        "kind": "INFERRED",
+        "premises": [
+          {
+            "fact": {
+              "object": "en:canine",
+              "relation": "is_a",
+              "subject": "en:dog"
+            },
+            "kind": "DIRECT",
+            "proof_depth": 0,
+            "source": "conceptnet"
+          },
+          {
+            "fact": {
+              "object": "en:organism",
+              "relation": "is_a",
+              "subject": "en:canine"
+            },
+            "kind": "INFERRED",
+            "premises": [
+              {
+                "fact": {
+                  "object": "en:animal",
+                  "relation": "is_a",
+                  "subject": "en:canine"
+                },
+                "kind": "DIRECT",
+                "proof_depth": 0,
+                "source": "conceptnet"
+              },
+              {
+                "fact": {
+                  "object": "en:organism",
+                  "relation": "is_a",
+                  "subject": "en:animal"
+                },
+                "kind": "DIRECT",
+                "proof_depth": 0,
+                "source": "conceptnet"
+              }
+            ],
+            "proof_depth": 1,
+            "rule": {
+              "confidence": 0.1048,
+              "left_relation": "is_a",
+              "result_relation": "is_a",
+              "right_relation": "is_a"
+            }
+          }
+        ],
+        "proof_depth": 2,
+        "rule": {
+          "confidence": 0.1048,
+          "left_relation": "is_a",
+          "result_relation": "is_a",
+          "right_relation": "is_a"
+        }
+      },
+      "query": {
+        "object": "en:organism",
+        "relation": "is_a",
+        "subject": "en:dog"
+      },
+      "status": "VERIFIED"
+    }
+  ],
+  "original_dog_chain": {
+    "available": true,
+    "note": "Exact links are reported from the real graph; absent links are not fabricated.",
+    "results": [
+      {
+        "evidence_kind": "DIRECT",
+        "fact": {
+          "object": "en:mammal",
+          "relation": "is_a",
+          "subject": "en:dog"
         },
-        "status": "UNVERIFIED"
-      }
-    },
-    {
-      "actual": "DIRECT",
-      "expected": "DIRECT",
-      "name": "alias type_of dog mammal",
-      "passed": true,
-      "result": {
         "proof": {
           "fact": {
-            "object": "mammal",
-            "relation": "type",
-            "subject": "dog"
+            "object": "en:mammal",
+            "relation": "is_a",
+            "subject": "en:dog"
           },
           "kind": "DIRECT",
           "proof_depth": 0,
-          "source_relation": "instance_of"
+          "source": "conceptnet"
         },
-        "query": {
-          "object": "mammal",
-          "relation": "type",
-          "subject": "dog"
+        "query": "dog -> mammal",
+        "status": "VERIFIED"
+      },
+      {
+        "evidence_kind": "INFERRED",
+        "fact": {
+          "object": "en:organism",
+          "relation": "is_a",
+          "subject": "en:mammal"
         },
-        "status": "DIRECT"
-      }
-    },
-    {
-      "actual": "INFERRED",
-      "expected": "INFERRED",
-      "name": "property inheritance",
-      "passed": true,
-      "result": {
         "proof": {
           "fact": {
-            "object": "warm_blooded",
-            "relation": "has_property",
-            "subject": "dog"
+            "object": "en:organism",
+            "relation": "is_a",
+            "subject": "en:mammal"
           },
           "kind": "INFERRED",
           "premises": [
             {
               "fact": {
-                "object": "mammal",
-                "relation": "type",
-                "subject": "dog"
+                "object": "en:animal",
+                "relation": "is_a",
+                "subject": "en:mammal"
               },
               "kind": "DIRECT",
               "proof_depth": 0,
-              "source_relation": "instance_of"
+              "source": "conceptnet"
             },
             {
               "fact": {
-                "object": "warm_blooded",
-                "relation": "has_property",
-                "subject": "mammal"
+                "object": "en:organism",
+                "relation": "is_a",
+                "subject": "en:animal"
               },
               "kind": "DIRECT",
               "proof_depth": 0,
-              "source_relation": "has_attribute"
+              "source": "conceptnet"
             }
           ],
           "proof_depth": 1,
-          "rule": "type + has_property -> has_property"
+          "rule": {
+            "confidence": 0.1048,
+            "left_relation": "is_a",
+            "result_relation": "is_a",
+            "right_relation": "is_a"
+          }
         },
-        "query": {
-          "object": "warm_blooded",
-          "relation": "has_property",
-          "subject": "dog"
+        "query": "mammal -> organism",
+        "status": "VERIFIED"
+      },
+      {
+        "evidence_kind": "INFERRED",
+        "fact": {
+          "object": "en:organism",
+          "relation": "is_a",
+          "subject": "en:dog"
         },
-        "status": "INFERRED"
-      }
-    },
-    {
-      "actual": "INFERRED",
-      "expected": "INFERRED",
-      "name": "grounded question",
-      "passed": true,
-      "result": {
         "proof": {
           "fact": {
-            "object": "organism",
-            "relation": "type",
-            "subject": "dog"
+            "object": "en:organism",
+            "relation": "is_a",
+            "subject": "en:dog"
           },
           "kind": "INFERRED",
           "premises": [
             {
               "fact": {
-                "object": "vertebrate",
-                "relation": "type",
-                "subject": "dog"
+                "object": "en:canine",
+                "relation": "is_a",
+                "subject": "en:dog"
               },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "mammal",
-                    "relation": "type",
-                    "subject": "dog"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "instance_of"
-                },
-                {
-                  "fact": {
-                    "object": "vertebrate",
-                    "relation": "is_a",
-                    "subject": "mammal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "hypernym"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "type + is_a -> type"
+              "kind": "DIRECT",
+              "proof_depth": 0,
+              "source": "conceptnet"
             },
             {
               "fact": {
-                "object": "organism",
+                "object": "en:organism",
                 "relation": "is_a",
-                "subject": "vertebrate"
+                "subject": "en:canine"
               },
               "kind": "INFERRED",
               "premises": [
                 {
                   "fact": {
-                    "object": "animal",
+                    "object": "en:animal",
                     "relation": "is_a",
-                    "subject": "vertebrate"
+                    "subject": "en:canine"
                   },
                   "kind": "DIRECT",
                   "proof_depth": 0,
-                  "source_relation": "subclass_of"
+                  "source": "conceptnet"
                 },
                 {
                   "fact": {
-                    "object": "organism",
+                    "object": "en:organism",
                     "relation": "is_a",
-                    "subject": "animal"
+                    "subject": "en:animal"
                   },
                   "kind": "DIRECT",
                   "proof_depth": 0,
-                  "source_relation": "is_a"
+                  "source": "conceptnet"
                 }
               ],
               "proof_depth": 1,
-              "rule": "is_a + is_a -> is_a"
+              "rule": {
+                "confidence": 0.1048,
+                "left_relation": "is_a",
+                "result_relation": "is_a",
+                "right_relation": "is_a"
+              }
             }
           ],
           "proof_depth": 2,
-          "rule": "type + is_a -> type"
+          "rule": {
+            "confidence": 0.1048,
+            "left_relation": "is_a",
+            "result_relation": "is_a",
+            "right_relation": "is_a"
+          }
         },
-        "query": {
-          "object": "organism",
-          "relation": "type",
-          "subject": "dog"
-        },
-        "status": "INFERRED"
+        "query": "dog -> organism",
+        "status": "VERIFIED"
       }
-    },
-    {
-      "actual": "INFERRED",
-      "expected": "INFERRED",
-      "name": "grounded follow-up",
-      "passed": true,
-      "result": {
-        "proof": {
-          "fact": {
-            "object": "organism",
-            "relation": "type",
-            "subject": "dog"
-          },
-          "kind": "INFERRED",
-          "premises": [
-            {
-              "fact": {
-                "object": "vertebrate",
-                "relation": "type",
-                "subject": "dog"
-              },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "mammal",
-                    "relation": "type",
-                    "subject": "dog"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "instance_of"
-                },
-                {
-                  "fact": {
-                    "object": "vertebrate",
-                    "relation": "is_a",
-                    "subject": "mammal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "hypernym"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "type + is_a -> type"
-            },
-            {
-              "fact": {
-                "object": "organism",
-                "relation": "is_a",
-                "subject": "vertebrate"
-              },
-              "kind": "INFERRED",
-              "premises": [
-                {
-                  "fact": {
-                    "object": "animal",
-                    "relation": "is_a",
-                    "subject": "vertebrate"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "subclass_of"
-                },
-                {
-                  "fact": {
-                    "object": "organism",
-                    "relation": "is_a",
-                    "subject": "animal"
-                  },
-                  "kind": "DIRECT",
-                  "proof_depth": 0,
-                  "source_relation": "is_a"
-                }
-              ],
-              "proof_depth": 1,
-              "rule": "is_a + is_a -> is_a"
-            }
-          ],
-          "proof_depth": 2,
-          "rule": "type + is_a -> type"
-        },
-        "query": {
-          "object": "organism",
-          "relation": "type",
-          "subject": "dog"
-        },
-        "status": "INFERRED"
-      }
-    }
-  ],
-  "passed": 9,
-  "stats": {
-    "aliases": 5,
-    "average_proof_depth": 1.62,
-    "canonical_relations": 3,
-    "entities": 1,
-    "explicit_facts": 8,
-    "inferred_facts": 8,
-    "properties": 2,
-    "rules": 3,
-    "types": 7
-  },
-  "total": 9
+    ]
+  }
 }
