@@ -1,4 +1,0 @@
-spacy>=3.7
-torch>=2.0
-transformers>=4.45
-nltk
