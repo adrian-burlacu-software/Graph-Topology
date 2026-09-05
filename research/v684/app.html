@@ -99,6 +99,19 @@
   #graph .edge { stroke:var(--line); stroke-width:1.5; fill:none;
                  transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.45; }
   #graph .edge.shortcut { stroke-dasharray:5 4; opacity:.3; }
+  #graph .ring { fill:none; stroke:var(--line); stroke-width:1; opacity:.22;
+                 stroke-dasharray:3 8; }
+  /* A sibling stays out of the way until the walk reaches its parent, then
+     fades in to show what that generalisation also covers. */
+  #graph .gnode.ghost { opacity:0 !important; pointer-events:none;
+                        transition:opacity .4s ease; }
+  #graph .gnode.ghost.revealed { opacity:calc(var(--depth,1) * .8) !important;
+                                 pointer-events:auto; }
+  #graph .gnode { opacity:var(--depth,1); }
+  #graph .gnode.ghost circle { fill:#1a212c; stroke:#333c4c; }
+  #graph .gnode.ghost text { fill:#4d5566; font-size:9.5px; }
+  #graph .edge.faded { opacity:0; transition:opacity .4s ease; }
+  #graph .edge.faded.revealed { opacity:.16; }
   #graph .edge.walked { stroke:var(--accent); stroke-width:2.2; opacity:.95; }
   #graph .edge.shortcut.walked { opacity:.6; }
   #graph .gnode circle {
@@ -140,6 +153,7 @@
   .legend i.k-blocked { background:var(--no); border-color:var(--no); }
   .legend i.k-short { width:16px; height:0; border-radius:0; background:none;
                       border:0; border-top:1.5px dashed var(--faint); }
+  .legend i.k-ghost { background:#1a212c; border-color:#333c4c; width:7px; height:7px; }
   .nowstep .rule { margin-right:7px; }
 
   details#stepsbox { border-top:1px solid var(--line); padding-top:10px; }
@@ -202,6 +216,8 @@
       <div class="card" id="deriv" hidden>
         <h2>Derivation — replay the steps</h2>
         <div class="controls">
+          <button class="ghost" id="view">◎ Globe</button>
+          <button class="ghost" id="nbr">◌ Neighbours</button>
           <button class="ghost" id="play">▶ Play</button>
           <button class="ghost" id="back">◀</button>
           <button class="ghost" id="fwd">▶</button>
@@ -217,6 +233,7 @@
           <span><i class="k-hit"></i>answered</span>
           <span><i class="k-blocked"></i>blocked / stopped</span>
           <span><i class="k-short"></i>dashed = DAG shortcut</span>
+          <span><i class="k-ghost"></i>neighbourhood (globe view)</span>
         </div>
         <details id="stepsbox">
           <summary><span id="stepsummary">All steps</span></summary>
@@ -380,10 +397,259 @@ function buildChain() {
 /* ---- graph neighbourhood ---- */
 const SVG_NS = "http://www.w3.org/2000/svg";
 let GRAPH = null;
+let VIEW = localStorage.getItem("v684view") || "rows";
+let NBR = localStorage.getItem("v684nbr") !== "off";
 
 function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
 
+/* Globe: concentric shells, the asked concept at the centre.
+ *
+ * The first attempt collapsed to a line because ring angles were seeded from
+ * each node's children, and with one or two nodes per ring every lineage
+ * inherited the same angle. Here each shell is spread evenly across the full
+ * circle first, and the preferred angle only decides the *order* within that
+ * spread -- never the position. Siblings from the neighbourhood fill the
+ * shells out so there is a cloud to move through rather than a bare chain.
+ */
+function buildGlobe(steps, byDist) {
+  const svg = $("graph");
+  const hood = (STATE && STATE.neighbourhood) || { nodes: [], edges: [] };
+  const W = 1000, H = 760, cx = W / 2, cy = H / 2;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.height = H + "px";
+
+  const shell = new Map();
+  byDist.forEach((row, d) => row.forEach(c => shell.set(c, d)));
+  hood.nodes.forEach(n => { if (!shell.has(n.id)) shell.set(n.id, Math.max(0, n.distance)); });
+  const levels = [...new Set(shell.values())].sort((a, b) => a - b);
+  // Shells need room for a label between them, so the inner radius is
+  // generous and the outer uses most of the box.
+  const maxR = Math.min(W, H) / 2 - 74;
+  const radius = d => levels.length < 2 ? 0
+    : 92 + (maxR - 92) * (levels.indexOf(d) / (levels.length - 1));
+
+  const onPath = new Set([...byDist.values()].flat());
+  const origin = (byDist.get(0) || []).find(c => onPath.has(c));
+
+  // ---- lineages -------------------------------------------------------
+  const parentsOf = new Map();
+  steps.forEach(s => {
+    if (!parentsOf.has(s.concept)) parentsOf.set(s.concept, new Set());
+    (s.parents || []).forEach(p => parentsOf.get(s.concept).add(p));
+  });
+  const roots = [...(parentsOf.get(origin) || [])].filter(p => shell.has(p));
+  const lineage = new Map();
+  roots.forEach((r, i) => lineage.set(r, i));
+  for (let pass = 0; pass < levels.length + 2; pass++) {
+    parentsOf.forEach((parents, child) => {
+      if (!lineage.has(child)) return;
+      parents.forEach(p => { if (!lineage.has(p)) lineage.set(p, lineage.get(child)); });
+    });
+  }
+
+  // Lineage directions: a narrow fan, not antipodes. Two branches 180 degrees
+  // apart are a straight line, which is what every flat version kept producing.
+  // Branches sit SEPARATION apart and are tilted off the view axis so the
+  // depth is visible.
+  const SEPARATION = Math.PI / 4;                       // 45 degrees
+  const n = Math.max(1, roots.length);
+  const dirs = roots.map((_, i) => {
+    const yaw = (i - (n - 1) / 2) * SEPARATION;
+    const pitch = -0.5 + 0.25 * Math.sin(i * 1.7);
+    return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  });
+
+  // ---- initial unit vectors -------------------------------------------
+  const attach = new Map();          // neighbour -> the path node it hangs off
+  hood.edges.forEach(e => {
+    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
+  });
+  const unit = new Map();
+  const jitter = seed => {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return (x - Math.floor(x)) - 0.5;
+  };
+  let k = 0;
+  shell.forEach((d, c) => {
+    k++;
+    if (c === origin) { unit.set(c, [0, 0, 1]); return; }
+    const base = lineage.has(c) ? dirs[lineage.get(c)] : null;
+    let v;
+    if (base) {
+      v = [base[0] + jitter(k) * 0.3, base[1] + jitter(k + 7) * 0.3,
+           base[2] + jitter(k + 13) * 0.3];
+    } else {
+      // A neighbour belongs beside the concept it hangs off, not somewhere
+      // else on the sphere. Scattering them globally -- the previous seeding --
+      // broke every visual link to the node they explain.
+      const anchor = attach.get(c);
+      const base = anchor && lineage.has(anchor) ? dirs[lineage.get(anchor)]
+                                                 : (dirs[0] || [0, 0, 1]);
+      v = [base[0] + jitter(k) * 0.85, base[1] + jitter(k + 7) * 0.85,
+           base[2] + jitter(k + 13) * 0.85];
+    }
+    const len = Math.hypot(v[0], v[1], v[2]) || 1;
+    unit.set(c, [v[0] / len, v[1] / len, v[2] / len]);
+  });
+
+  // ---- repulsion on each sphere ----------------------------------------
+  // Same-shell nodes push each other apart until labels have room. Path nodes
+  // are pulled back toward their branch direction each pass, so the walk stays
+  // a legible line while everything else spreads out around it.
+  levels.forEach(d => {
+    const members = [...shell.entries()].filter(([, v]) => v === d)
+                      .map(([c]) => c).filter(c => c !== origin);
+    if (members.length < 2) return;
+    // enough push to separate labels, not so much that a shell scrambles
+    const strength = Math.min(1.6, 7.0 / members.length);
+    for (let iter = 0; iter < 90; iter++) {
+      const push = new Map(members.map(c => [c, [0, 0, 0]]));
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const a = unit.get(members[i]), b = unit.get(members[j]);
+          const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+          const f = strength / (dx * dx + dy * dy + dz * dz + 1e-4);
+          const pa = push.get(members[i]), pb = push.get(members[j]);
+          pa[0] += dx * f; pa[1] += dy * f; pa[2] += dz * f;
+          pb[0] -= dx * f; pb[1] -= dy * f; pb[2] -= dz * f;
+        }
+      }
+      members.forEach(c => {
+        const u = unit.get(c), f = push.get(c);
+        let v = [u[0] + f[0] * 0.035, u[1] + f[1] * 0.035, u[2] + f[2] * 0.035];
+        const base = onPath.has(c) && lineage.has(c) ? dirs[lineage.get(c)] : null;
+        // A gentle tether, not a clamp. At 0.1 this overpowered the
+        // repulsion and collapsed every path node onto one bearing.
+        if (base) v = [v[0] + base[0] * 0.035, v[1] + base[1] * 0.035,
+                       v[2] + base[2] * 0.035];
+        const len = Math.hypot(v[0], v[1], v[2]) || 1;
+        unit.set(c, [v[0] / len, v[1] / len, v[2] / len]);
+      });
+    }
+  });
+
+  const p3 = new Map();
+  shell.forEach((d, c) => {
+    const u = unit.get(c), r = c === origin ? 0 : radius(d);
+    p3.set(c, [u[0] * r, u[1] * r, u[2] * r]);
+  });
+
+  // ---- elements ---------------------------------------------------------
+  svg.innerHTML = "";
+  levels.forEach(d => {
+    if (!d) return;
+    const ring = document.createElementNS(SVG_NS, "circle");
+    ring.setAttribute("class", "ring");
+    ring.setAttribute("cx", cx); ring.setAttribute("cy", cy);
+    ring.setAttribute("r", radius(d));
+    svg.appendChild(ring);
+  });
+
+  const edgeEls = new Map(), edgePairs = [], drawn = new Set(), ghostsOf = new Map();
+  const addEdge = (from, to, faded) => {
+    const key = from + "->" + to;
+    if (drawn.has(key) || !p3.has(from) || !p3.has(to)) return;
+    drawn.add(key);
+    const line = document.createElementNS(SVG_NS, "path");
+    // A parent no further from the origin than its child is a DAG shortcut:
+    // `chordate` at +6 has `animal` as a parent, already reached at +2.
+    const short = !faded && shell.has(from) && shell.has(to) &&
+                  shell.get(to) <= shell.get(from);
+    line.setAttribute("class", "edge" + (faded ? " faded" : "") +
+                               (short ? " shortcut" : ""));
+    svg.appendChild(line);
+    edgeEls.set(from + "→" + to, line);
+    edgePairs.push([from, to, line]);
+  };
+  hood.edges.forEach(e => {
+    const faded = !(onPath.has(e.from) && onPath.has(e.to));
+    addEdge(e.from, e.to, faded);
+    if (faded && onPath.has(e.to)) {
+      if (!ghostsOf.has(e.to)) ghostsOf.set(e.to, []);
+      ghostsOf.get(e.to).push(e.from);
+    }
+  });
+  steps.forEach(s => (s.parents || []).forEach(p => addEdge(s.concept, p, false)));
+
+  const nodeEls = new Map();
+  shell.forEach((d, c) => {
+    const path = onPath.has(c);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "gnode" + (c === origin ? " origin" : "") + (path ? "" : " ghost"));
+    const ping = document.createElementNS(SVG_NS, "circle");
+    ping.setAttribute("class", "pulse"); ping.setAttribute("r", 10);
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("r", path ? 7 : 4);
+    const label = document.createElementNS(SVG_NS, "text");
+    label.textContent = shortName(c);
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = c;
+    g.appendChild(title); g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
+    g.style.cursor = "pointer";
+    g.onclick = () => { $("q").value = `what can a ${shortName(c)} do`; ask(c); };
+    svg.appendChild(g);
+    nodeEls.set(c, g);
+  });
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy, origin, onPath };
+  GRAPH.project = makeProjector(GRAPH);
+  GRAPH.project(SPIN_YAW);
+  startSpin();
+}
+
+/* Perspective projection with depth cueing. Nodes behind the sphere shrink and
+ * dim, which is what makes it read as a globe rather than a disc. */
+function makeProjector(G) {
+  const DEPTH = 900;
+  return function project(yaw) {
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    const flat = new Map();
+    G.p3.forEach((v, c) => {
+      const x = v[0] * cosY + v[2] * sinY;
+      const z = -v[0] * sinY + v[2] * cosY;
+      const scale = DEPTH / (DEPTH - z);
+      flat.set(c, { x: G.cx + x * scale, y: G.cy + v[1] * scale, z });
+    });
+    G.flat = flat;
+    G.nodeEls.forEach((g, c) => {
+      const f = flat.get(c);
+      if (!f) return;
+      g.setAttribute("transform", "translate(" + f.x.toFixed(1) + "," + f.y.toFixed(1) + ")");
+      g.style.setProperty("--depth", String(Math.max(0.3, Math.min(1, 0.6 + f.z / 460))));
+      const label = g.querySelector("text");
+      const left = f.x < G.cx;
+      const pad = G.onPath.has(c) ? 13 : 9;
+      label.setAttribute("x", c === G.origin ? 0 : (left ? -pad : pad));
+      label.setAttribute("y", c === G.origin ? 27 : 4);
+      label.setAttribute("text-anchor", c === G.origin ? "middle" : (left ? "end" : "start"));
+    });
+    G.edgePairs.forEach(pair => {
+      const a = flat.get(pair[0]), b = flat.get(pair[1]);
+      if (!a || !b) return;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      pair[2].setAttribute("d",
+        "M" + a.x.toFixed(1) + "," + a.y.toFixed(1) +
+        " Q" + (mx + (G.cx - mx) * 0.16).toFixed(1) + "," + (my + (G.cy - my) * 0.16).toFixed(1) +
+        " " + b.x.toFixed(1) + "," + b.y.toFixed(1));
+    });
+  };
+}
+
+let SPIN = null, SPIN_YAW = 0.6;
+function startSpin() {
+  stopSpin();
+  const tick = () => {
+    SPIN_YAW += 0.0022;
+    if (GRAPH && GRAPH.project) GRAPH.project(SPIN_YAW);
+    SPIN = requestAnimationFrame(tick);
+  };
+  SPIN = requestAnimationFrame(tick);
+}
+function stopSpin() { if (SPIN) { cancelAnimationFrame(SPIN); SPIN = null; } }
+
+
 function buildGraph() {
+  stopSpin();
   const svg = $("graph");
   svg.innerHTML = "";
   const steps = (STATE && STATE.steps) || [];
@@ -403,10 +669,10 @@ function buildGraph() {
   });
   if (!byDist.size) return;
 
-  // One row per level of generalisation, asked concept at the bottom. Rows,
-  // not rings: a ring layout leaves no room for a label beside a node, and the
-  // names are the point. Height grows with the number of levels so rows never
-  // crowd.
+  if (VIEW === "globe") return buildGlobe(steps, byDist);
+
+  // One row per level of generalisation, asked concept at the bottom. Height
+  // grows with the number of levels so rows never crowd.
   const levels = [...byDist.keys()].sort((a, b) => a - b);
   const widest = Math.max(...levels.map(d => byDist.get(d).length));
   const rowGap = 64, padY = 40, padX = 30;
@@ -473,14 +739,14 @@ function buildGraph() {
     svg.appendChild(g);
     nodeEls.set(c, g);
   });
-  GRAPH = { nodeEls, edgeEls };
+  GRAPH = { nodeEls, edgeEls };             // rows: path only, no siblings drawn
 }
 
 function paintGraph() {
   if (!GRAPH || !STATE) return;
   const steps = STATE.steps || [];
-  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked"));
-  GRAPH.edgeEls.forEach(e => e.classList.remove("walked"));
+  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked", "revealed"));
+  GRAPH.edgeEls.forEach(e => e.classList.remove("walked", "revealed"));
   let last = null;
   for (let i = 0; i < cursor && i < steps.length; i++) {
     const st = steps[i];
@@ -497,6 +763,15 @@ function paintGraph() {
       const e = GRAPH.edgeEls.get(st.concept + "→" + p);
       if (e) e.classList.add("walked");
     });
+    // reveal what this generalisation also covers, once we are standing on it
+    if (NBR && GRAPH.ghostsOf) {
+      (GRAPH.ghostsOf.get(st.concept) || []).forEach(sib => {
+        const sg = GRAPH.nodeEls.get(sib);
+        if (sg) sg.classList.add("revealed");
+        const se = GRAPH.edgeEls.get(sib + "→" + st.concept);
+        if (se) se.classList.add("revealed");
+      });
+    }
     last = st;
   }
   if (last) {
@@ -526,6 +801,31 @@ function setCursor(n) {
 }
 
 function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Play"; }
+
+$("view").textContent = VIEW === "globe" ? "▤ Rows" : "◎ Globe";
+$("view").onclick = () => {
+  stop();
+  VIEW = VIEW === "globe" ? "rows" : "globe";
+  localStorage.setItem("v684view", VIEW);
+  $("view").textContent = VIEW === "globe" ? "▤ Rows" : "◎ Globe";
+  syncNbrButton();
+  if (STATE) { buildChain(); }
+};
+
+function syncNbrButton() {
+  // Rows draw no siblings, so the toggle has nothing to act on there.
+  $("nbr").disabled = VIEW !== "globe";
+  $("nbr").textContent = NBR ? "◌ Neighbours" : "◌ Path only";
+  $("nbr").title = VIEW === "globe" ? "show or hide sibling concepts"
+                                    : "globe view only";
+}
+syncNbrButton();
+$("nbr").onclick = () => {
+  NBR = !NBR;
+  localStorage.setItem("v684nbr", NBR ? "on" : "off");
+  syncNbrButton();
+  paintGraph();
+};
 
 $("play").onclick = () => {
   if (timer) { stop(); return; }

@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import build
+from . import build, compress
 from .language import Parser
 from .reason import Reasoner
 
@@ -61,7 +61,57 @@ class Engine:
         answer.question = question
         answer.parse = parse.as_dict()
         answer.senses = senses
-        return answer.as_dict()
+        payload = answer.as_dict()
+        # Real distances come from the steps. `chain` is visit order, and using
+        # its index as a distance spreads the graph over twice as many shells
+        # as exist, leaving too few nodes in each to form a ring.
+        distances: dict[str, int] = {}
+        for step in answer.steps:
+            distances.setdefault(step.concept, step.distance)
+        payload["neighbourhood"] = self.neighbourhood(chosen, answer.chain, distances)
+        payload["store"] = self.reasoner.store.name
+        return payload
+
+    def neighbourhood(self, concept: str, chain: list[str],
+                      distances: dict[str, int], per_level: int = 3) -> dict:
+        """The graph around the derivation, so the walk has context to move in.
+
+        Kept deliberately thin. A sibling earns its place by showing what a
+        generalisation swept in -- the other things the answer now also covers
+        -- and three per ancestor makes that point. Nine buried the path they
+        were supposed to explain.
+        """
+        on_path = set(chain)
+        nodes: dict[str, dict] = {}
+        edges: set[tuple[str, str]] = set()
+
+        for node in chain:
+            nodes[node] = {"id": node, "on_path": True,
+                           "distance": distances.get(node, 0)}
+            for parent in self.reasoner.parents_of(node):
+                edges.add((node, parent))
+
+        # siblings: other children of each ancestor actually on the path
+        for node in chain:
+            if node == concept:
+                continue
+            siblings = self.reasoner.connection.execute(
+                "SELECT child FROM taxonomy WHERE parent = ? LIMIT ?",
+                (node, per_level * 3)).fetchall()
+            picked = [r["child"] for r in siblings if r["child"] not in on_path]
+            # A sibling is one step more specific than the ancestor it hangs
+            # from: the other children of `canine` sit at dog's own level.
+            for sibling in picked[:per_level]:
+                nodes.setdefault(sibling, {
+                    "id": sibling, "on_path": False,
+                    "distance": max(0, nodes[node]["distance"] - 1),
+                })
+                edges.add((sibling, node))
+        return {
+            "nodes": list(nodes.values()),
+            "edges": [{"from": a, "to": b} for a, b in edges
+                      if a in nodes and b in nodes],
+        }
 
     def concept(self, identifier: str) -> dict:
         """Everything stored directly about one concept, for the inspector."""
@@ -141,12 +191,24 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--rebuild", action="store_true",
                         help="discard and rebuild the reasoning store")
+    parser.add_argument("--raw", action="store_true",
+                        help="serve the uncompressed store instead of the "
+                             "inheritance-compressed one")
     arguments = parser.parse_args()
     if arguments.rebuild and arguments.store.exists():
         arguments.store.unlink()
     build.ensure(arguments.store, arguments.source, arguments.ascent)
-    serve(arguments.store, arguments.host, arguments.port,
-          not arguments.no_browser)
+    store = arguments.store
+    if not arguments.raw:
+        # Answer from the compressed store: what R10 dropped, R2 rebuilds.
+        packed = compress.DEFAULT_COMPRESSED
+        if arguments.rebuild and packed.exists():
+            packed.unlink()
+        if not packed.exists():
+            print("compressing by inheritance (first run)")
+            compress.compress(store, packed)
+        store = packed
+    serve(store, arguments.host, arguments.port, not arguments.no_browser)
 
 
 if __name__ == "__main__":
