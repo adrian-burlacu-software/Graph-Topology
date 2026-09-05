@@ -1,0 +1,9 @@
+# V684 interactive reasoner.
+#
+#   pip install -r research/v684/requirements.txt
+#   python -m spacy download en_core_web_sm
+#
+# The server and reasoner are stdlib-only. spaCy is used for question parsing
+# and lemmatisation; without it V684 falls back to a regex parser and says so
+# in the UI, so the demo still runs on a bare interpreter.
+spacy>=3.7

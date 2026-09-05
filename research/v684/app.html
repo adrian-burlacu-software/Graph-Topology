@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V684 Reasoner</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2b3140;
+    --ink:#e6e9ef; --dim:#9aa4b8; --faint:#6b7488;
+    --accent:#5eead4; --accent-dim:#134e4a;
+    --yes:#4ade80; --no:#f87171; --maybe:#fbbf24;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  header {
+    padding:18px 24px 14px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  header h1 { margin:0; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  header .sub { color:var(--faint); font-size:12px; }
+  .wrap { max-width:1280px; margin:0 auto; padding:22px 24px 60px; }
+  .askbar { display:flex; gap:10px; margin-bottom:14px; }
+  #q {
+    flex:1; padding:13px 16px; font-size:15px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:9px; outline:none;
+  }
+  #q:focus { border-color:var(--accent); }
+  button {
+    padding:13px 20px; font-size:14px; font-weight:600; cursor:pointer;
+    background:var(--accent); color:#06231f; border:0; border-radius:9px;
+  }
+  button:disabled { opacity:.45; cursor:default; }
+  button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:500; }
+  .examples { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:22px; }
+  .examples span {
+    font-size:12px; color:var(--dim); background:var(--panel); border:1px solid var(--line);
+    padding:5px 11px; border-radius:20px; cursor:pointer;
+  }
+  .examples span:hover { border-color:var(--accent); color:var(--accent); }
+  .grid { display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start; }
+  @media (max-width:1000px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:16px 18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 12px; font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+
+  .verdict { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  .badge { font-size:12px; font-weight:700; letter-spacing:.09em; padding:5px 12px; border-radius:6px; }
+  .VERIFIED { background:rgba(74,222,128,.14); color:var(--yes); }
+  .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
+  .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
+  .LISTING { background:rgba(94,234,212,.13); color:var(--accent); }
+  .claim { font-size:16px; }
+  .note { color:var(--dim); font-size:13px; margin-top:8px; }
+
+  /* derivation chain */
+  .chain { position:relative; padding-left:26px; }
+  .chain::before {
+    content:""; position:absolute; left:8px; top:6px; bottom:6px; width:2px;
+    background:linear-gradient(var(--line),transparent);
+  }
+  .node {
+    position:relative; margin:0 0 8px; padding:11px 14px; border-radius:9px;
+    background:var(--panel2); border:1px solid var(--line);
+    opacity:.22; transform:translateY(4px);
+    transition:opacity .34s ease, transform .34s ease, border-color .34s ease, background .34s ease;
+  }
+  .node.on { opacity:1; transform:none; }
+  .node.hit { border-color:var(--accent); background:var(--accent-dim); box-shadow:0 0 0 1px var(--accent) inset; }
+  .node.blocked { border-color:var(--no); }
+  .node::before {
+    content:""; position:absolute; left:-22px; top:16px; width:9px; height:9px; border-radius:50%;
+    background:var(--line); border:2px solid var(--bg); transition:background .34s ease, box-shadow .34s;
+  }
+  .node.on::before { background:var(--dim); }
+  .node.hit::before { background:var(--accent); box-shadow:0 0 9px var(--accent); }
+  .node.blocked::before { background:var(--no); }
+  .node .top { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+  .cname { font-family:var(--mono); font-size:13.5px; color:var(--ink); }
+  .rule { font-family:var(--mono); font-size:10.5px; color:var(--accent); background:rgba(94,234,212,.09);
+          padding:2px 6px; border-radius:4px; }
+  .dist { font-family:var(--mono); font-size:10.5px; color:var(--faint); }
+  .detail { color:var(--dim); font-size:12.5px; margin-top:5px; }
+  .hitfact {
+    margin-top:9px; padding:9px 11px; background:rgba(0,0,0,.28); border-radius:7px;
+    font-family:var(--mono); font-size:12px; color:var(--accent);
+  }
+  .hitfact .meta { color:var(--faint); font-size:11px; margin-top:5px; font-family:var(--mono); }
+
+  .controls { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .controls .pos { font-family:var(--mono); font-size:12px; color:var(--faint); margin-left:auto; }
+  input[type=range] { flex:1; min-width:130px; accent-color:var(--accent); }
+
+  /* graph view */
+  #graph { width:100%; height:380px; display:block; background:#12151c;
+           border:1px solid var(--line); border-radius:9px; margin-bottom:12px; }
+  #graph .edge { stroke:var(--line); stroke-width:1.5; fill:none;
+                 transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.5; }
+  #graph .edge.walked { stroke:var(--accent); stroke-width:2.4; opacity:1; }
+  #graph .gnode circle {
+    fill:var(--panel2); stroke:var(--line); stroke-width:1.5; r:7;
+    transition:fill .35s ease, stroke .35s ease, r .3s ease;
+  }
+  #graph .gnode.seen circle { fill:#2a3340; stroke:var(--dim); }
+  #graph .gnode.current circle { fill:var(--accent); stroke:var(--accent); r:10; }
+  #graph .gnode.hit circle { fill:var(--yes); stroke:var(--yes); r:11; }
+  #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
+  #graph .gnode.origin circle { stroke:var(--accent); stroke-width:2.5; }
+  #graph .gnode text {
+    fill:var(--faint); font:11px var(--mono); transition:fill .35s ease;
+    paint-order:stroke; stroke:#12151c; stroke-width:3px;
+  }
+  #graph .gnode.seen text { fill:var(--dim); }
+  #graph .gnode.current text, #graph .gnode.hit text { fill:var(--ink); }
+  #graph .pulse { fill:none; stroke:var(--accent); stroke-width:2; opacity:0; }
+  #graph .gnode.current .pulse { animation:ping 1.15s ease-out infinite; }
+  @keyframes ping { 0% { r:10; opacity:.85; } 100% { r:26; opacity:0; } }
+  #graph .lvl { fill:var(--faint); font:10px var(--mono); opacity:.55; }
+
+  .nowstep {
+    padding:10px 13px; border-radius:8px; background:var(--panel2);
+    border:1px solid var(--line); font-size:13px; color:var(--dim); margin-bottom:12px;
+    min-height:20px;
+  }
+  .nowstep b { color:var(--ink); }
+  .nowstep .rule { margin-right:7px; }
+
+  details#stepsbox { border-top:1px solid var(--line); padding-top:10px; }
+  details#stepsbox summary {
+    cursor:pointer; font-size:11px; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; list-style:none; user-select:none;
+  }
+  details#stepsbox summary::-webkit-details-marker { display:none; }
+  details#stepsbox summary::before { content:"▸ "; color:var(--accent); }
+  details#stepsbox[open] summary::before { content:"▾ "; }
+  details#stepsbox summary:hover { color:var(--accent); }
+  details#stepsbox .chain { margin-top:13px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:var(--faint); font-weight:600; font-size:10.5px; letter-spacing:.09em;
+       text-transform:uppercase; padding:0 8px 7px 0; }
+  td { padding:6px 8px 6px 0; border-top:1px solid var(--line); vertical-align:top; }
+  td.rel { font-family:var(--mono); color:var(--accent); white-space:nowrap; }
+  td.obj { color:var(--ink); }
+  .src { font-family:var(--mono); font-size:10.5px; padding:1px 5px; border-radius:3px; color:var(--faint);
+         background:var(--panel2); border:1px solid var(--line); }
+  .bar { height:3px; background:var(--line); border-radius:2px; overflow:hidden; margin-top:4px; }
+  .bar i { display:block; height:100%; background:var(--accent); }
+
+  .sense { padding:9px 11px; border:1px solid var(--line); border-radius:8px; margin-bottom:7px; cursor:pointer; background:var(--panel2); }
+  .sense:hover { border-color:var(--accent); }
+  .sense.active { border-color:var(--accent); background:var(--accent-dim); }
+  .sense .id { font-family:var(--mono); font-size:12px; color:var(--accent); }
+  .sense .def { color:var(--dim); font-size:12px; margin-top:3px; }
+  .sense .n { float:right; font-family:var(--mono); font-size:11px; color:var(--faint); }
+  dl.rules { margin:0; font-size:12px; }
+  dl.rules dt { font-family:var(--mono); color:var(--accent); margin-top:8px; font-size:11.5px; }
+  dl.rules dd { margin:2px 0 0; color:var(--dim); }
+  .parse { font-family:var(--mono); font-size:11.5px; color:var(--dim); }
+  .parse b { color:var(--ink); font-weight:600; }
+  .empty { color:var(--faint); font-size:13px; padding:6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>V684 Reasoner</h1>
+  <span class="sub">WordNet taxonomy · Ascent++ &amp; ConceptNet facts · every answer replayable</span>
+</header>
+
+<div class="wrap">
+  <div class="askbar">
+    <input id="q" placeholder="Ask something — e.g. can a dog fall into a hole" autofocus>
+    <button id="go">Ask</button>
+  </div>
+  <div class="examples" id="examples"></div>
+
+  <div class="grid">
+    <div>
+      <div class="card" id="answer" hidden>
+        <h2>Answer</h2>
+        <div class="verdict"><span class="badge" id="badge"></span><span class="claim" id="claim"></span></div>
+        <div class="note" id="note"></div>
+      </div>
+
+      <div class="card" id="deriv" hidden>
+        <h2>Derivation — replay the steps</h2>
+        <div class="controls">
+          <button class="ghost" id="play">▶ Play</button>
+          <button class="ghost" id="back">◀</button>
+          <button class="ghost" id="fwd">▶</button>
+          <input type="range" id="scrub" min="0" value="0">
+          <span class="pos" id="pos"></span>
+        </div>
+        <svg id="graph" viewBox="0 0 760 380" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="nowstep" id="nowstep"></div>
+        <details id="stepsbox">
+          <summary><span id="stepsummary">All steps</span></summary>
+          <div class="chain" id="chain"></div>
+        </details>
+      </div>
+
+      <div class="card" id="knowledge" hidden>
+        <h2>Relevant knowledge</h2>
+        <div id="facts"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="sensecard" hidden>
+        <h2>Which sense?</h2>
+        <div id="senses"></div>
+      </div>
+      <div class="card" id="parsecard" hidden>
+        <h2>How the question was read</h2>
+        <div class="parse" id="parse"></div>
+      </div>
+      <div class="card">
+        <h2>Inference rules</h2>
+        <dl class="rules" id="rules"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EXAMPLES = [
+  "can a dog fall into a hole",
+  "is a dog an animal",
+  "does a dog have a tail",
+  "what can a violin do",
+  "is a hammer a tool",
+  "what is a hammer used for",
+  "where do you find a hammer",
+  "is a dog a vehicle",
+];
+const $ = id => document.getElementById(id);
+let STATE = null, cursor = 0, timer = null;
+
+EXAMPLES.forEach(t => {
+  const el = document.createElement("span");
+  el.textContent = t;
+  el.onclick = () => { $("q").value = t; ask(); };
+  $("examples").appendChild(el);
+});
+
+$("go").onclick = () => ask();
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+
+async function ask(concept) {
+  const q = $("q").value.trim();
+  if (!q) return;
+  stop();
+  $("go").disabled = true; $("go").textContent = "…";
+  try {
+    const url = "/api/ask?q=" + encodeURIComponent(q) + (concept ? "&concept=" + encodeURIComponent(concept) : "");
+    STATE = await (await fetch(url)).json();
+    render();
+  } catch (err) {
+    STATE = null;
+    $("answer").hidden = false;
+    $("badge").className = "badge UNKNOWN"; $("badge").textContent = "ERROR";
+    $("claim").textContent = String(err);
+  } finally {
+    $("go").disabled = false; $("go").textContent = "Ask";
+  }
+}
+
+function render() {
+  const s = STATE;
+  $("answer").hidden = false;
+  $("badge").className = "badge " + s.verdict;
+  $("badge").textContent = s.verdict;
+  $("claim").textContent = claimText(s);
+  $("note").textContent = s.note || "";
+
+  // senses
+  if (s.senses && s.senses.length) {
+    $("sensecard").hidden = false;
+    $("senses").innerHTML = "";
+    s.senses.slice(0, 8).forEach(sense => {
+      const el = document.createElement("div");
+      el.className = "sense" + (sense.id === s.concept ? " active" : "");
+      el.innerHTML = `<span class="n">${sense.fact_count} facts</span>
+        <div class="id">${escapeHtml(sense.id)}</div>
+        <div class="def">${escapeHtml(sense.definition || "")}</div>`;
+      el.onclick = () => ask(sense.id);
+      $("senses").appendChild(el);
+    });
+  } else $("sensecard").hidden = true;
+
+  // parse
+  if (s.parse) {
+    $("parsecard").hidden = false;
+    $("parse").innerHTML =
+      `subject <b>${escapeHtml(s.parse.subject || "—")}</b><br>` +
+      `relation <b>${escapeHtml(s.parse.relation || "—")}</b><br>` +
+      `target <b>${escapeHtml(s.parse.target || "— (open question)")}</b><br>` +
+      `polar <b>${s.parse.polar}</b><br>parser <b>${escapeHtml(s.parse.backend)}</b>` +
+      (s.parse.note ? `<br><span style="color:var(--maybe)">${escapeHtml(s.parse.note)}</span>` : "");
+  } else $("parsecard").hidden = true;
+
+  // rules
+  $("rules").innerHTML = "";
+  Object.entries(s.rules || {}).forEach(([k, v]) => {
+    $("rules").insertAdjacentHTML("beforeend",
+      `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`);
+  });
+
+  buildChain();
+  buildFacts();
+}
+
+function claimText(s) {
+  if (s.verdict === "LISTING") return `${s.evidence.length} fact(s) about ${s.concept || ""}`;
+  if (!s.evidence || !s.evidence.length) return s.concept ? `about ${s.concept}` : "";
+  const e = s.evidence[0];
+  return `${e.concept} ${e.relation.replace(/_/g, " ")} “${e.object}”` +
+         (e.distance ? ` — inherited from ${e.distance} level(s) up` : " — stated directly");
+}
+
+/* ---- derivation replay ---- */
+function buildChain() {
+  const steps = (STATE && STATE.steps) || [];
+  $("deriv").hidden = steps.length === 0;
+  if (!steps.length) return;
+  $("chain").innerHTML = "";
+  steps.forEach((st, i) => {
+    const el = document.createElement("div");
+    el.className = "node";
+    el.id = "step" + i;
+    let hit = "";
+    if (st.matched) {
+      const m = st.matched;
+      hit = `<div class="hitfact">${escapeHtml(m.concept)} · ${escapeHtml(m.relation)} · “${escapeHtml(m.object)}”
+        <div class="meta">source ${escapeHtml(m.source)} · confidence ${m.confidence}
+        · ${m.distance} level(s) up${m.sense_assumed ? " · sense assumed" : ""}</div></div>`;
+    }
+    el.innerHTML = `<div class="top">
+        <span class="cname">${escapeHtml(st.concept)}</span>
+        <span class="rule">${escapeHtml(st.rule)}</span>
+        <span class="dist">${st.kind} · d=${st.distance}${st.facts_checked ? " · " + st.facts_checked + " facts" : ""}</span>
+      </div>
+      <div class="detail">${escapeHtml(st.detail)}</div>${hit}`;
+    if (st.kind === "match") el.classList.add("hit");
+    if (st.kind === "block" || st.kind === "stop") el.classList.add("blocked");
+    $("chain").appendChild(el);
+  });
+  $("scrub").max = steps.length;
+  $("stepsummary").textContent = `All ${steps.length} steps`;
+  $("stepsbox").open = false;
+  buildGraph();
+  cursor = 0; setCursor(steps.length);   // show complete, then allow replay
+}
+
+/* ---- graph neighbourhood ---- */
+const SVG_NS = "http://www.w3.org/2000/svg";
+let GRAPH = null;
+
+function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
+
+function buildGraph() {
+  const svg = $("graph");
+  svg.innerHTML = "";
+  const steps = (STATE && STATE.steps) || [];
+  if (!steps.length) return;
+
+  // Lay the ancestors out by distance: one row per level of generalisation,
+  // which is exactly what the reasoner walks.
+  // A synset id ends in .pos.NN. The second `resolve` step names the target
+  // *word*, which is not a node in the taxonomy, so it gets no circle.
+  const isConcept = id => /\.[nvar]\.\d+$/.test(String(id));
+  const byDist = new Map();
+  steps.forEach(st => {
+    if (!isConcept(st.concept)) return;
+    if (!byDist.has(st.distance)) byDist.set(st.distance, []);
+    const row = byDist.get(st.distance);
+    if (!row.includes(st.concept)) row.push(st.concept);
+  });
+  if (!byDist.size) return;
+
+  const W = 760, H = 380, pad = 34;
+  const levels = [...byDist.keys()].sort((a, b) => a - b);
+  const rowGap = levels.length > 1 ? (H - pad * 2) / (levels.length - 1) : 0;
+  const pos = new Map();
+  levels.forEach((d, li) => {
+    const row = byDist.get(d);
+    const y = H - pad - li * rowGap;          // distance 0 at the bottom
+    row.forEach((c, i) => {
+      const x = row.length === 1 ? W / 2
+        : pad + 60 + (i * (W - pad * 2 - 120)) / (row.length - 1);
+      pos.set(c, { x, y, d });
+    });
+    const label = document.createElementNS(SVG_NS, "text");
+    label.setAttribute("class", "lvl");
+    label.setAttribute("x", 8); label.setAttribute("y", y + 4);
+    label.textContent = d === 0 ? "asked" : "+" + d;
+    svg.appendChild(label);
+  });
+
+  // edges: each step's concept to the parents it named
+  const edges = [];
+  steps.forEach(st => {
+    (st.parents || []).forEach(p => {
+      if (pos.has(st.concept) && pos.has(p)) edges.push([st.concept, p]);
+    });
+  });
+  const edgeEls = new Map();
+  edges.forEach(([a, b]) => {
+    const pa = pos.get(a), pb = pos.get(b);
+    const line = document.createElementNS(SVG_NS, "path");
+    const my = (pa.y + pb.y) / 2;
+    line.setAttribute("class", "edge");
+    line.setAttribute("d", `M${pa.x},${pa.y} C${pa.x},${my} ${pb.x},${my} ${pb.x},${pb.y}`);
+    svg.appendChild(line);
+    edgeEls.set(a + "→" + b, line);
+  });
+
+  const nodeEls = new Map();
+  pos.forEach((p, c) => {
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "gnode" + (p.d === 0 ? " origin" : ""));
+    g.setAttribute("transform", `translate(${p.x},${p.y})`);
+    const ping = document.createElementNS(SVG_NS, "circle");
+    ping.setAttribute("class", "pulse"); ping.setAttribute("r", 10);
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("r", 7);
+    const label = document.createElementNS(SVG_NS, "text");
+    label.setAttribute("x", 13); label.setAttribute("y", 4);
+    label.textContent = shortName(c);
+    g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
+    g.style.cursor = "pointer";
+    g.onclick = () => { $("q").value = `what can a ${shortName(c)} do`; ask(c); };
+    svg.appendChild(g);
+    nodeEls.set(c, g);
+  });
+  GRAPH = { nodeEls, edgeEls, pos };
+}
+
+function paintGraph() {
+  if (!GRAPH || !STATE) return;
+  const steps = STATE.steps || [];
+  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "current", "hit", "blocked"));
+  GRAPH.edgeEls.forEach(e => e.classList.remove("walked"));
+  let last = null;
+  for (let i = 0; i < cursor && i < steps.length; i++) {
+    const st = steps[i];
+    const g = GRAPH.nodeEls.get(st.concept);
+    if (!g) continue;
+    g.classList.add("seen");
+    if (st.kind === "match") g.classList.add("hit");
+    if (st.kind === "block" || st.kind === "stop") g.classList.add("blocked");
+    (st.parents || []).forEach(p => {
+      const e = GRAPH.edgeEls.get(st.concept + "→" + p);
+      if (e) e.classList.add("walked");
+    });
+    last = st;
+  }
+  if (last) {
+    const g = GRAPH.nodeEls.get(last.concept);
+    if (g && !g.classList.contains("hit")) g.classList.add("current");
+    $("nowstep").innerHTML =
+      `<span class="rule">${escapeHtml(last.rule)}</span>` +
+      `<b>${escapeHtml(shortName(last.concept))}</b> — ${escapeHtml(last.detail)}`;
+  } else {
+    $("nowstep").textContent = "Press play to replay the derivation.";
+  }
+}
+
+function setCursor(n) {
+  const steps = (STATE && STATE.steps) || [];
+  cursor = Math.max(0, Math.min(n, steps.length));
+  steps.forEach((_, i) => {
+    $("step" + i).classList.toggle("on", i < cursor);
+  });
+  $("scrub").value = cursor;
+  $("pos").textContent = `${cursor} / ${steps.length}`;
+  paintGraph();
+  if (cursor > 0 && cursor <= steps.length && $("stepsbox").open) {
+    const el = $("step" + (cursor - 1));
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+}
+
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Play"; }
+
+$("play").onclick = () => {
+  if (timer) { stop(); return; }
+  const steps = (STATE && STATE.steps) || [];
+  if (!steps.length) return;
+  if (cursor >= steps.length) setCursor(0);
+  $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => {
+    if (cursor >= steps.length) { stop(); return; }
+    setCursor(cursor + 1);
+  }, 520);
+};
+$("back").onclick = () => { stop(); setCursor(cursor - 1); };
+$("fwd").onclick  = () => { stop(); setCursor(cursor + 1); };
+$("scrub").oninput = e => { stop(); setCursor(+e.target.value); };
+
+/* ---- knowledge table ---- */
+function buildFacts() {
+  const ev = (STATE && STATE.evidence) || [];
+  $("knowledge").hidden = ev.length === 0;
+  if (!ev.length) return;
+  const rows = ev.map(f => `<tr>
+      <td class="rel">${escapeHtml(f.relation)}</td>
+      <td class="obj">${escapeHtml(f.object)}
+        <div class="bar"><i style="width:${Math.round(f.confidence * 100)}%"></i></div></td>
+      <td><span class="src">${escapeHtml(f.source)}</span></td>
+      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
+    </tr>`).join("");
+  $("facts").innerHTML = `<table><thead><tr>
+      <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function escapeHtml(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+</script>
+</body>
+</html>
