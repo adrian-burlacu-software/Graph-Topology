@@ -3,9 +3,89 @@ from __future__ import annotations
 
 import unittest
 
-from research.v683 import measure, ordering, substrate
+from research.v683 import measure, normalize, ordering, substrate
 from research.v683.substrate import PAPER_TABLE_1
 from research.v683.trie import ROOT, PredicateTrie
+
+
+class NormalizationTests(unittest.TestCase):
+    """Each rule was derived from a query against V633; each is pinned here."""
+
+    def test_raw_changes_nothing_except_self_loops(self):
+        triple = ("en:dog", "is_a", "en:animal")
+        self.assertEqual(normalize.RAW.triple(*triple), triple)
+        self.assertIsNone(normalize.RAW.triple("en:dog", "is_a", "en:dog"))
+
+    def test_redundant_inverse_is_rewritten_not_dropped(self):
+        """`A has_subtype B` is `B is_a A`; 97,665 of 97,666 already exist."""
+        self.assertEqual(
+            normalize.SAFE.triple("en:canine", "has_subtype", "en:dog"),
+            ("en:dog", "is_a", "en:canine"),
+        )
+        self.assertEqual(
+            normalize.SAFE.triple("en:body", "has_part", "en:arm"),
+            ("en:arm", "part_of", "en:body"),
+        )
+
+    def test_symmetric_relations_get_one_canonical_direction(self):
+        forward = normalize.SAFE.triple("en:zebra", "synonym", "en:aardvark")
+        reverse = normalize.SAFE.triple("en:aardvark", "synonym", "en:zebra")
+        self.assertEqual(forward, reverse)
+
+    def test_asymmetric_relations_keep_their_direction(self):
+        forward = normalize.SAFE.triple("en:dog", "is_a", "en:animal")
+        reverse = normalize.SAFE.triple("en:animal", "is_a", "en:dog")
+        self.assertNotEqual(forward, reverse)
+
+    def test_meta_namespaces_are_dropped(self):
+        self.assertIsNone(
+            normalize.SAFE.triple("en:appendix:animals", "is_a", "en:list")
+        )
+        self.assertIsNotNone(normalize.SAFE.triple("en:dog", "is_a", "en:animal"))
+
+    def test_satellite_adjective_folds_into_adjective(self):
+        self.assertEqual(normalize.SAFE.node("wn:synset:a-ok.s.01"),
+                         "wn:synset:a-ok.a.01")
+        self.assertEqual(normalize.SAFE.node("wn:synset:dog.n.01"),
+                         "wn:synset:dog.n.01")
+
+    def test_underscores_become_spaces_to_match_conceptnet(self):
+        """27,832 of the 86,571 lemma matches exist only after this."""
+        self.assertEqual(normalize.SAFE.node("wn:synset:hot_dog.n.01"),
+                         "wn:synset:hot dog.n.01")
+
+    def test_sense_merge_keeps_part_of_speech(self):
+        self.assertEqual(normalize.SENSE_MERGED.node("wn:synset:dog.n.01"),
+                         "wn:synset:dog.n")
+        self.assertNotEqual(normalize.SENSE_MERGED.node("wn:synset:dog.n.01"),
+                            normalize.SENSE_MERGED.node("wn:synset:dog.v.01"))
+
+    def test_lemma_bridge_fuses_the_two_namespaces(self):
+        self.assertEqual(normalize.LEMMA_BRIDGED.node("wn:synset:dog.n.01"), "en:dog")
+        self.assertEqual(normalize.LEMMA_BRIDGED.node("wn:synset:dog.n.03"), "en:dog")
+
+    def test_bridging_drops_the_has_sense_self_loop_it_creates(self):
+        self.assertIsNone(
+            normalize.LEMMA_BRIDGED.triple("en:dog", "has_sense", "wn:synset:dog.n.01")
+        )
+
+    def test_non_synset_nodes_are_never_rewritten(self):
+        for value in ("en:dog", "en:hot dog", "en:km/h", "en:1 a.m"):
+            for normalization in normalize.NORMALIZATIONS.values():
+                self.assertEqual(normalization.node(value), value, normalization.name)
+
+    def test_every_synset_id_in_the_database_parses(self):
+        """The grammar is <lemma>.<pos>.<NN>, pos in nvsar, 117,659 of 117,659."""
+        for value in ("wn:synset:'hood.n.01", "wn:synset:.22_caliber.a.01",
+                      "wn:synset:a_cappella.r.01", "wn:synset:abandon.v.01",
+                      "wn:synset:a-ok.s.01"):
+            self.assertNotEqual(normalize.LEMMA_BRIDGED.node(value), value, value)
+
+    def test_apply_drops_none_results(self):
+        rows = [("en:dog", "is_a", "en:dog"), ("en:dog", "is_a", "en:animal")]
+        self.assertEqual(
+            list(normalize.SAFE.apply(rows)), [("en:dog", "is_a", "en:animal")]
+        )
 
 
 class TrieTests(unittest.TestCase):

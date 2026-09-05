@@ -35,7 +35,7 @@ Two numbers are kept apart, because the paper makes two separate claims:
 ## The hypotheses
 
 | | Claim | Falsified when |
-|---|---|---|
+| --- | --- | --- |
 | H1 | Coverage ordering allocates fewer nodes than an arbitrary order | `global_coverage` does not beat `shuffled` |
 | H2 | Branch-local ordering beats one global order | `adaptive_coverage` does not beat `global_coverage` |
 | H3 | Access depth is set by the individual, not the vocabulary size | mean depth climbs as the corpus grows |
@@ -55,42 +55,96 @@ full graph.
 
 ## Result
 
-All four hold. Full output in `results/v683/v683_report.md`.
+All four hold, under normalization. Full output in
+`results/v683/v683_report.md`.
 
-On the `attributes` slice — 288,035 individuals, 642,738 flat cells, 264,656
-distinct predicates:
+On the `attributes` slice under `safe` — 277,806 individuals, 596,288 flat
+cells, 241,616 distinct predicates:
 
 | ordering | nodes | reuse |
-|---|---|---|
-| `adaptive_coverage` | 385,626 | 40.00% |
-| `global_coverage` | 392,183 | 38.98% |
-| `lexical` | 417,843 | 34.99% |
-| `shuffled` | 423,744 | 34.07% |
-| `anti_coverage` | 448,311 | 30.25% |
+| --- | --- | --- |
+| `adaptive_coverage` | 354,977 | 40.47% |
+| `global_coverage` | 360,881 | 39.48% |
+| `lexical` | 378,658 | 36.50% |
+| `shuffled` | 385,677 | 35.32% |
+| `anti_coverage` | 404,855 | 32.10% |
 
 - **H1 holds** on all four slices: coverage ordering beats an arbitrary one by
-  6.46%–11.83% of allocated nodes. Ordering alone decides 62,685 nodes between
+  4.96%–10.62% of allocated nodes. Ordering alone decides 49,878 nodes between
   the best and worst arrangement of the same facts.
 - **H2 holds** on all four slices, but narrowly: branch-local ordering wins
-  1.51%–3.62%, for 20–40x the compute. On this data the Appendix 3 text is
+  1.64%–2.19%, for 20–40x the compute. On this data the Appendix 3 text is
   nearly as good as its own figure.
-- **H3 holds** cleanly. Across a 10x vocabulary the node count grew 7.9x while
-  mean access depth moved from 2.2349 to 2.2315 — a factor of 0.9985. Storage
+- **H3 holds** cleanly. Across a 10x vocabulary the node count grew 8.0x while
+  mean access depth moved from 2.1283 to 2.1464 — a factor of 1.0085. Storage
   grows; access does not.
-- **H4 holds**: coverage ordering hit the exact optimum on 199 of 200
-  exhaustively-searched samples, mean excess 0.005 nodes. The heuristic is not
-  leaving anything on the table; the ~40% ceiling is what the data affords.
+- **H4 holds**: coverage ordering hit the exact optimum on 200 of 200
+  exhaustively-searched samples. The heuristic is not leaving anything on the
+  table; the ~40% ceiling is what the data affords.
 
 The honest caveat is H2. The paper's figure does beat the paper's text, on
 every slice, in the predicted direction — but by a margin small enough that the
 simple global order is the better engineering default.
 
+## Normalization
+
+`normalize.py` holds the rules. Every one was derived by querying the database,
+and the query that justifies it is quoted beside it. Normalization moves the
+numbers more than ordering does, so it is reported as its own ablation rather
+than folded silently into the result:
+
+| slice | normalization | individuals | flat cells | nodes | reuse | H1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| attributes | `raw` | 288,023 | 641,648 | 391,109 | 39.05% | 7.25% |
+| attributes | `safe` | 277,806 | 596,288 | 360,881 | 39.48% | 6.43% |
+| attributes | `sense_merged` | 255,620 | 592,973 | 371,994 | 37.27% | 6.30% |
+| attributes | `lemma_bridged` | 182,114 | 515,353 | 347,459 | 32.58% | 6.80% |
+| taxonomy | `raw` | 238,021 | 479,975 | 259,703 | 45.89% | 11.52% |
+| taxonomy | `safe` | 237,684 | 360,120 | **147,148** | **59.14%** | 10.62% |
+| taxonomy | `sense_merged` | 216,878 | 357,150 | 158,020 | 55.76% | 9.96% |
+| taxonomy | `lemma_bridged` | 151,930 | 286,044 | 138,052 | 51.74% | 11.23% |
+
+The taxonomy row is the reason this matters. `has_subtype` is `is_a` stored
+backwards — 97,665 of its 97,666 edges already exist as `is_a` — and `has_part`
+is entirely contained in `part_of` inverted, 22,187 of 22,187. Counting both
+spellings stores the WordNet hierarchy twice, once on each endpoint, and
+**inflated the unnormalized taxonomy slice by 76%**.
+
+`safe` applies only what measurement shows to be redundant:
+
+| rule | justification |
+| --- | --- |
+| drop self-loops | 43,033 edges have `subject == object`; a self-predicate allocates a node and says nothing |
+| rewrite inverse relations | `has_subtype`→`is_a`, `has_part`→`part_of`, redundant at 97,665/97,666 and 22,187/22,187 |
+| canonicalize symmetric relations | direction is meaningless and inconsistently stored — `similar_to` 89.8% both ways, `synonym` 34.3%, `related_to` 7.6% |
+| drop meta-namespaces | `en:appendix:animals` is a Wiktionary word list, not a concept |
+| satellite adjective → adjective | WordNet's `.s.` is bookkeeping about adjective clusters, not a distinct POS; 10,693 nodes |
+| underscore → space | WordNet writes `hot_dog`, ConceptNet writes `hot dog` |
+
+`sense_merged` and `lemma_bridged` go further and are **lossy**, which is why
+they are not the default. `lemma_bridged` fuses `wn:synset:dog.n.01` into
+`en:dog`, joining WordNet's taxonomy to ConceptNet's assertions about the same
+word — all 86,571 WordNet lemmas exist as `en:` concepts, so without it the run
+scores two fully-overlapping vocabularies as disjoint ontologies. But it also
+collapses all 75 senses of `en:break` into one individual.
+
+What normalization does *not* do is rescue a weak result: H1 survives every
+preset, between 6.30% and 7.25% on `attributes` and 9.96% and 11.52% on
+`taxonomy`. It changes the absolute numbers, not the finding.
+
+Two things it deliberately leaves alone. Relations need no spelling
+normalization — there is no `en:is_a` or `type` variant in this database, only
+54 snake_case names — and `instance_of` is **not** folded into `is_a`, because
+instance-of and subclass-of are a real ontological distinction and the paper's
+trie is built over subclass structure.
+
 ## Layout
 
 | file | role |
-|---|---|
+| --- | --- |
 | `trie.py` | the router: predicates are the alphabet, `ensure` reports allocation |
 | `ordering.py` | six orderings, all reduced to one interface: corpus in, predicate paths out |
+| `normalize.py` | relation and node normalization, each rule justified by a query |
 | `substrate.py` | corpora from the V633 database, plus Table 1 verbatim |
 | `measure.py` | node count, reuse rate, access depth, scaling curve |
 | `run_v683.py` | the experiment and its report |
@@ -103,7 +157,7 @@ once under `Big` and once under the root.
 ## Orderings
 
 | name | rule |
-|---|---|
+| --- | --- |
 | `lexical` | sort predicates by their own identity — no optimization |
 | `shuffled` | fixed-seed arbitrary order — the control for H1 |
 | `global_coverage` | Appendix 3 as written: one decreasing-coverage order |

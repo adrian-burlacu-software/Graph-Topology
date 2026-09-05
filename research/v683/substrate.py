@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from .normalize import RAW, Normalization
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATABASE = REPOSITORY_ROOT / "data" / "v633_full_semantic.sqlite"
 
@@ -92,8 +94,15 @@ def load(
     relations: Sequence[str] = ATTRIBUTE_RELATIONS,
     name: str = "attributes",
     min_predicates: int = 1,
+    normalization: Normalization = RAW,
 ) -> Corpus:
-    """Read one relation slice out of the read-only semantic database."""
+    """Read one relation slice out of the read-only semantic database.
+
+    Relations are selected before normalization, so a slice names the relations
+    as they are spelled in the database. `drop_redundant_inverses` may rewrite
+    a selected relation into another one -- `has_subtype` becomes `is_a` -- so
+    a slice should name both members of an inverse pair or neither.
+    """
     if not database.is_file():
         raise FileNotFoundError(f"semantic database not found: {database}")
     connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
@@ -104,7 +113,7 @@ def load(
             tuple(relations),
         )
         grouped: dict[str, set] = {}
-        for subject, relation, obj in rows:
+        for subject, relation, obj in normalization.apply(rows):
             grouped.setdefault(subject, set()).add((relation, obj))
     finally:
         connection.close()
@@ -113,7 +122,7 @@ def load(
         for subject, predicates in sorted(grouped.items())
         if len(predicates) >= min_predicates
     )
-    return Corpus(name, items)
+    return Corpus(f"{name}/{normalization.name}", items)
 
 
 #: Table 1 of the paper, verbatim. The regression anchor for Figure 20.

@@ -32,7 +32,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from . import measure, ordering, substrate
+from . import measure, normalize, ordering, substrate
 from .substrate import PAPER_TABLE_1, SLICES
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -207,16 +207,63 @@ def optimality(corpus: substrate.Corpus, samples: int, width: int,
     }
 
 
+def normalization_ablation(database: Path,
+                           slice_names: tuple[str, ...]) -> dict[str, Any]:
+    """What each normalization preset is worth, before any ordering question.
+
+    Reported because the answer is not small: leaving `has_subtype` and
+    `has_part` in place stores the WordNet hierarchy twice, once on each
+    endpoint, and inflates the taxonomy slice by 76%.
+    """
+    rows: list[dict[str, Any]] = []
+    for slice_name in slice_names:
+        for preset in normalize.NORMALIZATIONS.values():
+            corpus = substrate.load(database, SLICES[slice_name], slice_name,
+                                    normalization=preset)
+            coverage = measure.measure(
+                corpus, "global_coverage", ordering.global_coverage(corpus)
+            )
+            arbitrary = measure.measure(
+                corpus, "shuffled", ordering.shuffled(corpus)
+            )
+            rows.append({
+                "slice": slice_name,
+                "normalization": preset.name,
+                "individuals": len(corpus),
+                "flat_cells": corpus.cells,
+                "distinct_predicates": corpus.predicates,
+                "nodes": coverage.nodes,
+                "reuse_rate": coverage.reuse_rate,
+                "h1_relative": round(
+                    (arbitrary.nodes - coverage.nodes) / arbitrary.nodes, 6
+                ),
+            })
+    return {
+        "rows": rows,
+        "note": (
+            "`raw` is unnormalized apart from self-loop removal, which is "
+            "unconditional: the database holds 43,033 edges whose subject and "
+            "object are the same node, and a self-predicate allocates a trie "
+            "node while saying nothing about the individual."
+        ),
+    }
+
+
 def run(database: Path, output: Path, steps: int, samples: int, width: int,
-        seed: int) -> dict[str, Any]:
+        seed: int, normalization: normalize.Normalization) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     report: dict[str, Any] = {
         "database": str(database.resolve()),
+        "normalization": normalization.name,
         "paper_reproduction": paper_reproduction(),
+        "normalization_ablation": normalization_ablation(
+            database, ("attributes", "taxonomy")
+        ),
         "slices": {},
     }
     for name, relations in SLICES.items():
-        corpus = substrate.load(database, relations, name)
+        corpus = substrate.load(database, relations, name,
+                                normalization=normalization)
         report["slices"][name] = ordering_comparison(corpus)
         if name == "attributes":
             report["scaling"] = scaling(corpus, steps)
@@ -255,6 +302,25 @@ def render(report: dict[str, Any]) -> str:
             f"| {name} | {'yes' if reproduced else 'NO'} | {paper['nodes'][name]} |"
         )
     lines += ["", paper["note"], ""]
+
+    ablation = report["normalization_ablation"]
+    lines += [
+        "## Normalization",
+        "",
+        "Applied before any ordering question, and reported separately because "
+        "it moves the numbers more than ordering does.",
+        "",
+        "| slice | normalization | individuals | flat cells | nodes | reuse | H1 |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for row in ablation["rows"]:
+        lines.append(
+            f"| {row['slice']} | `{row['normalization']}` "
+            f"| {row['individuals']:,} | {row['flat_cells']:,} | {row['nodes']:,} "
+            f"| {_pct(row['reuse_rate'])} | {_pct(row['h1_relative'])} |"
+        )
+    lines += ["", ablation["note"], "",
+              f"Everything below uses `{report['normalization']}`.", ""]
 
     lines += ["## Orderings", ""]
     for name, block in report["slices"].items():
@@ -356,9 +422,13 @@ def main() -> None:
     parser.add_argument("--width", type=int, default=8,
                         help="H4 maximum predicate universe; factorial in this")
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--normalization", default="safe",
+                        choices=sorted(normalize.NORMALIZATIONS),
+                        help="preset applied before the hypotheses are scored")
     arguments = parser.parse_args()
     report = run(arguments.database, arguments.output, arguments.steps,
-                 arguments.samples, arguments.width, arguments.seed)
+                 arguments.samples, arguments.width, arguments.seed,
+                 normalize.NORMALIZATIONS[arguments.normalization])
     print(render(report))
     print(f"wrote {arguments.output / 'v683_results.json'}")
 
