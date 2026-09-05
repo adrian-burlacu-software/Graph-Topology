@@ -1,0 +1,15 @@
+{
+  "round": 0,
+  "student_checkpoint": "results\\v680\\dagger\\dagger_round_0.pt",
+  "states_collected": 13,
+  "teacher_labels": 13,
+  "teacher_action_agreement": 0.6153846153846154,
+  "top3_recall": 0.9230769230769231,
+  "abstention_accuracy": 0.3333333333333333,
+  "aggregate": {
+    "episodes": 14,
+    "states": 26,
+    "unique_states": 11,
+    "teacher_labels": 26
+  }
+}

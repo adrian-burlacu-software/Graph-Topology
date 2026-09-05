@@ -18,6 +18,9 @@
 *.tar.gz
 *.rar
 
+# Checkpoint files
+*.pt
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 
@@ -145,3 +148,6 @@ results/v678_shared_memory.sqlite
 results/v678_shared_memory.sqlite-shm
 results/v678_shared_memory.sqlite-wal
 results/v678_workers/
+results/v679_shared_memory.sqlite
+results/v679_shared_memory.sqlite-shm
+results/v679_shared_memory.sqlite-wal

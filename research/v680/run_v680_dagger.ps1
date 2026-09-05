@@ -1,0 +1,1 @@
+python .\research\v680\attention_dagger.py --checkpoint ".\results\v680\student_checkpoint.pt" --output ".\results\v680\dagger_dataset.jsonl" --retrained-checkpoint ".\results\v680\student_dagger_checkpoint.pt" --rounds 4
