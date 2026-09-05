@@ -95,12 +95,14 @@ def _validate_native_chat_transition(item):
     if not isinstance(candidates, list) or len(candidates) != len(observation.candidate_features):
         raise ValueError("canonical chat transition candidates must match its state")
     selected = view["selected_action"]
-    if selected.get("kind") != "traverse":
-        raise ValueError("canonical chat transition must capture an applied traversal")
+    if selected.get("kind") not in {"traverse", "stop", "abstain"}:
+        raise ValueError("canonical chat transition must capture a bounded action")
     teacher = item.supervision.get("teacher", {})
     if (not isinstance(teacher, dict) or len(teacher.get("logits", [])) != len(candidates) + 2
             or len(teacher.get("probabilities", [])) != len(candidates) + 2
-            or teacher.get("selected_action") != selected.get("candidate_id")):
+            or teacher.get("selected_action") != AttentionAction.from_dict(
+                selected, len(observation.candidate_features)
+            ).index(len(observation.candidate_features))):
         raise ValueError("canonical chat transition requires matching policy supervision")
 
 

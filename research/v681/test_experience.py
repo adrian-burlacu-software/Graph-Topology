@@ -12,16 +12,22 @@ from research.v681.importers import import_chat_record, import_chat_traces, impo
 from research.v681.learners import AttentionDistillationLearner, JEPAAuxiliaryLearner, REGISTRY, capability_report
 from research.v681.trajectory import AttentionTrajectoryAdapter, OutcomeTransitionAdapter, SequentialTransitionAdapter
 from research.v681.coordinator import ATTENTION_TRAINING_SOURCES, RuntimePolicy, V681Coordinator, _promotion
-from research.v681.native_learning.dataset import collect_jepa_transition_episodes, collect_teacher_episodes
-from research.v681.native_learning.distill import augment_training_candidate_order, training_records
+from research.v681.native_learning.dataset import (augment_training_candidate_order,
+                                                    collect_jepa_transition_episodes,
+                                                    collect_teacher_episodes, training_records)
 from research.v681.native_learning.engine import NativeLearningEngine
+from research.v681.native_learning.environment import candidate
 from research.v681.native_learning.environment import stop_boundary_training_episodes, training_benchmark_episodes
-from research.v681.native_learning.evaluate import evaluate, evaluate_rollouts
 from research.v681.native_learning.types import AttentionAction, AttentionActionKind
 from research.v681.native_runtime.attention import AttentionController
 from research.v681.native_runtime.chat import emit_trace, preflight_symbol_audit
 from research.v681.native_runtime.runtime import NativeRuntime
 from research.v681.native_runtime.semantic_core import Edge, Hypothesis, search
+
+try:
+    from research.v681.native_learning.evaluate import evaluate, evaluate_rollouts
+except ModuleNotFoundError:
+    evaluate = evaluate_rollouts = None
 
 
 def sequential_experience(source=ExperienceSource.DAGGER, split="train"):
@@ -83,6 +89,7 @@ class ExperienceTests(unittest.TestCase):
                 if step["teacher"]["selected_action"] >= candidate_count:
                     self.assertIn(step["teacher"]["selected_action"], (candidate_count, candidate_count + 1))
 
+    @unittest.skipUnless(evaluate, "requires torch")
     def test_stop_metrics_report_confusion_f1_and_source_distribution(self):
         class AlwaysStop:
             jepa_dim = 0
@@ -349,6 +356,60 @@ class ExperienceTests(unittest.TestCase):
         descriptor = import_chat_record(SimpleNamespace(append=appended.append), records[0], "native-chat", 1)
         self.assertEqual(len(appended), 1)
         self.assertEqual(descriptor["episode_id"], "native-chat-session-1")
+
+    def test_native_live_capture_appends_terminal_stop_transition(self):
+        controller = AttentionController()
+        hypothesis = Hypothesis("en:start", "is_a", "relation_lookup", .8, {"target_terms": ["goal"]})
+        controller.begin_turn("en:start", episode_prefix="native-chat-session", remaining_budget=2)
+        controller.record_direct_proof(hypothesis, "en:goal", "is_a")
+        controller.record_terminal_decision(
+            hypothesis, {"reason": "verified_evidence_available", "candidates": []},
+            {"success": True, "path": ["is_a"], "target": "en:goal", "direct_proof": True},
+        )
+        records = [native_chat_transition_experience(transition).as_dict()
+                   for transition in controller.transitions()]
+        terminal = records[-1]
+        self.assertEqual(terminal["model_view"]["selected_action"], {"kind": "stop", "candidate_id": None})
+        self.assertEqual(terminal["supervision"]["outcome"]["kind"], "verified_answer")
+        self.assertEqual(terminal["model_view"]["next_state"]["step"],
+                         terminal["model_view"]["state"]["step"] + 1)
+        self.assertEqual(terminal["model_view"]["next_state"]["remaining_budget"], 0)
+
+    def test_native_live_capture_appends_terminal_abstain_transition(self):
+        controller = AttentionController()
+        hypothesis = Hypothesis("en:start", "is_a", "relation_lookup", .8, {"target_terms": ["goal"]})
+        controller.begin_turn("en:start", episode_prefix="native-chat-session", remaining_budget=2)
+        controller.record_terminal_decision(
+            hypothesis, {"reason": "no_verified_evidence", "candidates": []},
+            {"success": False, "path": [], "target": None, "direct_proof": False},
+        )
+        record = native_chat_transition_experience(controller.transitions()[0]).as_dict()
+        self.assertEqual(record["model_view"]["selected_action"], {"kind": "abstain", "candidate_id": None})
+        self.assertEqual(record["supervision"]["outcome"]["kind"], "insufficient_evidence")
+
+    @unittest.skipUnless(evaluate_rollouts, "requires torch")
+    def test_proof_completion_rate_requires_verified_stop(self):
+        class AbstainingAfterProof:
+            jepa_dim = 0
+            def select_action(self, state, **_):
+                count = len(state.candidate_features)
+                action = AttentionAction(AttentionActionKind.TRAVERSE, 0) if state.step == 0 else \
+                    AttentionAction(AttentionActionKind.ABSTAIN)
+                selected = action.index(count)
+                return {"logits": [0.0] * (count + 2), "selected_action": selected,
+                        "action": action, "hidden": None}
+
+        episode = {
+            "episode_id": "proof-without-stop", "split": "held_out_structural", "goal": "has_part",
+            "terms": ["goal"], "start": "en:start", "proof_target": "en:goal",
+            "nodes": {"en:start": [candidate("has_part", "en:goal", goal_relation_match=1,
+                                               target_term_match=1, specificity=1)],
+                "en:goal": []},
+            "proof_edges": [["en:start", "en:goal"]],
+        }
+        metrics = evaluate_rollouts([episode], AbstainingAfterProof())["held_out_structural"]
+        self.assertEqual(metrics["proof_completion_rate"], 0.0)
+        self.assertEqual(metrics["episode_success"], 0.0)
 
     def test_file_importers_are_boundary_only(self):
         with tempfile.TemporaryDirectory() as directory:

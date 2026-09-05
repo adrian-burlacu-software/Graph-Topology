@@ -249,7 +249,7 @@ def evaluate_rollouts(episodes, model, jepa=None, shuffled_jepa=False, random_je
         metric["episodes"] += 1
         success = env.valid_proof_seen and student_final == "stop"
         metric["episode_success"] += success
-        metric["proof_completion_rate"] += env.valid_proof_seen
+        metric["proof_completion_rate"] += success
         metric["final_decision_accuracy"] += teacher_final == student_final
         metric["average_steps_to_success"] += steps if success else 0
         metric["unnecessary_steps"] += max(0, steps - proof_steps - int(spec.get("initial_proof", False)))

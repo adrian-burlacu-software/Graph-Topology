@@ -241,12 +241,19 @@ def native_chat_transition_experience(transition, graph_provenance=None):
         raise ValueError("native chat transition steps must be ordered")
     candidates = list(transition["candidate_actions"])
     selected = dict(transition["selected_action"])
-    if selected.get("kind") != "traverse" or not isinstance(selected.get("candidate_id"), int):
-        raise ValueError("native chat transition requires a selected traversal action")
-    if not 0 <= selected["candidate_id"] < len(candidates):
-        raise ValueError("native chat transition action is not a candidate")
+    kind = selected.get("kind")
+    if kind == "traverse":
+        if not isinstance(selected.get("candidate_id"), int) or not 0 <= selected["candidate_id"] < len(candidates):
+            raise ValueError("native chat traversal action is not a candidate")
+        selected_index = selected["candidate_id"]
+    elif kind == "stop":
+        selected_index = len(candidates)
+    elif kind == "abstain":
+        selected_index = len(candidates) + 1
+    else:
+        raise ValueError("native chat transition requires a bounded selected action")
     policy = dict(transition["policy"])
-    teacher = _native_policy_teacher(policy, len(candidates), selected["candidate_id"])
+    teacher = _native_policy_teacher(policy, len(candidates), selected_index, kind)
     provenance = {
         "producer": "v681_native_attention_controller",
         **dict(transition.get("graph_provenance", {})),
@@ -286,11 +293,13 @@ def native_chat_transition_experience(transition, graph_provenance=None):
     )
 
 
-def _native_policy_teacher(policy, candidate_count, selected_action):
+def _native_policy_teacher(policy, candidate_count, selected_action, action_kind):
     scores = list(policy.get("candidate_scores", []))
     if len(scores) != candidate_count:
         raise ValueError("native chat transition policy scores must match candidates")
     logits = [float(score) for score in scores] + [0.0, 0.0]
+    if action_kind != "traverse":
+        logits[selected_action] = max(logits, default=0.0) + 1.0
     offset = max(logits)
     weights = [math.exp(value - offset) for value in logits]
     total = sum(weights)
@@ -298,7 +307,7 @@ def _native_policy_teacher(policy, candidate_count, selected_action):
         "logits": logits,
         "probabilities": [weight / total for weight in weights],
         "selected_action": selected_action,
-        "outcome": "traverse",
+        "outcome": action_kind,
     }
 
 

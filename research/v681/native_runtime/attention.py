@@ -446,10 +446,54 @@ class AttentionController:
             )
 
     def arbitrate(self, ranked):
-        decision = self.arbitrator.decide(ranked)
-        if decision["outcome"] == "abstain":
-            self.state._record("abstain", reason=decision["reason"])
-        return decision
+        return self.arbitrator.decide(ranked)
+
+    def record_terminal_decision(self, hypothesis, decision, result):
+        """Capture the actual final STOP or ABSTAIN decision after arbitration."""
+        candidates = [
+            self._candidate(
+                candidate["relation"], candidate["target"], hypothesis, (),
+                features=candidate.get("features", {}),
+                verified=float(candidate.get("verified", False)),
+                direct_proof=float(candidate.get("direct_proof", False)),
+            )
+            for candidate in decision.get("candidates", [])
+        ]
+        state = self._observation(hypothesis, candidates)
+        action = "stop" if result.get("success", False) else "abstain"
+        self.state._record(action, reason=decision.get("reason", ""), verified=bool(result.get("success")))
+        next_state = self._observation(hypothesis, candidates, self._capture_step + 1)
+        next_state["remaining_budget"] = 0
+        self._transitions.append({
+            "episode_id": self.episode_id,
+            "step": self._capture_step,
+            "state": state,
+            "candidate_actions": [
+                {"action": {"kind": "traverse", "candidate_id": index}, "features": dict(candidate)}
+                for index, candidate in enumerate(candidates)
+            ],
+            "selected_action": {"kind": action, "candidate_id": None},
+            "next_state": next_state,
+            "evidence": {
+                "path": list(result.get("path", [])),
+                "target": result.get("target"),
+                "direct_proof": bool(result.get("direct_proof", False)),
+            },
+            "outcome": {
+                "kind": "verified_answer" if action == "stop" else "insufficient_evidence",
+                "verified": action == "stop",
+                "terminal_action": action,
+            },
+            "graph_provenance": dict(self._graph_provenance),
+            "policy": {
+                "class": type(self.policy).__name__,
+                "model_version": getattr(self.policy, "version", "fallback"),
+                "candidate_scores": [self.policy.score_arbitration(candidate.get("features", {}))
+                                     for candidate in decision.get("candidates", [])],
+            },
+        })
+        self._capture_step += 1
+        self._remaining_budget = 0
 
     def trace(self):
         return {

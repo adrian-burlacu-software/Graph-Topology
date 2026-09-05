@@ -2296,6 +2296,7 @@ def handle_turn(
             0,
         ),
     }
+    controller.record_terminal_decision(selected, semantic_decision, result)
 
     trace = {
         "timestamp": time.time(),

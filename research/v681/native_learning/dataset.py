@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import argparse
+from copy import deepcopy
 from pathlib import Path
 
 from .environment import AttentionEnv, benchmark_episodes, episodes_from_database
@@ -119,6 +120,44 @@ def read_jepa_jsonl(path):
     with Path(path).open(encoding="utf-8") as handle:
         records = [json.loads(line) for line in handle if line.strip()]
     return [validate_jepa_transition_record(record) for record in records]
+
+
+def training_records(records):
+    """Keep validation and every held-out form out of student fitting."""
+    return [record for record in records if not str(record["split"]).startswith("held_out")
+            and record["split"] != "heldout" and record.get("partition") != "validation"]
+
+
+def augment_training_candidate_order(records):
+    """Cycle candidate order in train copies while retaining STOP/ABSTAIN terminal slots."""
+    augmented = list(records)
+    for record in records:
+        candidate_count = max((len(step["state"]["candidate_features"]) for step in record["trajectory"]), default=0)
+        for shift in range(1, candidate_count):
+            variant = deepcopy(record)
+            variant["episode_id"] = f"{record['episode_id']}_candidate_rotation_{shift}"
+            variant["candidate_order_augmentation"] = f"rotate:{shift}"
+            for step in variant["trajectory"]:
+                step["episode_id"] = variant["episode_id"]
+                count = len(step["state"]["candidate_features"])
+                if count < 2:
+                    continue
+                order = list(range(shift % count, count)) + list(range(shift % count))
+                inverse = {old: new for new, old in enumerate(order)}
+                step["state"]["candidate_features"] = [step["state"]["candidate_features"][old] for old in order]
+                step["candidates"] = [step["candidates"][old] for old in order] + step["candidates"][count:]
+                for candidate_id, candidate in enumerate(step["candidates"][:count]):
+                    candidate["action"]["candidate_id"] = candidate_id
+                teacher = step["teacher"]
+                teacher["logits"] = [teacher["logits"][old] for old in order] + teacher["logits"][count:]
+                teacher["probabilities"] = [teacher["probabilities"][old] for old in order] + teacher["probabilities"][count:]
+                if teacher["selected_action"] < count:
+                    teacher["selected_action"] = inverse[teacher["selected_action"]]
+                if step["action"]["kind"] == "traverse":
+                    step["action"]["candidate_id"] = inverse[step["action"]["candidate_id"]]
+                step["provenance"] = {**step["provenance"], "candidate_order_augmentation": f"rotate:{shift}"}
+            augmented.append(variant)
+    return augmented
 
 
 def dataset_stats(records):
