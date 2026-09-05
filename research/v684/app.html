@@ -94,16 +94,22 @@
   input[type=range] { flex:1; min-width:130px; accent-color:var(--accent); }
 
   /* graph view */
-  #graph { width:100%; height:380px; display:block; background:#12151c;
-           border:1px solid var(--line); border-radius:9px; margin-bottom:12px; }
+  #graph { width:100%; height:520px; display:block; border-radius:9px;
+           border:1px solid var(--line); margin-bottom:12px;
+           background:radial-gradient(circle at 50% 50%, #1b2330 0%, #141821 46%, #10131a 100%); }
+  #graph .ring { fill:none; stroke:var(--line); stroke-width:1; opacity:.3;
+                 stroke-dasharray:3 7; }
   #graph .edge { stroke:var(--line); stroke-width:1.5; fill:none;
-                 transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.5; }
-  #graph .edge.walked { stroke:var(--accent); stroke-width:2.4; opacity:1; }
+                 transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.45; }
+  #graph .edge.walked { stroke:var(--accent); stroke-width:2.2; opacity:.95; }
   #graph .gnode circle {
     fill:var(--panel2); stroke:var(--line); stroke-width:1.5; r:7;
     transition:fill .35s ease, stroke .35s ease, r .3s ease;
   }
-  #graph .gnode.seen circle { fill:#2a3340; stroke:var(--dim); }
+  /* visited but nothing found here -- a pass-through, not a decision */
+  #graph .gnode.seen circle { fill:#232c3a; stroke:var(--faint); }
+  /* facts were actually examined at this concept */
+  #graph .gnode.probed circle { fill:#2e3a4d; stroke:var(--dim); stroke-width:2; }
   #graph .gnode.current circle { fill:var(--accent); stroke:var(--accent); r:10; }
   #graph .gnode.hit circle { fill:var(--yes); stroke:var(--yes); r:11; }
   #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
@@ -125,6 +131,14 @@
     min-height:20px;
   }
   .nowstep b { color:var(--ink); }
+  .legend { display:flex; gap:15px; flex-wrap:wrap; margin:-4px 0 13px; font-size:11.5px; color:var(--faint); }
+  .legend span { display:flex; align-items:center; gap:6px; }
+  .legend i { width:9px; height:9px; border-radius:50%; display:inline-block; border:1.5px solid var(--line); background:var(--panel2); }
+  .legend i.k-origin { border-color:var(--accent); }
+  .legend i.k-probed { background:#2e3a4d; border-color:var(--dim); }
+  .legend i.k-seen { background:#232c3a; border-color:var(--faint); }
+  .legend i.k-hit { background:var(--yes); border-color:var(--yes); }
+  .legend i.k-blocked { background:var(--no); border-color:var(--no); }
   .nowstep .rule { margin-right:7px; }
 
   details#stepsbox { border-top:1px solid var(--line); padding-top:10px; }
@@ -195,6 +209,13 @@
         </div>
         <svg id="graph" viewBox="0 0 760 380" preserveAspectRatio="xMidYMid meet"></svg>
         <div class="nowstep" id="nowstep"></div>
+        <div class="legend">
+          <span><i class="k-origin"></i>asked</span>
+          <span><i class="k-probed"></i>facts checked here</span>
+          <span><i class="k-seen"></i>passed through</span>
+          <span><i class="k-hit"></i>answered</span>
+          <span><i class="k-blocked"></i>blocked / stopped</span>
+        </div>
         <details id="stepsbox">
           <summary><span id="stepsummary">All steps</span></summary>
           <div class="chain" id="chain"></div>
@@ -380,41 +401,83 @@ function buildGraph() {
   });
   if (!byDist.size) return;
 
-  const W = 760, H = 380, pad = 34;
+  // Concentric rings: the asked concept at the centre, each ring one step of
+  // generalisation outward. A radial layout suits this better than rows,
+  // because the taxonomy is a DAG -- `animal` is two steps from `dog` and also
+  // the parent of `chordate` six steps out, and that shortcut is a chord here
+  // rather than a line doubling back across the diagram.
+  const W = 860, H = 560, cx = W / 2, cy = H / 2;
   const levels = [...byDist.keys()].sort((a, b) => a - b);
-  const rowGap = levels.length > 1 ? (H - pad * 2) / (levels.length - 1) : 0;
-  const pos = new Map();
-  levels.forEach((d, li) => {
-    const row = byDist.get(d);
-    const y = H - pad - li * rowGap;          // distance 0 at the bottom
-    row.forEach((c, i) => {
-      const x = row.length === 1 ? W / 2
-        : pad + 60 + (i * (W - pad * 2 - 120)) / (row.length - 1);
-      pos.set(c, { x, y, d });
-    });
-    const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("class", "lvl");
-    label.setAttribute("x", 8); label.setAttribute("y", y + 4);
-    label.textContent = d === 0 ? "asked" : "+" + d;
-    svg.appendChild(label);
+  const maxRing = Math.min(H, W) / 2 - 74;
+  const ringOf = d => levels.length < 2 ? 0
+    : 46 + (maxRing - 46) * (levels.indexOf(d) / (levels.length - 1));
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  // faint ring guides
+  levels.forEach(d => {
+    if (!d) return;
+    const ring = document.createElementNS(SVG_NS, "circle");
+    ring.setAttribute("class", "ring");
+    ring.setAttribute("cx", cx); ring.setAttribute("cy", cy);
+    ring.setAttribute("r", ringOf(d));
+    svg.appendChild(ring);
+    const tag = document.createElementNS(SVG_NS, "text");
+    tag.setAttribute("class", "lvl");
+    tag.setAttribute("x", cx + 3); tag.setAttribute("y", cy - ringOf(d) - 5);
+    tag.textContent = "+" + d;
+    svg.appendChild(tag);
   });
 
-  // edges: each step's concept to the parents it named
-  const edges = [];
-  steps.forEach(st => {
-    (st.parents || []).forEach(p => {
-      if (pos.has(st.concept) && pos.has(p)) edges.push([st.concept, p]);
+  // Place each ring, ordering nodes by where their children already sit so a
+  // lineage stays roughly radial instead of wrapping around the circle.
+  const pos = new Map();
+  const angle = new Map();
+  levels.forEach((d, li) => {
+    const row = byDist.get(d);
+    if (d === 0) {
+      row.forEach(c => { pos.set(c, { x: cx, y: cy, d }); angle.set(c, -Math.PI / 2); });
+      return;
+    }
+    const preferred = row.map(c => {
+      const kids = [];
+      steps.forEach(st => {
+        if ((st.parents || []).includes(c) && angle.has(st.concept))
+          kids.push(angle.get(st.concept));
+      });
+      if (!kids.length) return { c, a: null };
+      const x = kids.reduce((s, a) => s + Math.cos(a), 0) / kids.length;
+      const y = kids.reduce((s, a) => s + Math.sin(a), 0) / kids.length;
+      return { c, a: Math.atan2(y, x) };
+    });
+    preferred.sort((p, q) => (p.a == null ? 9 : p.a) - (q.a == null ? 9 : q.a));
+    const span = Math.PI * 2;
+    const start = -Math.PI / 2 - span / 2 + span / (row.length * 2);
+    preferred.forEach((p, i) => {
+      const a = row.length === 1 && p.a != null ? p.a
+        : start + (i * span) / row.length;
+      const r = ringOf(d);
+      pos.set(p.c, { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), d });
+      angle.set(p.c, a);
     });
   });
+
+  // edges: each step's concept to the parents it named, bowed toward centre
   const edgeEls = new Map();
-  edges.forEach(([a, b]) => {
-    const pa = pos.get(a), pb = pos.get(b);
-    const line = document.createElementNS(SVG_NS, "path");
-    const my = (pa.y + pb.y) / 2;
-    line.setAttribute("class", "edge");
-    line.setAttribute("d", `M${pa.x},${pa.y} C${pa.x},${my} ${pb.x},${my} ${pb.x},${pb.y}`);
-    svg.appendChild(line);
-    edgeEls.set(a + "→" + b, line);
+  const drawn = new Set();
+  steps.forEach(st => {
+    (st.parents || []).forEach(p => {
+      const key = st.concept + "→" + p;
+      if (drawn.has(key) || !pos.has(st.concept) || !pos.has(p)) return;
+      drawn.add(key);
+      const a = pos.get(st.concept), b = pos.get(p);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const line = document.createElementNS(SVG_NS, "path");
+      line.setAttribute("class", "edge");
+      line.setAttribute("d",
+        `M${a.x},${a.y} Q${mx + (cx - mx) * 0.22},${my + (cy - my) * 0.22} ${b.x},${b.y}`);
+      svg.appendChild(line);
+      edgeEls.set(key, line);
+    });
   });
 
   const nodeEls = new Map();
@@ -427,21 +490,27 @@ function buildGraph() {
     const dot = document.createElementNS(SVG_NS, "circle");
     dot.setAttribute("r", 7);
     const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("x", 13); label.setAttribute("y", 4);
+    const left = p.x < cx - 6;
+    label.setAttribute("x", left ? -13 : 13);
+    label.setAttribute("y", p.d === 0 ? 26 : 4);
+    if (p.d === 0) label.setAttribute("x", 0);
+    label.setAttribute("text-anchor", p.d === 0 ? "middle" : (left ? "end" : "start"));
     label.textContent = shortName(c);
-    g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = c;
+    g.appendChild(title); g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
     g.style.cursor = "pointer";
     g.onclick = () => { $("q").value = `what can a ${shortName(c)} do`; ask(c); };
     svg.appendChild(g);
     nodeEls.set(c, g);
   });
-  GRAPH = { nodeEls, edgeEls, pos };
+  GRAPH = { nodeEls, edgeEls };
 }
 
 function paintGraph() {
   if (!GRAPH || !STATE) return;
   const steps = STATE.steps || [];
-  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "current", "hit", "blocked"));
+  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked"));
   GRAPH.edgeEls.forEach(e => e.classList.remove("walked"));
   let last = null;
   for (let i = 0; i < cursor && i < steps.length; i++) {
@@ -449,6 +518,10 @@ function paintGraph() {
     const g = GRAPH.nodeEls.get(st.concept);
     if (!g) continue;
     g.classList.add("seen");
+    // A concept whose facts were actually examined, vs one merely passed through
+    // on the way up. `whole` is usually the latter: correct WordNet, no bearing
+    // on the answer.
+    if (st.facts_checked > 0) g.classList.add("probed");
     if (st.kind === "match") g.classList.add("hit");
     if (st.kind === "block" || st.kind === "stop") g.classList.add("blocked");
     (st.parents || []).forEach(p => {

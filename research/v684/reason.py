@@ -170,10 +170,11 @@ class Reasoner:
 
         for node, distance, parents in self.ascend(concept):
             answer.chain.append(node)
-            if distance:
-                steps.append(Step(len(steps), "ascend", node, distance, "R1",
-                                  f"Generalise to {node.rsplit('.', 2)[0]}.",
-                                  parents=parents))
+            steps.append(Step(len(steps), "ascend" if distance else "check",
+                              node, distance, "R1",
+                              f"Generalise to {node.rsplit('.', 2)[0]}." if distance
+                              else f"Start from {node.rsplit('.', 2)[0]}.",
+                              parents=parents))
             if node in wanted and distance > 0:
                 answer.verdict = "VERIFIED"
                 fact = Fact(concept, "is_a", node, "wordnet", 0.95, False, distance)
@@ -240,10 +241,13 @@ class Reasoner:
                 break
 
             candidates = self.facts_of(node, relation)
+            # `parents` is carried on every step, not only on ascents: the asked
+            # concept never produces an ascend step, so without this it would
+            # have no outgoing edges in the graph view.
             steps.append(Step(len(steps), "check", node, distance, "R2",
                               f"Check {len(candidates)} `{relation}` fact(s) on "
                               f"{node.rsplit('.', 2)[0]}.",
-                              facts_checked=len(candidates)))
+                              facts_checked=len(candidates), parents=parents))
             for fact in candidates:
                 if matcher(fact.object, target):
                     fact.distance = distance
@@ -295,7 +299,8 @@ class Reasoner:
                 found += 1
             steps.append(Step(len(steps), "check", node, distance, "R2",
                               f"{found} new fact(s) from "
-                              f"{node.rsplit('.', 2)[0]}.", facts_checked=found))
+                              f"{node.rsplit('.', 2)[0]}.", facts_checked=found,
+                              parents=parents))
             if len(collected) >= limit * 3:
                 break
         # R3: drop anything the concept explicitly denies.
