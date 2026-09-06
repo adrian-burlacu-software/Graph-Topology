@@ -51,7 +51,8 @@
   .VERIFIED { background:rgba(74,222,128,.14); color:var(--yes); }
   .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
   .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
-  .LISTING { background:rgba(94,234,212,.13); color:var(--accent); }
+  .LISTING,.PROFILE,.IDENTIFIED { background:rgba(94,234,212,.13); color:var(--accent); }
+  .AMBIGUOUS,.NO_MATCH,.UNRECORDED,.MIXED { background:rgba(251,191,36,.13); color:var(--maybe); }
   .claim { font-size:16px; }
   .note { color:var(--dim); font-size:13px; margin-top:8px; }
 
@@ -129,6 +130,18 @@
   #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
   #graph .gnode.skipped circle { fill:var(--maybe); stroke:var(--maybe); }
   #graph .gnode.origin circle { stroke:var(--accent); stroke-width:2.5; }
+  #graph .gnode.treenode circle { fill:var(--panel2); stroke:var(--accent);
+                                 stroke-width:2; }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
+  #graph .tree-term { fill:var(--ink); font:13px var(--mono);
+                      text-anchor:end; stroke:none; }
+  #graph .tree-answer { fill:var(--yes); font:14px var(--mono);
+                        font-weight:600; stroke:none; }
+  #graph .gnode.treeghost circle { fill:#1a212c; stroke:#333c4c; }
+  #graph .gnode.treeghost text { fill:#4d5566; font:11px var(--mono);
+                                 stroke:none; }
+  #graph .gnode.treenode.current circle { fill:var(--accent); stroke:var(--accent); }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
   #graph .gnode text {
     fill:var(--faint); font:11px var(--mono); transition:fill .35s ease;
     paint-order:stroke; stroke:#12151c; stroke-width:3px;
@@ -246,6 +259,22 @@
         </details>
       </div>
 
+      <div class="card" id="identcard" hidden>
+        <h2 id="identtitle">Identified &mdash; R16</h2>
+        <p class="note" id="identnote"></p>
+        <div id="ident"></div>
+      </div>
+
+      <div class="card" id="profilecard" hidden>
+        <h2>Attributes &mdash; R17</h2>
+        <p class="note" id="profilenote"></p>
+        <div id="profilekinds"></div>
+        <div id="profilewalk"></div>
+        <p class="note" id="profileabove"></p>
+        <div id="profileinherit"></div>
+        <p class="note" id="profiledenied"></p>
+      </div>
+
       <div class="card" id="bridgecard" hidden>
         <h2>Bridge &mdash; why this is relevant</h2>
         <p class="note" id="bridgenote"></p>
@@ -305,6 +334,16 @@ const EXAMPLES = [
   "what can a violin player do",
   "where does a dog's owner live",
   "what does a car driver need",
+  // Identification: describe a thing instead of naming it. Answered under
+  // `python -m research.v686`, which adds the feature norms.
+  "what kind of dog has spots",
+  "what kind of cat has stripes",
+  "what kind of bird is red",
+  "what kind of bird cannot fly",
+  // Several properties, so the narrowing has depth: each one is another
+  // level of the funnel, and the answer sits at the bottom.
+  "what kind of animal has stripes and eats meat and is fast",
+  "what kind of animal is furry and has spots and is big",
 ];
 const $ = id => document.getElementById(id);
 let STATE = null, cursor = 0, timer = null;
@@ -383,10 +422,19 @@ function render() {
   buildFacts();
   buildNearby();
   buildBridge();
+  buildIdent();
+  buildProfile();
   buildAside();
 }
 
 function claimText(s) {
+  const p = s.profile;
+  if (p) {
+    const asked = p.asked;
+    return asked
+      ? `${p.name} — ${asked.term}: ${asked.verdict.toLowerCase()}`
+      : `${p.name} — ${p.path.length} attributes on its branch of the trie`;
+  }
   if (s.verdict === "LISTING") return `${s.evidence.length} fact(s) about ${s.concept || ""}`;
   if (!s.evidence || !s.evidence.length) return s.concept ? `about ${s.concept}` : "";
   const e = s.evidence[0];
@@ -439,6 +487,256 @@ let VIEW = localStorage.getItem("v684view") || "rows";
 let NBR = localStorage.getItem("v684nbr") !== "off";
 
 function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
+
+/* Clicking a node on the tree asks the next question about it, and which
+ * question that is depends on what is being drawn: on an identification the
+ * interesting follow-up is what the thing can do, and on a walk of one
+ * branch it is the branch the neighbour took instead. */
+function followUp(name) {
+  const mode = STATE && STATE.identification && STATE.identification.mode;
+  return (mode === "profile" || mode === "verify")
+    ? "what attributes does a " + name + " have"
+    : "what can a " + name + " do";
+}
+
+/* The attribute tree: the trie branch that identified the thing.
+ *
+ * This is Figure 20 read downwards. Each attribute is a node on the branch,
+ * and taking it splits what is underneath: whatever carries the attribute
+ * stays on the branch, whatever does not falls off it as a ruled-out
+ * neighbour. Following the branch to its terminal is the identification.
+ *
+ * Two drawings of the same tree, on the same toggle as everywhere else:
+ *
+ *   Rows   the branch straight down, rivals fanned to one side. Readable,
+ *          and the shape is obvious at a glance.
+ *   Globe  the branch as a spindle in 3D. The rivals ring the attribute that
+ *          ruled them out, so they sit in front of and behind it rather than
+ *          in a row, and the whole thing turns under the existing projector.
+ *
+ * Nodes are keyed by attribute name and the ruled-out ones by their own name,
+ * which is what the step replay looks up: keying them by synset id while the
+ * steps named attributes is why nothing lit up.
+ */
+function buildTriePath(svg) {
+  const ident = STATE.identification;
+  const rounds = (ident.steps || []).slice();
+  if (!rounds.length) return;
+
+  const byDepth = new Map();
+  (ident.considered || []).forEach(entry => {
+    if (entry.survived) return;
+    // `|| 1` here is a bug: depth is the index of the step that removed the
+    // candidate, so the first attribute's rivals have depth 0, which is
+    // falsy. Every one of them was being pushed onto the second attribute,
+    // which is why `round` looked like it ruled out nothing and `hexagons`
+    // carried ten.
+    const depth = Number.isInteger(entry.depth) ? entry.depth : 1;
+    if (!byDepth.has(depth)) byDepth.set(depth, []);
+    byDepth.get(depth).push(entry);
+  });
+  const answers = (ident.candidates || []).slice(0, 4);
+  const RULED = 7;
+
+  return VIEW === "globe"
+    ? spindle(svg, rounds, byDepth, answers, RULED)
+    : ladder(svg, rounds, byDepth, answers, RULED);
+}
+
+/* -- the flat drawing ------------------------------------------------- */
+function ladder(svg, rounds, byDepth, answers, RULED) {
+  // An identification is three or four attributes deep; a walk down one
+  // concept's own branch can be twenty. Squeezing twenty rows into 620px by
+  // scaling the whole drawing shrinks the labels with it, so the rows close
+  // up instead and the drawing is allowed to grow.
+  const W = 1000, SPINE = 150, TOP = 44, FAN = 116;
+  const ROW = rounds.length > 8
+    ? Math.max(34, Math.round(640 / rounds.length)) : 78;
+  const SWING = Math.min(18, Math.round(ROW / 4));
+  const H = TOP + rounds.length * ROW + 60 + answers.length * 34;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = Math.min(H, 900) + "px";
+
+  const nodeEls = new Map(), edgeEls = new Map(), ghostsOf = new Map();
+  const y = index => TOP + index * ROW;
+  const line = (x1, y1, x2, y2, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    path.setAttribute("d", "M" + x1 + "," + y1 + " L" + x2 + "," + y2);
+    svg.appendChild(path);
+    return path;
+  };
+
+  rounds.forEach((round, index) => {
+    const top = y(index);
+    if (index) {
+      edgeEls.set(round.term + "→" + rounds[index - 1].term,
+                  line(SPINE, y(index - 1) + 13, SPINE, top - 13, "edge"));
+    }
+    // Rivals branch off the attribute that removed them, spread along a
+    // diagonal so a long list stays readable instead of running off the edge.
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (dropped.length) {
+      ghostsOf.set(round.term, dropped.map(entry => entry.name));
+      dropped.forEach((entry, position) => {
+        const x = SPINE + 78 + position * FAN;
+        const at = top + (position % 2 ? SWING : -SWING) + position * 2;
+        edgeEls.set(entry.name + "→" + round.term,
+                    line(SPINE + 10, top, x - 8, at, "edge faded"));
+        nodeEls.set(entry.name, ghostChip(svg, x, at, entry, round.term));
+      });
+    }
+    nodeEls.set(round.term, attributeNode(svg, SPINE, top, round));
+  });
+
+  const bottom = y(rounds.length - 1);
+  answers.forEach((candidate, position) => {
+    const at = bottom + 52 + position * 34;
+    edgeEls.set(candidate.name + "→" + rounds[rounds.length - 1].term,
+                line(SPINE, bottom + 13, SPINE, at - 11, "edge"));
+    nodeEls.set(candidate.name, answerNode(svg, SPINE, at, candidate));
+  });
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3: new Map(), edgePairs: [],
+            cx: 0, cy: 0, origin: null, onPath: new Set(),
+            stagger: new Map(), tree: true };
+}
+
+/* -- the 3D drawing ---------------------------------------------------- */
+function spindle(svg, rounds, byDepth, answers, RULED) {
+  const W = 1000, H = 620, cx = W / 2, cy = H / 2;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = H + "px";
+
+  const span = Math.min(64, 380 / Math.max(1, rounds.length));
+  const top = -(rounds.length - 1) * span / 2 - 40;
+  const p3 = new Map(), nodeEls = new Map(), edgeEls = new Map();
+  const edgePairs = [], ghostsOf = new Map();
+
+  rounds.forEach((round, index) => p3.set(round.term, [0, top + index * span, 0]));
+
+  // Rivals ring the attribute that ruled them out. An even azimuth puts some
+  // in front of the spindle and some behind it, which is what makes it read
+  // as a branch in depth rather than a row of dots.
+  rounds.forEach((round, index) => {
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (!dropped.length) return;
+    ghostsOf.set(round.term, dropped.map(entry => entry.name));
+    const radius = 108 + Math.min(60, dropped.length * 7);
+    dropped.forEach((entry, position) => {
+      const theta = 2 * Math.PI * position / dropped.length + index * 0.7;
+      p3.set(entry.name, [radius * Math.cos(theta),
+                          top + index * span + 14,
+                          radius * Math.sin(theta)]);
+    });
+  });
+  answers.forEach((candidate, position) => {
+    const theta = 2 * Math.PI * position / Math.max(1, answers.length);
+    const spread = answers.length > 1 ? 46 : 0;
+    p3.set(candidate.name, [spread * Math.cos(theta),
+                            top + rounds.length * span + 18,
+                            spread * Math.sin(theta)]);
+  });
+
+  const connect = (from, to, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    svg.appendChild(path);
+    edgeEls.set(from + "→" + to, path);
+    edgePairs.push([from, to, path]);
+  };
+  rounds.forEach((round, index) => {
+    if (index) connect(round.term, rounds[index - 1].term, "edge");
+    (byDepth.get(index) || []).slice(0, RULED).forEach(
+      entry => connect(entry.name, round.term, "edge faded"));
+  });
+  answers.forEach(candidate =>
+    connect(candidate.name, rounds[rounds.length - 1].term, "edge"));
+
+  rounds.forEach(round => nodeEls.set(round.term, attributeNode(svg, 0, 0, round)));
+  byDepth.forEach((dropped, depth) => {
+    const round = rounds[depth];
+    if (!round) return;
+    dropped.slice(0, RULED).forEach(entry =>
+      nodeEls.set(entry.name, ghostChip(svg, 0, 0, entry, round.term)));
+  });
+  answers.forEach(candidate =>
+    nodeEls.set(candidate.name, answerNode(svg, 0, 0, candidate)));
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy,
+            origin: null, onPath: new Set(), stagger: new Map(), tree: true };
+  GRAPH.project = makeProjector(GRAPH);
+  GRAPH.project(SPIN_YAW);
+  startSpin();
+}
+
+/* -- the three kinds of node, drawn once and placed by whichever view -- */
+function attributeNode(svg, x, y, round) {
+  const group = document.createElementNS(SVG_NS, "g");
+  group.setAttribute("class", "gnode treenode");
+  group.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 12);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 8);
+  const name = document.createElementNS(SVG_NS, "text");
+  name.setAttribute("class", "tree-term");
+  name.setAttribute("x", -18); name.setAttribute("y", 5);
+  name.textContent = round.term;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = round.detail || round.term;
+  group.appendChild(title); group.appendChild(ping);
+  group.appendChild(dot); group.appendChild(name);
+  svg.appendChild(group);
+  return group;
+}
+
+function ghostChip(svg, x, y, entry, term) {
+  const ghost = document.createElementNS(SVG_NS, "g");
+  ghost.setAttribute("class", "gnode ghost treeghost");
+  ghost.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 4);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("x", 10); label.setAttribute("y", 4);
+  label.textContent = entry.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  // On an identification a side node was ruled out; on a walk it either left
+  // the branch here or is one of the kinds that answered the question, and
+  // when it answered, what it answered with is the point.
+  const said = Object.entries(entry.matched || {});
+  title.textContent = said.length
+    ? entry.name + " — " + said.map(pair => pair[0] + ": " + pair[1]).join("; ")
+    : entry.name + " — ruled out by “" + term + "”";
+  ghost.appendChild(title); ghost.appendChild(dot); ghost.appendChild(label);
+  ghost.style.cursor = "pointer";
+  ghost.onclick = () => { $("q").value = followUp(entry.name); ask(); };
+  svg.appendChild(ghost);
+  return ghost;
+}
+
+function answerNode(svg, x, y, candidate) {
+  const chip = document.createElementNS(SVG_NS, "g");
+  chip.setAttribute("class", "gnode treenode");
+  chip.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 13);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 9);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("class", "tree-answer");
+  label.setAttribute("x", 18); label.setAttribute("y", 5);
+  label.textContent = candidate.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = Object.entries(candidate.matched || {})
+    .map(pair => pair[0] + ": " + pair[1]).join("\n");
+  chip.appendChild(title); chip.appendChild(ping);
+  chip.appendChild(dot); chip.appendChild(label);
+  chip.style.cursor = "pointer";
+  chip.onclick = () => { $("q").value = followUp(candidate.name); ask(); };
+  svg.appendChild(chip);
+  return chip;
+}
 
 /* Globe: concentric shells, the asked concept at the centre.
  *
@@ -786,6 +1084,12 @@ function buildGraph() {
   svg.innerHTML = "";
   const steps = (STATE && STATE.steps) || [];
   if (!steps.length) return;
+  // Identification is a fan, not a spine: two dozen rivals eliminated over a
+  // few rounds. The globe is built for a taxonomy walk -- a handful of nodes
+  // per shell along one lineage -- and given a fan it puts everything on one
+  // bearing and the labels land on top of each other. A funnel is the shape
+  // this question actually has, so it gets its own drawing.
+  if (STATE && STATE.identification) return buildTriePath(svg);
 
   // Lay the ancestors out by distance: one row per level of generalisation,
   // which is exactly what the reasoner walks.
@@ -990,6 +1294,124 @@ function buildFacts() {
   $("facts").innerHTML = `<table><thead><tr>
       <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- identification ----
+ * The inverse question: a description in, a thing out. The narrowing is
+ * already in `steps` and replays like any other derivation; this card shows
+ * what survived it and which stored property matched each word.
+ */
+function buildIdent() {
+  const found = (STATE && STATE.identification) || null;
+  $("identcard").hidden = !found;
+  if (!found) return;
+  // A profile walks a branch that is already chosen, so it borrows this
+  // card's tree but not its wording: nothing was described and nothing was
+  // narrowed down, and saying "described as ... one thing carries all of it"
+  // over a question that named the thing reads as nonsense.
+  if (found.mode === "profile" || found.mode === "verify") {
+    $("identtitle").innerHTML = "Its branch of the trie &mdash; R17";
+    const walked = found.steps.length;
+    $("identnote").innerHTML =
+      `<b>${escapeHtml(found.candidates[0].name)}</b> sits at the end of this ` +
+      `branch, ${found.candidates[0].predicates} attributes down. ` +
+      `${walked} branch point(s): the rest of the path is shared with nobody ` +
+      `new and is collapsed, as a radix tree collapses it.`;
+    $("ident").innerHTML = "";
+    return;
+  }
+  $("identtitle").innerHTML = "Identified &mdash; R16";
+  const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
+  $("identnote").innerHTML =
+    `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
+    (found.candidates.length === 1
+      ? "One thing carries all of it."
+      : `${found.candidates.length} things carry all of it.`);
+  const rows = found.candidates.map(c => `<tr>
+      <td class="obj"><b>${escapeHtml(c.name)}</b></td>
+      <td class="obj">${Object.entries(c.matched)
+        .map(([term, hit]) => `${escapeHtml(term)}: &ldquo;${escapeHtml(hit)}&rdquo;`)
+        .join("<br>")}</td>
+      <td><span class="src">${escapeHtml(c.source)}</span></td>
+      <td class="dist">${c.predicates} props</td>
+    </tr>`).join("");
+  $("ident").innerHTML = `<table><thead><tr>
+      <th>candidate</th><th>what matched</th><th>source</th><th>known</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- R17: the trie read upwards ----
+ * The same structure identification searches, walked the other way. An
+ * individual sits at a leaf, so the walk from that leaf to the origin is its
+ * attribute list -- and the order carries the compression: the first rows are
+ * shared with nothing, the last are shared with most of the corpus.
+ */
+function buildProfile() {
+  const p = (STATE && STATE.profile) || null;
+  $("profilecard").hidden = !p;
+  if (!p) return;
+
+  const asked = p.asked;
+  $("profilenote").innerHTML =
+    `<b>${escapeHtml(p.name)}</b>` +
+    (p.concept ? ` &rarr; <span class="src">${escapeHtml(p.concept)}</span>` : "") +
+    (p.gloss ? ` — ${escapeHtml(p.gloss)}` : "") +
+    (asked ? `<br><b>${escapeHtml(asked.verdict)}</b>: ${escapeHtml(asked.detail)}`
+           : "");
+
+  // When the concept itself said nothing, the kinds below it did. Which
+  // ones, and with which property, is the whole of the evidence.
+  const kinds = (asked && asked.members) || [];
+  $("profilekinds").innerHTML = kinds.length
+    ? `<table><thead><tr><th>kind of ${escapeHtml(p.name)}</th>
+         <th>says</th><th>property</th></tr></thead><tbody>${kinds.map(m => `
+       <tr><td class="obj"><b>${escapeHtml(m.name)}</b></td>
+         <td class="rel">${escapeHtml(m.verdict)}</td>
+         <td class="obj">${escapeHtml(m.predicate || "—")}</td></tr>`).join("")}
+       </tbody></table>`
+    : "";
+
+  // Read upwards: the distinctive end first, because that is the end that
+  // says what the thing is. `shared` is how many concepts are still on the
+  // branch at that node, so it climbs as the walk approaches the origin.
+  const climbed = p.path.slice().reverse();
+  const rows = climbed.map(held => {
+    const hit = asked && asked.predicate === held.predicate;
+    return `<tr${hit ? ' style="background:var(--accent-dim)"' : ""}>
+      <td class="dist">${held.depth}</td>
+      <td class="obj">${escapeHtml(held.predicate)}</td>
+      <td class="dist">${held.shared <= 1 ? "unique to it"
+                          : held.shared + " on the branch"}</td>
+    </tr>`;
+  }).join("");
+  $("profilewalk").innerHTML = `<table><thead><tr>
+      <th>depth</th><th>attribute, leaf first</th><th>company</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  const above = p.inherited || [];
+  $("profileabove").innerHTML = above.length
+    ? `Above the leaf the norms stop and the taxonomy carries on. ` +
+      `${above.length} level(s), nearest first; a fact met twice is kept at ` +
+      `the nearer one only (R10).`
+    : "Nothing above the leaf: this concept joins no taxonomy here.";
+  $("profileinherit").innerHTML = above.length
+    ? `<table><thead><tr><th>from</th><th>facts</th><th>kept</th></tr></thead>
+       <tbody>${above.map(level => `<tr>
+         <td class="rel">${escapeHtml(shortName(level.concept))}
+           <div class="dist">+${level.distance}</div></td>
+         <td class="obj">${level.facts.map(f =>
+             escapeHtml(f.relation.replace(/_/g, " ") + " " + f.object))
+             .join("<br>")}</td>
+         <td class="dist">${level.facts.length} of ${level.total}</td>
+       </tr>`).join("")}</tbody></table>`
+    : "";
+
+  $("profiledenied").textContent = p.denied_total
+    ? `The norms also score ${p.denied_total} propert` +
+      (p.denied_total === 1 ? "y" : "ies") + ` false of ${p.name} — ` +
+      p.denied.join(", ") + (p.denied_total > p.denied.length ? ", …" : "") +
+      `. Denials are what make a "no" answerable at all.`
+    : "";
 }
 
 /* ---- the bridge ----
