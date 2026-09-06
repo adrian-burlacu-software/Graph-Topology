@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..v684 import build, compress, server as v684_server
 from .ask import BridgedReasoner
+from .relevance import RULE_TEXT as V685_RULES
 
 
 class BridgedEngine(v684_server.Engine):
@@ -35,11 +36,11 @@ class BridgedEngine(v684_server.Engine):
         if not role or concept:
             # No second subject, or the user pinned a sense by clicking: this
             # is an ordinary v684 question and stays one.
-            return super().ask(question, concept)
+            return self.with_rules(super().ask(question, concept))
 
         result = self.bridged.ask(question)
         if result.answer is None:
-            return super().ask(question, concept)
+            return self.with_rules(super().ask(question, concept))
 
         # Answer about the role, exactly as v684 would, so the derivation
         # replay and the globe keep working with no special case.
@@ -60,6 +61,78 @@ class BridgedEngine(v684_server.Engine):
             kept.sort(key=lambda r: 0 if r["anchor_relation"] == "anchor" else 1)
             payload["evidence"] = kept
             payload["bridge"]["excluded"] = aside
+            self.replayable(payload, result, aside)
+        return self.with_rules(payload)
+
+    @staticmethod
+    def replayable(payload: dict, result, aside: list) -> None:
+        """Put the bridge and the filtering into the derivation trace.
+
+        Without this the page showed a single dot. The answer is about
+        `musician`, so v684's trace begins and ends there -- and the two
+        things that actually made it an answer about violin players, the hop
+        from the violin and the twelve facts R14 removed, happened outside
+        the trace entirely.
+
+        They are expressed as ordinary steps rather than a second widget, so
+        the existing replay, scrubber and graph animate them with no special
+        case: the anchor at distance 0, one step per hop, and the role's own
+        derivation shifted out to make room.
+        """
+        hops = (result.route.hops if result.route else [])
+        shift = len(hops) if hops else 0
+        steps = payload.get("steps", [])
+        if shift:
+            for step in steps:
+                step["distance"] = step.get("distance", 0) + shift
+
+        opening: list[dict] = []
+        if hops:
+            anchor_word = result.anchor_word or ""
+            opening.append({
+                "index": 0, "kind": "resolve", "concept": result.anchor,
+                "distance": 0, "rule": "R6",
+                "detail": f"Reading “{anchor_word}” as {result.anchor} — the "
+                          f"anchor the question is asked from.",
+                "facts_checked": 0, "matched": None, "parents": []})
+            for position, hop in enumerate(hops):
+                opening.append({
+                    "index": 0, "kind": "ascend", "concept": hop.source,
+                    "distance": position, "rule": "R15",
+                    "detail": f"{hop.source.rsplit('.', 2)[0]} "
+                              f"{hop.relation.replace('_', ' ')} "
+                              f"“{hop.text}” — so "
+                              f"{hop.target.rsplit('.', 2)[0]} is reachable.",
+                    "facts_checked": 0, "matched": None,
+                    "parents": [hop.target]})
+
+        closing: list[dict] = []
+        if aside:
+            shared = (result.excluded_class or "").rsplit(".", 2)[0]
+            closing.append({
+                "index": 0, "kind": "skip", "concept": result.role,
+                "distance": shift, "rule": "R14",
+                "detail": f"Set aside {len(aside)} fact(s) naming another "
+                          f"{shared or 'sibling'}: true of "
+                          f"{(result.role or '').rsplit('.', 2)[0]}, not of a "
+                          f"{result.anchor_word}.",
+                "facts_checked": len(aside), "matched": None, "parents": []})
+
+        combined = opening + steps + closing
+        for position, step in enumerate(combined):
+            step["index"] = position
+        payload["steps"] = combined
+        if hops and result.anchor:
+            chain = payload.get("chain") or []
+            payload["chain"] = [result.anchor] + [h.target for h in hops
+                                                  if h.target not in chain] + chain
+
+    @staticmethod
+    def with_rules(payload: dict) -> dict:
+        """v685 runs one rule v684 does not, so the page has to list it."""
+        rules = dict(payload.get("rules") or {})
+        rules.update(V685_RULES)
+        payload["rules"] = rules
         return payload
 
 

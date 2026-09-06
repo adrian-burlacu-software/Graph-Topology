@@ -61,6 +61,22 @@ SENSES_TRIED = 8
 
 ANCHOR, KIN, SIBLING, UNRELATED = "anchor", "kin", "sibling", "unrelated"
 
+#: Shown in the page's rule list beside v684's R1-R13. It is stated here
+#: rather than in v684's rules.py because v684 does not implement it and must
+#: keep working without v685.
+RULE_TEXT: dict[str, str] = {
+    "R15": "Bridging: a question with two subjects is answered about the "
+           "second, but only after a route to it is found in the fact graph. "
+           "Each hop is a stored fact, and the route is shown so it can be "
+           "judged.",
+    "R14": f"Sibling exclusion: a fact about a co-hyponym of the anchor does "
+           f"not transfer to it. An ancestor's property descends (R2); a "
+           f"sibling's does not. Two concepts are siblings when their nearest "
+           f"shared class has fewer than {SIBLING_LIMIT:,} descendants -- "
+           f"`violin` and `drum` meet at `musical instrument` (163), while "
+           f"`violin` and `bow` only meet at `device` (2,764).",
+}
+
 
 @dataclass
 class Judgement:

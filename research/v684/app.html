@@ -259,7 +259,7 @@
       </div>
 
       <div class="card" id="asidecard" hidden>
-        <h2>Set aside &mdash; about siblings</h2>
+        <h2>Set aside &mdash; R14, about siblings</h2>
         <p class="note" id="asidenote"></p>
         <div id="aside"></div>
       </div>
@@ -1044,14 +1044,15 @@ function buildAside() {
   $("asidenote").textContent = b.note ||
     `${out.length} fact(s) about other kinds of ` +
     `${shortName(b.excluded_class || "thing")}.`;
+  const shared = shortName(b.excluded_class || "");
   const rows = out.map(f => `<tr>
       <td class="rel">${escapeHtml(f.relation)}</td>
       <td class="obj">${escapeHtml(f.object)}</td>
       <td><span class="src">${escapeHtml(f.source)}</span></td>
-      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
+      <td class="dist">${escapeHtml(shared)}</td>
     </tr>`).join("");
   $("aside").innerHTML = `<table><thead><tr>
-      <th>relation</th><th>object</th><th>source</th><th>from</th>
+      <th>relation</th><th>object</th><th>source</th><th>shares only</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
