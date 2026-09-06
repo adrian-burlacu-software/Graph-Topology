@@ -21,6 +21,8 @@ from .relevance import RULE_TEXT as V685_RULES
 class BridgedEngine(v684_server.Engine):
     """v684's engine, with the two-subject case routed through v685."""
 
+    title = "V685 Reasoner"
+
     def __init__(self, store: Path, depth: int = 3, breadth: int = 60):
         super().__init__(store)
         self.bridged = BridgedReasoner(store, depth=depth, breadth=breadth)
