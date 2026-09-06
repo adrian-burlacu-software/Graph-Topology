@@ -70,6 +70,7 @@
   .node.on { opacity:1; transform:none; }
   .node.hit { border-color:var(--accent); background:var(--accent-dim); box-shadow:0 0 0 1px var(--accent) inset; }
   .node.blocked { border-color:var(--no); }
+  .node.skipped { border-color:var(--maybe); }
   .node::before {
     content:""; position:absolute; left:-22px; top:16px; width:9px; height:9px; border-radius:50%;
     background:var(--line); border:2px solid var(--bg); transition:background .34s ease, box-shadow .34s;
@@ -77,6 +78,7 @@
   .node.on::before { background:var(--dim); }
   .node.hit::before { background:var(--accent); box-shadow:0 0 9px var(--accent); }
   .node.blocked::before { background:var(--no); }
+  .node.skipped::before { background:var(--maybe); }
   .node .top { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
   .cname { font-family:var(--mono); font-size:13.5px; color:var(--ink); }
   .rule { font-family:var(--mono); font-size:10.5px; color:var(--accent); background:rgba(94,234,212,.09);
@@ -125,6 +127,7 @@
   #graph .gnode.current circle { fill:var(--accent); stroke:var(--accent); r:10; }
   #graph .gnode.hit circle { fill:var(--yes); stroke:var(--yes); r:11; }
   #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
+  #graph .gnode.skipped circle { fill:var(--maybe); stroke:var(--maybe); }
   #graph .gnode.origin circle { stroke:var(--accent); stroke-width:2.5; }
   #graph .gnode text {
     fill:var(--faint); font:11px var(--mono); transition:fill .35s ease;
@@ -151,6 +154,7 @@
   .legend i.k-seen { background:#232c3a; border-color:var(--faint); }
   .legend i.k-hit { background:var(--yes); border-color:var(--yes); }
   .legend i.k-blocked { background:var(--no); border-color:var(--no); }
+  .legend i.k-skipped { background:var(--maybe); border-color:var(--maybe); }
   .legend i.k-short { width:16px; height:0; border-radius:0; background:none;
                       border:0; border-top:1.5px dashed var(--faint); }
   .legend i.k-ghost { background:#1a212c; border-color:#333c4c; width:7px; height:7px; }
@@ -231,7 +235,8 @@
           <span><i class="k-probed"></i>facts checked here</span>
           <span><i class="k-seen"></i>passed through</span>
           <span><i class="k-hit"></i>answered</span>
-          <span><i class="k-blocked"></i>blocked / stopped</span>
+          <span><i class="k-blocked"></i>contradicted / walk stopped</span>
+          <span><i class="k-skipped"></i>some facts set aside, walk went on</span>
           <span><i class="k-short"></i>dashed = DAG shortcut</span>
           <span><i class="k-ghost"></i>neighbourhood (globe view)</span>
         </div>
@@ -384,6 +389,10 @@ function buildChain() {
       </div>
       <div class="detail">${escapeHtml(st.detail)}</div>${hit}`;
     if (st.kind === "match") el.classList.add("hit");
+    // `skip` is not a halt: R12 sets a node's word-level facts aside and the
+    // walk carries on past it. Colouring it like a contradiction claimed the
+    // derivation ended there when it did not.
+    if (st.kind === "skip") el.classList.add("skipped");
     if (st.kind === "block" || st.kind === "stop") el.classList.add("blocked");
     $("chain").appendChild(el);
   });
@@ -839,7 +848,7 @@ function buildGraph() {
 function paintGraph() {
   if (!GRAPH || !STATE) return;
   const steps = STATE.steps || [];
-  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked", "revealed"));
+  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked", "skipped", "revealed"));
   GRAPH.edgeEls.forEach(e => e.classList.remove("walked", "revealed"));
   let last = null;
   for (let i = 0; i < cursor && i < steps.length; i++) {
@@ -852,6 +861,7 @@ function paintGraph() {
     // on the answer.
     if (st.facts_checked > 0) g.classList.add("probed");
     if (st.kind === "match") g.classList.add("hit");
+    if (st.kind === "skip") g.classList.add("skipped");
     if (st.kind === "block" || st.kind === "stop") g.classList.add("blocked");
     (st.parents || []).forEach(p => {
       const e = GRAPH.edgeEls.get(st.concept + "→" + p);

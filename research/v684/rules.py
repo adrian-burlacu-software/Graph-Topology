@@ -1,7 +1,7 @@
 """The inference policy: what descends a taxonomy, and what stops it.
 
-Eight rules. Each is stated once, here, so that an answer can be traced back to
-the rule that produced it rather than to a heuristic buried in a query.
+Thirteen rules. Each is stated once, here, so that an answer can be traced back
+to the rule that produced it rather than to a heuristic buried in a query.
 
 R1  Subsumption closure     is_a is transitive; WordNet is acyclic so the
                             closure terminates without a visited-set hack.
@@ -19,6 +19,14 @@ R7  Relation gating         `related_to` and other contentless relations never
                             participate.
 R8  Answer synthesis        a claim is VERIFIED, CONTRADICTED or UNKNOWN --
                             never "probably".
+R9  Relation families       has_a and has_part answer for each other.
+R10 Redundancy elimination  a fact an ancestor states is not stored twice.
+R11 Hoisting                a fact every child states moves to the parent.
+R12 Breadth gating          a word-level fact does not inherit from a concept
+                            too general for the word to have meant it. This
+                            sets facts aside; it does not stop the walk.
+R13 Range typing            a relation's object must be the kind of thing the
+                            relation takes.
 
 The rule that matters most is R2. `research/v683/diagnose.py` measured what
 happens without it: trusting every relation over every edge yields a mean of
@@ -177,7 +185,9 @@ class Step:
     """One move the reasoner made, replayable in the UI."""
 
     index: int
-    kind: str                      # resolve | ascend | check | match | block | stop
+    #: `block` and `stop` end the walk; `skip` sets facts aside and carries on.
+    kind: str                      # resolve | ascend | check | match |
+                                   # block | stop | skip
     concept: str
     distance: int
     rule: str

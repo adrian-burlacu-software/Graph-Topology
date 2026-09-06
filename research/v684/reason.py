@@ -266,7 +266,10 @@ class Reasoner:
                 dropped = [f for f in candidates if f.sense_assumed]
                 candidates = [f for f in candidates if not f.sense_assumed]
                 if dropped:
-                    steps.append(Step(len(steps), "stop", node, distance, "R12",
+                    # `skip`, not `stop`: the walk carries on past this node,
+                    # only its word-level facts are set aside. Marking it the
+                    # same as a contradiction said the derivation halted here.
+                    steps.append(Step(len(steps), "skip", node, distance, "R12",
                                       f"Ignoring {len(dropped)} word-level "
                                       f"fact(s) on {node.rsplit('.', 2)[0]}: "
                                       f"too general to inherit from."))

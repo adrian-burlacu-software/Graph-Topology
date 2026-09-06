@@ -332,6 +332,24 @@ class BreadthGateTests(unittest.TestCase):
         self.assertFalse(self.reasoner.too_broad("animal.n.01"))
         self.assertFalse(self.reasoner.too_broad("dog.n.01"))
 
+    def test_r12_sets_facts_aside_without_stopping_the_walk(self):
+        """The UI colours `block` and `stop` as a halt, so R12 must not be one.
+
+        `can a dog fall into a hole` on dog.n.03 passes four gated concepts
+        and still reaches object.n.01.
+        """
+        parser = Parser()
+        answer = self.reasoner.verify("dog.n.03", "capable_of",
+                                      "fall into a hole", parser.matcher())
+        gated = [s for s in answer.steps if s.rule == "R12"]
+        self.assertTrue(gated)
+        for step in gated:
+            self.assertEqual(step.kind, "skip", step.detail)
+        self.assertNotIn("stop", {s.kind for s in gated})
+        # the walk carried on past every one of them
+        deepest = max(s.distance for s in answer.steps)
+        self.assertGreater(deepest, max(s.distance for s in gated))
+
     def test_r12_gates_the_assumed_join_not_inheritance_itself(self):
         self.assertTrue(rules.inheritable_from("capable_of", 99999, False))
         self.assertFalse(rules.inheritable_from("capable_of", 99999, True))
