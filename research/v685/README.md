@@ -6,10 +6,9 @@ python -m research.v685          # same page, same store, port 8685
 
 Everything v684 does, plus the shape it could not do:
 
-    what does a dog's owner need
-    what can a violin's player do
-    where does a dog's owner live
-    what does a car's driver need
+    what does a dog's owner need        what does a dog owner need
+    what can a violin's player do       what can a violin player do
+    where does a dog's owner live       what does a car driver need
 
 These are not questions about dogs. They are questions about owners — but only
 the owners a dog has, and an answer that skips the first half is an answer
@@ -101,13 +100,18 @@ superset rather than a fork.
 | `bridge.py` | bounded best-first search, depth and breadth budgets, reported not assumed |
 | `ask.py` | possessive questions: bridge, then hand the second half to v684 |
 | `server.py` | v684's engine and page, with the bridge card fed |
-| `test_v685.py` | 21 tests; store-dependent ones skip if it is not built |
+| `test_v685.py` | 24 tests; store-dependent ones skip if it is not built |
 
 ## Honest limits
 
-- **Only the possessive shape.** `dog's owner` is read from spaCy's `poss`
-  dependency, which is reliable across the question forms tried. Anything
-  else falls back to v684.
+- **Two shapes: the possessive and the compound.** `dog's owner` comes from
+  spaCy's `poss` dependency and `violin player` from `compound`, both reliable
+  across the question forms tried. The compound needs one extra decision the
+  possessive does not — `fire truck` is a single concept and must not be split
+  — and the ontology settles it: a compound is two subjects exactly when the
+  lemma index has no name for the whole of it. `fire truck`, `police dog` and
+  `musical instrument` stay whole; `violin player`, `dog owner` and `car
+  driver` are bridged. Anything else falls back to v684.
 - **A route is evidence, not proof.** `car → commodity → driver` is found
   through `car has_property "good"`, which is a weak link that happened to
   reach the right sense. The route is shown so it can be judged.

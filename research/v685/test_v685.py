@@ -153,6 +153,28 @@ class BridgedQuestionTests(unittest.TestCase):
                 ("where does a dog's owner live", ("dog", "owner"))):
             self.assertEqual(self.engine.possessive(question), expected, question)
 
+    def test_a_compound_is_two_subjects_when_the_ontology_has_no_name_for_it(self):
+        """`violin player` is two concepts; `fire truck` is one."""
+        for question, expected in (
+                ("what can a violin player do", ("violin", "player")),
+                ("what does a dog owner need", ("dog", "owner")),
+                ("what does a car driver need", ("car", "driver"))):
+            self.assertEqual(self.engine.two_subjects(question), expected, question)
+
+    def test_a_compound_that_names_one_concept_is_never_split(self):
+        for question in ("what can a fire truck do", "what can a police dog do",
+                         "what can a musical instrument do"):
+            self.assertEqual(self.engine.two_subjects(question), (None, None),
+                             question)
+
+    def test_the_compound_form_reaches_the_same_sense_as_the_possessive(self):
+        """`violin player` and `violin's player` are the same question."""
+        compound = self.engine.ask("what can a violin player do")
+        possessive = self.engine.ask("what can a violin's player do")
+        self.assertEqual(compound.role, "musician.n.01")
+        self.assertEqual(compound.role, possessive.role)
+        self.assertEqual(compound.verdict, "BRIDGED")
+
     def test_a_question_with_no_possessive_is_handed_back(self):
         answer = self.engine.ask("can a dog fall into a hole")
         self.assertEqual(answer.verdict, "NOT_BRIDGED")

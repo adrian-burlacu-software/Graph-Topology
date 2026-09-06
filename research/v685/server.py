@@ -31,7 +31,7 @@ class BridgedEngine(v684_server.Engine):
         self.bridged.parser = self.parser
 
     def ask(self, question: str, concept: str | None = None) -> dict:
-        anchor, role = self.bridged.possessive(question)
+        anchor, role = self.bridged.two_subjects(question)
         if not role or concept:
             # No second subject, or the user pinned a sense by clicking: this
             # is an ordinary v684 question and stays one.

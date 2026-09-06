@@ -86,21 +86,43 @@ class BridgedReasoner:
         self.graph.close()
 
     # -- reading the question ---------------------------------------------
-    def possessive(self, question: str) -> tuple[str | None, str | None]:
-        """`a dog's owner` -> ("dog", "owner").
+    def two_subjects(self, question: str) -> tuple[str | None, str | None]:
+        """`a dog's owner` or `a violin player` -> ("dog", "owner").
 
-        spaCy marks this with the `poss` dependency and does it reliably
-        across the shapes tried -- what/where/can questions all produce
-        `dog --poss--> owner`. No pattern matching on apostrophes.
+        spaCy marks the first with `poss` and the second with `compound`, and
+        does both reliably across the question shapes tried. No pattern
+        matching on apostrophes.
+
+        A compound needs one extra decision that a possessive does not: `fire
+        truck` is a single concept and must not be split into a fire and a
+        truck. The ontology already answers that, with the same lemma index
+        the subject parser uses -- `fire truck`, `police dog` and `musical
+        instrument` are lemmas, `violin player`, `dog owner` and `car driver`
+        are not. So a compound is two subjects exactly when the ontology has
+        no name for the whole of it.
         """
         if self.parser.nlp is None:
             return None, None
+        vocabulary = self.parser.vocabulary
         for token in self.parser.nlp(question):
-            if token.dep_ == "poss" and token.pos_ in ("NOUN", "PROPN"):
-                head = token.head
-                if head.pos_ in ("NOUN", "PROPN"):
-                    return token.lemma_.lower(), head.lemma_.lower()
+            if token.dep_ not in ("poss", "compound"):
+                continue
+            if token.pos_ not in ("NOUN", "PROPN"):
+                continue
+            head = token.head
+            if head.pos_ not in ("NOUN", "PROPN"):
+                continue
+            modifier, role = token.lemma_.lower(), head.lemma_.lower()
+            if token.dep_ == "compound":
+                whole = {f"{token.text.lower()} {head.text.lower()}",
+                         f"{modifier} {role}"}
+                if whole & vocabulary:
+                    continue                   # one concept, not two
+            return modifier, role
         return None, None
+
+    #: Kept as the older name; `two_subjects` also reads compounds now.
+    possessive = two_subjects
 
     def sense_of(self, word: str) -> str | None:
         senses = self.reasoner.senses_of(word)
@@ -147,7 +169,7 @@ class BridgedReasoner:
     # -- answering ---------------------------------------------------------
     def ask(self, question: str) -> Bridged:
         result = Bridged(question=question)
-        anchor_word, role_word = self.possessive(question)
+        anchor_word, role_word = self.two_subjects(question)
         result.anchor_word, result.role_word = anchor_word, role_word
         if not role_word:
             result.verdict = "NOT_BRIDGED"
