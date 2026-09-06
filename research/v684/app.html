@@ -404,12 +404,14 @@ function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
 
 /* Globe: concentric shells, the asked concept at the centre.
  *
- * The first attempt collapsed to a line because ring angles were seeded from
- * each node's children, and with one or two nodes per ring every lineage
- * inherited the same angle. Here each shell is spread evenly across the full
- * circle first, and the preferred angle only decides the *order* within that
- * spread -- never the position. Siblings from the neighbourhood fill the
- * shells out so there is a cloud to move through rather than a bare chain.
+ * The shape is a set of wedges. Each lineage out of the asked concept gets its
+ * own narrow cone, the path rides that cone's axis, and every neighbour sits
+ * on the arc right beside the node it hangs off. Shells cut those cones into
+ * the short arcs of dots you would see in a cross-section.
+ *
+ * Nodes are never pushed apart at long range -- that is what scattered the
+ * neighbourhood across the sphere in earlier versions. They only avoid
+ * collisions: move if a label would overlap, then get leashed back home.
  */
 function buildGlobe(steps, byDist) {
   const svg = $("graph");
@@ -447,84 +449,156 @@ function buildGlobe(steps, byDist) {
     });
   }
 
-  // Lineage directions: a narrow fan, not antipodes. Two branches 180 degrees
-  // apart are a straight line, which is what every flat version kept producing.
-  // Branches sit SEPARATION apart and are tilted off the view axis so the
-  // depth is visible.
-  const SEPARATION = Math.PI / 4;                       // 45 degrees
-  const n = Math.max(1, roots.length);
-  const dirs = roots.map((_, i) => {
-    const yaw = (i - (n - 1) / 2) * SEPARATION;
-    const pitch = -0.5 + 0.25 * Math.sin(i * 1.7);
-    return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
-  });
-
-  // ---- initial unit vectors -------------------------------------------
-  const attach = new Map();          // neighbour -> the path node it hangs off
-  hood.edges.forEach(e => {
-    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
-  });
-  const unit = new Map();
+  // ---- vector helpers ---------------------------------------------------
+  const norm = v => {
+    const l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1],
+                           a[2] * b[0] - a[0] * b[2],
+                           a[0] * b[1] - a[1] * b[0]];
+  // Tangent frame at a direction: t1 runs along the shell's arc (horizontal,
+  // the direction the cross-section spreads in), t2 across it.
+  const frame = a => {
+    let t1 = cross([0, 1, 0], a);
+    if (Math.hypot(t1[0], t1[1], t1[2]) < 1e-4) t1 = cross([1, 0, 0], a);
+    t1 = norm(t1);
+    return [t1, norm(cross(a, t1))];
+  };
+  // Rotate `a` by `angle` along the great circle toward tangent `t`.
+  const swing = (a, t, angle) => norm([
+    a[0] * Math.cos(angle) + t[0] * Math.sin(angle),
+    a[1] * Math.cos(angle) + t[1] * Math.sin(angle),
+    a[2] * Math.cos(angle) + t[2] * Math.sin(angle)]);
+  // The tangent at `a` pointing directly away from `b`.
+  const away = (a, b) => {
+    const d = dot3(a, b);
+    const t = [a[0] - b[0] * d, a[1] - b[1] * d, a[2] - b[2] * d];
+    return Math.hypot(t[0], t[1], t[2]) < 1e-6 ? frame(a)[0] : norm(t);
+  };
+  // Pull a direction back inside `cap` radians of `home`.
+  const leash = (v, home, cap) => {
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot3(v, home))));
+    if (angle <= cap) return v;
+    const t = away(home, v);
+    return swing(home, [-t[0], -t[1], -t[2]], cap);
+  };
   const jitter = seed => {
     const x = Math.sin(seed * 12.9898) * 43758.5453;
     return (x - Math.floor(x)) - 0.5;
   };
-  let k = 0;
+
+  // ---- one cone per lineage --------------------------------------------
+  // The cross-section shows it: each branch is a narrow wedge out of the
+  // origin, and everything in that branch lives inside its own wedge. The
+  // branch axis is the wedge's centre line; shells cut arcs across it.
+  const CONE_GAP = 0.70;                       // radians between branch axes
+  const branches = Math.max(1, roots.length);
+  const axes = roots.map((_, i) => {
+    const yaw = (i - (branches - 1) / 2) * CONE_GAP;
+    const pitch = -0.60 + jitter(i + 3) * 0.16;   // tilted up, off the view axis
+    return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch),
+            Math.cos(yaw) * Math.cos(pitch)];
+  });
+  const meanAxis = axes.length
+    ? norm(axes.reduce((s, a) => [s[0] + a[0], s[1] + a[1], s[2] + a[2]], [0, 0, 0]))
+    : [0, 0, 1];
+  const axisOf = c => axes[lineage.get(c)] || meanAxis;
+
+  const GAP = 46;                              // px a label needs beside it
+  const unit = new Map(), home = new Map(), leashLen = new Map();
+  const stagger = new Map();                   // label rows, so words miss each other
+  unit.set(origin, [0, 0, 1]);
+
+  // Path nodes ride their cone's axis: the dark spine of each wedge.
+  const spineRows = new Map();
   shell.forEach((d, c) => {
-    k++;
-    if (c === origin) { unit.set(c, [0, 0, 1]); return; }
-    const base = lineage.has(c) ? dirs[lineage.get(c)] : null;
-    let v;
-    if (base) {
-      v = [base[0] + jitter(k) * 0.3, base[1] + jitter(k + 7) * 0.3,
-           base[2] + jitter(k + 13) * 0.3];
-    } else {
-      // A neighbour belongs beside the concept it hangs off, not somewhere
-      // else on the sphere. Scattering them globally -- the previous seeding --
-      // broke every visual link to the node they explain.
-      const anchor = attach.get(c);
-      const base = anchor && lineage.has(anchor) ? dirs[lineage.get(anchor)]
-                                                 : (dirs[0] || [0, 0, 1]);
-      v = [base[0] + jitter(k) * 0.85, base[1] + jitter(k + 7) * 0.85,
-           base[2] + jitter(k + 13) * 0.85];
-    }
-    const len = Math.hypot(v[0], v[1], v[2]) || 1;
-    unit.set(c, [v[0] / len, v[1] / len, v[2] / len]);
+    if (c === origin || !onPath.has(c)) return;
+    const key = (lineage.has(c) ? lineage.get(c) : "x") + ":" + d;
+    if (!spineRows.has(key)) spineRows.set(key, []);
+    spineRows.get(key).push(c);
+  });
+  spineRows.forEach(members => {
+    const axis = axisOf(members[0]);
+    const t1 = frame(axis)[0];
+    const step = Math.min(0.30, GAP / Math.max(1, radius(shell.get(members[0]))));
+    members.forEach((c, i) => {
+      const offset = members.length < 2 ? 0 : (i - (members.length - 1) / 2) * step;
+      unit.set(c, swing(axis, t1, offset));
+      home.set(c, axis);
+      leashLen.set(c, Math.abs(offset) + 0.06);
+      stagger.set(c, 0);
+    });
   });
 
-  // ---- repulsion on each sphere ----------------------------------------
-  // Same-shell nodes push each other apart until labels have room. Path nodes
-  // are pulled back toward their branch direction each pass, so the walk stays
-  // a legible line while everything else spreads out around it.
+  // Neighbours cluster on the arc beside the node they hang off -- close
+  // enough that the link is obvious, staggered enough to read.
+  const attach = new Map();          // neighbour -> the path node it hangs off
+  hood.edges.forEach(e => {
+    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
+  });
+  const clusters = new Map();
+  shell.forEach((d, c) => {
+    if (c === origin || onPath.has(c)) return;
+    const anchor = attach.get(c);
+    const key = anchor && unit.has(anchor) && anchor !== origin ? anchor : "";
+    if (!clusters.has(key)) clusters.set(key, []);
+    clusters.get(key).push(c);
+  });
+  // A cluster may never reach past the midline between two cones, or a
+  // sibling of `canine` ends up sitting inside the other branch's wedge.
+  const REACH = branches < 2 ? 0.9 : CONE_GAP * 0.45;
+  clusters.forEach((members, key) => {
+    const base = key ? unit.get(key) : meanAxis;
+    const [t1, t2] = frame(base);
+    // Fan away from the other branches first, so the crowding lands on the
+    // outside of the fan where there is empty sphere.
+    const branch = key && lineage.has(key) ? lineage.get(key) : (branches - 1) / 2;
+    const outward = branch < (branches - 1) / 2 ? -1 : 1;
+    members.forEach((c, i) => {
+      const r = radius(shell.get(c)) || 1;
+      const rho = Math.min(0.26, GAP / r);
+      // 1, -1, 2, -2 ... outermost first, so the cluster grows out of its
+      // anchor rather than trailing off to one side.
+      const rank = (Math.floor(i / 2) + 1) * (i % 2 ? -outward : outward);
+      const wobble = jitter(i * 5 + 11) * rho * 0.5;
+      unit.set(c, norm(swing(base, t1, rank * rho).map(
+        (v, axis3) => v + t2[axis3] * wobble)));
+      home.set(c, base);
+      leashLen.set(c, Math.min(REACH, rho * (Math.floor(members.length / 2) + 1.5)));
+      stagger.set(c, (Math.abs(rank) % 3) * 14 * (rank < 0 ? -1 : 1));
+    });
+  });
+
+  // ---- collision avoidance, not repulsion -------------------------------
+  // Nothing moves unless two nodes are closer than a label is wide, and even
+  // then only far enough to clear -- then it is leashed back to its cluster.
+  // Long-range repulsion is what kept scattering the neighbourhood; clumping
+  // is the shape we actually want.
   levels.forEach(d => {
     const members = [...shell.entries()].filter(([, v]) => v === d)
                       .map(([c]) => c).filter(c => c !== origin);
     if (members.length < 2) return;
-    // enough push to separate labels, not so much that a shell scrambles
-    const strength = Math.min(1.6, 7.0 / members.length);
-    for (let iter = 0; iter < 90; iter++) {
-      const push = new Map(members.map(c => [c, [0, 0, 0]]));
+    const clearance = Math.min(0.42, GAP / Math.max(1, radius(d)));
+    for (let iter = 0; iter < 80; iter++) {
+      let touched = false;
       for (let i = 0; i < members.length; i++) {
         for (let j = i + 1; j < members.length; j++) {
           const a = unit.get(members[i]), b = unit.get(members[j]);
-          const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-          const f = strength / (dx * dx + dy * dy + dz * dz + 1e-4);
-          const pa = push.get(members[i]), pb = push.get(members[j]);
-          pa[0] += dx * f; pa[1] += dy * f; pa[2] += dz * f;
-          pb[0] -= dx * f; pb[1] -= dy * f; pb[2] -= dz * f;
+          const angle = Math.acos(Math.max(-1, Math.min(1, dot3(a, b))));
+          if (angle >= clearance) continue;
+          touched = true;
+          const shove = (clearance - angle) * 0.5 + 1e-3;
+          unit.set(members[i], swing(a, away(a, b), shove));
+          unit.set(members[j], swing(b, away(b, a), shove));
         }
       }
       members.forEach(c => {
-        const u = unit.get(c), f = push.get(c);
-        let v = [u[0] + f[0] * 0.035, u[1] + f[1] * 0.035, u[2] + f[2] * 0.035];
-        const base = onPath.has(c) && lineage.has(c) ? dirs[lineage.get(c)] : null;
-        // A gentle tether, not a clamp. At 0.1 this overpowered the
-        // repulsion and collapsed every path node onto one bearing.
-        if (base) v = [v[0] + base[0] * 0.035, v[1] + base[1] * 0.035,
-                       v[2] + base[2] * 0.035];
-        const len = Math.hypot(v[0], v[1], v[2]) || 1;
-        unit.set(c, [v[0] / len, v[1] / len, v[2] / len]);
+        const anchor = home.get(c);
+        if (anchor) unit.set(c, leash(unit.get(c), anchor, leashLen.get(c)));
       });
+      if (!touched) break;
     }
   });
 
@@ -591,7 +665,7 @@ function buildGlobe(steps, byDist) {
     nodeEls.set(c, g);
   });
 
-  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy, origin, onPath };
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy, origin, onPath, stagger };
   GRAPH.project = makeProjector(GRAPH);
   GRAPH.project(SPIN_YAW);
   startSpin();
@@ -619,8 +693,11 @@ function makeProjector(G) {
       const label = g.querySelector("text");
       const left = f.x < G.cx;
       const pad = G.onPath.has(c) ? 13 : 9;
+      // Cluster members share an arc, so their labels would sit on one line.
+      // Staggering by rank within the cluster is what makes them readable.
+      const row = (G.stagger && G.stagger.get(c)) || 0;
       label.setAttribute("x", c === G.origin ? 0 : (left ? -pad : pad));
-      label.setAttribute("y", c === G.origin ? 27 : 4);
+      label.setAttribute("y", c === G.origin ? 27 : 4 + row);
       label.setAttribute("text-anchor", c === G.origin ? "middle" : (left ? "end" : "start"));
     });
     G.edgePairs.forEach(pair => {
