@@ -27,6 +27,7 @@ a superset of a superset rather than a third fork.
 from __future__ import annotations
 
 import argparse
+import re
 import threading
 import webbrowser
 from http.server import ThreadingHTTPServer
@@ -198,6 +199,28 @@ class IdentifyingEngine(BridgedEngine):
         extra = len(segment["predicates"]) - 1
         return f"{first} +{extra}" if extra else first
 
+    @staticmethod
+    def _witnesses(asked) -> list[dict]:
+        """What actually answered, as nodes the walk can stop on.
+
+        The page promises every answer is replayable, and a verdict reached
+        from four kinds below the concept was not: the steps walked the
+        concept's own branch and then announced a denial with nothing in
+        between. These are the things that voted -- the kinds, or the ancestor
+        that lent the fact -- so each one is a step and a node of its own.
+        """
+        if asked is None:
+            return []
+        if asked.get("members"):
+            return [{"name": member["name"], "verdict": member["verdict"],
+                     "predicate": member["predicate"]}
+                    for member in asked["members"]]
+        if asked["source"] and asked["distance"]:
+            return [{"name": re.sub(r"\.[nvar]\.\d+$", "", asked["source"]),
+                     "verdict": asked["verdict"],
+                     "predicate": asked["predicate"]}]
+        return []
+
     @classmethod
     def _as_identification(cls, question: str, mode: str, found) -> dict:
         """The walk in the shape the tree drawing already knows.
@@ -216,14 +239,37 @@ class IdentifyingEngine(BridgedEngine):
                   "eliminated": len(segment["dropped"]),
                   "examples": segment["dropped"][:6]}
                  for segment in segments]
+        # A concept that answered the question is drawn where it answered it,
+        # not where it left the branch: `dolphin` is both a trie neighbour of
+        # `whale` and one of the four kinds that denied `furry`, and the tree
+        # keys nodes by name, so drawing it twice left the replay lighting up
+        # the wrong one.
+        voted = {witness["name"] for witness in
+                 cls._witnesses(found.asked.as_dict() if found.asked else None)}
         considered = [{"name": other, "concept": None, "survived": False,
                        "depth": position, "matched": {}}
                       for position, segment in enumerate(segments)
-                      for other in segment["dropped"]]
+                      for other in segment["dropped"] if other not in voted]
         matched = ({found.asked.term: found.asked.predicate or "—"}
                    if found.asked and found.asked.predicate else {})
+        # The question itself becomes the last node of the walk, so what
+        # answered it has somewhere to hang.
+        asked = found.asked.as_dict() if found.asked else None
+        witnesses = cls._witnesses(asked)
+        if asked:
+            steps.append({
+                "rule": "R17", "kind": "ask", "term": cls._asked(asked),
+                "detail": asked["detail"], "remaining": 1,
+                "eliminated": len(witnesses),
+                "examples": [w["name"] for w in witnesses][:6]})
+            considered.extend(
+                {"name": witness["name"], "concept": None, "survived": False,
+                 "depth": len(segments),
+                 "matched": {asked["term"]: (witness["predicate"] or "—")
+                                            + f" ({witness['verdict'].lower()})"}}
+                for witness in witnesses)
         considered.append({"name": found.name, "concept": found.concept,
-                           "survived": True, "depth": len(segments),
+                           "survived": True, "depth": len(steps),
                            "matched": matched})
         return {
             "question": question, "mode": mode,
@@ -237,9 +283,14 @@ class IdentifyingEngine(BridgedEngine):
             "considered": considered, "steps": steps,
         }
 
+    @staticmethod
+    def _asked(asked: dict) -> str:
+        """The node the question itself occupies on the walk."""
+        return f"{asked['term']}?"
+
     @classmethod
     def _walk_steps(cls, found) -> list[dict]:
-        """The replay: one step per branch point, then the thing itself."""
+        """The replay: the branch, the question, what answered it, the verdict."""
         steps: list[dict] = []
         for position, segment in enumerate(found.segments):
             left = (f" — {len(segment.dropped)} went elsewhere"
@@ -255,15 +306,47 @@ class IdentifyingEngine(BridgedEngine):
                 "parents": [cls._label(found.segments[position - 1].as_dict())]
                            if position else [],
             })
+        last = (cls._label(found.segments[-1].as_dict())
+                if found.segments else None)
+        asked = found.asked.as_dict() if found.asked else None
+        if asked:
+            # The question, then each thing that answered it. Without these
+            # the replay walked the branch and then produced a verdict out of
+            # nowhere -- "is a whale furry" showed six attribute nodes and no
+            # sign of the four kinds that actually denied it.
+            steps.append({
+                "index": len(steps), "kind": "check",
+                "concept": cls._asked(asked),
+                "distance": len(found.segments), "rule": "R17",
+                "detail": f"Ask “{asked['term']}” of {found.name}: "
+                          + asked["detail"],
+                "facts_checked": 0, "matched": None,
+                "parents": [last] if last else [],
+            })
+            for witness in cls._witnesses(asked):
+                steps.append({
+                    "index": len(steps),
+                    # `block` is the page's word for it, and the page paints
+                    # it red. `blocked` would have quietly styled as nothing.
+                    "kind": "block" if witness["verdict"] == "DENIED"
+                            else "match",
+                    "concept": witness["name"],
+                    "distance": len(found.segments) + 1, "rule": "R17",
+                    "detail": f"{witness['name']} — {witness['verdict']}"
+                              + (f" via “{witness['predicate']}”"
+                                 if witness["predicate"] else ""),
+                    "facts_checked": 1, "matched": None,
+                    "parents": [cls._asked(asked)],
+                })
         steps.append({
             "index": len(steps), "kind": "match", "concept": found.name,
-            "distance": len(found.segments), "rule": "R17",
-            "detail": (found.asked.detail if found.asked else
+            "distance": len(steps), "rule": "R17",
+            "detail": (asked["detail"] if asked else
                        f"{found.name}: {len(found.path)} stated attributes, "
                        f"read off the branch on the way back up."),
             "facts_checked": len(found.path), "matched": None,
-            "parents": [cls._label(found.segments[-1].as_dict())]
-                       if found.segments else [],
+            "parents": [cls._asked(asked)] if asked else
+                       ([last] if last else []),
         })
         return steps
 

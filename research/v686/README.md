@@ -292,6 +292,20 @@ What the concept states about itself still outranks them both. A dalmatian has
 spots and a dog does not, and both are right: the question is about the
 typical dog, and the norms scored that directly.
 
+**And the replay has to show it.** The page's claim is that every answer is
+replayable, and this one was not: the steps walked whale's own branch and then
+announced a denial with nothing in between. The question is now a node of the
+walk and each thing that answered it is a step of its own — the four kinds, or
+the ancestor that lent the fact:
+
+    is hunted                      shared with 10
+    can be found in seas           shared with 1
+    can dive underwater +24
+    furry?                         ask it of whale
+      blue whale       DENIED      humpback whale   DENIED
+      dolphin          DENIED      killer whale     DENIED
+    whale                          DENIED
+
 **Above the leaf, the taxonomy carries on.** The norms stop at the concept;
 v684 does not. `blue whale` inherits 777 facts from six levels, and each is
 attributed to the level that supplies it, nearest first, with a fact met twice
@@ -332,4 +346,4 @@ data supports, and it answers correctly.
 | `profile.py` | the trie read upwards: attributes, denials, and the taxonomy above the leaf |
 | `identifiability.py` | questions-to-identify on the same trie, and the cue-validity ordering |
 | `server.py` | everything v685 serves, plus identification, on the same page |
-| `test_v686.py` | 56 tests; they skip if the norms are not downloaded |
+| `test_v686.py` | 59 tests; they skip if the norms are not downloaded |

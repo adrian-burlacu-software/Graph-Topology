@@ -701,7 +701,13 @@ function ghostChip(svg, x, y, entry, term) {
   label.setAttribute("x", 10); label.setAttribute("y", 4);
   label.textContent = entry.name;
   const title = document.createElementNS(SVG_NS, "title");
-  title.textContent = entry.name + " — ruled out by “" + term + "”";
+  // On an identification a side node was ruled out; on a walk it either left
+  // the branch here or is one of the kinds that answered the question, and
+  // when it answered, what it answered with is the point.
+  const said = Object.entries(entry.matched || {});
+  title.textContent = said.length
+    ? entry.name + " — " + said.map(pair => pair[0] + ": " + pair[1]).join("; ")
+    : entry.name + " — ruled out by “" + term + "”";
   ghost.appendChild(title); ghost.appendChild(dot); ghost.appendChild(label);
   ghost.style.cursor = "pointer";
   ghost.onclick = () => { $("q").value = followUp(entry.name); ask(); };

@@ -16,6 +16,7 @@ from research.v686.identifiability import cue_validity, depths
 from research.v686.identifiability import measure as identifiability
 from research.v686.identify import Identifier
 from research.v686.profile import Profiles
+from research.v686.server import IdentifyingEngine
 
 STORE = build.DEFAULT_STORE.with_name("v684_reasoning_compressed.sqlite")
 HAVE_NORMS = (corpora.XCSLB_DIR / "comps_base.jsonl").exists() and \
@@ -507,6 +508,41 @@ class ProfileTests(unittest.TestCase):
         seen = [(f["relation"], f["object"])
                 for level in levels for f in level.all_facts]
         self.assertEqual(len(seen), len(set(seen)))
+
+    def test_the_replay_shows_what_answered_and_not_only_the_verdict(self):
+        """The page promises every answer is replayable, and this one was not:
+        the steps walked whale's own branch and then announced a denial, with
+        the four kinds that actually denied it appearing nowhere."""
+        found = self.profiles.describe("whale")
+        found.asked = self.profiles.verify("whale", ["furry"])
+        steps = IdentifyingEngine._walk_steps(found)
+        walked = [step["concept"] for step in steps]
+        self.assertIn("furry?", walked)
+        self.assertIn("blue whale", walked)
+        self.assertIn("killer whale", walked)
+        self.assertEqual(sum(1 for s in steps if s["kind"] == "block"), 4)
+        self.assertEqual(walked[-1], "whale")
+
+    def test_a_witness_is_drawn_once_where_it_answered(self):
+        """`dolphin` is both a trie neighbour of whale and one of the kinds
+        that denied `furry`. The tree keys nodes by name, so drawing it twice
+        left the replay lighting up the wrong one."""
+        found = self.profiles.describe("whale")
+        found.asked = self.profiles.verify("whale", ["furry"])
+        tree = IdentifyingEngine._as_identification(
+            "is a whale furry", "verify", found)
+        drawn = [entry["name"] for entry in tree["considered"]]
+        self.assertEqual(len(drawn), len(set(drawn)))
+        at_the_question = {entry["name"] for entry in tree["considered"]
+                           if entry["depth"] == len(found.segments)}
+        self.assertIn("dolphin", at_the_question)
+
+    def test_a_profile_asks_nothing_so_it_gets_no_question_node(self):
+        found = self.profiles.describe("robin")
+        walked = [step["concept"]
+                  for step in IdentifyingEngine._walk_steps(found)]
+        self.assertEqual(walked[-1], "robin")
+        self.assertFalse([node for node in walked if node.endswith("?")])
 
     def test_the_neighbours_at_a_branch_point_are_the_nearest_misses(self):
         found = self.profiles.describe("blue whale")
