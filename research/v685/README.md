@@ -81,6 +81,56 @@ A word's meaning here is which other concepts it is joined to, so the graph is
 the right thing to ask. `car's driver` resolves to the operator of a motor
 vehicle, and `house's owner` is reached in two hops through `dwelling`.
 
+## R14: the anchor constrains the answer, not just the sense
+
+Bridging to `musician.n.01` and stopping there answers "what can a violin
+player do" with *play drum*, *play trumpet*, *play accordion*, *play cello*.
+Every one is true of musicians and false of violin players. The bridge picked
+the right concept and then discarded the thing that made it right.
+
+So the constraint is the one inheritance already uses, pointed sideways:
+
+| | |
+| --- | --- |
+| an ancestor's property descends | R2, v684 |
+| a **sibling's** property does not | R14, here |
+
+`drum` and `violin` are both musical instruments, so "musicians play drums" is
+evidence about a *different member of the same class*. `instrument` is violin's
+ancestor and `string` names its parent, so "tune the instrument" does transfer.
+
+A fact is set aside when its object names a **co-hyponym** of the anchor — not
+the anchor, not above or below it, joined by a class specific enough that being
+a different member of it matters. Specificity is the subtree size the build
+already stores:
+
+| object | lowest common ancestor with `violin` | descendants |
+| --- | --- | --- |
+| cello | bowed stringed instrument | 11 |
+| piano, guitar, harp | stringed instrument | 48 |
+| drum, trumpet, flute | musical instrument | 163 |
+| — **SIBLING_LIMIT = 1000** — | | |
+| bow, scale | device | 2,764 |
+| case, stage | instrumentality | 5,516 |
+| note | artifact | 10,698 |
+| teacher | whole | 31,542 |
+| concert, music, orchestra | entity | 82,114 |
+
+Every rival instrument is an order of magnitude below the line and everything a
+violin player actually does or uses is above it. The threshold goes in the gap
+rather than being tuned into it.
+
+The object's sense is settled the way R13 settles a range — by weighing every
+sense the word could carry — because `drum` resolves to a barrel by default,
+`bass` to a fish and `brass` to management, and all three are instruments here.
+
+Result: 12 facts set aside, 28 kept, and `play violin` and `play fiddle` lead
+instead of sitting seventh. `dog owner` and `car driver` lose nothing, because
+their anchors share no specific class with the answer.
+
+Set-aside facts are returned and shown in their own card, never deleted:
+"these are about other instruments" is worth saying.
+
 ## What is shown
 
 The page is v684's, unchanged, with one card added. A bridged question renders
@@ -98,9 +148,10 @@ superset rather than a fork.
 | --- | --- |
 | `graph.py` | v684's facts read as a multi-relation graph, with the licensing fact on every edge |
 | `bridge.py` | bounded best-first search, depth and breadth budgets, reported not assumed |
-| `ask.py` | possessive questions: bridge, then hand the second half to v684 |
+| `ask.py` | two-subject questions: bridge, hand the second half to v684, then filter by the anchor |
+| `relevance.py` | R14: a sibling of the anchor is not the anchor |
 | `server.py` | v684's engine and page, with the bridge card fed |
-| `test_v685.py` | 24 tests; store-dependent ones skip if it is not built |
+| `test_v685.py` | 35 tests; store-dependent ones skip if it is not built |
 
 ## Honest limits
 

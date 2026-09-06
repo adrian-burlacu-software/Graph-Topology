@@ -10,6 +10,7 @@ import unittest
 from research.v685 import ask as ask_module
 from research.v685.bridge import Bridge, Route
 from research.v685.graph import FactGraph, Hop
+from research.v685.relevance import Relevance, SIBLING_LIMIT
 
 STORE = ask_module.DEFAULT_STORE
 requires_store = unittest.skipUnless(STORE.exists(), f"no store at {STORE}")
@@ -132,6 +133,67 @@ class BridgeTests(unittest.TestCase):
 
 
 @requires_store
+class RelevanceTests(unittest.TestCase):
+    """R14: a sibling of the anchor is not the anchor."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.graph = FactGraph(STORE)
+        cls.judge = Relevance(cls.graph)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.graph.close()
+
+    def verdict(self, phrase):
+        return self.judge.judge(phrase, "violin.n.01").verdict
+
+    def test_a_rival_instrument_is_a_sibling(self):
+        """The reported bug: a violin player does not play the drums."""
+        for phrase in ("play drum", "play piano", "play trumpet", "play cello",
+                       "play saxophone", "play accordion", "play guitar",
+                       "play flute", "play clarinet"):
+            self.assertEqual(self.verdict(phrase), "sibling", phrase)
+
+    def test_the_instrument_sense_is_found_even_when_it_is_not_the_default(self):
+        """`drum` resolves to a barrel, `bass` to a fish, `brass` to management."""
+        for phrase in ("play drum", "play bass", "play brass"):
+            judgement = self.judge.judge(phrase, "violin.n.01")
+            self.assertEqual(judgement.verdict, "sibling", phrase)
+            self.assertIn("instrument", judgement.shared, phrase)
+
+    def test_what_a_violin_player_actually_does_survives(self):
+        for phrase in ("make living", "give concert", "write song",
+                       "create music", "read music", "tune instrument",
+                       "use bow", "join orchestra", "take turn"):
+            self.assertNotEqual(self.verdict(phrase), "sibling", phrase)
+
+    def test_the_anchor_itself_is_marked_so_it_can_lead(self):
+        self.assertEqual(self.verdict("play violin"), "anchor")
+
+    def test_an_ancestor_transfers_and_is_never_a_sibling(self):
+        """`string` names violin's own parent; R2 already says it descends."""
+        self.assertEqual(self.judge.compare("musical instrument.n.01",
+                                            "violin.n.01").verdict, "kin")
+        self.assertEqual(self.judge.compare("bowed stringed instrument.n.01",
+                                            "violin.n.01").verdict, "kin")
+
+    def test_the_threshold_sits_in_the_gap_that_was_measured(self):
+        """Rivals join violin at <=163 descendants, the rest at >=2,764."""
+        rival = self.judge.judge("play drum", "violin.n.01")
+        self.assertLess(rival.shared_size, SIBLING_LIMIT)
+        for phrase in ("use bow", "give concert"):
+            other = self.judge.judge(phrase, "violin.n.01")
+            self.assertNotEqual(other.verdict, "sibling", phrase)
+
+    def test_an_unrelated_anchor_rules_nothing_out(self):
+        """R14 must not fire where the anchor has no class in common."""
+        for phrase in ("play drum", "give concert", "make living"):
+            self.assertNotEqual(
+                self.judge.judge(phrase, "dog.n.01").verdict, "sibling", phrase)
+
+
+@requires_store
 class BridgedQuestionTests(unittest.TestCase):
     """The two-part question, end to end."""
 
@@ -201,6 +263,34 @@ class BridgedQuestionTests(unittest.TestCase):
         self.assertEqual(need.relation, "has_prerequisite")
         self.assertEqual(does.relation, "capable_of")
         self.assertEqual(where.relation, "at_location")
+
+    def test_the_anchor_filters_the_roles_facts(self):
+        """A musician plays every instrument; a violin player does not."""
+        answer = self.engine.ask("what can a violin player do")
+        kept = {f.object for f in answer.answer.evidence}
+        aside = {f.object for f in answer.excluded}
+        self.assertTrue(aside)
+        self.assertIn("play drum", aside)
+        self.assertIn("play piano", aside)
+        self.assertNotIn("play drum", kept)
+        self.assertIn("play violin", kept)
+        self.assertEqual(answer.excluded_class, "musical instrument.n.01")
+
+    def test_the_anchors_own_facts_lead(self):
+        answer = self.engine.ask("what can a violin player do")
+        self.assertIn(answer.answer.evidence[0].object,
+                      {"play violin", "play fiddle"})
+
+    def test_nothing_is_set_aside_when_the_anchor_shares_no_class(self):
+        for question in ("what does a dog owner need",
+                         "what does a car driver need"):
+            self.assertEqual(self.engine.ask(question).excluded, [], question)
+
+    def test_set_aside_facts_are_returned_not_deleted(self):
+        payload = self.engine.ask("what can a violin player do").as_dict()
+        self.assertIn("excluded", payload)
+        self.assertTrue(payload["excluded"])
+        self.assertIn("excluded_class", payload)
 
     def test_it_serialises_for_a_ui(self):
         payload = self.engine.ask("what does a dog's owner need").as_dict()

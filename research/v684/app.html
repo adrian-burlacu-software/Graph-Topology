@@ -258,6 +258,12 @@
         <div id="facts"></div>
       </div>
 
+      <div class="card" id="asidecard" hidden>
+        <h2>Set aside &mdash; about siblings</h2>
+        <p class="note" id="asidenote"></p>
+        <div id="aside"></div>
+      </div>
+
       <div class="card" id="nearbycard" hidden>
         <h2>Nearby &mdash; not an answer</h2>
         <p class="note" id="nearbynote"></p>
@@ -377,6 +383,7 @@ function render() {
   buildFacts();
   buildNearby();
   buildBridge();
+  buildAside();
 }
 
 function claimText(s) {
@@ -1022,6 +1029,30 @@ function buildBridge() {
     ? `Search: expanded ${s.expanded}, generated ${s.generated.toLocaleString()},` +
       ` pruned ${s.pruned} by the breadth budget, depth ${s.depth_reached}.`
     : "";
+}
+
+/* ---- R14: what the anchor ruled out ----
+ * A musician plays every instrument; a violin player does not. Facts about
+ * the role naming a *sibling* of the anchor are set aside rather than
+ * deleted, because "these are about other instruments" is worth saying.
+ */
+function buildAside() {
+  const b = (STATE && STATE.bridge) || null;
+  const out = (b && b.excluded) || [];
+  $("asidecard").hidden = out.length === 0;
+  if (!out.length) return;
+  $("asidenote").textContent = b.note ||
+    `${out.length} fact(s) about other kinds of ` +
+    `${shortName(b.excluded_class || "thing")}.`;
+  const rows = out.map(f => `<tr>
+      <td class="rel">${escapeHtml(f.relation)}</td>
+      <td class="obj">${escapeHtml(f.object)}</td>
+      <td><span class="src">${escapeHtml(f.source)}</span></td>
+      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
+    </tr>`).join("");
+  $("aside").innerHTML = `<table><thead><tr>
+      <th>relation</th><th>object</th><th>source</th><th>from</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /* ---- near misses ----

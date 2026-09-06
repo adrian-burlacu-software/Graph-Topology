@@ -46,6 +46,20 @@ class BridgedEngine(v684_server.Engine):
         payload = super().ask(question, result.role)
         payload["bridge"] = result.as_dict()
         payload["bridge"].pop("answer", None)     # already the payload itself
+
+        # R14 has to be applied here too. `super().ask` re-derives the answer
+        # from scratch, so the filtering done on `result.answer` does not
+        # reach the payload and `play drum` came back at the top of the list.
+        if result.anchor:
+            relevance = self.bridged.relevance
+            kept, aside = [], []
+            for row in payload.get("evidence", []):
+                judgement = relevance.judge(row.get("object", ""), result.anchor)
+                row["anchor_relation"] = judgement.verdict
+                (aside if judgement.verdict == "sibling" else kept).append(row)
+            kept.sort(key=lambda r: 0 if r["anchor_relation"] == "anchor" else 1)
+            payload["evidence"] = kept
+            payload["bridge"]["excluded"] = aside
         return payload
 
 

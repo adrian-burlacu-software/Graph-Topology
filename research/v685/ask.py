@@ -37,6 +37,7 @@ from ..v684.language import Parser
 from ..v684.reason import Answer, Reasoner
 from .bridge import Bridge, Route, SearchReport
 from .graph import FactGraph
+from .relevance import ANCHOR, Relevance
 
 DEFAULT_STORE = build.DEFAULT_STORE.with_name("v684_reasoning_compressed.sqlite")
 
@@ -54,6 +55,11 @@ class Bridged:
     alternatives: list[Route] = field(default_factory=list)
     report: SearchReport | None = None
     answer: Answer | None = None
+    #: Facts about the role that R14 ruled out, because they name a sibling
+    #: of the anchor. Returned rather than deleted: "these are about other
+    #: instruments" is worth saying.
+    excluded: list = field(default_factory=list)
+    excluded_class: str | None = None
     verdict: str = "UNKNOWN"
     note: str = ""
 
@@ -66,6 +72,8 @@ class Bridged:
             "route": self.route.as_dict() if self.route else None,
             "alternatives": [r.as_dict() for r in self.alternatives],
             "search": self.report.as_dict() if self.report else None,
+            "excluded": [f.as_dict() for f in self.excluded],
+            "excluded_class": self.excluded_class,
         }
         payload["answer"] = self.answer.as_dict() if self.answer else None
         return payload
@@ -80,6 +88,7 @@ class BridgedReasoner:
         self.parser = Parser(vocabulary=self.reasoner.vocabulary())
         self.graph = FactGraph(store)
         self.bridge = Bridge(self.graph, depth=depth, breadth=breadth)
+        self.relevance = Relevance(self.graph)
 
     def close(self) -> None:
         self.reasoner.close()
@@ -203,5 +212,28 @@ class BridgedReasoner:
 
         # v684 answers the second half, entirely unchanged
         result.answer = self.reasoner.describe(result.role, result.relation)
+
+        # R14: then the anchor gets a say. A musician's facts include playing
+        # every other instrument, and none of those are things a violin player
+        # does. The anchor selected the sense; it also constrains the answer.
+        if result.anchor:
+            kept, excluded, judged = self.relevance.split(
+                result.answer.evidence, result.anchor)
+            if excluded:
+                result.answer.evidence = kept
+                result.excluded = excluded
+                classes = [judged[id(f)].shared for f in excluded
+                           if judged[id(f)].shared]
+                if classes:
+                    result.excluded_class = max(set(classes), key=classes.count)
+                named = sum(1 for f in kept
+                            if judged[id(f)].verdict == ANCHOR)
+                result.note = (
+                    f"{len(excluded)} fact(s) set aside as being about other "
+                    f"kinds of {(result.excluded_class or 'thing').rsplit('.', 2)[0]}"
+                    f", not about a {anchor_word}."
+                    + (f" {named} name the {anchor_word} itself." if named else "")
+                ) if not result.note else result.note
+
         result.verdict = "BRIDGED" if result.route else "UNBRIDGED"
         return result
