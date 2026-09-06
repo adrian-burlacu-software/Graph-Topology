@@ -45,6 +45,14 @@ STOP = frozenset({
     "do", "does", "did", "be", "is", "are", "was", "were", "been", "being",
     "can", "could", "will", "would", "shall", "should", "may", "might", "must",
     "have", "has", "had", "of", "to", "in", "on", "at", "for", "with", "by",
+    # Prepositions that only introduce an object. `into` was missing from a
+    # list that already held `in`, `to`, `on` and `at`, so `fall into wrong
+    # hands` answered `can a dog fall into a hole`: the verb and preposition
+    # alone cleared the threshold and the object -- the only part that
+    # distinguishes them -- never counted. Adverbial particles stay out of
+    # this list on purpose: `fall down` and `fall over` are different claims.
+    "into", "onto", "upon", "from", "within", "toward", "towards",
+    "between", "among", "amongst", "beside",
     "what", "which", "who", "where", "when", "why", "how", "it", "its",
     "they", "them", "their", "there", "here", "you", "your", "i", "me",
     "and", "or", "but", "if", "then", "than", "as", "so", "such",
@@ -253,19 +261,23 @@ class Parser:
                 cache[text] = set(self.lemmas(text))
             return cache[text]
 
-        def matches(fact_object: str, target: str | None) -> bool:
+        def score(fact_object: str, target: str | None) -> float:
+            """Share of the question's content lemmas the fact carries."""
             if not target:
-                return True
+                return 1.0
             wanted = lemma_set(target)
             if not wanted:
-                return True
+                return 1.0
             have = lemma_set(fact_object)
             if not have:
-                return False
-            overlap = len(wanted & have) / len(wanted)
-            if overlap >= threshold:
-                return True
-            # a fact naming the target outright still counts
-            return target.lower().strip() in fact_object.lower()
+                return 0.0
+            if target.lower().strip() in fact_object.lower():
+                return 1.0          # the fact names the target outright
+            return len(wanted & have) / len(wanted)
 
+        def matches(fact_object: str, target: str | None) -> bool:
+            return score(fact_object, target) >= threshold
+
+        matches.score = score
+        matches.threshold = threshold
         return matches

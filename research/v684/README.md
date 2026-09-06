@@ -11,7 +11,7 @@ serves <http://127.0.0.1:8684/> and opens it. Ask a question, watch the
 derivation replay on the graph, expand the steps if you want the detail.
 
 ```bash
-python -m unittest research.v684.test_v684 -v   # 86 tests
+python -m unittest research.v684.test_v684 -v   # 106 tests
 python -m research.v684 --rebuild               # discard and rebuild the store
 python -m research.v684 --port 9000 --no-browser
 python -m research.v684 --raw                   # serve the uncompressed store
@@ -83,6 +83,18 @@ the same R2 that answers questions. `compress.verify` re-derives every dropped
 fact and reports 0 of 169,492 lost. R11 is different in kind and marked as
 such — hoisting a fact every child states is induction, not deduction, so it
 requires unanimity and the rows it creates are flagged `hoisted`.
+
+**A partial hit is offered, never believed.** The target is matched by lemma
+overlap, because Ascent++ objects are free text. `into` was missing from a
+stop list that already held `in`, `to`, `on` and `at`, so `fall into wrong
+hands` cleared the threshold on the verb and preposition alone and answered
+`can a dog fall into a hole` — the object, the only part that distinguishes
+them, never counted. Adverbial particles stay out of that list on purpose:
+`fall down` and `fall over` are different claims.
+
+Facts that cover part of the question and not enough of it are now collected
+as `suggestions` and shown in their own card, away from the verdict. Nothing
+is lost, and nothing half-true is promoted to VERIFIED.
 
 **R4 orders the listing, not just the walk.** What is stated about the thing
 outranks what is borrowed from above, whatever the confidence: `violin
@@ -190,7 +202,7 @@ an ancestor two steps up, and the chain walked is the proof.
 | `language.py` | spaCy question parsing, lemma matching, regex fallback |
 | `server.py` | stdlib HTTP server |
 | `app.html` | the page: graph animation, collapsible steps, sense picker |
-| `test_v684.py` | 86 tests; store-dependent ones skip if it is not built |
+| `test_v684.py` | 106 tests; store-dependent ones skip if it is not built |
 
 Data lives in `data/` (gitignored): `v633_full_semantic.sqlite` and
 `ascentpp.csv` in, `v684_reasoning.sqlite` out, plus

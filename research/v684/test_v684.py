@@ -425,6 +425,91 @@ class SubjectDetectionTests(unittest.TestCase):
         self.assertEqual(bare.parse("can a dog fall into a hole").subject, "dog")
 
 
+class TargetMatchingTests(unittest.TestCase):
+    """What counts as answering the question that was actually asked."""
+
+    def setUp(self):
+        self.parser = Parser()
+        self.match = self.parser.matcher()
+
+    def test_a_preposition_is_not_content(self):
+        """`into` sat outside a list already holding `in`, `to`, `on`, `at`."""
+        from research.v684.language import STOP
+        for word in ("into", "onto", "from", "within"):
+            self.assertIn(word, STOP)
+
+    def test_particles_are_still_content(self):
+        """`fall down` and `fall over` are different claims, so keep both words."""
+        from research.v684.language import STOP
+        for word in ("down", "up", "over", "out", "off", "through"):
+            self.assertNotIn(word, STOP)
+
+    def test_the_reported_bug_a_shared_verb_is_not_an_answer(self):
+        """This verified `can a dog fall into a hole` off a ratchet catch."""
+        self.assertFalse(self.match("fall into wrong hands", "fall into a hole"))
+        self.assertFalse(self.match("fall into place", "fall into a hole"))
+        self.assertFalse(self.match("fall into the trap", "fall into a hole"))
+
+    def test_a_real_answer_still_matches(self):
+        self.assertTrue(self.match("fall into hole", "fall into a hole"))
+        self.assertTrue(self.match("fall into a deep hole", "fall into a hole"))
+
+    def test_the_matcher_reports_how_close_it_came(self):
+        self.assertEqual(self.match.score("fall into hole", "fall into a hole"), 1.0)
+        near = self.match.score("fall into wrong hands", "fall into a hole")
+        self.assertGreater(near, 0)
+        self.assertLess(near, self.match.threshold)
+
+
+@requires_store
+class SuggestionTests(unittest.TestCase):
+    """A partial hit is offered, not believed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reasoner = Reasoner(STORE)
+        cls.match = staticmethod(Parser().matcher())
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.reasoner.close()
+
+    def test_a_near_miss_becomes_a_suggestion_not_a_verdict(self):
+        answer = self.reasoner.verify("pawl.n.01", "capable_of",
+                                      "fall into a hole", self.match)
+        self.assertEqual(answer.verdict, "UNKNOWN")
+        self.assertTrue(answer.suggestions)
+        objects = {s.object for s in answer.suggestions}
+        self.assertIn("fall into wrong hands", objects)
+        self.assertNotIn("fall into wrong hands",
+                         {e.object for e in answer.evidence})
+
+    def test_suggestions_are_ranked_capped_and_deduplicated(self):
+        answer = self.reasoner.verify("pawl.n.01", "capable_of",
+                                      "fall into a hole", self.match)
+        shares = [s.similarity for s in answer.suggestions]
+        self.assertEqual(shares, sorted(shares, reverse=True))
+        self.assertLessEqual(len(answer.suggestions), Reasoner.MAX_SUGGESTIONS)
+        self.assertEqual(len(answer.suggestions),
+                         len({s.object.lower() for s in answer.suggestions}))
+        for share in shares:
+            self.assertGreaterEqual(share, Reasoner.SUGGEST_FLOOR)
+            self.assertLess(share, self.match.threshold)
+
+    def test_an_answered_question_offers_no_suggestions(self):
+        answer = self.reasoner.verify("dog.n.01", "capable_of",
+                                      "fall into a hole", self.match)
+        self.assertEqual(answer.verdict, "VERIFIED")
+        self.assertEqual(answer.suggestions, [])
+
+    def test_suggestions_serialise_for_the_ui(self):
+        answer = self.reasoner.verify("pawl.n.01", "capable_of",
+                                      "fall into a hole", self.match)
+        payload = answer.as_dict()
+        self.assertIn("suggestions", payload)
+        self.assertIn("similarity", payload["suggestions"][0])
+
+
 @requires_store
 class SynonymTests(unittest.TestCase):
     """Different words for the same thing should reach the same knowledge."""

@@ -28,6 +28,9 @@ class Fact:
     confidence: float
     sense_assumed: bool
     distance: int = 0
+    #: How much of the question this fact covered, 0..1. Only set on
+    #: suggestions, where the point is that it was not enough.
+    similarity: float = 0.0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -35,6 +38,7 @@ class Fact:
             "object": self.object, "source": self.source,
             "confidence": round(self.confidence, 4),
             "sense_assumed": bool(self.sense_assumed), "distance": self.distance,
+            "similarity": round(self.similarity, 3),
         }
 
 
@@ -48,6 +52,10 @@ class Answer:
     chain: list[str] = field(default_factory=list)
     steps: list[Step] = field(default_factory=list)
     evidence: list[Fact] = field(default_factory=list)
+    #: Facts that answered part of the question but not enough of it. Kept
+    #: separate from `evidence` on purpose: they are not the answer, and
+    #: promoting one to be the answer is exactly the bug this replaced.
+    suggestions: list[Fact] = field(default_factory=list)
     parse: dict[str, Any] = field(default_factory=dict)
     note: str = ""
 
@@ -58,6 +66,7 @@ class Answer:
             "senses": self.senses, "chain": self.chain,
             "steps": [s.as_dict() for s in self.steps],
             "evidence": [e.as_dict() for e in self.evidence],
+            "suggestions": [s.as_dict() for s in self.suggestions],
             "parse": self.parse, "note": self.note,
             "rules": rules.RULE_TEXT,
         }
@@ -68,6 +77,10 @@ class Reasoner:
 
     MAX_DEPTH = 16
     MAX_ANCESTORS = 400
+    #: A fact covering at least this much of the question is worth offering
+    #: as a near miss; below it the overlap is a coincidence.
+    SUGGEST_FLOOR = 0.34
+    MAX_SUGGESTIONS = 5
 
     def __init__(self, store: Path):
         self.store = store
@@ -218,6 +231,7 @@ class Reasoner:
                         concept_gloss=self.gloss(concept))
         steps = answer.steps
         blocked_by: Fact | None = None
+        nearby: list[Fact] = []
 
         steps.append(Step(len(steps), "resolve", concept, 0, "R6",
                           f"Reading “{concept}” as this sense, not as a word."))
@@ -281,22 +295,46 @@ class Reasoner:
                               f"{node.rsplit('.', 2)[0]}.",
                               facts_checked=len(candidates), parents=parents))
             for fact in candidates:
-                if matcher(fact.object, target):
-                    fact.distance = distance
-                    fact.confidence = rules.confidence_at(fact.confidence, distance)
-                    if fact.confidence < rules.FLOOR:
-                        continue
-                    answer.verdict = "VERIFIED"
-                    answer.evidence.append(fact)
-                    steps.append(Step(len(steps), "match", node, distance, "R4",
-                                      f"Found it: {node.rsplit('.', 2)[0]} "
-                                      f"{relation.replace('_', ' ')} "
-                                      f"“{fact.object}”.",
-                                      matched=fact.as_dict()))
-                    return answer
-        if answer.verdict == "UNKNOWN" and not answer.note:
-            answer.note = (f"Walked {len(answer.chain)} concepts up from "
-                           f"{concept} without finding it. Absent, not false.")
+                if not matcher(fact.object, target):
+                    # A partial hit is worth showing and worth not believing.
+                    # `device capable_of "fall into wrong hands"` covers half
+                    # of "fall into a hole" and answers none of it.
+                    close = getattr(matcher, "score", None)
+                    if close is not None:
+                        share = close(fact.object, target)
+                        if share >= self.SUGGEST_FLOOR:
+                            near = Fact(fact.concept, fact.relation, fact.object,
+                                        fact.source, fact.confidence,
+                                        fact.sense_assumed, distance, share)
+                            nearby.append(near)
+                    continue
+                fact.distance = distance
+                fact.confidence = rules.confidence_at(fact.confidence, distance)
+                if fact.confidence < rules.FLOOR:
+                    continue
+                answer.verdict = "VERIFIED"
+                answer.evidence.append(fact)
+                steps.append(Step(len(steps), "match", node, distance, "R4",
+                                  f"Found it: {node.rsplit('.', 2)[0]} "
+                                  f"{relation.replace('_', ' ')} "
+                                  f"“{fact.object}”.",
+                                  matched=fact.as_dict()))
+                return answer
+        if answer.verdict == "UNKNOWN":
+            # Nearest first, and only the best few: a long list of things that
+            # nearly answered reads as an answer again.
+            seen_objects: set[str] = set()
+            for near in sorted(nearby, key=lambda f: (-f.similarity, f.distance)):
+                key = near.object.lower()
+                if key in seen_objects:
+                    continue
+                seen_objects.add(key)
+                answer.suggestions.append(near)
+                if len(answer.suggestions) >= self.MAX_SUGGESTIONS:
+                    break
+            if not answer.note:
+                answer.note = (f"Walked {len(answer.chain)} concepts up from "
+                               f"{concept} without finding it. Absent, not false.")
         return answer
 
     def describe(self, concept: str, relation: str | None, limit: int = 40) -> Answer:

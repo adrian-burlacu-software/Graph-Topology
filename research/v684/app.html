@@ -250,6 +250,12 @@
         <h2>Relevant knowledge</h2>
         <div id="facts"></div>
       </div>
+
+      <div class="card" id="nearbycard" hidden>
+        <h2>Nearby &mdash; not an answer</h2>
+        <p class="note" id="nearbynote"></p>
+        <div id="nearby"></div>
+      </div>
     </div>
 
     <div>
@@ -355,6 +361,7 @@ function render() {
 
   buildChain();
   buildFacts();
+  buildNearby();
 }
 
 function claimText(s) {
@@ -960,6 +967,31 @@ function buildFacts() {
     </tr>`).join("");
   $("facts").innerHTML = `<table><thead><tr>
       <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- near misses ----
+ * Facts that answered part of the question and not enough of it. They get
+ * their own card, deliberately away from the verdict: `device capable_of
+ * "fall into wrong hands"` covers half of "fall into a hole", and promoting
+ * a half-cover to VERIFIED is the bug this card exists to replace.
+ */
+function buildNearby() {
+  const near = (STATE && STATE.suggestions) || [];
+  $("nearbycard").hidden = near.length === 0;
+  if (!near.length) return;
+  const asked = (STATE.parse && STATE.parse.target) || "what was asked";
+  $("nearbynote").textContent =
+    `Nothing states “${asked}”. These came closest without answering it.`;
+  const rows = near.map(f => `<tr>
+      <td class="rel">${escapeHtml(f.relation)}</td>
+      <td class="obj">${escapeHtml(f.object)}
+        <div class="bar"><i style="width:${Math.round(f.similarity * 100)}%"></i></div></td>
+      <td><span class="src">${escapeHtml(shortName(f.concept))}</span></td>
+      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
+    </tr>`).join("");
+  $("nearby").innerHTML = `<table><thead><tr>
+      <th>relation</th><th>object &amp; overlap</th><th>stated on</th><th>from</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
