@@ -246,6 +246,12 @@
         </details>
       </div>
 
+      <div class="card" id="identcard" hidden>
+        <h2>Identified &mdash; R16</h2>
+        <p class="note" id="identnote"></p>
+        <div id="ident"></div>
+      </div>
+
       <div class="card" id="bridgecard" hidden>
         <h2>Bridge &mdash; why this is relevant</h2>
         <p class="note" id="bridgenote"></p>
@@ -305,6 +311,12 @@ const EXAMPLES = [
   "what can a violin player do",
   "where does a dog's owner live",
   "what does a car driver need",
+  // Identification: describe a thing instead of naming it. Answered under
+  // `python -m research.v686`, which adds the feature norms.
+  "what kind of dog has spots",
+  "what kind of cat has stripes",
+  "what kind of bird is red",
+  "what kind of bird cannot fly",
 ];
 const $ = id => document.getElementById(id);
 let STATE = null, cursor = 0, timer = null;
@@ -383,6 +395,7 @@ function render() {
   buildFacts();
   buildNearby();
   buildBridge();
+  buildIdent();
   buildAside();
 }
 
@@ -989,6 +1002,34 @@ function buildFacts() {
     </tr>`).join("");
   $("facts").innerHTML = `<table><thead><tr>
       <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- identification ----
+ * The inverse question: a description in, a thing out. The narrowing is
+ * already in `steps` and replays like any other derivation; this card shows
+ * what survived it and which stored property matched each word.
+ */
+function buildIdent() {
+  const found = (STATE && STATE.identification) || null;
+  $("identcard").hidden = !found;
+  if (!found) return;
+  const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
+  $("identnote").innerHTML =
+    `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
+    (found.candidates.length === 1
+      ? "One thing carries all of it."
+      : `${found.candidates.length} things carry all of it.`);
+  const rows = found.candidates.map(c => `<tr>
+      <td class="obj"><b>${escapeHtml(c.name)}</b></td>
+      <td class="obj">${Object.entries(c.matched)
+        .map(([term, hit]) => `${escapeHtml(term)}: &ldquo;${escapeHtml(hit)}&rdquo;`)
+        .join("<br>")}</td>
+      <td><span class="src">${escapeHtml(c.source)}</span></td>
+      <td class="dist">${c.predicates} props</td>
+    </tr>`).join("");
+  $("ident").innerHTML = `<table><thead><tr>
+      <th>candidate</th><th>what matched</th><th>source</th><th>known</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
