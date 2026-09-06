@@ -58,7 +58,8 @@ V686_RULES: dict[str, str] = {
 #: The badge a verdict from the norms wears on the page. `INHERITED` is a yes
 #: like `HELD` is, but the note says which ancestor supplied it.
 VERDICT_STYLE = {"HELD": "VERIFIED", "DENIED": "CONTRADICTED",
-                 "INHERITED": "VERIFIED"}
+                 "INHERITED": "VERIFIED", "MIXED": "MIXED",
+                 "UNRECORDED": "UNRECORDED"}
 
 class IdentifyingEngine(BridgedEngine):
     """v685's engine, with descriptions answered by identification."""
@@ -129,8 +130,15 @@ class IdentifyingEngine(BridgedEngine):
             return None
         if mode == "verify":
             found.asked = self.profiles.verify(name, words)
-            if found.asked.verdict == "UNRECORDED":
-                return None                    # let the fact graph try
+            # Unrecorded goes back to the fact graph -- but only when the
+            # fact graph is going to be talking about the same thing. v684
+            # read "is whale furry" with `furry` as its subject and answered
+            # about `furred.a.01`, and "nothing is stored about that adjective"
+            # is a worse answer than "here is everything a whale has, and
+            # this is not among it".
+            if (found.asked.verdict == "UNRECORDED"
+                    and self.parser.parse(question).subject == name):
+                return None
         return self._payload(question, mode, found)
 
     def _payload(self, question: str, mode: str, found) -> dict:

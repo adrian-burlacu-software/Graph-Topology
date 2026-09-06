@@ -453,6 +453,37 @@ class ProfileTests(unittest.TestCase):
         self.assertTrue(answer.source.startswith("bird"), answer.source)
         self.assertGreater(answer.distance, 0)
 
+    def test_a_class_is_answered_by_the_kinds_beneath_it(self):
+        """"Is a whale furry" was silence: `whale` carries 27 properties and
+        none of them mention fur, while four kinds of whale sit under it with
+        the attribute scored and denied."""
+        answer = self.profiles.verify("whale", ["furry"])
+        self.assertEqual(answer.verdict, "DENIED")
+        self.assertEqual(answer.source, "kinds")
+        said = {member["name"] for member in answer.members}
+        self.assertIn("blue whale", said)
+        self.assertIn("killer whale", said)
+
+    def test_what_the_concept_states_itself_outranks_the_kinds_below(self):
+        """A dalmatian has spots and a dog does not, and both are right: the
+        question is about the typical dog, and the norms scored that."""
+        self.assertEqual(self.profiles.verify("dog", ["spots"]).verdict,
+                         "DENIED")
+        self.assertEqual(self.profiles.verify("dalmatian", ["spots"]).verdict,
+                         "HELD")
+
+    def test_a_class_that_does_not_agree_with_itself_says_so(self):
+        answer = self.profiles.verify("whale", ["sing"])
+        self.assertEqual(answer.verdict, "HELD")     # stated of whale itself
+        self.assertEqual(answer.source, "stated")
+
+    def test_subtypes_come_from_the_taxonomy_not_the_name(self):
+        kinds = self.profiles.subtypes("whale")
+        self.assertIn("blue whale", kinds)
+        self.assertIn("dolphin", kinds)              # not called a whale
+        self.assertNotIn("whale", kinds)
+        self.assertEqual(self.profiles.subtypes("dalmatian"), [])
+
     def test_what_is_neither_stated_nor_denied_is_absent(self):
         answer = self.profiles.verify("blue whale", ["telephone"])
         self.assertEqual(answer.verdict, "UNRECORDED")

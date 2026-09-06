@@ -277,7 +277,20 @@ could be confidently wrong. It is read, not just matched.
 | `is a dalmatian spotted` | **HELD** | `spots`, depth 28, unique to it |
 | `does a killer whale have flippers` | **HELD** | `flippers`, depth 17 |
 | `does a robin fly` | **INHERITED** | `bird.n.01`, 4 levels up |
+| `is a whale furry` | **DENIED** | all 4 kinds of whale deny it |
 | `is a blue whale telephonic` | **UNRECORDED** | absent, not false |
+
+**A class is answered by the kinds beneath it.** `whale` is a concept in its
+own right and carries 27 properties, not one about fur — so "is a whale furry"
+was silence while four kinds of whale sat underneath with the attribute scored
+and denied. Asking them is induction rather than inheritance, and it is placed
+*above* the taxonomy walk on purpose: four whales scored `hairless` is better
+evidence than whatever `mammal.n.01` happens to say about fur. When the kinds
+disagree the answer says so rather than picking one.
+
+What the concept states about itself still outranks them both. A dalmatian has
+spots and a dog does not, and both are right: the question is about the
+typical dog, and the norms scored that directly.
 
 **Above the leaf, the taxonomy carries on.** The norms stop at the concept;
 v684 does not. `blue whale` inherits 777 facts from six levels, and each is
@@ -319,4 +332,4 @@ data supports, and it answers correctly.
 | `profile.py` | the trie read upwards: attributes, denials, and the taxonomy above the leaf |
 | `identifiability.py` | questions-to-identify on the same trie, and the cue-validity ordering |
 | `server.py` | everything v685 serves, plus identification, on the same page |
-| `test_v686.py` | 52 tests; they skip if the norms are not downloaded |
+| `test_v686.py` | 56 tests; they skip if the norms are not downloaded |

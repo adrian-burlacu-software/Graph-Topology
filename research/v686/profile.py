@@ -139,19 +139,23 @@ class Ancestry:
 class Verdict:
     """The answer to "does this thing have that"."""
     term: str
-    verdict: str                # HELD | DENIED | INHERITED | UNRECORDED
+    verdict: str                # HELD | DENIED | INHERITED | MIXED | UNRECORDED
     detail: str
     predicate: str | None = None
     source: str | None = None
     distance: int = 0
     depth: int = 0
     shared: int = 0
+    #: When the answer came from the kinds below rather than the concept
+    #: itself: what each of them said, and with which property.
+    members: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {"term": self.term, "verdict": self.verdict,
                 "detail": self.detail, "predicate": self.predicate,
                 "source": self.source, "distance": self.distance,
-                "depth": self.depth, "shared": self.shared}
+                "depth": self.depth, "shared": self.shared,
+                "members": self.members}
 
 
 @dataclass
@@ -193,6 +197,7 @@ class Profiles:
         self.synset = identifier.synset
         self.origin = identifier.origin
 
+        self._ancestors: dict[str, set[str]] | None = None
         self.denied: dict[str, frozenset[str]] = {}
         for source in (corpora.denied_awa2(), corpora.denied_xcslb()):
             for name, properties in source.items():
@@ -274,6 +279,79 @@ class Profiles:
             -len(self.stated.get(other, frozenset()) & target), other)
         )[:NEIGHBOURS_SHOWN]
 
+    # -- below the leaf ----------------------------------------------------
+    def subtypes(self, name: str) -> list[str]:
+        """The concepts in the norms that are a kind of this one.
+
+        `whale` is a concept in its own right here and carries 27 properties,
+        none of them about fur -- so "is a whale furry" was silence, while
+        four kinds of whale sat under it with the attribute scored and denied.
+        A class question is answerable from what is stored beneath it.
+        """
+        concept = self.synset.get(name)
+        if not concept:
+            return []
+        return sorted(other for other, above in self._lineage().items()
+                      if other != name and concept in above
+                      and self.stated.get(other))
+
+    def _lineage(self) -> dict[str, set[str]]:
+        """Every individual's ancestors, built once and kept.
+
+        `identify._within` walks the taxonomy per query, which is a second per
+        question. Inverting it costs the same walk once and turns "what is a
+        kind of this" into a lookup.
+        """
+        if self._ancestors is None:
+            self._ancestors = {
+                name: {node for node, distance, _
+                       in self.reasoner.ascend(concept) if distance > 0}
+                for name, concept in self.synset.items()}
+        return self._ancestors
+
+    def _from_below(self, name: str, terms: list[str]) -> Verdict | None:
+        """Ask the kinds below when the concept itself does not say.
+
+        This is induction, not inheritance, and it is deliberately placed
+        above the taxonomy walk rather than below it: the kinds are scored
+        norm data and the ancestors are corpus free text, so four whales
+        scored `hairless` is better evidence than anything `mammal.n.01`
+        happens to say about fur.
+        """
+        votes = [(other, self.verify(other, terms, descend=False))
+                 for other in self.subtypes(name)]
+        held = [(other, answer) for other, answer in votes
+                if answer.verdict in ("HELD", "INHERITED")]
+        denied = [(other, answer) for other, answer in votes
+                  if answer.verdict == "DENIED"]
+        if not held and not denied:
+            return None
+        members = [{"name": other, "verdict": answer.verdict,
+                    "predicate": answer.predicate}
+                   for other, answer in held + denied]
+        kinds = len(votes)
+        term = (held + denied)[0][1].term
+        if held and not denied:
+            return Verdict(
+                term=term, verdict="HELD", source="kinds", members=members,
+                predicate=held[0][1].predicate,
+                detail=f"Not recorded of {name} itself, but all "
+                       f"{len(held)} of the {kinds} kinds of {name} the norms "
+                       f"cover state it.")
+        if denied and not held:
+            return Verdict(
+                term=term, verdict="DENIED", source="kinds", members=members,
+                predicate=denied[0][1].predicate,
+                detail=f"Not recorded of {name} itself, but all "
+                       f"{len(denied)} of the {kinds} kinds of {name} the "
+                       f"norms cover deny it.")
+        return Verdict(
+            term=term, verdict="MIXED", source="kinds", members=members,
+            predicate=held[0][1].predicate,
+            detail=f"{len(held)} of the {kinds} kinds of {name} the norms "
+                   f"cover state it and {len(denied)} deny it, so the class "
+                   f"does not settle it. Defeasible, which is R3's point.")
+
     # -- above the leaf ----------------------------------------------------
     def ancestry(self, name: str) -> list[Ancestry]:
         """What the concept inherits, nearest ancestor first.
@@ -315,7 +393,8 @@ class Profiles:
         return levels
 
     # -- the polar question ------------------------------------------------
-    def verify(self, name: str, terms: list[str]) -> Verdict:
+    def verify(self, name: str, terms: list[str],
+               descend: bool = True) -> Verdict:
         """Does this thing have that? Stated, denied, inherited or unrecorded.
 
         The order is evidence quality, not convenience. What the norms state
@@ -369,6 +448,10 @@ class Profiles:
                     source=self.origin.get(name, "?"),
                     detail=f"The norms record “{hit}” as false of "
                            f"{name}: scored and denied, not merely absent.")
+        if descend:
+            below = self._from_below(name, terms)
+            if below is not None:
+                return below
         # Nearest ancestor first, then the plainest fact it offers. The
         # ancestor is specificity; the length is quality control -- "fly"
         # matches `capable of fly` and `capable of fly in the water` equally,

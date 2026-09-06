@@ -52,7 +52,7 @@
   .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
   .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
   .LISTING,.PROFILE,.IDENTIFIED { background:rgba(94,234,212,.13); color:var(--accent); }
-  .AMBIGUOUS,.NO_MATCH,.UNRECORDED { background:rgba(251,191,36,.13); color:var(--maybe); }
+  .AMBIGUOUS,.NO_MATCH,.UNRECORDED,.MIXED { background:rgba(251,191,36,.13); color:var(--maybe); }
   .claim { font-size:16px; }
   .note { color:var(--dim); font-size:13px; margin-top:8px; }
 
@@ -268,6 +268,7 @@
       <div class="card" id="profilecard" hidden>
         <h2>Attributes &mdash; R17</h2>
         <p class="note" id="profilenote"></p>
+        <div id="profilekinds"></div>
         <div id="profilewalk"></div>
         <p class="note" id="profileabove"></p>
         <div id="profileinherit"></div>
@@ -1351,6 +1352,18 @@ function buildProfile() {
     (p.gloss ? ` — ${escapeHtml(p.gloss)}` : "") +
     (asked ? `<br><b>${escapeHtml(asked.verdict)}</b>: ${escapeHtml(asked.detail)}`
            : "");
+
+  // When the concept itself said nothing, the kinds below it did. Which
+  // ones, and with which property, is the whole of the evidence.
+  const kinds = (asked && asked.members) || [];
+  $("profilekinds").innerHTML = kinds.length
+    ? `<table><thead><tr><th>kind of ${escapeHtml(p.name)}</th>
+         <th>says</th><th>property</th></tr></thead><tbody>${kinds.map(m => `
+       <tr><td class="obj"><b>${escapeHtml(m.name)}</b></td>
+         <td class="rel">${escapeHtml(m.verdict)}</td>
+         <td class="obj">${escapeHtml(m.predicate || "—")}</td></tr>`).join("")}
+       </tbody></table>`
+    : "";
 
   // Read upwards: the distinctive end first, because that is the end that
   // says what the thing is. `shared` is how many concepts are still on the
