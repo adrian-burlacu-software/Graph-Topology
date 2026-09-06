@@ -423,15 +423,31 @@ function buildGlobe(steps, byDist) {
   const shell = new Map();
   byDist.forEach((row, d) => row.forEach(c => shell.set(c, d)));
   hood.nodes.forEach(n => { if (!shell.has(n.id)) shell.set(n.id, Math.max(0, n.distance)); });
+
+  const onPath = new Set([...byDist.values()].flat());
+  const origin = (byDist.get(0) || []).find(c => onPath.has(c));
+
+  // A neighbour rides the same sphere as the node it hangs off. The server
+  // dates it one step more specific -- a sibling of `canine` is at `dog`'s
+  // level -- which drew `wolf` and `bitch` on the ring inside canine and
+  // stretched their edges across the gap between shells. They are there to
+  // show what canine covers, so they belong on canine's own sphere.
+  const attach = new Map();          // neighbour -> the path node it hangs off
+  hood.edges.forEach(e => {
+    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
+  });
+  attach.forEach((anchor, c) => {
+    if (shell.has(anchor) && shell.has(c) && anchor !== origin) {
+      shell.set(c, shell.get(anchor));
+    }
+  });
+
   const levels = [...new Set(shell.values())].sort((a, b) => a - b);
   // Shells need room for a label between them, so the inner radius is
   // generous and the outer uses most of the box.
   const maxR = Math.min(W, H) / 2 - 74;
   const radius = d => levels.length < 2 ? 0
     : 92 + (maxR - 92) * (levels.indexOf(d) / (levels.length - 1));
-
-  const onPath = new Set([...byDist.values()].flat());
-  const origin = (byDist.get(0) || []).find(c => onPath.has(c));
 
   // ---- lineages -------------------------------------------------------
   const parentsOf = new Map();
@@ -532,12 +548,8 @@ function buildGlobe(steps, byDist) {
     });
   });
 
-  // Neighbours cluster on the arc beside the node they hang off -- close
-  // enough that the link is obvious, staggered enough to read.
-  const attach = new Map();          // neighbour -> the path node it hangs off
-  hood.edges.forEach(e => {
-    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
-  });
+  // Neighbours ring the node they hang off -- close enough that the link is
+  // obvious, spread around it enough to read.
   const clusters = new Map();
   shell.forEach((d, c) => {
     if (c === origin || onPath.has(c)) return;
@@ -549,25 +561,30 @@ function buildGlobe(steps, byDist) {
   // A cluster may never reach past the midline between two cones, or a
   // sibling of `canine` ends up sitting inside the other branch's wedge.
   const REACH = branches < 2 ? 0.9 : CONE_GAP * 0.45;
+  const PER_RING = 6;
   clusters.forEach((members, key) => {
     const base = key ? unit.get(key) : meanAxis;
     const [t1, t2] = frame(base);
-    // Fan away from the other branches first, so the crowding lands on the
-    // outside of the fan where there is empty sphere.
-    const branch = key && lineage.has(key) ? lineage.get(key) : (branches - 1) / 2;
-    const outward = branch < (branches - 1) / 2 ? -1 : 1;
     members.forEach((c, i) => {
       const r = radius(shell.get(c)) || 1;
-      const rho = Math.min(0.26, GAP / r);
-      // 1, -1, 2, -2 ... outermost first, so the cluster grows out of its
-      // anchor rather than trailing off to one side.
-      const rank = (Math.floor(i / 2) + 1) * (i % 2 ? -outward : outward);
-      const wobble = jitter(i * 5 + 11) * rho * 0.5;
-      unit.set(c, norm(swing(base, t1, rank * rho).map(
-        (v, axis3) => v + t2[axis3] * wobble)));
+      const rho = Math.min(0.30, GAP / r);
+      // Ring the anchor rather than trailing off along one tangent. Even
+      // azimuth in the tangent plane puts some neighbours in front of the
+      // sphere and some behind it, which is what makes the cluster read as
+      // a cap on a globe; fanning them along t1 alone drew a straight line.
+      // Past six they start a second, wider ring instead of crowding.
+      const band = 1 + Math.floor(i / PER_RING);
+      const slots = Math.min(PER_RING, members.length - (band - 1) * PER_RING);
+      const theta = 2 * Math.PI * ((i % PER_RING) + 0.5 * (band - 1)) /
+                    Math.max(1, slots) + jitter(i * 3 + 5) * 0.3;
+      const spread = rho * band;
+      const out = [t1[0] * Math.cos(theta) + t2[0] * Math.sin(theta),
+                   t1[1] * Math.cos(theta) + t2[1] * Math.sin(theta),
+                   t1[2] * Math.cos(theta) + t2[2] * Math.sin(theta)];
+      unit.set(c, swing(base, out, spread));
       home.set(c, base);
-      leashLen.set(c, Math.min(REACH, rho * (Math.floor(members.length / 2) + 1.5)));
-      stagger.set(c, (Math.abs(rank) % 3) * 14 * (rank < 0 ? -1 : 1));
+      leashLen.set(c, Math.min(REACH, spread + rho * 0.8));
+      stagger.set(c, ((i % 3) - 1) * 14);
     });
   });
 
