@@ -28,7 +28,9 @@ class Engine:
 
     def __init__(self, store: Path):
         self.reasoner = Reasoner(store)
-        self.parser = Parser()
+        # The parser reads subjects better when it knows what exists: `fire
+        # truck` is one concept, `hammer break` is not.
+        self.parser = Parser(vocabulary=self.reasoner.vocabulary())
         self.match = self.parser.matcher()
 
     def ask(self, question: str, concept: str | None = None) -> dict:

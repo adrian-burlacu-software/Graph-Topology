@@ -98,6 +98,11 @@ class Reasoner:
             for r in rows
         ]
 
+    def vocabulary(self) -> set[str]:
+        """Every lemma the ontology knows, for the parser to find subjects with."""
+        return {row[0] for row in self.connection.execute(
+            "SELECT DISTINCT lemma FROM lemmas")}
+
     def fact_count(self, concept: str) -> int:
         return self.connection.execute(
             "SELECT COUNT(*) FROM facts WHERE concept = ?", (concept,)

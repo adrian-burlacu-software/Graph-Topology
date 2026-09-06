@@ -347,6 +347,105 @@ class BreadthGateTests(unittest.TestCase):
 
 
 @requires_store
+class SubjectDetectionTests(unittest.TestCase):
+    """Finding what a question is about, when the tagger cannot.
+
+    A noun that is also a verb makes spaCy read `a canine fall` as one compound
+    noun. It then reports either no subject or the wrong end of the run, and
+    neither "take the first noun" nor "take the last" is right for both
+    `canine fall` and `fire truck`. The ontology settles it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        reasoner = Reasoner(STORE)
+        cls.parser = Parser(vocabulary=reasoner.vocabulary())
+        reasoner.close()
+        if cls.parser.nlp is None:
+            raise unittest.SkipTest("subject detection needs spaCy")
+
+    def subject(self, question):
+        return self.parser.parse(question).subject
+
+    def test_a_subject_that_is_also_a_verb(self):
+        """The reported bug: this answered about `fall.n.01`."""
+        self.assertEqual(self.subject("can a canine fall into a hole"), "canine")
+
+    def test_the_same_shape_across_several_words(self):
+        for question, expected in (
+                ("can a hammer break glass", "hammer"),
+                ("does a wolf howl", "wolf"),
+                ("can a rock fall", "rock"),
+                ("can a dog fall into a hole", "dog")):
+            self.assertEqual(self.subject(question), expected, question)
+
+    def test_a_compound_subject_is_kept_whole(self):
+        """`fire truck` is one concept, so the subject does not stop at `fire`."""
+        self.assertEqual(self.subject("can a fire truck move"), "fire truck")
+        self.assertEqual(self.subject("can a police dog bark"), "police dog")
+        self.assertEqual(self.subject("can a bird of prey fly"), "bird of prey")
+
+    def test_a_modifier_is_not_mistaken_for_the_subject(self):
+        """`large` is a lemma too; the phrase has to end on a noun."""
+        self.assertEqual(self.subject("can a large dog fall"), "dog")
+
+    def test_the_target_survives_a_multiword_subject(self):
+        parse = self.parser.parse("can a fire truck move")
+        self.assertEqual(parse.subject, "fire truck")
+        self.assertEqual(parse.target, "move")
+
+    def test_the_older_question_shapes_are_unchanged(self):
+        for question, expected in (
+                ("is a dog an animal", "dog"), ("does a dog have a tail", "dog"),
+                ("what can a violin do", "violin"),
+                ("where do you find a hammer", "hammer"),
+                ("what is a hammer used for", "hammer")):
+            self.assertEqual(self.subject(question), expected, question)
+
+    def test_the_parser_still_works_without_a_vocabulary(self):
+        bare = Parser()
+        self.assertEqual(bare.parse("can a dog fall into a hole").subject, "dog")
+
+
+@requires_store
+class SynonymTests(unittest.TestCase):
+    """Different words for the same thing should reach the same knowledge."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reasoner = Reasoner(STORE)
+        cls.parser = Parser(vocabulary=cls.reasoner.vocabulary())
+        cls.match = staticmethod(cls.parser.matcher())
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.reasoner.close()
+
+    def test_lemmas_of_one_synset_are_the_same_concept(self):
+        """WordNet models these as synonyms, so nothing extra is needed."""
+        for word in ("dog", "domestic dog", "canis familiaris"):
+            self.assertEqual(self.reasoner.senses_of(word)[0]["id"], "dog.n.01",
+                             word)
+
+    def test_an_informal_term_inherits_from_the_word_it_paraphrases(self):
+        """`pooch` is its own synset, but its parent is dog.n.01."""
+        self.assertIn("dog.n.01", self.reasoner.parents_of("pooch.n.01"))
+        self.assertEqual(self.reasoner.senses_of("doggie")[0]["id"], "pooch.n.01")
+
+    def test_dog_canine_and_bitch_reach_the_same_fact(self):
+        """The three arrive by different routes at one stored fact."""
+        found = {}
+        for concept in ("dog.n.01", "canine.n.02", "bitch.n.04"):
+            answer = self.reasoner.verify(concept, "capable_of",
+                                          "fall into a hole", self.match)
+            self.assertEqual(answer.verdict, "VERIFIED", concept)
+            found[concept] = (answer.evidence[0].concept,
+                              answer.evidence[0].object)
+        self.assertEqual(len(set(found.values())), 1, found)
+        self.assertEqual(found["dog.n.01"][0], "canine.n.02")
+
+
+@requires_store
 class RangeTypingTests(unittest.TestCase):
     """R13: a relation's object must be the kind of thing the relation takes."""
 

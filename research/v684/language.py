@@ -74,15 +74,49 @@ class Parse:
 class Parser:
     """Reads questions. Degrades to regex when spaCy is unavailable."""
 
-    def __init__(self, model: str = "en_core_web_sm"):
+    #: How many tokens a subject may span. `fire truck` is two, `bird of
+    #: prey` is three; past four it is a sentence, not a name.
+    MAX_SUBJECT_TOKENS = 4
+
+    def __init__(self, model: str = "en_core_web_sm",
+                 vocabulary: set[str] | None = None):
         self.nlp = None
         self.backend = "regex"
+        #: Every lemma the ontology knows, used to find where a subject ends.
+        #: Optional: without it the parser still reads questions, just less
+        #: well on compound subjects.
+        self.vocabulary = vocabulary or set()
         try:
             import spacy
             self.nlp = spacy.load(model, disable=["ner"])
             self.backend = f"spacy:{model}"
         except Exception:                      # noqa: BLE001 - optional dependency
             pass
+
+    def longest_known(self, doc) -> str | None:
+        """The longest phrase after the auxiliary that names a known concept.
+
+        Scans start positions left to right so the earliest subject wins, and
+        lengths longest first so `fire truck` beats `fire`. The phrase has to
+        end on a noun, or `can a large dog fall` would settle for `large`.
+
+        It gives up at the first noun it cannot place rather than searching on,
+        because the next noun along is usually the *target*: without that,
+        `is a zzzqqq an animal` answered about animals.
+        """
+        rest = [t for t in doc[1:] if t.pos_ != "DET" and not t.is_punct]
+        for start in range(min(3, len(rest))):
+            span = rest[start:start + self.MAX_SUBJECT_TOKENS]
+            for length in range(len(span), 0, -1):
+                if span[length - 1].pos_ not in ("NOUN", "PROPN"):
+                    continue
+                for form in (" ".join(t.lemma_.lower() for t in span[:length]),
+                             " ".join(t.text.lower() for t in span[:length])):
+                    if form in self.vocabulary and form not in STOP:
+                        return form
+            if rest[start].pos_ in ("NOUN", "PROPN"):
+                return None                    # an unknown subject, not a hint
+        return None
 
     # -- lemmatisation ----------------------------------------------------
     def lemmas(self, text: str) -> list[str]:
@@ -93,13 +127,52 @@ class Parser:
                     and t.lemma_.lower() not in STOP]
         return [w for w in re.findall(r"[a-z0-9']+", text.lower()) if w not in STOP]
 
-    def head_noun(self, text: str) -> str | None:
+    def head_noun(self, text: str, polar: bool = False) -> str | None:
         """The noun the question is about."""
         if self.nlp is None:
             words = [w for w in re.findall(r"[a-z0-9']+", text.lower())
                      if w not in STOP]
             return words[0] if words else None
         doc = self.nlp(text)
+
+        # A polar question puts its subject right after the auxiliary, and the
+        # ontology can say where that subject ends. This is needed because the
+        # tagger reads `a canine fall` as one compound noun -- `canine` and
+        # `fall` are both nouns -- and hands back either no subject at all or
+        # the wrong end of the run:
+        #
+        #     can a canine fall into a hole   no subject; chunk root `fall`
+        #     can a hammer break glass        nsubj `glass`
+        #     does a wolf howl                nsubj `howl`
+        #     can a fire truck move           no subject; chunk root `move`
+        #
+        # Taking the first noun fixes the first three and breaks the fourth;
+        # taking the last breaks the first three. The longest phrase that names
+        # something the ontology knows gets all four: `fire truck` and `police
+        # dog` are lemmas, `canine fall` and `hammer break` are not.
+        if polar and self.vocabulary:
+            found = self.longest_known(doc)
+            if found:
+                return found
+
+        # An explicit grammatical subject, when the parse found one. Reading it
+        # from the noun chunk instead is the older bug: for `can a canine fall
+        # into a hole` the chunk is "a canine fall" and its root is `fall`.
+        for token in doc:
+            if (token.dep_ in ("nsubj", "nsubjpass")
+                    and token.pos_ in ("NOUN", "PROPN")
+                    and token.lemma_.lower() not in STOP):
+                return token.lemma_.lower()
+
+        # No subject at all means the parse came apart entirely. In a polar
+        # question the first noun after the opening auxiliary is the thing
+        # being asked about, and it beats guessing from a broken tree.
+        if polar:
+            for token in doc[1:]:
+                if (token.pos_ in ("NOUN", "PROPN")
+                        and token.lemma_.lower() not in STOP):
+                    return token.lemma_.lower()
+
         for chunk in doc.noun_chunks:
             head = chunk.root
             if head.lemma_.lower() not in STOP:
@@ -124,7 +197,7 @@ class Parser:
                 relation = mapped
                 break
 
-        subject = self.head_noun(text)
+        subject = self.head_noun(text, polar)
 
         target = None
         if polar and subject:
