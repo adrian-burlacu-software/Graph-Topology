@@ -246,6 +246,13 @@
         </details>
       </div>
 
+      <div class="card" id="bridgecard" hidden>
+        <h2>Bridge &mdash; why this is relevant</h2>
+        <p class="note" id="bridgenote"></p>
+        <div id="bridge"></div>
+        <p class="note" id="bridgecost"></p>
+      </div>
+
       <div class="card" id="knowledge" hidden>
         <h2>Relevant knowledge</h2>
         <div id="facts"></div>
@@ -285,6 +292,13 @@ const EXAMPLES = [
   "what is a hammer used for",
   "where do you find a hammer",
   "is a dog a vehicle",
+  // Two-subject questions. They only answer under `python -m research.v685`,
+  // which bridges the two concepts before letting v684 answer about the
+  // second; served by v684 alone they fall back to a single-subject read.
+  "what does a dog's owner need",
+  "what can a violin's player do",
+  "where does a dog's owner live",
+  "what does a car's driver need",
 ];
 const $ = id => document.getElementById(id);
 let STATE = null, cursor = 0, timer = null;
@@ -362,6 +376,7 @@ function render() {
   buildChain();
   buildFacts();
   buildNearby();
+  buildBridge();
 }
 
 function claimText(s) {
@@ -968,6 +983,45 @@ function buildFacts() {
   $("facts").innerHTML = `<table><thead><tr>
       <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- the bridge ----
+ * A two-subject question ("what does a dog's owner need") is answered in two
+ * parts, and this shows the first: the route through the fact graph that makes
+ * owners relevant to dogs at all, with the stored sentence licensing each hop.
+ * Without it the answer is about owners in general and the dog was decoration.
+ */
+function buildBridge() {
+  const b = (STATE && STATE.bridge) || null;
+  $("bridgecard").hidden = !b;
+  if (!b) return;
+  const anchor = b.anchor ? shortName(b.anchor) : b.anchor_word;
+  const role = b.role ? shortName(b.role) : b.role_word;
+  if (b.route && b.route.hops && b.route.hops.length) {
+    $("bridgenote").textContent =
+      `Reading “${b.anchor_word}’s ${b.role_word}” as ` +
+      `${b.role}, reached from ${b.anchor} in ` +
+      `${b.route.hops.length} hop(s):`;
+    const steps = b.route.hops.map((h, i) => `<div class="node on">
+        <div class="top">
+          <span class="cname">${escapeHtml(shortName(h.source))}</span>
+          <span class="rule">${escapeHtml(h.relation)}</span>
+          <span class="dist">hop ${i + 1}</span>
+        </div>
+        <div class="detail">&ldquo;${escapeHtml(h.text)}&rdquo; &rarr;
+          <b>${escapeHtml(shortName(h.target))}</b></div>
+      </div>`).join("");
+    $("bridge").innerHTML = `<div class="chain">${steps}</div>`;
+  } else {
+    $("bridgenote").textContent = b.note ||
+      `Nothing connects ${anchor} to ${role}.`;
+    $("bridge").innerHTML = "";
+  }
+  const s = b.search;
+  $("bridgecost").textContent = s
+    ? `Search: expanded ${s.expanded}, generated ${s.generated.toLocaleString()},` +
+      ` pruned ${s.pruned} by the breadth budget, depth ${s.depth_reached}.`
+    : "";
 }
 
 /* ---- near misses ----
