@@ -256,19 +256,37 @@ class Identifier:
 
     @staticmethod
     def stem(word: str) -> str:
-        """Enough morphology to match `flies` to `fly` and `spots` to `spot`.
+        """Enough morphology to match `flies` to `fly` and `spotted` to `spots`.
 
         Prefix matching was tried and is far too loose: at four characters
         `striven` matches `stripes` and `truncated` matches `trunk`, which put
-        cheetahs under "has stripes" and desks under "has a trunk".
+        cheetahs under "has stripes" and desks under "has a trunk". This is
+        whole-word instead, so it has to reduce both sides to the same form.
+
+        The participle rules are what "is a dalmatian spotted" needs: the norms
+        say `spots` and the question says `spotted`. Both lose the suffix, then
+        the doubled consonant it left behind, and meet at `spot`. Dropping a
+        final `e` afterwards is what makes `striped` and `stripes` meet too --
+        the point is not that the result is a word, only that one word reaches
+        it from every form a person might ask in.
         """
-        if word.endswith("ies") and len(word) > 4:
-            return word[:-3] + "y"
-        if word.endswith(("ses", "xes", "zes", "ches", "shes")):
-            return word[:-2]
-        if word.endswith("s") and not word.endswith(("ss", "us", "is")):
-            return word[:-1]
-        return word
+        stemmed = word
+        if stemmed.endswith("ies") and len(stemmed) > 4:
+            stemmed = stemmed[:-3] + "y"
+        elif stemmed.endswith(("ses", "xes", "zes", "ches", "shes")):
+            stemmed = stemmed[:-2]
+        elif (stemmed.endswith("s") and len(stemmed) > 3
+                and not stemmed.endswith(("ss", "us", "is"))):
+            stemmed = stemmed[:-1]
+        elif stemmed.endswith("ed") and len(stemmed) > 4:
+            stemmed = stemmed[:-2]
+        elif stemmed.endswith("ing") and len(stemmed) > 5:
+            stemmed = stemmed[:-3]
+        if len(stemmed) > 3 and stemmed[-1] == stemmed[-2] and stemmed[-1] != "s":
+            stemmed = stemmed[:-1]          # spott -> spot, runn -> run
+        if len(stemmed) > 3 and stemmed.endswith("e"):
+            stemmed = stemmed[:-1]          # stripe -> strip, and striped too
+        return stemmed
 
     @classmethod
     def _hit(cls, term: str, predicates: frozenset[str]) -> str | None:

@@ -174,3 +174,45 @@ def load_awa2(binary: bool = True, name: str = "awa2") -> Corpus:
         if carried:
             items.append((animal.replace("+", " "), carried))
     return Corpus(name, tuple(items))
+
+
+def denied_awa2() -> dict[str, frozenset[str]]:
+    """class -> the attributes the matrix records as *false* for it.
+
+    AwA2 is closed over its 85 attributes: every class was scored on every
+    one, so a zero is a denial and not a silence. `load_awa2` drops the zeros
+    because the trie's alphabet is what an individual carries; this keeps them,
+    because "is a blue whale furry" is answerable only from the zeros.
+    """
+    def read(path: Path) -> list[str]:
+        return [line.split("\t")[-1].strip() if "\t" in line else line.split()[-1]
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+
+    classes = read(AWA2_DIR / "classes.txt")
+    predicates = read(AWA2_DIR / "predicates.txt")
+    rows = [line.split() for line in
+            (AWA2_DIR / "predicate-matrix-binary.txt")
+            .read_text(encoding="utf-8").splitlines() if line.strip()]
+    return {animal.replace("+", " "): frozenset(
+                predicates[index] for index, value in enumerate(flags)
+                if float(value) <= 0)
+            for animal, flags in zip(classes, rows)}
+
+
+def denied_xcslb() -> dict[str, frozenset[str]]:
+    """concept -> properties COMPS records it as *not* having.
+
+    Every row of the pair file is a minimal pair: one concept the property is
+    acceptable of and one it is not. The acceptable half is the corpus
+    `load_xcslb` builds; the unacceptable half is the other side of the same
+    elicitation, and it is the only place in any of this data where absence is
+    stated rather than merely observed.
+    """
+    denied: dict[str, set[str]] = {}
+    with (XCSLB_DIR / "comps_base.jsonl").open(encoding="utf-8") as handle:
+        for line in handle:
+            row = json.loads(line)
+            denied.setdefault(row["unacceptable_concept"], set()).add(row["property"])
+    return {concept: frozenset(properties)
+            for concept, properties in sorted(denied.items())}

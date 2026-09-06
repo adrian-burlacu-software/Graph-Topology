@@ -51,7 +51,8 @@
   .VERIFIED { background:rgba(74,222,128,.14); color:var(--yes); }
   .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
   .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
-  .LISTING { background:rgba(94,234,212,.13); color:var(--accent); }
+  .LISTING,.PROFILE,.IDENTIFIED { background:rgba(94,234,212,.13); color:var(--accent); }
+  .AMBIGUOUS,.NO_MATCH,.UNRECORDED { background:rgba(251,191,36,.13); color:var(--maybe); }
   .claim { font-size:16px; }
   .note { color:var(--dim); font-size:13px; margin-top:8px; }
 
@@ -259,9 +260,18 @@
       </div>
 
       <div class="card" id="identcard" hidden>
-        <h2>Identified &mdash; R16</h2>
+        <h2 id="identtitle">Identified &mdash; R16</h2>
         <p class="note" id="identnote"></p>
         <div id="ident"></div>
+      </div>
+
+      <div class="card" id="profilecard" hidden>
+        <h2>Attributes &mdash; R17</h2>
+        <p class="note" id="profilenote"></p>
+        <div id="profilewalk"></div>
+        <p class="note" id="profileabove"></p>
+        <div id="profileinherit"></div>
+        <p class="note" id="profiledenied"></p>
       </div>
 
       <div class="card" id="bridgecard" hidden>
@@ -412,10 +422,18 @@ function render() {
   buildNearby();
   buildBridge();
   buildIdent();
+  buildProfile();
   buildAside();
 }
 
 function claimText(s) {
+  const p = s.profile;
+  if (p) {
+    const asked = p.asked;
+    return asked
+      ? `${p.name} — ${asked.term}: ${asked.verdict.toLowerCase()}`
+      : `${p.name} — ${p.path.length} attributes on its branch of the trie`;
+  }
   if (s.verdict === "LISTING") return `${s.evidence.length} fact(s) about ${s.concept || ""}`;
   if (!s.evidence || !s.evidence.length) return s.concept ? `about ${s.concept}` : "";
   const e = s.evidence[0];
@@ -469,6 +487,17 @@ let NBR = localStorage.getItem("v684nbr") !== "off";
 
 function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
 
+/* Clicking a node on the tree asks the next question about it, and which
+ * question that is depends on what is being drawn: on an identification the
+ * interesting follow-up is what the thing can do, and on a walk of one
+ * branch it is the branch the neighbour took instead. */
+function followUp(name) {
+  const mode = STATE && STATE.identification && STATE.identification.mode;
+  return (mode === "profile" || mode === "verify")
+    ? "what attributes does a " + name + " have"
+    : "what can a " + name + " do";
+}
+
 /* The attribute tree: the trie branch that identified the thing.
  *
  * This is Figure 20 read downwards. Each attribute is a node on the branch,
@@ -515,10 +544,17 @@ function buildTriePath(svg) {
 
 /* -- the flat drawing ------------------------------------------------- */
 function ladder(svg, rounds, byDepth, answers, RULED) {
-  const W = 1000, SPINE = 150, ROW = 78, TOP = 44, FAN = 116;
+  // An identification is three or four attributes deep; a walk down one
+  // concept's own branch can be twenty. Squeezing twenty rows into 620px by
+  // scaling the whole drawing shrinks the labels with it, so the rows close
+  // up instead and the drawing is allowed to grow.
+  const W = 1000, SPINE = 150, TOP = 44, FAN = 116;
+  const ROW = rounds.length > 8
+    ? Math.max(34, Math.round(640 / rounds.length)) : 78;
+  const SWING = Math.min(18, Math.round(ROW / 4));
   const H = TOP + rounds.length * ROW + 60 + answers.length * 34;
   svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-  svg.style.height = Math.min(H, 620) + "px";
+  svg.style.height = Math.min(H, 900) + "px";
 
   const nodeEls = new Map(), edgeEls = new Map(), ghostsOf = new Map();
   const y = index => TOP + index * ROW;
@@ -543,7 +579,7 @@ function ladder(svg, rounds, byDepth, answers, RULED) {
       ghostsOf.set(round.term, dropped.map(entry => entry.name));
       dropped.forEach((entry, position) => {
         const x = SPINE + 78 + position * FAN;
-        const at = top + (position % 2 ? 18 : -18) + position * 2;
+        const at = top + (position % 2 ? SWING : -SWING) + position * 2;
         edgeEls.set(entry.name + "→" + round.term,
                     line(SPINE + 10, top, x - 8, at, "edge faded"));
         nodeEls.set(entry.name, ghostChip(svg, x, at, entry, round.term));
@@ -667,7 +703,7 @@ function ghostChip(svg, x, y, entry, term) {
   title.textContent = entry.name + " — ruled out by “" + term + "”";
   ghost.appendChild(title); ghost.appendChild(dot); ghost.appendChild(label);
   ghost.style.cursor = "pointer";
-  ghost.onclick = () => { $("q").value = "what can a " + entry.name + " do"; ask(); };
+  ghost.onclick = () => { $("q").value = followUp(entry.name); ask(); };
   svg.appendChild(ghost);
   return ghost;
 }
@@ -690,7 +726,7 @@ function answerNode(svg, x, y, candidate) {
   chip.appendChild(title); chip.appendChild(ping);
   chip.appendChild(dot); chip.appendChild(label);
   chip.style.cursor = "pointer";
-  chip.onclick = () => { $("q").value = "what can a " + candidate.name + " do"; ask(); };
+  chip.onclick = () => { $("q").value = followUp(candidate.name); ask(); };
   svg.appendChild(chip);
   return chip;
 }
@@ -1262,6 +1298,22 @@ function buildIdent() {
   const found = (STATE && STATE.identification) || null;
   $("identcard").hidden = !found;
   if (!found) return;
+  // A profile walks a branch that is already chosen, so it borrows this
+  // card's tree but not its wording: nothing was described and nothing was
+  // narrowed down, and saying "described as ... one thing carries all of it"
+  // over a question that named the thing reads as nonsense.
+  if (found.mode === "profile" || found.mode === "verify") {
+    $("identtitle").innerHTML = "Its branch of the trie &mdash; R17";
+    const walked = found.steps.length;
+    $("identnote").innerHTML =
+      `<b>${escapeHtml(found.candidates[0].name)}</b> sits at the end of this ` +
+      `branch, ${found.candidates[0].predicates} attributes down. ` +
+      `${walked} branch point(s): the rest of the path is shared with nobody ` +
+      `new and is collapsed, as a radix tree collapses it.`;
+    $("ident").innerHTML = "";
+    return;
+  }
+  $("identtitle").innerHTML = "Identified &mdash; R16";
   const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
   $("identnote").innerHTML =
     `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
@@ -1279,6 +1331,68 @@ function buildIdent() {
   $("ident").innerHTML = `<table><thead><tr>
       <th>candidate</th><th>what matched</th><th>source</th><th>known</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- R17: the trie read upwards ----
+ * The same structure identification searches, walked the other way. An
+ * individual sits at a leaf, so the walk from that leaf to the origin is its
+ * attribute list -- and the order carries the compression: the first rows are
+ * shared with nothing, the last are shared with most of the corpus.
+ */
+function buildProfile() {
+  const p = (STATE && STATE.profile) || null;
+  $("profilecard").hidden = !p;
+  if (!p) return;
+
+  const asked = p.asked;
+  $("profilenote").innerHTML =
+    `<b>${escapeHtml(p.name)}</b>` +
+    (p.concept ? ` &rarr; <span class="src">${escapeHtml(p.concept)}</span>` : "") +
+    (p.gloss ? ` — ${escapeHtml(p.gloss)}` : "") +
+    (asked ? `<br><b>${escapeHtml(asked.verdict)}</b>: ${escapeHtml(asked.detail)}`
+           : "");
+
+  // Read upwards: the distinctive end first, because that is the end that
+  // says what the thing is. `shared` is how many concepts are still on the
+  // branch at that node, so it climbs as the walk approaches the origin.
+  const climbed = p.path.slice().reverse();
+  const rows = climbed.map(held => {
+    const hit = asked && asked.predicate === held.predicate;
+    return `<tr${hit ? ' style="background:var(--accent-dim)"' : ""}>
+      <td class="dist">${held.depth}</td>
+      <td class="obj">${escapeHtml(held.predicate)}</td>
+      <td class="dist">${held.shared <= 1 ? "unique to it"
+                          : held.shared + " on the branch"}</td>
+    </tr>`;
+  }).join("");
+  $("profilewalk").innerHTML = `<table><thead><tr>
+      <th>depth</th><th>attribute, leaf first</th><th>company</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+
+  const above = p.inherited || [];
+  $("profileabove").innerHTML = above.length
+    ? `Above the leaf the norms stop and the taxonomy carries on. ` +
+      `${above.length} level(s), nearest first; a fact met twice is kept at ` +
+      `the nearer one only (R10).`
+    : "Nothing above the leaf: this concept joins no taxonomy here.";
+  $("profileinherit").innerHTML = above.length
+    ? `<table><thead><tr><th>from</th><th>facts</th><th>kept</th></tr></thead>
+       <tbody>${above.map(level => `<tr>
+         <td class="rel">${escapeHtml(shortName(level.concept))}
+           <div class="dist">+${level.distance}</div></td>
+         <td class="obj">${level.facts.map(f =>
+             escapeHtml(f.relation.replace(/_/g, " ") + " " + f.object))
+             .join("<br>")}</td>
+         <td class="dist">${level.facts.length} of ${level.total}</td>
+       </tr>`).join("")}</tbody></table>`
+    : "";
+
+  $("profiledenied").textContent = p.denied_total
+    ? `The norms also score ${p.denied_total} propert` +
+      (p.denied_total === 1 ? "y" : "ies") + ` false of ${p.name} — ` +
+      p.denied.join(", ") + (p.denied_total > p.denied.length ? ", …" : "") +
+      `. Denials are what make a "no" answerable at all.`
+    : "";
 }
 
 /* ---- the bridge ----

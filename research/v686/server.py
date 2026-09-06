@@ -11,8 +11,18 @@ added is the inverse question -- describe a thing and be told what it is:
 
 A question that describes rather than names is answered by `identify.py` and
 comes back with its narrowing shown step by step, in the same shape the page
-already replays. Everything else falls through to v685, which falls through to
-v684, so this is a superset of a superset rather than a third fork.
+already replays.
+
+A question that *names* one of those things is answered by `profile.py`, which
+walks the same trie the other way -- from the individual's leaf back to the
+origin, which is where its attributes are:
+
+    what attributes does a blue whale have
+    is a blue whale furry
+    does a robin fly
+
+Everything else falls through to v685, which falls through to v684, so this is
+a superset of a superset rather than a third fork.
 """
 from __future__ import annotations
 
@@ -26,6 +36,7 @@ from ..v684 import build, compress, rules as v684_rules, server as v684_server
 from ..v685.relevance import RULE_TEXT as V685_RULES
 from ..v685.server import BridgedEngine
 from .identify import Identifier
+from .profile import Profiles
 
 #: Rule text for the identification half, listed on the page beside the rest.
 V686_RULES: dict[str, str] = {
@@ -35,7 +46,19 @@ V686_RULES: dict[str, str] = {
            "round thing with hexagons. Rarest-first would identify in fewer "
            "questions but answer the whole thing at step one. What a norm "
            "states about a thing outranks what it inherits.",
+    "R17": "Retrieval is the same walk backwards. An individual sits at a "
+           "leaf, so walking from that leaf to the origin recovers exactly "
+           "the predicates it was stored with: the ones met first are shared "
+           "with nothing, the ones met last with half the corpus. Nodes where "
+           "nothing branched are collapsed. A property the norms scored false "
+           "is a denial and not a silence; one they never mention is looked "
+           "for above the leaf, in what the concept inherits.",
 }
+
+#: The badge a verdict from the norms wears on the page. `INHERITED` is a yes
+#: like `HELD` is, but the note says which ancestor supplied it.
+VERDICT_STYLE = {"HELD": "VERIFIED", "DENIED": "CONTRADICTED",
+                 "INHERITED": "VERIFIED"}
 
 class IdentifyingEngine(BridgedEngine):
     """v685's engine, with descriptions answered by identification."""
@@ -47,8 +70,14 @@ class IdentifyingEngine(BridgedEngine):
         # shares the open reasoner: the identifier needs the same taxonomy
         self.identifier = Identifier(store, reasoner=self.reasoner,
                                      parser=self.parser)
+        # The same norms, the same reasoner and the same trie, read upwards.
+        self.profiles = Profiles(self.identifier)
 
     def ask(self, question: str, concept: str | None = None) -> dict:
+        if not concept:
+            about = self.about(question or "")
+            if about is not None:
+                return about
         if concept or not self.identifier.describes(question or ""):
             payload = super().ask(question, concept)
             payload["rules"] = {**payload.get("rules", {}), **V686_RULES}
@@ -76,6 +105,159 @@ class IdentifyingEngine(BridgedEngine):
             "neighbourhood": {"nodes": [], "edges": []},
         }
         return payload
+
+    # -- the trie read upwards --------------------------------------------
+    def about(self, question: str) -> dict | None:
+        """Answer a question about a *named* individual, or hand it back.
+
+        Three ways out, and handing it back is two of them. v684 answers
+        taxonomy questions with a derivation of its own, so `is a hammer a
+        tool` is left alone however much the norms have to say about hammers;
+        and a property the norms neither state nor deny is not an answer, so
+        that goes back too and the fact graph gets its turn. What is kept is
+        what the norms can actually settle.
+        """
+        routed = self.profiles.route(question)
+        if routed is None:
+            return None
+        mode, name, words = routed
+        if mode == "verify":
+            if not words or self.parser.parse(question).relation == "is_a":
+                return None                    # v684 owns the taxonomy
+        found = self.profiles.describe(name)
+        if found is None:
+            return None
+        if mode == "verify":
+            found.asked = self.profiles.verify(name, words)
+            if found.asked.verdict == "UNRECORDED":
+                return None                    # let the fact graph try
+        return self._payload(question, mode, found)
+
+    def _payload(self, question: str, mode: str, found) -> dict:
+        """One answer carrying both halves: what is stored, and what is above.
+
+        `evidence` is the whole profile as facts, distinctive attributes
+        first, because the far end of the walk is the interesting one -- the
+        predicates nothing else carries are what make this thing that thing.
+        The inherited half follows, each fact attributed to the ancestor that
+        supplies it rather than to the concept, so the two are never confused.
+        """
+        verdict = ("PROFILE" if found.asked is None
+                   else VERDICT_STYLE.get(found.asked.verdict, "UNKNOWN"))
+        stated = [{"concept": found.name, "relation": "stated",
+                   "object": held.predicate, "source": found.source,
+                   "confidence": 1.0, "sense_assumed": False,
+                   "distance": 0, "similarity": 0.0}
+                  for held in reversed(found.path)]
+        inherited = [{"concept": level.concept, "relation": fact["relation"],
+                      "object": fact["object"], "source": fact["source"],
+                      "confidence": fact["confidence"],
+                      "sense_assumed": fact["sense_assumed"],
+                      "distance": level.distance, "similarity": 0.0}
+                     for level in found.inherited for fact in level.facts]
+        chain = ([found.concept] if found.concept else []) + [
+            level.concept for level in found.inherited]
+        above = sum(level.total for level in found.inherited)
+        return {
+            "question": question,
+            "verdict": verdict,
+            "concept": found.concept,
+            "concept_gloss": found.gloss,
+            "senses": [], "chain": chain,
+            "evidence": stated + inherited,
+            "suggestions": [],
+            "parse": {"question": question, "subject": found.name,
+                      "relation": "profile" if mode == "profile" else "verify",
+                      "target": found.asked.term if found.asked else None,
+                      "polar": mode == "verify",
+                      "backend": self.parser.backend, "tokens": [], "note": ""},
+            "note": found.asked.detail if found.asked else
+                    (f"{len(found.path)} attributes stated by the norms, "
+                     f"{above:,} more inherited from "
+                     f"{len(found.inherited)} level(s) above it."),
+            "identification": self._as_identification(question, mode, found),
+            "profile": found.as_dict(),
+            "steps": self._walk_steps(found),
+            "rules": {**v684_rules.RULE_TEXT, **V685_RULES, **V686_RULES},
+            "store": self.reasoner.store.name,
+            "neighbourhood": {"nodes": [], "edges": []},
+        }
+
+    @staticmethod
+    def _label(segment: dict) -> str:
+        """A segment's name on the tree: short enough to read on a node."""
+        first = segment["predicates"][0]
+        extra = len(segment["predicates"]) - 1
+        return f"{first} +{extra}" if extra else first
+
+    @classmethod
+    def _as_identification(cls, question: str, mode: str, found) -> dict:
+        """The walk in the shape the tree drawing already knows.
+
+        Identification narrows a field down a branch; this walks one branch
+        that is already chosen. Both are a chain of trie nodes with things
+        falling off the side, so the same drawing serves both, and the ghosts
+        here are the concepts that shared the prefix this far and then went
+        somewhere else -- `dolphin` leaves `blue whale` at the point where the
+        branch commits to plankton.
+        """
+        segments = [segment.as_dict() for segment in found.segments]
+        steps = [{"rule": "R17", "kind": "walk", "term": cls._label(segment),
+                  "detail": ", ".join(segment["predicates"]),
+                  "remaining": segment["shared"],
+                  "eliminated": len(segment["dropped"]),
+                  "examples": segment["dropped"][:6]}
+                 for segment in segments]
+        considered = [{"name": other, "concept": None, "survived": False,
+                       "depth": position, "matched": {}}
+                      for position, segment in enumerate(segments)
+                      for other in segment["dropped"]]
+        matched = ({found.asked.term: found.asked.predicate or "—"}
+                   if found.asked and found.asked.predicate else {})
+        considered.append({"name": found.name, "concept": found.concept,
+                           "survived": True, "depth": len(segments),
+                           "matched": matched})
+        return {
+            "question": question, "mode": mode,
+            "terms": [found.asked.term] if found.asked else [],
+            "among": None, "among_concept": None,
+            "verdict": found.asked.verdict if found.asked else "PROFILE",
+            "note": found.asked.detail if found.asked else "",
+            "candidates": [{"name": found.name, "source": found.source,
+                            "matched": matched,
+                            "predicates": len(found.path)}],
+            "considered": considered, "steps": steps,
+        }
+
+    @classmethod
+    def _walk_steps(cls, found) -> list[dict]:
+        """The replay: one step per branch point, then the thing itself."""
+        steps: list[dict] = []
+        for position, segment in enumerate(found.segments):
+            left = (f" — {len(segment.dropped)} went elsewhere"
+                    if segment.dropped else " — nothing branched here")
+            steps.append({
+                "index": position, "kind": "check",
+                "concept": cls._label(segment.as_dict()),
+                "distance": position, "rule": "R17",
+                "detail": (", ".join(segment.predicates)
+                           + f" — shared with {segment.shared}" + left),
+                "facts_checked": len(segment.predicates),
+                "matched": None,
+                "parents": [cls._label(found.segments[position - 1].as_dict())]
+                           if position else [],
+            })
+        steps.append({
+            "index": len(steps), "kind": "match", "concept": found.name,
+            "distance": len(found.segments), "rule": "R17",
+            "detail": (found.asked.detail if found.asked else
+                       f"{found.name}: {len(found.path)} stated attributes, "
+                       f"read off the branch on the way back up."),
+            "facts_checked": len(found.path), "matched": None,
+            "parents": [cls._label(found.segments[-1].as_dict())]
+                       if found.segments else [],
+        })
+        return steps
 
     @staticmethod
     def _steps(found) -> list[dict]:

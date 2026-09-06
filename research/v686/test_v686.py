@@ -15,6 +15,7 @@ from research.v686 import corpora
 from research.v686.identifiability import cue_validity, depths
 from research.v686.identifiability import measure as identifiability
 from research.v686.identify import Identifier
+from research.v686.profile import Profiles
 
 STORE = build.DEFAULT_STORE.with_name("v684_reasoning_compressed.sqlite")
 HAVE_NORMS = (corpora.XCSLB_DIR / "comps_base.jsonl").exists() and \
@@ -378,6 +379,158 @@ class IdentificationTests(unittest.TestCase):
         found = self.identifier.identify("what kind of dog has feathers")
         self.assertEqual(found.verdict, "NO_MATCH")
         self.assertIn("Absent", found.note)
+
+
+@requires_norms
+@requires_store
+class ProfileTests(unittest.TestCase):
+    """R17: the same trie walked up instead of down."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.identifier = Identifier(STORE)
+        cls.profiles = Profiles(cls.identifier)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.identifier.close()
+
+    def test_the_walk_recovers_exactly_what_was_stored(self):
+        """The retrieval claim, on every individual in the corpus.
+
+        If walking a leaf back to the origin returned anything but the
+        predicate set the individual was stored with, the trie would be a
+        lossy index rather than the storage itself, and every compression
+        figure in this experiment would be measuring the wrong thing.
+        """
+        for name, stored in self.profiles.stated.items():
+            if not stored:
+                continue
+            walked = {held.predicate for held in self.profiles.walk_up(name)}
+            self.assertEqual(walked, set(stored), name)
+
+    def test_sharing_climbs_towards_the_origin(self):
+        """The compression, seen from inside one branch: the predicates
+        nearest the leaf are shared with nobody, the ones nearest the origin
+        with most of the corpus."""
+        climb = [held.shared for held in self.profiles.walk_up("blue whale")]
+        self.assertEqual(climb, sorted(climb))
+        self.assertEqual(climb[0], 1)
+        self.assertGreater(climb[-1], 20)
+
+    def test_segments_collapse_the_nodes_where_nothing_branched(self):
+        found = self.profiles.describe("blue whale")
+        self.assertLess(len(found.segments), len(found.path))
+        # every predicate survives the collapse, in order
+        flat = [p for segment in found.segments for p in segment.predicates]
+        self.assertEqual(flat, [held.predicate for held in found.path])
+        # and every segment but the last ends where something left
+        self.assertTrue(all(s.dropped for s in found.segments[:-1]))
+
+    def test_a_stated_attribute_is_held(self):
+        answer = self.profiles.verify("killer whale", ["flippers"])
+        self.assertEqual(answer.verdict, "HELD")
+        self.assertEqual(answer.predicate, "flippers")
+
+    def test_a_scored_zero_is_a_denial_and_not_a_silence(self):
+        """AwA2 scored every class on every attribute, so "is a blue whale
+        furry" has an answer and it is no."""
+        answer = self.profiles.verify("blue whale", ["furry"])
+        self.assertEqual(answer.verdict, "DENIED")
+        self.assertEqual(self.profiles.verify("lion", ["stripes"]).verdict,
+                         "DENIED")
+
+    def test_a_property_phrased_as_a_denial_is_read_as_one(self):
+        """The norms state `cannot fly` of a penguin. Matching "fly" against
+        it and reporting a yes is the one way this can be confidently wrong."""
+        answer = self.profiles.verify("penguin", ["fly"])
+        self.assertEqual(answer.verdict, "DENIED")
+        self.assertIn("cannot fly", answer.predicate)
+
+    def test_the_taxonomy_answers_when_the_norms_are_silent(self):
+        answer = self.profiles.verify("robin", ["fly"])
+        self.assertEqual(answer.verdict, "INHERITED")
+        self.assertTrue(answer.source.startswith("bird"), answer.source)
+        self.assertGreater(answer.distance, 0)
+
+    def test_what_is_neither_stated_nor_denied_is_absent(self):
+        answer = self.profiles.verify("blue whale", ["telephone"])
+        self.assertEqual(answer.verdict, "UNRECORDED")
+        self.assertIn("Absent", answer.detail)
+
+    def test_the_participle_a_question_asks_in_reaches_the_stored_form(self):
+        """The norms say `spots`; a person asks `spotted`."""
+        self.assertEqual(Identifier.stem("spotted"), Identifier.stem("spots"))
+        self.assertEqual(Identifier.stem("striped"), Identifier.stem("stripes"))
+        self.assertEqual(self.profiles.verify("dalmatian", ["spotted"]).verdict,
+                         "HELD")
+
+    def test_stemming_did_not_reopen_the_traps_it_was_narrowed_for(self):
+        self.assertNotEqual(Identifier.stem("striven"), Identifier.stem("stripes"))
+        self.assertNotEqual(Identifier.stem("truncated"), Identifier.stem("trunk"))
+
+    def test_ancestors_are_read_nearest_first_without_repeating_a_fact(self):
+        levels = self.profiles.ancestry("blue whale")
+        self.assertEqual([level.distance for level in levels],
+                         sorted(level.distance for level in levels))
+        seen = [(f["relation"], f["object"])
+                for level in levels for f in level.all_facts]
+        self.assertEqual(len(seen), len(set(seen)))
+
+    def test_the_neighbours_at_a_branch_point_are_the_nearest_misses(self):
+        found = self.profiles.describe("blue whale")
+        left = {name for segment in found.segments for name in segment.dropped}
+        self.assertTrue(left & {"dolphin", "humpback whale", "killer whale"},
+                        left)
+
+
+@requires_norms
+@requires_store
+class ProfileRoutingTests(unittest.TestCase):
+    """Which questions the walk takes, and which it hands back."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.identifier = Identifier(STORE)
+        cls.profiles = Profiles(cls.identifier)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.identifier.close()
+
+    def test_questions_about_a_named_thing_are_taken(self):
+        for question, mode, name in (
+                ("what attributes does a blue whale have", "profile",
+                 "blue whale"),
+                ("what properties does a dalmatian have", "profile",
+                 "dalmatian"),
+                ("what is a robin like", "profile", "robin"),
+                ("describe a penguin", "profile", "penguin"),
+                ("is a blue whale furry", "verify", "blue whale"),
+                ("does a killer whale have flippers", "verify",
+                 "killer whale")):
+            routed = self.profiles.route(question)
+            self.assertIsNotNone(routed, question)
+            self.assertEqual(routed[0], mode, question)
+            self.assertEqual(routed[1], name, question)
+
+    def test_the_longest_name_wins(self):
+        """`blue whale` and `whale` are both concepts; the question asked
+        about the first, and v684's parser reading `whale` is what sent this
+        answer to the wrong animal."""
+        self.assertEqual(
+            self.profiles.route("is a blue whale furry")[1], "blue whale")
+        self.assertEqual(
+            self.profiles.route("is a killer whale fierce")[1], "killer whale")
+
+    def test_everything_else_is_handed_back(self):
+        for question in ("what can a violin do",
+                         "what does a dog's owner need",
+                         "what kind of dog has spots",
+                         "what is round with hexagons",
+                         "is a zzzqqq furry",
+                         "where do you find a hammer"):
+            self.assertIsNone(self.profiles.route(question), question)
 
 
 if __name__ == "__main__":

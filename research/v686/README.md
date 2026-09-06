@@ -2,7 +2,7 @@
 
 ```bash
 python -m research.v686.run_v686     # the compression experiment
-python -m research.v686              # everything v685 serves, plus identification
+python -m research.v686              # everything v685 serves, plus the trie both ways
 ```
 
 V684 and V685 gave the architecture an idea of *what things are*. This adds
@@ -220,6 +220,86 @@ a trunk" (`truncated`), so matching is whole-word on a stem. And AwA2 ships no
 sense keys, so its classes are looked up by name — without that `dalmatian` is
 not a kind of dog and the flagship question finds only the concept `dog`.
 
+## Retrieval — the same trie, read upwards
+
+Identification walks the trie down. The check on its answer walks the same
+structure back up, and that is where the attributes are: an individual sits at
+a leaf, so the path from that leaf to the origin **is** the predicate set it
+was stored with. Nothing else has to be kept.
+
+    what attributes does a blue whale have
+    is a blue whale furry           -> no, and the norms say so
+    does a robin fly                -> not in the norms; birds do, 4 levels up
+
+A test asserts the retrieval claim on all 541 individuals: walking each leaf
+back to the origin returns exactly the set it was stored with. If it did not,
+the trie would be a lossy index rather than the storage itself, and every
+compression figure above would be measuring the wrong thing.
+
+**The order carries the compression.** Read upwards, `shared` — how many
+concepts are still on the branch at that node — never decreases:
+
+| depth | attribute | company |
+| --- | --- | --- |
+| 28 | strainteeth | unique to it |
+| 21 | blue | unique to it |
+| 20 | slow | 3 on the branch |
+| 11 | flippers | 4 on the branch |
+| 2 | fast | 5 on the branch |
+| 1 | oldworld | 44 on the branch |
+
+The tail is what makes it a blue whale; the head is the corridor it shares
+with forty-three other animals. Same fact as the 43.5% compression, seen from
+inside one branch instead of counted over the corpus.
+
+**Most of the path is pass-through.** Nothing branches at a node whose members
+are unchanged, so consecutive ones collapse the way a radix tree collapses
+them: the median concept carries 24 predicates and has **4** branch points,
+and **80.8%** of path nodes disappear. That is what the page draws — six nodes
+for a blue whale, not twenty-eight — with the concepts that shared the prefix
+and left shown beside the point they left at. `dolphin` stays with the blue
+whale until the branch commits to plankton.
+
+**A "no" needs a denial, and both corpora have one.** The trie stores what a
+thing has, so absence is silence and nothing more. AwA2 scored all 50 classes
+on all 85 attributes, so a zero is a denial — that is what answers "is a blue
+whale furry". COMPS ships an unacceptable concept beside every acceptable one,
+which denies all 521 XCSLB concepts a median of 67 properties each. And a
+property can be phrased as a denial: the norms state `cannot fly` of a
+penguin, so matching "fly" against it and reporting a yes is the one way this
+could be confidently wrong. It is read, not just matched.
+
+| | answer | evidence |
+| --- | --- | --- |
+| `is a blue whale furry` | **DENIED** | AwA2 scored it zero |
+| `is a lion striped` | **DENIED** | AwA2 scored it zero |
+| `does a penguin fly` | **DENIED** | the norms state `cannot fly` |
+| `is a dalmatian spotted` | **HELD** | `spots`, depth 28, unique to it |
+| `does a killer whale have flippers` | **HELD** | `flippers`, depth 17 |
+| `does a robin fly` | **INHERITED** | `bird.n.01`, 4 levels up |
+| `is a blue whale telephonic` | **UNRECORDED** | absent, not false |
+
+**Above the leaf, the taxonomy carries on.** The norms stop at the concept;
+v684 does not. `blue whale` inherits 777 facts from six levels, and each is
+attributed to the level that supplies it, nearest first, with a fact met twice
+kept only at the nearer one — R10 applied to the display. Order matters here:
+what a norm states about the thing outranks what it inherits, and only when
+the norms neither state nor deny is the taxonomy asked.
+
+Two smaller things that had to be right. `spots` is what the norms store and
+`spotted` is what a person asks, so the stemmer lost its participle blindness
+— while keeping the whole-word matching that stopped `striven` matching
+`stripes`. And when several inherited facts match, the nearest ancestor wins,
+then the plainest fact: "does a robin fly" was being answered by `desires fly`
+rather than `capable of fly high`.
+
+**Questions about a named thing are routed by name, not by pattern.** The
+longest concept the norms know that the question mentions is the subject, so
+`blue whale` beats `whale`. Everything else is handed back: v684 owns `is a
+hammer a tool`, because it answers taxonomy with a derivation of its own, and
+a property the norms neither state nor deny goes back to the fact graph rather
+than being reported as absent.
+
 ## What did not work
 
 **"What is red and flies" has no clean answer here.** `cardinal` is not among
@@ -236,6 +316,7 @@ data supports, and it answers correctly.
 | `corpora.py` | XCSLB and AwA2 as v683 `Corpus` objects, sliceable by feature type and category |
 | `run_v686.py` | the compression experiment: orderings, the optimal floor, the scaling curve |
 | `identify.py` | the trie read downwards, with the narrowing recorded |
+| `profile.py` | the trie read upwards: attributes, denials, and the taxonomy above the leaf |
 | `identifiability.py` | questions-to-identify on the same trie, and the cue-validity ordering |
 | `server.py` | everything v685 serves, plus identification, on the same page |
-| `test_v686.py` | 31 tests; they skip if the norms are not downloaded |
+| `test_v686.py` | 52 tests; they skip if the norms are not downloaded |
