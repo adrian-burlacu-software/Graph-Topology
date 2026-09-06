@@ -15,9 +15,12 @@ preference:
                typicality), then ConceptNet as a low-confidence long tail.
 
     senses     Facts from Ascent++ and ConceptNet are stated about word strings,
-               not senses. They are attached to a lemma's primary sense and
-               flagged `sense_assumed`, so a wrong attachment is visible in the
-               provenance rather than silently believed.
+               not senses. Which sense they attach to is decided by the facts
+               themselves (see `senses.py`) rather than by WordNet's sense
+               numbering, which is not a usefulness ranking -- its first sense
+               of `hammer` is the part of a gunlock. Every such fact is still
+               flagged `sense_assumed`, so the join stays visible in the
+               provenance rather than being silently believed.
 
 Everything lands in one SQLite file that the server opens read-only.
 """
@@ -30,6 +33,8 @@ import re
 import sqlite3
 import time
 from pathlib import Path
+
+from . import rules, senses
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_DATABASE = REPOSITORY_ROOT / "data" / "v633_full_semantic.sqlite"
@@ -75,7 +80,10 @@ ASCENT_RELATIONS = {
 SCHEMA = """
 CREATE TABLE concepts (
     id TEXT PRIMARY KEY, lemma TEXT NOT NULL, pos TEXT NOT NULL,
-    sense INTEGER NOT NULL, definition TEXT
+    sense INTEGER NOT NULL, definition TEXT,
+    -- how many concepts sit under this one; R12 reads it to decide whether a
+    -- word-level fact is too general to inherit.
+    descendants INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE taxonomy (child TEXT NOT NULL, parent TEXT NOT NULL,
                        PRIMARY KEY (child, parent));
@@ -85,6 +93,9 @@ CREATE TABLE facts (
     PRIMARY KEY (concept, relation, object, source)
 );
 CREATE TABLE lemmas (lemma TEXT NOT NULL, concept TEXT NOT NULL,
+                     -- the sense this word's facts were attached to, and the
+                     -- one the UI should offer first.
+                     primary_sense INTEGER NOT NULL DEFAULT 0,
                      PRIMARY KEY (lemma, concept));
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE INDEX idx_tax_child ON taxonomy(child);
@@ -103,6 +114,27 @@ def _normalize_synset(node: str) -> str | None:
     lemma = match["lemma"].replace("_", " ")
     pos = "a" if match["pos"] == "s" else match["pos"]
     return f"{lemma}.{pos}.{match['sense']}"
+
+
+def _word_level_evidence(source_connection: sqlite3.Connection, ascent: Path):
+    """Every phrase Ascent++ and ConceptNet say about a word, for sense choice.
+
+    Yields `(word, phrase)`. This is a first pass over the same rows that get
+    written later: the sense a word's facts belong to cannot be known until
+    those facts have been seen, and they cannot be written until the sense is
+    known. Reading twice is the cheap way out of that.
+    """
+    if ascent.is_file():
+        with ascent.open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                if ASCENT_RELATIONS.get(row["relation"]):
+                    yield row["subject"], row["tail"]
+    placeholders = ",".join("?" * len(CONCEPTNET_FACT_RELATIONS))
+    for subject, obj in source_connection.execute(
+        f"SELECT subject, object FROM edges WHERE subject LIKE 'en:%' "
+        f"AND relation IN ({placeholders})", CONCEPTNET_FACT_RELATIONS
+    ):
+        yield subject[3:], obj[3:] if obj.startswith("en:") else obj
 
 
 def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict[str, int]:
@@ -126,7 +158,7 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
         if identifier:
             lemma, pos, sense = identifier.rsplit(".", 2)
             concepts[node] = identifier
-            out.execute("INSERT OR IGNORE INTO concepts VALUES (?,?,?,?,?)",
+            out.execute("INSERT OR IGNORE INTO concepts VALUES (?,?,?,?,?,0)",
                         (identifier, lemma, pos, int(sense), definition))
     counts["concepts"] = len(concepts)
     log(f"  concepts        {len(concepts):>9,}")
@@ -158,6 +190,27 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
     log(f"  taxonomy edges  {counts['taxonomy']:>9,}  "
         f"({counts['repaired_mutual']} mutual subsumption repaired)")
 
+    # -- subtree sizes, for R12 -------------------------------------------
+    below: dict[str, list[str]] = collections.defaultdict(list)
+    for child, above in parents.items():
+        for parent in above:
+            below[parent].append(child)
+    breadth: dict[str, int] = {}
+    for node in below:
+        seen: set[str] = set()
+        frontier = [node]
+        while frontier:
+            for child in below.get(frontier.pop(), ()):
+                if child not in seen:
+                    seen.add(child)
+                    frontier.append(child)
+        breadth[node] = len(seen)
+    out.executemany("UPDATE concepts SET descendants = ? WHERE id = ?",
+                    ((n, c) for c, n in breadth.items() if n))
+    over = sum(1 for n in breadth.values() if n >= 8000)
+    log(f"  subtree sizes   {len(breadth):>9,}  "
+        f"({over} above the R12 breadth limit)")
+
     # -- lemma index ------------------------------------------------------
     lemma_rows = set()
     for lemma_node, synset in source_connection.execute(
@@ -167,32 +220,11 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
             lemma_rows.add((lemma_node[3:], concepts[synset]))
     for node, identifier in concepts.items():
         lemma_rows.add((identifier.rsplit(".", 2)[0], identifier))
-    out.executemany("INSERT OR IGNORE INTO lemmas VALUES (?,?)", lemma_rows)
+    out.executemany("INSERT OR IGNORE INTO lemmas VALUES (?,?,0)", lemma_rows)
     counts["lemmas"] = len(lemma_rows)
     log(f"  lemma links     {len(lemma_rows):>9,}")
 
-    #: lemma -> its primary sense.
-    #:
-    #: The eponymous synset comes first. "dog" links to eight synsets --
-    #: andiron.n.01, cad.n.01, chase.v.01, dog.n.01, dog.n.03, frank.n.02,
-    #: frump.n.01, pawl.n.01 -- and only `dog.n.*` is actually named for the
-    #: word. Ranking on part of speech and sense number alone ties every `.n.01`
-    #: and hands the word to whichever sorts first, which sent all of Ascent++'s
-    #: dog knowledge to `andiron.n.01`.
-    primary: dict[str, tuple[str, tuple[int, int, int]]] = {}
-    ordering = {"n": 0, "v": 1, "a": 2, "r": 3}
-    for lemma, identifier in sorted(lemma_rows):
-        head, pos, sense = identifier.rsplit(".", 2)
-        key = (0 if head == lemma else 1, ordering.get(pos, 9), int(sense))
-        if lemma not in primary or key < primary[lemma][1]:
-            primary[lemma] = (identifier, key)
-    primary_sense = {lemma: value[0] for lemma, value in primary.items()}
-    eponymous = sum(1 for lemma, value in primary.items() if value[1][0] == 0)
-    counts["primary_eponymous"] = eponymous
-    log(f"  primary senses  {len(primary_sense):>9,}  "
-        f"({eponymous:,} named for the word itself)")
-
-    # -- facts ------------------------------------------------------------
+    # -- facts: WordNet's own, which are already sense-tagged ---------------
     placeholders = ",".join("?" * len(WORDNET_FACT_RELATIONS))
     wordnet_facts = 0
     for subject, relation, obj in source_connection.execute(
@@ -207,6 +239,54 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
         wordnet_facts += 1
     counts["facts_wordnet"] = wordnet_facts
     log(f"  wordnet facts   {wordnet_facts:>9,}")
+    out.commit()
+
+    #: lemma -> the sense that word-level facts get attached to.
+    #:
+    #: This is the join between two ontologies that do not agree on what a
+    #: subject is, and it is the single most consequential decision in the
+    #: build. Ranking senses by a fixed rule -- eponymous, then noun, then
+    #: `.01` -- gets `dog` right and `hammer` wrong: WordNet's first sense of
+    #: hammer is the part of a gunlock, so 348 facts about carpenters'
+    #: toolboxes went to a gun part. 30% of the words carrying facts had two
+    #: or more eponymous noun senses, where that rule is a coin flip.
+    #:
+    #: So the facts pick their own sense: `senses.choose` scores each candidate
+    #: against the vocabulary of everything said about the word. That needs the
+    #: facts before they can be written, hence the extra pass here.
+    started = time.time()
+    evidence: dict[str, collections.Counter] = collections.defaultdict(
+        collections.Counter)
+    for lemma, phrase in _word_level_evidence(source_connection, ascent):
+        evidence[lemma].update(senses.tokens(phrase))
+    log(f"  sense evidence  {len(evidence):>9,} words  "
+        f"[{time.time()-started:.0f}s]")
+
+    chooser = senses.Senses(out)
+    primary_sense: dict[str, str] = {}
+    ambiguous = decided = 0
+    for lemma in chooser.candidates:
+        bag = evidence.get(lemma)
+        options = chooser.candidates[lemma]
+        if bag:
+            choice, _, margin = chooser.choose(lemma, bag)
+            if len(options) > 1:
+                ambiguous += 1
+                decided += margin > 0
+        else:
+            choice = min(options, key=lambda c: chooser.prior(lemma, c))
+        if choice:
+            primary_sense[lemma] = choice
+    out.executemany("UPDATE lemmas SET primary_sense = 1 "
+                    "WHERE lemma = ? AND concept = ?", primary_sense.items())
+    counts["primary_ambiguous"] = ambiguous
+    counts["primary_by_evidence"] = decided
+    log(f"  primary senses  {len(primary_sense):>9,}  "
+        f"({ambiguous:,} ambiguous, {decided:,} settled by the facts themselves)")
+
+    # R13: with the senses fixed, a relation's object can be type-checked.
+    ranges = senses.Ranges(parents, chooser.candidates, rules.RANGES)
+    off_range = 0
 
     ascent_facts = 0
     if ascent.is_file():
@@ -218,6 +298,9 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
                     continue
                 concept = primary_sense.get(row["subject"])
                 if concept is None:
+                    continue
+                if not ranges.allows(relation, row["tail"]):
+                    off_range += 1
                     continue
                 typicality = float(row["typicality"])
                 saliency = float(row["saliency"])
@@ -241,11 +324,17 @@ def build(source: Path, ascent: Path, store: Path, verbose: bool = True) -> dict
         if concept is None:
             continue
         target = obj[3:] if obj.startswith("en:") else obj
+        if not ranges.allows(relation, target):
+            off_range += 1
+            continue
         out.execute("INSERT OR IGNORE INTO facts VALUES (?,?,?,?,?,?)",
                     (concept, relation, target, "conceptnet", 0.35, 1))
         conceptnet_facts += 1
     counts["facts_conceptnet"] = conceptnet_facts
     log(f"  conceptnet tail {conceptnet_facts:>9,}")
+    counts["off_range"] = off_range
+    log(f"  R13 rejected    {off_range:>9,}  "
+        f"(object was not the kind of thing the relation takes)")
 
     for key, value in counts.items():
         out.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (key, str(value)))

@@ -98,10 +98,61 @@ DECAY = 0.85
 #: R5: below this, a derived fact is not worth reporting.
 FLOOR = 0.05
 
+#: R12: how wide a subtree makes a word-level fact untrustworthy to inherit.
+#:
+#: Ascent++ and ConceptNet talk about words, and a word in an open-domain
+#: corpus never means a top-of-taxonomy abstraction. Their `artifact` is a
+#: thing dug out of a tomb, not WordNet's "man-made object taken as a whole";
+#: their `person` is somebody, not the class of all persons. Attached to those
+#: synsets and inherited, 8,815 such facts reach 10,000+ descendants each --
+#: which is why asking about a hammer returned `at_location tomb`.
+#:
+#: Six concepts sit above this line: entity, living thing, organism, causal
+#: agent, artifact, person. `animal` (4,016 descendants, 1,408 facts) and
+#: `plant` (4,487) sit below it and keep inheriting, because there the word
+#: and the class really do mean the same thing. The gap in the data between
+#: those two groups is where the threshold goes.
+BREADTH_LIMIT = 8000
+
 
 def inheritable(relation: str) -> bool:
     """R2 + R7 in one predicate."""
     return relation not in GATED and relation in INHERITABLE
+
+
+#: R13: what a relation's object is allowed to be.
+#:
+#: A relation has a range, and a corpus that stated facts about words did not
+#: check it. 26.9% of the `at_location` rows name something that is not a
+#: place at all -- `concept at_location play`, `obligation at_location
+#: writing`, `people at_location way` -- and asking where a hammer is returned
+#: `communication` and `high quality` because of it.
+#:
+#: The check uses WordNet's own top-level split, so it needs no new data: the
+#: object is resolved to a sense and that sense must fall under the named root.
+#: A word the ontology does not know passes -- the rule only fires on what it
+#: can actually judge, which is why it costs 11.4% of returned facts and
+#: empties 12 answers in 770 while keeping every deep generalisation tested
+#: (`crested screamer` -> `bird`, `timber rattlesnake` -> `reptile`).
+#:
+#: Only word-level facts are checked. WordNet's own are already sense-tagged.
+RANGES: dict[str, str] = {
+    "at_location": "physical entity.n.01",
+    "located_near": "physical entity.n.01",
+}
+
+
+def inheritable_from(relation: str, breadth: int, sense_assumed: bool) -> bool:
+    """R2 + R7 + R12: may this fact descend from a concept this general?
+
+    `breadth` is the size of the ancestor's subtree. A fact WordNet states
+    about a sense inherits however general the sense is; a fact a corpus
+    stated about a word does not, once the sense covers more of the world
+    than the word ever meant.
+    """
+    if not inheritable(relation):
+        return False
+    return not (sense_assumed and breadth >= BREADTH_LIMIT)
 
 
 def why_not_inheritable(relation: str) -> str:
@@ -159,4 +210,13 @@ RULE_TEXT: dict[str, str] = {
     "R8": "Answer synthesis: VERIFIED, CONTRADICTED or UNKNOWN.",
     "R9": "Relation families: has_a and has_part answer for each other, "
           "because the sources disagree about which one a fact belongs under.",
+    "R10": "Redundancy elimination: a fact an ancestor already states is not "
+           "stored twice -- R2 rebuilds it. Lossless.",
+    "R11": "Hoisting: a fact every child states moves to the parent. A "
+           "generalisation, not a deduction, so hoisted rows are marked.",
+    "R12": f"Breadth gating: a word-level fact does not inherit from a concept "
+           f"with {BREADTH_LIMIT:,}+ descendants, where the word and the class "
+           f"have stopped meaning the same thing.",
+    "R13": "Range typing: a relation's object must be the kind of thing the "
+           "relation takes. A location has to be a place.",
 }

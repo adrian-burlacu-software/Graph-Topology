@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import unittest
 
-from research.v684 import build, rules
+import collections
+import sqlite3
+from pathlib import Path
+
+from research.v684 import build, compress, rules, senses
 from research.v684.language import Parser
 from research.v684.reason import Reasoner
 
@@ -231,6 +235,267 @@ class EngineTests(unittest.TestCase):
     def test_sense_can_be_overridden(self):
         payload = self.engine.ask("what can a dog do", concept="cad.n.01")
         self.assertEqual(payload["concept"], "cad.n.01")
+
+
+@requires_store
+class SenseChoiceTests(unittest.TestCase):
+    """The join between word-level facts and WordNet senses (senses.py)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.connection = sqlite3.connect(f"file:{STORE}?mode=ro", uri=True)
+        cls.senses = senses.Senses(cls.connection)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.connection.close()
+
+    def evidence(self, *phrases):
+        bag = collections.Counter()
+        for phrase in phrases:
+            bag.update(senses.tokens(phrase))
+        return bag
+
+    def test_tokens_drop_stopwords_and_punctuation(self):
+        self.assertEqual(senses.tokens("a carpenter's toolbox"),
+                         ["carpenter", "toolbox"])
+
+    def test_the_bug_that_started_this_hammer_is_a_tool(self):
+        """WordNet's hammer.n.01 is a gun part; the facts describe the tool."""
+        choice, _, margin = self.senses.choose(
+            "hammer", self.evidence("carpenter's toolbox", "hardware store",
+                                    "toolbelt", "drive a nail", "tool box"))
+        self.assertEqual(choice, "hammer.n.02")
+        self.assertGreater(margin, 0)
+
+    def test_evidence_does_not_drag_a_word_to_a_verb_sense(self):
+        """`dog` has chase.v.01 among its senses; these sources describe things."""
+        choice, _, _ = self.senses.choose(
+            "dog", self.evidence("bark at strangers", "chase a cat",
+                                 "wag its tail", "bury a bone"))
+        self.assertEqual(choice, "dog.n.01")
+
+    def test_a_thin_margin_does_not_leave_the_words_own_synset(self):
+        """EPONYMOUS_FACTOR.
+
+        On the real evidence `seal` scored `navy seal.n.01` barely ahead of
+        its own synsets, and `spring` reached `leap.n.01`. Requiring a
+        decisive margin to abandon the synset named for the word keeps both
+        home, while `bank` still leaves for `depository financial
+        institution.n.01`, which it beats many times over.
+        """
+        recorded = dict(self.connection.execute(
+            "SELECT lemma, concept FROM lemmas WHERE primary_sense = 1 "
+            "AND lemma IN ('seal', 'spring', 'bank')"))
+        self.assertEqual(recorded["seal"].rsplit(".", 2)[0], "seal")
+        self.assertEqual(recorded["spring"].rsplit(".", 2)[0], "spring")
+        self.assertEqual(recorded["bank"], "depository financial institution.n.01")
+
+    def test_no_evidence_falls_back_to_the_prior(self):
+        choice, score, _ = self.senses.choose("hammer", collections.Counter())
+        self.assertEqual(score, 0.0)
+        self.assertEqual(choice, "hammer.n.01")
+
+    def test_unknown_word_chooses_nothing(self):
+        self.assertIsNone(self.senses.choose("zzzqqq", collections.Counter())[0])
+
+    def test_the_store_records_which_sense_was_chosen(self):
+        chosen = [r[0] for r in self.connection.execute(
+            "SELECT concept FROM lemmas WHERE lemma='hammer' AND primary_sense=1")]
+        self.assertEqual(chosen, ["hammer.n.02"])
+
+
+@requires_store
+class BreadthGateTests(unittest.TestCase):
+    """R12: word-level facts do not inherit from top-of-taxonomy concepts."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reasoner = Reasoner(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.reasoner.close()
+
+    def test_the_limit_sits_above_animal_and_below_person(self):
+        """Where the threshold falls is the whole claim; pin both sides of it."""
+        size = dict(self.reasoner.connection.execute(
+            "SELECT id, descendants FROM concepts WHERE id IN "
+            "('animal.n.01', 'plant.n.02', 'person.n.01', 'artifact.n.01')"))
+        self.assertLess(size["animal.n.01"], rules.BREADTH_LIMIT)
+        self.assertLess(size["plant.n.02"], rules.BREADTH_LIMIT)
+        self.assertGreaterEqual(size["person.n.01"], rules.BREADTH_LIMIT)
+        self.assertGreaterEqual(size["artifact.n.01"], rules.BREADTH_LIMIT)
+
+    def test_broad_concepts_are_gated_and_ordinary_ones_are_not(self):
+        self.assertTrue(self.reasoner.too_broad("person.n.01"))
+        self.assertFalse(self.reasoner.too_broad("animal.n.01"))
+        self.assertFalse(self.reasoner.too_broad("dog.n.01"))
+
+    def test_r12_gates_the_assumed_join_not_inheritance_itself(self):
+        self.assertTrue(rules.inheritable_from("capable_of", 99999, False))
+        self.assertFalse(rules.inheritable_from("capable_of", 99999, True))
+        self.assertTrue(rules.inheritable_from("capable_of", 10, True))
+
+    def test_a_hammer_is_not_found_in_a_tomb(self):
+        """The reported symptom: artifact.n.01's word-level facts reaching down."""
+        answer = self.reasoner.describe("hammer.n.02", "at_location")
+        objects = {f.object.lower() for f in answer.evidence}
+        self.assertIn("hardware store", objects)
+        for junk in ("tomb", "grave", "museum", "excavation"):
+            self.assertNotIn(junk, objects)
+
+
+@requires_store
+class RangeTypingTests(unittest.TestCase):
+    """R13: a relation's object must be the kind of thing the relation takes."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.connection = sqlite3.connect(f"file:{STORE}?mode=ro", uri=True)
+        parents = collections.defaultdict(set)
+        for child, parent in cls.connection.execute(
+                "SELECT child, parent FROM taxonomy"):
+            parents[child].add(parent)
+        senses_of = collections.defaultdict(list)
+        for lemma, concept in cls.connection.execute(
+                "SELECT lemma, concept FROM lemmas"):
+            senses_of[lemma].append(concept)
+        cls.ranges = senses.Ranges(parents, senses_of, rules.RANGES)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.connection.close()
+
+    def test_a_location_has_to_be_a_place(self):
+        for junk in ("communication", "high quality", "accordance", "harmony"):
+            self.assertFalse(self.ranges.allows("at_location", junk), junk)
+
+    def test_real_places_pass(self):
+        for place in ("garage", "hardware store", "toolbelt", "london",
+                      "carpenter's toolbox", "store"):
+            self.assertTrue(self.ranges.allows("at_location", place), place)
+
+    def test_the_head_word_is_tried_when_the_phrase_is_unknown(self):
+        """`carpenter's toolbox` is not a synset; `toolbox` is."""
+        self.assertEqual(self.ranges.denotes("carpenter's toolbox"),
+                         self.ranges.denotes("toolbox"))
+
+    def test_any_sense_may_satisfy_the_range(self):
+        """`store` resolves to a supply, but one of its senses is a shop.
+
+        Checking only the chosen sense dropped `hammer at_location store`.
+        """
+        chosen = self.connection.execute(
+            "SELECT concept FROM lemmas WHERE lemma='store' AND primary_sense=1"
+        ).fetchone()[0]
+        self.assertEqual(chosen, "store.n.02")          # "a supply of something"
+        self.assertTrue(self.ranges.allows("at_location", "store"))
+
+    def test_a_word_the_ontology_does_not_know_is_not_rejected(self):
+        self.assertTrue(self.ranges.allows("at_location", "zzzqqq wumpus"))
+
+    def test_relations_without_a_declared_range_are_untouched(self):
+        self.assertNotIn("capable_of", rules.RANGES)
+        self.assertTrue(self.ranges.allows("capable_of", "high quality"))
+
+    def test_what_is_stated_outranks_what_is_borrowed(self):
+        """R4 as an ordering, not only as a stopping rule.
+
+        `violin capable_of run android`, inherited from `device` four levels
+        up, used to sit above `sound beautiful` stated about violins, because
+        confidence alone decided the order.
+        """
+        reasoner = Reasoner(STORE)
+        try:
+            evidence = reasoner.describe("violin.n.01", "capable_of").evidence
+            self.assertTrue(evidence)
+            distances = [f.distance for f in evidence]
+            self.assertEqual(distances, sorted(distances))
+            for fact in evidence[:10]:
+                self.assertEqual(fact.distance, 0, fact.object)
+        finally:
+            reasoner.close()
+
+    def test_the_store_holds_no_location_that_is_not_a_place(self):
+        offenders = [obj for obj, in self.connection.execute(
+            "SELECT DISTINCT object FROM facts WHERE relation = 'at_location' "
+            "AND sense_assumed = 1 LIMIT 4000")
+            if not self.ranges.allows("at_location", obj)]
+        self.assertEqual(offenders, [])
+
+
+class CompressionTests(unittest.TestCase):
+    """R10/R11 on a small synthetic store, so the assertions can be exact."""
+
+    def setUp(self):
+        directory = Path(__file__).resolve().parent / "__pycache__"
+        directory.mkdir(exist_ok=True)
+        self.source = directory / "_test_source.sqlite"
+        self.out = directory / "_test_compressed.sqlite"
+        for path in (self.source, self.out):
+            path.unlink(missing_ok=True)
+        connection = sqlite3.connect(self.source)
+        connection.executescript(build.SCHEMA)
+        connection.executemany(
+            "INSERT INTO concepts VALUES (?,?,?,?,?,?)",
+            [(f"{n}.n.01", n, "n", 1, "", d) for n, d in
+             (("animal", 3), ("mammal", 2), ("dog", 0), ("cat", 0), ("bird", 0))])
+        connection.executemany("INSERT INTO taxonomy VALUES (?,?)", [
+            ("mammal.n.01", "animal.n.01"), ("dog.n.01", "mammal.n.01"),
+            ("cat.n.01", "mammal.n.01"), ("bird.n.01", "animal.n.01")])
+        connection.executemany("INSERT INTO facts VALUES (?,?,?,?,?,?)", [
+            ("animal.n.01", "capable_of", "breathe", "wordnet", 0.9, 0),
+            # the children repeat what the parent already says: R10 drops these
+            ("dog.n.01", "capable_of", "breathe", "ascentpp", 0.8, 1),
+            ("cat.n.01", "capable_of", "breathe", "ascentpp", 0.8, 1),
+            ("dog.n.01", "capable_of", "bark", "ascentpp", 0.8, 1),
+            # made_of does not inherit, so repeating it is not redundant
+            ("animal.n.01", "made_of", "cells", "wordnet", 0.9, 0),
+            ("dog.n.01", "made_of", "cells", "ascentpp", 0.8, 1)])
+        connection.commit()
+        connection.close()
+
+    def tearDown(self):
+        for path in (self.source, self.out):
+            path.unlink(missing_ok=True)
+
+    def kept(self):
+        connection = sqlite3.connect(self.out)
+        rows = {(r[0], r[1], r[2]) for r in connection.execute(
+            "SELECT concept, relation, object FROM facts")}
+        connection.close()
+        return rows
+
+    def test_r10_drops_only_what_inheritance_rebuilds(self):
+        stats = compress.compress(self.source, self.out, verbose=False)
+        self.assertEqual(stats["dropped"], 2)          # dog and cat "breathe"
+        kept = self.kept()
+        self.assertNotIn(("dog.n.01", "capable_of", "breathe"), kept)
+        self.assertIn(("animal.n.01", "capable_of", "breathe"), kept)
+        self.assertIn(("dog.n.01", "capable_of", "bark"), kept)
+        self.assertIn(("dog.n.01", "made_of", "cells"), kept)
+
+    def test_compression_is_verified_lossless(self):
+        compress.compress(self.source, self.out, verbose=False)
+        result = compress.verify(self.source, self.out, verbose=False)
+        self.assertTrue(result["lossless"], result["examples"])
+        self.assertEqual(result["not_rederivable"], 0)
+
+    def test_r10_respects_the_breadth_gate(self):
+        """A fact a broad ancestor may not lend is not redundant below it."""
+        connection = sqlite3.connect(self.source)
+        connection.execute("UPDATE concepts SET descendants = ? WHERE id = ?",
+                           (rules.BREADTH_LIMIT + 1, "animal.n.01"))
+        connection.execute("UPDATE facts SET sense_assumed = 1 "
+                           "WHERE concept = 'animal.n.01'")
+        connection.commit()
+        connection.close()
+        stats = compress.compress(self.source, self.out, verbose=False)
+        self.assertEqual(stats["dropped"], 0)
+        self.assertIn(("dog.n.01", "capable_of", "breathe"), self.kept())
+        self.assertTrue(compress.verify(self.source, self.out,
+                                        verbose=False)["lossless"])
 
 
 if __name__ == "__main__":

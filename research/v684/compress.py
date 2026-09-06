@@ -53,6 +53,26 @@ def _load(connection: sqlite3.Connection):
     return parents, facts
 
 
+def _ungiven(connection: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
+    """R12: the facts a concept holds but may not pass down.
+
+    Only a handful of concepts are broad enough to trigger this, so the whole
+    blocked set is small. It matters here because R10 may only drop what the
+    reasoner can put back: if `person.n.01` cannot lend a word-level fact to
+    its descendants, a descendant's own copy is not redundant.
+    """
+    broad = [row[0] for row in connection.execute(
+        "SELECT id FROM concepts WHERE descendants >= ?", (rules.BREADTH_LIMIT,))]
+    blocked: dict[str, set[tuple[str, str]]] = {}
+    for concept in broad:
+        rows = connection.execute(
+            "SELECT relation, object FROM facts "
+            "WHERE concept = ? AND sense_assumed = 1", (concept,)).fetchall()
+        if rows:
+            blocked[concept] = {(r[0], r[1]) for r in rows}
+    return blocked
+
+
 def ancestors(parents: dict[str, set[str]], node: str, limit: int = 16) -> set[str]:
     seen = {node}
     frontier = [node]
@@ -80,6 +100,9 @@ def compress(store: Path, out: Path, hoist_threshold: float = 1.0,
     shutil.copy2(store, out)
     connection = sqlite3.connect(out)
     parents, facts = _load(connection)
+    blocked = _ungiven(connection)
+    breadth_gated = {row[0] for row in connection.execute(
+        "SELECT id FROM concepts WHERE descendants >= ?", (rules.BREADTH_LIMIT,))}
     original = sum(len(v) for v in facts.values())
     log(f"  {original:,} facts over {len(facts):,} concepts")
 
@@ -96,7 +119,9 @@ def compress(store: Path, out: Path, hoist_threshold: float = 1.0,
     hoisted: list[tuple[str, str, str, int]] = []
     for parent, kids in children.items():
         having = [k for k in kids if facts.get(k)]
-        if len(having) < min_children:
+        if len(having) < min_children or parent in breadth_gated:
+            # Hoisting onto a concept R12 will not let lend the fact back down
+            # buys nothing and makes R10's drop of the children lossy.
             continue
         counts = collections.Counter(
             fact for kid in having for fact in facts[kid]
@@ -124,7 +149,9 @@ def compress(store: Path, out: Path, hoist_threshold: float = 1.0,
     for concept in list(facts):
         above: set[tuple[str, str]] = set()
         for ancestor in ancestors(parents, concept):
-            above |= facts.get(ancestor, set())
+            held = facts.get(ancestor, set())
+            withheld = blocked.get(ancestor)
+            above |= held - withheld if withheld else held
         for fact in list(facts[concept]):
             if fact in above and rules.inheritable(fact[0]):
                 facts[concept].discard(fact)
@@ -184,6 +211,7 @@ def verify(original: Path, compressed: Path, samples: int = 4000,
     b = sqlite3.connect(f"file:{compressed}?mode=ro", uri=True)
     parents, before = _load(a)
     _, after = _load(b)
+    blocked = _ungiven(b)
     a.close(); b.close()
 
     rng = random.Random(seed)
@@ -193,8 +221,9 @@ def verify(original: Path, compressed: Path, samples: int = 4000,
     for concept in concepts:
         derivable = set(after.get(concept, set()))
         for ancestor in ancestors(parents, concept):
+            withheld = blocked.get(ancestor, frozenset())
             derivable |= {f for f in after.get(ancestor, set())
-                          if rules.inheritable(f[0])}
+                          if rules.inheritable(f[0]) and f not in withheld}
         for fact in before.get(concept, set()):
             if not rules.inheritable(fact[0]):
                 continue

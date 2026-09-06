@@ -74,20 +74,26 @@ class Reasoner:
         self.connection = sqlite3.connect(f"file:{store}?mode=ro", uri=True,
                                           check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
+        self._broad: set[str] | None = None      # R12, loaded on first use
 
     # -- lookup -----------------------------------------------------------
     def senses_of(self, lemma: str) -> list[dict[str, Any]]:
         """R6: a word is not a concept. Return every sense it could mean."""
         rows = self.connection.execute(
-            "SELECT c.id, c.lemma, c.pos, c.sense, c.definition "
+            # The sense the build's evidence picked comes first. WordNet's own
+            # order is not a usefulness ranking: it puts the part of a gunlock
+            # ahead of the tool, so offering senses in it made every default
+            # answer about `hammer` an answer about a gun.
+            "SELECT c.id, c.lemma, c.pos, c.sense, c.definition, l.primary_sense "
             "FROM lemmas l JOIN concepts c ON c.id = l.concept "
-            "WHERE l.lemma = ? ORDER BY (c.lemma <> ?), "
+            "WHERE l.lemma = ? ORDER BY l.primary_sense DESC, (c.lemma <> ?), "
             "CASE c.pos WHEN 'n' THEN 0 WHEN 'v' THEN 1 WHEN 'a' THEN 2 ELSE 3 END, "
             "c.sense", (lemma.lower().strip(), lemma.lower().strip())
         ).fetchall()
         return [
             {"id": r["id"], "lemma": r["lemma"], "pos": r["pos"],
              "sense": r["sense"], "definition": r["definition"],
+             "chosen": bool(r["primary_sense"]),
              "fact_count": self.fact_count(r["id"])}
             for r in rows
         ]
@@ -107,6 +113,14 @@ class Reasoner:
         return [r["parent"] for r in self.connection.execute(
             "SELECT parent FROM taxonomy WHERE child = ? ORDER BY parent", (concept,)
         )]
+
+    def too_broad(self, concept: str) -> bool:
+        """R12: is this concept so general that word-level facts stop applying?"""
+        if self._broad is None:
+            self._broad = {row[0] for row in self.connection.execute(
+                "SELECT id FROM concepts WHERE descendants >= ?",
+                (rules.BREADTH_LIMIT,))}
+        return concept in self._broad
 
     def facts_of(self, concept: str, relation: str | None = None) -> list[Fact]:
         """R9: asking about one relation sees its whole family."""
@@ -241,6 +255,16 @@ class Reasoner:
                 break
 
             candidates = self.facts_of(node, relation)
+            if distance and self.too_broad(node):
+                # R12: `person` and `artifact` carry thousands of facts stated
+                # about the *words*. Inherited, they answer every question.
+                dropped = [f for f in candidates if f.sense_assumed]
+                candidates = [f for f in candidates if not f.sense_assumed]
+                if dropped:
+                    steps.append(Step(len(steps), "stop", node, distance, "R12",
+                                      f"Ignoring {len(dropped)} word-level "
+                                      f"fact(s) on {node.rsplit('.', 2)[0]}: "
+                                      f"too general to inherit from."))
             # `parents` is carried on every step, not only on ascents: the asked
             # concept never produces an ascend step, so without this it would
             # have no outgoing edges in the graph view.
@@ -283,8 +307,10 @@ class Reasoner:
                                   f"Generalise to {node.rsplit('.', 2)[0]}.",
                                   parents=parents))
             found = 0
+            breadth = rules.BREADTH_LIMIT if self.too_broad(node) else 0
             for fact in self.facts_of(node, relation):
-                if distance and not rules.inheritable(fact.relation):
+                if distance and not rules.inheritable_from(
+                        fact.relation, breadth, fact.sense_assumed):
                     continue
                 key = (fact.relation, fact.object.lower())
                 if key in seen:            # R4: the nearest statement wins
@@ -311,7 +337,12 @@ class Reasoner:
             steps.append(Step(len(steps), "block", concept, 0, "R3",
                               f"Dropped {len(collected) - len(kept)} fact(s) the "
                               f"concept explicitly denies."))
-        kept.sort(key=lambda f: (-f.confidence, f.distance, f.relation))
+        # R4 first, confidence second. Sorting on confidence alone let a
+        # borrowed fact outrank a stated one: `violin capable_of run android`,
+        # inherited from `device` four levels up, sat above `sound beautiful`
+        # stated about violins, because Ascent++ scored the electronics higher.
+        # What is said about the thing itself comes first, always.
+        kept.sort(key=lambda f: (f.distance, -f.confidence, f.relation))
         answer.evidence = kept[:limit]
         return answer
 
