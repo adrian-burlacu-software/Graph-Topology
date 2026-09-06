@@ -343,6 +343,28 @@ class IdentificationTests(unittest.TestCase):
         for name in removed_by_stripes:
             self.assertNotIn("stripes", self.identifier.stated.get(name, ()))
 
+    def test_the_first_attribute_owns_rivals_at_depth_zero(self):
+        """Depth is a step index, so the first attribute's rivals are depth 0.
+
+        The page read that as `entry.depth || 1`, and zero is falsy, so every
+        rival of the first attribute was drawn on the second: `round` appeared
+        to rule out nothing and `hexagons` carried ten.
+        """
+        found = self.identifier.identify("what is round with hexagons")
+        self.assertEqual([step["term"] for step in found.steps],
+                         ["round", "hexagons"])
+        depths = {e["depth"] for e in found.considered if not e["survived"]}
+        self.assertIn(0, depths)
+        self.assertIn(1, depths)
+
+    def test_properties_are_taken_general_before_specific(self):
+        """Broadest first, so each step narrows visibly instead of the first
+        one answering the whole question."""
+        found = self.identifier.identify("what is round with hexagons")
+        remaining = [step["remaining"] for step in found.steps]
+        self.assertEqual(remaining, sorted(remaining, reverse=True))
+        self.assertGreater(remaining[0], remaining[-1])
+
     def test_rivals_are_the_nearest_misses_not_the_alphabet(self):
         """Sorting by name gave `ambulance, accordion, antelope`."""
         found = self.identifier.identify("what is round with hexagons")

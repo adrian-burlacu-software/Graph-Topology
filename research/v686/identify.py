@@ -322,11 +322,19 @@ class Identifier:
             offset = len(result.steps)
             fell_at: dict[str, int] = {}
             trace: list[dict] = []
-            # Order the questions the way the trie would: the term that
-            # eliminates most candidates is asked first. That is
-            # `adaptive_coverage` used to pick a question, not a storage slot.
+            # General to specific: the property the most candidates carry is
+            # asked first. Rarest-first identifies in fewer questions -- that
+            # is what `identifiability.py` measures, and it is the right
+            # policy for a machine minimising questions. It is the wrong one
+            # for an explanation: asking `hexagons` first answers the whole
+            # question at step one and leaves `round` doing nothing, so the
+            # tree is lopsided and the rivals all pile onto a single node.
+            # Broadest-first narrows visibly at every step -- round things,
+            # then the round thing with hexagons -- which is the shape a
+            # person reads. The same trade-off as storing against asking,
+            # here between answering fast and explaining well.
             ranked = sorted(terms,
-                            key=lambda t: self._breadth(t, alive, allow_inherited))
+                            key=lambda t: -self._breadth(t, alive, allow_inherited))
             for term in ranked:
                 keep = {}
                 for name in alive:

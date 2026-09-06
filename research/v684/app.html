@@ -496,7 +496,12 @@ function buildTriePath(svg) {
   const byDepth = new Map();
   (ident.considered || []).forEach(entry => {
     if (entry.survived) return;
-    const depth = entry.depth || 1;
+    // `|| 1` here is a bug: depth is the index of the step that removed the
+    // candidate, so the first attribute's rivals have depth 0, which is
+    // falsy. Every one of them was being pushed onto the second attribute,
+    // which is why `round` looked like it ruled out nothing and `hexagons`
+    // carried ten.
+    const depth = Number.isInteger(entry.depth) ? entry.depth : 1;
     if (!byDepth.has(depth)) byDepth.set(depth, []);
     byDepth.get(depth).push(entry);
   });

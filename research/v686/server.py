@@ -30,10 +30,11 @@ from .identify import Identifier
 #: Rule text for the identification half, listed on the page beside the rest.
 V686_RULES: dict[str, str] = {
     "R16": "Identification: a description is answered by walking the trie "
-           "down instead of storing into it. The property that eliminates "
-           "most candidates is asked first -- the same coverage ordering "
-           "Appendix 3 uses to choose a storage slot. What a norm states "
-           "about a thing outranks what it inherits.",
+           "down instead of storing into it. Properties are taken general "
+           "first, so each step narrows visibly -- round things, then the "
+           "round thing with hexagons. Rarest-first would identify in fewer "
+           "questions but answer the whole thing at step one. What a norm "
+           "states about a thing outranks what it inherits.",
 }
 
 class IdentifyingEngine(BridgedEngine):
