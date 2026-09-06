@@ -1,1 +1,0 @@
-python .\research\v680\attention_distill.py --database ".\data\v679_focused_semantic.sqlite" --dataset ".\results\v680\distillation_dataset.jsonl" --teacher-output ".\results\v680\teacher_trajectories.jsonl" --trace-output ".\results\v680\attention_traces.jsonl" --checkpoint ".\results\v680\student_checkpoint.pt" --epochs 120
