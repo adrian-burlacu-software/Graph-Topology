@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from ..v684 import rules
+from ..v684.language import Parser
 from ..v684.reason import Reasoner
 from . import corpora
 
@@ -54,6 +55,10 @@ INHERIT_DEPTH = 6
 
 #: How many rivals to hand the page. Thirty birds is already a crowded globe.
 MAX_CONSIDERED = 24
+
+#: How many rivals to show per attribute. More than a handful and the
+#: interesting near misses are lost among things that failed at once.
+RIVALS_SHOWN = 5
 
 
 @dataclass
@@ -95,8 +100,12 @@ class Identifier:
     """Find the individual a description picks out."""
 
     def __init__(self, store: Path, reasoner: Reasoner | None = None,
-                 inherit: bool = True):
+                 inherit: bool = True, parser=None):
         self.reasoner = reasoner or Reasoner(store)
+        # Routing and class extraction are grammatical, so a parser is not
+        # optional in practice. One is built when the caller has none to
+        # share, rather than silently falling back to the weaker patterns.
+        self.parser = parser or Parser(vocabulary=self.reasoner.vocabulary())
         self._owns_reasoner = reasoner is None
         self.stated: dict[str, frozenset[str]] = {}
         self.origin: dict[str, str] = {}
@@ -154,19 +163,73 @@ class Identifier:
         return frozenset(out)
 
     # -- reading the question ---------------------------------------------
+    #: Roots that mean the question names a thing rather than describes one.
+    #: "what can a violin *do*", "what does an owner *need*".
+    NAMING_ROOTS = frozenset({"do", "need", "use", "mean", "call", "cost"})
+
+    def describes(self, question: str) -> bool:
+        """Is this a description of an unnamed thing, or a question about a
+        named one?
+
+        Grammar answers it better than a pattern. A description leaves the
+        thing unnamed and says what it is like, which shows up as a relative
+        clause (`an object *that is round*`), an adjectival complement (`what
+        is *round* with spots`), or `what` used as a determiner (`*what
+        animal* has stripes`). A naming question has a subject and asks what
+        it does -- that is v684's, and it must not be taken.
+        """
+        text = (question or "").strip().lower().rstrip("?")
+        if not re.match(r"^(what|which)", text):
+            return False
+        if re.search(r"(kind|type|sort)s?\s+of", text):
+            return True
+        if self.parser is None or self.parser.nlp is None:
+            return bool(re.search(r"that\s+(is|are|has|have)", text))
+        doc = self.parser.nlp(text)
+        root = next((t for t in doc if t.dep_ == "ROOT"), None)
+        if root is not None and root.lemma_ in self.NAMING_ROOTS:
+            return False
+        if re.search(r"used\s+for", text):
+            return False
+        if any(t.dep_ == "poss" for t in doc):
+            return False                       # `a dog's owner` is v685's
+        if any(t.dep_ == "relcl" for t in doc):
+            return True
+        if any(t.dep_ == "acomp" for t in doc):
+            return True
+        opener = doc[0]
+        if opener.dep_ == "det" and opener.head.pos_ in ("NOUN", "PROPN"):
+            return True                        # "what animal has stripes"
+        return False
+
     def terms_of(self, question: str) -> tuple[list[str], str | None]:
         """Content words to match on, and the class to search within.
 
-        "what kind of dog has spots" -> (["spots"], "dog"). The class is the
-        noun right after `kind of`, and it constrains the candidates rather
-        than describing them, so it must not also be matched as a property.
+        The class constrains the candidates rather than describing them, so it
+        must not also be matched as a property. It can be named three ways:
+        `what *kind of dog*`, `what is an *object* that ...`, `what *animal*
+        has ...` -- and the properties are whatever is left.
         """
         text = question.lower().rstrip("?").strip()
         among = None
-        kind = re.search(r"\b(?:kind|type|sort)s?\s+of\s+([a-z ]+?)\b\s+"
-                         r"(?:has|have|is|are|can|does|do)\b", text)
+        kind = re.search(r"(?:kind|type|sort)s?\s+of\s+([a-z ]+?)\s+"
+                         r"(?:has|have|is|are|can|does|do|that|with)", text)
         if kind:
             among = kind.group(1).strip()
+        elif self.parser is not None and self.parser.nlp is not None:
+            doc = self.parser.nlp(text)
+            # `an object that is round`: the noun the relative clause hangs off
+            relative = next((t for t in doc if t.dep_ == "relcl"), None)
+            if relative is not None and relative.head.pos_ in ("NOUN", "PROPN"):
+                among = relative.head.lemma_.lower()
+            elif doc[0].dep_ == "det" and doc[0].head.pos_ in ("NOUN", "PROPN"):
+                among = doc[0].head.lemma_.lower()
+        if among and among not in self.stated and among not in self.synset:
+            row = self.reasoner.connection.execute(
+                "SELECT 1 FROM lemmas WHERE lemma = ? LIMIT 1", (among,)).fetchone()
+            if row is None:
+                among = None                   # not a class this data knows
+
         words = [w for w in re.findall(r"[a-z]+", text) if w not in NOISE]
         if among:
             for part in among.split():
@@ -251,11 +314,12 @@ class Identifier:
         for allow_inherited in (False, True):
             alive = dict.fromkeys(sorted(pool))
             matched_by = {name: {} for name in alive}
-            # When each candidate dropped out. This is the depth the page
-            # draws: a thing eliminated by the first property sits one level
-            # in, one that survived to the third sits three levels in, and
-            # the answer is deepest. With every candidate at one level the
-            # picture is flat however many properties were asked about.
+            # Which *step* removed each candidate -- the index into
+            # `result.steps`, not a separate counter. The class restriction
+            # occupies step 0 when there is one, so a depth counted from the
+            # terms alone is off by one exactly when a class was named, and
+            # the rivals of `stripes` were drawn hanging off `animal`.
+            offset = len(result.steps)
             fell_at: dict[str, int] = {}
             trace: list[dict] = []
             # Order the questions the way the trie would: the term that
@@ -277,7 +341,7 @@ class Identifier:
                 before = len(alive)
                 for name in alive:
                     if name not in keep:
-                        fell_at[name] = len(trace) + 1
+                        fell_at[name] = offset + len(trace)
                 alive = keep
                 trace.append({
                     "rule": "R16", "kind": "narrow", "term": term,
@@ -297,26 +361,56 @@ class Identifier:
                 result.steps.extend(trace)
                 depth_of = fell_at
 
-        for name in sorted(alive, key=lambda n: len(self.stated.get(n, ()))):
+        # Best evidence first. When nothing satisfies every property from
+        # what is stated, the fallback lets inherited facts in and they are
+        # corpus free text -- so a candidate that really does state two of the
+        # three properties should still outrank one that inherits all three.
+        def quality(name: str) -> tuple:
+            stated = sum(1 for hit in matched_by[name].values()
+                         if hit.endswith("(stated)"))
+            return (-stated, len(self.stated.get(name, ())))
+
+        for name in sorted(alive, key=quality):
             result.candidates.append(Candidate(
                 name=name, source=self.origin.get(name, "?"),
                 matched=matched_by[name],
                 predicates=len(self.stated.get(name, ()))))
         result.candidates = result.candidates[:limit]
         survivors = {c.name for c in result.candidates}
-        # One level below the last property that actually eliminated anyone,
-        # so the survivors sit at the bottom of the funnel with no empty ring
-        # above them for a property that removed nothing.
+        # Which rivals to show. Sorting by name gave `ambulance, accordion,
+        # antelope` -- the alphabet, not the near misses. The interesting
+        # rival is the thing most like the answer that still failed, so they
+        # are ranked by how many properties they share with it, and each
+        # attribute shows only a few.
+        best = result.candidates[0].name if result.candidates else None
+        target = self.stated.get(best, frozenset()) if best else frozenset()
+
+        def closeness(name: str) -> tuple:
+            shared = len(self.stated.get(name, frozenset()) & target)
+            return (-shared, name)
+
         deepest = max(depth_of.values(), default=0) + 1
-        ordered = sorted(pool, key=lambda n: (-depth_of.get(n, deepest), n))
-        for name in ordered[:MAX_CONSIDERED]:
+        grouped: dict[int, list[str]] = {}
+        for name in pool:
+            if name in survivors:
+                continue
+            grouped.setdefault(depth_of.get(name, deepest), []).append(name)
+        for depth in sorted(grouped):
+            for name in sorted(grouped[depth], key=closeness)[:RIVALS_SHOWN]:
+                result.considered.append({
+                    "name": name,
+                    "concept": self.synset.get(name),
+                    "survived": False,
+                    "depth": depth,
+                    "matched": matched_by.get(name, {}),
+                })
+        for name in sorted(survivors):
             result.considered.append({
-                "name": name,
-                "concept": self.synset.get(name),
-                "survived": name in survivors,
-                "depth": depth_of.get(name, deepest),
+                "name": name, "concept": self.synset.get(name),
+                "survived": True, "depth": deepest,
                 "matched": matched_by.get(name, {}),
             })
+
         if len(result.candidates) == 1:
             result.verdict = "IDENTIFIED"
         elif result.candidates:

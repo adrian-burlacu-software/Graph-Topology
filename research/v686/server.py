@@ -17,7 +17,6 @@ v684, so this is a superset of a superset rather than a third fork.
 from __future__ import annotations
 
 import argparse
-import re
 import threading
 import webbrowser
 from http.server import ThreadingHTTPServer
@@ -37,17 +36,6 @@ V686_RULES: dict[str, str] = {
            "about a thing outranks what it inherits.",
 }
 
-#: A question that describes rather than names. `what kind of X ...` and
-#: `what is <adjective> and <adjective>` are the two shapes; naming questions
-#: like `what can a violin do` deliberately do not match, because they have a
-#: subject and belong to v684.
-DESCRIBES = re.compile(
-    r"^\s*(?:what|which)\b(?!.*\b(?:a|an|the)\s+\w+(?:'s)?\s+\w*\s*(?:do|need)\b)"
-    r".*\b(?:kind|type|sort)s?\s+of\b|"
-    r"^\s*(?:what|which)\s+(?:is|are)\s+\w+\s+and\b",
-    re.IGNORECASE)
-
-
 class IdentifyingEngine(BridgedEngine):
     """v685's engine, with descriptions answered by identification."""
 
@@ -56,10 +44,11 @@ class IdentifyingEngine(BridgedEngine):
     def __init__(self, store: Path, depth: int = 3, breadth: int = 60):
         super().__init__(store, depth=depth, breadth=breadth)
         # shares the open reasoner: the identifier needs the same taxonomy
-        self.identifier = Identifier(store, reasoner=self.reasoner)
+        self.identifier = Identifier(store, reasoner=self.reasoner,
+                                     parser=self.parser)
 
     def ask(self, question: str, concept: str | None = None) -> dict:
-        if concept or not DESCRIBES.search(question or ""):
+        if concept or not self.identifier.describes(question or ""):
             payload = super().ask(question, concept)
             payload["rules"] = {**payload.get("rules", {}), **V686_RULES}
             return payload

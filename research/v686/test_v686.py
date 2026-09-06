@@ -15,7 +15,6 @@ from research.v686 import corpora
 from research.v686.identifiability import cue_validity, depths
 from research.v686.identifiability import measure as identifiability
 from research.v686.identify import Identifier
-from research.v686.server import DESCRIBES
 
 STORE = build.DEFAULT_STORE.with_name("v684_reasoning_compressed.sqlite")
 HAVE_NORMS = (corpora.XCSLB_DIR / "comps_base.jsonl").exists() and \
@@ -191,23 +190,57 @@ class TradeoffTests(unittest.TestCase):
         self.assertEqual(rows["anti_coverage"].never_unique, 2)
 
 
+@requires_norms
+@requires_store
 class RoutingTests(unittest.TestCase):
-    """Which questions identification takes, and which it leaves alone."""
+    """Which questions identification takes, and which it leaves alone.
+
+    Routing is grammatical, not a pattern list: a description leaves the thing
+    unnamed and says what it is like -- a relative clause, an adjectival
+    complement, or `what` used as a determiner. A naming question has a
+    subject and asks what it does, and belongs to v684.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.identifier = Identifier(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.identifier.close()
 
     def test_descriptions_are_taken(self):
         for question in ("what kind of dog has spots",
                          "what kind of cat has stripes",
-                         "what is red and flies"):
-            self.assertTrue(DESCRIBES.search(question), question)
+                         "what is an object that is round with spots",
+                         "what is round with spots",
+                         "what animal has stripes",
+                         "which animal is big and furry",
+                         "what is a bird that is red"):
+            self.assertTrue(self.identifier.describes(question), question)
 
     def test_naming_questions_are_left_to_v684_and_v685(self):
         for question in ("what can a violin player do",
                          "what does a dog owner need",
+                         "what does a dog's owner need",
                          "what can a violin do", "is a dog an animal",
-                         "can a dog fall into a hole",
+                         "can a dog fall into a hole", "what is a dog",
+                         "where do you find a hammer",
                          "what is a hammer used for"):
-            self.assertFalse(DESCRIBES.search(question), question)
+            self.assertFalse(self.identifier.describes(question), question)
 
+    def test_the_class_is_read_from_three_shapes(self):
+        for question, among, terms in (
+                ("what kind of dog has spots", "dog", ["spots"]),
+                ("what is an object that is round with spots", "object",
+                 ["round", "spots"]),
+                ("what animal has stripes", "animal", ["stripes"])):
+            got_terms, got_among = self.identifier.terms_of(question)
+            self.assertEqual(got_among, among, question)
+            self.assertEqual(sorted(got_terms), sorted(terms), question)
+
+    def test_an_unknown_class_is_dropped_rather_than_searched_for(self):
+        self.assertIsNone(self.identifier.terms_of("what zzzqqq has stripes")[1])
 
 @requires_norms
 @requires_store
@@ -289,6 +322,35 @@ class IdentificationTests(unittest.TestCase):
         rooted = corpora.load_buchanan(root_forms=True)
         surface = corpora.load_buchanan(root_forms=False)
         self.assertLess(rooted.predicates, surface.predicates / 2)
+
+    def test_each_attribute_owns_the_rivals_it_removed(self):
+        """`depth` is the index of the step that removed the candidate.
+
+        Counting from the terms alone is off by one exactly when a class was
+        named, which drew the rivals of `stripes` hanging off `animal`.
+        """
+        found = self.identifier.identify(
+            "what kind of animal has stripes and eats meat and is fast")
+        terms = [step["term"] for step in found.steps]
+        self.assertEqual(terms[0], "animal")           # the class step
+        by_step = {}
+        for entry in found.considered:
+            if not entry["survived"]:
+                by_step.setdefault(entry["depth"], []).append(entry["name"])
+        self.assertNotIn(0, by_step)                   # the class removed none
+        removed_by_stripes = by_step.get(terms.index("stripes"), [])
+        self.assertTrue(removed_by_stripes)
+        for name in removed_by_stripes:
+            self.assertNotIn("stripes", self.identifier.stated.get(name, ()))
+
+    def test_rivals_are_the_nearest_misses_not_the_alphabet(self):
+        """Sorting by name gave `ambulance, accordion, antelope`."""
+        found = self.identifier.identify("what is round with hexagons")
+        self.assertEqual([c.name for c in found.candidates], ["football"])
+        rivals = {e["name"] for e in found.considered if not e["survived"]}
+        self.assertTrue(rivals & {"ball", "balloon", "frisbee"}, rivals)
+        self.assertNotIn("ambulance", rivals)
+        self.assertNotIn("accordion", rivals)
 
     def test_nothing_matching_is_reported_as_absent(self):
         found = self.identifier.identify("what kind of dog has feathers")

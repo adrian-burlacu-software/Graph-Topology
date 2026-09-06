@@ -612,8 +612,8 @@ function spindle(svg, rounds, byDepth, answers, RULED) {
     connect(candidate.name, rounds[rounds.length - 1].term, "edge"));
 
   rounds.forEach(round => nodeEls.set(round.term, attributeNode(svg, 0, 0, round)));
-  byDepth.forEach((dropped, index) => {
-    const round = rounds[index];
+  byDepth.forEach((dropped, depth) => {
+    const round = rounds[depth];
     if (!round) return;
     dropped.slice(0, RULED).forEach(entry =>
       nodeEls.set(entry.name, ghostChip(svg, 0, 0, entry, round.term)));

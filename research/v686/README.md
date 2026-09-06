@@ -188,6 +188,27 @@ question instead of a storage slot.
 The last is a *correct* ambiguity: both birds really are red, and the trace says
 which stored property matched.
 
+**The question is routed by grammar, not a pattern list.** A description
+leaves the thing unnamed and says what it is like, which shows up as a
+relative clause (`an object *that is round*`), an adjectival complement (`what
+is *round* with spots`), or `what` used as a determiner (`*what animal* has
+stripes`). A naming question has a subject and asks what it does — that is
+v684's and must not be taken. So all of these are answered:
+
+    what is an object that is round with spots
+    what is round with hexagons          -> football
+    what animal has stripes
+    which animal is big and furry
+
+while `what can a violin do`, `what is a hammer used for` and `what does a
+dog's owner need` still belong to v684 and v685.
+
+**The rivals shown are the nearest misses.** Each attribute displays the
+candidates *it* removed, ranked by how many properties they share with the
+answer. `what is round with hexagons` puts `ball, balloon, frisbee, boomerang,
+dice` under `hexagons` — sorting by name instead gave `accordion, ambulance,
+antelope`, which is the alphabet rather than the near misses.
+
 **Stated evidence outranks inherited.** v684's inherited facts are corpus free
 text, and matching one word inside them is how `collie` acquires "spots" from
 `capable of spot movement`, or `marble` learns to fly via `capable of fly
