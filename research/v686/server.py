@@ -89,23 +89,42 @@ class IdentifyingEngine(BridgedEngine):
 
     @staticmethod
     def _steps(found) -> list[dict]:
-        """The narrowing, in the shape the page's replay already understands."""
-        steps = []
-        for position, step in enumerate(found.steps):
-            remaining = step["remaining"]
-            examples = ", ".join(step.get("examples", [])[:5])
+        """One step per attribute on the branch, then the thing it identifies.
+
+        The step's `concept` has to be the key the drawing used for its nodes,
+        because that is what the replay looks up to highlight. Naming the
+        rivals here instead put synset ids in the steps and attribute names on
+        the tree, so every lookup missed and nothing lit up at all.
+        """
+        steps: list[dict] = []
+        for position, round_ in enumerate(found.steps):
+            dropped = round_.get("eliminated") or 0
             steps.append({
                 "index": position,
-                "kind": "match" if remaining == 1 else (
-                    "stop" if remaining == 0 else "check"),
-                "concept": step["term"],
+                "kind": "check",
+                "concept": round_["term"],
                 "distance": position,
-                "rule": step["rule"],
-                "detail": f"{step['detail']} — {remaining} left"
-                          + (f": {examples}" if examples else ""),
-                "facts_checked": remaining,
+                "rule": round_.get("rule", "R16"),
+                "detail": round_["detail"]
+                          + (f" — {dropped} ruled out" if dropped else
+                             " — nothing ruled out"),
+                "facts_checked": dropped,
                 "matched": None,
-                "parents": [],
+                "parents": [found.steps[position - 1]["term"]] if position else [],
+            })
+        for candidate in found.candidates[:4]:
+            matched = "; ".join(f"“{term}” via {hit}"
+                                for term, hit in candidate.matched.items())
+            steps.append({
+                "index": len(steps),
+                "kind": "match",
+                "concept": candidate.name,
+                "distance": len(found.steps),
+                "rule": "R16",
+                "detail": f"{candidate.name}: {matched}",
+                "facts_checked": len(candidate.matched),
+                "matched": None,
+                "parents": [found.steps[-1]["term"]] if found.steps else [],
             })
         return steps
 

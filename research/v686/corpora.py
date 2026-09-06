@@ -35,6 +35,7 @@ from ..v683.substrate import Corpus
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 XCSLB_DIR = REPOSITORY_ROOT / "data" / "xcslb"
 AWA2_DIR = REPOSITORY_ROOT / "data" / "awa2" / "Animals_with_Attributes2"
+BUCHANAN = REPOSITORY_ROOT / "data" / "buchanan" / "top_to_final.csv"
 
 #: The feature taxonomy XCSLB ships. `visual perceptual` is the one that
 #: matters for identifying a thing by looking at it.
@@ -110,6 +111,40 @@ def load_xcslb(kinds: tuple[str, ...] | None = None,
     if category:
         label += f"/{category}"
     return Corpus(label, tuple(items))
+
+
+def load_buchanan(min_frequency: int = 1, root_forms: bool = True,
+                  name: str | None = None) -> Corpus:
+    """Buchanan et al. (2019): 3,722 concepts over 10,850 features.
+
+    Seven times XCSLB's concept count, and the only one of the three that
+    reports **production frequency** -- how many of the participants listed
+    that feature. `min_frequency` is therefore a real knob rather than a
+    guess: at 1 every feature anyone mentioned is kept, and raising it trades
+    coverage for agreement.
+
+    `root_forms` collapses the morphological variants the norms record
+    separately -- `leaving` and `leave` are one predicate, not two -- which is
+    the difference between measuring compression and measuring spelling.
+    """
+    pairs: dict[str, set[str]] = {}
+    with BUCHANAN.open(encoding="utf-8", errors="replace", newline="") as handle:
+        for row in csv.DictReader(handle):
+            frequency = row.get("frequency_feature", "").strip()
+            if not frequency.isdigit() or int(frequency) < min_frequency:
+                continue
+            feature = (row["translated"] if root_forms else row["feature"]).strip()
+            if feature:
+                pairs.setdefault(row["cue"].strip(), set()).add(feature)
+
+    label = name or "buchanan"
+    if min_frequency > 1:
+        label += f">={min_frequency}"
+    if not root_forms:
+        label += "/surface"
+    return Corpus(label, tuple(
+        (cue, frozenset(features)) for cue, features in sorted(pairs.items())
+        if features))
 
 
 def load_awa2(binary: bool = True, name: str = "awa2") -> Corpus:

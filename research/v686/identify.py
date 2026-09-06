@@ -52,6 +52,9 @@ thing things something anything one ones me you i tell name
 #: the same reason v684's R12 exists.
 INHERIT_DEPTH = 6
 
+#: How many rivals to hand the page. Thirty birds is already a crowded globe.
+MAX_CONSIDERED = 24
+
 
 @dataclass
 class Candidate:
@@ -70,16 +73,22 @@ class Identification:
     question: str
     terms: list[str] = field(default_factory=list)
     among: str | None = None
+    among_concept: str | None = None
     candidates: list[Candidate] = field(default_factory=list)
+    #: Everyone who was in the running, survivors and eliminated alike, with
+    #: the synset each resolves to. The page draws the elimination from this;
+    #: without it there is nothing to animate but the words of the question.
+    considered: list[dict] = field(default_factory=list)
     steps: list[dict] = field(default_factory=list)
     verdict: str = "UNKNOWN"
     note: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {"question": self.question, "terms": self.terms,
-                "among": self.among, "verdict": self.verdict, "note": self.note,
+                "among": self.among, "among_concept": self.among_concept,
+                "verdict": self.verdict, "note": self.note,
                 "candidates": [c.as_dict() for c in self.candidates],
-                "steps": self.steps}
+                "considered": self.considered, "steps": self.steps}
 
 
 class Identifier:
@@ -216,7 +225,12 @@ class Identifier:
             return result
 
         pool = set(self.stated)
+        depth_of: dict[str, int] = {}
         if among:
+            row = self.reasoner.connection.execute(
+                "SELECT concept FROM lemmas WHERE lemma = ? "
+                "ORDER BY primary_sense DESC LIMIT 1", (among,)).fetchone()
+            result.among_concept = row[0] if row else None
             inside = self._within(among)
             if inside is None:
                 result.note = f"“{among}” is not a class this data covers."
@@ -237,6 +251,12 @@ class Identifier:
         for allow_inherited in (False, True):
             alive = dict.fromkeys(sorted(pool))
             matched_by = {name: {} for name in alive}
+            # When each candidate dropped out. This is the depth the page
+            # draws: a thing eliminated by the first property sits one level
+            # in, one that survived to the third sits three levels in, and
+            # the answer is deepest. With every candidate at one level the
+            # picture is flat however many properties were asked about.
+            fell_at: dict[str, int] = {}
             trace: list[dict] = []
             # Order the questions the way the trie would: the term that
             # eliminates most candidates is asked first. That is
@@ -255,6 +275,9 @@ class Identifier:
                         keep[name] = None
                         matched_by[name][term] = f"{hit} ({origin})"
                 before = len(alive)
+                for name in alive:
+                    if name not in keep:
+                        fell_at[name] = len(trace) + 1
                 alive = keep
                 trace.append({
                     "rule": "R16", "kind": "narrow", "term": term,
@@ -268,9 +291,11 @@ class Identifier:
                     break
             if alive:
                 result.steps.extend(trace)
+                depth_of = fell_at
                 break
             if allow_inherited:
                 result.steps.extend(trace)
+                depth_of = fell_at
 
         for name in sorted(alive, key=lambda n: len(self.stated.get(n, ()))):
             result.candidates.append(Candidate(
@@ -278,6 +303,20 @@ class Identifier:
                 matched=matched_by[name],
                 predicates=len(self.stated.get(name, ()))))
         result.candidates = result.candidates[:limit]
+        survivors = {c.name for c in result.candidates}
+        # One level below the last property that actually eliminated anyone,
+        # so the survivors sit at the bottom of the funnel with no empty ring
+        # above them for a property that removed nothing.
+        deepest = max(depth_of.values(), default=0) + 1
+        ordered = sorted(pool, key=lambda n: (-depth_of.get(n, deepest), n))
+        for name in ordered[:MAX_CONSIDERED]:
+            result.considered.append({
+                "name": name,
+                "concept": self.synset.get(name),
+                "survived": name in survivors,
+                "depth": depth_of.get(name, deepest),
+                "matched": matched_by.get(name, {}),
+            })
         if len(result.candidates) == 1:
             result.verdict = "IDENTIFIED"
         elif result.candidates:

@@ -129,6 +129,18 @@
   #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
   #graph .gnode.skipped circle { fill:var(--maybe); stroke:var(--maybe); }
   #graph .gnode.origin circle { stroke:var(--accent); stroke-width:2.5; }
+  #graph .gnode.treenode circle { fill:var(--panel2); stroke:var(--accent);
+                                 stroke-width:2; }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
+  #graph .tree-term { fill:var(--ink); font:13px var(--mono);
+                      text-anchor:end; stroke:none; }
+  #graph .tree-answer { fill:var(--yes); font:14px var(--mono);
+                        font-weight:600; stroke:none; }
+  #graph .gnode.treeghost circle { fill:#1a212c; stroke:#333c4c; }
+  #graph .gnode.treeghost text { fill:#4d5566; font:11px var(--mono);
+                                 stroke:none; }
+  #graph .gnode.treenode.current circle { fill:var(--accent); stroke:var(--accent); }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
   #graph .gnode text {
     fill:var(--faint); font:11px var(--mono); transition:fill .35s ease;
     paint-order:stroke; stroke:#12151c; stroke-width:3px;
@@ -317,6 +329,10 @@ const EXAMPLES = [
   "what kind of cat has stripes",
   "what kind of bird is red",
   "what kind of bird cannot fly",
+  // Several properties, so the narrowing has depth: each one is another
+  // level of the funnel, and the answer sits at the bottom.
+  "what kind of animal has stripes and eats meat and is fast",
+  "what kind of animal is furry and has spots and is big",
 ];
 const $ = id => document.getElementById(id);
 let STATE = null, cursor = 0, timer = null;
@@ -452,6 +468,227 @@ let VIEW = localStorage.getItem("v684view") || "rows";
 let NBR = localStorage.getItem("v684nbr") !== "off";
 
 function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
+
+/* The attribute tree: the trie branch that identified the thing.
+ *
+ * This is Figure 20 read downwards. Each attribute is a node on the branch,
+ * and taking it splits what is underneath: whatever carries the attribute
+ * stays on the branch, whatever does not falls off it as a ruled-out
+ * neighbour. Following the branch to its terminal is the identification.
+ *
+ * Two drawings of the same tree, on the same toggle as everywhere else:
+ *
+ *   Rows   the branch straight down, rivals fanned to one side. Readable,
+ *          and the shape is obvious at a glance.
+ *   Globe  the branch as a spindle in 3D. The rivals ring the attribute that
+ *          ruled them out, so they sit in front of and behind it rather than
+ *          in a row, and the whole thing turns under the existing projector.
+ *
+ * Nodes are keyed by attribute name and the ruled-out ones by their own name,
+ * which is what the step replay looks up: keying them by synset id while the
+ * steps named attributes is why nothing lit up.
+ */
+function buildTriePath(svg) {
+  const ident = STATE.identification;
+  const rounds = (ident.steps || []).slice();
+  if (!rounds.length) return;
+
+  const byDepth = new Map();
+  (ident.considered || []).forEach(entry => {
+    if (entry.survived) return;
+    const depth = entry.depth || 1;
+    if (!byDepth.has(depth)) byDepth.set(depth, []);
+    byDepth.get(depth).push(entry);
+  });
+  const answers = (ident.candidates || []).slice(0, 4);
+  const RULED = 7;
+
+  return VIEW === "globe"
+    ? spindle(svg, rounds, byDepth, answers, RULED)
+    : ladder(svg, rounds, byDepth, answers, RULED);
+}
+
+/* -- the flat drawing ------------------------------------------------- */
+function ladder(svg, rounds, byDepth, answers, RULED) {
+  const W = 1000, SPINE = 150, ROW = 78, TOP = 44, FAN = 116;
+  const H = TOP + rounds.length * ROW + 60 + answers.length * 34;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = Math.min(H, 620) + "px";
+
+  const nodeEls = new Map(), edgeEls = new Map(), ghostsOf = new Map();
+  const y = index => TOP + index * ROW;
+  const line = (x1, y1, x2, y2, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    path.setAttribute("d", "M" + x1 + "," + y1 + " L" + x2 + "," + y2);
+    svg.appendChild(path);
+    return path;
+  };
+
+  rounds.forEach((round, index) => {
+    const top = y(index);
+    if (index) {
+      edgeEls.set(round.term + "→" + rounds[index - 1].term,
+                  line(SPINE, y(index - 1) + 13, SPINE, top - 13, "edge"));
+    }
+    // Rivals branch off the attribute that removed them, spread along a
+    // diagonal so a long list stays readable instead of running off the edge.
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (dropped.length) {
+      ghostsOf.set(round.term, dropped.map(entry => entry.name));
+      dropped.forEach((entry, position) => {
+        const x = SPINE + 78 + position * FAN;
+        const at = top + (position % 2 ? 18 : -18) + position * 2;
+        edgeEls.set(entry.name + "→" + round.term,
+                    line(SPINE + 10, top, x - 8, at, "edge faded"));
+        nodeEls.set(entry.name, ghostChip(svg, x, at, entry, round.term));
+      });
+    }
+    nodeEls.set(round.term, attributeNode(svg, SPINE, top, round));
+  });
+
+  const bottom = y(rounds.length - 1);
+  answers.forEach((candidate, position) => {
+    const at = bottom + 52 + position * 34;
+    edgeEls.set(candidate.name + "→" + rounds[rounds.length - 1].term,
+                line(SPINE, bottom + 13, SPINE, at - 11, "edge"));
+    nodeEls.set(candidate.name, answerNode(svg, SPINE, at, candidate));
+  });
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3: new Map(), edgePairs: [],
+            cx: 0, cy: 0, origin: null, onPath: new Set(),
+            stagger: new Map(), tree: true };
+}
+
+/* -- the 3D drawing ---------------------------------------------------- */
+function spindle(svg, rounds, byDepth, answers, RULED) {
+  const W = 1000, H = 620, cx = W / 2, cy = H / 2;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = H + "px";
+
+  const span = Math.min(64, 380 / Math.max(1, rounds.length));
+  const top = -(rounds.length - 1) * span / 2 - 40;
+  const p3 = new Map(), nodeEls = new Map(), edgeEls = new Map();
+  const edgePairs = [], ghostsOf = new Map();
+
+  rounds.forEach((round, index) => p3.set(round.term, [0, top + index * span, 0]));
+
+  // Rivals ring the attribute that ruled them out. An even azimuth puts some
+  // in front of the spindle and some behind it, which is what makes it read
+  // as a branch in depth rather than a row of dots.
+  rounds.forEach((round, index) => {
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (!dropped.length) return;
+    ghostsOf.set(round.term, dropped.map(entry => entry.name));
+    const radius = 108 + Math.min(60, dropped.length * 7);
+    dropped.forEach((entry, position) => {
+      const theta = 2 * Math.PI * position / dropped.length + index * 0.7;
+      p3.set(entry.name, [radius * Math.cos(theta),
+                          top + index * span + 14,
+                          radius * Math.sin(theta)]);
+    });
+  });
+  answers.forEach((candidate, position) => {
+    const theta = 2 * Math.PI * position / Math.max(1, answers.length);
+    const spread = answers.length > 1 ? 46 : 0;
+    p3.set(candidate.name, [spread * Math.cos(theta),
+                            top + rounds.length * span + 18,
+                            spread * Math.sin(theta)]);
+  });
+
+  const connect = (from, to, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    svg.appendChild(path);
+    edgeEls.set(from + "→" + to, path);
+    edgePairs.push([from, to, path]);
+  };
+  rounds.forEach((round, index) => {
+    if (index) connect(round.term, rounds[index - 1].term, "edge");
+    (byDepth.get(index) || []).slice(0, RULED).forEach(
+      entry => connect(entry.name, round.term, "edge faded"));
+  });
+  answers.forEach(candidate =>
+    connect(candidate.name, rounds[rounds.length - 1].term, "edge"));
+
+  rounds.forEach(round => nodeEls.set(round.term, attributeNode(svg, 0, 0, round)));
+  byDepth.forEach((dropped, index) => {
+    const round = rounds[index];
+    if (!round) return;
+    dropped.slice(0, RULED).forEach(entry =>
+      nodeEls.set(entry.name, ghostChip(svg, 0, 0, entry, round.term)));
+  });
+  answers.forEach(candidate =>
+    nodeEls.set(candidate.name, answerNode(svg, 0, 0, candidate)));
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy,
+            origin: null, onPath: new Set(), stagger: new Map(), tree: true };
+  GRAPH.project = makeProjector(GRAPH);
+  GRAPH.project(SPIN_YAW);
+  startSpin();
+}
+
+/* -- the three kinds of node, drawn once and placed by whichever view -- */
+function attributeNode(svg, x, y, round) {
+  const group = document.createElementNS(SVG_NS, "g");
+  group.setAttribute("class", "gnode treenode");
+  group.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 12);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 8);
+  const name = document.createElementNS(SVG_NS, "text");
+  name.setAttribute("class", "tree-term");
+  name.setAttribute("x", -18); name.setAttribute("y", 5);
+  name.textContent = round.term;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = round.detail || round.term;
+  group.appendChild(title); group.appendChild(ping);
+  group.appendChild(dot); group.appendChild(name);
+  svg.appendChild(group);
+  return group;
+}
+
+function ghostChip(svg, x, y, entry, term) {
+  const ghost = document.createElementNS(SVG_NS, "g");
+  ghost.setAttribute("class", "gnode ghost treeghost");
+  ghost.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 4);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("x", 10); label.setAttribute("y", 4);
+  label.textContent = entry.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = entry.name + " — ruled out by “" + term + "”";
+  ghost.appendChild(title); ghost.appendChild(dot); ghost.appendChild(label);
+  ghost.style.cursor = "pointer";
+  ghost.onclick = () => { $("q").value = "what can a " + entry.name + " do"; ask(); };
+  svg.appendChild(ghost);
+  return ghost;
+}
+
+function answerNode(svg, x, y, candidate) {
+  const chip = document.createElementNS(SVG_NS, "g");
+  chip.setAttribute("class", "gnode treenode");
+  chip.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 13);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 9);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("class", "tree-answer");
+  label.setAttribute("x", 18); label.setAttribute("y", 5);
+  label.textContent = candidate.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = Object.entries(candidate.matched || {})
+    .map(pair => pair[0] + ": " + pair[1]).join("\n");
+  chip.appendChild(title); chip.appendChild(ping);
+  chip.appendChild(dot); chip.appendChild(label);
+  chip.style.cursor = "pointer";
+  chip.onclick = () => { $("q").value = "what can a " + candidate.name + " do"; ask(); };
+  svg.appendChild(chip);
+  return chip;
+}
 
 /* Globe: concentric shells, the asked concept at the centre.
  *
@@ -799,6 +1036,12 @@ function buildGraph() {
   svg.innerHTML = "";
   const steps = (STATE && STATE.steps) || [];
   if (!steps.length) return;
+  // Identification is a fan, not a spine: two dozen rivals eliminated over a
+  // few rounds. The globe is built for a taxonomy walk -- a handful of nodes
+  // per shell along one lineage -- and given a fan it puts everything on one
+  // bearing and the labels land on top of each other. A funnel is the shape
+  // this question actually has, so it gets its own drawing.
+  if (STATE && STATE.identification) return buildTriePath(svg);
 
   // Lay the ancestors out by distance: one row per level of generalisation,
   // which is exactly what the reasoner walks.

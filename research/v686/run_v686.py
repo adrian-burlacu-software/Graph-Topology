@@ -90,7 +90,8 @@ def scaling() -> None:
     """Does prefix sharing pay off more as the corpus grows?"""
     print("\n  compression against corpus size (adaptive_coverage)")
     for label, corpus in (("awa2", corpora.load_awa2()),
-                          ("xcslb", corpora.load_xcslb())):
+                          ("xcslb", corpora.load_xcslb()),
+                          ("buchanan", corpora.load_buchanan())):
         print(f"    {label}")
         for fraction in (0.1, 0.25, 0.5, 1.0):
             count = max(2, int(len(corpus) * fraction))
@@ -109,6 +110,8 @@ def main() -> None:
     everything = [
         ("awa2", lambda: corpora.load_awa2()),
         ("xcslb", lambda: corpora.load_xcslb()),
+        ("buchanan", lambda: corpora.load_buchanan()),
+        ("buchanan/surface", lambda: corpora.load_buchanan(root_forms=False)),
         ("xcslb/visual", lambda: corpora.load_xcslb(kinds=("visual perceptual",))),
         ("xcslb/taxonomic", lambda: corpora.load_xcslb(kinds=("taxonomic",))),
         ("xcslb/bird", lambda: corpora.load_xcslb(category="bird")),

@@ -206,6 +206,33 @@ class IdentificationTests(unittest.TestCase):
         self.assertIn("dalmatian", self.identifier.synset)
         self.assertIn("tiger", self.identifier.synset)
 
+    def test_the_narrowing_has_depth_when_several_properties_are_asked(self):
+        """One property is one level; the funnel needs more than that.
+
+        The page drew a flat two-row picture for "dog has spots" because
+        every candidate was placed at depth 1 whatever eliminated it. Depth
+        is now *when* a candidate fell out.
+        """
+        found = self.identifier.identify(
+            "what kind of animal has stripes and eats meat and is fast")
+        self.assertEqual(found.verdict, "IDENTIFIED")
+        self.assertEqual([c.name for c in found.candidates], ["tiger"])
+        depths = {entry["depth"] for entry in found.considered}
+        self.assertGreaterEqual(len(depths), 3)
+        survivor = next(e for e in found.considered if e["survived"])
+        self.assertEqual(survivor["depth"], max(depths))
+
+    def test_buchanan_scales_the_norms_up(self):
+        buchanan = corpora.load_buchanan()
+        self.assertGreater(len(buchanan), 3500)
+        self.assertGreater(buchanan.cells, 24000)
+
+    def test_root_forms_are_not_two_predicates(self):
+        """`leaving` and `leave` are one property, not two."""
+        rooted = corpora.load_buchanan(root_forms=True)
+        surface = corpora.load_buchanan(root_forms=False)
+        self.assertLess(rooted.predicates, surface.predicates / 2)
+
     def test_nothing_matching_is_reported_as_absent(self):
         found = self.identifier.identify("what kind of dog has feathers")
         self.assertEqual(found.verdict, "NO_MATCH")
