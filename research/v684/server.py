@@ -26,6 +26,10 @@ PAGE = HERE / "app.html"
 class Engine:
     """Parser plus reasoner, shared by every request."""
 
+    #: What the page calls itself. The page is shared, so the server names it
+    #: rather than the file hard-coding one of them and mislabelling the other.
+    title = "V684 Reasoner"
+
     def __init__(self, store: Path):
         self.reasoner = Reasoner(store)
         # The parser reads subjects better when it knows what exists: `fire
@@ -142,7 +146,9 @@ def make_handler(engine: Engine):
             query = parse_qs(route.query)
             try:
                 if route.path in ("/", "/index.html"):
-                    self._send(PAGE.read_bytes(), "text/html; charset=utf-8")
+                    page = PAGE.read_text(encoding="utf-8").replace(
+                        "V684 Reasoner", engine.title)
+                    self._send(page.encode("utf-8"), "text/html; charset=utf-8")
                 elif route.path == "/api/ask":
                     payload = engine.ask(query.get("q", [""])[0],
                                          (query.get("concept") or [None])[0])
