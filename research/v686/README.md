@@ -101,6 +101,68 @@ More individuals, more shared prefix — as the paper predicts. XCSLB plateaus a
 12.5%, which is what a sparse open vocabulary looks like when it runs out of
 overlap to find.
 
+## Storing against asking
+
+The same trie is for two things, and they pull in opposite directions.
+
+Storing wants **shared prefixes**: put the predicate the most individuals carry
+first, and everyone walks the same corridor before splitting. Identifying wants
+the **opposite**: the predicate almost nobody carries splits the field on the
+first question. So `global_coverage` and `anti_coverage` are not a good idea
+and a bad one — they are the two ends of one axis.
+
+Measured on the same trie, where *questions* is how many predicates of an
+individual's path must be read before no other individual shares it:
+
+| ordering | nodes | compressed | questions to identify |
+| --- | --- | --- | --- |
+| anti_coverage | 1,521 | 2.6% | **2.46** |
+| cue_validity | 1,478 | 5.4% | 3.64 |
+| shuffled | 1,447 | 7.4% | 4.18 |
+| lexical | 1,405 | 10.1% | 4.92 |
+| global_coverage | 1,177 | 24.6% | 10.06 |
+| **adaptive_coverage** | **883** | **43.5%** | **18.66** |
+
+*(AwA2; XCSLB and Buchanan give the same ordering.)*
+
+**The rank correlation between compression and questions-to-identify is
++1.000 on all three corpora.** Not a tendency — an ordering, with no
+exceptions among six policies. The ordering that stores AwA2 in 883 nodes
+needs 18.66 questions to name an animal; the one that names it in 2.46 needs
+1,521 nodes and saves almost nothing.
+
+That is worth stating plainly, because Appendix 3 optimises one end of it. A
+system that has to both hold knowledge cheaply and recognise things quickly
+cannot use one ordering for both, and the trie does not have to: storage order
+and question order are separate choices over the same structure.
+
+### On McRae
+
+McRae et al. (2005) report the two statistics that name this axis —
+**distinctiveness** (1 / concepts carrying the feature) and **cue validity**
+(P(concept | feature), weighted by production frequency). Their file is behind
+a Google login and is not here.
+
+It turns out not to matter, and the reason is worth being precise about: both
+are *derived statistics over a feature-norm corpus*, not independent human
+ratings. Ranking by distinctiveness is provably identical to ranking by
+ascending coverage — `anti_coverage`, already implemented and tested to agree.
+And `load_buchanan` carries the production frequencies cue validity weights
+by, over seven times as many concepts, so `cue_validity` in
+`identifiability.py` is the weighted version McRae would have supplied
+unweighted. The experiment McRae suggested runs; McRae's file is not what it
+needed.
+
+Weighting by agreement buys a little compression for a few more questions
+(5.4% / 3.64 against 2.6% / 2.46) — the same trade-off in miniature.
+
+### What cannot be told apart
+
+Across 3,722 Buchanan concepts exactly **one pair** never becomes unique no
+matter how much of its path is read: `percent` and `percentage`. The only
+things the predicates cannot separate are two words that mean the same thing,
+which is the right failure.
+
 ## Identification — the same trie, read downwards
 
 Storing an individual walks *down* the trie until its predicate set runs out.
@@ -153,5 +215,6 @@ data supports, and it answers correctly.
 | `corpora.py` | XCSLB and AwA2 as v683 `Corpus` objects, sliceable by feature type and category |
 | `run_v686.py` | the compression experiment: orderings, the optimal floor, the scaling curve |
 | `identify.py` | the trie read downwards, with the narrowing recorded |
+| `identifiability.py` | questions-to-identify on the same trie, and the cue-validity ordering |
 | `server.py` | everything v685 serves, plus identification, on the same page |
-| `test_v686.py` | 22 tests; they skip if the norms are not downloaded |
+| `test_v686.py` | 31 tests; they skip if the norms are not downloaded |

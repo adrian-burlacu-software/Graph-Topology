@@ -28,6 +28,8 @@ from ..v683.measure import compare, measure
 from ..v683.ordering import ORDERINGS, coverage, optimal
 from ..v683.substrate import Corpus
 from . import corpora
+from .identifiability import cue_validity
+from .identifiability import measure as identifiability
 
 #: `optimal` is factorial in the predicate count, so it is only reachable on a
 #: corpus with a handful of predicates. It is the floor the heuristics are
@@ -102,6 +104,33 @@ def scaling() -> None:
                   f"{result.nodes:>7,} nodes  reuse {result.reuse_rate:>6.1%}")
 
 
+def storing_against_asking() -> None:
+    """The trade-off the same trie makes between the two things it is for.
+
+    Storing wants shared prefixes, so it puts the predicate the most
+    individuals carry first. Identifying wants the opposite: the predicate
+    almost nobody carries splits the field on the first question. They are the
+    two ends of one axis, and the rank correlation between compression and
+    questions-to-identify is +1.000 on every corpus -- not a tendency, an
+    ordering.
+    """
+    plans = dict(ORDERINGS)
+    plans["cue_validity"] = cue_validity
+    print("\n  storing against asking")
+    for corpus in (corpora.load_awa2(), corpora.load_xcslb(),
+                   corpora.load_buchanan()):
+        print(f"\n    {corpus.name}: {len(corpus):,} individuals, "
+              f"{corpus.cells:,} cells")
+        print(f"      {'ordering':<20}{'nodes':>8}{'compressed':>12}"
+              f"{'questions':>11}{'p90':>6}{'never':>7}")
+        rows = [identifiability(corpus, name, build(corpus))
+                for name, build in plans.items()]
+        for row in sorted(rows, key=lambda r: r.mean_depth):
+            print(f"      {row.ordering:<20}{row.nodes:>8,}{row.reuse:>11.1%}"
+                  f"{row.mean_depth:>11.2f}{row.p90_depth:>6}"
+                  f"{row.never_unique:>7}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", help="run one corpus by name fragment")
@@ -128,6 +157,7 @@ def main() -> None:
     if not arguments.only:
         optimal_floor()
         scaling()
+        storing_against_asking()
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ from research.v683.ordering import ORDERINGS, coverage, optimal
 from research.v683.substrate import Corpus
 from research.v684 import build
 from research.v686 import corpora
+from research.v686.identifiability import cue_validity, depths
+from research.v686.identifiability import measure as identifiability
 from research.v686.identify import Identifier
 from research.v686.server import DESCRIBES
 
@@ -132,6 +134,61 @@ class CompressionTests(unittest.TestCase):
         self.assertLess(
             measure(small, "a", ORDERINGS["adaptive_coverage"](small)).reuse_rate,
             measure(awa, "a", ORDERINGS["adaptive_coverage"](awa)).reuse_rate)
+
+
+@requires_norms
+class TradeoffTests(unittest.TestCase):
+    """Storing and asking pull in opposite directions on the same trie."""
+
+    def rows(self, corpus):
+        plans = dict(ORDERINGS)
+        plans["cue_validity"] = cue_validity
+        return [identifiability(corpus, name, build(corpus))
+                for name, build in plans.items()]
+
+    def test_compression_and_questions_are_perfectly_rank_inverted(self):
+        """rho = +1.000 on every corpus: an ordering, not a tendency."""
+        for corpus in (corpora.load_awa2(), corpora.load_xcslb(),
+                       corpora.load_buchanan()):
+            rows = sorted(self.rows(corpus), key=lambda r: r.reuse)
+            questions = [r.mean_depth for r in rows]
+            self.assertEqual(questions, sorted(questions), corpus.name)
+
+    def test_the_best_compressor_asks_the_most_questions(self):
+        rows = {r.ordering: r for r in self.rows(corpora.load_awa2())}
+        best = max(rows.values(), key=lambda r: r.reuse)
+        fewest = min(rows.values(), key=lambda r: r.mean_depth)
+        self.assertEqual(best.ordering, "adaptive_coverage")
+        self.assertEqual(fewest.ordering, "anti_coverage")
+        self.assertGreater(best.mean_depth, fewest.mean_depth * 3)
+
+    def test_distinctiveness_ordering_is_anti_coverage(self):
+        """McRae's distinctiveness is 1/(concepts carrying it), so ranking by
+        it is ranking by ascending coverage -- which is already implemented."""
+        awa = corpora.load_awa2()
+        counts = coverage(awa)
+        by_distinctiveness = sorted(counts, key=lambda p: (1 / counts[p], str(p)))
+        by_anti = sorted(counts, key=lambda p: (-counts[p], str(p)))
+        self.assertEqual(by_distinctiveness, by_anti)
+
+    def test_identification_depth_is_the_unique_prefix(self):
+        corpus = Corpus("tiny", (
+            ("a", frozenset({"x", "y"})),
+            ("b", frozenset({"x", "z"})),
+            ("c", frozenset({"w"}))))
+        found, never = depths([("a", ("x", "y")), ("b", ("x", "z")),
+                               ("c", ("w",))])
+        self.assertEqual(never, 0)
+        self.assertEqual(sorted(found), [1, 2, 2])
+
+    def test_identical_predicate_sets_are_reported_not_scored(self):
+        found, never = depths([("a", ("x",)), ("b", ("x",))])
+        self.assertEqual(never, 2)
+        self.assertEqual(found, [])
+
+    def test_the_only_thing_buchanan_cannot_tell_apart_is_a_synonym_pair(self):
+        rows = {r.ordering: r for r in self.rows(corpora.load_buchanan())}
+        self.assertEqual(rows["anti_coverage"].never_unique, 2)
 
 
 class RoutingTests(unittest.TestCase):
