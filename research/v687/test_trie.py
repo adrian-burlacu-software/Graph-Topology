@@ -1,11 +1,11 @@
-"""Regression suite. Run: python -m unittest research.v683.test_v683 -v"""
+"""Regression suite. Run: python -m unittest research.v687.test_v683 -v"""
 from __future__ import annotations
 
 import unittest
 
-from research.v683 import measure, normalize, ordering, substrate
-from research.v683.substrate import PAPER_TABLE_1
-from research.v683.trie import ROOT, PredicateTrie
+from research.v687 import measure, normalize, ordering, substrate
+from research.v687.substrate import PAPER_TABLE_1
+from research.v687.trie import ROOT, PredicateTrie
 
 
 class NormalizationTests(unittest.TestCase):

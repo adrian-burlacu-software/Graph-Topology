@@ -1,6 +1,6 @@
 """Appendix 3's trie, measured on elicited feature norms.
 
-    python -m research.v686.run_v686
+    python -m research.v687.run_v687
 
 V683 ran this same trie and the same six orderings on a scraped ontology.
 This runs them on data of the kind the paper actually assumes: a closed

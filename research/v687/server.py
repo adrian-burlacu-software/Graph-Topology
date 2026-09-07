@@ -1,6 +1,6 @@
 """One command: everything v685 serves, plus identification.
 
-    python -m research.v686
+    python -m research.v687
 
 The page, the store, the rules and the bridge are v685's, untouched. What is
 added is the inverse question -- describe a thing and be told what it is:

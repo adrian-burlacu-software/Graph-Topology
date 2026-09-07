@@ -1,7 +1,7 @@
-"""Regression suite. Run: python -m unittest research.v684.test_v684 -v
+"""Regression suite. Run: python -m unittest research.v687.test_v684 -v
 
 Tests that need the built store skip themselves when it is absent, so the suite
-runs on a fresh clone before `python -m research.v684.build`.
+runs on a fresh clone before `python -m research.v687.build`.
 """
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ import collections
 import sqlite3
 from pathlib import Path
 
-from research.v684 import build, compress, rules, senses
-from research.v684.language import Parser
-from research.v684.reason import Reasoner
+from research.v687 import build, compress, rules, senses
+from research.v687.language import Parser
+from research.v687.reason import Reasoner
 
 STORE = build.DEFAULT_STORE
 HAVE_STORE = STORE.exists()
@@ -215,7 +215,7 @@ class EngineTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from research.v684.server import Engine
+        from research.v687.engine import Engine
         cls.engine = Engine(STORE)
 
     @classmethod
@@ -434,13 +434,13 @@ class TargetMatchingTests(unittest.TestCase):
 
     def test_a_preposition_is_not_content(self):
         """`into` sat outside a list already holding `in`, `to`, `on`, `at`."""
-        from research.v684.language import STOP
+        from research.v687.language import STOP
         for word in ("into", "onto", "from", "within"):
             self.assertIn(word, STOP)
 
     def test_particles_are_still_content(self):
         """`fall down` and `fall over` are different claims, so keep both words."""
-        from research.v684.language import STOP
+        from research.v687.language import STOP
         for word in ("down", "up", "over", "out", "off", "through"):
             self.assertNotIn(word, STOP)
 

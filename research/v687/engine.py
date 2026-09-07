@@ -1,6 +1,6 @@
 """One command: build if needed, serve the reasoner, open the browser.
 
-    python -m research.v684
+    python -m research.v687
 
 Stdlib only. The page is served from disk so it can be edited and reloaded
 without restarting, and the reasoner is held open read-only across requests.

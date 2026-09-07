@@ -1,6 +1,6 @@
 """One command: serve the bridged reasoner.
 
-    python -m research.v685
+    python -m research.v687
 
 Same page as v684, same store, same rules. The only difference is what
 happens to a question with two subjects in it: v685 bridges them first and

@@ -1,4 +1,4 @@
-"""Regression suite. Run: python -m unittest research.v685.test_v685 -v
+"""Regression suite. Run: python -m unittest research.v687.test_v685 -v
 
 Store-dependent tests skip themselves when the v684 store is absent, so the
 suite runs on a fresh clone before anything is built.
@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import unittest
 
-from research.v685 import ask as ask_module
-from research.v685.bridge import Bridge, Route
-from research.v685.graph import FactGraph, Hop
-from research.v685.relevance import Relevance, SIBLING_LIMIT
+from research.v687 import ask as ask_module
+from research.v687.bridge import Bridge, Route
+from research.v687.graph import FactGraph, Hop
+from research.v687.relevance import Relevance, SIBLING_LIMIT
 
 STORE = ask_module.DEFAULT_STORE
 requires_store = unittest.skipUnless(STORE.exists(), f"no store at {STORE}")

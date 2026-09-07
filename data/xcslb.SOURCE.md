@@ -1,7 +1,7 @@
 # XCSLB — extended CSLB concept property norms
 
 Human-elicited semantic properties: what people say when asked to describe a
-concept. Used by `research/v686` as an Appendix 3 corpus.
+concept. Used by `research/v687` as an Appendix 3 corpus.
 
 ## Where it came from
 
@@ -20,9 +20,9 @@ COMPS release is the practical route to the same data.
 
 | file | what it is |
 | --- | --- |
-| `xcslb/comps_base.jsonl` | 14 MB. One row per (property, concept-that-has-it, concept-that-does-not). **This is what v686 reads.** |
+| `xcslb/comps_base.jsonl` | 14 MB. One row per (property, concept-that-has-it, concept-that-does-not). **This is what v687 reads.** |
 | `xcslb/feature_lexicon.csv` | property → type (visual perceptual / functional / encyclopedic / taxonomic / other perceptual), plus its negation and plural |
-| `xcslb/concept_senses.csv` | concept → WordNet sense key and category. This is the join to v684's synsets. |
+| `xcslb/concept_senses.csv` | concept → WordNet sense key and category. This is the join to v687's synsets. |
 | `xcslb/concept_matrix.txt` | 521 × 3,643 binary matrix. **Not used** — see below. |
 
 ## Why the matrix is not used

@@ -1,6 +1,6 @@
 """Which of these ontologies can actually be reasoned over?
 
-    python -m research.v683.ontologies
+    python -m research.v687.ontologies
 
 `diagnose.py` showed that inference over v633's ConceptNet layer is either
 explosive or over-pruned, and that no gate fixes it. That is a property of one

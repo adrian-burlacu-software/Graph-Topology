@@ -628,9 +628,19 @@ class Profiles:
         lead = next((answer for answer in parts.values()
                      if self.AS_VALUE.get(answer.verdict) == value), None)
         settled = self._why(query, parts, value)
+        # Composition must not lose *how* a thing is true. `INHERITED` is a
+        # yes, so it evaluates as one -- but a yes the concept itself never
+        # states is a different answer from one it does, and flattening every
+        # true part to HELD threw that away. When nothing but inheritance
+        # carries it, the verdict says so.
+        verdict = self.AS_VERDICT[value]
+        if value == logic.TRUE and parts and all(
+                answer.verdict == "INHERITED" for answer in parts.values()
+                if self.AS_VALUE.get(answer.verdict) == logic.TRUE):
+            verdict = "INHERITED"
         return Verdict(
             term=query.tree.terms()[0] if query.tree.terms() else "",
-            verdict=self.AS_VERDICT[value],
+            verdict=verdict,
             predicate=lead.predicate if lead else None,
             source=lead.source if lead else None,
             distance=lead.distance if lead else 0,

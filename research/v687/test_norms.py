@@ -1,4 +1,4 @@
-"""Regression suite. Run: python -m unittest research.v686.test_v686 -v
+"""Regression suite. Run: python -m unittest research.v687.test_v686 -v
 
 Data-dependent tests skip themselves when the norms have not been pulled in.
 """
@@ -7,16 +7,16 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from research.v683.measure import measure
-from research.v683.ordering import ORDERINGS, coverage, optimal
-from research.v683.substrate import Corpus
-from research.v684 import build
-from research.v686 import corpora
-from research.v686.identifiability import cue_validity, depths
-from research.v686.identifiability import measure as identifiability
-from research.v686.identify import Identifier
-from research.v686.profile import Profiles
-from research.v686.server import IdentifyingEngine
+from research.v687.measure import measure
+from research.v687.ordering import ORDERINGS, coverage, optimal
+from research.v687.substrate import Corpus
+from research.v687 import build
+from research.v687 import corpora
+from research.v687.identifiability import cue_validity, depths
+from research.v687.identifiability import measure as identifiability
+from research.v687.identify import Identifier
+from research.v687.profile import Profiles
+from research.v687.server import IdentifyingEngine
 
 STORE = build.DEFAULT_STORE.with_name("v684_reasoning_compressed.sqlite")
 HAVE_NORMS = (corpora.XCSLB_DIR / "comps_base.jsonl").exists() and \

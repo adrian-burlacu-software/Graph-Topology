@@ -1,39 +1,63 @@
 # Graph Topology
 
-Does storing knowledge in a trie *minimize* it?
+Does storing knowledge in a trie *minimize* it — and can you reason over what
+comes out?
 
 Appendix 3 of *Cognitive Network Topology and Optimization for the Mental
 Lexicon* (Burlacu & West, 2021) says storage order decides: order predicates by
-how many individuals they capture, and the trie shares prefixes instead of
-repeating them. **[research/v683/](research/v683/)** tests that against all of
-WordNet plus all English ConceptNet — 288,035 individuals, 642,738 facts.
+how many individuals carry them, and the trie shares prefixes instead of
+repeating them. **[research/v687/](research/v687/)** is that structure, built,
+measured, and then read back in every direction a question can come from.
 
 ```bash
-python -m research.v683.run_v683                 # full experiment
-python -m unittest research.v683.test_v683 -v    # regression suite
+python -m research.v687.run_v687              # the compression experiment
+python -m research.v687                       # the interactive reasoner
+python -m unittest research.v687.test_v687 -v # 265 tests, in five suites
 ```
 
-It reproduces the paper's Figure 20 from its Table 1, then reports four
-falsifiable claims. All four hold:
+## What holds
 
-| | Claim | Result |
-| --- | --- | --- |
-| H1 | Coverage ordering allocates fewer nodes than an arbitrary order | holds — 4.96%–10.62% fewer, across four relation slices |
-| H2 | Branch-local ordering beats one global order | holds, narrowly — 1.64%–2.19%, for 20–40x the compute |
-| H3 | Access depth is set by the individual, not the vocabulary size | holds — vocabulary 10x, nodes 8.0x, mean depth 1.0085x |
-| H4 | The greedy heuristic lands near the true optimum | holds — exact optimum on 200 of 200 exhaustive samples |
+**Prefix sharing compresses, and the paper's figure beats the paper's text.**
+Across a scraped ontology of 288,023 individuals and two corpora of elicited
+feature norms, `adaptive_coverage` — Figure 20's branch-local ordering — wins
+on every corpus without exception, and lands 19% *below* the best possible
+single global order, which is what the appendix's prose describes.
 
-Ordering alone decides 49,878 nodes between the best and worst arrangement of
-the same facts.
+**Dense and closed compresses; sparse and open does not.** AwA2 at 43.5%
+against XCSLB's 12.5% is the same mechanism on the same day. The difference is
+the shape of the data, and that split recurs everywhere in this repo:
+typicality and analogy work on the dense corpus and fail honestly on the
+sparse one.
 
-Relation and node normalization is applied first and reported as its own
-ablation, because it moves the numbers more than ordering does: `has_subtype`
-is `is_a` stored backwards and `has_part` is `part_of` inverted, so counting
-both spellings stored the WordNet hierarchy twice and inflated the raw taxonomy
-slice by 76% (259,703 nodes against 147,148). Every hypothesis survives every
-normalization preset. Details and caveats in
-[research/v683/README.md](research/v683/README.md); generated output in
-`results/v683/`.
+**Storing and asking pull in opposite directions.** The rank correlation
+between how well an ordering compresses and how many questions it needs to
+identify a thing is **+1.000** on all three corpora. Not a tendency — an
+ordering, with no exceptions among six policies. A system that must hold
+knowledge cheaply *and* recognise things quickly cannot use one order for
+both, and the trie does not have to.
 
-The experiment reads `data/v633_full_semantic.sqlite` read-only and never
-writes to it.
+## What it answers
+
+The same trie, read in every direction, plus the fact graph around it:
+taxonomy and inheritance, two-subject bridging, identification from a
+description, retrieval of a thing's attributes, three-valued logic with
+quantifiers, contrast and counting, the graph read backwards, causal scripts
+and abduction, and analogy over a closed vocabulary — twenty-five rules, each
+one visible in the derivation the page draws for every answer.
+
+Full detail, every measurement, and an honest account of what does not work:
+**[research/v687/README.md](research/v687/README.md)**.
+
+## Layout
+
+| | |
+| --- | --- |
+| `research/v687/` | everything: the trie, the reasoner, the page, the tests |
+| `data/` | WordNet, ConceptNet, Ascent++, XCSLB, AwA2, Buchanan, with a `SOURCE.md` for each |
+| `llm/` | a separate line of work |
+
+Earlier versions (v683–v686) were folded into v687, which is self-contained
+and imports nothing from them; they remain in the git history.
+
+The experiments read `data/v633_full_semantic.sqlite` read-only and never
+write to it.

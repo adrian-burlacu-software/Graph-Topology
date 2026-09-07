@@ -1,6 +1,6 @@
 """Assemble the reasoning store: WordNet's taxonomy, everyone else's facts.
 
-    python -m research.v684.build
+    python -m research.v687.build
 
 The shape of this is the conclusion of `research/v683/ontologies.py`, not a
 preference:

@@ -1,6 +1,6 @@
 """Compress by inheritance, then answer from the compressed store.
 
-    python -m research.v684.compress
+    python -m research.v687.compress
 
 This is the paper's claim made operational. A fact that an ancestor already
 states does not need storing: R2 reconstructs it on the way up. So the store
