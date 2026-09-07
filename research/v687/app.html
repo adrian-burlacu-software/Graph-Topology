@@ -42,6 +42,9 @@
     font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;
     border:1px solid var(--line); color:var(--dim); background:var(--panel2);
     transition:border-color .2s, color .2s, background .2s;
+    /* A pill is a button, so clicking twice should not leave its label
+       highlighted the way clicking twice on a paragraph does. */
+    user-select:none; -webkit-user-select:none;
   }
   .kinds span:hover { border-color:var(--accent); color:var(--ink); }
   .kinds span.on { border-color:var(--accent); color:var(--bg);
@@ -50,7 +53,8 @@
                           opacity:.7; margin-left:6px; }
   .kindnote { color:var(--dim); font-size:12.5px; margin-bottom:10px;
               max-width:70ch; line-height:1.5; }
-  .examples { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:22px; }
+  .examples { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:22px;
+              user-select:none; -webkit-user-select:none; }
   .examples span {
     font-size:12px; color:var(--dim); background:var(--panel); border:1px solid var(--line);
     padding:5px 11px; border-radius:20px; cursor:pointer;
@@ -452,12 +456,18 @@ let STATE = null, cursor = 0, timer = null;
 let KIND = Number(localStorage.getItem("v687kind") || 0);
 if (!(KIND >= 0 && KIND < REASONING.length)) KIND = 0;
 
+/* The pills themselves, kept as they are built. Reading them back with
+ * `querySelectorAll("span")` also matched the rule chip nested inside each
+ * one, so the list was twice as long as the number of pills and every index
+ * past the first landed on the wrong element -- clicking the third pill lit
+ * the chip inside the first. */
+const PILLS = [];
+
 function showKind(index) {
   KIND = index;
   localStorage.setItem("v687kind", String(index));
   const group = REASONING[index];
-  $("kinds").querySelectorAll("span").forEach((el, i) =>
-    el.classList.toggle("on", i === index));
+  PILLS.forEach((el, i) => el.classList.toggle("on", i === index));
   $("kindnote").textContent = group.blurb;
   $("examples").innerHTML = "";
   group.questions.forEach(text => {
@@ -473,6 +483,7 @@ REASONING.forEach((group, index) => {
   el.innerHTML = escapeHtml(group.name) +
     '<span class="rulechip">' + escapeHtml(group.rule) + "</span>";
   el.onclick = () => showKind(index);
+  PILLS.push(el);
   $("kinds").appendChild(el);
 });
 showKind(KIND);
