@@ -116,6 +116,19 @@ class Reasoner:
         return {row[0] for row in self.connection.execute(
             "SELECT DISTINCT lemma FROM lemmas")}
 
+    def noun_vocabulary(self) -> set[str]:
+        """Every lemma with a noun sense, for telling a class from a property.
+
+        `is a chair furniture` names a kind and `is a dog telepathic` names a
+        property, and no part of speech tagger separates them reliably out of
+        context -- the small model calls `furry` a noun and `telepathic` a
+        proper noun. WordNet does separate them, because only one of the two
+        has a noun sense at all.
+        """
+        return {row[0] for row in self.connection.execute(
+            "SELECT DISTINCT lemmas.lemma FROM lemmas JOIN concepts "
+            "ON concepts.id = lemmas.concept WHERE concepts.id LIKE '%.n.%'")}
+
     def fact_count(self, concept: str) -> int:
         return self.connection.execute(
             "SELECT COUNT(*) FROM facts WHERE concept = ?", (concept,)
@@ -126,6 +139,66 @@ class Reasoner:
             "SELECT definition FROM concepts WHERE id = ?", (concept,)
         ).fetchone()
         return row["definition"] if row else None
+
+    #: R27. Branches of the taxonomy that nothing belongs to two of. These
+    #: are not guessed: `plant.n.02`, `animal.n.01`, `person.n.01`,
+    #: `artifact.n.01` and `abstraction.n.06` were checked against each other
+    #: and none is an ancestor of another.
+    #:
+    #: Kept deliberately small. WordNet's hypernym tree is incomplete in the
+    #: middle -- it does not record that a dog is a pet, or a whale not a
+    #: fish -- so exclusion is claimed only between these top branches, where
+    #: the tree really does partition. Everything finer stays UNKNOWN, which
+    #: is the answer the closed-world assumption licenses.
+    PARTITIONS = ("plant.n.02", "animal.n.01", "person.n.01",
+                  "artifact.n.01", "abstraction.n.06")
+
+    #: The one pair that the tree separates and the world does not. WordNet
+    #: files `person` beside `animal` rather than under it, so the partitions
+    #: would have `a person is not an animal`. It reads one way only: a person
+    #: is an animal, and a dog is still not a person.
+    NOT_REALLY_DISJOINT = (("person.n.01", "animal.n.01"),)
+
+    def partition_of(self, concept: str) -> str | None:
+        """Which top branch a sense belongs to, if one of them."""
+        above = {node for node, _, _ in self.ascend(concept)}
+        for node in self.PARTITIONS:
+            if node in above:
+                return node
+        return None
+
+    def excludes(self, concept: str, target_lemma: str) -> str | None:
+        """R27. Is the target in a branch this concept cannot be in?
+
+        Closed-world silence is the right answer to `is a dog a pet`: nothing
+        recorded, and WordNet's middle is too full of holes to read absence as
+        denial. It is the wrong answer to `is a dog a plant`. The difference
+        is that plants and animals are different branches of the tree, and
+        nothing is in both.
+
+        Every sense of the target has to be excluded before this says no.
+        `plant` also means a factory and a stooge in an audience, and a
+        question is only settled if it is settled whichever was meant.
+        """
+        mine = self.partition_of(concept)
+        if mine is None:
+            return None
+        forms = {target_lemma.lower(), target_lemma.lower().replace(" ", "_")}
+        marks = ",".join("?" * len(forms))
+        senses = [row["concept"] for row in self.connection.execute(
+            f"SELECT concept FROM lemmas WHERE lemma IN ({marks})",
+            tuple(forms)) if ".n." in row["concept"]]
+        if not senses:
+            return None
+        theirs = [self.partition_of(sense) for sense in senses]
+        if any(branch is None for branch in theirs):
+            return None
+        for branch in theirs:
+            if branch == mine:
+                return None
+            if (mine, branch) in self.NOT_REALLY_DISJOINT:
+                return None
+        return mine
 
     def parents_of(self, concept: str) -> list[str]:
         return [r["parent"] for r in self.connection.execute(
@@ -191,8 +264,15 @@ class Reasoner:
         steps = answer.steps
         steps.append(Step(len(steps), "resolve", concept, 0, "R6",
                           f"Reading “{concept}” as this sense, not as a word."))
+        # WordNet writes a multi-word lemma with underscores, and a question
+        # writes it with spaces: `is a greeting a speech act` looked up
+        # "speech act", found nothing, and reported that speech act was not
+        # among greeting's ancestors -- which it is, directly.
+        forms = {target_lemma.lower(), target_lemma.lower().replace(" ", "_")}
+        marks = ",".join("?" * len(forms))
         wanted = {row["concept"] for row in self.connection.execute(
-            "SELECT concept FROM lemmas WHERE lemma = ?", (target_lemma.lower(),))}
+            f"SELECT concept FROM lemmas WHERE lemma IN ({marks})",
+            tuple(forms))}
         if not wanted:
             answer.note = f"“{target_lemma}” is not a concept in this ontology."
             return answer
@@ -207,17 +287,42 @@ class Reasoner:
                               f"Generalise to {node.rsplit('.', 2)[0]}." if distance
                               else f"Start from {node.rsplit('.', 2)[0]}.",
                               parents=parents))
-            if node in wanted and distance > 0:
+            if node in wanted:
                 answer.verdict = "VERIFIED"
                 fact = Fact(concept, "is_a", node, "wordnet", 0.95, False, distance)
                 fact.confidence = rules.confidence_at(0.95, 0)
                 answer.evidence.append(fact)
+                # Distance zero is identity, and subsumption is reflexive:
+                # every bee is a bee. Excluding it left `is a bee a bee`
+                # answering UNKNOWN after walking the whole taxonomy, which
+                # is the one is_a question that needs no walk at all.
+                why = (f"{node.rsplit('.', 2)[0]} is an ancestor of "
+                       f"{concept.rsplit('.', 2)[0]}, {distance} step(s) up. "
+                       f"Subsumption is transitive, so yes."
+                       if distance else
+                       f"This is {node.rsplit('.', 2)[0]} itself, nothing "
+                       f"above it. Subsumption is reflexive, so yes.")
                 steps.append(Step(len(steps), "match", node, distance, "R1",
-                                  f"{node.rsplit('.', 2)[0]} is an ancestor of "
-                                  f"{concept.rsplit('.', 2)[0]}, {distance} step(s) "
-                                  f"up. Subsumption is transitive, so yes.",
-                                  matched=fact.as_dict()))
+                                  why, matched=fact.as_dict()))
                 return answer
+        branch = self.excludes(concept, target_lemma)
+        if branch:
+            # R27. Not silence -- exclusion. The two are in branches of the
+            # taxonomy that share no members, and that is a real no.
+            answer.verdict = "CONTRADICTED"
+            answer.note = (
+                f"“{target_lemma}” is not among the {len(answer.chain)} "
+                f"ancestors of {concept}, and it cannot be: {concept} is "
+                f"under {branch.rsplit('.', 2)[0]}, and every sense of "
+                f"“{target_lemma}” is under a different top branch of the "
+                f"taxonomy. Nothing belongs to two of them, so this is a no "
+                f"with a reason rather than an absence.")
+            steps.append(Step(len(steps), "check", concept,
+                              len(answer.chain), "R27",
+                              f"{concept.rsplit('.', 2)[0]} is under "
+                              f"{branch.rsplit('.', 2)[0]}; “{target_lemma}” "
+                              f"is not, in any sense. Disjoint branches."))
+            return answer
         answer.note = (f"“{target_lemma}” is not among the "
                        f"{len(answer.chain)} ancestors of {concept}. "
                        f"Absent, not false.")

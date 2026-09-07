@@ -462,7 +462,8 @@ class Profiles:
 
     # -- the polar question ------------------------------------------------
     def verify_one(self, name: str, term: str,
-                   descend: bool = True) -> Verdict:
+                   descend: bool = True,
+                   asked: list[str] | None = None) -> Verdict:
         """Does this thing have that *one* property?
 
         Stated, denied, inherited or unrecorded.
@@ -485,7 +486,15 @@ class Profiles:
         sharing = {held.predicate: held.shared for held in climb}
         depths = {held.predicate: held.depth for held in climb}
         for term in terms:
-            hit = self.identifier._hit(term, stated)
+            # Every predicate the word names, not the first: one of them may
+            # be a narrower denial that answers a different question, and
+            # returning on it hid the plain statement behind it.
+            found = self.identifier.hits(term, stated)
+            denials = [hit for hit in found
+                       if self._denies(hit)
+                       and self.identifier.denies_term(asked or terms, hit)]
+            plain = [hit for hit in found if not self._denies(hit)]
+            hit = denials[0] if denials else (plain[0] if plain else None)
             if hit is not None and self._denies(hit):
                 return Verdict(
                     term=term, verdict="DENIED", predicate=hit,
@@ -511,14 +520,18 @@ class Profiles:
                     detail=f"The norms state “{hit}” of {name}. It sits at "
                            f"depth {depths.get(hit, 0)} of its trie path, and "
                            f"{company}.")
-        for term in terms:
-            hit = self.identifier._hit(term, self.denied.get(name, frozenset()))
-            if hit is not None:
-                return Verdict(
-                    term=term, verdict="DENIED", predicate=hit,
-                    source=self.origin.get(name, "?"),
-                    detail=f"The norms record “{hit}” as false of "
-                           f"{name}: scored and denied, not merely absent.")
+        # A denial answers this question only if the question covers what the
+        # denial claims. `has small ears` being false of a beaver is not the
+        # beaver having no ears, and reading it that way was the one place
+        # this system gave a confident wrong answer.
+        hit, narrower = self.identifier.denial_hit(
+            asked or terms, self.denied.get(name, frozenset()))
+        if hit is not None:
+            return Verdict(
+                term=term, verdict="DENIED", predicate=hit,
+                source=self.origin.get(name, "?"),
+                detail=f"The norms record “{hit}” as false of "
+                       f"{name}: scored and denied, not merely absent.")
         if descend:
             below = self._from_below(name, terms)
             if below is not None:
@@ -531,6 +544,16 @@ class Profiles:
         for level in self.ancestry(name):
             for fact in level.all_facts:
                 text = f"{fact['relation'].replace('_', ' ')} {fact['object']}"
+                negated = (fact["relation"].startswith("not_")
+                           or self._denies(text))
+                # A crawled sentence that negates something narrower than the
+                # question is evidence for neither side. `capable of not eat
+                # bone of contention` says nothing about whether dogs eat.
+                if negated and not self.identifier.denies_term(
+                        asked or terms,
+                        fact["object"] if fact["relation"].startswith("not_")
+                        else text):
+                    continue
                 for term in terms:
                     if self.identifier._hit(term, frozenset({text})):
                         matches.append((level, fact, text, term))
@@ -579,6 +602,15 @@ class Profiles:
                            f"bear that out, so it is not inherited down to "
                            f"{name}. R19: one crawled sentence is not a "
                            f"property of a category.")
+        if narrower:
+            shown = ", ".join(f"“{text}”" for text in sorted(narrower)[:3])
+            return Verdict(
+                term=terms[0] if terms else "", verdict="UNRECORDED",
+                source=self.origin.get(name, "?"),
+                detail=f"The norms deny {shown} of {name}, but each of those "
+                       f"is a narrower claim than the one asked: denying a "
+                       f"qualified property does not deny the property. On "
+                       f"the question as asked they are silent.")
         return Verdict(
             term=terms[0] if terms else "", verdict="UNRECORDED",
             detail=f"The norms neither state nor deny that of {name}, and "
@@ -619,8 +651,10 @@ class Profiles:
             return self._quantified(name, query)
         parts: dict[str, Verdict] = {}
 
+        asked = query.tree.terms()
+
         def test(term: str) -> tuple[str, str]:
-            answer = self.verify_one(name, term, descend=descend)
+            answer = self.verify_one(name, term, descend=descend, asked=asked)
             parts[term] = answer
             return self.AS_VALUE.get(answer.verdict, logic.UNKNOWN), answer.detail
 

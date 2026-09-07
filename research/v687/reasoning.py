@@ -61,8 +61,8 @@ class ReasoningEngine(IdentifyingEngine):
             subject = (self.parser.parse(question or "").subject or "").lower()
             subject_sense = pins.of(subject)
         if not concept:
-            for attempt in (self._gated, self._contrast, self._causal,
-                            self._analogy):
+            for attempt in (self._gated, self._define, self._contrast,
+                            self._causal, self._analogy):
                 answer = attempt(question or "")
                 if answer is not None:
                     return answer
@@ -224,6 +224,157 @@ class ReasoningEngine(IdentifyingEngine):
                                              f"Not answerable here: {reason}.",
                                              kind="block")])
 
+    # -- R26: what a thing is ---------------------------------------------
+    #: `what is a robin`, `what are dogs`, `define a hammer`. The question has
+    #: to end after the noun: `what is a dog made of` is a relation question
+    #: and belongs to v684, and swallowing it here would be the same greed
+    #: R18 exists to prevent.
+    DEFINE = re.compile(r"^(?:what\s+(?:is|are)|define|what\s+does\s+"
+                        r"(?:a|an|the)?\s*[a-z '-]+\s+refer\s+to)"
+                        r"(?:\s+(?:a|an|the))?\s+([a-z][a-z '-]*?)\s*$")
+
+    #: How far up to read. Two levels is a definition; six is a lecture.
+    GENUS = 3
+
+    def _define(self, question: str) -> dict | None:
+        """R26. What a thing is, answered from the taxonomy that holds it.
+
+        This is the question a taxonomy is *for*, and until the audit it was
+        the one question it did not answer: `what is a robin` fell through to
+        a property listing and came back "helpful, passionate, professional",
+        which ConceptNet records of the name Robin and not of the bird.
+
+        A definition here is the classical one -- genus and differentia. The
+        genus is the immediate hypernym, which the taxonomy has exactly; the
+        differentia is approximated by what the norms record of the thing and
+        by the kinds beneath it. Where WordNet supplies a gloss it is quoted,
+        because a written definition beats a reconstructed one.
+        """
+        match = self.DEFINE.match(question.strip().lower().rstrip("?"))
+        if not match:
+            return None
+        word = match.group(1).strip()
+        senses = self.reasoner.senses_of(word)
+        if not senses:
+            # `what is` opens more than a definition. `what is a dog made of`
+            # and `what is the difference between a dog and a cat` both match
+            # the shape, and the tail is not a name -- so a phrase this
+            # ontology does not hold is handed on rather than refused, and
+            # only a single unknown word is refused as one.
+            if " " in word:
+                return None
+            return self._shell(
+                question, "UNKNOWN_WORD", "R26",
+                note=f"“{word}” is not a word in this ontology. Nothing can "
+                     f"be said about it here without first being told what "
+                     f"it is.",
+                steps=[self._step(0, "R26", word, "", f"No sense of “{word}” "
+                                  f"is recorded.", kind="block")])
+        pinned = pins.of(word)
+        chosen = next((sense for sense in senses if sense["id"] == pinned),
+                      senses[0])
+        climb = [name for name, distance, _ in
+                 self.reasoner.ascend(chosen["id"]) if distance]
+        above = climb[:self.GENUS]
+        genus = above[0] if above else None
+        # The top of the chain is the sort: whether this is a thing, an act,
+        # a state or an abstraction. A cognition deciding what to *ask* next
+        # needs it -- you ask what an object is made of and what an act leads
+        # to -- and it was the one part of the walk not reported, because the
+        # genus alone says `a kind of thrush` and never says `a physical
+        # object`. WordNet's own answer is the last node before `entity`.
+        sort = None
+        for name in reversed(climb):
+            if not name.startswith("entity."):
+                sort = name
+                break
+        kinds = self.contrast.kinds_of(word)
+        known = self.profiles.knows(word)
+        note = f"{chosen['id']} — {chosen['definition']}."
+        if genus:
+            note += f" A kind of {genus.rsplit('.', 2)[0]}"
+            note += (f", and under {sort.rsplit('.', 2)[0]} at the top."
+                     if sort and sort != genus else ".")
+        individual = self._individual(chosen["id"], climb, kinds)
+        if individual:
+            note += " " + individual
+        if kinds and kinds["total"]:
+            note += (f" {kinds['total']:,} kinds of it are recorded, "
+                     f"{kinds['described']} of them described by the norms.")
+        if known:
+            note += (f" The norms describe it directly, so every property "
+                     f"question about it is answerable.")
+        if len(senses) > 1:
+            note += (f" “{word}” has {len(senses)} senses; this is the one "
+                     f"carrying the most facts. Pin another to define that.")
+        spine = [(name.rsplit(".", 2)[0], f"{step + 1} level(s) up")
+                 for step, name in enumerate(above)]
+        hanging = {0: [(kind.split(".")[0], "a kind of " + word)
+                       for kind in (kinds["direct_kinds"][:6] if kinds else [])]}
+        return self._shell(
+            question, "DEFINED", "R26", concept=chosen["id"], note=note,
+            extra={"definition": {
+                       "word": word, "sense": chosen["id"],
+                       "gloss": chosen["definition"], "genus": genus,
+                       "above": above, "senses": len(senses),
+                       "described_by_norms": known, "sort": sort,
+                       "names_an_individual": bool(individual),
+                       "kinds": kinds["total"] if kinds else 0},
+                   "identification": self._tree(
+                       "definition", spine or [(word, "nothing above it")],
+                       hanging, [(word, chosen["definition"][:60])])})
+
+    #: Sorts under which a leaf with no kinds is usually one named thing
+    #: rather than a category: WordNet files Adrian, Mary and Peter here.
+    INDIVIDUALS_UNDER = ("person.n.01", "location.n.01", "organization.n.01",
+                         "group.n.01", "region.n.03")
+
+    def _individual(self, sense: str, climb: list[str], kinds) -> str:
+        """Warn when a word names one thing WordNet records, not a kind.
+
+        This matters more than it looks for anything that has to be *told*
+        something. A reader who says "I am Adrian" means a person the system
+        has never met; the store resolves `adrian` to a 20th-century
+        physiologist, answers `is adrian a person` with a confident yes, and
+        the two are never the same Adrian. `john` resolves to a toilet.
+
+        The store has no instance relation to read -- WordNet's
+        `instance_hypernym` was not carried across in the build -- so this is
+        three structural signals rather than a stored fact, and it is worth
+        saying which. Nothing beneath it in the taxonomy; a place in it under
+        people, places or organisations; and a longer name that contains this
+        one -- `edgar douglas adrian`, `saint peter the apostle`, `albert
+        einstein`. Individuals have full names and kinds do not.
+
+        The third signal is what makes it usable. Without it every childless
+        occupation is flagged: `concierge` and `apostle` also have nothing
+        beneath them. With it they are not, while `paris` is missed, having
+        no longer form. A heuristic, and a conservative one.
+
+        It changes no verdict. It only stops a name being taken for a kind in
+        silence, which is the failure that matters for anything being told
+        something.
+        """
+        if kinds and kinds.get("total"):
+            return ""
+        if not any(node in self.INDIVIDUALS_UNDER for node in climb):
+            return ""
+        row = self.reasoner.connection.execute(
+            "SELECT lemma, descendants FROM concepts WHERE id = ?",
+            (sense,)).fetchone()
+        if not row or row["descendants"]:
+            return ""
+        lemma = row["lemma"]
+        longer = [alias["lemma"] for alias in self.reasoner.connection.execute(
+            "SELECT lemma FROM lemmas WHERE concept = ?", (sense,))
+            if alias["lemma"] != lemma and lemma in alias["lemma"].split()]
+        if not longer:
+            return ""
+        return (f"This names one individual — WordNet also calls it "
+                f"“{longer[0]}” — and not a kind of thing. The store holds no "
+                f"instances of its own, so a person or place you introduce is "
+                f"not in it and cannot be looked up here.")
+
     # -- R21: two concepts at once -----------------------------------------
     DIFFERENCE = re.compile(r"\b(difference|differ|differs)\b")
     COMMON = re.compile(r"\b(in common|both|share|shared)\b")
@@ -379,16 +530,27 @@ class ReasoningEngine(IdentifyingEngine):
         pair = self._two(text)
         if not pair:
             return None
-        member, klass = pair
+        left, right = pair
+        # The class is whichever side has kinds beneath it, not whichever was
+        # written second. Trying one order and then the other looked like a
+        # fallback and was really a swap into nonsense: `is a dog a typical
+        # animal` found no core for animal, flipped, and answered "animal
+        # carries 0% of what a dog typically has, ranking 0 of 3".
+        member, klass = ((left, right)
+                         if len(self.profiles.subtypes(right))
+                         >= len(self.profiles.subtypes(left))
+                         else (right, left))
         found = self.contrast.typicality(member, klass)
         if found is None:
-            member, klass = klass, member
-            found = self.contrast.typicality(member, klass)
-        if found is None:
-            return None
+            return self._no_core(question, member, klass)
         verdict = "VERIFIED" if found.score >= 0.5 else "CONTRADICTED"
         note = (f"{member} carries {found.score:.0%} of what a {klass} "
                 f"typically has, ranking {found.rank} of {found.of}.")
+        if found.excluded:
+            note += (f" Ranked against the {found.of} kinds of {klass} that "
+                     f"{found.corpus} describes; {found.excluded} more are "
+                     f"described by the other corpus, whose vocabulary does "
+                     f"not overlap this one and cannot be scored against it.")
         if not found.sound:
             verdict = "UNKNOWN"
             note += (f" The measure is not sound here: the most ordinary "
@@ -409,6 +571,39 @@ class ReasoningEngine(IdentifyingEngine):
                                       [(member,
                                         f"{round(found.score * 100)}% of the "
                                         f"core")])})
+
+    def _no_core(self, question: str, member: str, klass: str) -> dict:
+        """Say that a class has no core, rather than ranking against nothing.
+
+        Typicality is only meaningful where the kinds of a class agree about
+        something. Under free elicitation they often do not, and the honest
+        answer is that the question has no footing here -- not a percentage
+        computed from an empty set.
+        """
+        corpus = self.profiles.origin.get(member)
+        kinds = [kind for kind in self.profiles.subtypes(klass)
+                 if not corpus or self.profiles.origin.get(kind) == corpus]
+        note = (f"“{klass}” has no core to be typical of. ")
+        if corpus and kinds:
+            note += (f"{len(kinds)} of its kinds are described in the same "
+                     f"vocabulary as {member} ({corpus}), and no property is "
+                     f"shared by even a quarter of them. Typicality is "
+                     f"agreement among a class's members, and there is none "
+                     f"here to measure against.")
+        elif corpus:
+            note += (f"None of its kinds are described in the same vocabulary "
+                     f"as {member} ({corpus}), and the two corpora share no "
+                     f"property names, so nothing can be scored across them.")
+        else:
+            note += (f"The norms do not describe {member}, so there is "
+                     f"nothing to rank.")
+        return self._shell(
+            question, "UNKNOWN", "R21", concept=member, note=note,
+            extra={"identification": self._tree(
+                "typicality", [(klass, "no agreed core")],
+                {0: [(kind, "a kind, but agreeing with no other")
+                     for kind in kinds[:6]]},
+                [(member, "cannot be ranked")])})
 
     #: Classes the norms do not cover but whose kinds they do, so that
     #: "what do a dog and a bird have in common" has two sides.

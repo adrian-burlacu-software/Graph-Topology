@@ -148,7 +148,7 @@
   .VERIFIED { background:rgba(74,222,128,.14); color:var(--yes); }
   .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
   .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
-  .LISTING,.PROFILE,.IDENTIFIED { background:rgba(94,234,212,.13); color:var(--accent); }
+  .LISTING,.PROFILE,.IDENTIFIED,.DEFINED { background:rgba(94,234,212,.13); color:var(--accent); }
   .AMBIGUOUS,.NO_MATCH,.UNRECORDED,.MIXED { background:rgba(251,191,36,.13); color:var(--maybe); }
   .claim { font-size:16px; }
   .note { color:var(--dim); font-size:13px; margin-top:8px; }
@@ -498,13 +498,34 @@ const REASONING = [
                 "trunk is to elephant as what is to giraffe"],
   },
   {
+    name: "Exclusion", rule: "R27",
+    blurb: "Absence is not denial -- except between the top branches of the " +
+           "taxonomy, where it is. Nothing is both a plant and an animal, " +
+           "so this is a no with a reason. Held to those branches on " +
+           "purpose: WordNet does not record that a dog is a pet, so that " +
+           "one stays unknown.",
+    questions: ["is a dog a plant", "is a dog an idea", "is hello an animal",
+                "is a violin an animal", "is a dog a pet", "is a whale a fish"],
+  },
+  {
+    name: "Definition", rule: "R26",
+    blurb: "Ask what a thing is and be told, from the taxonomy that holds " +
+           "it: the sense meant, its gloss, what it is a kind of and what " +
+           "kinds it has. A word with no sense here is named as unknown " +
+           "rather than answered about something else.",
+    questions: ["what is a robin", "what is hello", "what is a dog",
+                "what is a greeting", "what is a wemble"],
+  },
+  {
     name: "Refused", rule: "R18",
     blurb: "What this cannot do, declined by name instead of answered from " +
            "the part of the question it happens to understand. Every silent " +
-           "wrong answer found in the audit had that shape.",
+           "wrong answer found in either audit had that shape.",
     questions: ["is a whale bigger than a dolphin",
                 "how many legs does a dog have",
-                "what is the largest animal", "what if a dog had wings"],
+                "what is the largest animal", "what if a dog had wings",
+                "when did the war end", "what does hello mean",
+                "who invented the telephone", "what is the opposite of hot"],
   },
 ];
 
@@ -1790,6 +1811,30 @@ function buildHow() {
           <td class="dist">${escapeHtml(m.kind || "—")}</td>
           <td class="dist">${Math.round(m.standing * 100)}%</td>
           <td class="dist">${m.carriers}</td></tr>`).join("")) : "");
+    return;
+  }
+
+  if (s.definition) {
+    const d = s.definition;
+    const rows = [];
+    rows.push(`<tr><td class="obj">sense</td>
+      <td class="obj"><b>${escapeHtml(d.sense)}</b></td></tr>`);
+    rows.push(`<tr><td class="obj">gloss</td>
+      <td class="obj">${escapeHtml(d.gloss || "—")}</td></tr>`);
+    rows.push(`<tr><td class="obj">a kind of</td>
+      <td class="obj">${d.above.length
+        ? d.above.map(n => escapeHtml(shortName(n))).join(" &rarr; ")
+        : "nothing above it"}</td></tr>`);
+    rows.push(`<tr><td class="obj">kinds of it</td>
+      <td class="dist">${d.kinds.toLocaleString()}</td></tr>`);
+    rows.push(`<tr><td class="obj">senses of the word</td>
+      <td class="dist">${d.senses}</td></tr>`);
+    rows.push(`<tr><td class="obj">described by the norms</td>
+      <td class="dist">${d.described_by_norms ? "yes" : "no"}</td></tr>`);
+    show("Definition &mdash; R26",
+      `Genus and differentia, read off the taxonomy: what &ldquo;` +
+      `${escapeHtml(d.word)}&rdquo; is a kind of, and what falls under it.`,
+      table(["", ""], rows.join("")));
     return;
   }
 

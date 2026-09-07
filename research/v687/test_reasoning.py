@@ -700,5 +700,388 @@ class CompressionTests(unittest.TestCase):
                                         verbose=False)["lossless"])
 
 
+@requires_store
+class AnswerAuditTests(unittest.TestCase):
+    """The six findings of the v687 answer audit, each pinned by its own case.
+
+    Every one of these was a question the system answered -- wrongly, or about
+    something else -- with nothing in the answer saying so. They are kept
+    together rather than filed by module because what they have in common is
+    the thing worth not regressing: a confident answer to a question nobody
+    asked.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- F1: a denial is not a denial of every word inside it --------------
+    def test_a_qualified_denial_does_not_deny_the_bare_property(self):
+        """The norms deny `has small ears` of a beaver. Beavers have ears."""
+        for question in ("does a beaver have ears", "does a horse have teeth",
+                         "does a horse have eyes", "does a chair have legs",
+                         "is a wheel part of a car"):
+            with self.subTest(question=question):
+                self.assertNotEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_the_qualified_denial_still_answers_its_own_question(self):
+        self.assertEqual(self.verdict("does a beaver have small ears"),
+                         "CONTRADICTED")
+
+    def test_an_unqualified_denial_is_untouched(self):
+        for question in ("is a whale furry", "does a penguin fly"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_a_locative_tail_does_not_qualify_the_claim(self):
+        """`has spots on its body` says where, not which, so it still denies
+        spots -- which is what separates a dog from a dalmatian."""
+        profiles = self.engine.profiles
+        self.assertEqual(profiles.verify("dog", ["spots"]).verdict, "DENIED")
+        self.assertEqual(profiles.verify("dalmatian", ["spots"]).verdict,
+                         "HELD")
+
+    # -- F2: the subject is the thing asked about, or nothing --------------
+    def test_a_subject_that_is_not_a_noun_is_still_the_subject(self):
+        for question in ("is hello a greeting", "is red a color",
+                         "is chess a game", "is running a sport"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_an_unknown_subject_is_named_rather_than_replaced(self):
+        for question in ("is a wemble an animal", "does a blorp have wings",
+                         "does a quovix have wings"):
+            with self.subTest(question=question):
+                payload = self.engine.ask(question)
+                self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
+                self.assertIn(payload["parse"]["unknown"], question)
+
+    def test_a_bare_noun_predicate_is_a_class(self):
+        self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
+
+    def test_a_bare_property_predicate_is_still_a_property(self):
+        """`white` has a noun sense too, and reading it as a class stopped the
+        norms from ever being asked."""
+        self.assertEqual(self.verdict("is a raccoon white"), "VERIFIED")
+        self.assertEqual(self.verdict("is a bobcat white"), "CONTRADICTED")
+
+    def test_a_coordination_is_never_one_class(self):
+        self.assertEqual(self.verdict("is a dog furry or purple"), "VERIFIED")
+
+    def test_no_false_yes_from_reading_the_other_noun(self):
+        for question in ("is a dog a cat", "is a whale a fish",
+                         "is a bat a bird"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+    def test_a_copula_is_not_a_compound_role(self):
+        """`is a siamese cat skimmer` was bridged to skimmers, and then --
+        once subsumption became reflexive -- answered yes."""
+        self.assertNotEqual(self.verdict("is a siamese cat skimmer"),
+                            "VERIFIED")
+
+    # -- F3: a class is only a class within one vocabulary -----------------
+    def test_typicality_does_not_rank_across_corpora(self):
+        for question in ("is a dog a typical animal",
+                         "is a robin a typical animal"):
+            with self.subTest(question=question):
+                self.assertNotEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_a_class_with_no_core_says_so(self):
+        payload = self.engine.ask("is a dog a typical animal")
+        self.assertEqual(payload["verdict"], "UNKNOWN")
+        self.assertIn("no core", payload["note"])
+
+    def test_typicality_still_ranks_within_one_corpus(self):
+        found = self.engine.contrast.typicality("beaver", "animal")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.corpus, "awa2")
+        self.assertTrue(found.excluded)
+
+    # -- F4: subsumption is reflexive --------------------------------------
+    def test_everything_is_itself(self):
+        for question in ("is a bee a bee", "is a dog a dog",
+                         "is a hammer a hammer", "is a glove a glove"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    # -- F5: the doer is accounted for -------------------------------------
+    def test_a_script_does_not_ignore_who_the_question_named(self):
+        beaver = self.engine.ask("what happens when a beaver moves")
+        piano = self.engine.ask("what happens when a piano moves")
+        self.assertNotEqual(beaver["note"], piano["note"])
+        for payload, actor in ((beaver, "beaver"), (piano, "piano")):
+            with self.subTest(actor=actor):
+                self.assertEqual(payload["causal"]["actor"], actor)
+
+    # -- F6: refuse what cannot be answered, define what can ---------------
+    def test_constructions_with_no_data_behind_them_are_refused(self):
+        for question in ("what is the capital of France",
+                         "when did the war end", "what does hello mean",
+                         "what is the opposite of hot",
+                         "who invented the telephone"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNSUPPORTED")
+
+    def test_a_definition_comes_from_the_taxonomy(self):
+        payload = self.engine.ask("what is a robin")
+        self.assertEqual(payload["verdict"], "DEFINED")
+        self.assertEqual(payload["definition"]["genus"], "thrush.n.03")
+        self.assertIn("songbird", payload["definition"]["gloss"])
+
+    def test_defining_an_unknown_word_says_which_word(self):
+        payload = self.engine.ask("what is a wemble")
+        self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
+        self.assertIn("wemble", payload["note"])
+
+    def test_define_does_not_swallow_the_questions_around_it(self):
+        for question, rule in (("what is a dog made of", "made_of"),
+                               ("what is similar to a dog", "R21"),
+                               ("what is the difference between a dog and a "
+                                "cat", "R21")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.ask(question)["parse"]["relation"], rule)
+
+
+@requires_store
+class DialogueQueryTests(unittest.TestCase):
+    """The queries a teaching dialogue puts to semantic memory.
+
+    Predicted from a conversation rather than from the code -- "Hello" / "what
+    is hello" / "it is a greeting" / "who are you" -- and then asked. What a
+    cognition needs before it can produce the next line is mostly taxonomic,
+    and the taxonomic half works; what fails is indexical, and the point of
+    these tests is that it fails *by name* rather than by answering something
+    else.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- a word the cue spent is not the subject ---------------------------
+    def test_a_relation_cue_does_not_become_the_subject(self):
+        """`what is needed to greet` was answered about `need`, and `what
+        does a greeting cause` about `cause` -- the question's own grammar
+        read back as the thing it asks about."""
+        for question, subject in (("what is needed to greet", "greet"),
+                                  ("what does a greeting cause", "greeting"),
+                                  ("what is needed to bake bread", "bread")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).subject, subject)
+
+    def test_the_cue_still_leaves_the_subject_alone(self):
+        """Only the words naming the relation are spent. A cue pattern can
+        span half the question, and spending the match left `what is a hammer
+        made of` with no subject at all."""
+        for question, subject in (("what is a hammer made of", "hammer"),
+                                  ("where does a penguin live", "penguin"),
+                                  ("what is a hammer used for", "hammer"),
+                                  ("what can a violin do", "violin")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).subject, subject)
+
+    # -- indexicals ---------------------------------------------------------
+    def test_an_indexical_is_refused_rather_than_answered_generically(self):
+        """`what is my name`, `whose name is it` and `what is a name` were
+        three questions with one answer: the properties of name.n.01."""
+        for question in ("what is my name", "whose name is it", "who am i",
+                         "what am i", "what is your name"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNSUPPORTED")
+
+    def test_the_kind_question_underneath_still_answers(self):
+        self.assertEqual(self.verdict("what is a name"), "DEFINED")
+        self.assertEqual(self.verdict("does a person have a name"), "VERIFIED")
+
+    # -- what a definition has to carry for a dialogue ---------------------
+    def test_a_definition_reports_the_sort(self):
+        """Whether a thing is an object or an abstraction decides what is
+        worth asking about it next."""
+        for word, sort in (("hello", "abstraction.n.06"),
+                           ("a robin", "physical entity.n.01"),
+                           ("a conversation", "abstraction.n.06")):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertEqual(payload["definition"]["sort"], sort)
+
+    def test_a_name_is_not_mistaken_for_a_kind(self):
+        """`I am Adrian` resolves to a 20th-century physiologist, and `is
+        adrian a person` says yes. The store holds no instances, and a
+        definition that does not say so is how the two Adrians get confused."""
+        for word in ("adrian", "mary", "peter"):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertTrue(
+                    payload["definition"]["names_an_individual"])
+                self.assertIn("names one individual", payload["note"])
+
+    def test_an_ordinary_kind_is_not_flagged_as_an_individual(self):
+        for word in ("a robin", "hello", "a person", "a dog", "a greeting"):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertFalse(
+                    payload["definition"]["names_an_individual"])
+
+    # -- what the dialogue actually needs and gets -------------------------
+    def test_the_taxonomic_half_of_the_dialogue_answers(self):
+        for question, verdict in (
+                ("what is hello", "DEFINED"),
+                ("is hello a greeting", "VERIFIED"),
+                ("is hello a communication", "VERIFIED"),
+                ("what kinds of greeting are there", "LISTING"),
+                ("what is a person", "DEFINED"),
+                ("does a person have a name", "VERIFIED"),
+                ("can a person speak", "VERIFIED"),
+                ("what is a greeting used for", "LISTING"),
+                ("where do you find a greeting", "LISTING")):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), verdict)
+
+    def test_what_the_data_cannot_support_stays_unknown(self):
+        """Not failures -- the honest half. No corpus here records what
+        follows a greeting or whether one is polite."""
+        for question in ("what happens after a greeting",
+                         "is a greeting polite",
+                         "is a greeting part of a conversation",
+                         "is hello a typical greeting"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+
+@requires_store
+class SemanticDialogueTests(unittest.TestCase):
+    """The dialogue carried on past the introductions, where it turns semantic.
+
+    A cognition being told about a dog asks what a dog is, whether it is an
+    animal, whether it eats meat, how it differs from a wolf, and what would
+    explain barking. Those are questions about kinds, and they are the half of
+    a dialogue this memory is actually for.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- a negation denies what it scopes over, not the sentence it is in --
+    def test_a_crawled_negation_about_something_else_is_not_a_denial(self):
+        """ConceptNet gives dogs `capable of not eat bone of contention`, a
+        mangled idiom, and it answered `does a dog eat meat` with no."""
+        self.assertEqual(self.verdict("does a dog eat meat"), "VERIFIED")
+
+    def test_a_negation_the_question_covers_still_denies(self):
+        self.assertEqual(self.verdict("does a penguin fly"), "CONTRADICTED")
+        self.assertEqual(self.verdict("is a whale furry"), "CONTRADICTED")
+
+    def test_the_negation_scope_is_read_from_the_negator(self):
+        from research.v687.identify import Identifier
+        self.assertTrue(Identifier.denies_term(["fly"], "capable of cannot fly"))
+        self.assertFalse(Identifier.denies_term(
+            ["eat"], "capable of not eat bone of contention"))
+        self.assertFalse(Identifier.denies_term(
+            ["person"], "capable of never attacked person"))
+
+    # -- a cue is a word, not a substring ----------------------------------
+    def test_a_cue_does_not_match_inside_a_word(self):
+        """`beagle` contains `be`, so `does a beagle breathe` was read as a
+        property question and answered UNKNOWN, while `does a dog breathe`
+        fell through to the polar default and answered correctly."""
+        for question in ("does a beagle breathe", "does a dog breathe",
+                         "does a beagle bark"):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).relation, "capable_of")
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_the_cues_still_match_their_own_inflections(self):
+        for question, relation in (
+                ("what is needed to bake bread", "has_prerequisite"),
+                ("what does a dog eat", "capable_of"),
+                ("what is a hammer made of", "made_of"),
+                ("where does a penguin live", "at_location"),
+                ("what is a hammer used for", "used_for")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).relation, relation)
+
+    # -- R27: absence is not denial, except between the top branches -------
+    def test_the_top_branches_of_the_taxonomy_exclude_each_other(self):
+        for question in ("is a dog a plant", "is a dog an idea",
+                         "is hello an animal", "is a rose an animal",
+                         "is a violin an animal"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_exclusion_is_not_claimed_where_the_tree_has_holes(self):
+        """WordNet does not record that a dog is a pet or that a whale is not
+        a fish, and reading either absence as a denial would be the closed
+        world mistake this whole store is careful about."""
+        for question in ("is a dog a pet", "is a whale a fish",
+                         "is a bat a bird", "is a person an animal"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+    def test_exclusion_needs_every_sense_of_the_target(self):
+        """`plant` also means a factory and a stooge in an audience."""
+        self.assertIsNotNone(
+            self.engine.reasoner.excludes("dog.n.01", "plant"))
+        self.assertIsNone(
+            self.engine.reasoner.excludes("dog.n.01", "animal"))
+
+    # -- a hedged reading falls back rather than answering the wrong one ---
+    def test_a_hedged_is_a_falls_back_to_the_property_reading(self):
+        """`is winter cold` has the shape of `is a chair furniture`, and only
+        the data tells them apart: `winter has_property cold` was recorded at
+        0.87 and thrown away by a taxonomy walk."""
+        self.assertEqual(self.verdict("is winter cold"), "VERIFIED")
+        self.assertEqual(self.verdict("is a wolf wild"), "VERIFIED")
+        self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
+
+    # -- what the dialogue asks and gets -----------------------------------
+    def test_the_semantic_turn_answers_end_to_end(self):
+        for question, verdict in (
+                ("what is a beagle", "DEFINED"),
+                ("is a beagle a dog", "VERIFIED"),
+                ("is a beagle an animal", "VERIFIED"),
+                ("is a dog an organism", "VERIFIED"),
+                ("can a dog bark", "VERIFIED"),
+                ("do all dogs bark", "VERIFIED"),
+                ("is meat food", "VERIFIED"),
+                ("is a stranger a person", "VERIFIED"),
+                ("is a house a building", "VERIFIED"),
+                ("is winter a season", "VERIFIED"),
+                ("do all animals breathe", "VERIFIED"),
+                ("is an animal alive", "VERIFIED")):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), verdict)
+
+
 if __name__ == "__main__":
     unittest.main()

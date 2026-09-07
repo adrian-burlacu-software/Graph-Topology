@@ -113,6 +113,14 @@ class BridgedReasoner:
         if self.parser.nlp is None:
             return None, None
         vocabulary = self.parser.vocabulary
+        # A copular question predicates; it does not name a role. `is a
+        # siamese cat skimmer` tags `cat` as a compound of `skimmer`, and
+        # bridging it answered about skimmers -- then answered *yes*, once
+        # subsumption became reflexive, because a skimmer is a skimmer. The
+        # two halves of a copula are the subject and what is said of it, and
+        # neither is a `violin player`.
+        opening = (question or "").strip().lower().split()
+        copular = bool(opening) and opening[0] in ("is", "are", "was", "were")
         for token in self.parser.nlp(question):
             if token.dep_ not in ("poss", "compound"):
                 continue
@@ -123,6 +131,8 @@ class BridgedReasoner:
                 continue
             modifier, role = token.lemma_.lower(), head.lemma_.lower()
             if token.dep_ == "compound":
+                if copular:
+                    continue                   # predication, not a role
                 whole = {f"{token.text.lower()} {head.text.lower()}",
                          f"{modifier} {role}"}
                 if whole & vocabulary:

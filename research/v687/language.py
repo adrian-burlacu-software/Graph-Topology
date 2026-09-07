@@ -18,22 +18,44 @@ from typing import Any
 #: Question cue -> relation. Ordered: the first phrase that matches wins, so
 #: longer and more specific cues are listed before general ones.
 RELATION_CUES: tuple[tuple[str, str], ...] = (
-    ("what is .* made (of|from)", "made_of"),
-    ("made (of|from)", "made_of"),
-    ("used for", "used_for"),
-    ("what is .* for", "used_for"),
-    ("where .* (found|located|live|be|is|are)", "at_location"),
-    ("^where", "at_location"),
-    ("part of", "part_of"),
-    ("(have|has|contain|include)", "has_part"),
-    ("(want|desire|wish|like)", "desires"),
-    ("(cause|lead to|result in)", "causes"),
-    ("(need|require|prerequisite)", "has_prerequisite"),
-    ("(can be|gets|is being)", "receives_action"),
-    ("(can|could|able to|capable)", "capable_of"),
-    ("^(what|which) .* do", "capable_of"),
-    ("(is|are|was|were|be)", "has_property"),
+    # Every cue is anchored on word boundaries. Without them a cue matched
+    # inside a word: `beagle` contains `be`, so `does a beagle breathe` was
+    # read as a property question and answered UNKNOWN, while `does a dog
+    # breathe` fell through to the polar default of `capable_of` and answered
+    # correctly. Two spellings of the same question, two different rules.
+    # Anchoring means the inflections have to be spelled out, which is the
+    # price of not matching `can` inside `candle`.
+    (r"\bwhat is\b.*\bmade (of|from)\b", "made_of"),
+    (r"\bmade (of|from)\b", "made_of"),
+    (r"\bused for\b", "used_for"),
+    (r"\bwhat is\b.*\bfor\b", "used_for"),
+    (r"\bwhere\b.*\b(found|located|live|lives|living|be|is|are)\b",
+     "at_location"),
+    (r"^where\b", "at_location"),
+    (r"\bpart of\b", "part_of"),
+    (r"\b(have|has|had|contain|contains|containing|include|includes)\b",
+     "has_part"),
+    (r"\b(want|wants|desire|desires|wish|wishes|like|likes)\b", "desires"),
+    (r"\b(cause|causes|caused|lead to|leads to|result in|results in)\b",
+     "causes"),
+    (r"\b(need|needs|needed|require|requires|required|prerequisite)\b",
+     "has_prerequisite"),
+    (r"\b(can be|gets|is being)\b", "receives_action"),
+    (r"\b(can|could|able to|capable)\b", "capable_of"),
+    (r"^(what|which)\b.*\bdo(es)?\b", "capable_of"),
+    (r"\b(is|are|was|were|be)\b", "has_property"),
 )
+
+#: Words a relation cue spends on naming the relation, so they cannot also be
+#: what the question is about. Only these: a cue pattern may span half the
+#: question -- `what is .* made of` covers `hammer` too -- and spending the
+#: whole match left `what is a hammer made of` with no subject at all.
+SPENT_ON_RELATION = frozenset("""
+made used found located live lives living part contain contains containing
+include includes want wants desire desires wish wishes like likes cause causes
+caused lead leads result results need needs needed require requires required
+prerequisite able capable
+""".split())
 
 #: Yes/no questions open with one of these.
 POLAR = ("can", "could", "is", "are", "was", "were", "does", "do", "did",
@@ -69,6 +91,16 @@ class Parse:
     backend: str
     tokens: list[dict[str, Any]] = field(default_factory=list)
     note: str = ""
+    #: The word the question is about that the ontology could not place. Set
+    #: only when that is why there is no subject, so the answer can name it
+    #: instead of quietly answering about a different word.
+    unknown: str | None = None
+    #: True when `is_a` was inferred from a bare noun predicate rather than
+    #: read off a determiner. `is a dog an animal` names a kind outright; `is
+    #: a raccoon white` and `is a chair furniture` have the same shape as each
+    #: other, and only the norms can tell them apart, so a hedged reading asks
+    #: them first and falls back to the taxonomy.
+    hedged: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +108,7 @@ class Parse:
             "relation": self.relation, "target": self.target,
             "polar": self.polar, "backend": self.backend,
             "tokens": self.tokens, "note": self.note,
+            "unknown": self.unknown, "hedged": self.hedged,
         }
 
 
@@ -87,13 +120,20 @@ class Parser:
     MAX_SUBJECT_TOKENS = 4
 
     def __init__(self, model: str = "en_core_web_sm",
-                 vocabulary: set[str] | None = None):
+                 vocabulary: set[str] | None = None,
+                 nouns: set[str] | None = None):
         self.nlp = None
         self.backend = "regex"
         #: Every lemma the ontology knows, used to find where a subject ends.
         #: Optional: without it the parser still reads questions, just less
         #: well on compound subjects.
         self.vocabulary = vocabulary or set()
+        #: Words the relation cue already spent, for this one parse.
+        self._spent: set[str] = set()
+        #: The subset of it that names things rather than properties.
+        self.nouns = nouns or set()
+        #: Set by `head_noun` when it refuses to substitute a later noun.
+        self._blocked: str | None = None
         try:
             import spacy
             self.nlp = spacy.load(model, disable=["ner"])
@@ -101,30 +141,85 @@ class Parser:
         except Exception:                      # noqa: BLE001 - optional dependency
             pass
 
-    def longest_known(self, doc) -> str | None:
-        """The longest phrase after the auxiliary that names a known concept.
+    #: Tags a subject can wear. A question can be about a thing, an act or an
+    #: exclamation -- `is running a sport`, `is hello a greeting` -- and
+    #: requiring a noun is what sent both of those to their second word.
+    SUBJECT_POS = ("NOUN", "PROPN", "VERB", "INTJ", "X")
 
-        Scans start positions left to right so the earliest subject wins, and
-        lengths longest first so `fire truck` beats `fire`. The phrase has to
-        end on a noun, or `can a large dog fall` would settle for `large`.
+    #: Tags that modify a subject rather than being one, so a scan may step
+    #: over them: `is a large dog furry` is about the dog, not the largeness.
+    MODIFIER_POS = ("ADJ", "ADV", "ADP", "PART", "AUX", "NUM", "DET", "PRON",
+                    "CCONJ", "SCONJ")
 
-        It gives up at the first noun it cannot place rather than searching on,
-        because the next noun along is usually the *target*: without that,
-        `is a zzzqqq an animal` answered about animals.
+    def subject_group(self, doc) -> list:
+        """The tokens between the auxiliary and the predicate.
+
+        A copular question has two halves and a determiner marks the seam:
+        in `is a wemble an animal` the `an` begins the predicate, so `animal`
+        was never a candidate subject and the scan should never have reached
+        it. Grouping on determiners is what stops the subject scan running
+        into the predicate -- without it, an unrecognised subject was quietly
+        answered about the thing it was being compared *to*.
         """
-        rest = [t for t in doc[1:] if t.pos_ != "DET" and not t.is_punct]
-        for start in range(min(3, len(rest))):
-            span = rest[start:start + self.MAX_SUBJECT_TOKENS]
+        group: list = []
+        started = False
+        for token in doc[1:]:
+            if token.is_punct:
+                continue
+            if token.pos_ == "DET":
+                if started:
+                    break              # a second determiner: the predicate
+                continue
+            if started and token.pos_ in ("AUX", "VERB"):
+                break                  # the verb: whatever follows is asked
+            started = True
+            group.append(token)
+        return group
+
+    def longest_known(self, doc) -> tuple[str | None, str | None]:
+        """The subject, or else the word that stopped the scan.
+
+        Within the subject group, longest phrases first so `fire truck` beats
+        `fire`, and earliest start first so the subject wins over its own
+        modifiers.
+
+        Two things it must not do, both found by the answer audit. It must not
+        require the subject to be a noun: `hello` tags as an interjection and
+        `running` as a verb, and both are concepts this ontology holds, so
+        demanding a noun walked past them into the predicate -- `is hello a
+        greeting` came back as a list of the properties of greetings. And when
+        it cannot place the word the question is about it must name that word
+        rather than reading on, because what follows is the predicate: that is
+        how `is a wemble an animal` answered about animals.
+        """
+        group = self.subject_group(doc)
+        for start in range(min(3, len(group))):
+            span = group[start:start + self.MAX_SUBJECT_TOKENS]
             for length in range(len(span), 0, -1):
                 if span[length - 1].pos_ not in ("NOUN", "PROPN"):
                     continue
                 for form in (" ".join(t.lemma_.lower() for t in span[:length]),
                              " ".join(t.text.lower() for t in span[:length])):
                     if form in self.vocabulary and form not in STOP:
-                        return form
-            if rest[start].pos_ in ("NOUN", "PROPN"):
-                return None                    # an unknown subject, not a hint
-        return None
+                        return form, None
+            token = group[start]
+            if token.pos_ in self.MODIFIER_POS or token.lemma_.lower() in STOP:
+                continue               # a modifier of the subject, not it
+            # Text before lemma: `running` and `greeting` are both concepts in
+            # their own right, and lemmatising first answered about `run` and
+            # `greet` instead.
+            for form in (token.text.lower(), token.lemma_.lower()):
+                if form in self.vocabulary and form not in STOP:
+                    return form, None
+            if token.pos_ in self.SUBJECT_POS:
+                return None, token.text.lower()
+        # Every token in the group modifies something, so the subject is a
+        # modifier used as a noun: `is red a color` is about red.
+        for token in group:
+            for form in (token.text.lower(), token.lemma_.lower()):
+                if form in self.vocabulary and form not in STOP:
+                    return form, None
+        return None, group[0].text.lower() if group else None
 
     # -- lemmatisation ----------------------------------------------------
     def lemmas(self, text: str) -> list[str]:
@@ -159,9 +254,16 @@ class Parser:
         # something the ontology knows gets all four: `fire truck` and `police
         # dog` are lemmas, `canine fall` and `hammer break` are not.
         if polar and self.vocabulary:
-            found = self.longest_known(doc)
+            found, blocked = self.longest_known(doc)
             if found:
                 return found
+            if blocked:
+                # The question is about a word this ontology does not hold.
+                # Reading on would answer about the predicate instead, which
+                # is the substitution the audit named: an answer to a question
+                # nobody asked, with nothing to say it happened.
+                self._blocked = blocked
+                return None
 
         # An explicit grammatical subject, when the parse found one. Reading it
         # from the noun chunk instead is the older bug: for `can a canine fall
@@ -169,7 +271,7 @@ class Parser:
         for token in doc:
             if (token.dep_ in ("nsubj", "nsubjpass")
                     and token.pos_ in ("NOUN", "PROPN")
-                    and token.lemma_.lower() not in STOP):
+                    and self._usable(token)):
                 return token.lemma_.lower()
 
         # No subject at all means the parse came apart entirely. In a polar
@@ -183,15 +285,31 @@ class Parser:
 
         for chunk in doc.noun_chunks:
             head = chunk.root
-            if head.lemma_.lower() not in STOP:
+            if self._usable(head):
                 return head.lemma_.lower()
         for token in doc:
-            if token.pos_ in ("NOUN", "PROPN") and token.lemma_.lower() not in STOP:
+            if token.pos_ in ("NOUN", "PROPN") and self._usable(token):
                 return token.lemma_.lower()
         for token in doc:
-            if token.pos_ == "VERB" and token.lemma_.lower() not in STOP:
+            if token.pos_ == "VERB" and self._usable(token):
                 return token.lemma_.lower()
+        # Last resort: any word this ontology holds. `what does cold cause`
+        # has no noun and no verb left once the cue is spent, and answering
+        # nothing was worse than answering about cold.
+        for token in doc:
+            if not self._usable(token):
+                continue
+            for form in (token.text.lower(), token.lemma_.lower()):
+                if form in self.vocabulary:
+                    return form
         return None
+
+    def _usable(self, token) -> bool:
+        """Can this token be the subject, or did the question spend it?"""
+        lemma = token.lemma_.lower()
+        if lemma in STOP:
+            return False
+        return not (lemma in self._spent or token.text.lower() in self._spent)
 
     # -- question -> (subject, relation, target) --------------------------
     def parse(self, question: str) -> Parse:
@@ -200,12 +318,28 @@ class Parser:
         polar = lowered.split()[0] in POLAR if lowered.split() else False
 
         relation = None
+        spent = ""
         for pattern, mapped in RELATION_CUES:
-            if re.search(pattern, lowered):
+            found = re.search(pattern, lowered)
+            if found:
                 relation = mapped
+                # The words this cue consumed. A question spends them on
+                # saying *which relation* it is asking about, so they are not
+                # also what it is asking about -- `what is needed to greet`
+                # was answered about `need`, and `what does a greeting cause`
+                # about `cause`. Both are the question's own grammar read back
+                # as its subject.
+                spent = found.group(0)
                 break
 
+        self._blocked = None
+        hedged = False
+        self._spent = {word for word in
+                       (re.sub(r"[^a-z]", "", token)
+                        for token in spent.lower().split())
+                       if word in SPENT_ON_RELATION}
         subject = self.head_noun(text, polar)
+        blocked = self._blocked
 
         target = None
         if polar and subject:
@@ -223,6 +357,19 @@ class Parser:
             if relation == "has_property" and re.match(r"^(a|an|the)\b", tail):
                 relation = "is_a"
                 target = re.sub(r"^(a|an|the)\b", "", tail).strip() or None
+            elif (relation == "has_property" and tail and self.nouns
+                    and not re.search(r"(and|or|not|no|never)", tail)
+                    and len(tail.split()) <= 3
+                    and tail.strip() in self.nouns):
+                # A mass noun takes no determiner and names a class all the
+                # same: `is a chair furniture` was read as asking whether a
+                # chair is furniture-ish, and answered by walking furniture's
+                # own ancestors. The test is whether the predicate has a noun
+                # sense -- `furniture` does, `telepathic` and `unmarried` do
+                # not -- because the tagger calls all three nouns out of
+                # context. A coordination is never one class, so `is a dog
+                # furry or purple` stays the property question it is.
+                relation, target, hedged = "is_a", tail, True
         elif not polar:
             # "what is a dog made of" -> open question, no target to match
             target = None
@@ -239,11 +386,13 @@ class Parser:
             relation = "capable_of" if polar else None
             note = "No relation cue recognised; defaulted."
         if subject is None:
-            note = "Could not find a noun to reason about."
+            note = (f"“{blocked}” is not a word this ontology holds, "
+                    f"and it is what the question is about." if blocked else
+                    "Could not find a noun to reason about.")
 
         return Parse(question=question, subject=subject, relation=relation,
                      target=target, polar=polar, backend=self.backend,
-                     tokens=tokens, note=note)
+                     tokens=tokens, note=note, unknown=blocked, hedged=hedged)
 
     # -- matching a target phrase against a stored fact --------------------
     def matcher(self, threshold: float = 0.6):

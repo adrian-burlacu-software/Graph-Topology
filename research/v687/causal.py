@@ -96,10 +96,16 @@ class Script:
     gloss: str | None = None
     steps: list[dict] = field(default_factory=list)
     note: str = ""
+    #: The other thing the question named, and whether anything ties it to the
+    #: event. A script is read of the event alone, so a question that also
+    #: names a doer is only answered honestly if the doer is accounted for.
+    actor: str | None = None
+    links: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {"concept": self.concept, "gloss": self.gloss,
-                "steps": self.steps, "note": self.note}
+                "steps": self.steps, "note": self.note,
+                "actor": self.actor, "links": self.links}
 
 
 class Causal:
@@ -113,6 +119,59 @@ class Causal:
         self._breadth: dict[str, int] = {}
 
     # -- reading the question ---------------------------------------------
+    #: Words a question uses to frame an event rather than to name a doer.
+    NOT_AN_ACTOR = frozenset("""
+    what why how when where who happens follow follows next explains explain
+    cause causes caused would could does do did is are was were the a an of
+    to in on at with and or that this it its you your we i they them there
+    someone something people person thing
+    """.split())
+
+    def actor_of(self, question: str, event_words: list[str]) -> str | None:
+        """The doer a question names besides the event, if it names one.
+
+        `what happens when a beaver moves` is read as a script for `move`,
+        and until now the beaver was dropped without trace: the same answer
+        came back for a beaver and for a piano. The event really is what these
+        relations are recorded of -- ConceptNet has no beaver-specific script
+        -- so the fix is not to invent one. It is to notice the doer, say what
+        connects it to the event, and say when nothing does.
+        """
+        stems = {Identifier.stem(word) for word in event_words}
+        for word in re.findall(r"[a-z][a-z'-]*", (question or "").lower()):
+            if word in self.NOT_AN_ACTOR or len(word) < 3:
+                continue
+            if Identifier.stem(word) in stems:
+                continue
+            if self.reasoner.senses_of(word):
+                return word
+        return None
+
+    def links_to(self, actor: str, event_words: list[str],
+                 limit: int = 6) -> list[dict]:
+        """Facts tying the doer to the event, in either direction."""
+        senses = [sense["id"] for sense in self.reasoner.senses_of(actor)]
+        if not senses:
+            return []
+        marks = ",".join("?" * len(senses))
+        rows = self.reasoner.connection.execute(
+            f"SELECT concept, relation, object, source, confidence FROM facts "
+            f"WHERE concept IN ({marks}) ORDER BY confidence DESC LIMIT 4000",
+            tuple(senses)).fetchall()
+        stems = {Identifier.stem(word) for word in event_words}
+        found: list[dict] = []
+        for row in rows:
+            words = {Identifier.stem(word)
+                     for word in re.findall(r"[a-z]+", row["object"].lower())}
+            if words & stems:
+                found.append({"concept": row["concept"],
+                              "relation": row["relation"],
+                              "object": row["object"], "source": row["source"],
+                              "confidence": row["confidence"]})
+            if len(found) >= limit:
+                break
+        return found
+
     WHY = re.compile(r"^why\b")
     WHAT_HAPPENS = re.compile(r"^what\s+happens\b|^what\s+(follows|comes\s+next)\b")
     EXPLAINS = re.compile(r"^what\s+(explains|would\s+explain|could\s+cause)\b")
@@ -261,7 +320,29 @@ class Causal:
             note = (f"Word-level: read across {len(senses)} sense(s) of "
                     f"“{term}”. These relations come from ConceptNet, which "
                     f"records them of the word, so no one synset owns them.")
-        return Script(concept=term, gloss=None, steps=steps, note=note)
+        # The doer, if the question named one. A script is recorded of the
+        # event, so the doer cannot narrow it -- but it can be accounted for,
+        # and a question that named one deserves to be told which of its two
+        # halves was answered.
+        actor = self.actor_of(question, [term])
+        links = self.links_to(actor, [term]) if actor else []
+        if actor and steps:
+            if links:
+                shown = links[0]
+                note += (f" The question also named “{actor}”, which the "
+                         f"script cannot narrow — these are recorded of the "
+                         f"event, not of its doer — but the two are "
+                         f"connected: {shown['concept']} "
+                         f"{shown['relation'].replace('_', ' ')} "
+                         f"“{shown['object']}”.")
+            else:
+                note += (f" The question also named “{actor}”, and nothing "
+                         f"here is about it: no fact connects {actor} to "
+                         f"“{term}”, and this is the generic script for the "
+                         f"event, which would be the same answer for anything "
+                         f"else asked alongside it.")
+        return Script(concept=term, gloss=None, steps=steps, note=note,
+                      actor=actor, links=links)
 
     @staticmethod
     def _phase(relation: str) -> str:
@@ -274,8 +355,14 @@ class Causal:
         """The goal or cause behind an event, which is the same walk upwards."""
         found = self.script(word, kinds=BECAUSE, question=question)
         if found.steps:
+            # Keep whatever the script said about the doer. Replacing the
+            # note wholesale was how `why does a dog bark` lost the sentence
+            # saying the dog had been accounted for.
+            about_actor = found.note.partition("The question also named")[2]
             found.note = ("Read as: this is what the ontology records the "
                           "event as being for, or as bringing about.")
+            if about_actor:
+                found.note += " The question also named" + about_actor
         return found
 
     def _overlap(self, concept: str, question: str) -> float:
