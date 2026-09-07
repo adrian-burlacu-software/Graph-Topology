@@ -1,6 +1,6 @@
 # AwA2 — Animals with Attributes 2, class/attribute table only
 
-50 animal classes scored on 85 attributes. Used by `research/v686` as the
+50 animal classes scored on 85 attributes. Used by `research/v687` as the
 dense Appendix 3 corpus and as the source of fine-grained identification
 ("what kind of dog has spots").
 

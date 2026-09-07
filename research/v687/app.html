@@ -1,0 +1,1909 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V684 Reasoner</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2b3140;
+    --ink:#e6e9ef; --dim:#9aa4b8; --faint:#6b7488;
+    --accent:#5eead4; --accent-dim:#134e4a;
+    --yes:#4ade80; --no:#f87171; --maybe:#fbbf24;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+           "Helvetica Neue",Arial,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  header {
+    padding:18px 24px 14px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  header h1 { margin:0; font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  header .sub { color:var(--faint); font-size:12px; }
+  .wrap { max-width:1280px; margin:0 auto; padding:22px 24px 60px; }
+  .askbar { display:flex; gap:10px; margin-bottom:14px; }
+  #q {
+    flex:1; padding:13px 16px; font-size:15px; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:9px; outline:none;
+  }
+  #q:focus { border-color:var(--accent); }
+  button {
+    padding:13px 20px; font-size:14px; font-weight:600; cursor:pointer;
+    background:var(--accent); color:#06231f; border:0; border-radius:9px;
+  }
+  button:disabled { opacity:.45; cursor:default; }
+  button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:500; }
+  /* One pill per kind of reasoning, so the page says what it can be asked
+     rather than leaving it to be guessed from a flat list of examples. */
+  /* Sense chips: one per content word of the question, showing which sense
+     it is being taken in. R6 has always run inference per sense; this is the
+     first time the reader can see which one, or say it is the wrong one. */
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:-14px 0 14px;
+           min-height:0; position:relative; z-index:30; }
+  .chip {
+    position:relative; font-family:var(--mono); font-size:11px;
+    padding:4px 9px; border-radius:6px; cursor:pointer; z-index:1;
+    border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  }
+  .chip b { color:var(--ink); font-weight:600; }
+  /* An open chip has to outrank its neighbours as well as the page. */
+  .chip:hover, .chip.open { z-index:60; }
+  .chip .sense {
+    color:var(--faint); background:rgba(255,255,255,.05);
+    padding:1px 6px; border-radius:4px; margin-left:5px;
+  }
+  .chip.pinned { border-color:var(--accent); }
+  .chip.pinned .sense { color:var(--accent); background:var(--accent-dim); }
+  /* A word no rule resolves is shown as a label rather than a control: no
+     border, no panel, nothing that looks pressable. It is *not* dimmed with
+     `opacity`, which applies to the whole subtree -- that made the chip's own
+     flyout translucent, so the page showed through the panel and the two
+     texts overlapped. Colour dims a chip; opacity dims everything inside it. */
+  .chip.inert {
+    border-color:transparent; background:none; color:var(--faint);
+    cursor:default; padding-left:2px; padding-right:2px;
+  }
+  .chip.inert b { color:var(--dim); font-weight:500; }
+  .chip.inert .sense { color:var(--faint); background:none; padding-left:0; }
+  /* The flyout is inside a chip, which is a span, so every row in it has to
+     be told to be a block: leaving them inline ran all eight senses together
+     into one paragraph of definitions. */
+  .flyout {
+    display:none; position:absolute; z-index:40; top:100%; left:0;
+    box-sizing:border-box; width:400px; max-width:78vw;
+    max-height:340px; overflow-y:auto; overflow-x:hidden;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:8px; box-shadow:0 14px 36px rgba(0,0,0,.6); text-align:left;
+    cursor:default;
+    /* The gap under the chip is a transparent *border*, not a margin, so it
+       still belongs to the flyout. As a margin it was dead space: moving the
+       pointer down from the chip left the chip before reaching the flyout,
+       and the hover closed it mid-crossing. It is painted in the page's own
+       colour rather than left transparent, because a transparent border plus
+       `background-clip` is one subtlety too many for something that only has
+       to look like a gap. */
+    border-top:7px solid var(--bg);
+  }
+  .chip:hover .flyout, .chip.open .flyout { display:block; }
+  .flyout .why {
+    display:block; font-family:var(--sans); font-size:11.5px; line-height:1.55;
+    color:var(--faint); padding:3px 8px 9px;
+    border-bottom:1px solid var(--line); margin-bottom:7px;
+  }
+  .flyout .opt {
+    display:block; padding:8px 9px; margin-bottom:5px; border-radius:7px;
+    cursor:pointer; border:1px solid transparent;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .flyout .opt:last-child { margin-bottom:0; }
+  .flyout .opt:hover { background:var(--panel2); border-color:var(--line); }
+  .flyout .opt.on { background:var(--accent-dim); border-color:var(--accent); }
+  .flyout .head { display:flex; align-items:baseline; gap:10px; }
+  .flyout .id { font-family:var(--mono); font-size:11.5px; color:var(--accent); }
+  .flyout .opt.on .id { font-weight:700; }
+  .flyout .n {
+    margin-left:auto; font-family:var(--mono); font-size:10px;
+    color:var(--faint); white-space:nowrap;
+  }
+  .flyout .def {
+    display:block; font-family:var(--sans); font-size:12px; line-height:1.5;
+    color:var(--dim); margin-top:4px;
+  }
+  .flyout .opt.clear .id { color:var(--maybe); }
+
+  .kinds { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
+  .kinds span {
+    font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); color:var(--dim); background:var(--panel2);
+    transition:border-color .2s, color .2s, background .2s;
+    /* A pill is a button, so clicking twice should not leave its label
+       highlighted the way clicking twice on a paragraph does. */
+    user-select:none; -webkit-user-select:none;
+  }
+  .kinds span:hover { border-color:var(--accent); color:var(--ink); }
+  .kinds span.on { border-color:var(--accent); color:var(--bg);
+                   background:var(--accent); font-weight:600; }
+  .kinds span .rulechip { font-family:var(--mono); font-size:10px;
+                          opacity:.7; margin-left:6px; }
+  .kindnote { color:var(--dim); font-size:12.5px; margin-bottom:10px;
+              max-width:70ch; line-height:1.5; }
+  .examples { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:22px;
+              user-select:none; -webkit-user-select:none; }
+  .examples span {
+    font-size:12px; color:var(--dim); background:var(--panel); border:1px solid var(--line);
+    padding:5px 11px; border-radius:20px; cursor:pointer;
+  }
+  .examples span:hover { border-color:var(--accent); color:var(--accent); }
+  .grid { display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start; }
+  @media (max-width:1000px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:16px 18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 12px; font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+
+  .verdict { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  .badge { font-size:12px; font-weight:700; letter-spacing:.09em; padding:5px 12px; border-radius:6px; }
+  .VERIFIED { background:rgba(74,222,128,.14); color:var(--yes); }
+  .CONTRADICTED { background:rgba(248,113,113,.14); color:var(--no); }
+  .UNKNOWN,.UNPARSED,.UNKNOWN_WORD { background:rgba(251,191,36,.13); color:var(--maybe); }
+  .LISTING,.PROFILE,.IDENTIFIED { background:rgba(94,234,212,.13); color:var(--accent); }
+  .AMBIGUOUS,.NO_MATCH,.UNRECORDED,.MIXED { background:rgba(251,191,36,.13); color:var(--maybe); }
+  .claim { font-size:16px; }
+  .note { color:var(--dim); font-size:13px; margin-top:8px; }
+
+  /* derivation chain */
+  .chain { position:relative; padding-left:26px; }
+  .chain::before {
+    content:""; position:absolute; left:8px; top:6px; bottom:6px; width:2px;
+    background:linear-gradient(var(--line),transparent);
+  }
+  .node {
+    position:relative; margin:0 0 8px; padding:11px 14px; border-radius:9px;
+    background:var(--panel2); border:1px solid var(--line);
+    opacity:.22; transform:translateY(4px);
+    transition:opacity .34s ease, transform .34s ease, border-color .34s ease, background .34s ease;
+  }
+  .node.on { opacity:1; transform:none; }
+  .node.hit { border-color:var(--accent); background:var(--accent-dim); box-shadow:0 0 0 1px var(--accent) inset; }
+  .node.blocked { border-color:var(--no); }
+  .node.skipped { border-color:var(--maybe); }
+  .node::before {
+    content:""; position:absolute; left:-22px; top:16px; width:9px; height:9px; border-radius:50%;
+    background:var(--line); border:2px solid var(--bg); transition:background .34s ease, box-shadow .34s;
+  }
+  .node.on::before { background:var(--dim); }
+  .node.hit::before { background:var(--accent); box-shadow:0 0 9px var(--accent); }
+  .node.blocked::before { background:var(--no); }
+  .node.skipped::before { background:var(--maybe); }
+  .node .top { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+  .cname { font-family:var(--mono); font-size:13.5px; color:var(--ink); }
+  .rule { font-family:var(--mono); font-size:10.5px; color:var(--accent); background:rgba(94,234,212,.09);
+          padding:2px 6px; border-radius:4px; }
+  .dist { font-family:var(--mono); font-size:10.5px; color:var(--faint); }
+  .detail { color:var(--dim); font-size:12.5px; margin-top:5px; }
+  .hitfact {
+    margin-top:9px; padding:9px 11px; background:rgba(0,0,0,.28); border-radius:7px;
+    font-family:var(--mono); font-size:12px; color:var(--accent);
+  }
+  .hitfact .meta { color:var(--faint); font-size:11px; margin-top:5px; font-family:var(--mono); }
+
+  .controls { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .controls .pos { font-family:var(--mono); font-size:12px; color:var(--faint); margin-left:auto; }
+  input[type=range] { flex:1; min-width:130px; accent-color:var(--accent); }
+
+  /* graph view */
+  #graph { width:100%; display:block; border-radius:9px;
+           border:1px solid var(--line); margin-bottom:12px; background:#12151c; }
+  #graph .edge { stroke:var(--line); stroke-width:1.5; fill:none;
+                 transition:stroke .35s ease, stroke-width .35s ease, opacity .35s ease; opacity:.45; }
+  #graph .edge.shortcut { stroke-dasharray:5 4; opacity:.3; }
+  #graph .ring { fill:none; stroke:var(--line); stroke-width:1; opacity:.22;
+                 stroke-dasharray:3 8; }
+  /* A sibling stays out of the way until the walk reaches its parent, then
+     fades in to show what that generalisation also covers. */
+  #graph .gnode.ghost { opacity:0 !important; pointer-events:none;
+                        transition:opacity .4s ease; }
+  #graph .gnode.ghost.revealed { opacity:calc(var(--depth,1) * .8) !important;
+                                 pointer-events:auto; }
+  #graph .gnode { opacity:var(--depth,1); }
+  #graph .gnode.ghost circle { fill:#1a212c; stroke:#333c4c; }
+  #graph .gnode.ghost text { fill:#4d5566; font-size:9.5px; }
+  #graph .edge.faded { opacity:0; transition:opacity .4s ease; }
+  #graph .edge.faded.revealed { opacity:.16; }
+  #graph .edge.walked { stroke:var(--accent); stroke-width:2.2; opacity:.95; }
+  #graph .edge.shortcut.walked { opacity:.6; }
+  #graph .gnode circle {
+    fill:var(--panel2); stroke:var(--line); stroke-width:1.5; r:7;
+    transition:fill .35s ease, stroke .35s ease, r .3s ease;
+  }
+  /* visited but nothing found here -- a pass-through, not a decision */
+  #graph .gnode.seen circle { fill:#232c3a; stroke:var(--faint); }
+  /* facts were actually examined at this concept */
+  #graph .gnode.probed circle { fill:#2e3a4d; stroke:var(--dim); stroke-width:2; }
+  #graph .gnode.current circle { fill:var(--accent); stroke:var(--accent); r:10; }
+  #graph .gnode.hit circle { fill:var(--yes); stroke:var(--yes); r:11; }
+  #graph .gnode.blocked circle { fill:var(--no); stroke:var(--no); }
+  #graph .gnode.skipped circle { fill:var(--maybe); stroke:var(--maybe); }
+  #graph .gnode.origin circle { stroke:var(--accent); stroke-width:2.5; }
+  #graph .gnode.treenode circle { fill:var(--panel2); stroke:var(--accent);
+                                 stroke-width:2; }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
+  #graph .tree-term { fill:var(--ink); font:13px var(--mono);
+                      text-anchor:end; stroke:none; }
+  #graph .tree-answer { fill:var(--yes); font:14px var(--mono);
+                        font-weight:600; stroke:none; }
+  #graph .gnode.treeghost circle { fill:#1a212c; stroke:#333c4c; }
+  #graph .gnode.treeghost text { fill:#4d5566; font:11px var(--mono);
+                                 stroke:none; }
+  #graph .gnode.treenode.current circle { fill:var(--accent); stroke:var(--accent); }
+  #graph .gnode.treenode.hit circle { fill:var(--yes); stroke:var(--yes); }
+  #graph .gnode text {
+    fill:var(--faint); font:11px var(--mono); transition:fill .35s ease;
+    paint-order:stroke; stroke:#12151c; stroke-width:3px;
+  }
+  #graph .gnode.seen text { fill:var(--dim); }
+  #graph .gnode.current text, #graph .gnode.hit text { fill:var(--ink); }
+  #graph .pulse { fill:none; stroke:var(--accent); stroke-width:2; opacity:0; }
+  #graph .gnode.current .pulse { animation:ping 1.15s ease-out infinite; }
+  @keyframes ping { 0% { r:10; opacity:.85; } 100% { r:26; opacity:0; } }
+  #graph .lvl { fill:var(--faint); font:10px var(--mono); opacity:.55; }
+
+  .nowstep {
+    padding:10px 13px; border-radius:8px; background:var(--panel2);
+    border:1px solid var(--line); font-size:13px; color:var(--dim); margin-bottom:12px;
+    min-height:20px;
+  }
+  .nowstep b { color:var(--ink); }
+  .legend { display:flex; gap:15px; flex-wrap:wrap; margin:-4px 0 13px; font-size:11.5px; color:var(--faint); }
+  .legend span { display:flex; align-items:center; gap:6px; }
+  .legend i { width:9px; height:9px; border-radius:50%; display:inline-block; border:1.5px solid var(--line); background:var(--panel2); }
+  .legend i.k-origin { border-color:var(--accent); }
+  .legend i.k-probed { background:#2e3a4d; border-color:var(--dim); }
+  .legend i.k-seen { background:#232c3a; border-color:var(--faint); }
+  .legend i.k-hit { background:var(--yes); border-color:var(--yes); }
+  .legend i.k-blocked { background:var(--no); border-color:var(--no); }
+  .legend i.k-skipped { background:var(--maybe); border-color:var(--maybe); }
+  .legend i.k-short { width:16px; height:0; border-radius:0; background:none;
+                      border:0; border-top:1.5px dashed var(--faint); }
+  .legend i.k-ghost { background:#1a212c; border-color:#333c4c; width:7px; height:7px; }
+  .nowstep .rule { margin-right:7px; }
+
+  details#stepsbox { border-top:1px solid var(--line); padding-top:10px; }
+  details#stepsbox summary {
+    cursor:pointer; font-size:11px; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; list-style:none; user-select:none;
+  }
+  details#stepsbox summary::-webkit-details-marker { display:none; }
+  details#stepsbox summary::before { content:"▸ "; color:var(--accent); }
+  details#stepsbox[open] summary::before { content:"▾ "; }
+  details#stepsbox summary:hover { color:var(--accent); }
+  details#stepsbox .chain { margin-top:13px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:var(--faint); font-weight:600; font-size:10.5px; letter-spacing:.09em;
+       text-transform:uppercase; padding:0 8px 7px 0; }
+  td { padding:6px 8px 6px 0; border-top:1px solid var(--line); vertical-align:top; }
+  td.rel { font-family:var(--mono); color:var(--accent); white-space:nowrap; }
+  td.obj { color:var(--ink); }
+  .src { font-family:var(--mono); font-size:10.5px; padding:1px 5px; border-radius:3px; color:var(--faint);
+         background:var(--panel2); border:1px solid var(--line); }
+  .bar { height:3px; background:var(--line); border-radius:2px; overflow:hidden; margin-top:4px; }
+  .bar i { display:block; height:100%; background:var(--accent); }
+
+  dl.rules { margin:0; font-size:12px; }
+  dl.rules dt { font-family:var(--mono); color:var(--accent); margin-top:8px; font-size:11.5px; }
+  dl.rules dd { margin:2px 0 0; color:var(--dim); }
+  .parse { font-family:var(--mono); font-size:11.5px; color:var(--dim); }
+  .parse b { color:var(--ink); font-weight:600; }
+  .empty { color:var(--faint); font-size:13px; padding:6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>V684 Reasoner</h1>
+  <span class="sub">WordNet taxonomy · Ascent++ &amp; ConceptNet facts · every answer replayable</span>
+</header>
+
+<div class="wrap">
+  <div class="askbar">
+    <input id="q" placeholder="Ask something — e.g. can a dog fall into a hole" autofocus>
+    <button id="go">Ask</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="kinds" id="kinds"></div>
+  <div class="kindnote" id="kindnote"></div>
+  <div class="examples" id="examples"></div>
+
+  <div class="grid">
+    <div>
+      <div class="card" id="answer" hidden>
+        <h2>Answer</h2>
+        <div class="verdict"><span class="badge" id="badge"></span><span class="claim" id="claim"></span></div>
+        <div class="note" id="note"></div>
+      </div>
+
+      <div class="card" id="deriv" hidden>
+        <h2>Derivation — replay the steps</h2>
+        <div class="controls">
+          <button class="ghost" id="view">◎ Globe</button>
+          <button class="ghost" id="nbr">◌ Neighbours</button>
+          <button class="ghost" id="play">▶ Play</button>
+          <button class="ghost" id="back">◀</button>
+          <button class="ghost" id="fwd">▶</button>
+          <input type="range" id="scrub" min="0" value="0">
+          <span class="pos" id="pos"></span>
+        </div>
+        <svg id="graph" viewBox="0 0 760 380" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="nowstep" id="nowstep"></div>
+        <div class="legend">
+          <span><i class="k-origin"></i>asked</span>
+          <span><i class="k-probed"></i>facts checked here</span>
+          <span><i class="k-seen"></i>passed through</span>
+          <span><i class="k-hit"></i>answered</span>
+          <span><i class="k-blocked"></i>contradicted / walk stopped</span>
+          <span><i class="k-skipped"></i>some facts set aside, walk went on</span>
+          <span><i class="k-short"></i>dashed = DAG shortcut</span>
+          <span><i class="k-ghost"></i>neighbourhood (globe view)</span>
+        </div>
+        <details id="stepsbox">
+          <summary><span id="stepsummary">All steps</span></summary>
+          <div class="chain" id="chain"></div>
+        </details>
+      </div>
+
+      <!-- One card for what the answer was made of, whichever rule made it.
+           Identification, the attribute walk and the four v687 rules each had
+           their own, and any two of them showing at once said the same thing
+           twice in different words. -->
+      <div class="card" id="howcard" hidden>
+        <h2 id="howtitle"></h2>
+        <p class="note" id="hownote"></p>
+        <div id="how"></div>
+      </div>
+
+      <div class="card" id="bridgecard" hidden>
+        <h2>Bridge &mdash; why this is relevant</h2>
+        <p class="note" id="bridgenote"></p>
+        <div id="bridge"></div>
+        <p class="note" id="bridgecost"></p>
+      </div>
+
+      <div class="card" id="knowledge" hidden>
+        <h2>Relevant knowledge</h2>
+        <div id="facts"></div>
+      </div>
+
+      <!-- Two kinds of "deliberately not used", which belong together: facts
+           about a sibling of the anchor (R14) and facts that covered part of
+           the question but not enough of it. Both are here so that neither
+           can be mistaken for the answer. -->
+      <div class="card" id="asidecard" hidden>
+        <h2>Set aside &mdash; considered, not used</h2>
+        <p class="note" id="asidenote"></p>
+        <div id="aside"></div>
+        <p class="note" id="nearbynote"></p>
+        <div id="nearby"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="parsecard" hidden>
+        <h2>How the question was read</h2>
+        <div class="parse" id="parse"></div>
+      </div>
+      <div class="card">
+        <h2>Inference rules</h2>
+        <dl class="rules" id="rules"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* The reasoning this page can be asked for, one group per kind, with the
+ * rule that answers it. A flat list of examples left the reader to infer the
+ * repertoire from a handful of questions; this states it.
+ *
+ * The order is the order the engine tries them in, which is also roughly the
+ * order they were built in -- v684's taxonomy at the top, the v687 backlog
+ * below it.
+ */
+const REASONING = [
+  {
+    name: "Taxonomy & facts", rule: "R1-R9",
+    blurb: "Name a thing and ask what it is, what it can do, what it is made " +
+           "of or where it is found. Inheritance is defeasible: a closer " +
+           "statement beats an inherited one.",
+    questions: ["is a dog an animal", "what can a violin do",
+                "can a dog fall into a hole", "what is a hammer made of",
+                "where do you find a hammer", "what is a hammer used for"],
+  },
+  {
+    name: "Bridging", rule: "R14-R15",
+    blurb: "Two subjects in one question. The route from the first to the " +
+           "second is found before the second is answered about, so the " +
+           "answer is about this dog's owner and not owners in general.",
+    questions: ["what does a dog's owner need", "what can a violin player do",
+                "where does a dog's owner live", "what does a car driver need"],
+  },
+  {
+    name: "Identification", rule: "R16",
+    blurb: "Describe a thing without naming it and be told what it is. The " +
+           "trie is walked downwards, general property first, so each step " +
+           "narrows visibly.",
+    questions: ["what kind of dog has spots", "what kind of cat has stripes",
+                "what is round with hexagons", "what kind of bird cannot fly",
+                "what kind of animal is furry and has spots and is big"],
+  },
+  {
+    name: "Retrieval", rule: "R17",
+    blurb: "Name a thing and be told what it has. The same trie walked " +
+           "upwards from its leaf to the origin recovers exactly what was " +
+           "stored, and a scored zero is a denial rather than a silence.",
+    questions: ["what attributes does a blue whale have", "is a whale furry",
+                "is a dalmatian spotted", "does a robin fly",
+                "does a dog have a tail", "what is a robin like"],
+  },
+  {
+    name: "Logic & quantifiers", rule: "R20",
+    blurb: "Questions with structure, evaluated in three values because " +
+           "silence is not falsehood. One false conjunct settles an `and`, " +
+           "one true disjunct settles an `or`, and an unknown part suspends " +
+           "the whole. Quantifiers ask every kind beneath a concept.",
+    questions: ["does a dog have a tail and wings", "is a dog furry or purple",
+                "do all birds fly", "do most birds fly",
+                "is a dog furry and telepathic"],
+  },
+  {
+    name: "Contrast & counting", rule: "R21 R25",
+    blurb: "Two concepts at once. What they share, where they part, what is " +
+           "nearest to a thing and how typical a member is are one " +
+           "operation: the lowest common ancestor of two branches. Counting " +
+           "kinds is the one count this data supports — there are no numbers " +
+           "in it, but the taxonomy has a shape.",
+    questions: ["what is the difference between a dog and a wolf",
+                "what do a dog and a cat have in common",
+                "what is similar to a dog", "is a dalmatian a typical dog",
+                "is a penguin a typical bird",
+                "how many kinds of dog are there",
+                "what kinds of whale are there"],
+  },
+  {
+    name: "Inverse", rule: "R22",
+    blurb: "The graph read backwards. Every earlier question starts from a " +
+           "named subject; these start from the object and ask what stands " +
+           "in front of it.",
+    questions: ["what is made of wood", "what is found in a toolbox",
+                "what has wings", "what eats meat", "who makes a car",
+                "what is a wheel part of"],
+  },
+  {
+    name: "Scripts & abduction", rule: "R23",
+    blurb: "The eventive relations nothing used to ask: prerequisites, " +
+           "subevents and effects, walked in script order. An observation is " +
+           "explained by ranking causes as competing hypotheses.",
+    questions: ["why do people sleep", "why do people learn",
+                "what happens when you drive a car",
+                "what happens when you cook", "what explains a fire"],
+  },
+  {
+    name: "Analogy", rule: "R24",
+    blurb: "Role mapping, over the norms only. A role is approximated by " +
+           "feature type plus standing within the concept. The scraped graph " +
+           "cannot support this and is not asked.",
+    questions: ["bark is to dog as what is to cat",
+                "fins are to fish as what is to bird",
+                "trunk is to elephant as what is to giraffe"],
+  },
+  {
+    name: "Refused", rule: "R18",
+    blurb: "What this cannot do, declined by name instead of answered from " +
+           "the part of the question it happens to understand. Every silent " +
+           "wrong answer found in the audit had that shape.",
+    questions: ["is a whale bigger than a dolphin",
+                "how many legs does a dog have",
+                "what is the largest animal", "what if a dog had wings"],
+  },
+];
+
+const $ = id => document.getElementById(id);
+let STATE = null, cursor = 0, timer = null;
+
+/* The selector: one pill per kind of reasoning, its questions below. The
+ * chosen kind is remembered, so reloading the page after a change does not
+ * put the reader back at the top of the list. */
+let KIND = Number(localStorage.getItem("v687kind") || 0);
+if (!(KIND >= 0 && KIND < REASONING.length)) KIND = 0;
+
+/* The pills themselves, kept as they are built. Reading them back with
+ * `querySelectorAll("span")` also matched the rule chip nested inside each
+ * one, so the list was twice as long as the number of pills and every index
+ * past the first landed on the wrong element -- clicking the third pill lit
+ * the chip inside the first. */
+const PILLS = [];
+
+function showKind(index) {
+  KIND = index;
+  localStorage.setItem("v687kind", String(index));
+  const group = REASONING[index];
+  PILLS.forEach((el, i) => el.classList.toggle("on", i === index));
+  $("kindnote").textContent = group.blurb;
+  $("examples").innerHTML = "";
+  group.questions.forEach(text => {
+    const el = document.createElement("span");
+    el.textContent = text;
+    el.onclick = () => { $("q").value = text; ask(); };
+    $("examples").appendChild(el);
+  });
+}
+
+REASONING.forEach((group, index) => {
+  const el = document.createElement("span");
+  el.innerHTML = escapeHtml(group.name) +
+    '<span class="rulechip">' + escapeHtml(group.rule) + "</span>";
+  el.onclick = () => showKind(index);
+  PILLS.push(el);
+  $("kinds").appendChild(el);
+});
+showKind(KIND);
+
+let typing = null;
+$("q").addEventListener("input", () => {
+  clearTimeout(typing);
+  typing = setTimeout(() => showChips($("q").value), 400);
+});
+showChips($("q").value);
+
+$("go").onclick = () => ask();
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+
+async function ask(concept) {
+  const q = $("q").value.trim();
+  if (!q) return;
+  stop();
+  $("go").disabled = true; $("go").textContent = "…";
+  try {
+    const url = "/api/ask?q=" + encodeURIComponent(q)
+      + (concept ? "&concept=" + encodeURIComponent(concept) : "") + pinParams();
+    STATE = await (await fetch(url)).json();
+    render();
+    showChips(q);
+  } catch (err) {
+    STATE = null;
+    $("answer").hidden = false;
+    $("badge").className = "badge UNKNOWN"; $("badge").textContent = "ERROR";
+    $("claim").textContent = String(err);
+  } finally {
+    $("go").disabled = false; $("go").textContent = "Ask";
+  }
+}
+
+function render() {
+  const s = STATE;
+  $("answer").hidden = false;
+  $("badge").className = "badge " + s.verdict;
+  $("badge").textContent = s.verdict;
+  $("claim").textContent = claimText(s);
+  $("note").textContent = s.note || "";
+
+  // parse
+  if (s.parse) {
+    $("parsecard").hidden = false;
+    $("parse").innerHTML =
+      `subject <b>${escapeHtml(s.parse.subject || "—")}</b><br>` +
+      `relation <b>${escapeHtml(s.parse.relation || "—")}</b><br>` +
+      `target <b>${escapeHtml(s.parse.target || "— (open question)")}</b><br>` +
+      `polar <b>${s.parse.polar}</b><br>parser <b>${escapeHtml(s.parse.backend)}</b>` +
+      (s.parse.note ? `<br><span style="color:var(--maybe)">${escapeHtml(s.parse.note)}</span>` : "");
+  } else $("parsecard").hidden = true;
+
+  // rules
+  $("rules").innerHTML = "";
+  Object.entries(s.rules || {}).forEach(([k, v]) => {
+    $("rules").insertAdjacentHTML("beforeend",
+      `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`);
+  });
+
+  buildChain();
+  buildFacts();
+  buildBridge();
+  buildHow();
+  buildAside();
+}
+
+function claimText(s) {
+  const p = s.profile;
+  if (p) {
+    const asked = p.asked;
+    return asked
+      ? `${p.name} — ${asked.term}: ${asked.verdict.toLowerCase()}`
+      : `${p.name} — ${p.path.length} attributes on its branch of the trie`;
+  }
+  if (s.verdict === "LISTING") return `${s.evidence.length} fact(s) about ${s.concept || ""}`;
+  if (!s.evidence || !s.evidence.length) return s.concept ? `about ${s.concept}` : "";
+  const e = s.evidence[0];
+  return `${e.concept} ${e.relation.replace(/_/g, " ")} “${e.object}”` +
+         (e.distance ? ` — inherited from ${e.distance} level(s) up` : " — stated directly");
+}
+
+/* ---- sense chips ----
+ * One chip per content word of the question, showing which sense that word is
+ * being taken in, with a flyout to change it.
+ *
+ * R6 has always run inference per sense rather than per word. What was missing
+ * was any way to *see* which sense, or to say it was the wrong one: the old
+ * card offered that for the subject alone, after the answer, and only for the
+ * rules that took a `concept` parameter. A pin here is read by every rule that
+ * resolves a word to a synset, which is most of them.
+ *
+ * A pinned choice outlives the question, because it is a fact about what the
+ * reader means rather than about one question -- pinning `mouse` to the animal
+ * and then asking three more questions about mice should not need three more
+ * pins.
+ */
+let PINS = {};
+try { PINS = JSON.parse(localStorage.getItem("v687pins") || "{}"); } catch (e) {}
+
+function pinParams() {
+  return Object.entries(PINS)
+    .map(([word, id]) => "&pin=" + encodeURIComponent(word + ":" + id)).join("");
+}
+
+function savePins() {
+  try { localStorage.setItem("v687pins", JSON.stringify(PINS)); } catch (e) {}
+}
+
+// A flyout pinned open by a click should close when the reader looks away.
+document.addEventListener("click", () => {
+  const box = $("chips");
+  if (box) box.querySelectorAll(".chip").forEach(c => c.classList.remove("open"));
+});
+
+/* Keep a flyout on screen.
+ *
+ * The first attempt was CSS: anchor the last two chips to their right edge so
+ * they do not run off the right of the page. With two chips in the question
+ * that rule caught the *first* one, whose right edge is near the left of the
+ * page, and sent a 400px panel off the left instead.
+ *
+ * The second attempt was three branches -- open right, open left, or pin to
+ * the viewport -- and the third branch was unreachable, so a chip close
+ * enough to the right edge still overhung it. One clamp says the same thing
+ * and cannot have that bug: the panel starts where it would like to, held
+ * between the two margins.
+ */
+function place(chip) {
+  const fly = chip.querySelector(".flyout");
+  if (!fly) return;
+  const rect = chip.getBoundingClientRect();
+  const width = Math.min(400, window.innerWidth * 0.78);
+  const margin = 12;
+  const room = Math.max(margin, window.innerWidth - margin - width);
+  const wanted = Math.min(Math.max(rect.left, margin), room);
+  fly.style.right = "auto";
+  fly.style.left = (wanted - rect.left) + "px";
+}
+
+async function showChips(question) {
+  const box = $("chips");
+  if (!question || !question.trim()) { box.innerHTML = ""; return; }
+  let data;
+  try {
+    data = await (await fetch("/api/senses?q=" + encodeURIComponent(question))).json();
+  } catch (e) { box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  (data.words || []).forEach(entry => {
+    const pinned = PINS[entry.word];
+    const shown = entry.senses.find(s => s.id === pinned)
+               || entry.senses.find(s => s.default) || entry.senses[0];
+    const chip = document.createElement("span");
+    chip.className = "chip" + (pinned ? " pinned" : "")
+                   + (entry.applies.length ? "" : " inert");
+    // `dog.n.01` on the chip beside the word `dog` is the word twice. The
+    // part that says which sense is the tail, so that is what is shown.
+    const tail = /\.([nvar])\.(\d+)$/.exec(shown.id);
+    chip.innerHTML =
+      `<b>${escapeHtml(entry.word)}</b> ` +
+      `<span class="sense">${tail ? tail[1] + "." + tail[2]
+                                  : escapeHtml(shortName(shown.id))}</span>` +
+      `<span class="flyout">
+         <span class="why">${entry.applies.length
+           ? "Pinning a sense here is read " +
+             entry.applies.map(escapeHtml).join("; ") + "."
+           : "No rule resolves this word in this question, so there is " +
+             "nothing to choose. Its senses are shown for reading."}</span>
+         ${entry.senses.map(s => `<span class="opt${s.id === (pinned || "") ? " on" : ""}"
+             data-word="${escapeHtml(entry.word)}" data-id="${escapeHtml(s.id)}">
+             <span class="head"><span class="id">${escapeHtml(s.id)}</span>
+               <span class="n">${s.facts.toLocaleString()} facts</span></span>
+             <span class="def">${escapeHtml(s.definition || "no definition")}</span>
+           </span>`).join("")}
+         ${pinned ? `<span class="opt clear" data-word="${escapeHtml(entry.word)}"
+             data-id=""><span class="head"><span class="id">let the engine
+             choose</span></span>
+             <span class="def">Undo this pin and go back to the sense the
+             evidence picks.</span></span>` : ""}
+       </span>`;
+    chip.querySelectorAll(".opt").forEach(option => {
+      option.onclick = event => {
+        event.stopPropagation();
+        const word = option.getAttribute("data-word");
+        const id = option.getAttribute("data-id");
+        if (id) PINS[word] = id; else delete PINS[word];
+        savePins();
+        chip.classList.remove("open");
+        ask();                       // the answer is what the pin is for
+      };
+    });
+    // Hover opens it, and a click keeps it open, so a long sense list can be
+    // scrolled without the pointer having to stay inside the chip.
+    chip.onclick = event => {
+      event.stopPropagation();
+      // A click inside the flyout is aimed at what it hit, not at the chip:
+      // clicking the explanation line closed the panel out from under it.
+      if (event.target.closest && event.target.closest(".flyout")) return;
+      const open = chip.classList.contains("open");
+      box.querySelectorAll(".chip").forEach(other =>
+        other.classList.remove("open"));
+      chip.classList.toggle("open", !open);
+      place(chip);
+    };
+    chip.onmouseenter = () => place(chip);
+    box.appendChild(chip);
+  });
+}
+
+/* ---- derivation replay ---- */
+function buildChain() {
+  const steps = (STATE && STATE.steps) || [];
+  $("deriv").hidden = steps.length === 0;
+  if (!steps.length) return;
+  $("chain").innerHTML = "";
+  steps.forEach((st, i) => {
+    const el = document.createElement("div");
+    el.className = "node";
+    el.id = "step" + i;
+    let hit = "";
+    if (st.matched) {
+      const m = st.matched;
+      hit = `<div class="hitfact">${escapeHtml(m.concept)} · ${escapeHtml(m.relation)} · “${escapeHtml(m.object)}”
+        <div class="meta">source ${escapeHtml(m.source)} · confidence ${m.confidence}
+        · ${m.distance} level(s) up${m.sense_assumed ? " · sense assumed" : ""}</div></div>`;
+    }
+    el.innerHTML = `<div class="top">
+        <span class="cname">${escapeHtml(st.concept)}</span>
+        <span class="rule">${escapeHtml(st.rule)}</span>
+        <span class="dist">${st.kind} · d=${st.distance}${st.facts_checked ? " · " + st.facts_checked + " facts" : ""}</span>
+      </div>
+      <div class="detail">${escapeHtml(st.detail)}</div>${hit}`;
+    if (st.kind === "match") el.classList.add("hit");
+    // `skip` is not a halt: R12 sets a node's word-level facts aside and the
+    // walk carries on past it. Colouring it like a contradiction claimed the
+    // derivation ended there when it did not.
+    if (st.kind === "skip") el.classList.add("skipped");
+    if (st.kind === "block" || st.kind === "stop") el.classList.add("blocked");
+    $("chain").appendChild(el);
+  });
+  $("scrub").max = steps.length;
+  $("stepsummary").textContent = `All ${steps.length} steps`;
+  $("stepsbox").open = false;
+  buildGraph();
+  cursor = 0; setCursor(steps.length);   // show complete, then allow replay
+}
+
+/* ---- graph neighbourhood ---- */
+const SVG_NS = "http://www.w3.org/2000/svg";
+let GRAPH = null;
+let VIEW = localStorage.getItem("v684view") || "rows";
+let NBR = localStorage.getItem("v684nbr") !== "off";
+
+function shortName(id) { return String(id).replace(/\.[nvar]\.\d+$/, ""); }
+
+/* Clicking a node on the tree asks the next question about it, and which
+ * question that is depends on what is being drawn: on an identification the
+ * interesting follow-up is what the thing can do, and on a walk of one
+ * branch it is the branch the neighbour took instead. */
+function followUp(name) {
+  const mode = STATE && STATE.identification && STATE.identification.mode;
+  return (mode === "profile" || mode === "verify")
+    ? "what attributes does a " + name + " have"
+    : "what can a " + name + " do";
+}
+
+/* The attribute tree: the trie branch that identified the thing.
+ *
+ * This is Figure 20 read downwards. Each attribute is a node on the branch,
+ * and taking it splits what is underneath: whatever carries the attribute
+ * stays on the branch, whatever does not falls off it as a ruled-out
+ * neighbour. Following the branch to its terminal is the identification.
+ *
+ * Two drawings of the same tree, on the same toggle as everywhere else:
+ *
+ *   Rows   the branch straight down, rivals fanned to one side. Readable,
+ *          and the shape is obvious at a glance.
+ *   Globe  the branch as a spindle in 3D. The rivals ring the attribute that
+ *          ruled them out, so they sit in front of and behind it rather than
+ *          in a row, and the whole thing turns under the existing projector.
+ *
+ * Nodes are keyed by attribute name and the ruled-out ones by their own name,
+ * which is what the step replay looks up: keying them by synset id while the
+ * steps named attributes is why nothing lit up.
+ */
+function buildTriePath(svg) {
+  const ident = STATE.identification;
+  const rounds = (ident.steps || []).slice();
+  if (!rounds.length) return;
+
+  const byDepth = new Map();
+  (ident.considered || []).forEach(entry => {
+    if (entry.survived) return;
+    // `|| 1` here is a bug: depth is the index of the step that removed the
+    // candidate, so the first attribute's rivals have depth 0, which is
+    // falsy. Every one of them was being pushed onto the second attribute,
+    // which is why `round` looked like it ruled out nothing and `hexagons`
+    // carried ten.
+    const depth = Number.isInteger(entry.depth) ? entry.depth : 1;
+    if (!byDepth.has(depth)) byDepth.set(depth, []);
+    byDepth.get(depth).push(entry);
+  });
+  const answers = (ident.candidates || []).slice(0, 4);
+  const RULED = 7;
+
+  return VIEW === "globe"
+    ? spindle(svg, rounds, byDepth, answers, RULED)
+    : ladder(svg, rounds, byDepth, answers, RULED);
+}
+
+/* -- the flat drawing ------------------------------------------------- */
+function ladder(svg, rounds, byDepth, answers, RULED) {
+  // An identification is three or four attributes deep; a walk down one
+  // concept's own branch can be twenty. Squeezing twenty rows into 620px by
+  // scaling the whole drawing shrinks the labels with it, so the rows close
+  // up instead and the drawing is allowed to grow.
+  const W = 1000, SPINE = 150, TOP = 44, FAN = 116;
+  const ROW = rounds.length > 8
+    ? Math.max(34, Math.round(640 / rounds.length)) : 78;
+  const SWING = Math.min(18, Math.round(ROW / 4));
+  const H = TOP + rounds.length * ROW + 60 + answers.length * 34;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = Math.min(H, 900) + "px";
+
+  const nodeEls = new Map(), edgeEls = new Map(), ghostsOf = new Map();
+  const y = index => TOP + index * ROW;
+  const line = (x1, y1, x2, y2, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    path.setAttribute("d", "M" + x1 + "," + y1 + " L" + x2 + "," + y2);
+    svg.appendChild(path);
+    return path;
+  };
+
+  rounds.forEach((round, index) => {
+    const top = y(index);
+    if (index) {
+      edgeEls.set(round.term + "→" + rounds[index - 1].term,
+                  line(SPINE, y(index - 1) + 13, SPINE, top - 13, "edge"));
+    }
+    // Rivals branch off the attribute that removed them, spread along a
+    // diagonal so a long list stays readable instead of running off the edge.
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (dropped.length) {
+      ghostsOf.set(round.term, dropped.map(entry => entry.name));
+      dropped.forEach((entry, position) => {
+        const x = SPINE + 78 + position * FAN;
+        const at = top + (position % 2 ? SWING : -SWING) + position * 2;
+        edgeEls.set(entry.name + "→" + round.term,
+                    line(SPINE + 10, top, x - 8, at, "edge faded"));
+        nodeEls.set(entry.name, ghostChip(svg, x, at, entry, round.term));
+      });
+    }
+    nodeEls.set(round.term, attributeNode(svg, SPINE, top, round));
+  });
+
+  const bottom = y(rounds.length - 1);
+  answers.forEach((candidate, position) => {
+    const at = bottom + 52 + position * 34;
+    edgeEls.set(candidate.name + "→" + rounds[rounds.length - 1].term,
+                line(SPINE, bottom + 13, SPINE, at - 11, "edge"));
+    nodeEls.set(candidate.name, answerNode(svg, SPINE, at, candidate));
+  });
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3: new Map(), edgePairs: [],
+            cx: 0, cy: 0, origin: null, onPath: new Set(),
+            stagger: new Map(), tree: true };
+}
+
+/* -- the 3D drawing ---------------------------------------------------- */
+function spindle(svg, rounds, byDepth, answers, RULED) {
+  const W = 1000, H = 620, cx = W / 2, cy = H / 2;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.style.height = H + "px";
+
+  const span = Math.min(64, 380 / Math.max(1, rounds.length));
+  const top = -(rounds.length - 1) * span / 2 - 40;
+  const p3 = new Map(), nodeEls = new Map(), edgeEls = new Map();
+  const edgePairs = [], ghostsOf = new Map();
+
+  rounds.forEach((round, index) => p3.set(round.term, [0, top + index * span, 0]));
+
+  // Rivals ring the attribute that ruled them out. An even azimuth puts some
+  // in front of the spindle and some behind it, which is what makes it read
+  // as a branch in depth rather than a row of dots.
+  rounds.forEach((round, index) => {
+    const dropped = (byDepth.get(index) || []).slice(0, RULED);
+    if (!dropped.length) return;
+    ghostsOf.set(round.term, dropped.map(entry => entry.name));
+    const radius = 108 + Math.min(60, dropped.length * 7);
+    dropped.forEach((entry, position) => {
+      const theta = 2 * Math.PI * position / dropped.length + index * 0.7;
+      p3.set(entry.name, [radius * Math.cos(theta),
+                          top + index * span + 14,
+                          radius * Math.sin(theta)]);
+    });
+  });
+  answers.forEach((candidate, position) => {
+    const theta = 2 * Math.PI * position / Math.max(1, answers.length);
+    const spread = answers.length > 1 ? 46 : 0;
+    p3.set(candidate.name, [spread * Math.cos(theta),
+                            top + rounds.length * span + 18,
+                            spread * Math.sin(theta)]);
+  });
+
+  const connect = (from, to, cls) => {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("class", cls);
+    svg.appendChild(path);
+    edgeEls.set(from + "→" + to, path);
+    edgePairs.push([from, to, path]);
+  };
+  rounds.forEach((round, index) => {
+    if (index) connect(round.term, rounds[index - 1].term, "edge");
+    (byDepth.get(index) || []).slice(0, RULED).forEach(
+      entry => connect(entry.name, round.term, "edge faded"));
+  });
+  answers.forEach(candidate =>
+    connect(candidate.name, rounds[rounds.length - 1].term, "edge"));
+
+  rounds.forEach(round => nodeEls.set(round.term, attributeNode(svg, 0, 0, round)));
+  byDepth.forEach((dropped, depth) => {
+    const round = rounds[depth];
+    if (!round) return;
+    dropped.slice(0, RULED).forEach(entry =>
+      nodeEls.set(entry.name, ghostChip(svg, 0, 0, entry, round.term)));
+  });
+  answers.forEach(candidate =>
+    nodeEls.set(candidate.name, answerNode(svg, 0, 0, candidate)));
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy,
+            origin: null, onPath: new Set(), stagger: new Map(), tree: true };
+  GRAPH.project = makeProjector(GRAPH);
+  GRAPH.project(SPIN_YAW);
+  startSpin();
+}
+
+/* -- the three kinds of node, drawn once and placed by whichever view -- */
+function attributeNode(svg, x, y, round) {
+  const group = document.createElementNS(SVG_NS, "g");
+  group.setAttribute("class", "gnode treenode");
+  group.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 12);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 8);
+  const name = document.createElementNS(SVG_NS, "text");
+  name.setAttribute("class", "tree-term");
+  name.setAttribute("x", -18); name.setAttribute("y", 5);
+  name.textContent = round.term;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = round.detail || round.term;
+  group.appendChild(title); group.appendChild(ping);
+  group.appendChild(dot); group.appendChild(name);
+  svg.appendChild(group);
+  return group;
+}
+
+function ghostChip(svg, x, y, entry, term) {
+  const ghost = document.createElementNS(SVG_NS, "g");
+  ghost.setAttribute("class", "gnode ghost treeghost");
+  ghost.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 4);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("x", 10); label.setAttribute("y", 4);
+  label.textContent = entry.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  // On an identification a side node was ruled out; on a walk it either left
+  // the branch here or is one of the kinds that answered the question, and
+  // when it answered, what it answered with is the point.
+  const said = Object.entries(entry.matched || {});
+  title.textContent = said.length
+    ? entry.name + " — " + said.map(pair => pair[0] + ": " + pair[1]).join("; ")
+    : entry.name + " — ruled out by “" + term + "”";
+  ghost.appendChild(title); ghost.appendChild(dot); ghost.appendChild(label);
+  ghost.style.cursor = "pointer";
+  ghost.onclick = () => { $("q").value = followUp(entry.name); ask(); };
+  svg.appendChild(ghost);
+  return ghost;
+}
+
+function answerNode(svg, x, y, candidate) {
+  const chip = document.createElementNS(SVG_NS, "g");
+  chip.setAttribute("class", "gnode treenode");
+  chip.setAttribute("transform", "translate(" + x + "," + y + ")");
+  const ping = document.createElementNS(SVG_NS, "circle");
+  ping.setAttribute("class", "pulse"); ping.setAttribute("r", 13);
+  const dot = document.createElementNS(SVG_NS, "circle");
+  dot.setAttribute("r", 9);
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("class", "tree-answer");
+  label.setAttribute("x", 18); label.setAttribute("y", 5);
+  label.textContent = candidate.name;
+  const title = document.createElementNS(SVG_NS, "title");
+  title.textContent = Object.entries(candidate.matched || {})
+    .map(pair => pair[0] + ": " + pair[1]).join("\n");
+  chip.appendChild(title); chip.appendChild(ping);
+  chip.appendChild(dot); chip.appendChild(label);
+  chip.style.cursor = "pointer";
+  chip.onclick = () => { $("q").value = followUp(candidate.name); ask(); };
+  svg.appendChild(chip);
+  return chip;
+}
+
+/* Globe: concentric shells, the asked concept at the centre.
+ *
+ * The shape is a set of wedges. Each lineage out of the asked concept gets its
+ * own narrow cone, the path rides that cone's axis, and every neighbour sits
+ * on the arc right beside the node it hangs off. Shells cut those cones into
+ * the short arcs of dots you would see in a cross-section.
+ *
+ * Nodes are never pushed apart at long range -- that is what scattered the
+ * neighbourhood across the sphere in earlier versions. They only avoid
+ * collisions: move if a label would overlap, then get leashed back home.
+ */
+function buildGlobe(steps, byDist) {
+  const svg = $("graph");
+  const hood = (STATE && STATE.neighbourhood) || { nodes: [], edges: [] };
+  const W = 1000, H = 760, cx = W / 2, cy = H / 2;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.height = H + "px";
+
+  const shell = new Map();
+  byDist.forEach((row, d) => row.forEach(c => shell.set(c, d)));
+  hood.nodes.forEach(n => { if (!shell.has(n.id)) shell.set(n.id, Math.max(0, n.distance)); });
+
+  const onPath = new Set([...byDist.values()].flat());
+  const origin = (byDist.get(0) || []).find(c => onPath.has(c));
+
+  // A neighbour rides the same sphere as the node it hangs off. The server
+  // dates it one step more specific -- a sibling of `canine` is at `dog`'s
+  // level -- which drew `wolf` and `bitch` on the ring inside canine and
+  // stretched their edges across the gap between shells. They are there to
+  // show what canine covers, so they belong on canine's own sphere.
+  const attach = new Map();          // neighbour -> the path node it hangs off
+  hood.edges.forEach(e => {
+    if (!onPath.has(e.from) && onPath.has(e.to)) attach.set(e.from, e.to);
+  });
+  attach.forEach((anchor, c) => {
+    if (shell.has(anchor) && shell.has(c) && anchor !== origin) {
+      shell.set(c, shell.get(anchor));
+    }
+  });
+
+  const levels = [...new Set(shell.values())].sort((a, b) => a - b);
+  // Shells need room for a label between them, so the inner radius is
+  // generous and the outer uses most of the box.
+  const maxR = Math.min(W, H) / 2 - 74;
+  const radius = d => levels.length < 2 ? 0
+    : 92 + (maxR - 92) * (levels.indexOf(d) / (levels.length - 1));
+
+  // ---- lineages -------------------------------------------------------
+  const parentsOf = new Map();
+  steps.forEach(s => {
+    if (!parentsOf.has(s.concept)) parentsOf.set(s.concept, new Set());
+    (s.parents || []).forEach(p => parentsOf.get(s.concept).add(p));
+  });
+  const roots = [...(parentsOf.get(origin) || [])].filter(p => shell.has(p));
+  const lineage = new Map();
+  roots.forEach((r, i) => lineage.set(r, i));
+  for (let pass = 0; pass < levels.length + 2; pass++) {
+    parentsOf.forEach((parents, child) => {
+      if (!lineage.has(child)) return;
+      parents.forEach(p => { if (!lineage.has(p)) lineage.set(p, lineage.get(child)); });
+    });
+  }
+
+  // ---- vector helpers ---------------------------------------------------
+  const norm = v => {
+    const l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1],
+                           a[2] * b[0] - a[0] * b[2],
+                           a[0] * b[1] - a[1] * b[0]];
+  // Tangent frame at a direction: t1 runs along the shell's arc (horizontal,
+  // the direction the cross-section spreads in), t2 across it.
+  const frame = a => {
+    let t1 = cross([0, 1, 0], a);
+    if (Math.hypot(t1[0], t1[1], t1[2]) < 1e-4) t1 = cross([1, 0, 0], a);
+    t1 = norm(t1);
+    return [t1, norm(cross(a, t1))];
+  };
+  // Rotate `a` by `angle` along the great circle toward tangent `t`.
+  const swing = (a, t, angle) => norm([
+    a[0] * Math.cos(angle) + t[0] * Math.sin(angle),
+    a[1] * Math.cos(angle) + t[1] * Math.sin(angle),
+    a[2] * Math.cos(angle) + t[2] * Math.sin(angle)]);
+  // The tangent at `a` pointing directly away from `b`.
+  const away = (a, b) => {
+    const d = dot3(a, b);
+    const t = [a[0] - b[0] * d, a[1] - b[1] * d, a[2] - b[2] * d];
+    return Math.hypot(t[0], t[1], t[2]) < 1e-6 ? frame(a)[0] : norm(t);
+  };
+  // Pull a direction back inside `cap` radians of `home`.
+  const leash = (v, home, cap) => {
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot3(v, home))));
+    if (angle <= cap) return v;
+    const t = away(home, v);
+    return swing(home, [-t[0], -t[1], -t[2]], cap);
+  };
+  const jitter = seed => {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return (x - Math.floor(x)) - 0.5;
+  };
+
+  // ---- one cone per lineage --------------------------------------------
+  // The cross-section shows it: each branch is a narrow wedge out of the
+  // origin, and everything in that branch lives inside its own wedge. The
+  // branch axis is the wedge's centre line; shells cut arcs across it.
+  const CONE_GAP = 0.70;                       // radians between branch axes
+  const branches = Math.max(1, roots.length);
+  const axes = roots.map((_, i) => {
+    const yaw = (i - (branches - 1) / 2) * CONE_GAP;
+    const pitch = -0.60 + jitter(i + 3) * 0.16;   // tilted up, off the view axis
+    return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch),
+            Math.cos(yaw) * Math.cos(pitch)];
+  });
+  const meanAxis = axes.length
+    ? norm(axes.reduce((s, a) => [s[0] + a[0], s[1] + a[1], s[2] + a[2]], [0, 0, 0]))
+    : [0, 0, 1];
+  const axisOf = c => axes[lineage.get(c)] || meanAxis;
+
+  const GAP = 46;                              // px a label needs beside it
+  const unit = new Map(), home = new Map(), leashLen = new Map();
+  const stagger = new Map();                   // label rows, so words miss each other
+  unit.set(origin, [0, 0, 1]);
+
+  // Path nodes ride their cone's axis: the dark spine of each wedge.
+  const spineRows = new Map();
+  shell.forEach((d, c) => {
+    if (c === origin || !onPath.has(c)) return;
+    const key = (lineage.has(c) ? lineage.get(c) : "x") + ":" + d;
+    if (!spineRows.has(key)) spineRows.set(key, []);
+    spineRows.get(key).push(c);
+  });
+  spineRows.forEach(members => {
+    const axis = axisOf(members[0]);
+    const t1 = frame(axis)[0];
+    const step = Math.min(0.30, GAP / Math.max(1, radius(shell.get(members[0]))));
+    members.forEach((c, i) => {
+      const offset = members.length < 2 ? 0 : (i - (members.length - 1) / 2) * step;
+      unit.set(c, swing(axis, t1, offset));
+      home.set(c, axis);
+      leashLen.set(c, Math.abs(offset) + 0.06);
+      stagger.set(c, 0);
+    });
+  });
+
+  // Neighbours ring the node they hang off -- close enough that the link is
+  // obvious, spread around it enough to read.
+  const clusters = new Map();
+  shell.forEach((d, c) => {
+    if (c === origin || onPath.has(c)) return;
+    const anchor = attach.get(c);
+    const key = anchor && unit.has(anchor) && anchor !== origin ? anchor : "";
+    if (!clusters.has(key)) clusters.set(key, []);
+    clusters.get(key).push(c);
+  });
+  // A cluster may never reach past the midline between two cones, or a
+  // sibling of `canine` ends up sitting inside the other branch's wedge.
+  const REACH = branches < 2 ? 0.9 : CONE_GAP * 0.45;
+  const PER_RING = 6;
+  clusters.forEach((members, key) => {
+    const base = key ? unit.get(key) : meanAxis;
+    const [t1, t2] = frame(base);
+    members.forEach((c, i) => {
+      const r = radius(shell.get(c)) || 1;
+      const rho = Math.min(0.30, GAP / r);
+      // Ring the anchor rather than trailing off along one tangent. Even
+      // azimuth in the tangent plane puts some neighbours in front of the
+      // sphere and some behind it, which is what makes the cluster read as
+      // a cap on a globe; fanning them along t1 alone drew a straight line.
+      // Past six they start a second, wider ring instead of crowding.
+      const band = 1 + Math.floor(i / PER_RING);
+      const slots = Math.min(PER_RING, members.length - (band - 1) * PER_RING);
+      const theta = 2 * Math.PI * ((i % PER_RING) + 0.5 * (band - 1)) /
+                    Math.max(1, slots) + jitter(i * 3 + 5) * 0.3;
+      const spread = rho * band;
+      const out = [t1[0] * Math.cos(theta) + t2[0] * Math.sin(theta),
+                   t1[1] * Math.cos(theta) + t2[1] * Math.sin(theta),
+                   t1[2] * Math.cos(theta) + t2[2] * Math.sin(theta)];
+      unit.set(c, swing(base, out, spread));
+      home.set(c, base);
+      leashLen.set(c, Math.min(REACH, spread + rho * 0.8));
+      stagger.set(c, ((i % 3) - 1) * 14);
+    });
+  });
+
+  // ---- collision avoidance, not repulsion -------------------------------
+  // Nothing moves unless two nodes are closer than a label is wide, and even
+  // then only far enough to clear -- then it is leashed back to its cluster.
+  // Long-range repulsion is what kept scattering the neighbourhood; clumping
+  // is the shape we actually want.
+  levels.forEach(d => {
+    const members = [...shell.entries()].filter(([, v]) => v === d)
+                      .map(([c]) => c).filter(c => c !== origin);
+    if (members.length < 2) return;
+    const clearance = Math.min(0.42, GAP / Math.max(1, radius(d)));
+    for (let iter = 0; iter < 80; iter++) {
+      let touched = false;
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const a = unit.get(members[i]), b = unit.get(members[j]);
+          const angle = Math.acos(Math.max(-1, Math.min(1, dot3(a, b))));
+          if (angle >= clearance) continue;
+          touched = true;
+          const shove = (clearance - angle) * 0.5 + 1e-3;
+          unit.set(members[i], swing(a, away(a, b), shove));
+          unit.set(members[j], swing(b, away(b, a), shove));
+        }
+      }
+      members.forEach(c => {
+        const anchor = home.get(c);
+        if (anchor) unit.set(c, leash(unit.get(c), anchor, leashLen.get(c)));
+      });
+      if (!touched) break;
+    }
+  });
+
+  const p3 = new Map();
+  shell.forEach((d, c) => {
+    const u = unit.get(c), r = c === origin ? 0 : radius(d);
+    p3.set(c, [u[0] * r, u[1] * r, u[2] * r]);
+  });
+
+  // ---- elements ---------------------------------------------------------
+  svg.innerHTML = "";
+  levels.forEach(d => {
+    if (!d) return;
+    const ring = document.createElementNS(SVG_NS, "circle");
+    ring.setAttribute("class", "ring");
+    ring.setAttribute("cx", cx); ring.setAttribute("cy", cy);
+    ring.setAttribute("r", radius(d));
+    svg.appendChild(ring);
+  });
+
+  const edgeEls = new Map(), edgePairs = [], drawn = new Set(), ghostsOf = new Map();
+  const addEdge = (from, to, faded) => {
+    const key = from + "->" + to;
+    if (drawn.has(key) || !p3.has(from) || !p3.has(to)) return;
+    drawn.add(key);
+    const line = document.createElementNS(SVG_NS, "path");
+    // A parent no further from the origin than its child is a DAG shortcut:
+    // `chordate` at +6 has `animal` as a parent, already reached at +2.
+    const short = !faded && shell.has(from) && shell.has(to) &&
+                  shell.get(to) <= shell.get(from);
+    line.setAttribute("class", "edge" + (faded ? " faded" : "") +
+                               (short ? " shortcut" : ""));
+    svg.appendChild(line);
+    edgeEls.set(from + "→" + to, line);
+    edgePairs.push([from, to, line]);
+  };
+  hood.edges.forEach(e => {
+    const faded = !(onPath.has(e.from) && onPath.has(e.to));
+    addEdge(e.from, e.to, faded);
+    if (faded && onPath.has(e.to)) {
+      if (!ghostsOf.has(e.to)) ghostsOf.set(e.to, []);
+      ghostsOf.get(e.to).push(e.from);
+    }
+  });
+  steps.forEach(s => (s.parents || []).forEach(p => addEdge(s.concept, p, false)));
+
+  const nodeEls = new Map();
+  shell.forEach((d, c) => {
+    const path = onPath.has(c);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "gnode" + (c === origin ? " origin" : "") + (path ? "" : " ghost"));
+    const ping = document.createElementNS(SVG_NS, "circle");
+    ping.setAttribute("class", "pulse"); ping.setAttribute("r", 10);
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("r", path ? 7 : 4);
+    const label = document.createElementNS(SVG_NS, "text");
+    label.textContent = shortName(c);
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = c;
+    g.appendChild(title); g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
+    g.style.cursor = "pointer";
+    g.onclick = () => { $("q").value = `what can a ${shortName(c)} do`; ask(c); };
+    svg.appendChild(g);
+    nodeEls.set(c, g);
+  });
+
+  GRAPH = { nodeEls, edgeEls, ghostsOf, p3, edgePairs, cx, cy, origin, onPath, stagger };
+  GRAPH.project = makeProjector(GRAPH);
+  GRAPH.project(SPIN_YAW);
+  startSpin();
+}
+
+/* Perspective projection with depth cueing. Nodes behind the sphere shrink and
+ * dim, which is what makes it read as a globe rather than a disc. */
+function makeProjector(G) {
+  const DEPTH = 900;
+  return function project(yaw) {
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    const flat = new Map();
+    G.p3.forEach((v, c) => {
+      const x = v[0] * cosY + v[2] * sinY;
+      const z = -v[0] * sinY + v[2] * cosY;
+      const scale = DEPTH / (DEPTH - z);
+      flat.set(c, { x: G.cx + x * scale, y: G.cy + v[1] * scale, z });
+    });
+    G.flat = flat;
+    G.nodeEls.forEach((g, c) => {
+      const f = flat.get(c);
+      if (!f) return;
+      g.setAttribute("transform", "translate(" + f.x.toFixed(1) + "," + f.y.toFixed(1) + ")");
+      g.style.setProperty("--depth", String(Math.max(0.3, Math.min(1, 0.6 + f.z / 460))));
+      const label = g.querySelector("text");
+      const left = f.x < G.cx;
+      const pad = G.onPath.has(c) ? 13 : 9;
+      // Cluster members share an arc, so their labels would sit on one line.
+      // Staggering by rank within the cluster is what makes them readable.
+      const row = (G.stagger && G.stagger.get(c)) || 0;
+      label.setAttribute("x", c === G.origin ? 0 : (left ? -pad : pad));
+      label.setAttribute("y", c === G.origin ? 27 : 4 + row);
+      label.setAttribute("text-anchor", c === G.origin ? "middle" : (left ? "end" : "start"));
+    });
+    G.edgePairs.forEach(pair => {
+      const a = flat.get(pair[0]), b = flat.get(pair[1]);
+      if (!a || !b) return;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      pair[2].setAttribute("d",
+        "M" + a.x.toFixed(1) + "," + a.y.toFixed(1) +
+        " Q" + (mx + (G.cx - mx) * 0.16).toFixed(1) + "," + (my + (G.cy - my) * 0.16).toFixed(1) +
+        " " + b.x.toFixed(1) + "," + b.y.toFixed(1));
+    });
+  };
+}
+
+let SPIN = null, SPIN_YAW = 0.6;
+function startSpin() {
+  stopSpin();
+  const tick = () => {
+    SPIN_YAW += 0.0022;
+    if (GRAPH && GRAPH.project) GRAPH.project(SPIN_YAW);
+    SPIN = requestAnimationFrame(tick);
+  };
+  SPIN = requestAnimationFrame(tick);
+}
+function stopSpin() { if (SPIN) { cancelAnimationFrame(SPIN); SPIN = null; } }
+
+
+function buildGraph() {
+  stopSpin();
+  const svg = $("graph");
+  svg.innerHTML = "";
+  const steps = (STATE && STATE.steps) || [];
+  if (!steps.length) return;
+  // Identification is a fan, not a spine: two dozen rivals eliminated over a
+  // few rounds. The globe is built for a taxonomy walk -- a handful of nodes
+  // per shell along one lineage -- and given a fan it puts everything on one
+  // bearing and the labels land on top of each other. A funnel is the shape
+  // this question actually has, so it gets its own drawing.
+  if (STATE && STATE.identification) return buildTriePath(svg);
+
+  // Lay the ancestors out by distance: one row per level of generalisation,
+  // which is exactly what the reasoner walks.
+  // A synset id ends in .pos.NN. The second `resolve` step names the target
+  // *word*, which is not a node in the taxonomy, so it gets no circle.
+  const isConcept = id => /\.[nvar]\.\d+$/.test(String(id));
+  const byDist = new Map();
+  steps.forEach(st => {
+    if (!isConcept(st.concept)) return;
+    if (!byDist.has(st.distance)) byDist.set(st.distance, []);
+    const row = byDist.get(st.distance);
+    if (!row.includes(st.concept)) row.push(st.concept);
+  });
+  if (!byDist.size) return;
+
+  if (VIEW === "globe") return buildGlobe(steps, byDist);
+
+  // One row per level of generalisation, asked concept at the bottom. Height
+  // grows with the number of levels so rows never crowd.
+  const levels = [...byDist.keys()].sort((a, b) => a - b);
+  const widest = Math.max(...levels.map(d => byDist.get(d).length));
+  const rowGap = 64, padY = 40, padX = 30;
+  const W = Math.max(760, 300 + widest * 210);
+  const H = padY * 2 + Math.max(1, levels.length - 1) * rowGap;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.height = H + "px";
+
+  const pos = new Map();
+  levels.forEach((d, li) => {
+    const row = byDist.get(d);
+    const y = H - padY - li * rowGap;         // distance 0 at the bottom
+    const usable = W - padX * 2 - 150;
+    row.forEach((c, i) => {
+      const x = row.length === 1 ? padX + 90
+        : padX + 90 + (i * usable) / (row.length - 1);
+      pos.set(c, { x, y, d });
+    });
+    const tag = document.createElementNS(SVG_NS, "text");
+    tag.setAttribute("class", "lvl");
+    tag.setAttribute("x", 8); tag.setAttribute("y", y + 4);
+    tag.textContent = d === 0 ? "asked" : "+" + d;
+    svg.appendChild(tag);
+  });
+
+  // Edges. A parent nearer the root than its child is a shortcut across the
+  // DAG -- `chordate` at +6 has `animal` as a parent, and `animal` is already
+  // at +2 by a shorter route. Those are drawn dashed so a line running back
+  // down the diagram reads as the shortcut it is, not as an error.
+  const edgeEls = new Map();
+  const drawn = new Set();
+  steps.forEach(st => {
+    (st.parents || []).forEach(p => {
+      const key = st.concept + "→" + p;
+      if (drawn.has(key) || !pos.has(st.concept) || !pos.has(p)) return;
+      drawn.add(key);
+      const a = pos.get(st.concept), b = pos.get(p);
+      const line = document.createElementNS(SVG_NS, "path");
+      const my = (a.y + b.y) / 2;
+      line.setAttribute("class", "edge" + (b.d <= a.d ? " shortcut" : ""));
+      line.setAttribute("d", `M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}`);
+      svg.appendChild(line);
+      edgeEls.set(key, line);
+    });
+  });
+
+  const nodeEls = new Map();
+  pos.forEach((p, c) => {
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "gnode" + (p.d === 0 ? " origin" : ""));
+    g.setAttribute("transform", `translate(${p.x},${p.y})`);
+    const ping = document.createElementNS(SVG_NS, "circle");
+    ping.setAttribute("class", "pulse"); ping.setAttribute("r", 10);
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("r", 7);
+    const label = document.createElementNS(SVG_NS, "text");
+    label.setAttribute("x", 14); label.setAttribute("y", 4);
+    label.textContent = shortName(c);
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = c;
+    g.appendChild(title); g.appendChild(ping); g.appendChild(dot); g.appendChild(label);
+    g.style.cursor = "pointer";
+    g.onclick = () => { $("q").value = `what can a ${shortName(c)} do`; ask(c); };
+    svg.appendChild(g);
+    nodeEls.set(c, g);
+  });
+  GRAPH = { nodeEls, edgeEls };             // rows: path only, no siblings drawn
+}
+
+function paintGraph() {
+  if (!GRAPH || !STATE) return;
+  const steps = STATE.steps || [];
+  GRAPH.nodeEls.forEach(g => g.classList.remove("seen", "probed", "current", "hit", "blocked", "skipped", "revealed"));
+  GRAPH.edgeEls.forEach(e => e.classList.remove("walked", "revealed"));
+  let last = null;
+  for (let i = 0; i < cursor && i < steps.length; i++) {
+    const st = steps[i];
+    const g = GRAPH.nodeEls.get(st.concept);
+    if (!g) continue;
+    g.classList.add("seen");
+    // A concept whose facts were actually examined, vs one merely passed through
+    // on the way up. `whole` is usually the latter: correct WordNet, no bearing
+    // on the answer.
+    if (st.facts_checked > 0) g.classList.add("probed");
+    if (st.kind === "match") g.classList.add("hit");
+    if (st.kind === "skip") g.classList.add("skipped");
+    if (st.kind === "block" || st.kind === "stop") g.classList.add("blocked");
+    (st.parents || []).forEach(p => {
+      const e = GRAPH.edgeEls.get(st.concept + "→" + p);
+      if (e) e.classList.add("walked");
+    });
+    // reveal what this generalisation also covers, once we are standing on it
+    if (NBR && GRAPH.ghostsOf) {
+      (GRAPH.ghostsOf.get(st.concept) || []).forEach(sib => {
+        const sg = GRAPH.nodeEls.get(sib);
+        if (sg) sg.classList.add("revealed");
+        const se = GRAPH.edgeEls.get(sib + "→" + st.concept);
+        if (se) se.classList.add("revealed");
+      });
+    }
+    last = st;
+  }
+  if (last) {
+    const g = GRAPH.nodeEls.get(last.concept);
+    if (g && !g.classList.contains("hit")) g.classList.add("current");
+    $("nowstep").innerHTML =
+      `<span class="rule">${escapeHtml(last.rule)}</span>` +
+      `<b>${escapeHtml(shortName(last.concept))}</b> — ${escapeHtml(last.detail)}`;
+  } else {
+    $("nowstep").textContent = "Press play to replay the derivation.";
+  }
+}
+
+function setCursor(n) {
+  const steps = (STATE && STATE.steps) || [];
+  cursor = Math.max(0, Math.min(n, steps.length));
+  steps.forEach((_, i) => {
+    $("step" + i).classList.toggle("on", i < cursor);
+  });
+  $("scrub").value = cursor;
+  $("pos").textContent = `${cursor} / ${steps.length}`;
+  paintGraph();
+  if (cursor > 0 && cursor <= steps.length && $("stepsbox").open) {
+    const el = $("step" + (cursor - 1));
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+}
+
+function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ Play"; }
+
+$("view").textContent = VIEW === "globe" ? "▤ Rows" : "◎ Globe";
+$("view").onclick = () => {
+  stop();
+  VIEW = VIEW === "globe" ? "rows" : "globe";
+  localStorage.setItem("v684view", VIEW);
+  $("view").textContent = VIEW === "globe" ? "▤ Rows" : "◎ Globe";
+  syncNbrButton();
+  if (STATE) { buildChain(); }
+};
+
+function syncNbrButton() {
+  // Rows draw no siblings, so the toggle has nothing to act on there.
+  $("nbr").disabled = VIEW !== "globe";
+  $("nbr").textContent = NBR ? "◌ Neighbours" : "◌ Path only";
+  $("nbr").title = VIEW === "globe" ? "show or hide sibling concepts"
+                                    : "globe view only";
+}
+syncNbrButton();
+$("nbr").onclick = () => {
+  NBR = !NBR;
+  localStorage.setItem("v684nbr", NBR ? "on" : "off");
+  syncNbrButton();
+  paintGraph();
+};
+
+$("play").onclick = () => {
+  if (timer) { stop(); return; }
+  const steps = (STATE && STATE.steps) || [];
+  if (!steps.length) return;
+  if (cursor >= steps.length) setCursor(0);
+  $("play").textContent = "❚❚ Pause";
+  timer = setInterval(() => {
+    if (cursor >= steps.length) { stop(); return; }
+    setCursor(cursor + 1);
+  }, 520);
+};
+$("back").onclick = () => { stop(); setCursor(cursor - 1); };
+$("fwd").onclick  = () => { stop(); setCursor(cursor + 1); };
+$("scrub").oninput = e => { stop(); setCursor(+e.target.value); };
+
+/* ---- knowledge table ---- */
+function buildFacts() {
+  const ev = (STATE && STATE.evidence) || [];
+  $("knowledge").hidden = ev.length === 0;
+  if (!ev.length) return;
+  const rows = ev.map(f => `<tr>
+      <td class="rel">${escapeHtml(f.relation)}</td>
+      <td class="obj">${escapeHtml(f.object)}
+        <div class="bar"><i style="width:${Math.round(f.confidence * 100)}%"></i></div></td>
+      <td><span class="src">${escapeHtml(f.source)}</span></td>
+      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
+    </tr>`).join("");
+  $("facts").innerHTML = `<table><thead><tr>
+      <th>relation</th><th>object &amp; confidence</th><th>source</th><th>from</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- how the answer was made ----
+ * One card, whichever rule answered. Identification, the attribute walk and
+ * the four v687 rules each had a card of their own, and any two showing at
+ * once said the same thing twice in different words -- a verify answer put
+ * the whole 28-row attribute walk beside a verdict about one property.
+ *
+ * Each branch renders a small table and a sentence. What they share is that
+ * the *grounds* matter as much as the answer: which properties two things
+ * share, what a hypothesis's ranking was made of, which kinds voted.
+ */
+function table(headers, body) {
+  return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}` +
+         `</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function buildHow() {
+  const s = STATE || {};
+  const show = (title, note, html) => {
+    $("howcard").hidden = false;
+    $("howtitle").innerHTML = title;
+    $("hownote").innerHTML = note;
+    $("how").innerHTML = html || "";
+  };
+  $("howcard").hidden = true;
+
+  const p = s.profile;
+  if (p) {
+    const asked = p.asked;
+    const kinds = (asked && asked.members) || [];
+    // The walk is read leaf-first, because that is the end that says what the
+    // thing is: the first rows are shared with nothing, the last with most of
+    // the corpus.
+    const climbed = p.path.slice().reverse();
+    const walk = climbed.map(held => {
+      const hit = asked && asked.predicate === held.predicate;
+      return `<tr${hit ? ' style="background:var(--accent-dim)"' : ""}>
+        <td class="dist">${held.depth}</td>
+        <td class="obj">${escapeHtml(held.predicate)}</td>
+        <td class="dist">${held.shared <= 1 ? "unique to it"
+                            : held.shared + " on the branch"}</td></tr>`;
+    }).join("");
+    const above = p.inherited || [];
+    // A verify answer is about one property, so the whole walk is context and
+    // is folded away; a profile answer *is* the walk, so it is open.
+    const open = asked ? "" : " open";
+    show(asked ? "Why &mdash; R17" : "Attributes &mdash; R17",
+      `<b>${escapeHtml(p.name)}</b>` +
+      (p.concept ? ` &rarr; <span class="src">${escapeHtml(p.concept)}</span>` : "") +
+      (p.gloss ? ` — ${escapeHtml(p.gloss)}` : ""),
+      (kinds.length ? `<p class="note">No property of ${escapeHtml(p.name)}
+         itself settles it, so its kinds were asked. Induction, not
+         inheritance.</p>` +
+        table([`kind of ${escapeHtml(p.name)}`, "says", "property"],
+          kinds.map(m => `<tr><td class="obj"><b>${escapeHtml(m.name)}</b></td>
+            <td class="rel">${escapeHtml(m.verdict)}</td>
+            <td class="obj">${escapeHtml(m.predicate || "—")}</td></tr>`).join(""))
+        : "") +
+      `<details${open}><summary>${climbed.length} attributes, leaf first
+         &mdash; the walk up to the origin</summary>` +
+        table(["depth", "attribute", "company"], walk) + `</details>` +
+      (above.length ? `<details><summary>${above.length} level(s) above the
+         leaf, nearest first &mdash; a fact met twice is kept at the nearer
+         one (R10)</summary>` +
+        table(["from", "facts", "kept"], above.map(level => `<tr>
+          <td class="rel">${escapeHtml(shortName(level.concept))}
+            <div class="dist">+${level.distance}</div></td>
+          <td class="obj">${level.facts.map(f =>
+              escapeHtml(f.relation.replace(/_/g, " ") + " " + f.object)).join("<br>")}</td>
+          <td class="dist">${level.facts.length} of ${level.total}</td></tr>`).join("")) +
+        `</details>` : "") +
+      (p.denied_total ? `<p class="note">The norms also score
+         ${p.denied_total} propert${p.denied_total === 1 ? "y" : "ies"} false
+         of ${escapeHtml(p.name)}: ${p.denied.map(escapeHtml).join(", ")}
+         ${p.denied_total > p.denied.length ? ", …" : ""}. Denials are what
+         make a "no" answerable at all.</p>` : ""));
+    return;
+  }
+
+  const found = s.identification;
+  if (found && found.candidates && found.mode === undefined) {
+    const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
+    show("Identified &mdash; R16",
+      `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
+      (found.candidates.length === 1 ? "One thing carries all of it."
+        : `${found.candidates.length} things carry all of it.`),
+      table(["candidate", "what matched", "source", "known"],
+        found.candidates.map(c => `<tr>
+          <td class="obj"><b>${escapeHtml(c.name)}</b></td>
+          <td class="obj">${Object.entries(c.matched).map(([term, hit]) =>
+              `${escapeHtml(term)}: &ldquo;${escapeHtml(hit)}&rdquo;`).join("<br>")}</td>
+          <td><span class="src">${escapeHtml(c.source)}</span></td>
+          <td class="dist">${c.predicates} props</td></tr>`).join("")));
+    return;
+  }
+
+  if (s.contrast) {
+    const c = s.contrast;
+    if (c.mode === "nearest") {
+      show("Nearest &mdash; R21",
+        "Computed from shared properties, not read from a stored similarity " +
+        "edge — which is why it can say <i>why</i>.",
+        table(["concept", "overlap", "shared", "because"],
+          c.nearest.map(n => `<tr><td class="obj"><b>${escapeHtml(n.name)}</b></td>
+            <td class="dist">${Math.round(n.jaccard * 100)}%</td>
+            <td class="dist">${n.shared}</td>
+            <td class="obj">${n.because.map(escapeHtml).join(", ")}</td></tr>`).join("")));
+    } else if (c.mode === "typicality") {
+      show("Typicality &mdash; R21",
+        `Measured against the ${c.core.length} properties most kinds of ` +
+        `${escapeHtml(c.klass)} carry. Nothing stores "typical" — it falls ` +
+        `out of counting.` + (c.sound ? "" :
+          ` <b>The class has no core to rank against</b>, so this is reported ` +
+          `and not believed.`),
+        table([`kind of ${escapeHtml(c.klass)}`, "core carried"],
+          c.ranking.map(r => `<tr><td class="obj">${r.name === c.member
+            ? "<b>" + escapeHtml(r.name) + "</b>" : escapeHtml(r.name)}</td>
+            <td class="dist">${Math.round(r.score * 100)}%</td></tr>`).join("")) +
+        `<p class="note">Missing from ${escapeHtml(c.member)}: ` +
+        `${c.missing.map(escapeHtml).join(", ") || "nothing"}.</p>`);
+    } else {
+      show("Contrast &mdash; R21",
+        "Semantic overlap and trie prefix disagree, and the disagreement is " +
+        "the finding: a trie built for storage does not group by similarity.",
+        table(["", "properties"], `
+          <tr><td class="rel">both</td><td class="obj">${c.shared.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">only ${escapeHtml(c.left)}</td><td class="obj">${c.only_left.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">only ${escapeHtml(c.right)}</td><td class="obj">${c.only_right.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">trie prefix</td><td class="obj">${c.together.map(escapeHtml).join(", ") || "they part at the first node"}</td></tr>`));
+    }
+    return;
+  }
+
+  if (s.kinds) {
+    const k = s.kinds;
+    show("Kinds &mdash; R25",
+      `Counting over the taxonomy, which is the one count this data supports. ` +
+      `The ${k.described} the norms describe are the ones every other rule ` +
+      `here can reason about; the rest are names.`,
+      table(["", "count"], `
+        <tr><td class="rel">kinds in all</td><td class="dist">${k.total.toLocaleString()}</td></tr>
+        <tr><td class="rel">directly beneath</td><td class="dist">${k.direct}</td></tr>
+        <tr><td class="rel">described by the norms</td><td class="dist">${k.described}</td></tr>`) +
+      `<p class="note">Directly beneath: ${k.direct_kinds.slice(0, 14)
+        .map(n => escapeHtml(shortName(n))).join(", ")}${k.direct > 14 ? ", …" : ""}.</p>` +
+      (k.described ? `<p class="note">Described: ${k.described_kinds
+        .map(escapeHtml).join(", ")}.</p>` : ""));
+    return;
+  }
+
+  if (s.causal) {
+    const c = s.causal;
+    if (c.mode === "abduction") {
+      show("Best explanation &mdash; R23",
+        `${c.considered} candidate causes weighed. A cause that causes many ` +
+        `things explains none of them, so specificity is most of the score.`,
+        table(["cause", "score", "also causes", "fact"],
+          c.hypotheses.map(h => `<tr><td class="obj"><b>${escapeHtml(shortName(h.cause))}</b></td>
+            <td class="dist">${h.score.toFixed(3)}</td>
+            <td class="dist">${h.explains}</td>
+            <td class="obj">${escapeHtml(h.fact)}</td></tr>`).join("")));
+    } else {
+      show("Script &mdash; R23", escapeHtml(c.note || ""),
+        table(["phase", "step", "relation"],
+          c.steps.map(x => `<tr><td class="rel">${escapeHtml(x.phase)}</td>
+            <td class="obj">${escapeHtml(x.object)}</td>
+            <td class="dist">${escapeHtml(x.relation)}</td></tr>`).join("")));
+    }
+    return;
+  }
+
+  if (s.analogy) {
+    const a = s.analogy;
+    show("Analogy &mdash; R24", a.note ? escapeHtml(a.note) :
+      `&ldquo;${escapeHtml(a.source_property)}&rdquo; is to ${escapeHtml(a.source)} ` +
+      `what these are to ${escapeHtml(a.target)}: same kind of property, same ` +
+      `standing within the concept.`,
+      a.mappings.length ? table(["property", "kind", "standing", "carried by"],
+        a.mappings.map(m => `<tr><td class="obj"><b>${escapeHtml(m.property)}</b></td>
+          <td class="dist">${escapeHtml(m.kind || "—")}</td>
+          <td class="dist">${Math.round(m.standing * 100)}%</td>
+          <td class="dist">${m.carriers}</td></tr>`).join("")) : "");
+    return;
+  }
+
+  if (s.backwards) {
+    const b = s.backwards;
+    show("Read backwards &mdash; R22",
+      `${escapeHtml(b.relation.replace(/_/g, " "))} &ldquo;${escapeHtml(b.phrase)}&rdquo; — ` +
+      `${b.scanned.toLocaleString()} facts of that relation scanned from the ` +
+      `object side.`,
+      table(["concept", "fact", "source"],
+        b.subjects.map(r => `<tr><td class="obj"><b>${escapeHtml(shortName(r.concept))}</b></td>
+          <td class="obj">${escapeHtml(r.relation.replace(/_/g, " "))} &ldquo;${escapeHtml(r.object)}&rdquo;</td>
+          <td><span class="src">${escapeHtml(r.source)}</span></td></tr>`).join("")));
+    return;
+  }
+}
+
+/* ---- the bridge ----
+ * A two-subject question ("what does a dog's owner need") is answered in two
+ * parts, and this shows the first: the route through the fact graph that makes
+ * owners relevant to dogs at all, with the stored sentence licensing each hop.
+ * Without it the answer is about owners in general and the dog was decoration.
+ */
+function buildBridge() {
+  const b = (STATE && STATE.bridge) || null;
+  $("bridgecard").hidden = !b;
+  if (!b) return;
+  const anchor = b.anchor ? shortName(b.anchor) : b.anchor_word;
+  const role = b.role ? shortName(b.role) : b.role_word;
+  if (b.route && b.route.hops && b.route.hops.length) {
+    $("bridgenote").textContent =
+      `Reading “${b.anchor_word}’s ${b.role_word}” as ` +
+      `${b.role}, reached from ${b.anchor} in ` +
+      `${b.route.hops.length} hop(s):`;
+    const steps = b.route.hops.map((h, i) => `<div class="node on">
+        <div class="top">
+          <span class="cname">${escapeHtml(shortName(h.source))}</span>
+          <span class="rule">${escapeHtml(h.relation)}</span>
+          <span class="dist">hop ${i + 1}</span>
+        </div>
+        <div class="detail">&ldquo;${escapeHtml(h.text)}&rdquo; &rarr;
+          <b>${escapeHtml(shortName(h.target))}</b></div>
+      </div>`).join("");
+    $("bridge").innerHTML = `<div class="chain">${steps}</div>`;
+  } else {
+    $("bridgenote").textContent = b.note ||
+      `Nothing connects ${anchor} to ${role}.`;
+    $("bridge").innerHTML = "";
+  }
+  const s = b.search;
+  $("bridgecost").textContent = s
+    ? `Search: expanded ${s.expanded}, generated ${s.generated.toLocaleString()},` +
+      ` pruned ${s.pruned} by the breadth budget, depth ${s.depth_reached}.`
+    : "";
+}
+
+/* ---- set aside: considered, not used ----
+ * Two things that are not the answer and must not be mistaken for it, in one
+ * card because they are the same kind of thing.
+ *
+ * R14: a musician plays every instrument and a violin player does not, so
+ * facts about a *sibling* of the anchor are set aside rather than deleted --
+ * "these are about other instruments" is worth saying.
+ *
+ * Near misses: facts that covered part of the question and not enough of it.
+ * `device capable_of "fall into wrong hands"` covers half of "fall into a
+ * hole", and promoting a half-cover to VERIFIED is the bug this replaced.
+ */
+function buildAside() {
+  const b = (STATE && STATE.bridge) || null;
+  const out = (b && b.excluded) || [];
+  const near = (STATE && STATE.suggestions) || [];
+  $("asidecard").hidden = !out.length && !near.length;
+
+  if (out.length) {
+    const shared = shortName(b.excluded_class || "");
+    $("asidenote").textContent = b.note ||
+      `R14 — ${out.length} fact(s) about other kinds of ` +
+      `${shortName(b.excluded_class || "thing")}.`;
+    $("aside").innerHTML = `<table><thead><tr>
+        <th>relation</th><th>object</th><th>source</th><th>shares only</th>
+      </tr></thead><tbody>${out.map(f => `<tr>
+        <td class="rel">${escapeHtml(f.relation)}</td>
+        <td class="obj">${escapeHtml(f.object)}</td>
+        <td><span class="src">${escapeHtml(f.source)}</span></td>
+        <td class="dist">${escapeHtml(shared)}</td></tr>`).join("")}</tbody></table>`;
+  } else {
+    $("asidenote").textContent = "";
+    $("aside").innerHTML = "";
+  }
+
+  if (near.length) {
+    const asked = (STATE.parse && STATE.parse.target) || "what was asked";
+    $("nearbynote").textContent =
+      `Near misses — nothing states “${asked}”. These came closest ` +
+      `without answering it.`;
+    $("nearby").innerHTML = `<table><thead><tr>
+        <th>relation</th><th>object &amp; overlap</th><th>stated on</th><th>from</th>
+      </tr></thead><tbody>${near.map(f => `<tr>
+        <td class="rel">${escapeHtml(f.relation)}</td>
+        <td class="obj">${escapeHtml(f.object)}
+          <div class="bar"><i style="width:${Math.round(f.similarity * 100)}%"></i></div></td>
+        <td><span class="src">${escapeHtml(shortName(f.concept))}</span></td>
+        <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td></tr>`).join("")}</tbody></table>`;
+  } else {
+    $("nearbynote").textContent = "";
+    $("nearby").innerHTML = "";
+  }
+}
+
+function escapeHtml(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+</script>
+</body>
+</html>
