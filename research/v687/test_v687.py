@@ -474,11 +474,17 @@ class PinnedSenseTests(unittest.TestCase):
         self.assertTrue(any(s["default"] for s in words["bark"]["senses"]))
         self.assertTrue(words["bark"]["applies"])
 
-    def test_grammar_words_get_no_chip(self):
+    def test_grammar_and_cue_words_get_no_chip(self):
+        """A word the router consumes to pick a rule is not one the answer
+        resolves to a sense, so a chip on it is noise: `how many kinds of
+        mouse` was offering senses for `many` and `kinds`."""
         words = [w["word"] for w in
                  self.engine.word_senses("is a dog an animal")["words"]]
         for grammar in ("is", "a", "an"):
             self.assertNotIn(grammar, words)
+        counting = [w["word"] for w in self.engine.word_senses(
+            "how many kinds of mouse are there")["words"]]
+        self.assertEqual(counting, ["mouse"])
 
     def test_a_pin_changes_the_event_sense(self):
         """R23 picks the sense carrying the most eventive facts, which for

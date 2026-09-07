@@ -75,11 +75,24 @@ class ReasoningEngine(IdentifyingEngine):
         return payload
 
     #: Words that never name a concept, so never get a sense chip.
+    #:
+    #: Two groups. Grammar, which WordNet does hold senses for and which no
+    #: reader wants to disambiguate; and the *cue* vocabulary the router
+    #: matches on -- `kinds`, `many`, `difference`, `happens`. A word the
+    #: router consumes to decide which rule answers is not a word the answer
+    #: resolves to a sense, so offering a choice on it is noise: "how many
+    #: kinds of mouse" was showing chips for `many` and `kinds` beside the one
+    #: chip that mattered.
     NOT_A_WORD = frozenset("""
     a an the of to for from in on at with by is are was were be been am
     do does did has have had can could will would shall should may might must
     what which who whom whose why how when where and or not no there this that
     these those it its they them their you your we our i me my
+    kind kinds type types sort sorts breed breeds species many much more most
+    difference differ differs common share shared both similar like typical
+    ordinary unusual representative happens explains attribute attributes
+    property properties feature features about know tell exist
+    between among within than
     """.split())
 
     def word_senses(self, question: str) -> dict:
