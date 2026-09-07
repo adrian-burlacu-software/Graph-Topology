@@ -411,6 +411,45 @@ class RoutingTests(unittest.TestCase):
         self.assertGreater(counted["total"], counted["direct"])
         self.assertGreater(counted["direct"], counted["described"])
 
+    def test_a_comparison_it_cannot_make_says_so(self):
+        """Returning None sent `what do a bitch and a cat have in common`
+        down the chain to the backwards reading, which answered it about the
+        word *common*: "12 concepts stand in front of common under has part".
+        A question that is plainly a comparison is R21's to decline."""
+        payload = self.engine.ask(
+            "what do a bitch and a cat have in common")
+        self.assertEqual(payload["parse"]["relation"], "R21")
+        self.assertEqual(payload["verdict"], "UNKNOWN")
+        self.assertIn("cat", payload["note"])
+
+    def test_it_offers_the_nearest_concept_the_norms_do_cover(self):
+        """WordNet files the female dog under `canine`, not under `dog`, so
+        walking straight up from `bitch.n.04` never meets a covered concept.
+        The nearest *relative* is the answer worth giving."""
+        found = self.engine.contrast.nearest_covered("bitch")
+        self.assertIsNotNone(found)
+        self.assertEqual(found[0], "dog")
+        self.assertEqual(found[2], "bitch.n.04")     # not the "life's a" sense
+
+    def test_the_nearest_relative_is_measured_and_not_guessed(self):
+        """Counting a candidate's ancestors as a proxy for how general it is
+        picked `fox` over `dog`, because `dog` is filed under `domestic
+        animal` as well as `canine` and so has more of them."""
+        for word, want in (("puppy", "dog"), ("hound", "dog"),
+                           ("stallion", "horse")):
+            self.assertEqual(self.engine.contrast.nearest_covered(word)[0],
+                             want, word)
+
+    def test_a_word_stays_pinnable_when_the_comparison_fails(self):
+        """`cat` blinking between pinnable and not, depending on whether the
+        *other* word happened to be covered, is the confusing part -- and a
+        pin is often exactly what fixes such a question."""
+        both = self.engine.sense_roles("what do a dog and a cat have in common")
+        one = self.engine.sense_roles("what do a bitch and a cat have in common")
+        self.assertIn("cat", both)
+        self.assertIn("cat", one)
+        self.assertIn("bitch", one)
+
     def test_a_backwards_question_with_no_subject_is_taken(self):
         for question in ("what is made of wood", "who makes a car",
                          "what is found in a toolbox", "what has wings"):

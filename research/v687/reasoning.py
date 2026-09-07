@@ -138,9 +138,21 @@ class ReasoningEngine(IdentifyingEngine):
             (question or "").strip().lower().rstrip("?"))
         if counted:
             mark(counted.group(1).strip(), pins.APPLIES["class"])
-        pair = self._two((question or "").strip().lower().rstrip("?"))
+        text = (question or "").strip().lower().rstrip("?")
+        pair = self._two(text)
         for name in pair or ():
             mark(name, pins.APPLIES["class"])
+        if not pair and (self.DIFFERENCE.search(text) or self.COMMON.search(text)
+                         or self.SIMILAR.search(text)):
+            # The comparison could not be made, and the reason is often the
+            # sense: the first `bitch` is a difficulty, not a female dog. The
+            # words stay pinnable precisely because a pin is what fixes it --
+            # `cat` blinking between pinnable and not, depending on whether
+            # the *other* word happened to be covered, is the confusing part.
+            for word in re.findall(r"[a-z][a-z'-]*", text):
+                if (word not in self.NOT_A_WORD and len(word) > 2
+                        and self.reasoner.senses_of(word)):
+                    mark(word, pins.APPLIES["class"])
         return roles
 
     def word_senses(self, question: str) -> dict:
@@ -263,9 +275,15 @@ class ReasoningEngine(IdentifyingEngine):
             return None
         pair = self._two(text)
         if self.SIMILAR.search(text) and not pair:
-            return self._nearest(question, text)
+            return self._nearest(question, text) or self._uncomparable(
+                question, text)
         if not pair:
-            return None
+            # A comparison this cannot make must say so. Returning None sent
+            # `what do a bitch and a cat have in common` down the chain to the
+            # backwards reading, which answered it about the word *common* --
+            # "12 concepts stand in front of common under has part". A
+            # question that is plainly a comparison is R21's to decline.
+            return self._uncomparable(question, text)
         left, right = pair
         found = self.contrast.compare(left, right)
         if found is None:
@@ -292,6 +310,48 @@ class ReasoningEngine(IdentifyingEngine):
                                   "identification": self._tree(
                                       "contrast", spine, hanging,
                                       [(left, ""), (right, "")])})
+
+    def _uncomparable(self, question: str, text: str) -> dict:
+        """Name the side the norms do not cover, and what they cover instead.
+
+        The norms describe 541 things, and a comparison needs two of them. The
+        answer worth giving is not "no" but "not this one, though it is a kind
+        of that one" -- `bitch` is not covered and `dog`, a level up, is.
+        """
+        covered, missing = [], []
+        for word in re.findall(r"[a-z][a-z'-]*", text):
+            if word in self.NOT_A_WORD or len(word) < 3:
+                continue
+            if self.profiles.knows(word):
+                covered.append(word)
+            elif self.reasoner.senses_of(word):
+                missing.append(word)
+        instead = {word: self.contrast.nearest_covered(word)
+                   for word in missing}
+        offers = [f"“{word}” is not — the nearest they do cover to "
+                  f"{found[2]} is “{found[0]}”, {found[1]} level(s) away"
+                  for word, found in instead.items() if found]
+        note = "A comparison needs two concepts the feature norms describe. "
+        note += (f"They cover {', '.join(covered)}. " if covered else
+                 "They cover 541 things. ")
+        if offers:
+            note += ("; ".join(offers) + ". Ask about that instead, or pin a "
+                     "different sense of the word.")
+        elif missing:
+            note += (f"Neither {', '.join(missing)} nor anything above it is "
+                     f"among them.")
+        else:
+            note += "This question names only one of them."
+        return self._shell(
+            question, "UNKNOWN", "R21", note=note,
+            extra={"identification": self._tree(
+                "uncomparable",
+                [(word, "not described by the norms") for word in missing]
+                or [(text, "nothing to compare")],
+                {0: [(found[0], f"covered — {found[2]} is a kind of it, "
+                                f"{found[1]} level(s) up")
+                     for found in instead.values() if found]},
+                [(word, "described by the norms") for word in covered])})
 
     def _nearest(self, question: str, text: str) -> dict | None:
         name = self.profiles.named(text)

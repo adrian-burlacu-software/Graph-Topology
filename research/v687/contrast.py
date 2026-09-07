@@ -194,6 +194,74 @@ class Contrast:
                                    key=lambda p: (self._carriers(p), p))[:4]}
                 for score, count, other, shared in scored[:limit]]
 
+    def covered(self, word: str) -> bool:
+        return self.profiles.knows(word)
+
+    def _up_to(self, name: str, node: str) -> int:
+        """How many steps from a covered concept up to a shared ancestor."""
+        concept = self.profiles.synset.get(name)
+        if not concept:
+            return 99
+        for above, distance, _ in self.profiles.reasoner.ascend(concept):
+            if above == node:
+                return distance
+        return 99
+
+    def nearest_covered(self, word: str) -> tuple[str, int, str] | None:
+        """The closest concept above this word that the norms do describe.
+
+        A comparison needs two concepts with properties, and the norms cover
+        541 things. When one side is not among them the useful thing to say is
+        not "no" but "not this, though it is a kind of that".
+
+        Every sense is tried, not just the primary one, and this is the case
+        that shows why: the first sense of `bitch` is a difficulty -- life's a
+        bitch -- whose ancestors are `condition`, `attribute`, `abstraction`.
+        Nothing there is a dog. `bitch.n.04` is the female dog, and it is one
+        step under `dog`. Taking the primary sense and stopping would report
+        that nothing above `bitch` is covered, which is false of the sense the
+        reader meant.
+        """
+        named: dict[str, str] = {}
+        for name, synset in self.profiles.synset.items():
+            named.setdefault(synset, name)
+        pinned = pins.of(word)
+        senses = ([pinned] if pinned else
+                  [row["id"] for row in
+                   self.profiles.reasoner.senses_of(word)]
+                  or [self.profiles.class_concept(word)])
+        lineage = self.profiles._lineage()
+        best: tuple[str, int, str] | None = None
+        for concept in senses:
+            if not concept:
+                continue
+            for node, distance, _ in self.profiles.reasoner.ascend(concept):
+                name = named.get(node)
+                if name and self.covered(name):
+                    found = (name, distance, concept)     # covered ancestor
+                elif kin := [other for other, above in lineage.items()
+                             if node in above and self.covered(other)]:
+                    # Not above it, but beside it. WordNet files the female
+                    # dog under `canine`, not under `dog`, so walking straight
+                    # up from `bitch.n.04` passes canine, carnivore, placental
+                    # and never meets a concept the norms describe. The answer
+                    # worth giving is the nearest *relative* they do describe.
+                    #
+                    # Which one is nearest has to be measured. Counting each
+                    # candidate's ancestors as a proxy for how general it is
+                    # picked `fox` over `dog`, because `dog` is filed under
+                    # `domestic animal` as well as `canine` and so has more
+                    # ancestors than a fox. Distance up to the shared node is
+                    # the thing actually being asked about.
+                    found = (min(kin, key=lambda n: (self._up_to(n, node), n)),
+                             distance, concept)
+                else:
+                    continue
+                if best is None or found[1] < best[1]:
+                    best = found
+                break
+        return best
+
     # -- counting over the taxonomy ---------------------------------------
     def kinds_of(self, word: str, limit: int = 40) -> dict | None:
         """How many kinds of a thing there are, and which.
