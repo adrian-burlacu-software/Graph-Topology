@@ -11,6 +11,8 @@
     --accent:#5eead4; --accent-dim:#134e4a;
     --yes:#4ade80; --no:#f87171; --maybe:#fbbf24;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+           "Helvetica Neue",Arial,sans-serif;
   }
   * { box-sizing:border-box; }
   body {
@@ -40,13 +42,16 @@
   /* Sense chips: one per content word of the question, showing which sense
      it is being taken in. R6 has always run inference per sense; this is the
      first time the reader can see which one, or say it is the wrong one. */
-  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:-14px 0 14px; min-height:0; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:-14px 0 14px;
+           min-height:0; position:relative; z-index:30; }
   .chip {
     position:relative; font-family:var(--mono); font-size:11px;
-    padding:4px 9px; border-radius:6px; cursor:pointer;
+    padding:4px 9px; border-radius:6px; cursor:pointer; z-index:1;
     border:1px solid var(--line); background:var(--panel2); color:var(--dim);
   }
   .chip b { color:var(--ink); font-weight:600; }
+  /* An open chip has to outrank its neighbours as well as the page. */
+  .chip:hover, .chip.open { z-index:60; }
   .chip .sense { color:var(--faint); }
   .chip.pinned { border-color:var(--accent); }
   .chip.pinned .sense { color:var(--accent); }
@@ -64,8 +69,11 @@
     /* The gap under the chip is a transparent *border*, not a margin, so it
        still belongs to the flyout. As a margin it was dead space: moving the
        pointer down from the chip left the chip before reaching the flyout,
-       and the hover closed it mid-crossing. */
-    border-top:7px solid transparent; background-clip:padding-box;
+       and the hover closed it mid-crossing. It is painted in the page's own
+       colour rather than left transparent, because a transparent border plus
+       `background-clip` is one subtlety too many for something that only has
+       to look like a gap. */
+    border-top:7px solid var(--bg);
   }
   .chip:hover .flyout, .chip.open .flyout { display:block; }
   .flyout .why {

@@ -474,6 +474,32 @@ class PinnedSenseTests(unittest.TestCase):
         self.assertTrue(any(s["default"] for s in words["bark"]["senses"]))
         self.assertTrue(words["bark"]["applies"])
 
+    def test_a_chip_is_filed_under_the_lemma_the_router_resolves(self):
+        """`birds` was reported as resolving to nothing, while the router was
+        turning it into `bird` and walking 29 kinds. A pin filed under the
+        word as typed would never have been looked up."""
+        words = {w["word"]: w for w in
+                 self.engine.word_senses("do all birds fly")["words"]}
+        self.assertEqual(words["birds"]["lemma"], "bird")
+        self.assertTrue(words["birds"]["applies"])
+
+    def test_a_word_no_rule_resolves_offers_no_choice(self):
+        """R20 matches `fly` as a string against the norms; no synset is
+        chosen for it, so a pin would change nothing and the chip says so."""
+        words = {w["word"]: w for w in
+                 self.engine.word_senses("do all birds fly")["words"]}
+        self.assertFalse(words["fly"]["applies"])
+        self.assertTrue(words["fly"]["senses"])      # still worth reading
+
+    def test_the_same_word_is_pinnable_or_not_by_question(self):
+        """Which words resolve to a sense is a fact about the question, not
+        about the word, so it is answered by asking the routers."""
+        naming = self.engine.sense_roles("is a dog an animal")
+        backwards = self.engine.sense_roles("what is made of wood")
+        self.assertIn("dog", naming)
+        self.assertNotIn("wood", naming)
+        self.assertIn("wood", backwards)
+
     def test_grammar_and_cue_words_get_no_chip(self):
         """A word the router consumes to pick a rule is not one the answer
         resolves to a sense, so a chip on it is noise: `how many kinds of

@@ -95,6 +95,54 @@ class ReasoningEngine(IdentifyingEngine):
     between among within than
     """.split())
 
+    def sense_roles(self, question: str) -> dict[str, list[str]]:
+        """Which words *this* question resolves to a sense, and as what.
+
+        Asking the question is the only way to answer it. Judging a word on
+        its own got both directions wrong: `birds` was reported as resolving
+        to nothing, when the router turns it into `bird` and walks 29 kinds,
+        and `fly` was reported as pinnable when R20 matches it as a string
+        against the norms and no synset is chosen for it at all.
+
+        So each router is asked which word it would resolve, and only those
+        words get a choice. A chip that offers a pin which changes nothing is
+        worse than no chip.
+        """
+        roles: dict[str, list[str]] = {}
+
+        def mark(word: str | None, role: str) -> None:
+            if word:
+                roles.setdefault(word.lower(), []).append(role)
+
+        subject = self.parser.parse(question or "").subject
+        mark(subject, pins.APPLIES["subject"])
+        routed = self.profiles.route(question or "")
+        if routed:
+            mark(routed[1], pins.APPLIES["class"])
+        if self.identifier.describes(question or ""):
+            mark(self.identifier.terms_of(question or "")[1],
+                 pins.APPLIES["class"])
+        read = self.causal.reads(question or "")
+        if read:
+            if read[0] == "explain":
+                for word in read[1].split():
+                    mark(word, pins.APPLIES["phrase"])
+            else:
+                for word in self.causal._event_words(read[1], question or ""):
+                    mark(word, pins.APPLIES["event"])
+        backwards = self.inverse.reads(question or "")
+        if backwards:
+            for word in backwards[1].split():
+                mark(word, pins.APPLIES["phrase"])
+        counted = self.COUNT_KINDS.match(
+            (question or "").strip().lower().rstrip("?"))
+        if counted:
+            mark(counted.group(1).strip(), pins.APPLIES["class"])
+        pair = self._two((question or "").strip().lower().rstrip("?"))
+        for name in pair or ():
+            mark(name, pins.APPLIES["class"])
+        return roles
+
     def word_senses(self, question: str) -> dict:
         """Every content word of a question, with the senses it could carry.
 
@@ -103,28 +151,32 @@ class ReasoningEngine(IdentifyingEngine):
         taken in, or to say it was the wrong one -- the sense card offered
         that for the subject alone, after the fact, and for one rule.
         """
+        roles = self.sense_roles(question)
         seen: set[str] = set()
         words: list[dict] = []
         for word in re.findall(r"[a-z][a-z'-]*", (question or "").lower()):
             if word in self.NOT_A_WORD or word in seen or len(word) < 2:
                 continue
             seen.add(word)
-            senses = self.reasoner.senses_of(word)
-            if not senses:
-                # `bites` is not a lemma but `bite` is, and the reader wrote
-                # the inflected form.
+            # The lemma the *router* resolves, which is not always the word
+            # the reader wrote: `birds` is read as `bird`, and a pin has to be
+            # filed under the form the rules look up or it is never found.
+            lemma, senses = word, self.reasoner.senses_of(word)
+            if not senses or (word not in roles and word.endswith("s")):
                 stem = word[:-1] if word.endswith("s") and len(word) > 3 else word
-                senses = self.reasoner.senses_of(stem)
+                if self.reasoner.senses_of(stem) and (
+                        not senses or stem in roles):
+                    lemma, senses = stem, self.reasoner.senses_of(stem)
             if not senses:
                 continue
             words.append({
-                "word": word,
+                "word": word, "lemma": lemma,
                 "senses": [{"id": s["id"], "pos": s["pos"],
                             "definition": s["definition"],
                             "facts": s["fact_count"],
                             "default": s["chosen"]} for s in senses[:8]],
                 "total": len(senses),
-                "applies": pins.applies_to(word, self),
+                "applies": roles.get(lemma) or roles.get(word) or [],
             })
         return {"question": question, "words": words}
 
