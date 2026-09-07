@@ -43,7 +43,7 @@
   .chips { display:flex; gap:6px; flex-wrap:wrap; margin:-14px 0 14px; min-height:0; }
   .chip {
     position:relative; font-family:var(--mono); font-size:11px;
-    padding:4px 9px; border-radius:6px; cursor:default;
+    padding:4px 9px; border-radius:6px; cursor:pointer;
     border:1px solid var(--line); background:var(--panel2); color:var(--dim);
   }
   .chip b { color:var(--ink); font-weight:600; }
@@ -51,24 +51,49 @@
   .chip.pinned { border-color:var(--accent); }
   .chip.pinned .sense { color:var(--accent); }
   .chip.inert { opacity:.55; }
+  /* The flyout is inside a chip, which is a span, so every row in it has to
+     be told to be a block: leaving them inline ran all eight senses together
+     into one paragraph of definitions. */
   .flyout {
     display:none; position:absolute; z-index:40; top:100%; left:0;
-    margin-top:4px; width:360px; max-height:320px; overflow-y:auto;
-    background:var(--panel); border:1px solid var(--line); border-radius:9px;
-    padding:6px; box-shadow:0 12px 32px rgba(0,0,0,.55);
+    box-sizing:border-box; width:400px; max-width:78vw;
+    max-height:340px; overflow-y:auto; overflow-x:hidden;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:8px; box-shadow:0 14px 36px rgba(0,0,0,.6); text-align:left;
+    cursor:default;
+    /* The gap under the chip is a transparent *border*, not a margin, so it
+       still belongs to the flyout. As a margin it was dead space: moving the
+       pointer down from the chip left the chip before reaching the flyout,
+       and the hover closed it mid-crossing. */
+    border-top:7px solid transparent; background-clip:padding-box;
   }
   .chip:hover .flyout, .chip.open .flyout { display:block; }
-  .flyout .opt {
-    padding:7px 9px; border-radius:6px; cursor:pointer; font-family:var(--sans);
+  .flyout .why {
+    display:block; font-family:var(--sans); font-size:11.5px; line-height:1.55;
+    color:var(--faint); padding:3px 8px 9px;
+    border-bottom:1px solid var(--line); margin-bottom:7px;
   }
-  .flyout .opt:hover { background:var(--panel2); }
-  .flyout .opt.on { background:var(--accent-dim); }
-  .flyout .opt .id { font-family:var(--mono); font-size:11px; color:var(--accent); }
-  .flyout .opt .def { font-size:12px; color:var(--dim); margin-top:2px; }
-  .flyout .opt .n { float:right; font-family:var(--mono); font-size:10px;
-                    color:var(--faint); }
-  .flyout .why { font-size:11px; color:var(--faint); padding:6px 9px 8px;
-                 border-bottom:1px solid var(--line); margin-bottom:4px; }
+  .flyout .opt {
+    display:block; padding:8px 9px; margin-bottom:5px; border-radius:7px;
+    cursor:pointer; border:1px solid transparent;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .flyout .opt:last-child { margin-bottom:0; }
+  .flyout .opt:hover { background:var(--panel2); border-color:var(--line); }
+  .flyout .opt.on { background:var(--accent-dim); border-color:var(--accent); }
+  .flyout .head { display:flex; align-items:baseline; gap:10px; }
+  .flyout .id { font-family:var(--mono); font-size:11.5px; color:var(--accent); }
+  .flyout .opt.on .id { font-weight:700; }
+  .flyout .n {
+    margin-left:auto; font-family:var(--mono); font-size:10px;
+    color:var(--faint); white-space:nowrap;
+  }
+  .flyout .def {
+    display:block; font-family:var(--sans); font-size:12px; line-height:1.5;
+    color:var(--dim); margin-top:4px;
+  }
+  .flyout .opt.clear .id { color:var(--maybe); }
+
   .kinds { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
   .kinds span {
     font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;
@@ -615,6 +640,37 @@ function savePins() {
   try { localStorage.setItem("v687pins", JSON.stringify(PINS)); } catch (e) {}
 }
 
+// A flyout pinned open by a click should close when the reader looks away.
+document.addEventListener("click", () => {
+  const box = $("chips");
+  if (box) box.querySelectorAll(".chip").forEach(c => c.classList.remove("open"));
+});
+
+/* Keep a flyout on screen.
+ *
+ * The first attempt was CSS: anchor the last two chips to their right edge so
+ * they do not run off the right of the page. With two chips in the question
+ * that rule caught the *first* one, whose right edge is near the left of the
+ * page, and sent a 400px panel off the left instead.
+ *
+ * The second attempt was three branches -- open right, open left, or pin to
+ * the viewport -- and the third branch was unreachable, so a chip close
+ * enough to the right edge still overhung it. One clamp says the same thing
+ * and cannot have that bug: the panel starts where it would like to, held
+ * between the two margins.
+ */
+function place(chip) {
+  const fly = chip.querySelector(".flyout");
+  if (!fly) return;
+  const rect = chip.getBoundingClientRect();
+  const width = Math.min(400, window.innerWidth * 0.78);
+  const margin = 12;
+  const room = Math.max(margin, window.innerWidth - margin - width);
+  const wanted = Math.min(Math.max(rect.left, margin), room);
+  fly.style.right = "auto";
+  fly.style.left = (wanted - rect.left) + "px";
+}
+
 async function showChips(question) {
   const box = $("chips");
   if (!question || !question.trim()) { box.innerHTML = ""; return; }
@@ -630,23 +686,28 @@ async function showChips(question) {
     const chip = document.createElement("span");
     chip.className = "chip" + (pinned ? " pinned" : "")
                    + (entry.applies.length ? "" : " inert");
+    // `dog.n.01` on the chip beside the word `dog` is the word twice. The
+    // part that says which sense is the tail, so that is what is shown.
+    const tail = /\.([nvar])\.(\d+)$/.exec(shown.id);
     chip.innerHTML =
       `<b>${escapeHtml(entry.word)}</b> ` +
-      `<span class="sense">${escapeHtml(shortName(shown.id))}` +
-      `${shown.pos ? "." + escapeHtml(shown.pos) : ""}</span>` +
+      `<span class="sense">${tail ? tail[1] + "." + tail[2]
+                                  : escapeHtml(shortName(shown.id))}</span>` +
       `<span class="flyout">
          <span class="why">${entry.applies.length
-           ? "Used " + entry.applies.map(escapeHtml).join("; ") + "."
+           ? "Pinning a sense here is read " +
+             entry.applies.map(escapeHtml).join("; ") + "."
            : "Nothing here resolves this word to a sense, so a choice would " +
              "change nothing. Shown for reading only."}</span>
          ${entry.senses.map(s => `<span class="opt${s.id === (pinned || "") ? " on" : ""}"
              data-word="${escapeHtml(entry.word)}" data-id="${escapeHtml(s.id)}">
-             <span class="n">${s.facts} facts</span>
-             <span class="id">${escapeHtml(s.id)}</span>
-             <span class="def">${escapeHtml(s.definition || "")}</span>
+             <span class="head"><span class="id">${escapeHtml(s.id)}</span>
+               <span class="n">${s.facts.toLocaleString()} facts</span></span>
+             <span class="def">${escapeHtml(s.definition || "no definition")}</span>
            </span>`).join("")}
-         ${pinned ? `<span class="opt" data-word="${escapeHtml(entry.word)}"
-             data-id=""><span class="id">let the engine choose</span>
+         ${pinned ? `<span class="opt clear" data-word="${escapeHtml(entry.word)}"
+             data-id=""><span class="head"><span class="id">let the engine
+             choose</span></span>
              <span class="def">Undo this pin and go back to the sense the
              evidence picks.</span></span>` : ""}
        </span>`;
@@ -663,7 +724,18 @@ async function showChips(question) {
     });
     // Hover opens it, and a click keeps it open, so a long sense list can be
     // scrolled without the pointer having to stay inside the chip.
-    chip.onclick = () => chip.classList.toggle("open");
+    chip.onclick = event => {
+      event.stopPropagation();
+      // A click inside the flyout is aimed at what it hit, not at the chip:
+      // clicking the explanation line closed the panel out from under it.
+      if (event.target.closest && event.target.closest(".flyout")) return;
+      const open = chip.classList.contains("open");
+      box.querySelectorAll(".chip").forEach(other =>
+        other.classList.remove("open"));
+      chip.classList.toggle("open", !open);
+      place(chip);
+    };
+    chip.onmouseenter = () => place(chip);
     box.appendChild(chip);
   });
 }
