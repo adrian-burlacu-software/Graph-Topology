@@ -55,7 +55,17 @@
   .chip .sense { color:var(--faint); }
   .chip.pinned { border-color:var(--accent); }
   .chip.pinned .sense { color:var(--accent); }
-  .chip.inert { opacity:.55; }
+  /* A word no rule resolves is shown as a label rather than a control: no
+     border, no panel, nothing that looks pressable. It is *not* dimmed with
+     `opacity`, which applies to the whole subtree -- that made the chip's own
+     flyout translucent, so the page showed through the panel and the two
+     texts overlapped. Colour dims a chip; opacity dims everything inside it. */
+  .chip.inert {
+    border-color:transparent; background:none; color:var(--faint);
+    cursor:default; padding-left:2px; padding-right:2px;
+  }
+  .chip.inert b { color:var(--dim); font-weight:500; }
+  .chip.inert .sense { color:var(--faint); }
   /* The flyout is inside a chip, which is a span, so every row in it has to
      be told to be a block: leaving them inline ran all eight senses together
      into one paragraph of definitions. */
@@ -705,8 +715,8 @@ async function showChips(question) {
          <span class="why">${entry.applies.length
            ? "Pinning a sense here is read " +
              entry.applies.map(escapeHtml).join("; ") + "."
-           : "Nothing here resolves this word to a sense, so a choice would " +
-             "change nothing. Shown for reading only."}</span>
+           : "No rule resolves this word in this question, so there is " +
+             "nothing to choose. Its senses are shown for reading."}</span>
          ${entry.senses.map(s => `<span class="opt${s.id === (pinned || "") ? " on" : ""}"
              data-word="${escapeHtml(entry.word)}" data-id="${escapeHtml(s.id)}">
              <span class="head"><span class="id">${escapeHtml(s.id)}</span>
