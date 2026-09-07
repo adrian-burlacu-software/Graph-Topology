@@ -752,7 +752,7 @@ class Profiles:
         profile = any(pattern.search(text) for pattern in self.PROFILE)
         if not profile and not self.POLAR.match(text):
             return None
-        name = self.named(text)
+        name = self.subject(text)
         if name is None:
             return None
         spent = set(name.split())
@@ -761,6 +761,27 @@ class Profiles:
         if profile:
             return ("profile", name, words)
         return ("verify", name, words) if words else None
+
+    def subject(self, text: str) -> str | None:
+        """The concept a question is about: a norm concept, or a class above.
+
+        `do all birds fly` is the question quantifiers exist for and `bird` is
+        not one of XCSLB's 521 concepts, so requiring one meant the showcase
+        question fell through to a single ConceptNet sentence. A word the
+        norms do not cover still counts if the taxonomy puts norm-covered
+        kinds underneath it.
+        """
+        named = self.named(text)
+        if named:
+            return named
+        for word in re.findall(r"[a-z]+", text):
+            if word in ASIDE or word in logic.QUANTIFIERS or len(word) < 3:
+                continue
+            single = word[:-1] if word.endswith("s") and len(word) > 3 else word
+            for candidate in dict.fromkeys((word, single)):
+                if self.subtypes(candidate):
+                    return candidate
+        return None
 
     def named(self, text: str) -> str | None:
         """The longest concept the norms know that the question mentions.

@@ -35,6 +35,21 @@
   }
   button:disabled { opacity:.45; cursor:default; }
   button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:500; }
+  /* One pill per kind of reasoning, so the page says what it can be asked
+     rather than leaving it to be guessed from a flat list of examples. */
+  .kinds { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
+  .kinds span {
+    font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); color:var(--dim); background:var(--panel2);
+    transition:border-color .2s, color .2s, background .2s;
+  }
+  .kinds span:hover { border-color:var(--accent); color:var(--ink); }
+  .kinds span.on { border-color:var(--accent); color:var(--bg);
+                   background:var(--accent); font-weight:600; }
+  .kinds span .rulechip { font-family:var(--mono); font-size:10px;
+                          opacity:.7; margin-left:6px; }
+  .kindnote { color:var(--dim); font-size:12.5px; margin-bottom:10px;
+              max-width:70ch; line-height:1.5; }
   .examples { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:22px; }
   .examples span {
     font-size:12px; color:var(--dim); background:var(--panel); border:1px solid var(--line);
@@ -220,6 +235,8 @@
     <input id="q" placeholder="Ask something — e.g. can a dog fall into a hole" autofocus>
     <button id="go">Ask</button>
   </div>
+  <div class="kinds" id="kinds"></div>
+  <div class="kindnote" id="kindnote"></div>
   <div class="examples" id="examples"></div>
 
   <div class="grid">
@@ -263,6 +280,12 @@
         <h2 id="identtitle">Identified &mdash; R16</h2>
         <p class="note" id="identnote"></p>
         <div id="ident"></div>
+      </div>
+
+      <div class="card" id="reasoncard" hidden>
+        <h2 id="reasontitle"></h2>
+        <p class="note" id="reasonnote"></p>
+        <div id="reason"></div>
       </div>
 
       <div class="card" id="profilecard" hidden>
@@ -318,42 +341,141 @@
 </div>
 
 <script>
-const EXAMPLES = [
-  "can a dog fall into a hole",
-  "is a dog an animal",
-  "does a dog have a tail",
-  "what can a violin do",
-  "is a hammer a tool",
-  "what is a hammer used for",
-  "where do you find a hammer",
-  "is a dog a vehicle",
-  // Two-subject questions. They only answer under `python -m research.v685`,
-  // which bridges the two concepts before letting v684 answer about the
-  // second; served by v684 alone they fall back to a single-subject read.
-  "what does a dog's owner need",
-  "what can a violin player do",
-  "where does a dog's owner live",
-  "what does a car driver need",
-  // Identification: describe a thing instead of naming it. Answered under
-  // `python -m research.v686`, which adds the feature norms.
-  "what kind of dog has spots",
-  "what kind of cat has stripes",
-  "what kind of bird is red",
-  "what kind of bird cannot fly",
-  // Several properties, so the narrowing has depth: each one is another
-  // level of the funnel, and the answer sits at the bottom.
-  "what kind of animal has stripes and eats meat and is fast",
-  "what kind of animal is furry and has spots and is big",
+/* The reasoning this page can be asked for, one group per kind, with the
+ * rule that answers it. A flat list of examples left the reader to infer the
+ * repertoire from a handful of questions; this states it.
+ *
+ * The order is the order the engine tries them in, which is also roughly the
+ * order they were built in -- v684's taxonomy at the top, the v687 backlog
+ * below it.
+ */
+const REASONING = [
+  {
+    name: "Taxonomy & facts", rule: "R1-R9",
+    blurb: "Name a thing and ask what it is, what it can do, what it is made " +
+           "of or where it is found. Inheritance is defeasible: a closer " +
+           "statement beats an inherited one.",
+    questions: ["is a dog an animal", "what can a violin do",
+                "does a dog have a tail", "what is a hammer made of",
+                "where do you find a hammer", "what is a hammer used for"],
+  },
+  {
+    name: "Bridging", rule: "R14-R15",
+    blurb: "Two subjects in one question. The route from the first to the " +
+           "second is found before the second is answered about, so the " +
+           "answer is about this dog's owner and not owners in general.",
+    questions: ["what does a dog's owner need", "what can a violin player do",
+                "where does a dog's owner live", "what does a car driver need"],
+  },
+  {
+    name: "Identification", rule: "R16",
+    blurb: "Describe a thing without naming it and be told what it is. The " +
+           "trie is walked downwards, general property first, so each step " +
+           "narrows visibly.",
+    questions: ["what kind of dog has spots", "what kind of cat has stripes",
+                "what is round with hexagons", "what kind of bird cannot fly",
+                "what kind of animal is furry and has spots and is big"],
+  },
+  {
+    name: "Retrieval", rule: "R17",
+    blurb: "Name a thing and be told what it has. The same trie walked " +
+           "upwards from its leaf to the origin recovers exactly what was " +
+           "stored, and a scored zero is a denial rather than a silence.",
+    questions: ["what attributes does a blue whale have", "is a whale furry",
+                "is a dalmatian spotted", "does a robin fly",
+                "what is a robin like"],
+  },
+  {
+    name: "Logic & quantifiers", rule: "R20",
+    blurb: "Questions with structure, evaluated in three values because " +
+           "silence is not falsehood. One false conjunct settles an `and`, " +
+           "one true disjunct settles an `or`, and an unknown part suspends " +
+           "the whole. Quantifiers ask every kind beneath a concept.",
+    questions: ["does a dog have a tail and wings", "is a dog furry or purple",
+                "do all birds fly", "do most birds fly",
+                "is a dog furry and telepathic"],
+  },
+  {
+    name: "Contrast", rule: "R21",
+    blurb: "Two concepts at once. What they share, where they part, what is " +
+           "nearest to a thing and how typical a member is are one " +
+           "operation: the lowest common ancestor of two branches.",
+    questions: ["what is the difference between a dog and a wolf",
+                "what do a dog and a cat have in common",
+                "what is similar to a dog", "is a dalmatian a typical dog",
+                "is a penguin a typical bird"],
+  },
+  {
+    name: "Inverse", rule: "R22",
+    blurb: "The graph read backwards. Every earlier question starts from a " +
+           "named subject; these start from the object and ask what stands " +
+           "in front of it.",
+    questions: ["what is made of wood", "what is found in a toolbox",
+                "what has wings", "what eats meat", "who makes a car",
+                "what is a wheel part of"],
+  },
+  {
+    name: "Scripts & abduction", rule: "R23",
+    blurb: "The eventive relations nothing used to ask: prerequisites, " +
+           "subevents and effects, walked in script order. An observation is " +
+           "explained by ranking causes as competing hypotheses.",
+    questions: ["why do people sleep", "why do people learn",
+                "what happens when you drive a car",
+                "what happens when you cook", "what explains a fire"],
+  },
+  {
+    name: "Analogy", rule: "R24",
+    blurb: "Role mapping, over the norms only. A role is approximated by " +
+           "feature type plus standing within the concept. The scraped graph " +
+           "cannot support this and is not asked.",
+    questions: ["bark is to dog as what is to cat",
+                "fins are to fish as what is to bird",
+                "trunk is to elephant as what is to giraffe"],
+  },
+  {
+    name: "Refused", rule: "R18",
+    blurb: "What this cannot do, declined by name instead of answered from " +
+           "the part of the question it happens to understand. Every silent " +
+           "wrong answer found in the audit had that shape.",
+    questions: ["is a whale bigger than a dolphin",
+                "how many legs does a dog have",
+                "what is the largest animal", "what if a dog had wings"],
+  },
 ];
+
 const $ = id => document.getElementById(id);
 let STATE = null, cursor = 0, timer = null;
 
-EXAMPLES.forEach(t => {
+/* The selector: one pill per kind of reasoning, its questions below. The
+ * chosen kind is remembered, so reloading the page after a change does not
+ * put the reader back at the top of the list. */
+let KIND = Number(localStorage.getItem("v687kind") || 0);
+if (!(KIND >= 0 && KIND < REASONING.length)) KIND = 0;
+
+function showKind(index) {
+  KIND = index;
+  localStorage.setItem("v687kind", String(index));
+  const group = REASONING[index];
+  $("kinds").querySelectorAll("span").forEach((el, i) =>
+    el.classList.toggle("on", i === index));
+  $("kindnote").textContent = group.blurb;
+  $("examples").innerHTML = "";
+  group.questions.forEach(text => {
+    const el = document.createElement("span");
+    el.textContent = text;
+    el.onclick = () => { $("q").value = text; ask(); };
+    $("examples").appendChild(el);
+  });
+}
+
+REASONING.forEach((group, index) => {
   const el = document.createElement("span");
-  el.textContent = t;
-  el.onclick = () => { $("q").value = t; ask(); };
-  $("examples").appendChild(el);
+  el.innerHTML = escapeHtml(group.name) +
+    '<span class="rulechip">' + escapeHtml(group.rule) + "</span>";
+  el.onclick = () => showKind(index);
+  $("kinds").appendChild(el);
 });
+showKind(KIND);
 
 $("go").onclick = () => ask();
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
@@ -424,6 +546,7 @@ function render() {
   buildBridge();
   buildIdent();
   buildProfile();
+  buildReason();
   buildAside();
 }
 
@@ -1338,6 +1461,110 @@ function buildIdent() {
   $("ident").innerHTML = `<table><thead><tr>
       <th>candidate</th><th>what matched</th><th>source</th><th>known</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+
+/* ---- R21-R24: the reasoning the v687 backlog added ----
+ * Four answer shapes share one card, because each is a small table and a
+ * sentence and none of them earns a card of its own. What they have in
+ * common is that the *grounds* matter as much as the answer: which
+ * properties two things share, what the ranking of a hypothesis was made of,
+ * why one property answers another.
+ */
+function buildReason() {
+  const s = STATE || {};
+  const box = $("reason");
+  const rows = (headers, body) =>
+    `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}` +
+    `</tr></thead><tbody>${body}</tbody></table>`;
+
+  if (s.contrast) {
+    const c = s.contrast;
+    $("reasoncard").hidden = false;
+    if (c.mode === "nearest") {
+      $("reasontitle").innerHTML = "Nearest &mdash; R21";
+      $("reasonnote").textContent =
+        `Computed from shared properties, not read from a stored similarity edge.`;
+      box.innerHTML = rows(["concept", "overlap", "shared", "because"],
+        c.nearest.map(n => `<tr><td class="obj"><b>${escapeHtml(n.name)}</b></td>
+          <td class="dist">${Math.round(n.jaccard * 100)}%</td>
+          <td class="dist">${n.shared}</td>
+          <td class="obj">${n.because.map(escapeHtml).join(", ")}</td></tr>`).join(""));
+    } else if (c.mode === "typicality") {
+      $("reasontitle").innerHTML = "Typicality &mdash; R21";
+      $("reasonnote").textContent =
+        `Measured against the ${c.core.length} properties most kinds of ` +
+        `${c.klass} carry. Nothing stores "typical"; it falls out of counting.`;
+      box.innerHTML = rows(["kind of " + escapeHtml(c.klass), "core carried"],
+        c.ranking.map(r => `<tr><td class="obj">
+          ${r.name === c.member ? "<b>" + escapeHtml(r.name) + "</b>" : escapeHtml(r.name)}</td>
+          <td class="dist">${Math.round(r.score * 100)}%</td></tr>`).join("")) +
+        `<p class="note">Missing from ${escapeHtml(c.member)}: ` +
+        `${c.missing.map(escapeHtml).join(", ") || "nothing"}.</p>`;
+    } else {
+      $("reasontitle").innerHTML = "Contrast &mdash; R21";
+      $("reasonnote").textContent =
+        `Semantic overlap and trie prefix disagree, and the disagreement is ` +
+        `the finding: a trie built for storage does not group by similarity.`;
+      box.innerHTML = rows(["", "properties"], `
+        <tr><td class="rel">both</td><td class="obj">${c.shared.map(escapeHtml).join(", ") || "—"}</td></tr>
+        <tr><td class="rel">only ${escapeHtml(c.left)}</td><td class="obj">${c.only_left.map(escapeHtml).join(", ") || "—"}</td></tr>
+        <tr><td class="rel">only ${escapeHtml(c.right)}</td><td class="obj">${c.only_right.map(escapeHtml).join(", ") || "—"}</td></tr>
+        <tr><td class="rel">trie prefix</td><td class="obj">${c.together.map(escapeHtml).join(", ") || "they part at the first node"}</td></tr>`);
+    }
+    return;
+  }
+  if (s.causal) {
+    const c = s.causal;
+    $("reasoncard").hidden = false;
+    if (c.mode === "abduction") {
+      $("reasontitle").innerHTML = "Best explanation &mdash; R23";
+      $("reasonnote").textContent =
+        `${c.considered} candidate causes weighed. A cause that causes many ` +
+        `things explains none of them, so specificity is most of the score.`;
+      box.innerHTML = rows(["cause", "score", "also causes", "fact"],
+        c.hypotheses.map(h => `<tr><td class="obj"><b>${escapeHtml(shortName(h.cause))}</b></td>
+          <td class="dist">${h.score.toFixed(3)}</td>
+          <td class="dist">${h.explains}</td>
+          <td class="obj">${escapeHtml(h.fact)}</td></tr>`).join(""));
+    } else {
+      $("reasontitle").innerHTML = "Script &mdash; R23";
+      $("reasonnote").textContent = c.note || "";
+      box.innerHTML = rows(["phase", "step", "relation"],
+        c.steps.map(x => `<tr><td class="rel">${escapeHtml(x.phase)}</td>
+          <td class="obj">${escapeHtml(x.object)}</td>
+          <td class="dist">${escapeHtml(x.relation)}</td></tr>`).join(""));
+    }
+    return;
+  }
+  if (s.analogy) {
+    const a = s.analogy;
+    $("reasoncard").hidden = false;
+    $("reasontitle").innerHTML = "Analogy &mdash; R24";
+    $("reasonnote").textContent = a.note ||
+      `“${a.source_property}” is to ${a.source} what these are to ${a.target}: ` +
+      `same kind of property, same standing within the concept.`;
+    box.innerHTML = a.mappings.length ? rows(["property", "kind", "standing", "carried by"],
+      a.mappings.map(m => `<tr><td class="obj"><b>${escapeHtml(m.property)}</b></td>
+        <td class="dist">${escapeHtml(m.kind || "—")}</td>
+        <td class="dist">${Math.round(m.standing * 100)}%</td>
+        <td class="dist">${m.carriers}</td></tr>`).join("")) : "";
+    return;
+  }
+  if (s.backwards) {
+    const b = s.backwards;
+    $("reasoncard").hidden = false;
+    $("reasontitle").innerHTML = "Read backwards &mdash; R22";
+    $("reasonnote").textContent =
+      `${b.relation.replace(/_/g, " ")} “${b.phrase}” — ${b.scanned.toLocaleString()} ` +
+      `facts of that relation scanned from the object side.`;
+    box.innerHTML = rows(["concept", "fact", "source"],
+      b.subjects.map(r => `<tr><td class="obj"><b>${escapeHtml(shortName(r.concept))}</b></td>
+        <td class="obj">${escapeHtml(r.relation.replace(/_/g, " "))} “${escapeHtml(r.object)}”</td>
+        <td><span class="src">${escapeHtml(r.source)}</span></td></tr>`).join(""));
+    return;
+  }
+  $("reasoncard").hidden = true;
 }
 
 /* ---- R17: the trie read upwards ----

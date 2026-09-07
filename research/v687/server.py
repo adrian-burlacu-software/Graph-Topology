@@ -36,6 +36,7 @@ from pathlib import Path
 from . import build, compress, rules as v684_rules, engine as v684_server
 from .relevance import RULE_TEXT as V685_RULES
 from .bridged import BridgedEngine
+from . import logic, profile
 from .identify import Identifier
 from .profile import Profiles
 
@@ -126,21 +127,57 @@ class IdentifyingEngine(BridgedEngine):
         if mode == "verify":
             if not words or self.parser.parse(question).relation == "is_a":
                 return None                    # v684 owns the taxonomy
+        query = None
+        if mode == "verify":
+            # The question's own structure, not a bag of words: `a tail and
+            # wings` is a conjunction, `furry or purple` a disjunction, and
+            # `all birds` a quantifier over the kinds beneath.
+            query = logic.parse(self._tail(question, name), profile.ASIDE)
         found = self.profiles.describe(name)
+        if found is None and query is not None and query.quantifier:
+            # A class the norms do not cover has no branch of its own, but its
+            # kinds can still be counted.
+            found = profile.Description(name=name,
+                                        concept=self.profiles.synset.get(name))
         if found is None:
             return None
         if mode == "verify":
-            found.asked = self.profiles.verify(name, words)
+            found.asked = self.profiles.assess(name, query)
             # Unrecorded goes back to the fact graph -- but only when the
             # fact graph is going to be talking about the same thing. v684
             # read "is whale furry" with `furry` as its subject and answered
             # about `furred.a.01`, and "nothing is stored about that adjective"
             # is a worse answer than "here is everything a whale has, and
             # this is not among it".
-            if (found.asked.verdict == "UNRECORDED"
+            # Hand back only a *simple* unanswered question. When the question
+            # had structure, v684 has no way to do better -- it would drop the
+            # conjunction and answer half of it, which is the defect R20 was
+            # written for -- so the three-valued answer is kept and says which
+            # part is unknown.
+            single = len(found.asked.parts) <= 1 and not found.asked.quantifier
+            if (found.asked.verdict == "UNRECORDED" and single
                     and self.parser.parse(question).subject == name):
                 return None
         return self._payload(question, mode, found)
+
+    @staticmethod
+    def _tail(question: str, name: str) -> str:
+        """What the question says *about* the subject, with the subject gone.
+
+        The connectives have to survive this: `route` strips them as noise
+        because it only ever wanted content words, and a conjunction with its
+        `and` removed is a list of two unrelated properties.
+        """
+        text = question.strip().lower().rstrip("?")
+        text = re.sub(r"^(is|are|was|were|does|do|did|has|have|can|could)\b",
+                      " ", text)
+        # Both the name and its plural: the question says `birds` where the
+        # class is `bird`. A subject left in the tree becomes a property to
+        # test, and `is a whale furry` came back DENIED on the strength of
+        # `is used to kill whales`.
+        for form in (name, name + "s", name + "es"):
+            text = re.sub(r"\b" + re.escape(form) + r"\b", " ", text)
+        return text
 
     def _payload(self, question: str, mode: str, found) -> dict:
         """One answer carrying both halves: what is stored, and what is above.
@@ -413,11 +450,12 @@ def main() -> None:
         store = packed
 
     print("  loading feature norms and joining them to WordNet...")
-    engine = IdentifyingEngine(store, arguments.depth, arguments.breadth)
+    from .reasoning import ReasoningEngine
+    engine = ReasoningEngine(store, arguments.depth, arguments.breadth)
     httpd = ThreadingHTTPServer((arguments.host, arguments.port),
                                 v684_server.make_handler(engine))
     url = f"http://{arguments.host}:{httpd.server_port}/"
-    print(f"\n  V686 reasoner  ->  {url}")
+    print(f"\n  V687 reasoner  ->  {url}")
     print(f"  parser: {engine.parser.backend}")
     print(f"  {len(engine.identifier.stated):,} individuals from XCSLB + AwA2, "
           f"{len(engine.identifier.synset):,} joined to WordNet")
@@ -436,3 +474,42 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+#: Rule text for the reasoning the backlog added, listed with the rest.
+V687_RULES: dict[str, str] = {
+    "R18": "Question-shape gating: a construction no rule covers is refused "
+           "by name, not answered from the part of it that happens to be "
+           "understandable. Comparatives, superlatives, counts of parts and "
+           "counterfactuals are named and declined -- every silent wrong "
+           "answer found in the v686 audit came from answering an easier "
+           "question than the one asked.",
+    "R19": "Corroboration: an inherited fact is put to the ancestor's other "
+           "kinds before it is believed. `bird capable_of fly` is borne out "
+           "by 21 of 29 birds in the norms and is inherited; `animal has a "
+           "wing` by 20 of 143 and is refused. One crawled sentence is not a "
+           "property of a category.",
+    "R20": "Three-valued composition: a question with structure is evaluated "
+           "in Kleene's logic, because silence is not falsehood. One false "
+           "conjunct settles a conjunction, one true disjunct settles a "
+           "disjunction, and an unknown part suspends the whole. Quantifiers "
+           "ask every kind beneath a concept and count.",
+    "R21": "Contrast: what two concepts share, where they part, how alike "
+           "they are and how typical one is are one operation -- the lowest "
+           "common ancestor of two branches. Semantic overlap and trie "
+           "prefix are both reported, because they disagree: a trie built "
+           "for storage does not group by similarity.",
+    "R22": "Inverse traversal: the graph is read from the object as well as "
+           "the subject, so `what is made of wood` is answerable and not only "
+           "`what is a hammer made of`. Relations that pair (`has_part` and "
+           "`part_of`) are read from both columns.",
+    "R23": "Scripts and abduction: prerequisites, subevents and effects are "
+           "walked in script order -- before, during, after. An observation "
+           "is explained by ranking causes as competing hypotheses, scored by "
+           "specificity, directness and confidence. A cause that causes forty "
+           "things explains none of them.",
+    "R24": "Analogy over the norms only: a role is approximated by feature "
+           "type plus standing within the concept. `bark : dog :: ? : cat` "
+           "gives meow and purr. The scraped graph cannot support this and is "
+           "not asked -- its `part_of` is largely taxonomy misfiled.",
+}

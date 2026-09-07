@@ -189,6 +189,45 @@ def parse(text: str, aside: frozenset[str]) -> Query:
     return Query(quantifier=quantifier, tree=tree, text=text.strip())
 
 
+#: R18. Constructions no rule here covers. Each is refused by name rather
+#: than answered from the part of the question that happens to be
+#: understandable, which is how `is a whale bigger than a dolphin` came back
+#: VERIFIED -- the comparative was dropped and the leftover words were looked
+#: up. Every silent wrong answer in the v686 audit had this shape.
+UNSUPPORTED: tuple[tuple[str, str], ...] = (
+    (r"\b(bigger|smaller|larger|heavier|lighter|faster|slower|older|younger|"
+     r"stronger|taller|shorter|better|worse|more|less)\s+than\b",
+     "a comparative. Nothing in this data has a magnitude: AwA2 records "
+     "`big` as a yes or no and XCSLB records `is the largest animal` as a "
+     "string. There is no scale to compare on"),
+    (r"\bhow\s+many\b(?!\s+kinds?\b)",
+     "a count of parts or instances. The ontology holds no numbers -- it can "
+     "count *kinds* over the taxonomy, so `how many kinds of dog` is "
+     "answerable, but `how many legs` is not stored anywhere"),
+    (r"\bthe\s+(biggest|largest|smallest|fastest|oldest|best|most)\b",
+     "a superlative, which needs an ordering over concepts. The same missing "
+     "scale as a comparative"),
+    (r"\bwhat\s+if\b|\bwould\s+have\b|\bhad\s+been\b",
+     "a counterfactual. Every rule here reasons about what is recorded, and "
+     "nothing supports reasoning about what is not"),
+)
+
+
+def unsupported(question: str) -> str | None:
+    """R18: name the construction this cannot answer, or None.
+
+    Refusing is the feature. A system that answers an easier question than
+    the one asked, without saying so, is worse than one that says no -- and
+    R8 already commits to VERIFIED, CONTRADICTED or UNKNOWN with nothing in
+    between.
+    """
+    text = (question or "").strip().lower().rstrip("?")
+    for pattern, reason in UNSUPPORTED:
+        if re.search(pattern, text):
+            return reason
+    return None
+
+
 def readable(node: Node) -> str:
     """The tree back as words, for the note under the answer."""
     if node.op == "term":
