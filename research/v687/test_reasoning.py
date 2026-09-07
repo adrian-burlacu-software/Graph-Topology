@@ -700,5 +700,157 @@ class CompressionTests(unittest.TestCase):
                                         verbose=False)["lossless"])
 
 
+@requires_store
+class AnswerAuditTests(unittest.TestCase):
+    """The six findings of the v687 answer audit, each pinned by its own case.
+
+    Every one of these was a question the system answered -- wrongly, or about
+    something else -- with nothing in the answer saying so. They are kept
+    together rather than filed by module because what they have in common is
+    the thing worth not regressing: a confident answer to a question nobody
+    asked.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- F1: a denial is not a denial of every word inside it --------------
+    def test_a_qualified_denial_does_not_deny_the_bare_property(self):
+        """The norms deny `has small ears` of a beaver. Beavers have ears."""
+        for question in ("does a beaver have ears", "does a horse have teeth",
+                         "does a horse have eyes", "does a chair have legs",
+                         "is a wheel part of a car"):
+            with self.subTest(question=question):
+                self.assertNotEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_the_qualified_denial_still_answers_its_own_question(self):
+        self.assertEqual(self.verdict("does a beaver have small ears"),
+                         "CONTRADICTED")
+
+    def test_an_unqualified_denial_is_untouched(self):
+        for question in ("is a whale furry", "does a penguin fly"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_a_locative_tail_does_not_qualify_the_claim(self):
+        """`has spots on its body` says where, not which, so it still denies
+        spots -- which is what separates a dog from a dalmatian."""
+        profiles = self.engine.profiles
+        self.assertEqual(profiles.verify("dog", ["spots"]).verdict, "DENIED")
+        self.assertEqual(profiles.verify("dalmatian", ["spots"]).verdict,
+                         "HELD")
+
+    # -- F2: the subject is the thing asked about, or nothing --------------
+    def test_a_subject_that_is_not_a_noun_is_still_the_subject(self):
+        for question in ("is hello a greeting", "is red a color",
+                         "is chess a game", "is running a sport"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_an_unknown_subject_is_named_rather_than_replaced(self):
+        for question in ("is a wemble an animal", "does a blorp have wings",
+                         "does a quovix have wings"):
+            with self.subTest(question=question):
+                payload = self.engine.ask(question)
+                self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
+                self.assertIn(payload["parse"]["unknown"], question)
+
+    def test_a_bare_noun_predicate_is_a_class(self):
+        self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
+
+    def test_a_bare_property_predicate_is_still_a_property(self):
+        """`white` has a noun sense too, and reading it as a class stopped the
+        norms from ever being asked."""
+        self.assertEqual(self.verdict("is a raccoon white"), "VERIFIED")
+        self.assertEqual(self.verdict("is a bobcat white"), "CONTRADICTED")
+
+    def test_a_coordination_is_never_one_class(self):
+        self.assertEqual(self.verdict("is a dog furry or purple"), "VERIFIED")
+
+    def test_no_false_yes_from_reading_the_other_noun(self):
+        for question in ("is a dog a cat", "is a whale a fish",
+                         "is a bat a bird"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+    def test_a_copula_is_not_a_compound_role(self):
+        """`is a siamese cat skimmer` was bridged to skimmers, and then --
+        once subsumption became reflexive -- answered yes."""
+        self.assertNotEqual(self.verdict("is a siamese cat skimmer"),
+                            "VERIFIED")
+
+    # -- F3: a class is only a class within one vocabulary -----------------
+    def test_typicality_does_not_rank_across_corpora(self):
+        for question in ("is a dog a typical animal",
+                         "is a robin a typical animal"):
+            with self.subTest(question=question):
+                self.assertNotEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_a_class_with_no_core_says_so(self):
+        payload = self.engine.ask("is a dog a typical animal")
+        self.assertEqual(payload["verdict"], "UNKNOWN")
+        self.assertIn("no core", payload["note"])
+
+    def test_typicality_still_ranks_within_one_corpus(self):
+        found = self.engine.contrast.typicality("beaver", "animal")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.corpus, "awa2")
+        self.assertTrue(found.excluded)
+
+    # -- F4: subsumption is reflexive --------------------------------------
+    def test_everything_is_itself(self):
+        for question in ("is a bee a bee", "is a dog a dog",
+                         "is a hammer a hammer", "is a glove a glove"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    # -- F5: the doer is accounted for -------------------------------------
+    def test_a_script_does_not_ignore_who_the_question_named(self):
+        beaver = self.engine.ask("what happens when a beaver moves")
+        piano = self.engine.ask("what happens when a piano moves")
+        self.assertNotEqual(beaver["note"], piano["note"])
+        for payload, actor in ((beaver, "beaver"), (piano, "piano")):
+            with self.subTest(actor=actor):
+                self.assertEqual(payload["causal"]["actor"], actor)
+
+    # -- F6: refuse what cannot be answered, define what can ---------------
+    def test_constructions_with_no_data_behind_them_are_refused(self):
+        for question in ("what is the capital of France",
+                         "when did the war end", "what does hello mean",
+                         "what is the opposite of hot",
+                         "who invented the telephone"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNSUPPORTED")
+
+    def test_a_definition_comes_from_the_taxonomy(self):
+        payload = self.engine.ask("what is a robin")
+        self.assertEqual(payload["verdict"], "DEFINED")
+        self.assertEqual(payload["definition"]["genus"], "thrush.n.03")
+        self.assertIn("songbird", payload["definition"]["gloss"])
+
+    def test_defining_an_unknown_word_says_which_word(self):
+        payload = self.engine.ask("what is a wemble")
+        self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
+        self.assertIn("wemble", payload["note"])
+
+    def test_define_does_not_swallow_the_questions_around_it(self):
+        for question, rule in (("what is a dog made of", "made_of"),
+                               ("what is similar to a dog", "R21"),
+                               ("what is the difference between a dog and a "
+                                "cat", "R21")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.ask(question)["parse"]["relation"], rule)
+
+
 if __name__ == "__main__":
     unittest.main()

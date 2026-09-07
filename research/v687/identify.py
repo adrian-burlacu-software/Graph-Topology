@@ -307,6 +307,78 @@ class Identifier:
                 return predicate
         return None
 
+    #: The frame of a norm, as opposed to what it claims. `has`, `is`, `can`
+    #: and their articles say how a property is predicated; the words after
+    #: them say what it is.
+    FRAME = frozenset("""
+    has have had is are be being been was were can could do does did a an the
+    its it their his her of on in at to with and or that this
+    """.split())
+
+    #: Words that begin a tail saying *where* or *how*, not *what*. The
+    #: difference decides whether a denial is narrower than the question:
+    #: `has black spots` denies a kind of spot, but `has spots on its body`
+    #: denies spots and merely says where they would have been.
+    LOCATORS = frozenset("""
+    on in at to with of from for over under around near into onto through by
+    about between during against
+    """.split())
+
+    @classmethod
+    def complement(cls, predicate: str) -> list[str]:
+        """What a norm actually claims, with the frame and its tail stripped.
+
+        `has small ears` claims *small ears*, not *ears*. Keeping the two
+        apart is the whole of the denial fix: the words left here are what a
+        question has to cover before a denial of this norm answers it.
+
+        The tail after a preposition is dropped because it modifies the claim
+        without narrowing it. `dog` denies `has spots on its body`, and a dog
+        having no spots is exactly what that records -- treating the locative
+        as part of the claim would have lost the denial that separates a dog
+        from a dalmatian, which is the example this whole module is built on.
+        """
+        head: list[str] = []
+        for word in predicate.split():
+            if word in cls.LOCATORS and head:
+                break
+            head.append(word)
+        return [cls.stem(word) for word in head if word not in cls.FRAME]
+
+    @classmethod
+    def denial_hit(cls, terms: list[str], predicates: frozenset[str]
+                   ) -> tuple[str | None, list[str]]:
+        """The denial a question actually contradicts, and the near misses.
+
+        A denial is not a denial of every word inside it. The norms record
+        `has small ears` as false of a beaver, and a beaver has ears: what is
+        false is the *narrowing*, and `_hit` could not see the difference
+        because it matched any single word in the phrase. Asked whether a
+        beaver has ears, the system said no, with evidence, which is the one
+        thing R8's three values exist to prevent.
+
+        So a denial answers a question only when the question covers what the
+        denial claims -- every content word of it, not one. Anything the
+        question covers only in part is returned separately, because "the
+        norms deny a narrower version of this" is worth saying and is not the
+        same as silence.
+
+        AwA2 is unaffected: its attributes are single words, so covering the
+        complement and matching the word are the same test there. XCSLB, whose
+        norms are elicited phrases, is where the distinction bites.
+        """
+        wanted = {cls.stem(term) for term in terms}
+        narrower: list[str] = []
+        for predicate in predicates:
+            claim = cls.complement(predicate)
+            if not claim:
+                continue
+            if set(claim) <= wanted:
+                return predicate, narrower
+            if wanted & set(claim):
+                narrower.append(predicate)
+        return None, narrower
+
     # -- the search --------------------------------------------------------
     def identify(self, question: str, limit: int = 8) -> Identification:
         terms, among = self.terms_of(question)

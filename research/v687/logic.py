@@ -210,6 +210,25 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
     (r"\bwhat\s+if\b|\bwould\s+have\b|\bhad\s+been\b",
      "a counterfactual. Every rule here reasons about what is recorded, and "
      "nothing supports reasoning about what is not"),
+    (r"^\s*when\b|\bwhat\s+year\b|\bwhat\s+date\b|\bhow\s+long\s+ago\b",
+     "a date. Nothing here is in time: the ontology holds concepts and the "
+     "relations between them, and not one fact in it carries a when"),
+    (r"\bwhat\s+do(?:es)?\b[^?]*\bmean\b|\bhow\s+do\s+you\s+"
+     r"(?:spell|pronounce|say|write)\b|\bhow\s+many\s+letters\b",
+     "a question about the word rather than the thing. This reasons over "
+     "senses, which are what words point at; it holds nothing about the "
+     "words themselves"),
+    (r"\bwho\s+(?:invented|discovered|wrote|founded|created|built|painted|"
+     r"composed|designed|won|said)\b|\bthe\s+capital\s+of\b|"
+     r"\bwhat\s+is\s+the\s+(?:capital|population|address|name)\s+of\b",
+     "a fact about a named individual. The taxonomy holds kinds, not "
+     "instances -- there is no Alexander Bell in it, and asking who invented "
+     "the telephone can only be answered by whichever concept the crawl "
+     "happened to hang the phrase on"),
+    (r"\bthe\s+opposite\s+of\b|\bantonyms?\s+of\b|\bopposite\s+(?:to|from)\b",
+     "an antonym. WordNet records antonymy between word forms, and this "
+     "store keeps only relations between senses, so the opposite of a thing "
+     "is not something it can look up"),
 )
 
 

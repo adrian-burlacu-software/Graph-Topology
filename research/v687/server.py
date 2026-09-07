@@ -125,8 +125,14 @@ class IdentifyingEngine(BridgedEngine):
             return None
         mode, name, words = routed
         if mode == "verify":
-            if not words or self.parser.parse(question).relation == "is_a":
+            parsed = self.parser.parse(question)
+            if not words or (parsed.relation == "is_a" and not parsed.hedged):
                 return None                    # v684 owns the taxonomy
+            # A hedged `is_a` -- a bare noun predicate, no determiner -- is
+            # only a taxonomy question if the norms have nothing to say.
+            # `is a chair furniture` names a kind and `is a raccoon white`
+            # names a property, and they are the same shape: the norms are
+            # what tells them apart, so they are asked first.
         query = None
         if mode == "verify":
             # The question's own structure, not a bag of words: `a tail and
@@ -484,10 +490,11 @@ if __name__ == "__main__":
 V687_RULES: dict[str, str] = {
     "R18": "Question-shape gating: a construction no rule covers is refused "
            "by name, not answered from the part of it that happens to be "
-           "understandable. Comparatives, superlatives, counts of parts and "
-           "counterfactuals are named and declined -- every silent wrong "
-           "answer found in the v686 audit came from answering an easier "
-           "question than the one asked.",
+           "understandable. Comparatives, superlatives, counts of parts, "
+           "counterfactuals, dates, questions about words rather than senses, "
+           "facts about named individuals and antonyms are named and "
+           "declined -- every silent wrong answer found in the v686 and v687 "
+           "audits came from answering an easier question than the one asked.",
     "R19": "Corroboration: an inherited fact is put to the ancestor's other "
            "kinds before it is believed. `bird capable_of fly` is borne out "
            "by 21 of 29 birds in the norms and is inherited; `animal has a "
@@ -512,6 +519,13 @@ V687_RULES: dict[str, str] = {
            "is explained by ranking causes as competing hypotheses, scored by "
            "specificity, directness and confidence. A cause that causes forty "
            "things explains none of them.",
+    "R26": "Definition: `what is a robin` is answered from the taxonomy "
+           "itself -- which sense is meant, the gloss WordNet gives it, what "
+           "it is a kind of, and what kinds it has. Before this it fell "
+           "through to a property listing and returned `helpful, passionate, "
+           "professional` for a robin, because ConceptNet holds those of the "
+           "name Robin. A definition is the one question a taxonomy answers "
+           "by being a taxonomy.",
     "R25": "Counting kinds: the ontology holds no numbers, so it cannot count "
            "a dog's legs -- but it can count what stands beneath a concept in "
            "the taxonomy, which is what `how many kinds of dog` asks. Two "

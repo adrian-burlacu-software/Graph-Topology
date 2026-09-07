@@ -34,16 +34,26 @@ class Engine:
         self.reasoner = Reasoner(store)
         # The parser reads subjects better when it knows what exists: `fire
         # truck` is one concept, `hammer break` is not.
-        self.parser = Parser(vocabulary=self.reasoner.vocabulary())
+        self.parser = Parser(vocabulary=self.reasoner.vocabulary(),
+                             nouns=self.reasoner.noun_vocabulary())
         self.match = self.parser.matcher()
 
     def ask(self, question: str, concept: str | None = None) -> dict:
         parse = self.parser.parse(question)
         if not parse.subject and not concept:
-            return {"verdict": "UNPARSED", "question": question,
+            # When the parser gave up on a particular word, that word is the
+            # answer: "I do not know what a wemble is" is a real answer, and
+            # answering about the next noun along was not.
+            return {"verdict": "UNKNOWN_WORD" if parse.unknown else "UNPARSED",
+                    "question": question,
                     "parse": parse.as_dict(), "senses": [], "steps": [],
                     "evidence": [], "chain": [],
-                    "note": "No noun found to reason about."}
+                    "note": (f"“{parse.unknown}” is not a word in this "
+                             f"ontology, and it is what the question is "
+                             f"about. Nothing can be said about it here "
+                             f"without first being told what it is."
+                             if parse.unknown else
+                             "No noun found to reason about.")}
 
         # Senses always come from the word in the question. `concept` selects
         # among them; it is a synset id, not something to look up as a lemma.
@@ -58,6 +68,27 @@ class Engine:
 
         if parse.relation == "is_a" and parse.target:
             answer = self.reasoner.classify(chosen, parse.target)
+            # The target is already read existentially -- "any of its senses
+            # counts" -- and a classification question reads the same way on
+            # the subject side. `is red a color` resolved `red` to the
+            # tributary of the Mississippi, which has facts where the colour
+            # has none, and answered no. Asking a word whether it names a kind
+            # of something is asking whether *any* of its senses does, so the
+            # other senses are tried and the one that answers is named.
+            if (answer.verdict == "UNKNOWN" and concept is None
+                    and len(senses) > 1):
+                for other in senses[1:8]:
+                    if other["id"] == chosen:
+                        continue
+                    attempt = self.reasoner.classify(other["id"], parse.target)
+                    if attempt.verdict != "VERIFIED":
+                        continue
+                    attempt.note = (
+                        f"Not of {chosen}, the sense carrying the most facts, "
+                        f"but of {other['id']} — {other['definition']}. A word "
+                        f"names a kind of something if any of its senses does.")
+                    answer, chosen = attempt, other["id"]
+                    break
         elif parse.polar and parse.target and parse.relation:
             answer = self.reasoner.verify(chosen, parse.relation, parse.target,
                                           self.match)

@@ -185,6 +185,114 @@ dog; the feature norms describe three of them, and those three are the only
 ones any other rule here can reason about. Reporting the big number alone
 would imply a coverage that does not exist.
 
+## R26 — what a thing is
+
+A taxonomy's own question, and the one it did not answer. `what is a robin`
+fell through to a property listing and came back **helpful, passionate,
+professional, kind** — which ConceptNet records of the *name* Robin. The
+answer was about a person called Robin and nothing said so.
+
+    what is a robin
+      robin.n.01 — small Old World songbird with a reddish breast
+      a kind of thrush; the norms describe it directly
+
+Genus and differentia, both read off the structure: the genus is the immediate
+hypernym, which the taxonomy has exactly, and the rest is the gloss, the kinds
+beneath, and whether the norms cover it — because "every property question
+about this is answerable" is part of knowing what a thing is here.
+
+A word with no sense in the store is named as unknown rather than answered
+about something else. That matters for a dialogue that has to *ask*: a system
+that cannot say "I do not know what a wemble is" cannot be told.
+
+## The answer audit
+
+Ninety-two questions across seventeen question shapes, plus five sweeps that
+need no hand labels — take the corpus's own claims, ask them back as questions,
+and see whether the answers agree with the data they came from. Six findings,
+all now fixed and each pinned by its own test in `AnswerAuditTests`.
+
+**F1 — a denial is not a denial of every word inside it.** `_hit` matched any
+whole word inside a predicate, and the denied set was matched by the same
+function as the held set. The norms record `has small ears` as false of a
+beaver, so:
+
+    does a beaver have ears   ->  CONTRADICTED
+    does a horse have teeth   ->  CONTRADICTED
+    is a wheel part of a car  ->  CONTRADICTED   (`has two wheels`)
+
+**20,359** denied predicates across all 541 concepts had a modifier and a head
+noun appearing in no held predicate of that concept — every one would answer a
+question about the head noun with a confident no. This was the only place the
+system was confident *and* wrong, which is what R8's three values exist to
+prevent.
+
+A denial now answers a question only when the question covers what the denial
+claims. The exception is a locative tail: `has spots on its body` says *where*,
+not *which*, so it still denies spots — which is the difference between a dog
+and a dalmatian, and the example this whole module is built on.
+
+**F2 — the subject is the thing asked about, or nothing.** The subject scan
+required a noun and would read past what it could not place, so an
+unrecognised subject was quietly answered about the thing it was compared to:
+
+    is hello a greeting     ->  a list of the properties of greetings
+    is a wemble an animal   ->  a list of the properties of animals
+    is hello a word         ->  an answer about bible.n.01
+
+Two fixes. A subject need not be a noun — `hello` tags as an interjection and
+`running` as a verb, and both are concepts here. And a determiner marks the
+seam of a copula, so the scan stops at the predicate and names the word it
+could not place instead of reading on. `is a wemble an animal` now answers
+UNKNOWN_WORD, naming `wemble`.
+
+The same seam settles a bare noun predicate. `is a chair furniture` names a
+kind and `is a raccoon white` names a property, and they are the same shape:
+the reading is hedged, the norms are asked first, and the taxonomy takes it
+only if they are silent.
+
+**F3 — a class is only a class within one vocabulary.** `animal`'s core came
+out `oldworld, quadrapedal, ground` — pure AwA2, because AwA2 gives every one
+of its 50 animals the same 85 attributes while XCSLB is free elicitation. All
+**100** of the 143 kinds of animal that come from XCSLB scored zero against it:
+
+    is a dog a typical animal  ->  CONTRADICTED, 0%, ranking 67 of 143
+
+Typicality is now measured within one corpus, and a class whose kinds agree
+about nothing says so rather than ranking against an empty set.
+
+**F4 — subsumption is reflexive.** `is a bee a bee` answered UNKNOWN after
+walking the whole taxonomy. Zero of forty reflexive questions verified.
+
+**F5 — a script cannot ignore who the question named.** `what happens when a
+beaver moves` and `what happens when a piano moves` returned byte-identical
+answers: the event is what ConceptNet records these relations of, and the doer
+was dropped without trace. There is no beaver-specific script to invent, so
+the doer is accounted for instead — the facts tying it to the event, or the
+plain statement that nothing does and this is the generic script.
+
+**F6 — R18 refused four constructions; the open set was larger.** Dates,
+questions about words rather than senses, facts about named individuals and
+antonyms are now refused by name too. `who invented the telephone` was being
+answered `genius.n.04 capable_of invent telephone`.
+
+### What the sweeps say
+
+| sweep | before | after |
+| --- | --- | --- |
+| stated property asked back | 60/60 | 60/60 |
+| denied property asked back | 57/60 | 57/60 |
+| subject resolution | 51/60 | 51/60 |
+| reflexivity | 0/40 | **37/40** |
+| invented words given a confident answer | 4/36 | **0/36** |
+
+The nine subject-resolution "misses" are synonym normalisation — `donkey`
+becomes `domestic ass`, `budgie` becomes `budgerigar` — which is correct. The
+three remaining reflexive failures are the sweep feeding corpus names verbatim:
+`is a glove a glove` and `is a roller skate a roller skate` both verify, while
+`rollerskate` is not a WordNet lemma and is correctly refused as an unknown
+word.
+
 ## R6, the other way round: choosing the sense
 
 Every rule here has always run per sense rather than per word string — R6, and

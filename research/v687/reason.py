@@ -116,6 +116,19 @@ class Reasoner:
         return {row[0] for row in self.connection.execute(
             "SELECT DISTINCT lemma FROM lemmas")}
 
+    def noun_vocabulary(self) -> set[str]:
+        """Every lemma with a noun sense, for telling a class from a property.
+
+        `is a chair furniture` names a kind and `is a dog telepathic` names a
+        property, and no part of speech tagger separates them reliably out of
+        context -- the small model calls `furry` a noun and `telepathic` a
+        proper noun. WordNet does separate them, because only one of the two
+        has a noun sense at all.
+        """
+        return {row[0] for row in self.connection.execute(
+            "SELECT DISTINCT lemmas.lemma FROM lemmas JOIN concepts "
+            "ON concepts.id = lemmas.concept WHERE concepts.id LIKE '%.n.%'")}
+
     def fact_count(self, concept: str) -> int:
         return self.connection.execute(
             "SELECT COUNT(*) FROM facts WHERE concept = ?", (concept,)
@@ -191,8 +204,15 @@ class Reasoner:
         steps = answer.steps
         steps.append(Step(len(steps), "resolve", concept, 0, "R6",
                           f"Reading “{concept}” as this sense, not as a word."))
+        # WordNet writes a multi-word lemma with underscores, and a question
+        # writes it with spaces: `is a greeting a speech act` looked up
+        # "speech act", found nothing, and reported that speech act was not
+        # among greeting's ancestors -- which it is, directly.
+        forms = {target_lemma.lower(), target_lemma.lower().replace(" ", "_")}
+        marks = ",".join("?" * len(forms))
         wanted = {row["concept"] for row in self.connection.execute(
-            "SELECT concept FROM lemmas WHERE lemma = ?", (target_lemma.lower(),))}
+            f"SELECT concept FROM lemmas WHERE lemma IN ({marks})",
+            tuple(forms))}
         if not wanted:
             answer.note = f"“{target_lemma}” is not a concept in this ontology."
             return answer
@@ -207,16 +227,23 @@ class Reasoner:
                               f"Generalise to {node.rsplit('.', 2)[0]}." if distance
                               else f"Start from {node.rsplit('.', 2)[0]}.",
                               parents=parents))
-            if node in wanted and distance > 0:
+            if node in wanted:
                 answer.verdict = "VERIFIED"
                 fact = Fact(concept, "is_a", node, "wordnet", 0.95, False, distance)
                 fact.confidence = rules.confidence_at(0.95, 0)
                 answer.evidence.append(fact)
+                # Distance zero is identity, and subsumption is reflexive:
+                # every bee is a bee. Excluding it left `is a bee a bee`
+                # answering UNKNOWN after walking the whole taxonomy, which
+                # is the one is_a question that needs no walk at all.
+                why = (f"{node.rsplit('.', 2)[0]} is an ancestor of "
+                       f"{concept.rsplit('.', 2)[0]}, {distance} step(s) up. "
+                       f"Subsumption is transitive, so yes."
+                       if distance else
+                       f"This is {node.rsplit('.', 2)[0]} itself, nothing "
+                       f"above it. Subsumption is reflexive, so yes.")
                 steps.append(Step(len(steps), "match", node, distance, "R1",
-                                  f"{node.rsplit('.', 2)[0]} is an ancestor of "
-                                  f"{concept.rsplit('.', 2)[0]}, {distance} step(s) "
-                                  f"up. Subsumption is transitive, so yes.",
-                                  matched=fact.as_dict()))
+                                  why, matched=fact.as_dict()))
                 return answer
         answer.note = (f"“{target_lemma}” is not among the "
                        f"{len(answer.chain)} ancestors of {concept}. "

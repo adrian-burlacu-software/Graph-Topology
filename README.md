@@ -12,7 +12,7 @@ measured, and then read back in every direction a question can come from.
 ```bash
 python -m research.v687.run_v687              # the compression experiment
 python -m research.v687                       # the interactive reasoner
-python -m unittest research.v687.test_v687 -v # 265 tests, in five suites
+python -m unittest research.v687.test_v687 -v # 285 tests, in five suites
 ```
 
 ## What holds
@@ -42,8 +42,9 @@ The same trie, read in every direction, plus the fact graph around it:
 taxonomy and inheritance, two-subject bridging, identification from a
 description, retrieval of a thing's attributes, three-valued logic with
 quantifiers, contrast and counting, the graph read backwards, causal scripts
-and abduction, and analogy over a closed vocabulary — twenty-five rules, each
-one visible in the derivation the page draws for every answer.
+and abduction, analogy over a closed vocabulary, and definition from the
+taxonomy itself — twenty-six rules, each one visible in the derivation the page
+draws for every answer.
 
 Full detail, every measurement, and an honest account of what does not work:
 **[research/v687/README.md](research/v687/README.md)**.

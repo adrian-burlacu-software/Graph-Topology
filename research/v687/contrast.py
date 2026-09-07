@@ -96,6 +96,11 @@ class Typicality:
     #: a class carries little of its core, the class has no core worth ranking
     #: against and the measure says so instead of pretending.
     support: float = 0.0
+    #: Which corpus the comparison was drawn from, and how many of the class's
+    #: kinds it left out. A member is only ever ranked against kinds described
+    #: in the same vocabulary as itself.
+    corpus: str | None = None
+    excluded: int = 0
 
     @property
     def sound(self) -> bool:
@@ -106,7 +111,8 @@ class Typicality:
                 "held": self.held, "missing": self.missing,
                 "score": round(self.score, 3), "rank": self.rank,
                 "of": self.of, "ranking": self.ranking,
-                "support": round(self.support, 3), "sound": self.sound}
+                "support": round(self.support, 3), "sound": self.sound,
+                "corpus": self.corpus, "excluded": self.excluded}
 
 
 class Contrast:
@@ -310,9 +316,27 @@ class Contrast:
                 "described_kinds": described[:limit]}
 
     # -- a member against its class ---------------------------------------
-    def core_of(self, klass: str) -> tuple[list[str], list[str]]:
-        """The properties that most of a class's kinds carry, and the kinds."""
+    def core_of(self, klass: str,
+                corpus: str | None = None) -> tuple[list[str], list[str]]:
+        """The properties that most of a class's kinds carry, and the kinds.
+
+        `corpus` restricts both to one source, and it matters more than it
+        looks. The norms are two corpora with disjoint vocabularies: AwA2
+        gives every one of its 50 animals the same 85 attributes, XCSLB is
+        free elicitation where no two people write the same phrase. Pooled,
+        `animal` has 143 kinds of which 43 are AwA2 -- and because those 43
+        are dense and agree with each other word for word, only AwA2
+        predicates ever clear the floor. The core came out `oldworld,
+        quadrapedal, ground`, and all 100 XCSLB kinds scored zero against it:
+        `is a dog a typical animal` answered no, at 0%, ranking 67 of 143.
+
+        A class is only a class within one vocabulary, so the comparison is
+        made within one.
+        """
         kinds = self.profiles.subtypes(klass)
+        if corpus:
+            kinds = [kind for kind in kinds
+                     if self.profiles.origin.get(kind) == corpus]
         if not kinds:
             return [], []
         counts: dict[str, int] = {}
@@ -332,9 +356,12 @@ class Contrast:
         out of counting, which is the point: typicality is not stored, it is
         the shape of the class seen from one member.
         """
-        core, kinds = self.core_of(klass)
+        corpus = self.profiles.origin.get(member)
+        core, kinds = self.core_of(klass, corpus)
         if not core:
             return None
+        excluded = len(self.profiles.subtypes(klass)) - len(kinds)
+
         def score(name: str) -> float:
             held = self.stated.get(name, frozenset()) & set(core)
             return len(held) / len(core)
@@ -348,6 +375,7 @@ class Contrast:
             rank=ranked.index(member) + 1 if member in ranked else 0,
             of=len(ranked),
             support=score(ranked[0]) if ranked else 0.0,
+            corpus=corpus, excluded=excluded,
             ranking=[{"name": name, "score": round(score(name), 3)}
                      for name in ranked[:5]]
                     + [{"name": name, "score": round(score(name), 3)}
