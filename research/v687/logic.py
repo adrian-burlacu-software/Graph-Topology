@@ -225,6 +225,12 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
      "instances -- there is no Alexander Bell in it, and asking who invented "
      "the telephone can only be answered by whichever concept the crawl "
      "happened to hang the phrase on"),
+    (r"\b(?:my|your|his|her|their|our)\b|^\s*who\s+(?:am|are)\s+(?:i|you)\b|"
+     r"^\s*what\s+(?:am|are)\s+(?:i|you)\b|\bwhose\b",
+     "a question about who is speaking. Every concept here is a kind, and a "
+     "kind has no owner and no speaker -- `my name` and `whose name` need an "
+     "individual and a conversation to be in, and this holds neither. It can "
+     "say what a name *is*"),
     (r"\bthe\s+opposite\s+of\b|\bantonyms?\s+of\b|\bopposite\s+(?:to|from)\b",
      "an antonym. WordNet records antonymy between word forms, and this "
      "store keeps only relations between senses, so the opposite of a thing "

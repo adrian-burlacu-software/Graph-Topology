@@ -273,14 +273,31 @@ class ReasoningEngine(IdentifyingEngine):
         pinned = pins.of(word)
         chosen = next((sense for sense in senses if sense["id"] == pinned),
                       senses[0])
-        above = [name for name, distance, _ in
-                 self.reasoner.ascend(chosen["id"]) if distance][:self.GENUS]
+        climb = [name for name, distance, _ in
+                 self.reasoner.ascend(chosen["id"]) if distance]
+        above = climb[:self.GENUS]
         genus = above[0] if above else None
+        # The top of the chain is the sort: whether this is a thing, an act,
+        # a state or an abstraction. A cognition deciding what to *ask* next
+        # needs it -- you ask what an object is made of and what an act leads
+        # to -- and it was the one part of the walk not reported, because the
+        # genus alone says `a kind of thrush` and never says `a physical
+        # object`. WordNet's own answer is the last node before `entity`.
+        sort = None
+        for name in reversed(climb):
+            if not name.startswith("entity."):
+                sort = name
+                break
         kinds = self.contrast.kinds_of(word)
         known = self.profiles.knows(word)
         note = f"{chosen['id']} — {chosen['definition']}."
         if genus:
-            note += f" A kind of {genus.rsplit('.', 2)[0]}."
+            note += f" A kind of {genus.rsplit('.', 2)[0]}"
+            note += (f", and under {sort.rsplit('.', 2)[0]} at the top."
+                     if sort and sort != genus else ".")
+        individual = self._individual(chosen["id"], climb, kinds)
+        if individual:
+            note += " " + individual
         if kinds and kinds["total"]:
             note += (f" {kinds['total']:,} kinds of it are recorded, "
                      f"{kinds['described']} of them described by the norms.")
@@ -300,11 +317,63 @@ class ReasoningEngine(IdentifyingEngine):
                        "word": word, "sense": chosen["id"],
                        "gloss": chosen["definition"], "genus": genus,
                        "above": above, "senses": len(senses),
-                       "described_by_norms": known,
+                       "described_by_norms": known, "sort": sort,
+                       "names_an_individual": bool(individual),
                        "kinds": kinds["total"] if kinds else 0},
                    "identification": self._tree(
                        "definition", spine or [(word, "nothing above it")],
                        hanging, [(word, chosen["definition"][:60])])})
+
+    #: Sorts under which a leaf with no kinds is usually one named thing
+    #: rather than a category: WordNet files Adrian, Mary and Peter here.
+    INDIVIDUALS_UNDER = ("person.n.01", "location.n.01", "organization.n.01",
+                         "group.n.01", "region.n.03")
+
+    def _individual(self, sense: str, climb: list[str], kinds) -> str:
+        """Warn when a word names one thing WordNet records, not a kind.
+
+        This matters more than it looks for anything that has to be *told*
+        something. A reader who says "I am Adrian" means a person the system
+        has never met; the store resolves `adrian` to a 20th-century
+        physiologist, answers `is adrian a person` with a confident yes, and
+        the two are never the same Adrian. `john` resolves to a toilet.
+
+        The store has no instance relation to read -- WordNet's
+        `instance_hypernym` was not carried across in the build -- so this is
+        three structural signals rather than a stored fact, and it is worth
+        saying which. Nothing beneath it in the taxonomy; a place in it under
+        people, places or organisations; and a longer name that contains this
+        one -- `edgar douglas adrian`, `saint peter the apostle`, `albert
+        einstein`. Individuals have full names and kinds do not.
+
+        The third signal is what makes it usable. Without it every childless
+        occupation is flagged: `concierge` and `apostle` also have nothing
+        beneath them. With it they are not, while `paris` is missed, having
+        no longer form. A heuristic, and a conservative one.
+
+        It changes no verdict. It only stops a name being taken for a kind in
+        silence, which is the failure that matters for anything being told
+        something.
+        """
+        if kinds and kinds.get("total"):
+            return ""
+        if not any(node in self.INDIVIDUALS_UNDER for node in climb):
+            return ""
+        row = self.reasoner.connection.execute(
+            "SELECT lemma, descendants FROM concepts WHERE id = ?",
+            (sense,)).fetchone()
+        if not row or row["descendants"]:
+            return ""
+        lemma = row["lemma"]
+        longer = [alias["lemma"] for alias in self.reasoner.connection.execute(
+            "SELECT lemma FROM lemmas WHERE concept = ?", (sense,))
+            if alias["lemma"] != lemma and lemma in alias["lemma"].split()]
+        if not longer:
+            return ""
+        return (f"This names one individual — WordNet also calls it "
+                f"“{longer[0]}” — and not a kind of thing. The store holds no "
+                f"instances of its own, so a person or place you introduce is "
+                f"not in it and cannot be looked up here.")
 
     # -- R21: two concepts at once -----------------------------------------
     DIFFERENCE = re.compile(r"\b(difference|differ|differs)\b")

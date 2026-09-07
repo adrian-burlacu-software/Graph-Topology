@@ -852,5 +852,121 @@ class AnswerAuditTests(unittest.TestCase):
                     self.engine.ask(question)["parse"]["relation"], rule)
 
 
+@requires_store
+class DialogueQueryTests(unittest.TestCase):
+    """The queries a teaching dialogue puts to semantic memory.
+
+    Predicted from a conversation rather than from the code -- "Hello" / "what
+    is hello" / "it is a greeting" / "who are you" -- and then asked. What a
+    cognition needs before it can produce the next line is mostly taxonomic,
+    and the taxonomic half works; what fails is indexical, and the point of
+    these tests is that it fails *by name* rather than by answering something
+    else.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- a word the cue spent is not the subject ---------------------------
+    def test_a_relation_cue_does_not_become_the_subject(self):
+        """`what is needed to greet` was answered about `need`, and `what
+        does a greeting cause` about `cause` -- the question's own grammar
+        read back as the thing it asks about."""
+        for question, subject in (("what is needed to greet", "greet"),
+                                  ("what does a greeting cause", "greeting"),
+                                  ("what is needed to bake bread", "bread")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).subject, subject)
+
+    def test_the_cue_still_leaves_the_subject_alone(self):
+        """Only the words naming the relation are spent. A cue pattern can
+        span half the question, and spending the match left `what is a hammer
+        made of` with no subject at all."""
+        for question, subject in (("what is a hammer made of", "hammer"),
+                                  ("where does a penguin live", "penguin"),
+                                  ("what is a hammer used for", "hammer"),
+                                  ("what can a violin do", "violin")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).subject, subject)
+
+    # -- indexicals ---------------------------------------------------------
+    def test_an_indexical_is_refused_rather_than_answered_generically(self):
+        """`what is my name`, `whose name is it` and `what is a name` were
+        three questions with one answer: the properties of name.n.01."""
+        for question in ("what is my name", "whose name is it", "who am i",
+                         "what am i", "what is your name"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNSUPPORTED")
+
+    def test_the_kind_question_underneath_still_answers(self):
+        self.assertEqual(self.verdict("what is a name"), "DEFINED")
+        self.assertEqual(self.verdict("does a person have a name"), "VERIFIED")
+
+    # -- what a definition has to carry for a dialogue ---------------------
+    def test_a_definition_reports_the_sort(self):
+        """Whether a thing is an object or an abstraction decides what is
+        worth asking about it next."""
+        for word, sort in (("hello", "abstraction.n.06"),
+                           ("a robin", "physical entity.n.01"),
+                           ("a conversation", "abstraction.n.06")):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertEqual(payload["definition"]["sort"], sort)
+
+    def test_a_name_is_not_mistaken_for_a_kind(self):
+        """`I am Adrian` resolves to a 20th-century physiologist, and `is
+        adrian a person` says yes. The store holds no instances, and a
+        definition that does not say so is how the two Adrians get confused."""
+        for word in ("adrian", "mary", "peter"):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertTrue(
+                    payload["definition"]["names_an_individual"])
+                self.assertIn("names one individual", payload["note"])
+
+    def test_an_ordinary_kind_is_not_flagged_as_an_individual(self):
+        for word in ("a robin", "hello", "a person", "a dog", "a greeting"):
+            with self.subTest(word=word):
+                payload = self.engine.ask(f"what is {word}")
+                self.assertFalse(
+                    payload["definition"]["names_an_individual"])
+
+    # -- what the dialogue actually needs and gets -------------------------
+    def test_the_taxonomic_half_of_the_dialogue_answers(self):
+        for question, verdict in (
+                ("what is hello", "DEFINED"),
+                ("is hello a greeting", "VERIFIED"),
+                ("is hello a communication", "VERIFIED"),
+                ("what kinds of greeting are there", "LISTING"),
+                ("what is a person", "DEFINED"),
+                ("does a person have a name", "VERIFIED"),
+                ("can a person speak", "VERIFIED"),
+                ("what is a greeting used for", "LISTING"),
+                ("where do you find a greeting", "LISTING")):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), verdict)
+
+    def test_what_the_data_cannot_support_stays_unknown(self):
+        """Not failures -- the honest half. No corpus here records what
+        follows a greeting or whether one is polite."""
+        for question in ("what happens after a greeting",
+                         "is a greeting polite",
+                         "is a greeting part of a conversation",
+                         "is hello a typical greeting"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+
 if __name__ == "__main__":
     unittest.main()

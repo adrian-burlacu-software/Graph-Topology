@@ -35,6 +35,17 @@ RELATION_CUES: tuple[tuple[str, str], ...] = (
     ("(is|are|was|were|be)", "has_property"),
 )
 
+#: Words a relation cue spends on naming the relation, so they cannot also be
+#: what the question is about. Only these: a cue pattern may span half the
+#: question -- `what is .* made of` covers `hammer` too -- and spending the
+#: whole match left `what is a hammer made of` with no subject at all.
+SPENT_ON_RELATION = frozenset("""
+made used found located live lives living part contain contains containing
+include includes want wants desire desires wish wishes like likes cause causes
+caused lead leads result results need needs needed require requires required
+prerequisite able capable
+""".split())
+
 #: Yes/no questions open with one of these.
 POLAR = ("can", "could", "is", "are", "was", "were", "does", "do", "did",
          "has", "have", "will", "would", "should", "must", "may", "might")
@@ -106,6 +117,8 @@ class Parser:
         #: Optional: without it the parser still reads questions, just less
         #: well on compound subjects.
         self.vocabulary = vocabulary or set()
+        #: Words the relation cue already spent, for this one parse.
+        self._spent: set[str] = set()
         #: The subset of it that names things rather than properties.
         self.nouns = nouns or set()
         #: Set by `head_noun` when it refuses to substitute a later noun.
@@ -247,7 +260,7 @@ class Parser:
         for token in doc:
             if (token.dep_ in ("nsubj", "nsubjpass")
                     and token.pos_ in ("NOUN", "PROPN")
-                    and token.lemma_.lower() not in STOP):
+                    and self._usable(token)):
                 return token.lemma_.lower()
 
         # No subject at all means the parse came apart entirely. In a polar
@@ -261,15 +274,22 @@ class Parser:
 
         for chunk in doc.noun_chunks:
             head = chunk.root
-            if head.lemma_.lower() not in STOP:
+            if self._usable(head):
                 return head.lemma_.lower()
         for token in doc:
-            if token.pos_ in ("NOUN", "PROPN") and token.lemma_.lower() not in STOP:
+            if token.pos_ in ("NOUN", "PROPN") and self._usable(token):
                 return token.lemma_.lower()
         for token in doc:
-            if token.pos_ == "VERB" and token.lemma_.lower() not in STOP:
+            if token.pos_ == "VERB" and self._usable(token):
                 return token.lemma_.lower()
         return None
+
+    def _usable(self, token) -> bool:
+        """Can this token be the subject, or did the question spend it?"""
+        lemma = token.lemma_.lower()
+        if lemma in STOP:
+            return False
+        return not (lemma in self._spent or token.text.lower() in self._spent)
 
     # -- question -> (subject, relation, target) --------------------------
     def parse(self, question: str) -> Parse:
@@ -278,13 +298,26 @@ class Parser:
         polar = lowered.split()[0] in POLAR if lowered.split() else False
 
         relation = None
+        spent = ""
         for pattern, mapped in RELATION_CUES:
-            if re.search(pattern, lowered):
+            found = re.search(pattern, lowered)
+            if found:
                 relation = mapped
+                # The words this cue consumed. A question spends them on
+                # saying *which relation* it is asking about, so they are not
+                # also what it is asking about -- `what is needed to greet`
+                # was answered about `need`, and `what does a greeting cause`
+                # about `cause`. Both are the question's own grammar read back
+                # as its subject.
+                spent = found.group(0)
                 break
 
         self._blocked = None
         hedged = False
+        self._spent = {word for word in
+                       (re.sub(r"[^a-z]", "", token)
+                        for token in spent.lower().split())
+                       if word in SPENT_ON_RELATION}
         subject = self.head_noun(text, polar)
         blocked = self._blocked
 
