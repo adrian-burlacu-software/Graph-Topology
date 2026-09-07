@@ -32,6 +32,8 @@ v686 -- the same finding, one axis over.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+from . import pins
 from typing import Any
 
 #: A property is *core* to a class when at least this share of the class's
@@ -211,7 +213,11 @@ class Contrast:
                               which is what every other rule here can reason
                               about.
         """
-        concept = self.profiles.synset.get(word) or self.profiles.class_concept(word)
+        # The reader's pin outranks the norm join as well as the guess: the
+        # question "how many kinds of mouse" is about whichever mouse they
+        # meant, and the norms cover only one of them.
+        concept = (pins.of(word) or self.profiles.synset.get(word)
+                   or self.profiles.class_concept(word))
         if not concept:
             return None
         reasoner = self.profiles.reasoner

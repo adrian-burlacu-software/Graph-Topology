@@ -185,6 +185,54 @@ dog; the feature norms describe three of them, and those three are the only
 ones any other rule here can reason about. Reporting the big number alone
 would imply a coverage that does not exist.
 
+## R6, the other way round: choosing the sense
+
+Every rule here has always run per sense rather than per word string — R6, and
+the reason v684 has evidence-weighted disambiguation at all is that picking
+badly once sent 348 facts about carpenters' toolboxes to the part of a gunlock.
+What was missing was any way for the reader to *see* which sense a word was
+taken in, or to say it was the wrong one. The old sense card offered that for
+the subject alone, after the answer, and only for the rules that accepted a
+`concept` parameter — which none of the new ones do.
+
+Under the question box there is now one chip per content word, showing the
+sense it is being read in. Hovering opens the senses it could carry, with each
+one's definition and how many facts it holds; clicking one pins it and re-asks.
+Pins persist, because meaning `mouse` the animal is a fact about the reader
+rather than about one question.
+
+    how many kinds of mouse are there
+      unpinned   mouse.n.04, the device        0 kinds
+      pinned     mouse.n.01, the animal       11 kinds
+
+    is a hammer a tool
+      unpinned   hammer.n.02, the tool         VERIFIED
+      pinned     hammer.n.01, the gunlock      "tool is not among the 11
+                                                ancestors of hammer.n.01"
+
+**Where a pin bites, and where it does not.** A control that looks as though
+it works everywhere and only works in places is worse than none, so the flyout
+says which it is for each word:
+
+| | pinnable |
+| --- | --- |
+| v684's subject | yes — the choice the old card made |
+| R23's event | yes — this is the one that reads `bark` as tree bark |
+| R16's class, R21, R24, R25 | yes — `class_concept` was taking the primary sense |
+| R22's phrase | yes — as an identity on the subject side, as extra spellings on the object side |
+| R17's profile | **no**, and deliberately: XCSLB ships a sense key with each of its concepts, so the join is given rather than guessed and there is nothing to overrule |
+
+Pins are request-scoped through a context variable, because the server is
+threaded and two readers pinning different senses of `mouse` at the same
+moment must not see each other's choice.
+
+One bug is worth recording. Feeding a pin in as v684's `concept` parameter
+looked obviously right and disabled every rule above v684: `concept` is a
+*gate* meaning "the reader clicked a sense under an answer, so re-answer that
+one thing", and setting it from a pin stopped `why does a dog bark` being a
+why-question at all. The pin now travels separately and only reaches the
+fallback.
+
 ## The audit that produced these
 
 Every question the page offers was put back through the engine and read, not
@@ -242,7 +290,8 @@ step of every new answer names a node that exists.
 | `causal.py` | scripts in script order, and abduction as a ranking |
 | `analogy.py` | role mapping over the closed norm vocabulary |
 | `reasoning.py` | the engine, and the order questions are tried in |
-| `test_v687.py` | 49 tests for the above |
+| `pins.py` | the reader's chosen sense, for one request |
+| `test_v687.py` | 58 tests for the above |
 | `test_trie/reasoning/bridging/norms.py` | v683–v686's 200 tests, unchanged |
 
 Everything else is v683 through v686, copied and re-imported locally.

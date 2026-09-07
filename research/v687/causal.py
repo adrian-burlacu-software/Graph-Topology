@@ -41,6 +41,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import pins
 from .identify import Identifier
 from .inverse import Inverse
 
@@ -238,6 +239,24 @@ class Causal:
                     break
         note = ("" if steps else
                 f"Nothing eventive is recorded about “{term}”.")
+        chosen = pins.of(term)
+        if chosen and not steps:
+            # A pin that empties the answer should say so. Silence that the
+            # reader caused looks exactly like silence in the data, and only
+            # one of those is worth changing their mind about.
+            elsewhere = self.reasoner.connection.execute(
+                "SELECT c.id, count(f.rowid) AS n FROM lemmas l "
+                "JOIN concepts c ON c.id = l.concept "
+                "LEFT JOIN facts f ON f.concept = c.id AND f.relation IN "
+                "('has_prerequisite','has_subevent','causes','entails',"
+                "'motivated_by_goal','desires') "
+                "WHERE l.lemma = ? GROUP BY c.id ORDER BY n DESC LIMIT 1",
+                (term,)).fetchone()
+            note = (f"Nothing eventive is recorded of {chosen}, the sense you "
+                    f"pinned.")
+            if elsewhere and elsewhere["n"] and elsewhere["id"] != chosen:
+                note += (f" {elsewhere['id']} carries {elsewhere['n']} such "
+                         f"facts — unpin “{term}” to read those instead.")
         if steps:
             note = (f"Word-level: read across {len(senses)} sense(s) of "
                     f"“{term}”. These relations come from ConceptNet, which "
@@ -327,6 +346,13 @@ class Causal:
         R12 already draws exactly this word-level line for inheritance.
         """
         words = self._event_words(phrase, question)
+        for word in words:
+            chosen = pins.of(word)
+            if chosen:
+                # This is the one the reader most often has to correct:
+                # `bark` resolves to the covering of a tree, because that is
+                # the synset the crawl hung its facts on.
+                return word, [chosen]
         best_word, best_senses, best_count = None, [], 0
         for word in reversed(words):          # the event usually ends the phrase
             # `bites` -> `bite` before `bit`: the aggressive stem that makes

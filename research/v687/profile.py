@@ -44,7 +44,7 @@ from typing import Any
 from .ordering import adaptive_coverage
 from .substrate import Corpus
 from .trie import PredicateTrie
-from . import corpora, logic, rules
+from . import corpora, logic, pins, rules
 
 #: Facts shown per ancestor. One ancestor can carry hundreds; six is enough to
 #: see what a level contributes without burying the level below it.
@@ -317,7 +317,8 @@ class Profiles:
         four kinds of whale sat under it with the attribute scored and denied.
         A class question is answerable from what is stored beneath it.
         """
-        concept = self.synset.get(name) or self.class_concept(name)
+        concept = (pins.of(name) or self.synset.get(name)
+                   or self.class_concept(name))
         if not concept:
             return []
         return sorted(other for other, above in self._lineage().items()
@@ -332,6 +333,9 @@ class Profiles:
         -- had nothing to quantify over, and fell through to a single
         ConceptNet sentence about bird.n.01 that answered it wrongly.
         """
+        chosen = pins.of(word)
+        if chosen:
+            return chosen              # the reader overruled the guess
         row = self.reasoner.connection.execute(
             "SELECT concept FROM lemmas WHERE lemma = ? "
             "ORDER BY primary_sense DESC LIMIT 1", (word,)).fetchone()

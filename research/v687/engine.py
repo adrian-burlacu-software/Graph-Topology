@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import build, compress
+from . import build, compress, pins
 from .language import Parser
 from .reason import Reasoner
 
@@ -150,8 +150,16 @@ def make_handler(engine: Engine):
                         "V684 Reasoner", engine.title)
                     self._send(page.encode("utf-8"), "text/html; charset=utf-8")
                 elif route.path == "/api/ask":
+                    # `pin=bark:bark.v.01`, repeatable: the reader's choice of
+                    # sense for a word, which outranks the engine's own.
+                    pinned = pins.parse(query.get("pin", []))
                     payload = engine.ask(query.get("q", [""])[0],
-                                         (query.get("concept") or [None])[0])
+                                         (query.get("concept") or [None])[0],
+                                         pinned or None)
+                    self._send(json.dumps(payload).encode("utf-8"),
+                               "application/json; charset=utf-8")
+                elif route.path == "/api/senses":
+                    payload = engine.word_senses(query.get("q", [""])[0])
                     self._send(json.dumps(payload).encode("utf-8"),
                                "application/json; charset=utf-8")
                 elif route.path == "/api/concept":

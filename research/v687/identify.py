@@ -39,7 +39,7 @@ from typing import Any
 from . import rules
 from .language import Parser
 from .reason import Reasoner
-from . import corpora
+from . import corpora, pins
 
 #: Words that carry no discriminating power in a query.
 NOISE = frozenset("""
@@ -238,9 +238,19 @@ class Identifier:
         return words, among
 
     def _within(self, among: str) -> set[str] | None:
-        """The individuals that are a kind of `among`, via v684's taxonomy."""
-        wanted = {row["concept"] for row in self.reasoner.connection.execute(
-            "SELECT concept FROM lemmas WHERE lemma = ?", (among,))}
+        """The individuals that are a kind of `among`, via v684's taxonomy.
+
+        Every sense of the class word is taken, which is deliberate: "what
+        kind of dog has spots" should not fail because `dog` also names a
+        pawl. But a reader who has pinned a sense has said which one they
+        mean, and then taking the others back is overruling them.
+        """
+        chosen = pins.of(among)
+        if chosen:
+            wanted = {chosen}
+        else:
+            wanted = {row["concept"] for row in self.reasoner.connection.execute(
+                "SELECT concept FROM lemmas WHERE lemma = ?", (among,))}
         if not wanted:
             return None
         inside = set()
@@ -311,7 +321,7 @@ class Identifier:
             row = self.reasoner.connection.execute(
                 "SELECT concept FROM lemmas WHERE lemma = ? "
                 "ORDER BY primary_sense DESC LIMIT 1", (among,)).fetchone()
-            result.among_concept = row[0] if row else None
+            result.among_concept = pins.of(among) or (row[0] if row else None)
             inside = self._within(among)
             if inside is None:
                 result.note = f"“{among}” is not a class this data covers."

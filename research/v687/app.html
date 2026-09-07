@@ -37,6 +37,38 @@
   button.ghost { background:var(--panel2); color:var(--ink); border:1px solid var(--line); font-weight:500; }
   /* One pill per kind of reasoning, so the page says what it can be asked
      rather than leaving it to be guessed from a flat list of examples. */
+  /* Sense chips: one per content word of the question, showing which sense
+     it is being taken in. R6 has always run inference per sense; this is the
+     first time the reader can see which one, or say it is the wrong one. */
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:-14px 0 14px; min-height:0; }
+  .chip {
+    position:relative; font-family:var(--mono); font-size:11px;
+    padding:4px 9px; border-radius:6px; cursor:default;
+    border:1px solid var(--line); background:var(--panel2); color:var(--dim);
+  }
+  .chip b { color:var(--ink); font-weight:600; }
+  .chip .sense { color:var(--faint); }
+  .chip.pinned { border-color:var(--accent); }
+  .chip.pinned .sense { color:var(--accent); }
+  .chip.inert { opacity:.55; }
+  .flyout {
+    display:none; position:absolute; z-index:40; top:100%; left:0;
+    margin-top:4px; width:360px; max-height:320px; overflow-y:auto;
+    background:var(--panel); border:1px solid var(--line); border-radius:9px;
+    padding:6px; box-shadow:0 12px 32px rgba(0,0,0,.55);
+  }
+  .chip:hover .flyout, .chip.open .flyout { display:block; }
+  .flyout .opt {
+    padding:7px 9px; border-radius:6px; cursor:pointer; font-family:var(--sans);
+  }
+  .flyout .opt:hover { background:var(--panel2); }
+  .flyout .opt.on { background:var(--accent-dim); }
+  .flyout .opt .id { font-family:var(--mono); font-size:11px; color:var(--accent); }
+  .flyout .opt .def { font-size:12px; color:var(--dim); margin-top:2px; }
+  .flyout .opt .n { float:right; font-family:var(--mono); font-size:10px;
+                    color:var(--faint); }
+  .flyout .why { font-size:11px; color:var(--faint); padding:6px 9px 8px;
+                 border-bottom:1px solid var(--line); margin-bottom:4px; }
   .kinds { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
   .kinds span {
     font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer;
@@ -239,6 +271,7 @@
     <input id="q" placeholder="Ask something — e.g. can a dog fall into a hole" autofocus>
     <button id="go">Ask</button>
   </div>
+  <div class="chips" id="chips"></div>
   <div class="kinds" id="kinds"></div>
   <div class="kindnote" id="kindnote"></div>
   <div class="examples" id="examples"></div>
@@ -316,10 +349,6 @@
     </div>
 
     <div>
-      <div class="card" id="sensecard" hidden>
-        <h2>Which sense?</h2>
-        <div id="senses"></div>
-      </div>
       <div class="card" id="parsecard" hidden>
         <h2>How the question was read</h2>
         <div class="parse" id="parse"></div>
@@ -480,6 +509,13 @@ REASONING.forEach((group, index) => {
 });
 showKind(KIND);
 
+let typing = null;
+$("q").addEventListener("input", () => {
+  clearTimeout(typing);
+  typing = setTimeout(() => showChips($("q").value), 400);
+});
+showChips($("q").value);
+
 $("go").onclick = () => ask();
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
 
@@ -489,9 +525,11 @@ async function ask(concept) {
   stop();
   $("go").disabled = true; $("go").textContent = "…";
   try {
-    const url = "/api/ask?q=" + encodeURIComponent(q) + (concept ? "&concept=" + encodeURIComponent(concept) : "");
+    const url = "/api/ask?q=" + encodeURIComponent(q)
+      + (concept ? "&concept=" + encodeURIComponent(concept) : "") + pinParams();
     STATE = await (await fetch(url)).json();
     render();
+    showChips(q);
   } catch (err) {
     STATE = null;
     $("answer").hidden = false;
@@ -509,21 +547,6 @@ function render() {
   $("badge").textContent = s.verdict;
   $("claim").textContent = claimText(s);
   $("note").textContent = s.note || "";
-
-  // senses
-  if (s.senses && s.senses.length) {
-    $("sensecard").hidden = false;
-    $("senses").innerHTML = "";
-    s.senses.slice(0, 8).forEach(sense => {
-      const el = document.createElement("div");
-      el.className = "sense" + (sense.id === s.concept ? " active" : "");
-      el.innerHTML = `<span class="n">${sense.fact_count} facts</span>
-        <div class="id">${escapeHtml(sense.id)}</div>
-        <div class="def">${escapeHtml(sense.definition || "")}</div>`;
-      el.onclick = () => ask(sense.id);
-      $("senses").appendChild(el);
-    });
-  } else $("sensecard").hidden = true;
 
   // parse
   if (s.parse) {
@@ -563,6 +586,86 @@ function claimText(s) {
   const e = s.evidence[0];
   return `${e.concept} ${e.relation.replace(/_/g, " ")} “${e.object}”` +
          (e.distance ? ` — inherited from ${e.distance} level(s) up` : " — stated directly");
+}
+
+/* ---- sense chips ----
+ * One chip per content word of the question, showing which sense that word is
+ * being taken in, with a flyout to change it.
+ *
+ * R6 has always run inference per sense rather than per word. What was missing
+ * was any way to *see* which sense, or to say it was the wrong one: the old
+ * card offered that for the subject alone, after the answer, and only for the
+ * rules that took a `concept` parameter. A pin here is read by every rule that
+ * resolves a word to a synset, which is most of them.
+ *
+ * A pinned choice outlives the question, because it is a fact about what the
+ * reader means rather than about one question -- pinning `mouse` to the animal
+ * and then asking three more questions about mice should not need three more
+ * pins.
+ */
+let PINS = {};
+try { PINS = JSON.parse(localStorage.getItem("v687pins") || "{}"); } catch (e) {}
+
+function pinParams() {
+  return Object.entries(PINS)
+    .map(([word, id]) => "&pin=" + encodeURIComponent(word + ":" + id)).join("");
+}
+
+function savePins() {
+  try { localStorage.setItem("v687pins", JSON.stringify(PINS)); } catch (e) {}
+}
+
+async function showChips(question) {
+  const box = $("chips");
+  if (!question || !question.trim()) { box.innerHTML = ""; return; }
+  let data;
+  try {
+    data = await (await fetch("/api/senses?q=" + encodeURIComponent(question))).json();
+  } catch (e) { box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  (data.words || []).forEach(entry => {
+    const pinned = PINS[entry.word];
+    const shown = entry.senses.find(s => s.id === pinned)
+               || entry.senses.find(s => s.default) || entry.senses[0];
+    const chip = document.createElement("span");
+    chip.className = "chip" + (pinned ? " pinned" : "")
+                   + (entry.applies.length ? "" : " inert");
+    chip.innerHTML =
+      `<b>${escapeHtml(entry.word)}</b> ` +
+      `<span class="sense">${escapeHtml(shortName(shown.id))}` +
+      `${shown.pos ? "." + escapeHtml(shown.pos) : ""}</span>` +
+      `<span class="flyout">
+         <span class="why">${entry.applies.length
+           ? "Used " + entry.applies.map(escapeHtml).join("; ") + "."
+           : "Nothing here resolves this word to a sense, so a choice would " +
+             "change nothing. Shown for reading only."}</span>
+         ${entry.senses.map(s => `<span class="opt${s.id === (pinned || "") ? " on" : ""}"
+             data-word="${escapeHtml(entry.word)}" data-id="${escapeHtml(s.id)}">
+             <span class="n">${s.facts} facts</span>
+             <span class="id">${escapeHtml(s.id)}</span>
+             <span class="def">${escapeHtml(s.definition || "")}</span>
+           </span>`).join("")}
+         ${pinned ? `<span class="opt" data-word="${escapeHtml(entry.word)}"
+             data-id=""><span class="id">let the engine choose</span>
+             <span class="def">Undo this pin and go back to the sense the
+             evidence picks.</span></span>` : ""}
+       </span>`;
+    chip.querySelectorAll(".opt").forEach(option => {
+      option.onclick = event => {
+        event.stopPropagation();
+        const word = option.getAttribute("data-word");
+        const id = option.getAttribute("data-id");
+        if (id) PINS[word] = id; else delete PINS[word];
+        savePins();
+        chip.classList.remove("open");
+        ask();                       // the answer is what the pin is for
+      };
+    });
+    // Hover opens it, and a click keeps it open, so a long sense list can be
+    // scrolled without the pointer having to stay inside the chip.
+    chip.onclick = () => chip.classList.toggle("open");
+    box.appendChild(chip);
+  });
 }
 
 /* ---- derivation replay ---- */

@@ -30,7 +30,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import rules
+from . import pins, rules
 from .identify import Identifier
 
 #: Relations that pair up, so a question asked one way can be answered by
@@ -165,6 +165,20 @@ class Inverse:
         of wood`, `made_of` being deliberately non-inheritable.
         """
         wanted = [Identifier.stem(word) for word in phrase.split()]
+        # A pinned sense on the phrase means something different in each
+        # direction, and both are real. Reading the *subject* column, the
+        # phrase names a concept, so the pin says exactly which one and the
+        # match becomes an identity rather than a spelling. Reading the
+        # *object* column there is no concept to match -- objects are free
+        # text -- so the pin instead lends its synset's other lemmas, which is
+        # the only sense-awareness a string index can have.
+        chosen = pins.of(phrase) or (pins.of(phrase.split()[-1])
+                                     if phrase else None)
+        spellings = list(wanted)
+        if chosen:
+            for row in self.reasoner.connection.execute(
+                    "SELECT lemma FROM lemmas WHERE concept = ?", (chosen,)):
+                spellings.append(Identifier.stem(row["lemma"].lower()))
         plan = [(relation, direction)]
         if relation in PAIRS:
             plan.append((PAIRS[relation],
@@ -186,13 +200,18 @@ class Inverse:
                 scanned += 1
                 text = row[column]
                 if way == OBJECT:
+                    if chosen and row["concept"] != chosen:
+                        continue        # the reader named the sense; hold to it
                     text = text.rsplit(".", 2)[0].replace("_", " ")
                 # A fact that denies the phrase is not an answer to a question
                 # that asks for it: `vegetarian` turned up under "what eats
                 # meat" on the strength of not eating any.
                 if self._denied(row["object"]):
                     continue
-                if self._names(text, wanted):
+                if self._names(text, wanted) or (
+                        len(spellings) > len(wanted)
+                        and any(self._names(text, [spelling])
+                                for spelling in spellings[len(wanted):])):
                     rows.append((row, way))
         found = self._rank(rows, wanted, limit)
         return Backwards(question="", relation=relation, phrase=phrase,

@@ -446,5 +446,95 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(payload["evidence"], [])
 
 
+@requires_norms
+@requires_store
+class PinnedSenseTests(unittest.TestCase):
+    """R6 the other way round: the reader choosing the sense.
+
+    The rules have always run per sense. What was missing was the reader
+    being able to see which one, or say it was wrong -- and that gap was
+    widest in the newest rules, which pick a sense with a heuristic and never
+    offered a way to overrule it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    def tearDown(self):
+        from research.v687 import pins
+        pins.use(None)
+
+    def test_every_content_word_offers_its_senses(self):
+        words = {w["word"]: w for w in
+                 self.engine.word_senses("why does a dog bark")["words"]}
+        self.assertEqual(set(words), {"dog", "bark"})
+        self.assertGreater(words["bark"]["total"], 1)
+        self.assertTrue(any(s["default"] for s in words["bark"]["senses"]))
+        self.assertTrue(words["bark"]["applies"])
+
+    def test_grammar_words_get_no_chip(self):
+        words = [w["word"] for w in
+                 self.engine.word_senses("is a dog an animal")["words"]]
+        for grammar in ("is", "a", "an"):
+            self.assertNotIn(grammar, words)
+
+    def test_a_pin_changes_the_event_sense(self):
+        """R23 picks the sense carrying the most eventive facts, which for
+        `bark` is the covering of a tree."""
+        loose = self.engine.ask("why does a dog bark")
+        pinned = self.engine.ask("why does a dog bark", None,
+                                 {"bark": "bark.v.01"})
+        self.assertTrue(loose["causal"]["steps"])
+        self.assertFalse(pinned["causal"]["steps"])
+        self.assertIn("pinned", pinned["note"])
+
+    def test_a_pin_changes_the_class_a_count_walks(self):
+        loose = self.engine.ask("how many kinds of mouse are there")
+        pinned = self.engine.ask("how many kinds of mouse are there", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertEqual(loose["kinds"]["total"], 0)      # the device
+        self.assertGreater(pinned["kinds"]["total"], 5)   # the animal
+
+    def test_a_pin_changes_the_class_identification_searches(self):
+        pinned = self.engine.ask("what kind of mouse has a tail", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertEqual(pinned["identification"]["among_concept"],
+                         "mouse.n.01")
+
+    def test_a_pin_holds_the_backwards_reading_to_one_sense(self):
+        loose = self.engine.ask("what is a mouse part of")
+        pinned = self.engine.ask("what is a mouse part of", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertGreater(len(loose["backwards"]["subjects"]),
+                           len(pinned["backwards"]["subjects"]))
+
+    def test_a_pin_on_the_subject_does_not_disable_the_rules_above_v684(self):
+        """Feeding a pin in as `concept` skipped every rule above v684,
+        because that parameter is a gate and not a preference: pinning `bark`
+        stopped `why does a dog bark` being a why-question at all."""
+        pinned = self.engine.ask("why does a dog bark", None,
+                                 {"bark": "bark.v.01"})
+        self.assertEqual(pinned["parse"]["relation"], "R23")
+
+    def test_a_pin_survives_into_v684s_own_answer(self):
+        loose = self.engine.ask("is a hammer a tool")
+        pinned = self.engine.ask("is a hammer a tool", None,
+                                 {"hammer": "hammer.n.01"})
+        self.assertEqual(loose["verdict"], "VERIFIED")
+        self.assertEqual(pinned["concept"], "hammer.n.01")
+        self.assertEqual(pinned["verdict"], "UNKNOWN")
+
+    def test_pins_are_request_scoped(self):
+        """The server is threaded, so two readers pinning different senses of
+        the same word must not see each other's choice."""
+        from research.v687 import pins
+        pins.use({"mouse": "mouse.n.01"})
+        self.assertEqual(pins.of("mouse"), "mouse.n.01")
+        pins.use(None)
+        self.assertIsNone(pins.of("mouse"))
+
+
 if __name__ == "__main__":
     unittest.main()

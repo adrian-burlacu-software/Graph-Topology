@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import logic, rules as v684_rules
+from . import logic, pins, rules as v684_rules
 from .analogy import Analogies
 from .causal import Causal
 from .contrast import Contrast
@@ -46,7 +46,20 @@ class ReasoningEngine(IdentifyingEngine):
     ALL_RULES = {**v684_rules.RULE_TEXT, **V685_RULES, **V686_RULES,
                  **V687_RULES}
 
-    def ask(self, question: str, concept: str | None = None) -> dict:
+    def ask(self, question: str, concept: str | None = None,
+            pinned: dict[str, str] | None = None) -> dict:
+        pins.use(pinned)
+        # A pin on the word v684 would take as its subject is the same choice
+        # the sense card always offered, made from the question instead of
+        # from a list under the answer. It is kept *separate* from `concept`,
+        # which is a gate: `concept` means "the reader clicked a sense on an
+        # answer, so re-answer that one thing", and setting it from a pin
+        # skipped every rule above v684 -- pinning `bark` to its verb sense
+        # stopped `why does a dog bark` being a why-question at all.
+        subject_sense = None
+        if not concept and pinned:
+            subject = (self.parser.parse(question or "").subject or "").lower()
+            subject_sense = pins.of(subject)
         if not concept:
             for attempt in (self._gated, self._contrast, self._causal,
                             self._analogy):
@@ -57,9 +70,50 @@ class ReasoningEngine(IdentifyingEngine):
             backwards = self._inverse(question or "")
             if backwards is not None:
                 return backwards
-        payload = super().ask(question, concept)
+        payload = super().ask(question, concept or subject_sense)
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
         return payload
+
+    #: Words that never name a concept, so never get a sense chip.
+    NOT_A_WORD = frozenset("""
+    a an the of to for from in on at with by is are was were be been am
+    do does did has have had can could will would shall should may might must
+    what which who whom whose why how when where and or not no there this that
+    these those it its they them their you your we our i me my
+    """.split())
+
+    def word_senses(self, question: str) -> dict:
+        """Every content word of a question, with the senses it could carry.
+
+        This is R6 turned around. The rules have always run per sense; what
+        was missing was any way for the reader to see which sense a word was
+        taken in, or to say it was the wrong one -- the sense card offered
+        that for the subject alone, after the fact, and for one rule.
+        """
+        seen: set[str] = set()
+        words: list[dict] = []
+        for word in re.findall(r"[a-z][a-z'-]*", (question or "").lower()):
+            if word in self.NOT_A_WORD or word in seen or len(word) < 2:
+                continue
+            seen.add(word)
+            senses = self.reasoner.senses_of(word)
+            if not senses:
+                # `bites` is not a lemma but `bite` is, and the reader wrote
+                # the inflected form.
+                stem = word[:-1] if word.endswith("s") and len(word) > 3 else word
+                senses = self.reasoner.senses_of(stem)
+            if not senses:
+                continue
+            words.append({
+                "word": word,
+                "senses": [{"id": s["id"], "pos": s["pos"],
+                            "definition": s["definition"],
+                            "facts": s["fact_count"],
+                            "default": s["chosen"]} for s in senses[:8]],
+                "total": len(senses),
+                "applies": pins.applies_to(word, self),
+            })
+        return {"question": question, "words": words}
 
     def _is_backwards(self, question: str) -> bool:
         """Is this a question for the object side, and is it unclaimed?
