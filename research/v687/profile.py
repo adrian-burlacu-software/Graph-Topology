@@ -44,8 +44,7 @@ from typing import Any
 from .ordering import adaptive_coverage
 from .substrate import Corpus
 from .trie import PredicateTrie
-from . import rules
-from . import corpora
+from . import corpora, logic, rules
 
 #: Facts shown per ancestor. One ancestor can carry hundreds; six is enough to
 #: see what a level contributes without burying the level below it.
@@ -80,6 +79,21 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
                  "has_prerequisite": 7, "causes": 8, "motivated_by_goal": 8,
                  "desires": 9, "at_location": 10, "located_near": 10}
 
+#: R19. An inherited fact is corpus free text, and one sentence about
+#: `animal.n.01` made every dog winged. Before such a fact is believed it is
+#: put to the ancestor's other kinds, which the norms *did* elicit: at least
+#: this share of them must bear it out.
+#:
+#:     bird.n.01     "fly"      21 of 29 kinds   72%   believed
+#:     animal.n.01   "wings"    20 of 143        14%   refused
+#:     carnivore.n.01 "wings"    0 of 24          0%   refused
+CORROBORATION_FLOOR = 1 / 3
+
+#: ...and refusal needs a sample worth refusing on. `whale.n.02` has four
+#: kinds in the norms; one of them singing is not evidence that whales do not
+#: sing. Below this, an inherited fact is taken as it was before.
+CORROBORATION_MIN_KINDS = 8
+
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
 what which is are was were be been does do did has have had can could would
@@ -90,6 +104,13 @@ characteristics trait traits quality qualities like describe list description
 thing things kind kinds sort sorts type types really actually also too and or
 with
 """.split())
+
+
+def _clone(node: logic.Node) -> logic.Node:
+    """A fresh copy of the tree, because `evaluate` writes its result onto it
+    and a quantified question evaluates the same tree once per kind."""
+    return logic.Node(op=node.op, term=node.term,
+                      children=[_clone(child) for child in node.children])
 
 
 @dataclass
@@ -149,13 +170,21 @@ class Verdict:
     #: When the answer came from the kinds below rather than the concept
     #: itself: what each of them said, and with which property.
     members: list[dict] = field(default_factory=list)
+    #: When the question had structure -- `a tail and wings`, `furry or
+    #: purple`, `all birds` -- the evaluated expression and the quantifier,
+    #: so the page can show which half of an `and` is the one that failed.
+    tree: dict | None = None
+    quantifier: str | None = None
+    #: Each term's own verdict, keyed by term.
+    parts: dict[str, dict] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {"term": self.term, "verdict": self.verdict,
                 "detail": self.detail, "predicate": self.predicate,
                 "source": self.source, "distance": self.distance,
                 "depth": self.depth, "shared": self.shared,
-                "members": self.members}
+                "members": self.members, "tree": self.tree,
+                "quantifier": self.quantifier, "parts": self.parts}
 
 
 @dataclass
@@ -288,12 +317,25 @@ class Profiles:
         four kinds of whale sat under it with the attribute scored and denied.
         A class question is answerable from what is stored beneath it.
         """
-        concept = self.synset.get(name)
+        concept = self.synset.get(name) or self.class_concept(name)
         if not concept:
             return []
         return sorted(other for other, above in self._lineage().items()
                       if other != name and concept in above
                       and self.stated.get(other))
+
+    def class_concept(self, word: str) -> str | None:
+        """A class the norms do not cover but WordNet does.
+
+        `bird` is not one of XCSLB's 521 concepts, yet 30 of them are birds.
+        Without this, "do all birds fly" -- the question quantifiers exist for
+        -- had nothing to quantify over, and fell through to a single
+        ConceptNet sentence about bird.n.01 that answered it wrongly.
+        """
+        row = self.reasoner.connection.execute(
+            "SELECT concept FROM lemmas WHERE lemma = ? "
+            "ORDER BY primary_sense DESC LIMIT 1", (word,)).fetchone()
+        return row[0] if row else None
 
     def _lineage(self) -> dict[str, set[str]]:
         """Every individual's ancestors, built once and kept.
@@ -317,11 +359,17 @@ class Profiles:
         norm data and the ancestors are corpus free text, so four whales
         scored `hairless` is better evidence than anything `mammal.n.01`
         happens to say about fur.
+
+        Only *stated* votes count. A kind that merely inherits its answer is
+        not a witness -- it is the same ancestor's sentence read again, and
+        three dog breeds re-inheriting `animal.n.01 has a wing` counted as
+        three independent votes for winged dogs. Votes have to be independent
+        or the count means nothing.
         """
-        votes = [(other, self.verify(other, terms, descend=False))
+        votes = [(other, self.verify_one(other, terms[0], descend=False))
                  for other in self.subtypes(name)]
         held = [(other, answer) for other, answer in votes
-                if answer.verdict in ("HELD", "INHERITED")]
+                if answer.verdict == "HELD"]
         denied = [(other, answer) for other, answer in votes
                   if answer.verdict == "DENIED"]
         if not held and not denied:
@@ -351,6 +399,22 @@ class Profiles:
             detail=f"{len(held)} of the {kinds} kinds of {name} the norms "
                    f"cover state it and {len(denied)} deny it, so the class "
                    f"does not settle it. Defeasible, which is R3's point.")
+
+    def corroboration(self, ancestor: str, term: str) -> tuple[int, int]:
+        """R19: how many of an ancestor's norm-covered kinds bear a fact out.
+
+        The norms elicited a fixed question about every concept they cover, so
+        a property they record for 21 of 29 birds is a property of birds,
+        while one recorded for 20 of 143 animals is a property of some animals
+        and not of the category. That is the difference between `bird.n.01
+        capable_of fly`, which every robin should inherit, and `animal.n.01
+        has a wing`, which no dog should.
+        """
+        kinds = [name for name, above in self._lineage().items()
+                 if ancestor in above and self.stated.get(name)]
+        bearing = sum(1 for name in kinds
+                      if self.identifier._hit(term, self.stated[name]))
+        return bearing, len(kinds)
 
     # -- above the leaf ----------------------------------------------------
     def ancestry(self, name: str) -> list[Ancestry]:
@@ -393,9 +457,11 @@ class Profiles:
         return levels
 
     # -- the polar question ------------------------------------------------
-    def verify(self, name: str, terms: list[str],
-               descend: bool = True) -> Verdict:
-        """Does this thing have that? Stated, denied, inherited or unrecorded.
+    def verify_one(self, name: str, term: str,
+                   descend: bool = True) -> Verdict:
+        """Does this thing have that *one* property?
+
+        Stated, denied, inherited or unrecorded.
 
         The order is evidence quality, not convenience. What the norms state
         about the thing itself is the best answer; what they state it lacks is
@@ -404,8 +470,9 @@ class Profiles:
         inherited facts are corpus free text and matching one word inside one
         is loose enough to make a marble fly.
         """
+        terms = [term]
         if not self.knows(name):
-            return Verdict(term=terms[0] if terms else "",
+            return Verdict(term=term,
                            verdict="UNRECORDED",
                            detail=f"“{name}” is not one of the concepts the "
                                   f"norms cover.")
@@ -474,22 +541,184 @@ class Profiles:
                         RELATION_RANK.get(relation.removeprefix("not_"), 11),
                         len(text), -fact["confidence"])
 
-            level, fact, text, term = min(matches, key=better)
-            if fact["relation"].startswith("not_") or self._denies(text):
+            refused: list[tuple] = []
+            for level, fact, text, term in sorted(matches, key=better):
+                if fact["relation"].startswith("not_") or self._denies(text):
+                    return Verdict(
+                        term=term, verdict="DENIED", predicate=text,
+                        source=level.concept, distance=level.distance,
+                        detail=f"Not in the norms for {name}, and "
+                               f"{level.concept} — {level.distance} level(s) "
+                               f"up — {text}.")
+                # R19: put the borrowed fact to the ancestor's other kinds.
+                bearing, kinds = self.corroboration(level.concept, term)
+                if (kinds >= CORROBORATION_MIN_KINDS
+                        and bearing / kinds < CORROBORATION_FLOOR):
+                    refused.append((level, text, bearing, kinds))
+                    continue
+                support = (f" {bearing} of {kinds} kinds of "
+                           f"{level.concept.split('.')[0]} in the norms bear "
+                           f"it out." if kinds else "")
                 return Verdict(
-                    term=term, verdict="DENIED", predicate=text,
+                    term=term, verdict="INHERITED", predicate=text,
                     source=level.concept, distance=level.distance,
-                    detail=f"Not in the norms for {name}, and {level.concept} "
-                           f"— {level.distance} level(s) up — {text}.")
-            return Verdict(
-                term=term, verdict="INHERITED", predicate=text,
-                source=level.concept, distance=level.distance,
-                detail=f"Not in the norms for {name}, but {level.concept} "
-                       f"— {level.distance} level(s) up — {text}.")
+                    detail=f"Not in the norms for {name}, but {level.concept} "
+                           f"— {level.distance} level(s) up — {text}."
+                           + support)
+            if refused:
+                level, text, bearing, kinds = refused[0]
+                return Verdict(
+                    term=terms[0], verdict="UNRECORDED",
+                    source=level.concept, distance=level.distance,
+                    detail=f"{level.concept} is recorded as “{text}”, but "
+                           f"only {bearing} of its {kinds} kinds in the norms "
+                           f"bear that out, so it is not inherited down to "
+                           f"{name}. R19: one crawled sentence is not a "
+                           f"property of a category.")
         return Verdict(
             term=terms[0] if terms else "", verdict="UNRECORDED",
             detail=f"The norms neither state nor deny that of {name}, and "
                    f"nothing it is a kind of does either. Absent, not false.")
+
+    # -- structured questions ----------------------------------------------
+    #: How a single-property verdict reads as a truth value.
+    AS_VALUE = {"HELD": logic.TRUE, "INHERITED": logic.TRUE,
+                "DENIED": logic.FALSE, "MIXED": logic.UNKNOWN,
+                "UNRECORDED": logic.UNKNOWN}
+    #: And back again, for the badge.
+    AS_VERDICT = {logic.TRUE: "HELD", logic.FALSE: "DENIED",
+                  logic.UNKNOWN: "UNRECORDED"}
+
+    def verify(self, name: str, terms: list[str],
+               descend: bool = True) -> Verdict:
+        """Several properties at once, read as a conjunction.
+
+        v686 returned on the first term that matched, so `does a dog have a
+        tail and wings` was VERIFIED on the strength of the tail. Asking for
+        two things and being told about one is the failure R14 exists to
+        prevent, one level up.
+        """
+        query = logic.Query(quantifier=None, tree=logic.Node(
+            op="and", children=[logic.Node(op="term", term=term)
+                                for term in terms]))
+        return self.assess(name, query, descend=descend)
+
+    def assess(self, name: str, query: logic.Query,
+               descend: bool = True) -> Verdict:
+        """Evaluate a whole question against one concept, or its kinds.
+
+        The single-property verdicts are unchanged -- this only composes them,
+        and composing is where the three values earn their keep: an unknown
+        conjunct suspends the answer rather than sinking it.
+        """
+        if query.quantifier and descend and self.subtypes(name):
+            return self._quantified(name, query)
+        parts: dict[str, Verdict] = {}
+
+        def test(term: str) -> tuple[str, str]:
+            answer = self.verify_one(name, term, descend=descend)
+            parts[term] = answer
+            return self.AS_VALUE.get(answer.verdict, logic.UNKNOWN), answer.detail
+
+        value = logic.evaluate(query.tree, test)
+        lead = next((answer for answer in parts.values()
+                     if self.AS_VALUE.get(answer.verdict) == value), None)
+        settled = self._why(query, parts, value)
+        return Verdict(
+            term=query.tree.terms()[0] if query.tree.terms() else "",
+            verdict=self.AS_VERDICT[value],
+            predicate=lead.predicate if lead else None,
+            source=lead.source if lead else None,
+            distance=lead.distance if lead else 0,
+            depth=lead.depth if lead else 0, shared=lead.shared if lead else 0,
+            members=lead.members if lead else [],
+            tree=query.tree.as_dict(), quantifier=query.quantifier,
+            parts={term: answer.as_dict() for term, answer in parts.items()},
+            detail=settled)
+
+    def _why(self, query: logic.Query, parts: dict[str, Verdict],
+             value: str) -> str:
+        """Name the term that settled it, because that is the explanation.
+
+        "No" to a conjunction is a claim about one conjunct, and which one is
+        the whole content of the answer.
+        """
+        shape = logic.readable(query.tree)
+        if len(parts) == 1:
+            return next(iter(parts.values())).detail
+        decisive = [term for term, answer in parts.items()
+                    if self.AS_VALUE.get(answer.verdict) == value]
+        if value == logic.FALSE:
+            return (f"{shape}: no. " +
+                    "; ".join(parts[term].detail for term in decisive[:2]))
+        if value == logic.TRUE:
+            lead = ("yes -- one true side settles a disjunction"
+                    if query.tree.op == "or" else "yes, every part of it")
+            return f"{shape}: {lead}. " + parts[decisive[0]].detail
+        silent = [term for term, answer in parts.items()
+                  if answer.verdict == "UNRECORDED"]
+        return (f"{shape}: unsettled. Nothing is recorded either way about "
+                + ", ".join(f"“{term}”" for term in silent[:3])
+                + ", and an unknown part suspends the whole rather than "
+                  "making it false.")
+
+    def _quantified(self, name: str, query: logic.Query) -> Verdict:
+        """`do all birds fly` -- put the question to every kind and count.
+
+        A single lookup on `bird` answered this from one ConceptNet sentence.
+        The kinds beneath it answer it properly, and the exceptions are the
+        interesting half: most birds fly, and the two that do not are the
+        reason `most` is a different word from `all`.
+        """
+        kinds = self.subtypes(name)
+        holds, fails, silent = [], [], []
+        members = []
+        for other in kinds:
+            answer = self.assess(other, logic.Query(None, _clone(query.tree)),
+                                 descend=False)
+            value = self.AS_VALUE.get(answer.verdict, logic.UNKNOWN)
+            (holds if value == logic.TRUE else
+             fails if value == logic.FALSE else silent).append(other)
+            if value in (logic.TRUE, logic.FALSE):
+                members.append({"name": other, "verdict": answer.verdict,
+                                "predicate": answer.predicate})
+        decided = len(holds) + len(fails)
+        shape = logic.readable(query.tree)
+        want = query.quantifier
+        if not decided:
+            value = logic.UNKNOWN
+        elif want == "all":
+            value = logic.FALSE if fails else logic.TRUE
+        elif want == "some":
+            value = logic.TRUE if holds else logic.FALSE
+        elif want == "none":
+            value = logic.FALSE if holds else logic.TRUE
+        else:                                   # most: a count, not a claim
+            value = logic.TRUE if len(holds) > len(fails) else logic.FALSE
+        # Each quantifier is settled by a different set, and naming the wrong
+        # one is how "some birds fly" came back citing the birds that do.
+        counted = f"{len(holds)} of {decided} recorded kinds of {name} satisfy {shape}"
+        if want == "all":
+            decisive = (f", and {len(fails)} do not: {', '.join(fails[:4])}"
+                        if fails else ", with no exception")
+        elif want == "some":
+            decisive = (f", among them {', '.join(holds[:4])}" if holds
+                        else ", so none does")
+        elif want == "none":
+            decisive = (f", so the claim fails on {', '.join(holds[:4])}"
+                        if holds else ", so none does and the claim holds")
+        else:
+            decisive = (f" — a majority, and the {len(fails)} that do not are "
+                        f"{', '.join(fails[:4])}" if len(holds) > len(fails)
+                        else f" — not a majority")
+        detail = (f"Asked of every kind: {counted}{decisive}."
+                  + (f" {len(silent)} more say nothing either way, and are "
+                     f"counted for neither side." if silent else ""))
+        return Verdict(
+            term=query.tree.terms()[0] if query.tree.terms() else "",
+            verdict=self.AS_VERDICT[value], source="kinds",
+            members=members, tree=query.tree.as_dict(),
+            quantifier=want, detail=detail)
 
     @staticmethod
     def _denies(text: str) -> bool:
