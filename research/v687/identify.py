@@ -345,6 +345,51 @@ class Identifier:
             head.append(word)
         return [cls.stem(word) for word in head if word not in cls.FRAME]
 
+    #: Words that turn what follows them into a denial. Kept here rather than
+    #: imported so the matching rules live in one place.
+    NEGATORS = frozenset("""
+    not cannot cant never no without lacks lacking non isnt arent doesnt dont
+    neither nor
+    """.split())
+
+    @classmethod
+    def negated_claim(cls, text: str) -> list[str] | None:
+        """What a negation denies, or None if the text is not one.
+
+        A negation has scope, and the scope is what follows the negator, not
+        the sentence it sits in. ConceptNet gives dogs `capable of not eat
+        bone of contention` -- a mangled idiom -- and reading it as a denial
+        of *eat* answered "does a dog eat meat" with a confident no. The same
+        crawl denies dogs `capable of never attacked person`, which was read
+        as denying `person`.
+
+        `cannot fly` of a penguin still denies flying, because there the
+        query covers the whole of what is negated. That is the difference,
+        and it is the same one the norms need for `has small ears`.
+        """
+        words = text.split()
+        for index, word in enumerate(words):
+            if word in cls.NEGATORS:
+                return cls.complement(" ".join(words[index + 1:]))
+        return None
+
+    @classmethod
+    def denies_term(cls, terms: list[str], text: str) -> bool:
+        """Does this negated text deny *these* terms, or something narrower?"""
+        claim = cls.negated_claim(text)
+        if claim is None:
+            return False
+        if not claim:
+            return True                        # a bare negation, unscoped
+        return set(claim) <= {cls.stem(term) for term in terms}
+
+    @classmethod
+    def hits(cls, term: str, predicates: frozenset[str]) -> list[str]:
+        """Every predicate the query word names, not merely the first."""
+        wanted = cls.stem(term)
+        return [predicate for predicate in sorted(predicates)
+                if any(cls.stem(word) == wanted for word in predicate.split())]
+
     @classmethod
     def denial_hit(cls, terms: list[str], predicates: frozenset[str]
                    ) -> tuple[str | None, list[str]]:

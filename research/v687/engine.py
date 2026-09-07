@@ -89,6 +89,21 @@ class Engine:
                         f"names a kind of something if any of its senses does.")
                     answer, chosen = attempt, other["id"]
                     break
+            # A hedged `is_a` was a guess -- `is winter cold` has the shape of
+            # `is a chair furniture`, and only the data tells them apart. When
+            # the taxonomy has nothing, the property reading gets its turn,
+            # and `winter has_property cold` was there the whole time.
+            if answer.verdict == "UNKNOWN" and parse.hedged:
+                attempt = self.reasoner.verify(chosen, "has_property",
+                                               parse.target, self.match)
+                # Only what the concept says of itself. A hedged reading is
+                # already a guess about which question was asked, and letting
+                # it inherit compounds one guess with another: `wild` is
+                # recorded of canines, and `is a dog wild` came back yes.
+                here = [fact for fact in attempt.evidence
+                        if not getattr(fact, "distance", 0)]
+                if attempt.verdict != "UNKNOWN" and here:
+                    answer = attempt
         elif parse.polar and parse.target and parse.relation:
             answer = self.reasoner.verify(chosen, parse.relation, parse.target,
                                           self.match)

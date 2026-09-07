@@ -968,5 +968,120 @@ class DialogueQueryTests(unittest.TestCase):
                 self.assertEqual(self.verdict(question), "UNKNOWN")
 
 
+@requires_store
+class SemanticDialogueTests(unittest.TestCase):
+    """The dialogue carried on past the introductions, where it turns semantic.
+
+    A cognition being told about a dog asks what a dog is, whether it is an
+    animal, whether it eats meat, how it differs from a wolf, and what would
+    explain barking. Those are questions about kinds, and they are the half of
+    a dialogue this memory is actually for.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    # -- a negation denies what it scopes over, not the sentence it is in --
+    def test_a_crawled_negation_about_something_else_is_not_a_denial(self):
+        """ConceptNet gives dogs `capable of not eat bone of contention`, a
+        mangled idiom, and it answered `does a dog eat meat` with no."""
+        self.assertEqual(self.verdict("does a dog eat meat"), "VERIFIED")
+
+    def test_a_negation_the_question_covers_still_denies(self):
+        self.assertEqual(self.verdict("does a penguin fly"), "CONTRADICTED")
+        self.assertEqual(self.verdict("is a whale furry"), "CONTRADICTED")
+
+    def test_the_negation_scope_is_read_from_the_negator(self):
+        from research.v687.identify import Identifier
+        self.assertTrue(Identifier.denies_term(["fly"], "capable of cannot fly"))
+        self.assertFalse(Identifier.denies_term(
+            ["eat"], "capable of not eat bone of contention"))
+        self.assertFalse(Identifier.denies_term(
+            ["person"], "capable of never attacked person"))
+
+    # -- a cue is a word, not a substring ----------------------------------
+    def test_a_cue_does_not_match_inside_a_word(self):
+        """`beagle` contains `be`, so `does a beagle breathe` was read as a
+        property question and answered UNKNOWN, while `does a dog breathe`
+        fell through to the polar default and answered correctly."""
+        for question in ("does a beagle breathe", "does a dog breathe",
+                         "does a beagle bark"):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).relation, "capable_of")
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_the_cues_still_match_their_own_inflections(self):
+        for question, relation in (
+                ("what is needed to bake bread", "has_prerequisite"),
+                ("what does a dog eat", "capable_of"),
+                ("what is a hammer made of", "made_of"),
+                ("where does a penguin live", "at_location"),
+                ("what is a hammer used for", "used_for")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).relation, relation)
+
+    # -- R27: absence is not denial, except between the top branches -------
+    def test_the_top_branches_of_the_taxonomy_exclude_each_other(self):
+        for question in ("is a dog a plant", "is a dog an idea",
+                         "is hello an animal", "is a rose an animal",
+                         "is a violin an animal"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_exclusion_is_not_claimed_where_the_tree_has_holes(self):
+        """WordNet does not record that a dog is a pet or that a whale is not
+        a fish, and reading either absence as a denial would be the closed
+        world mistake this whole store is careful about."""
+        for question in ("is a dog a pet", "is a whale a fish",
+                         "is a bat a bird", "is a person an animal"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "UNKNOWN")
+
+    def test_exclusion_needs_every_sense_of_the_target(self):
+        """`plant` also means a factory and a stooge in an audience."""
+        self.assertIsNotNone(
+            self.engine.reasoner.excludes("dog.n.01", "plant"))
+        self.assertIsNone(
+            self.engine.reasoner.excludes("dog.n.01", "animal"))
+
+    # -- a hedged reading falls back rather than answering the wrong one ---
+    def test_a_hedged_is_a_falls_back_to_the_property_reading(self):
+        """`is winter cold` has the shape of `is a chair furniture`, and only
+        the data tells them apart: `winter has_property cold` was recorded at
+        0.87 and thrown away by a taxonomy walk."""
+        self.assertEqual(self.verdict("is winter cold"), "VERIFIED")
+        self.assertEqual(self.verdict("is a wolf wild"), "VERIFIED")
+        self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
+
+    # -- what the dialogue asks and gets -----------------------------------
+    def test_the_semantic_turn_answers_end_to_end(self):
+        for question, verdict in (
+                ("what is a beagle", "DEFINED"),
+                ("is a beagle a dog", "VERIFIED"),
+                ("is a beagle an animal", "VERIFIED"),
+                ("is a dog an organism", "VERIFIED"),
+                ("can a dog bark", "VERIFIED"),
+                ("do all dogs bark", "VERIFIED"),
+                ("is meat food", "VERIFIED"),
+                ("is a stranger a person", "VERIFIED"),
+                ("is a house a building", "VERIFIED"),
+                ("is winter a season", "VERIFIED"),
+                ("do all animals breathe", "VERIFIED"),
+                ("is an animal alive", "VERIFIED")):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), verdict)
+
+
 if __name__ == "__main__":
     unittest.main()

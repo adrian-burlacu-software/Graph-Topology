@@ -526,6 +526,14 @@ V687_RULES: dict[str, str] = {
            "professional` for a robin, because ConceptNet holds those of the "
            "name Robin. A definition is the one question a taxonomy answers "
            "by being a taxonomy.",
+    "R27": "Taxonomic exclusion: absence is not denial, except between the "
+           "top branches of the taxonomy, where it is. Nothing is both a "
+           "plant and an animal, or both an artifact and an abstraction, so "
+           "`is a dog a plant` is a no with a reason and not a silence. Held "
+           "to those branches on purpose: WordNet's middle does not record "
+           "that a dog is a pet, so `is a dog a pet` stays unknown. Every "
+           "sense of the target has to be excluded, because `plant` also "
+           "means a factory.",
     "R25": "Counting kinds: the ontology holds no numbers, so it cannot count "
            "a dog's legs -- but it can count what stands beneath a concept in "
            "the taxonomy, which is what `how many kinds of dog` asks. Two "

@@ -486,7 +486,15 @@ class Profiles:
         sharing = {held.predicate: held.shared for held in climb}
         depths = {held.predicate: held.depth for held in climb}
         for term in terms:
-            hit = self.identifier._hit(term, stated)
+            # Every predicate the word names, not the first: one of them may
+            # be a narrower denial that answers a different question, and
+            # returning on it hid the plain statement behind it.
+            found = self.identifier.hits(term, stated)
+            denials = [hit for hit in found
+                       if self._denies(hit)
+                       and self.identifier.denies_term(asked or terms, hit)]
+            plain = [hit for hit in found if not self._denies(hit)]
+            hit = denials[0] if denials else (plain[0] if plain else None)
             if hit is not None and self._denies(hit):
                 return Verdict(
                     term=term, verdict="DENIED", predicate=hit,
@@ -536,6 +544,16 @@ class Profiles:
         for level in self.ancestry(name):
             for fact in level.all_facts:
                 text = f"{fact['relation'].replace('_', ' ')} {fact['object']}"
+                negated = (fact["relation"].startswith("not_")
+                           or self._denies(text))
+                # A crawled sentence that negates something narrower than the
+                # question is evidence for neither side. `capable of not eat
+                # bone of contention` says nothing about whether dogs eat.
+                if negated and not self.identifier.denies_term(
+                        asked or terms,
+                        fact["object"] if fact["relation"].startswith("not_")
+                        else text):
+                    continue
                 for term in terms:
                     if self.identifier._hit(term, frozenset({text})):
                         matches.append((level, fact, text, term))

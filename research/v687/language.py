@@ -18,21 +18,32 @@ from typing import Any
 #: Question cue -> relation. Ordered: the first phrase that matches wins, so
 #: longer and more specific cues are listed before general ones.
 RELATION_CUES: tuple[tuple[str, str], ...] = (
-    ("what is .* made (of|from)", "made_of"),
-    ("made (of|from)", "made_of"),
-    ("used for", "used_for"),
-    ("what is .* for", "used_for"),
-    ("where .* (found|located|live|be|is|are)", "at_location"),
-    ("^where", "at_location"),
-    ("part of", "part_of"),
-    ("(have|has|contain|include)", "has_part"),
-    ("(want|desire|wish|like)", "desires"),
-    ("(cause|lead to|result in)", "causes"),
-    ("(need|require|prerequisite)", "has_prerequisite"),
-    ("(can be|gets|is being)", "receives_action"),
-    ("(can|could|able to|capable)", "capable_of"),
-    ("^(what|which) .* do", "capable_of"),
-    ("(is|are|was|were|be)", "has_property"),
+    # Every cue is anchored on word boundaries. Without them a cue matched
+    # inside a word: `beagle` contains `be`, so `does a beagle breathe` was
+    # read as a property question and answered UNKNOWN, while `does a dog
+    # breathe` fell through to the polar default of `capable_of` and answered
+    # correctly. Two spellings of the same question, two different rules.
+    # Anchoring means the inflections have to be spelled out, which is the
+    # price of not matching `can` inside `candle`.
+    (r"\bwhat is\b.*\bmade (of|from)\b", "made_of"),
+    (r"\bmade (of|from)\b", "made_of"),
+    (r"\bused for\b", "used_for"),
+    (r"\bwhat is\b.*\bfor\b", "used_for"),
+    (r"\bwhere\b.*\b(found|located|live|lives|living|be|is|are)\b",
+     "at_location"),
+    (r"^where\b", "at_location"),
+    (r"\bpart of\b", "part_of"),
+    (r"\b(have|has|had|contain|contains|containing|include|includes)\b",
+     "has_part"),
+    (r"\b(want|wants|desire|desires|wish|wishes|like|likes)\b", "desires"),
+    (r"\b(cause|causes|caused|lead to|leads to|result in|results in)\b",
+     "causes"),
+    (r"\b(need|needs|needed|require|requires|required|prerequisite)\b",
+     "has_prerequisite"),
+    (r"\b(can be|gets|is being)\b", "receives_action"),
+    (r"\b(can|could|able to|capable)\b", "capable_of"),
+    (r"^(what|which)\b.*\bdo(es)?\b", "capable_of"),
+    (r"\b(is|are|was|were|be)\b", "has_property"),
 )
 
 #: Words a relation cue spends on naming the relation, so they cannot also be
@@ -282,6 +293,15 @@ class Parser:
         for token in doc:
             if token.pos_ == "VERB" and self._usable(token):
                 return token.lemma_.lower()
+        # Last resort: any word this ontology holds. `what does cold cause`
+        # has no noun and no verb left once the cue is spent, and answering
+        # nothing was worse than answering about cold.
+        for token in doc:
+            if not self._usable(token):
+                continue
+            for form in (token.text.lower(), token.lemma_.lower()):
+                if form in self.vocabulary:
+                    return form
         return None
 
     def _usable(self, token) -> bool:
