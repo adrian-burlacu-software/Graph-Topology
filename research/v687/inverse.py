@@ -121,14 +121,25 @@ class Inverse:
                 continue
             if relation == "capable_of" and self.HAS_SUBJECT.match(text):
                 continue        # "what can a violin do" names its subject
-            # The phrase sits on whichever side of the cue has content. It
-            # trails in "what is made of *wood*" and leads in "what is a
-            # *wheel* part of", and the capability catch-all keeps its own
-            # verb, since "what eats meat" is about eating and not about meat.
             after = self._content(text[match.end():])
-            before = self._content(text[match.start():] if relation ==
-                                   "capable_of" else text[:match.start()])
-            words = after or before
+            before = self._content(text[:match.start()])
+            if direction == SUBJECT:
+                # The object trails the cue: "what is made of *wood*". What
+                # *leads* it is a named subject, and a named subject means the
+                # question is forward and belongs to v684 -- reading the head
+                # instead answered "what is a hammer made of" with the two
+                # things made *out of* hammers.
+                if relation == "capable_of":
+                    words = self._content(text[match.start():])
+                elif after:
+                    words = after
+                else:
+                    return None
+            else:
+                # The answer is the object, so the phrase is the subject and
+                # may sit on either side: "what is a *wheel* part of", "who
+                # makes a *car*".
+                words = after or before
             if words:
                 return relation, " ".join(words), direction
         return None

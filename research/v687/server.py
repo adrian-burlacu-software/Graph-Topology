@@ -210,7 +210,11 @@ class IdentifyingEngine(BridgedEngine):
             "concept": found.concept,
             "concept_gloss": found.gloss,
             "senses": [], "chain": chain,
-            "evidence": stated + inherited,
+            # Not `stated + inherited`. The profile card already lays both out
+            # -- the walk with its sharing counts, the ancestry with its
+            # attribution -- and repeating all 50 rows in the generic fact
+            # table said the same thing twice, worse the second time.
+            "evidence": [],
             "suggestions": [],
             "parse": {"question": question, "subject": found.name,
                       "relation": "profile" if mode == "profile" else "verify",
@@ -508,6 +512,12 @@ V687_RULES: dict[str, str] = {
            "is explained by ranking causes as competing hypotheses, scored by "
            "specificity, directness and confidence. A cause that causes forty "
            "things explains none of them.",
+    "R25": "Counting kinds: the ontology holds no numbers, so it cannot count "
+           "a dog's legs -- but it can count what stands beneath a concept in "
+           "the taxonomy, which is what `how many kinds of dog` asks. Two "
+           "counts are reported: every descendant WordNet records, and the "
+           "far smaller number the feature norms actually describe, because "
+           "only the second can be reasoned about.",
     "R24": "Analogy over the norms only: a role is approximated by feature "
            "type plus standing within the concept. `bark : dog :: ? : cat` "
            "gives meow and purr. The scraped graph cannot support this and is "

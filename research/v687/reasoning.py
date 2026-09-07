@@ -53,16 +53,34 @@ class ReasoningEngine(IdentifyingEngine):
                 answer = attempt(question or "")
                 if answer is not None:
                     return answer
-        payload = super().ask(question, concept)
-        # The inverse is tried only after everything above has declined, so a
-        # backwards question never takes one that names its own subject.
-        if not concept and payload.get("verdict") in (
-                "UNKNOWN", "UNPARSED", "UNKNOWN_WORD", "LISTING"):
+        if not concept and self._is_backwards(question or ""):
             backwards = self._inverse(question or "")
             if backwards is not None:
                 return backwards
+        payload = super().ask(question, concept)
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
         return payload
+
+    def _is_backwards(self, question: str) -> bool:
+        """Is this a question for the object side, and is it unclaimed?
+
+        Deciding this from the *answer* was tried and fails both ways. Judging
+        an empty `evidence` list as "nobody answered" handed identification's
+        questions to the inverse, because an identification carries its
+        evidence somewhere else; and judging any non-empty one as "answered"
+        took `what is made of wood` back from the inverse, because v684 will
+        always find something to say about wood.
+
+        Question shape settles it. The inverse asks about the object side and
+        names no subject, so a question that describes an unnamed thing (R16)
+        or names a concept the norms cover (R17) is not one, whatever either
+        of them ends up answering.
+        """
+        if self.inverse.reads(question) is None:
+            return False
+        if self.identifier.describes(question):
+            return False                       # R16 owns descriptions
+        return self.profiles.route(question) is None
 
     # -- R18: refuse by name -----------------------------------------------
     def _gated(self, question: str) -> dict | None:
@@ -81,7 +99,43 @@ class ReasoningEngine(IdentifyingEngine):
     SIMILAR = re.compile(r"\b(similar to|like a|like an|resembles?|closest to)\b")
     TYPICAL = re.compile(r"\b(typical|ordinary|unusual|representative)\b")
 
+    #: "how many kinds of dog are there", "what kinds of dog are there".
+    #:
+    #: The question has to *end* after the noun. An optional tail of `.*` let
+    #: this swallow `what kind of animal is furry and has spots and is big`,
+    #: which is an identification and was being answered with a count of
+    #: animals -- the same greed R18 exists to prevent, one rule over.
+    COUNT_KINDS = re.compile(r"^(?:how many|what|which)\s+(?:kinds?|types?|"
+                             r"sorts?|breeds?|species)\s+of\s+([a-z ]+?)"
+                             r"\s*(?:(?:are|is)\s+there|there\s+(?:are|is)|"
+                             r"exists?|are\s+known|do\s+we\s+know)?\s*$")
+
+    def _count(self, question: str) -> dict | None:
+        """R25. The count R18 promises when it refuses to count legs."""
+        match = self.COUNT_KINDS.match(question.strip().lower().rstrip("?"))
+        if not match:
+            return None
+        word = match.group(1).strip()
+        found = self.contrast.kinds_of(word)
+        if found is None:
+            return None
+        return self._shell(
+            question, "LISTING", "R25", concept=found["concept"],
+            note=(f"{found['total']:,} kinds of {word} in the taxonomy, "
+                  f"{found['direct']} of them directly beneath it. The feature "
+                  f"norms describe {found['described']}, and those are the "
+                  f"ones every other rule here can reason about."),
+            extra={"kinds": found, "identification": self._tree(
+                "kinds", [(word, found["gloss"] or found["concept"])],
+                {0: [(kind.split(".")[0], "a kind of " + word)
+                     for kind in found["direct_kinds"][4:12]]},
+                [(kind.split(".")[0], "a kind of " + word)
+                 for kind in found["direct_kinds"][:4]])})
+
     def _contrast(self, question: str) -> dict | None:
+        counted = self._count(question)
+        if counted is not None:
+            return counted
         text = question.strip().lower().rstrip("?")
         if self.TYPICAL.search(text):
             return self._typicality(question, text)
@@ -103,20 +157,22 @@ class ReasoningEngine(IdentifyingEngine):
                 f"{found.jaccard:.0%}. In the stored trie they walk "
                 f"{len(found.together)} node(s) together before parting"
                 + (f" at “{found.parted_at}”." if found.parted_at else "."))
-        steps = [
-            self._step(0, "R21", "shared", "", "Both carry: "
-                       + ", ".join(found.shared[:6] or ["nothing"])),
-            self._step(1, "R21", left, "", f"Only {left}: "
-                       + ", ".join(found.only_left[:6] or ["nothing"]),
-                       parents=["shared"]),
-            self._step(2, "R21", right, "", f"Only {right}: "
-                       + ", ".join(found.only_right[:6] or ["nothing"]),
-                       parents=["shared"]),
-        ]
+        # The drawing is the comparison: the shared properties are the trunk
+        # both concepts walk, and each one's own hang off the point they part.
+        spine = [(prop, f"both {left} and {right}")
+                 for prop in found.shared[:4]]
+        if not spine:
+            spine = [("nothing shared",
+                      "these two carry no property in common")]
+        hanging = {len(spine) - 1:
+                   [(prop, f"only {left}") for prop in found.only_left[:4]]
+                   + [(prop, f"only {right}") for prop in found.only_right[:4]]}
         return self._shell(question, "LISTING", "R21", concept=left, note=note,
-                           steps=steps,
                            extra={"contrast": {"mode": wants,
-                                               **found.as_dict()}})
+                                               **found.as_dict()},
+                                  "identification": self._tree(
+                                      "contrast", spine, hanging,
+                                      [(left, ""), (right, "")])})
 
     def _nearest(self, question: str, text: str) -> dict | None:
         name = self.profiles.named(text)
@@ -125,20 +181,20 @@ class ReasoningEngine(IdentifyingEngine):
         near = self.contrast.nearest(name)
         if not near:
             return None
-        steps = [self._step(i, "R21", other["name"], "",
-                            f"{other['name']}: {other['shared']} shared, "
-                            f"overlap {other['jaccard']:.0%} — "
-                            + ", ".join(other["because"]),
-                            parents=[name] if i == 0 else [])
-                 for i, other in enumerate(near)]
         return self._shell(
             question, "LISTING", "R21", concept=name,
             note="Nearest by shared properties, computed rather than stored: "
                  "the `similar_to` relation carries 21,877 facts and cannot "
                  "say why any two things are alike.",
-            steps=steps,
             extra={"contrast": {"mode": "nearest", "name": name,
-                                "nearest": near}})
+                                "nearest": near},
+                   "identification": self._tree(
+                       "nearest", [(name, "shared properties")],
+                       {0: [(other["name"], f"{other['shared']} shared")
+                            for other in near[4:]]},
+                       [(other["name"],
+                         f"{round(other['jaccard'] * 100)}% overlap")
+                        for other in near[:4]])})
 
     def _typicality(self, question: str, text: str) -> dict | None:
         pair = self._two(text)
@@ -160,14 +216,20 @@ class ReasoningEngine(IdentifyingEngine):
                      f"{klass} reaches only {found.support:.0%}, so the class "
                      f"has no core to rank against. XCSLB elicitation is free "
                      f"and sparse, and no two people list the same things.")
-        steps = [self._step(i, "R21", entry["name"], "",
-                            f"{entry['name']} carries {entry['score']:.0%} of "
-                            f"the core of {klass}")
-                 for i, entry in enumerate(found.ranking)]
         return self._shell(question, verdict, "R21", concept=member, note=note,
-                           steps=steps,
                            extra={"contrast": {"mode": "typicality",
-                                               **found.as_dict()}})
+                                               **found.as_dict()},
+                                  "identification": self._tree(
+                                      "typicality",
+                                      [(prop, f"core of {klass}")
+                                       for prop in found.core[:4]],
+                                      {0: [(other["name"],
+                                            f"{round(other['score'] * 100)}%")
+                                           for other in found.ranking
+                                           if other["name"] != member][:6]},
+                                      [(member,
+                                        f"{round(found.score * 100)}% of the "
+                                        f"core")])})
 
     #: Classes the norms do not cover but whose kinds they do, so that
     #: "what do a dog and a bird have in common" has two sides.
@@ -204,28 +266,41 @@ class ReasoningEngine(IdentifyingEngine):
         kind, phrase = read
         if kind == "explain":
             found = self.causal.explains(phrase)
-            steps = [self._step(i, "R23", h.cause, "",
-                                f"{h.fact} — score {h.score:.3f}, explains "
-                                f"{h.explains} thing(s) in all")
-                     for i, h in enumerate(found.hypotheses)]
+            tree = self._tree(
+                "abduction", [(phrase, "the observation to be explained")],
+                {0: [(h.cause.split(".")[0], f"score {h.score:.3f}")
+                     for h in found.hypotheses[4:]]},
+                [(h.cause.split(".")[0],
+                  f"score {h.score:.3f}, also causes {h.explains}")
+                 for h in found.hypotheses[:4]])
             note = found.note or (
                 f"{found.considered} candidate causes weighed. The best "
                 f"accounts for the observation while committing to least "
                 f"else, which is what makes this a ranking and not a list.")
             return self._shell(question,
                                "LISTING" if found.hypotheses else "UNKNOWN",
-                               "R23", note=note, steps=steps,
+                               "R23", note=note,
                                extra={"causal": {"mode": "abduction",
-                                                 **found.as_dict()}})
+                                                 **found.as_dict()},
+                                      "identification": tree})
         found = (self.causal.why(phrase, question) if kind == "why"
                  else self.causal.script(phrase, question=question))
-        steps = [self._step(i, "R23", entry["phase"], "",
-                            f"{entry['phase']}: {entry['object']}")
-                 for i, entry in enumerate(found.steps)]
+        # A script is phases, and each phase is what happens in it. One node
+        # per fact loses the only structure a script has.
+        phases: dict[str, list[str]] = {}
+        for entry in found.steps:
+            phases.setdefault(entry["phase"], []).append(entry["object"])
+        spine = [(phase, f"{len(objects)} recorded")
+                 for phase, objects in phases.items()]
+        hanging = {depth: [(text, phase) for text in objects[:5]]
+                   for depth, (phase, objects) in enumerate(phases.items())}
+        tree = self._tree("script", spine or [(found.concept, "nothing found")],
+                          hanging, [(found.concept, kind)])
         return self._shell(question,
                            "LISTING" if found.steps else "UNKNOWN", "R23",
-                           concept=found.concept, note=found.note, steps=steps,
-                           extra={"causal": {"mode": kind, **found.as_dict()}})
+                           concept=found.concept, note=found.note,
+                           extra={"causal": {"mode": kind, **found.as_dict()},
+                                  "identification": tree})
 
     # -- R24: analogy ------------------------------------------------------
     ANALOGY = re.compile(r"^(.+?)\s+(?:is|are)\s+to\s+(?:a\s+|an\s+|the\s+)?"
@@ -238,29 +313,27 @@ class ReasoningEngine(IdentifyingEngine):
             return None
         prop, source, target = (part.strip() for part in match.groups())
         found = self.analogies.solve(prop, source, target)
-        steps = [self._step(i, "R24", m.property, "",
-                            f"{m.property} — {m.kind}, standing "
-                            f"{m.standing:.0%}, carried by {m.carriers}")
-                 for i, m in enumerate(found.mappings)]
+        tree = self._tree(
+            "analogy",
+            [(found.source_property or prop, f"of {source}"),
+             (found.kind or "same kind", f"standing {found.standing:.0%}")],
+            {}, [(m.property, f"of {target}, standing {m.standing:.0%}")
+                 for m in found.mappings])
         note = found.note or (
             f"“{found.source_property}” is a {found.kind} property standing "
             f"{found.standing:.0%} of the way up {source}'s own properties. "
             f"These are {target}'s at the same kind and standing.")
         return self._shell(question,
                            "LISTING" if found.mappings else "UNKNOWN", "R24",
-                           concept=target, note=note, steps=steps,
-                           extra={"analogy": found.as_dict()})
+                           concept=target, note=note,
+                           extra={"analogy": found.as_dict(),
+                                  "identification": tree})
 
     # -- R22: the graph backwards -----------------------------------------
     def _inverse(self, question: str) -> dict | None:
         found = self.inverse.answer(question)
         if found is None or not found.subjects:
             return None
-        steps = [self._step(i, "R22", row["concept"], "",
-                            f"{row['concept']} "
-                            f"{row['relation'].replace('_', ' ')} "
-                            f"“{row['object']}”")
-                 for i, row in enumerate(found.subjects)]
         evidence = [{"concept": row["concept"], "relation": row["relation"],
                      "object": row["object"], "source": row["source"],
                      "confidence": row["confidence"], "sense_assumed": False,
@@ -271,8 +344,55 @@ class ReasoningEngine(IdentifyingEngine):
             note=f"Read backwards: {len(found.subjects)} concept(s) stand in "
                  f"front of “{found.phrase}” under "
                  f"{found.relation.replace('_', ' ')}.",
-            steps=steps, evidence=evidence,
-            extra={"backwards": found.as_dict()})
+            evidence=evidence,
+            extra={"backwards": found.as_dict(),
+                   "identification": self._tree(
+                       "backwards",
+                       [(found.phrase, "read from the object side")],
+                       {0: [(row["concept"].split(".")[0], row["object"])
+                            for row in found.subjects[4:]]},
+                       [(row["concept"].split(".")[0], row["object"])
+                        for row in found.subjects[:4]])})
+
+    # -- drawing the walk --------------------------------------------------
+    @staticmethod
+    def _tree(mode: str, spine: list[tuple[str, str]],
+              hanging: dict[int, list[tuple[str, str]]],
+              answers: list[tuple[str, str]]) -> dict:
+        """Put an answer in the shape the graph already knows how to draw.
+
+        Every rule here produces the same picture underneath: a chain of steps
+        with things hanging off each one and a result at the end. That is what
+        `buildTriePath` draws for an identification, so rather than five more
+        drawings, each rule says what its chain, its side nodes and its
+        answers are, and the existing one draws them.
+
+        Node keys have to match the `concept` of the replay steps, because
+        that is what the replay looks up to light them -- keying them
+        differently is why an earlier version highlighted nothing at all.
+        """
+        return {
+            "mode": mode, "terms": [], "among": None, "among_concept": None,
+            "verdict": "", "note": "",
+            "steps": [{"rule": "", "kind": "walk", "term": term,
+                       "detail": detail, "remaining": 0,
+                       "eliminated": len(hanging.get(depth, [])),
+                       "examples": [name for name, _ in
+                                    hanging.get(depth, [])][:6]}
+                      for depth, (term, detail) in enumerate(spine)],
+            "considered": [{"name": name, "concept": None, "survived": False,
+                            "depth": depth, "matched": {"": detail} if detail
+                                                       else {}}
+                           for depth, entries in hanging.items()
+                           for name, detail in entries]
+                          + [{"name": name, "concept": None, "survived": True,
+                              "depth": len(spine), "matched": {}}
+                             for name, _ in answers],
+            "candidates": [{"name": name, "source": mode,
+                            "matched": {"": detail} if detail else {},
+                            "predicates": 0}
+                           for name, detail in answers],
+        }
 
     # -- the shape every answer here shares --------------------------------
     @staticmethod
@@ -282,6 +402,43 @@ class ReasoningEngine(IdentifyingEngine):
                 "distance": index, "rule": rule, "detail": detail,
                 "facts_checked": 0, "matched": None,
                 "parents": parents if parents is not None else []}
+
+    @staticmethod
+    def _replay(tree: dict, rule: str) -> list[dict]:
+        """The step list, derived from the drawing rather than written twice.
+
+        Writing both by hand is how they drift: the replay looks a step's
+        `concept` up among the drawn nodes, so a step naming `shared` while
+        the node is named `has a tail` lights nothing at all. Deriving one
+        from the other makes that impossible.
+        """
+        steps: list[dict] = []
+        spine = [round_["term"] for round_ in tree["steps"]]
+        for depth, round_ in enumerate(tree["steps"]):
+            steps.append({
+                "index": len(steps), "kind": "check", "concept": round_["term"],
+                "distance": depth, "rule": rule, "detail": round_["detail"],
+                "facts_checked": round_.get("eliminated", 0), "matched": None,
+                "parents": [spine[depth - 1]] if depth else []})
+            for entry in tree["considered"]:
+                if entry["survived"] or entry["depth"] != depth:
+                    continue
+                detail = " ".join(entry["matched"].values()) or entry["name"]
+                steps.append({
+                    "index": len(steps), "kind": "check",
+                    "concept": entry["name"], "distance": depth + 1,
+                    "rule": rule, "detail": f"{entry['name']} — {detail}",
+                    "facts_checked": 0, "matched": None,
+                    "parents": [round_["term"]]})
+        for candidate in tree["candidates"]:
+            detail = " ".join(candidate["matched"].values()) or candidate["name"]
+            steps.append({
+                "index": len(steps), "kind": "match",
+                "concept": candidate["name"], "distance": len(spine),
+                "rule": rule, "detail": f"{candidate['name']} — {detail}",
+                "facts_checked": 0, "matched": None,
+                "parents": [spine[-1]] if spine else []})
+        return steps
 
     def _shell(self, question: str, verdict: str, rule: str,
                concept: str | None = None, note: str = "",
@@ -301,4 +458,7 @@ class ReasoningEngine(IdentifyingEngine):
             "neighbourhood": {"nodes": [], "edges": []},
         }
         payload.update(extra or {})
+        tree = payload.get("identification")
+        if tree and not steps:
+            payload["steps"] = self._replay(tree, rule)
         return payload

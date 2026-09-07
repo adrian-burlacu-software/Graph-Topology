@@ -169,6 +169,69 @@ at the same standing within its own concept:
 Same dense-and-closed versus sparse-and-open split as compression, typicality
 and everything else here. That consistency is the point.
 
+## R25 — counting kinds
+
+R18 refuses `how many legs does a dog have` and says in the same breath that
+the taxonomy *can* count kinds. It could not: nothing implemented it, so the
+question its own refusal offers as the answerable one fell through to a
+listing about the word `kind`. A rule that advertises an exception it does not
+have is worse than one that refuses everything.
+
+    how many kinds of dog are there
+      189 in the taxonomy, 18 directly beneath it, 3 described by the norms
+
+Two counts, because they are different questions. WordNet names 189 kinds of
+dog; the feature norms describe three of them, and those three are the only
+ones any other rule here can reason about. Reporting the big number alone
+would imply a coverage that does not exist.
+
+## The audit that produced these
+
+Every question the page offers was put back through the engine and read, not
+spot-checked. Four routing errors turned up, each of which looked like a
+working answer:
+
+| question | was answered by | should be |
+| --- | --- | --- |
+| `what is a hammer made of` | R22, listing things made *of* hammers | v684, forward |
+| `what is a hammer used for` | R22, the same way | v684, forward |
+| `what does a car driver need` | R22, one fact about cars | v685's bridge |
+| `what kind of animal is furry…` | R25, counting animals | R16, identification |
+
+The first two came from letting a backwards question take its phrase from
+either side of the cue. A named subject *before* the cue means the question is
+forward, so the object side is now read only from the tail. The third came
+from deciding "did anyone answer this" by looking at the answer — an empty
+evidence list meant nobody had, which is false for identification, and a
+non-empty one meant somebody had, which is false for v684's willingness to say
+something about any noun. Question shape settles it instead. The fourth was
+R25's own greed, fixed by requiring the question to end where a count ends.
+
+## The page
+
+One card, `How this was answered`, replaced three. Identification, the
+attribute walk and the four new rules each had their own, and any two showing
+at once said the same thing twice — a verify answer about one property came
+with the whole 28-row attribute walk beside it. The walk is still there, folded
+away, because it is context for a verdict and the subject of a profile.
+
+The generic fact table no longer repeats a profile's 50 rows underneath the
+card that already lays them out. `Set aside` holds both kinds of
+deliberately-unused evidence — R14's sibling facts and the near misses — since
+they are the same kind of thing and neither is an answer.
+
+**Every rule now draws its own derivation.** The graph used to appear only for
+an identification; the other seven produced a wall of text. Each rule now says
+what its chain, its side nodes and its result are, and the drawing that
+already existed renders it — the difference between a dog and a wolf comes out
+as a trunk of shared properties with each animal's own hanging off the point
+they part.
+
+The steps are *derived from* that drawing rather than written beside it. The
+replay lights a node by looking its name up among the drawn ones, so writing
+both by hand is how they drift apart and light nothing; a test asserts every
+step of every new answer names a node that exists.
+
 ## Layout
 
 | file | role |
@@ -179,7 +242,7 @@ and everything else here. That consistency is the point.
 | `causal.py` | scripts in script order, and abduction as a ranking |
 | `analogy.py` | role mapping over the closed norm vocabulary |
 | `reasoning.py` | the engine, and the order questions are tried in |
-| `test_v687.py` | 42 tests for the above |
+| `test_v687.py` | 49 tests for the above |
 | `test_trie/reasoning/bridging/norms.py` | v683–v686's 200 tests, unchanged |
 
 Everything else is v683 through v686, copied and re-imported locally.

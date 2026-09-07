@@ -367,5 +367,84 @@ class AnalogyTests(unittest.TestCase):
         self.assertIn("norms", found.note)
 
 
+@requires_norms
+@requires_store
+class RoutingTests(unittest.TestCase):
+    """Which rule takes which question. Every bug here is a silent one: the
+    answer looks fine until you notice it answered something else."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    def rule(self, question):
+        return self.engine.ask(question)["parse"]["relation"]
+
+    def test_a_named_subject_is_never_read_backwards(self):
+        """`what is a hammer made of` came back with the two things made
+        *out of* hammers."""
+        self.assertEqual(self.rule("what is a hammer made of"), "made_of")
+        self.assertEqual(self.rule("what is a hammer used for"), "used_for")
+
+    def test_the_bridge_keeps_its_questions(self):
+        """Judging "did anyone answer" from an empty evidence list took
+        v685's two-subject questions away from it."""
+        self.assertEqual(self.rule("what does a car driver need"),
+                         "has_prerequisite")
+        self.assertTrue(self.engine.ask("what does a dog's owner need")
+                        .get("bridge"))
+
+    def test_identification_keeps_its_questions(self):
+        for question in ("what kind of dog has spots",
+                         "what is round with hexagons",
+                         "what kind of animal is furry and has spots and is big"):
+            self.assertEqual(self.rule(question), "identify", question)
+
+    def test_counting_kinds_is_answered_and_not_refused(self):
+        """R18 refuses `how many legs` and says in the same breath that kinds
+        can be counted. Nothing implemented that, so the question its own
+        refusal offers fell through to a listing about the word `kind`."""
+        payload = self.engine.ask("how many kinds of dog are there")
+        self.assertEqual(payload["parse"]["relation"], "R25")
+        counted = payload["kinds"]
+        self.assertGreater(counted["total"], counted["direct"])
+        self.assertGreater(counted["direct"], counted["described"])
+
+    def test_a_backwards_question_with_no_subject_is_taken(self):
+        for question in ("what is made of wood", "who makes a car",
+                         "what is found in a toolbox", "what has wings"):
+            self.assertEqual(self.rule(question), "R22", question)
+
+    def test_every_new_answer_can_be_drawn_and_replayed(self):
+        """The page draws from `identification` and lights nodes by the
+        `concept` of each step, so a step naming something that was never
+        drawn lights nothing. Deriving the steps from the tree makes that
+        impossible -- this is the assertion that it stays that way."""
+        for question in ("what is the difference between a dog and a wolf",
+                         "what is similar to a dog",
+                         "is a dalmatian a typical dog",
+                         "how many kinds of dog are there",
+                         "what explains a fire",
+                         "what happens when you drive a car",
+                         "bark is to dog as what is to cat",
+                         "what is made of wood"):
+            payload = self.engine.ask(question)
+            tree = payload.get("identification")
+            self.assertIsNotNone(tree, question)
+            drawn = ({round_["term"] for round_ in tree["steps"]}
+                     | {entry["name"] for entry in tree["considered"]}
+                     | {c["name"] for c in tree["candidates"]})
+            self.assertTrue(payload["steps"], question)
+            for step in payload["steps"]:
+                self.assertIn(step["concept"], drawn, question)
+
+    def test_a_profile_does_not_repeat_itself_in_the_fact_table(self):
+        """The walk and the ancestry are laid out once, on their own card."""
+        payload = self.engine.ask("what attributes does a blue whale have")
+        self.assertTrue(payload["profile"]["path"])
+        self.assertEqual(payload["evidence"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

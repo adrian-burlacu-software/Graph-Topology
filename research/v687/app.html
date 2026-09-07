@@ -280,26 +280,14 @@
         </details>
       </div>
 
-      <div class="card" id="identcard" hidden>
-        <h2 id="identtitle">Identified &mdash; R16</h2>
-        <p class="note" id="identnote"></p>
-        <div id="ident"></div>
-      </div>
-
-      <div class="card" id="reasoncard" hidden>
-        <h2 id="reasontitle"></h2>
-        <p class="note" id="reasonnote"></p>
-        <div id="reason"></div>
-      </div>
-
-      <div class="card" id="profilecard" hidden>
-        <h2>Attributes &mdash; R17</h2>
-        <p class="note" id="profilenote"></p>
-        <div id="profilekinds"></div>
-        <div id="profilewalk"></div>
-        <p class="note" id="profileabove"></p>
-        <div id="profileinherit"></div>
-        <p class="note" id="profiledenied"></p>
+      <!-- One card for what the answer was made of, whichever rule made it.
+           Identification, the attribute walk and the four v687 rules each had
+           their own, and any two of them showing at once said the same thing
+           twice in different words. -->
+      <div class="card" id="howcard" hidden>
+        <h2 id="howtitle"></h2>
+        <p class="note" id="hownote"></p>
+        <div id="how"></div>
       </div>
 
       <div class="card" id="bridgecard" hidden>
@@ -314,14 +302,14 @@
         <div id="facts"></div>
       </div>
 
+      <!-- Two kinds of "deliberately not used", which belong together: facts
+           about a sibling of the anchor (R14) and facts that covered part of
+           the question but not enough of it. Both are here so that neither
+           can be mistaken for the answer. -->
       <div class="card" id="asidecard" hidden>
-        <h2>Set aside &mdash; R14, about siblings</h2>
+        <h2>Set aside &mdash; considered, not used</h2>
         <p class="note" id="asidenote"></p>
         <div id="aside"></div>
-      </div>
-
-      <div class="card" id="nearbycard" hidden>
-        <h2>Nearby &mdash; not an answer</h2>
         <p class="note" id="nearbynote"></p>
         <div id="nearby"></div>
       </div>
@@ -360,7 +348,7 @@ const REASONING = [
            "of or where it is found. Inheritance is defeasible: a closer " +
            "statement beats an inherited one.",
     questions: ["is a dog an animal", "what can a violin do",
-                "does a dog have a tail", "what is a hammer made of",
+                "can a dog fall into a hole", "what is a hammer made of",
                 "where do you find a hammer", "what is a hammer used for"],
   },
   {
@@ -387,7 +375,7 @@ const REASONING = [
            "stored, and a scored zero is a denial rather than a silence.",
     questions: ["what attributes does a blue whale have", "is a whale furry",
                 "is a dalmatian spotted", "does a robin fly",
-                "what is a robin like"],
+                "does a dog have a tail", "what is a robin like"],
   },
   {
     name: "Logic & quantifiers", rule: "R20",
@@ -400,14 +388,18 @@ const REASONING = [
                 "is a dog furry and telepathic"],
   },
   {
-    name: "Contrast", rule: "R21",
+    name: "Contrast & counting", rule: "R21 R25",
     blurb: "Two concepts at once. What they share, where they part, what is " +
            "nearest to a thing and how typical a member is are one " +
-           "operation: the lowest common ancestor of two branches.",
+           "operation: the lowest common ancestor of two branches. Counting " +
+           "kinds is the one count this data supports — there are no numbers " +
+           "in it, but the taxonomy has a shape.",
     questions: ["what is the difference between a dog and a wolf",
                 "what do a dog and a cat have in common",
                 "what is similar to a dog", "is a dalmatian a typical dog",
-                "is a penguin a typical bird"],
+                "is a penguin a typical bird",
+                "how many kinds of dog are there",
+                "what kinds of whale are there"],
   },
   {
     name: "Inverse", rule: "R22",
@@ -553,11 +545,8 @@ function render() {
 
   buildChain();
   buildFacts();
-  buildNearby();
   buildBridge();
-  buildIdent();
-  buildProfile();
-  buildReason();
+  buildHow();
   buildAside();
 }
 
@@ -1430,226 +1419,202 @@ function buildFacts() {
     </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-/* ---- identification ----
- * The inverse question: a description in, a thing out. The narrowing is
- * already in `steps` and replays like any other derivation; this card shows
- * what survived it and which stored property matched each word.
+/* ---- how the answer was made ----
+ * One card, whichever rule answered. Identification, the attribute walk and
+ * the four v687 rules each had a card of their own, and any two showing at
+ * once said the same thing twice in different words -- a verify answer put
+ * the whole 28-row attribute walk beside a verdict about one property.
+ *
+ * Each branch renders a small table and a sentence. What they share is that
+ * the *grounds* matter as much as the answer: which properties two things
+ * share, what a hypothesis's ranking was made of, which kinds voted.
  */
-function buildIdent() {
-  const found = (STATE && STATE.identification) || null;
-  $("identcard").hidden = !found;
-  if (!found) return;
-  // A profile walks a branch that is already chosen, so it borrows this
-  // card's tree but not its wording: nothing was described and nothing was
-  // narrowed down, and saying "described as ... one thing carries all of it"
-  // over a question that named the thing reads as nonsense.
-  if (found.mode === "profile" || found.mode === "verify") {
-    $("identtitle").innerHTML = "Its branch of the trie &mdash; R17";
-    const walked = found.steps.length;
-    $("identnote").innerHTML =
-      `<b>${escapeHtml(found.candidates[0].name)}</b> sits at the end of this ` +
-      `branch, ${found.candidates[0].predicates} attributes down. ` +
-      `${walked} branch point(s): the rest of the path is shared with nobody ` +
-      `new and is collapsed, as a radix tree collapses it.`;
-    $("ident").innerHTML = "";
-    return;
-  }
-  $("identtitle").innerHTML = "Identified &mdash; R16";
-  const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
-  $("identnote").innerHTML =
-    `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
-    (found.candidates.length === 1
-      ? "One thing carries all of it."
-      : `${found.candidates.length} things carry all of it.`);
-  const rows = found.candidates.map(c => `<tr>
-      <td class="obj"><b>${escapeHtml(c.name)}</b></td>
-      <td class="obj">${Object.entries(c.matched)
-        .map(([term, hit]) => `${escapeHtml(term)}: &ldquo;${escapeHtml(hit)}&rdquo;`)
-        .join("<br>")}</td>
-      <td><span class="src">${escapeHtml(c.source)}</span></td>
-      <td class="dist">${c.predicates} props</td>
-    </tr>`).join("");
-  $("ident").innerHTML = `<table><thead><tr>
-      <th>candidate</th><th>what matched</th><th>source</th><th>known</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+function table(headers, body) {
+  return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}` +
+         `</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-
-/* ---- R21-R24: the reasoning the v687 backlog added ----
- * Four answer shapes share one card, because each is a small table and a
- * sentence and none of them earns a card of its own. What they have in
- * common is that the *grounds* matter as much as the answer: which
- * properties two things share, what the ranking of a hypothesis was made of,
- * why one property answers another.
- */
-function buildReason() {
+function buildHow() {
   const s = STATE || {};
-  const box = $("reason");
-  const rows = (headers, body) =>
-    `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}` +
-    `</tr></thead><tbody>${body}</tbody></table>`;
+  const show = (title, note, html) => {
+    $("howcard").hidden = false;
+    $("howtitle").innerHTML = title;
+    $("hownote").innerHTML = note;
+    $("how").innerHTML = html || "";
+  };
+  $("howcard").hidden = true;
+
+  const p = s.profile;
+  if (p) {
+    const asked = p.asked;
+    const kinds = (asked && asked.members) || [];
+    // The walk is read leaf-first, because that is the end that says what the
+    // thing is: the first rows are shared with nothing, the last with most of
+    // the corpus.
+    const climbed = p.path.slice().reverse();
+    const walk = climbed.map(held => {
+      const hit = asked && asked.predicate === held.predicate;
+      return `<tr${hit ? ' style="background:var(--accent-dim)"' : ""}>
+        <td class="dist">${held.depth}</td>
+        <td class="obj">${escapeHtml(held.predicate)}</td>
+        <td class="dist">${held.shared <= 1 ? "unique to it"
+                            : held.shared + " on the branch"}</td></tr>`;
+    }).join("");
+    const above = p.inherited || [];
+    // A verify answer is about one property, so the whole walk is context and
+    // is folded away; a profile answer *is* the walk, so it is open.
+    const open = asked ? "" : " open";
+    show(asked ? "Why &mdash; R17" : "Attributes &mdash; R17",
+      `<b>${escapeHtml(p.name)}</b>` +
+      (p.concept ? ` &rarr; <span class="src">${escapeHtml(p.concept)}</span>` : "") +
+      (p.gloss ? ` — ${escapeHtml(p.gloss)}` : ""),
+      (kinds.length ? `<p class="note">No property of ${escapeHtml(p.name)}
+         itself settles it, so its kinds were asked. Induction, not
+         inheritance.</p>` +
+        table([`kind of ${escapeHtml(p.name)}`, "says", "property"],
+          kinds.map(m => `<tr><td class="obj"><b>${escapeHtml(m.name)}</b></td>
+            <td class="rel">${escapeHtml(m.verdict)}</td>
+            <td class="obj">${escapeHtml(m.predicate || "—")}</td></tr>`).join(""))
+        : "") +
+      `<details${open}><summary>${climbed.length} attributes, leaf first
+         &mdash; the walk up to the origin</summary>` +
+        table(["depth", "attribute", "company"], walk) + `</details>` +
+      (above.length ? `<details><summary>${above.length} level(s) above the
+         leaf, nearest first &mdash; a fact met twice is kept at the nearer
+         one (R10)</summary>` +
+        table(["from", "facts", "kept"], above.map(level => `<tr>
+          <td class="rel">${escapeHtml(shortName(level.concept))}
+            <div class="dist">+${level.distance}</div></td>
+          <td class="obj">${level.facts.map(f =>
+              escapeHtml(f.relation.replace(/_/g, " ") + " " + f.object)).join("<br>")}</td>
+          <td class="dist">${level.facts.length} of ${level.total}</td></tr>`).join("")) +
+        `</details>` : "") +
+      (p.denied_total ? `<p class="note">The norms also score
+         ${p.denied_total} propert${p.denied_total === 1 ? "y" : "ies"} false
+         of ${escapeHtml(p.name)}: ${p.denied.map(escapeHtml).join(", ")}
+         ${p.denied_total > p.denied.length ? ", …" : ""}. Denials are what
+         make a "no" answerable at all.</p>` : ""));
+    return;
+  }
+
+  const found = s.identification;
+  if (found && found.candidates && found.mode === undefined) {
+    const within = found.among ? ` among kinds of ${escapeHtml(found.among)}` : "";
+    show("Identified &mdash; R16",
+      `Described as <b>${found.terms.map(escapeHtml).join(" + ")}</b>${within}. ` +
+      (found.candidates.length === 1 ? "One thing carries all of it."
+        : `${found.candidates.length} things carry all of it.`),
+      table(["candidate", "what matched", "source", "known"],
+        found.candidates.map(c => `<tr>
+          <td class="obj"><b>${escapeHtml(c.name)}</b></td>
+          <td class="obj">${Object.entries(c.matched).map(([term, hit]) =>
+              `${escapeHtml(term)}: &ldquo;${escapeHtml(hit)}&rdquo;`).join("<br>")}</td>
+          <td><span class="src">${escapeHtml(c.source)}</span></td>
+          <td class="dist">${c.predicates} props</td></tr>`).join("")));
+    return;
+  }
 
   if (s.contrast) {
     const c = s.contrast;
-    $("reasoncard").hidden = false;
     if (c.mode === "nearest") {
-      $("reasontitle").innerHTML = "Nearest &mdash; R21";
-      $("reasonnote").textContent =
-        `Computed from shared properties, not read from a stored similarity edge.`;
-      box.innerHTML = rows(["concept", "overlap", "shared", "because"],
-        c.nearest.map(n => `<tr><td class="obj"><b>${escapeHtml(n.name)}</b></td>
-          <td class="dist">${Math.round(n.jaccard * 100)}%</td>
-          <td class="dist">${n.shared}</td>
-          <td class="obj">${n.because.map(escapeHtml).join(", ")}</td></tr>`).join(""));
+      show("Nearest &mdash; R21",
+        "Computed from shared properties, not read from a stored similarity " +
+        "edge — which is why it can say <i>why</i>.",
+        table(["concept", "overlap", "shared", "because"],
+          c.nearest.map(n => `<tr><td class="obj"><b>${escapeHtml(n.name)}</b></td>
+            <td class="dist">${Math.round(n.jaccard * 100)}%</td>
+            <td class="dist">${n.shared}</td>
+            <td class="obj">${n.because.map(escapeHtml).join(", ")}</td></tr>`).join("")));
     } else if (c.mode === "typicality") {
-      $("reasontitle").innerHTML = "Typicality &mdash; R21";
-      $("reasonnote").textContent =
+      show("Typicality &mdash; R21",
         `Measured against the ${c.core.length} properties most kinds of ` +
-        `${c.klass} carry. Nothing stores "typical"; it falls out of counting.`;
-      box.innerHTML = rows(["kind of " + escapeHtml(c.klass), "core carried"],
-        c.ranking.map(r => `<tr><td class="obj">
-          ${r.name === c.member ? "<b>" + escapeHtml(r.name) + "</b>" : escapeHtml(r.name)}</td>
-          <td class="dist">${Math.round(r.score * 100)}%</td></tr>`).join("")) +
+        `${escapeHtml(c.klass)} carry. Nothing stores "typical" — it falls ` +
+        `out of counting.` + (c.sound ? "" :
+          ` <b>The class has no core to rank against</b>, so this is reported ` +
+          `and not believed.`),
+        table([`kind of ${escapeHtml(c.klass)}`, "core carried"],
+          c.ranking.map(r => `<tr><td class="obj">${r.name === c.member
+            ? "<b>" + escapeHtml(r.name) + "</b>" : escapeHtml(r.name)}</td>
+            <td class="dist">${Math.round(r.score * 100)}%</td></tr>`).join("")) +
         `<p class="note">Missing from ${escapeHtml(c.member)}: ` +
-        `${c.missing.map(escapeHtml).join(", ") || "nothing"}.</p>`;
+        `${c.missing.map(escapeHtml).join(", ") || "nothing"}.</p>`);
     } else {
-      $("reasontitle").innerHTML = "Contrast &mdash; R21";
-      $("reasonnote").textContent =
-        `Semantic overlap and trie prefix disagree, and the disagreement is ` +
-        `the finding: a trie built for storage does not group by similarity.`;
-      box.innerHTML = rows(["", "properties"], `
-        <tr><td class="rel">both</td><td class="obj">${c.shared.map(escapeHtml).join(", ") || "—"}</td></tr>
-        <tr><td class="rel">only ${escapeHtml(c.left)}</td><td class="obj">${c.only_left.map(escapeHtml).join(", ") || "—"}</td></tr>
-        <tr><td class="rel">only ${escapeHtml(c.right)}</td><td class="obj">${c.only_right.map(escapeHtml).join(", ") || "—"}</td></tr>
-        <tr><td class="rel">trie prefix</td><td class="obj">${c.together.map(escapeHtml).join(", ") || "they part at the first node"}</td></tr>`);
+      show("Contrast &mdash; R21",
+        "Semantic overlap and trie prefix disagree, and the disagreement is " +
+        "the finding: a trie built for storage does not group by similarity.",
+        table(["", "properties"], `
+          <tr><td class="rel">both</td><td class="obj">${c.shared.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">only ${escapeHtml(c.left)}</td><td class="obj">${c.only_left.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">only ${escapeHtml(c.right)}</td><td class="obj">${c.only_right.map(escapeHtml).join(", ") || "—"}</td></tr>
+          <tr><td class="rel">trie prefix</td><td class="obj">${c.together.map(escapeHtml).join(", ") || "they part at the first node"}</td></tr>`));
     }
     return;
   }
+
+  if (s.kinds) {
+    const k = s.kinds;
+    show("Kinds &mdash; R25",
+      `Counting over the taxonomy, which is the one count this data supports. ` +
+      `The ${k.described} the norms describe are the ones every other rule ` +
+      `here can reason about; the rest are names.`,
+      table(["", "count"], `
+        <tr><td class="rel">kinds in all</td><td class="dist">${k.total.toLocaleString()}</td></tr>
+        <tr><td class="rel">directly beneath</td><td class="dist">${k.direct}</td></tr>
+        <tr><td class="rel">described by the norms</td><td class="dist">${k.described}</td></tr>`) +
+      `<p class="note">Directly beneath: ${k.direct_kinds.slice(0, 14)
+        .map(n => escapeHtml(shortName(n))).join(", ")}${k.direct > 14 ? ", …" : ""}.</p>` +
+      (k.described ? `<p class="note">Described: ${k.described_kinds
+        .map(escapeHtml).join(", ")}.</p>` : ""));
+    return;
+  }
+
   if (s.causal) {
     const c = s.causal;
-    $("reasoncard").hidden = false;
     if (c.mode === "abduction") {
-      $("reasontitle").innerHTML = "Best explanation &mdash; R23";
-      $("reasonnote").textContent =
+      show("Best explanation &mdash; R23",
         `${c.considered} candidate causes weighed. A cause that causes many ` +
-        `things explains none of them, so specificity is most of the score.`;
-      box.innerHTML = rows(["cause", "score", "also causes", "fact"],
-        c.hypotheses.map(h => `<tr><td class="obj"><b>${escapeHtml(shortName(h.cause))}</b></td>
-          <td class="dist">${h.score.toFixed(3)}</td>
-          <td class="dist">${h.explains}</td>
-          <td class="obj">${escapeHtml(h.fact)}</td></tr>`).join(""));
+        `things explains none of them, so specificity is most of the score.`,
+        table(["cause", "score", "also causes", "fact"],
+          c.hypotheses.map(h => `<tr><td class="obj"><b>${escapeHtml(shortName(h.cause))}</b></td>
+            <td class="dist">${h.score.toFixed(3)}</td>
+            <td class="dist">${h.explains}</td>
+            <td class="obj">${escapeHtml(h.fact)}</td></tr>`).join("")));
     } else {
-      $("reasontitle").innerHTML = "Script &mdash; R23";
-      $("reasonnote").textContent = c.note || "";
-      box.innerHTML = rows(["phase", "step", "relation"],
-        c.steps.map(x => `<tr><td class="rel">${escapeHtml(x.phase)}</td>
-          <td class="obj">${escapeHtml(x.object)}</td>
-          <td class="dist">${escapeHtml(x.relation)}</td></tr>`).join(""));
+      show("Script &mdash; R23", escapeHtml(c.note || ""),
+        table(["phase", "step", "relation"],
+          c.steps.map(x => `<tr><td class="rel">${escapeHtml(x.phase)}</td>
+            <td class="obj">${escapeHtml(x.object)}</td>
+            <td class="dist">${escapeHtml(x.relation)}</td></tr>`).join("")));
     }
     return;
   }
+
   if (s.analogy) {
     const a = s.analogy;
-    $("reasoncard").hidden = false;
-    $("reasontitle").innerHTML = "Analogy &mdash; R24";
-    $("reasonnote").textContent = a.note ||
-      `“${a.source_property}” is to ${a.source} what these are to ${a.target}: ` +
-      `same kind of property, same standing within the concept.`;
-    box.innerHTML = a.mappings.length ? rows(["property", "kind", "standing", "carried by"],
-      a.mappings.map(m => `<tr><td class="obj"><b>${escapeHtml(m.property)}</b></td>
-        <td class="dist">${escapeHtml(m.kind || "—")}</td>
-        <td class="dist">${Math.round(m.standing * 100)}%</td>
-        <td class="dist">${m.carriers}</td></tr>`).join("")) : "";
+    show("Analogy &mdash; R24", a.note ? escapeHtml(a.note) :
+      `&ldquo;${escapeHtml(a.source_property)}&rdquo; is to ${escapeHtml(a.source)} ` +
+      `what these are to ${escapeHtml(a.target)}: same kind of property, same ` +
+      `standing within the concept.`,
+      a.mappings.length ? table(["property", "kind", "standing", "carried by"],
+        a.mappings.map(m => `<tr><td class="obj"><b>${escapeHtml(m.property)}</b></td>
+          <td class="dist">${escapeHtml(m.kind || "—")}</td>
+          <td class="dist">${Math.round(m.standing * 100)}%</td>
+          <td class="dist">${m.carriers}</td></tr>`).join("")) : "");
     return;
   }
+
   if (s.backwards) {
     const b = s.backwards;
-    $("reasoncard").hidden = false;
-    $("reasontitle").innerHTML = "Read backwards &mdash; R22";
-    $("reasonnote").textContent =
-      `${b.relation.replace(/_/g, " ")} “${b.phrase}” — ${b.scanned.toLocaleString()} ` +
-      `facts of that relation scanned from the object side.`;
-    box.innerHTML = rows(["concept", "fact", "source"],
-      b.subjects.map(r => `<tr><td class="obj"><b>${escapeHtml(shortName(r.concept))}</b></td>
-        <td class="obj">${escapeHtml(r.relation.replace(/_/g, " "))} “${escapeHtml(r.object)}”</td>
-        <td><span class="src">${escapeHtml(r.source)}</span></td></tr>`).join(""));
+    show("Read backwards &mdash; R22",
+      `${escapeHtml(b.relation.replace(/_/g, " "))} &ldquo;${escapeHtml(b.phrase)}&rdquo; — ` +
+      `${b.scanned.toLocaleString()} facts of that relation scanned from the ` +
+      `object side.`,
+      table(["concept", "fact", "source"],
+        b.subjects.map(r => `<tr><td class="obj"><b>${escapeHtml(shortName(r.concept))}</b></td>
+          <td class="obj">${escapeHtml(r.relation.replace(/_/g, " "))} &ldquo;${escapeHtml(r.object)}&rdquo;</td>
+          <td><span class="src">${escapeHtml(r.source)}</span></td></tr>`).join("")));
     return;
   }
-  $("reasoncard").hidden = true;
-}
-
-/* ---- R17: the trie read upwards ----
- * The same structure identification searches, walked the other way. An
- * individual sits at a leaf, so the walk from that leaf to the origin is its
- * attribute list -- and the order carries the compression: the first rows are
- * shared with nothing, the last are shared with most of the corpus.
- */
-function buildProfile() {
-  const p = (STATE && STATE.profile) || null;
-  $("profilecard").hidden = !p;
-  if (!p) return;
-
-  const asked = p.asked;
-  $("profilenote").innerHTML =
-    `<b>${escapeHtml(p.name)}</b>` +
-    (p.concept ? ` &rarr; <span class="src">${escapeHtml(p.concept)}</span>` : "") +
-    (p.gloss ? ` — ${escapeHtml(p.gloss)}` : "") +
-    (asked ? `<br><b>${escapeHtml(asked.verdict)}</b>: ${escapeHtml(asked.detail)}`
-           : "");
-
-  // When the concept itself said nothing, the kinds below it did. Which
-  // ones, and with which property, is the whole of the evidence.
-  const kinds = (asked && asked.members) || [];
-  $("profilekinds").innerHTML = kinds.length
-    ? `<table><thead><tr><th>kind of ${escapeHtml(p.name)}</th>
-         <th>says</th><th>property</th></tr></thead><tbody>${kinds.map(m => `
-       <tr><td class="obj"><b>${escapeHtml(m.name)}</b></td>
-         <td class="rel">${escapeHtml(m.verdict)}</td>
-         <td class="obj">${escapeHtml(m.predicate || "—")}</td></tr>`).join("")}
-       </tbody></table>`
-    : "";
-
-  // Read upwards: the distinctive end first, because that is the end that
-  // says what the thing is. `shared` is how many concepts are still on the
-  // branch at that node, so it climbs as the walk approaches the origin.
-  const climbed = p.path.slice().reverse();
-  const rows = climbed.map(held => {
-    const hit = asked && asked.predicate === held.predicate;
-    return `<tr${hit ? ' style="background:var(--accent-dim)"' : ""}>
-      <td class="dist">${held.depth}</td>
-      <td class="obj">${escapeHtml(held.predicate)}</td>
-      <td class="dist">${held.shared <= 1 ? "unique to it"
-                          : held.shared + " on the branch"}</td>
-    </tr>`;
-  }).join("");
-  $("profilewalk").innerHTML = `<table><thead><tr>
-      <th>depth</th><th>attribute, leaf first</th><th>company</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
-
-  const above = p.inherited || [];
-  $("profileabove").innerHTML = above.length
-    ? `Above the leaf the norms stop and the taxonomy carries on. ` +
-      `${above.length} level(s), nearest first; a fact met twice is kept at ` +
-      `the nearer one only (R10).`
-    : "Nothing above the leaf: this concept joins no taxonomy here.";
-  $("profileinherit").innerHTML = above.length
-    ? `<table><thead><tr><th>from</th><th>facts</th><th>kept</th></tr></thead>
-       <tbody>${above.map(level => `<tr>
-         <td class="rel">${escapeHtml(shortName(level.concept))}
-           <div class="dist">+${level.distance}</div></td>
-         <td class="obj">${level.facts.map(f =>
-             escapeHtml(f.relation.replace(/_/g, " ") + " " + f.object))
-             .join("<br>")}</td>
-         <td class="dist">${level.facts.length} of ${level.total}</td>
-       </tr>`).join("")}</tbody></table>`
-    : "";
-
-  $("profiledenied").textContent = p.denied_total
-    ? `The norms also score ${p.denied_total} propert` +
-      (p.denied_total === 1 ? "y" : "ies") + ` false of ${p.name} — ` +
-      p.denied.join(", ") + (p.denied_total > p.denied.length ? ", …" : "") +
-      `. Denials are what make a "no" answerable at all.`
-    : "";
 }
 
 /* ---- the bridge ----
@@ -1691,54 +1656,58 @@ function buildBridge() {
     : "";
 }
 
-/* ---- R14: what the anchor ruled out ----
- * A musician plays every instrument; a violin player does not. Facts about
- * the role naming a *sibling* of the anchor are set aside rather than
- * deleted, because "these are about other instruments" is worth saying.
+/* ---- set aside: considered, not used ----
+ * Two things that are not the answer and must not be mistaken for it, in one
+ * card because they are the same kind of thing.
+ *
+ * R14: a musician plays every instrument and a violin player does not, so
+ * facts about a *sibling* of the anchor are set aside rather than deleted --
+ * "these are about other instruments" is worth saying.
+ *
+ * Near misses: facts that covered part of the question and not enough of it.
+ * `device capable_of "fall into wrong hands"` covers half of "fall into a
+ * hole", and promoting a half-cover to VERIFIED is the bug this replaced.
  */
 function buildAside() {
   const b = (STATE && STATE.bridge) || null;
   const out = (b && b.excluded) || [];
-  $("asidecard").hidden = out.length === 0;
-  if (!out.length) return;
-  $("asidenote").textContent = b.note ||
-    `${out.length} fact(s) about other kinds of ` +
-    `${shortName(b.excluded_class || "thing")}.`;
-  const shared = shortName(b.excluded_class || "");
-  const rows = out.map(f => `<tr>
-      <td class="rel">${escapeHtml(f.relation)}</td>
-      <td class="obj">${escapeHtml(f.object)}</td>
-      <td><span class="src">${escapeHtml(f.source)}</span></td>
-      <td class="dist">${escapeHtml(shared)}</td>
-    </tr>`).join("");
-  $("aside").innerHTML = `<table><thead><tr>
-      <th>relation</th><th>object</th><th>source</th><th>shares only</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
-}
-
-/* ---- near misses ----
- * Facts that answered part of the question and not enough of it. They get
- * their own card, deliberately away from the verdict: `device capable_of
- * "fall into wrong hands"` covers half of "fall into a hole", and promoting
- * a half-cover to VERIFIED is the bug this card exists to replace.
- */
-function buildNearby() {
   const near = (STATE && STATE.suggestions) || [];
-  $("nearbycard").hidden = near.length === 0;
-  if (!near.length) return;
-  const asked = (STATE.parse && STATE.parse.target) || "what was asked";
-  $("nearbynote").textContent =
-    `Nothing states “${asked}”. These came closest without answering it.`;
-  const rows = near.map(f => `<tr>
-      <td class="rel">${escapeHtml(f.relation)}</td>
-      <td class="obj">${escapeHtml(f.object)}
-        <div class="bar"><i style="width:${Math.round(f.similarity * 100)}%"></i></div></td>
-      <td><span class="src">${escapeHtml(shortName(f.concept))}</span></td>
-      <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td>
-    </tr>`).join("");
-  $("nearby").innerHTML = `<table><thead><tr>
-      <th>relation</th><th>object &amp; overlap</th><th>stated on</th><th>from</th>
-    </tr></thead><tbody>${rows}</tbody></table>`;
+  $("asidecard").hidden = !out.length && !near.length;
+
+  if (out.length) {
+    const shared = shortName(b.excluded_class || "");
+    $("asidenote").textContent = b.note ||
+      `R14 — ${out.length} fact(s) about other kinds of ` +
+      `${shortName(b.excluded_class || "thing")}.`;
+    $("aside").innerHTML = `<table><thead><tr>
+        <th>relation</th><th>object</th><th>source</th><th>shares only</th>
+      </tr></thead><tbody>${out.map(f => `<tr>
+        <td class="rel">${escapeHtml(f.relation)}</td>
+        <td class="obj">${escapeHtml(f.object)}</td>
+        <td><span class="src">${escapeHtml(f.source)}</span></td>
+        <td class="dist">${escapeHtml(shared)}</td></tr>`).join("")}</tbody></table>`;
+  } else {
+    $("asidenote").textContent = "";
+    $("aside").innerHTML = "";
+  }
+
+  if (near.length) {
+    const asked = (STATE.parse && STATE.parse.target) || "what was asked";
+    $("nearbynote").textContent =
+      `Near misses — nothing states “${asked}”. These came closest ` +
+      `without answering it.`;
+    $("nearby").innerHTML = `<table><thead><tr>
+        <th>relation</th><th>object &amp; overlap</th><th>stated on</th><th>from</th>
+      </tr></thead><tbody>${near.map(f => `<tr>
+        <td class="rel">${escapeHtml(f.relation)}</td>
+        <td class="obj">${escapeHtml(f.object)}
+          <div class="bar"><i style="width:${Math.round(f.similarity * 100)}%"></i></div></td>
+        <td><span class="src">${escapeHtml(shortName(f.concept))}</span></td>
+        <td class="dist">${f.distance ? "+" + f.distance : "direct"}</td></tr>`).join("")}</tbody></table>`;
+  } else {
+    $("nearbynote").textContent = "";
+    $("nearby").innerHTML = "";
+  }
 }
 
 function escapeHtml(v) {

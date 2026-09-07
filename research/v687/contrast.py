@@ -192,6 +192,49 @@ class Contrast:
                                    key=lambda p: (self._carriers(p), p))[:4]}
                 for score, count, other, shared in scored[:limit]]
 
+    # -- counting over the taxonomy ---------------------------------------
+    def kinds_of(self, word: str, limit: int = 40) -> dict | None:
+        """How many kinds of a thing there are, and which.
+
+        R18 refuses `how many legs does a dog have` on the grounds that the
+        ontology holds no numbers, and says in the same breath that it can
+        count *kinds*. It could not: nothing implemented this, so the question
+        R18's own refusal offers as the answerable one fell through to a
+        listing about the word `kind`.
+
+        Two counts, because they are different questions and conflating them
+        would be the same mistake:
+
+            in the taxonomy   every descendant WordNet records. This is what
+                              "how many kinds of dog are there" asks.
+            in the norms      the ones the feature norms actually describe,
+                              which is what every other rule here can reason
+                              about.
+        """
+        concept = self.profiles.synset.get(word) or self.profiles.class_concept(word)
+        if not concept:
+            return None
+        reasoner = self.profiles.reasoner
+        seen: set[str] = set()
+        frontier = [concept]
+        while frontier:
+            node = frontier.pop()
+            for row in reasoner.connection.execute(
+                    "SELECT child FROM taxonomy WHERE parent = ?", (node,)):
+                child = row["child"]
+                if child not in seen:
+                    seen.add(child)
+                    frontier.append(child)
+        direct = [row["child"] for row in reasoner.connection.execute(
+            "SELECT child FROM taxonomy WHERE parent = ?", (concept,))]
+        described = self.profiles.subtypes(word)
+        return {"word": word, "concept": concept,
+                "gloss": reasoner.gloss(concept),
+                "total": len(seen), "direct": len(direct),
+                "direct_kinds": sorted(direct)[:limit],
+                "described": len(described),
+                "described_kinds": described[:limit]}
+
     # -- a member against its class ---------------------------------------
     def core_of(self, klass: str) -> tuple[list[str], list[str]]:
         """The properties that most of a class's kinds carry, and the kinds."""
