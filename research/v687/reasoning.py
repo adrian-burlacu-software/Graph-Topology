@@ -440,11 +440,20 @@ class ReasoningEngine(IdentifyingEngine):
         if found is None:
             return None
         wants = "difference" if self.DIFFERENCE.search(text) else "common"
+        # "walk 0 nodes together before parting at X" is a sentence arguing
+        # with itself: sharing nothing and having a parting point are not both
+        # true. Zero is its own case, and it is the interesting one -- two
+        # concepts this alike whose stored paths diverge at the first step.
+        walked = (f"they walk {len(found.together)} node(s) together before "
+                  f"parting" + (f" at “{found.parted_at}”."
+                                if found.parted_at else ".")
+                  if found.together else
+                  f"their paths part at the very first node"
+                  + (f", “{found.parted_at}”." if found.parted_at
+                     else ", sharing no prefix at all."))
         note = (f"{found.shared_total} properties shared, of "
                 f"{found.left_total} and {found.right_total}; overlap "
-                f"{found.jaccard:.0%}. In the stored trie they walk "
-                f"{len(found.together)} node(s) together before parting"
-                + (f" at “{found.parted_at}”." if found.parted_at else "."))
+                f"{found.jaccard:.0%}. In the stored trie {walked}")
         # The drawing is the comparison: the shared properties are the trunk
         # both concepts walk, and each one's own hang off the point they part.
         spine = [(prop, f"both {left} and {right}")
@@ -706,8 +715,28 @@ class ReasoningEngine(IdentifyingEngine):
     # -- R22: the graph backwards -----------------------------------------
     def _inverse(self, question: str) -> dict | None:
         found = self.inverse.answer(question)
-        if found is None or not found.subjects:
+        if found is None:
             return None
+        if not found.subjects:
+            # Silence the reader caused looks exactly like silence in the
+            # data, and only one of those is worth changing their mind about.
+            # Without a pin the question goes on to the next rule; with one,
+            # it stops here and says the pin is why.
+            chosen = pins.of(found.phrase) or (
+                pins.of(found.phrase.split()[-1]) if found.phrase else None)
+            if not chosen:
+                return None
+            return self._shell(
+                question, "UNKNOWN", "R22",
+                note=f"Nothing stands in front of “{found.phrase}” under "
+                     f"{found.relation.replace('_', ' ')} once the reading is "
+                     f"held to {chosen}, the sense you pinned. Unpin it to "
+                     f"read every sense of the word.",
+                extra={"backwards": found.as_dict(),
+                       "identification": self._tree(
+                           "backwards",
+                           [(found.phrase, f"held to {chosen}")], {},
+                           [("nothing", "no subject at this sense")])})
         evidence = [{"concept": row["concept"], "relation": row["relation"],
                      "object": row["object"], "source": row["source"],
                      "confidence": row["confidence"], "sense_assumed": False,

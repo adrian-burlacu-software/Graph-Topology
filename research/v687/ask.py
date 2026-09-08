@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from . import build
-from .language import Parser
+from .language import POLAR, Parser
 from .reason import Answer, Reasoner
 from .bridge import Bridge, Route, SearchReport
 from .graph import FactGraph
@@ -113,14 +113,18 @@ class BridgedReasoner:
         if self.parser.nlp is None:
             return None, None
         vocabulary = self.parser.vocabulary
-        # A copular question predicates; it does not name a role. `is a
+        # A yes/no question predicates; it does not name a role. `is a
         # siamese cat skimmer` tags `cat` as a compound of `skimmer`, and
         # bridging it answered about skimmers -- then answered *yes*, once
-        # subsumption became reflexive, because a skimmer is a skimmer. The
-        # two halves of a copula are the subject and what is said of it, and
-        # neither is a `violin player`.
+        # subsumption became reflexive, because a skimmer is a skimmer. `does
+        # a dog breathe` tags `breathe` as a noun and read `dog breathe` the
+        # same way. A question opening with an auxiliary is about one subject,
+        # and neither half of it is a `violin player`.
+        #
+        # Only the compound reading is blocked. A possessive still bridges,
+        # because `does a dog's owner need a licence` really does name a role.
         opening = (question or "").strip().lower().split()
-        copular = bool(opening) and opening[0] in ("is", "are", "was", "were")
+        copular = bool(opening) and opening[0] in POLAR
         for token in self.parser.nlp(question):
             if token.dep_ not in ("poss", "compound"):
                 continue

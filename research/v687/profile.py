@@ -102,7 +102,8 @@ tell me about you i us we know show give
 attribute attributes property properties feature features characteristic
 characteristics trait traits quality qualities like describe list description
 thing things kind kinds sort sorts type types really actually also too and or
-with
+with into onto out off up down over under through across around at in on to
+from for by
 """.split())
 
 
@@ -177,6 +178,11 @@ class Verdict:
     quantifier: str | None = None
     #: Each term's own verdict, keyed by term.
     parts: dict[str, dict] = field(default_factory=dict)
+    #: Whether the feature norms were consulted and had enough kinds to bear
+    #: on this. False means the answer came from one crawled sentence at an
+    #: ancestor with too few described kinds to check it against -- an answer
+    #: the norms did not contribute to, and one the fact graph gives better.
+    corroborated: bool | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {"term": self.term, "verdict": self.verdict,
@@ -184,7 +190,8 @@ class Verdict:
                 "source": self.source, "distance": self.distance,
                 "depth": self.depth, "shared": self.shared,
                 "members": self.members, "tree": self.tree,
-                "quantifier": self.quantifier, "parts": self.parts}
+                "quantifier": self.quantifier, "parts": self.parts,
+                "corroborated": self.corroborated}
 
 
 @dataclass
@@ -559,12 +566,27 @@ class Profiles:
                         matches.append((level, fact, text, term))
                         break
         if matches:
+            asked_stems = {self.identifier.stem(word)
+                           for word in (asked or terms)}
+
             def better(match) -> tuple:
                 level, fact, text, _ = match
                 relation = fact["relation"]
                 # R3: at the level that answers, a denial blocks the positive.
                 negative = relation.startswith("not_") or self._denies(text)
+                # How much of the question this one fact accounts for. Length
+                # alone was the tiebreak, on the grounds that `capable of fly`
+                # beats `capable of fly in the water` for a question about
+                # flying -- true, and it made `can a dog fall into a hole`
+                # cite `capable of fall victim` over `capable of fall into
+                # hole`, which is the same shortness rule reading the shorter
+                # of two facts when the longer answered the question. Coverage
+                # first, then shortness among equals: the `fly` case is
+                # untouched because both cover the one word asked.
+                covered = len(asked_stems & {self.identifier.stem(word)
+                                             for word in text.split()})
                 return (level.distance, 0 if negative else 1,
+                        -covered,
                         RELATION_RANK.get(relation.removeprefix("not_"), 11),
                         len(text), -fact["confidence"])
 
@@ -583,12 +605,25 @@ class Profiles:
                         and bearing / kinds < CORROBORATION_FLOOR):
                     refused.append((level, text, bearing, kinds))
                     continue
-                support = (f" {bearing} of {kinds} kinds of "
-                           f"{level.concept.split('.')[0]} in the norms bear "
-                           f"it out." if kinds else "")
+                # Only report corroboration where it was actually consulted.
+                # Below the minimum R19 declines to judge, and printing "0 of
+                # 7 bear it out" beside a yes reads as the answer arguing with
+                # itself -- which is what `can a dog fall into a hole` did.
+                if kinds >= CORROBORATION_MIN_KINDS:
+                    support = (f" {bearing} of {kinds} kinds of "
+                               f"{level.concept.split('.')[0]} in the norms "
+                               f"bear it out.")
+                elif kinds:
+                    support = (f" The norms describe only {kinds} kind"
+                               f"{'' if kinds == 1 else 's'} of "
+                               f"{level.concept.split('.')[0]}, too few to "
+                               f"corroborate either way.")
+                else:
+                    support = ""
                 return Verdict(
                     term=term, verdict="INHERITED", predicate=text,
                     source=level.concept, distance=level.distance,
+                    corroborated=kinds >= CORROBORATION_MIN_KINDS,
                     detail=f"Not in the norms for {name}, but {level.concept} "
                            f"— {level.distance} level(s) up — {text}."
                            + support)
@@ -678,6 +713,7 @@ class Profiles:
             predicate=lead.predicate if lead else None,
             source=lead.source if lead else None,
             distance=lead.distance if lead else 0,
+            corroborated=lead.corroborated if lead else None,
             depth=lead.depth if lead else 0, shared=lead.shared if lead else 0,
             members=lead.members if lead else [],
             tree=query.tree.as_dict(), quantifier=query.quantifier,
@@ -746,18 +782,29 @@ class Profiles:
         # Each quantifier is settled by a different set, and naming the wrong
         # one is how "some birds fly" came back citing the birds that do.
         counted = f"{len(holds)} of {decided} recorded kinds of {name} satisfy {shape}"
+
+        def naming(names: list[str], shown: int = 4) -> str:
+            """The first few, and honest about being the first few.
+
+            `7 do not: chicken, cockerel, emu, magpie` names four and claims
+            seven, which reads as an arithmetic error rather than a list cut
+            short.
+            """
+            head = ", ".join(names[:shown])
+            return head if len(names) <= shown else f"{head} and {len(names) - shown} more"
+
         if want == "all":
-            decisive = (f", and {len(fails)} do not: {', '.join(fails[:4])}"
+            decisive = (f", and {len(fails)} do not: {naming(fails)}"
                         if fails else ", with no exception")
         elif want == "some":
-            decisive = (f", among them {', '.join(holds[:4])}" if holds
+            decisive = (f", among them {naming(holds)}" if holds
                         else ", so none does")
         elif want == "none":
-            decisive = (f", so the claim fails on {', '.join(holds[:4])}"
+            decisive = (f", so the claim fails on {naming(holds)}"
                         if holds else ", so none does and the claim holds")
         else:
             decisive = (f" — a majority, and the {len(fails)} that do not are "
-                        f"{', '.join(fails[:4])}" if len(holds) > len(fails)
+                        f"{naming(fails)}" if len(holds) > len(fails)
                         else f" — not a majority")
         detail = (f"Asked of every kind: {counted}{decisive}."
                   + (f" {len(silent)} more say nothing either way, and are "
