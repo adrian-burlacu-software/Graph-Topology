@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 from . import attention
 from .buffer import Buffer
+from .gap import UNDERMINING
 from .pool import Answer, EnginePool
 from .question import Generator, Question, article, plural
 
@@ -153,6 +154,23 @@ def seed_questions(text: str, lemmatise=None) -> list[str]:
     if not asked:
         asked = [f"what is {article(text)} {text}"]
     return asked[:4]
+
+
+def _pairs(text: str):
+    """(word before, text after) for every ` of ` in a note.
+
+    A regex would be one line and has now been mangled three times in
+    transport -- the word-boundary escapes arrive as literal backspaces and
+    the pattern silently never matches. This does the same job with no
+    escapes in it at all: R19 writes `21 of 29 kinds of bird bear it out`,
+    and what identifies it is a number on each side of ` of `.
+    """
+    parts = (text or "").split(" of ")
+    for index in range(len(parts) - 1):
+        before = parts[index].split()
+        after = parts[index + 1]
+        if before and after.split():
+            yield before[-1], after
 
 
 class Loop:
@@ -305,6 +323,7 @@ class Loop:
                 lines.append(doubt.detail)
             if (doubt.reason == "sense_mismatch" and corrected is None
                     and headline is not None
+                    and self.rank_of(headline) != 0
                     and doubt.question == headline.question):
                 lines.append(f"read the subject differently than you did: "
                              f"{doubt.detail}")
@@ -350,7 +369,7 @@ class Loop:
             for doubt in buffer.seen_doubts:
                 if doubt.question != headline.question:
                     continue
-                if doubt.reason in ("weak", "off_target"):
+                if doubt.reason in UNDERMINING:
                     lines.append(doubt.detail)
                     break
 
@@ -402,7 +421,7 @@ class Loop:
             # could even be formed, and no amount of workers shortens that.
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
-            "trust": self.trust(headline, conflicts, buffer),
+            "trust": self.trust(headline, conflicts, buffer, overturned),
         }
 
     def rank_of(self, answer) -> int | None:
@@ -466,8 +485,8 @@ class Loop:
             deepest, best = list(reversed(walk)), depth
         return deepest
 
-    @staticmethod
-    def trust(headline, conflicts, buffer: Buffer) -> str:
+    def trust(self, headline, conflicts, buffer: Buffer,
+              overturned: bool = False) -> str:
         """One word for how far the headline should be taken.
 
         The point of the whole loop, compressed: v687 answers questions, and
@@ -478,6 +497,13 @@ class Loop:
             return "none"
         if headline.verdict in ("UNKNOWN_WORD", "UNPARSED", "UNSUPPORTED"):
             return "unreadable"
+        # Whatever overturned the headline in the summary overturns it here.
+        # `do fish run` read NOT SUPPORTED in the lines and `weakly held` on
+        # the badge, because the conflict is filed under `does a fish have
+        # legs` -- the requirement check -- rather than under the seed. That
+        # check exists to ground the seed; its failure is the seed's.
+        if overturned:
+            return "not supported by the rest of the store"
         # Only a conflict about *this* claim overturns it. `is a shark a fish`
         # stays VERIFIED even when `does a shark have scales` -- asked on the
         # way past -- does not survive its own family. Reporting the second as
@@ -487,16 +513,23 @@ class Loop:
             return "contradicted by its own family"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
-        if any(one.reason == "sense_mismatch" for one in doubted):
+        rank = self.rank_of(headline) if hasattr(self, "rank_of") else None
+        if (any(one.reason == "sense_mismatch" for one in doubted)
+                and rank != 0):
+            # A synset named after another word is not a wrong reading:
+            # `hog.n.03` *is* what `pig` means, and WordNet lists it first.
+            # Only a reading the dictionary ranks below another is suspect.
             return "about a different sense of the word"
         if any(one.reason == "off_target" for one in doubted):
             return "reached on a different predicate"
+        if any(one.reason == "scored_apart" for one in doubted):
+            return "the words were scored one at a time"
         if any(one.reason == "negated_evidence" for one in doubted):
             # The single fact behind the yes says the opposite of the yes.
             # That is not a weak hold; it is a contradiction the answer did
             # not notice.
             return "its own evidence says the opposite"
-        if doubted:
+        if any(one.reason in UNDERMINING for one in doubted):
             return "weakly held"
         if headline.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH"):
             return "absent, not false"
@@ -514,4 +547,14 @@ class Loop:
             return "denied, unchallenged"
         if headline.verdict in ("LISTING", "DEFINED", "PROFILE", "IDENTIFIED"):
             return "content, not a verdict"
-        return "corroborated"
+        # Corroborated means something bore it out, not that nothing spoke
+        # against it. The family agreeing counts; so does R19 saying how many
+        # kinds of the class it checked. One crawled fact and silence is
+        # `unchallenged`, and the difference is the whole point of asking.
+        if buffer.borne_out(headline.question):
+            return "corroborated"
+        note = (headline.payload or {}).get("note") or ""
+        if any(a.isdigit() and b.split()[0].isdigit()
+               for a, b in _pairs(note)):
+            return "corroborated"
+        return "unchallenged"

@@ -48,12 +48,38 @@ KIND = {
     "MIXED": "conflict",             # the parts disagree with each other
 }
 
-#: Below this a ConceptNet or Ascent++ fact is crawl noise as often as it is
-#: knowledge. `dog has_property wild` sits at 0.54 and answers `is a dog wild`
-#: with yes; `dog capable_of swim` sits at 0.42 and every kind of dog the
-#: norms cover denies it. The number is a threshold on a corpus, not a truth,
-#: so it is named here rather than buried in a comparison.
-WEAK_CONFIDENCE = 0.60
+#: What counts as a weak fact, per source, measured from the store rather
+#: than guessed. This was a single 0.60 for every source, and 92.5% of the
+#: 1.96M facts sit below that -- so the loop called almost every answer it
+#: ever gave weakly held, including `is a dog an animal`.
+#:
+#: The three sources are not comparable:
+#:
+#:     ascentpp    1,808,006 facts, p25 0.16, p50 0.26, p75 0.39, p90 0.51
+#:     conceptnet     88,683 facts, every one of them exactly 0.35
+#:     wordnet        66,376 facts, every one of them exactly 0.95
+#:
+#: So 0.42 from Ascent++ -- which is what `does a beagle swim` rests on, and
+#: which this called weak -- is around that source's 78th percentile. It is
+#: an *above average* fact for where it came from. And for a source whose
+#: confidence is a constant there is no such thing as a weak fact: the
+#: number carries no information and comparing it to anything is theatre.
+#:
+#: A source's own first quartile is the floor. Below that a fact is weak for
+#: the company it keeps; at or above it, the confidence is not the problem
+#: and saying it is buries whatever the real problem was.
+WEAK_BELOW = {"ascentpp": 0.16}
+
+#: Sources whose confidence is one number for every row, so it says nothing.
+FLAT_CONFIDENCE = frozenset({"conceptnet", "wordnet"})
+
+
+def is_weak(source: str, confidence: float) -> bool:
+    """Is this fact weak *for its source*?"""
+    source = (source or "").strip().lower()
+    if source in FLAT_CONFIDENCE or source not in WEAK_BELOW:
+        return False
+    return confidence < WEAK_BELOW[source]
 
 #: The curly quotes v687 writes its notes with, so a blocker can be recovered
 #: from prose when no field carries it.
@@ -135,6 +161,22 @@ class Doubt:
                 "distance": self.distance, "detail": self.detail}
 
 
+#: Doubts that actually undermine an answer, as against ones that merely
+#: describe how it was reached.
+#:
+#: `inherited` and `assumed_sense` are the store's normal condition, not
+#: defects of a particular answer: a taxonomy answers by inheriting, and
+#: almost no object in a crawled fact has had its sense resolved. Between
+#: them they fired on nearly everything, so `is a dog an animal` -- WordNet,
+#: confidence 0.95, two levels up -- came back "weakly held", which is not a
+#: sentence anyone should read about dogs and animals.
+#:
+#: They still earn a corroboration fan-out, which is how the beagle case is
+#: found. What they no longer do is decide the verdict on the verdict.
+UNDERMINING = frozenset({"weak", "negated_evidence", "off_target",
+                         "scored_apart", "sense_mismatch", "uncorroborated"})
+
+
 def kind_of(verdict: str) -> str:
     """Which of the five things a verdict is about."""
     if verdict in ABOUT_THE_WORLD:
@@ -194,6 +236,40 @@ def read_gap(payload: dict, question: str = "") -> Gap | None:
                question=question, options=options, detail=note.strip())
 
 
+#: v687 says so itself when it has scored a question as separate terms: the
+#: note opens `(“eat” and “grass”): no.` Every wrong denial found in the
+#: audit has this shape and no correct one does -- `can a dog fly` is denied
+#: on the claim itself and its note does not open this way.
+OPENS_WITH = '(“'
+JOINS = '” and “'
+DENIES = '”): no'
+
+
+def scored_apart(payload: dict) -> Doubt | None:
+    """A no reached by scoring the question's words one at a time.
+
+    `does a cow eat grass` is CONTRADICTED because `eat` and `grass` are
+    scored separately and one of them fails -- the note names the pair. The
+    claim as a whole was never put to anything. Same for `does a dog live on
+    the ground` through `lives in jungles`, and `is a violin made of wood`
+    through `can be made of ebony`.
+    """
+    note = payload.get("note") or ""
+    if not (note.startswith(OPENS_WITH) and JOINS in note
+            and DENIES in note.split(JOINS, 1)[1]):
+        return None
+    first = note[len(OPENS_WITH):].split(JOINS, 1)[0]
+    second = note.split(JOINS, 1)[1].split(DENIES, 1)[0]
+    parse = payload.get("parse") or {}
+    return Doubt(
+        "scored_apart", payload.get("question") or "",
+        payload.get("concept") or "", "", parse.get("relation") or "",
+        0.0, 0,
+        f"the no comes from scoring “{first}” and “{second}” as "
+        f"separate claims and failing one of them. "
+        f"The question as a whole was never put to anything")
+
+
 def off_target(payload: dict) -> Doubt | None:
     """A verdict reached on a predicate that is not what was asked about.
 
@@ -247,7 +323,7 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     ever got.
     """
     verdict = payload.get("verdict") or ""
-    stray = off_target(payload)
+    stray = off_target(payload) or scored_apart(payload)
     if verdict not in ("VERIFIED", "HELD", "INHERITED"):
         # A no reached on the wrong predicate is as wrong as a yes.
         return [stray] if stray else []
@@ -268,13 +344,14 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     relation = lead.get("relation") or parse.get("relation") or ""
 
     predicate = DENYING.sub("", predicate).strip() or predicate
-    if lead and confidence and confidence < WEAK_CONFIDENCE:
+    source = lead.get("source") or ""
+    if lead and confidence and is_weak(source, confidence):
         doubts.append(Doubt(
             "weak", question, concept, predicate, relation, confidence,
             distance,
-            "the fact this rests on comes from "
-            f"{lead.get('source') or 'the crawl'} at confidence "
-            f"{confidence:.2f}, under the {WEAK_CONFIDENCE:.2f} floor"))
+            f"the fact this rests on is weak for where it came from: "
+            f"{confidence:.2f} from {source}, below that source's first "
+            f"quartile of {WEAK_BELOW[source]:.2f}"))
     if distance > 0:
         doubts.append(Doubt(
             "inherited", question, concept, predicate, relation, confidence,

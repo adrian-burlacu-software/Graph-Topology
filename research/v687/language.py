@@ -112,6 +112,13 @@ class Parse:
         }
 
 
+#: Words that make a tail more than one claim. This lived in a regex whose
+#: word-boundary escapes had been mangled into control characters, so the
+#: pattern never matched and the guard it belonged to was always true. A set
+#: of words cannot be mangled and says the same thing.
+CONNECTIVES = frozenset({"and", "or", "not", "no", "never"})
+
+
 class Parser:
     """Reads questions. Degrades to regex when spaCy is unavailable."""
 
@@ -358,7 +365,7 @@ class Parser:
                 relation = "is_a"
                 target = re.sub(r"^(a|an|the)\b", "", tail).strip() or None
             elif (relation == "has_property" and tail and self.nouns
-                    and not re.search(r"(and|or|not|no|never)", tail)
+                    and not CONNECTIVES & set(tail.split())
                     and len(tail.split()) <= 3
                     and tail.strip() in self.nouns):
                 # A mass noun takes no determiner and names a class all the

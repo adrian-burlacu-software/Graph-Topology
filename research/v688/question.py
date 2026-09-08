@@ -675,7 +675,7 @@ class Generator:
         word = (doubt.question and buffer.subject_of(doubt.question)) or ""
         if not word:
             return []
-        chosen = self.sense_named(word)
+        chosen = self.better_sense(word, doubt.concept)
         if not chosen or word in buffer.pins:
             return []
         buffer.pins[word] = chosen
@@ -733,17 +733,30 @@ class Generator:
                 depth=buffer.depth_of(answer.question) + 1)]
         return []
 
-    def sense_named(self, word: str) -> str:
-        """The noun sense whose own name is the word, if there is one.
+    def better_sense(self, word: str, taken: str) -> str:
+        """A reading of the word more obvious than the one v687 took.
 
-        `pig` offers `pig bed.n.01` before `pig.n.06`; only the second is
-        named after the word. It is a weak rule and it is the one v687 does
-        not apply, which is why `pig` reads as a foundry mould.
+        This used to prefer whichever sense was *named* after the word, which
+        was right while `pig` resolved to `pig bed.n.01` and became wrong the
+        moment v687 was fixed: it then overruled `hog.n.03`, domestic swine
+        and WordNet's first reading, in favour of `pig.n.06`, a crude block
+        of metal that happens to be spelt like the word.
+
+        The test is WordNet's own order for the lemma. Only a sense the
+        dictionary lists *earlier* than the one v687 took is a candidate, so
+        a fixed default is never argued with.
         """
-        for sense in self.engine.reasoner.senses_of(word) or []:
-            name = sense.get("id") or ""
-            if (bare(name) == word and name.split(".")[-2:-1] == ["n"]):
-                return name
+        senses = self.engine.reasoner.senses_of(word) or []
+        here = next((one for one in senses if one.get("id") == taken), None)
+        floor = here.get("rank") if here else None
+        if floor is None or floor >= 90:
+            return ""
+        for sense in senses:
+            rank = sense.get("rank")
+            if rank is None or rank >= floor:
+                continue
+            if (sense.get("id") or "").split(".")[-2:-1] == ["n"]:
+                return sense["id"]
         return ""
 
     # -- source 4: does the subject have what the act needs? ---------------
