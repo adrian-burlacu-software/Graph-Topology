@@ -592,7 +592,8 @@ class Profiles:
 
             refused: list[tuple] = []
             for level, fact, text, term in sorted(matches, key=better):
-                if fact["relation"].startswith("not_") or self._denies(text):
+                if (fact["relation"].startswith("not_")
+                        or self._denies(text, term)):
                     return Verdict(
                         term=term, verdict="DENIED", predicate=text,
                         source=level.concept, distance=level.distance,
@@ -816,10 +817,28 @@ class Profiles:
             quantifier=want, detail=detail)
 
     @staticmethod
-    def _denies(text: str) -> bool:
-        """Is this property phrased as a denial rather than a claim?"""
-        return any(word in NEGATORS
-                   for word in re.findall(r"[a-z]+", text.lower()))
+    def _denies(text: str, target: str = "") -> bool:
+        """Is this property phrased as a denial rather than a claim?
+
+        Negation scopes forward. Without a target there is nothing to scope
+        over and any negator counts, which is what every caller but one
+        wants. Given one, a negator only denies if it comes *before* the
+        thing asked: `capable of digest grass but humans cannot` asserts that
+        cattle digest grass and denies it of humans, and reading the trailing
+        `cannot` as a denial is how `does a cow eat grass` came back
+        CONTRADICTED.
+        """
+        words = re.findall(r"[a-z]+", text.lower())
+        negators = [i for i, word in enumerate(words) if word in NEGATORS]
+        if not negators:
+            return False
+        if not target:
+            return True
+        wanted = set(re.findall(r"[a-z]+", target.lower()))
+        hit = next((i for i, word in enumerate(words) if word in wanted), None)
+        if hit is None:
+            return True
+        return negators[0] < hit
 
     # -- routing -----------------------------------------------------------
     #: "what attributes does X have", "what is X like", "describe X".

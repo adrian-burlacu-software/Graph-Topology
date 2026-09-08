@@ -763,10 +763,11 @@ class Generator:
     def from_requirement(self, answer, buffer) -> list[Question]:
         """Check a capability against what doing it turns out to need.
 
-        `do fish run` comes back VERIFIED. Rather than take that or leave it,
-        work out what running needs -- the things the store says can run have
-        a **leg**, 12 of 90 of them, 102 times commoner than among concepts
-        at large -- and put that to the fish.
+        `do fish run` used to come back VERIFIED, on `animal capable_of "could
+        run"`. R19 and R28 stopped that, and it is UNKNOWN now. Rather than
+        take that or leave it, work out what running needs -- the things the
+        store says can run have a **leg**, 12 of 90 of them, 102 times
+        commoner than among concepts at large -- and put that to the fish.
 
         Three steps, and each needs the one before it: the claim has to come
         back before it is worth grounding, the requirement has to be derived
@@ -780,8 +781,15 @@ class Generator:
         # A denial is worth grounding too, and differently: a penguin cannot
         # fly and *does* have the wings flying needs, which says the answer
         # is not about anatomy.
+        #
+        # And silence most of all. When v687 has nothing to say about whether
+        # a fish runs, what running *needs* is the only route left to an
+        # answer, and it is the route a person would take. Excluding UNKNOWN
+        # here meant the one question this generator was written for stopped
+        # reaching it the moment v687 stopped over-affirming: the loop spent
+        # its cycles defining "run" and wondering whether a fish is slimy.
         if answer.verdict not in ("VERIFIED", "HELD", "INHERITED",
-                                  "CONTRADICTED", "DENIED"):
+                                  "CONTRADICTED", "DENIED", "UNKNOWN"):
             return []
         parse = (answer.payload or {}).get("parse") or {}
         # The word that was said, not the sense v687 resolved it to. Asked

@@ -323,13 +323,20 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     ever got.
     """
     verdict = payload.get("verdict") or ""
-    stray = off_target(payload) or scored_apart(payload)
+    # Both, not the first of the two. They are different complaints and an
+    # answer can earn both: `is a violin made of wood` is denied by scoring
+    # `made` and `wood` apart, *and* the predicate it was denied through --
+    # "can be made of ebony" -- is not the one asked about. Keeping only
+    # `off_target` hid the pair-splitting entirely on every answer where both
+    # applied. Which one leads the summary is still a presentation choice.
+    stray = [one for one in (off_target(payload), scored_apart(payload))
+             if one is not None]
     if verdict not in ("VERIFIED", "HELD", "INHERITED"):
         # A no reached on the wrong predicate is as wrong as a yes.
-        return [stray] if stray else []
+        return stray
     question = question or payload.get("question") or ""
     parse = payload.get("parse") or {}
-    doubts: list[Doubt] = [stray] if stray else []
+    doubts: list[Doubt] = list(stray)
 
     evidence = payload.get("evidence") or []
     lead = evidence[0] if evidence else {}

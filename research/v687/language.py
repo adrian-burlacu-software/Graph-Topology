@@ -119,6 +119,28 @@ class Parse:
 CONNECTIVES = frozenset({"and", "or", "not", "no", "never"})
 
 
+def whole_words(needle: str, haystack: str) -> bool:
+    """Does `haystack` contain `needle` as whole words?
+
+    Deliberately not a regex. Three `\b` patterns in this codebase have had
+    the backslash mangled in transit into a literal backspace and silently
+    stopped matching -- one of them in this very file, where it disabled a
+    guard from the day it was written. Padding and a substring test cannot be
+    mangled that way.
+
+    Every character that is not a letter or a digit becomes a space, so
+    "swimming-pool" and "swimming pool" read alike, and the padding makes the
+    ends of the string behave like any other boundary.
+    """
+    def spaced(text: str) -> str:
+        return " " + "".join(
+            character if character.isalnum() else " "
+            for character in text.lower()) + " "
+
+    needle = spaced(needle).strip()
+    return bool(needle) and f" {needle} " in spaced(haystack)
+
+
 class Parser:
     """Reads questions. Degrades to regex when spaCy is unavailable."""
 
@@ -409,6 +431,20 @@ class Parser:
         so this is lemma overlap rather than equality. The threshold is the
         share of the question's content lemmas that the fact must contain, so
         "fall down" matches "fall down the stairs" but not "fall in love".
+
+        Two things the overlap alone got wrong, both found in the
+        over-affirmation audit:
+
+        * The shortcut for "the fact names the target outright" was a raw
+          substring test, so `fly` was named by "attract butterfly", `walk` by
+          "block the sidewalk", `run` by "get drunk" and `sing` by "go
+          missing". `can a tree fly` came back VERIFIED because a plant
+          attracts a butterfly. It is `whole_words` now.
+        * Overlap is one-directional on purpose -- the fact may say more than
+          the question -- but saying more can change the claim. "go for swim"
+          carries `swim` and says nothing about a rock swimming. `plain`
+          reports whether the fact states the target and nothing besides, and
+          R28 is what does the refusing.
         """
         cache: dict[str, set[str]] = {}
 
@@ -427,13 +463,28 @@ class Parser:
             have = lemma_set(fact_object)
             if not have:
                 return 0.0
-            if target.lower().strip() in fact_object.lower():
+            if whole_words(target, fact_object):
                 return 1.0          # the fact names the target outright
             return len(wanted & have) / len(wanted)
+
+        def plain(fact_object: str, target: str | None) -> bool:
+            """Does the fact state the target and add nothing to it?
+
+            R28. "lay egg" answers `does a bird lay eggs`; "walk on land" does
+            not answer `can a fish walk`, because the qualification is the
+            whole of what makes it true. v687 already declines the mirror of
+            this -- "denying a qualified property does not deny the property"
+            -- and this is the same reading applied to yes.
+            """
+            if not target:
+                return True
+            wanted = lemma_set(target)
+            return bool(wanted) and lemma_set(fact_object) <= wanted
 
         def matches(fact_object: str, target: str | None) -> bool:
             return score(fact_object, target) >= threshold
 
         matches.score = score
+        matches.plain = plain
         matches.threshold = threshold
         return matches

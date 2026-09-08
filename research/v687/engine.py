@@ -127,6 +127,7 @@ class Engine:
         elif parse.polar and parse.target and parse.relation:
             answer = self.reasoner.verify(chosen, parse.relation, parse.target,
                                           self.match)
+            answer = self.corroborate(answer, parse.target)
         else:
             answer = self.reasoner.describe(chosen, parse.relation)
 
@@ -143,6 +144,17 @@ class Engine:
         payload["neighbourhood"] = self.neighbourhood(chosen, answer.chain, distances)
         payload["store"] = self.reasoner.store.name
         return payload
+
+    def corroborate(self, answer, target: str):
+        """R19 hook: put an inherited fact to the ancestor's other kinds.
+
+        A no-op here. This engine has the fact store and nothing to check it
+        against; the norms arrive two subclasses up, and that is where the
+        override lives. The hook is here because this is where the fact path
+        produces its verdict, and R19 was written for exactly this path and
+        then only ever wired into the other one.
+        """
+        return answer
 
     def neighbourhood(self, concept: str, chain: list[str],
                       distances: dict[str, int], per_level: int = 3) -> dict:

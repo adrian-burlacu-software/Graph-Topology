@@ -43,12 +43,16 @@ def pins_from(values: list[str]) -> dict:
 EXAMPLES = [
     # -- the answer was about a different word -----------------------------
     {"text": "do pigs fly",
-     "shows": "Five bugs came out of this one question. v687 read `pig` as "
+     "shows": "Six bugs came out of this one question. v687 read `pig` as "
               "`pig bed.n.01`, a foundry mould, because the crawl holds more "
               "rows about those — fixed in v687, which now reaches domestic "
-              "swine. What is left is a yes resting on `mammal capable_of "
-              "fly`, and the family check finds that is a fact about bats.",
-     "expect": "not supported by the rest of the store"},
+              "swine. The yes that was left rested on `mammal capable_of "
+              "fly`, five levels up, and R19 now refuses it: 1 of the 65 "
+              "kinds of mammal the norms cover flies. The loop still asks "
+              "what flying needs and puts it to the pig, and nothing says a "
+              "pig has wings either. Absent, not false — which is the "
+              "honest reading of a store that never recorded it.",
+     "expect": "absent, not false"},
 
     {"text": "is a mouse an animal",
      "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "

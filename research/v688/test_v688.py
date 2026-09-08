@@ -496,18 +496,24 @@ class ExampleTests(unittest.TestCase):
             found = needs.of(action)
             self.assertIsNone(found, found and found.part)
 
-    def test_the_requirement_check_reaches_the_family_that_denies_it(self):
-        """The payoff, and it takes three answers: derive the requirement,
-        ask it of the fish, and let the family check take over -- `does a
-        fish have legs` is inherited from animal, and carp, goldfish, minnow,
-        salmon, seahorse and shark are every one of them scored and denied."""
+    def test_the_requirement_check_reaches_the_denial(self):
+        """The payoff, and it takes two answers: derive the requirement and
+        ask it of the fish.
+
+        This used to take three. `does a fish have legs` came back VERIFIED
+        -- on `fish has_part "no legs"`, whose negation lives in the object
+        column where nothing read it -- and the family fan-out was what
+        eventually overturned it. R3 reads the object now, so the denial
+        arrives on the first answer and the fan-out is not needed. Fewer
+        steps to the same place is the point; the assertion is on the
+        conclusion, not on the route."""
         found = run("do fish run")
         asked = [answer for cycle in found.cycles for answer in cycle.answers
                  if answer.origin == "require"]
         self.assertEqual([a.question for a in asked], ["does a fish have legs"])
-        self.assertTrue(any("have in common" in line
-                            for line in found.summary["lines"]),
-                        found.summary["lines"])
+        self.assertEqual(asked[0].verdict, "CONTRADICTED")
+        self.assertEqual(found.summary["trust"],
+                         "not supported by the rest of the store")
 
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
@@ -653,12 +659,25 @@ class ExampleTests(unittest.TestCase):
                          "corroborated")
 
     def test_a_no_scored_one_word_at_a_time_is_flagged(self):
-        """`does a cow eat grass` is denied by scoring `eat` and `grass`
-        apart and failing one of them; the claim was never put to anything.
-        v687 says so in its own note, and a correct denial does not."""
-        found = run("does a cow eat grass")
-        self.assertEqual(found.summary["trust"],
-                         "the words were scored one at a time")
+        """`is a violin made of wood` is denied by scoring `made` and `wood`
+        apart and failing one of them -- the norms record "can be made of
+        ebony" as false, and denying one wood does not deny wood. The claim
+        as asked was never put to anything, v687 says so in its own note, and
+        a correct denial does not.
+
+        This was `does a cow eat grass` until R3 learned that negation scopes
+        forward. `cattle capable_of "digest grass but humans cannot"` asserts
+        the grass and denies it of humans, and reading the trailing `cannot`
+        as a denial made that a no. It is a yes now, so the detector needed a
+        denial that is still wrong; the violin is the one left.
+
+        The assertion is on the doubt, not on the headline. `off_target`
+        fires on the violin too and outranks this one for the summary line,
+        and which of two true complaints gets shown is a presentation choice
+        -- that the pair was scored apart is the finding under test."""
+        found = run("is a violin made of wood")
+        doubts = [one["reason"] for one in found.summary["doubts"]]
+        self.assertIn("scored_apart", doubts, doubts)
         self.assertEqual(run("can a dog fly").summary["trust"],
                          "denied, unchallenged")
 
