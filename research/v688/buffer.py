@@ -18,6 +18,7 @@ utterance is a lifetime change and not a new mechanism, and it is what makes
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from . import attention
@@ -33,10 +34,26 @@ NEGATIVE = frozenset({"CONTRADICTED", "DENIED"})
 #: a means, not a topic, and a curiosity question is a guess: following either
 #: is how a run about whales ends up asking whether a goldfish is a bony fish,
 #: and how `is a shark a fish` spent 37 questions on gills and slime.
-DELIBERATE = frozenset({"seed", "gap", "chain", "split"})
+DELIBERATE = frozenset({"seed", "gap", "chain", "split", "require"})
+
+#: How many *guesses* -- curiosity answers about a subject the utterance
+#: named -- may earn a corroboration fan-out in one run. Letting eight
+#: through turned `do fish run` into 47 questions about gills and slime; one
+#: was too few, because whichever guess came back first took the slot and
+#: `does a cat purr` spent it on `can a cat walk` instead of `is a cat
+#: active`, which is the one the family disagrees about.
+GUESSES_WORTH_CHECKING = 2
+
+#: Origins whose answers are about the utterance rather than about the
+#: loop's own working. Only these open gaps or start chains.
+ASKED_ON_PURPOSE = frozenset({"seed", "gap", "require", "chain"})
 
 #: Parts of speech that name something worth attending to.
 ATTENDED_POS = ("NOUN", "PROPN", "VERB", "ADJ", "INTJ")
+
+#: The tagger's labels in WordNet's alphabet.
+WORDNET_POS = {"NOUN": "n", "PROPN": "n", "VERB": "v", "ADJ": "a",
+               "ADV": "r"}
 
 #: Words that are in the ontology and never worth attending to: they are in
 #: every sentence and carry no situation.
@@ -98,6 +115,16 @@ class Buffer:
         #: actually said is worth corroborating; a guess about something you
         #: went and fetched is not.
         self.said: set[str] = set()
+        #: word -> the WordNet part-of-speech letter the tagger assigned it
+        #: in this utterance, so a sense list can be offered in the part of
+        #: speech the word was actually used as.
+        self.tags: dict[str, str] = {}
+        #: Whether the utterance asked what something *is*. Only then does a
+        #: definition ladder belong: otherwise it defines the words in the
+        #: loop's own follow-ups, several rungs deep, about nothing.
+        self.wants_a_definition = bool(
+            re.match(r"^\s*(what|who)\s+(is|are|was|were)\s", text or "",
+                     re.I))
         #: Gap and doubt questions that were generated but did not fit in a
         #: cycle. They are carried rather than dropped: a family check cut
         #: short by the pool size reports `1 of 4 deny it` about a family of
@@ -113,6 +140,14 @@ class Buffer:
         self.sorts: dict[str, str] = {}
         #: family checks already probed for which side the subject is on
         self._spent_splits: set[str] = set()
+        #: How many curiosity answers have earned a corroboration fan-out.
+        #: `do fish run` let eight of them through and spent 47 questions on
+        #: gills, slime and fishy smell -- none of it about running.
+        self._guesses_checked = 0
+        #: sense mismatches not yet re-asked under a pin
+        self._senses: list = []
+        #: question text -> the subject word it was asked about
+        self._subjects: dict[str, str] = {}
 
     # -- attending ---------------------------------------------------------
     def attend(self, text: str) -> list[str]:
@@ -137,6 +172,7 @@ class Buffer:
             if lemma in found:
                 continue
             found.append(lemma)
+            self.tags.setdefault(lemma, WORDNET_POS.get(token.get("pos"), ""))
             self.activation.bump(lemma, 0.6, self.cycle)
         # Only the *subject* becomes a topic. Everything else the sentence
         # names is activated -- it is part of the situation -- but it is not
@@ -172,17 +208,23 @@ class Buffer:
         fresh_doubts: list[Doubt] = []
         self.recent = list(answers)
         for answer in answers:
-            self.answers[answer.question] = answer
+            parse = (answer.payload or {}).get("parse") or {}
+            if parse.get("subject"):
+                self._subjects[answer.question] = parse["subject"].lower()
+            self.answers[answer.key] = answer
             if answer.error:
                 continue
             hole = read_gap(answer.payload, answer.question)
             if hole is not None and hole.blocker:
                 key = (hole.kind, hole.blocker)
-                if answer.origin == "curiosity":
-                    # A curiosity question that finds nothing has found
-                    # nothing. Chasing it turns `is a greeting furry` ->
-                    # UNKNOWN into `what is a furry`, and the loop spends its
-                    # workers defining the adjectives it invented.
+                if answer.origin not in ASKED_ON_PURPOSE:
+                    # A question the loop generated as a *means* is not a
+                    # topic. `is an emperor penguin strong` came back
+                    # UNRECORDED while checking the penguin family, and the
+                    # gap it opened had the loop asking what an emperor is,
+                    # what a king is, and what a jackass is. Same for
+                    # curiosity: `is a greeting furry` -> UNKNOWN became
+                    # `what is a furry`.
                     self.seen_gaps.append(hole)
                 elif key not in self._spent_gaps:
                     self._gaps.append(hole)
@@ -192,13 +234,23 @@ class Buffer:
                 # One question earns one corroboration pass, however many
                 # reasons there are to doubt it. Three doubts on the same
                 # claim would otherwise fan out three identical times.
+                if doubt.reason == "sense_mismatch":
+                    # Not worth corroborating -- putting the claim to other
+                    # kinds of foundry mould answers nothing about pigs --
+                    # but worth re-asking under a pin, which is its own
+                    # queue.
+                    self.seen_doubts.append(doubt)
+                    if answer.origin in ASKED_ON_PURPOSE:
+                        self._senses.append(doubt)
+                    continue
                 key = (doubt.concept, doubt.predicate, doubt.relation)
                 if key in self._spent_doubts or not doubt.predicate:
                     self.seen_doubts.append(doubt)
                     continue
-                worth = (answer.origin in DELIBERATE
-                         or (answer.origin == "curiosity"
-                             and answer.about in self.said))
+                guess = (answer.origin == "curiosity"
+                         and answer.about in self.said
+                         and self._guesses_checked < GUESSES_WORTH_CHECKING)
+                worth = answer.origin in DELIBERATE or guess
                 if not worth:
                     # A corroboration question is not itself corroborated, and
                     # neither is a guess about something nobody mentioned.
@@ -210,10 +262,20 @@ class Buffer:
                     # cat family disagrees about being active.
                     self.seen_doubts.append(doubt)
                     continue
+                if guess:
+                    self._guesses_checked += 1
                 self._doubts.append(doubt)
                 self.seen_doubts.append(doubt)
                 fresh_doubts.append(doubt)
         return fresh_gaps, fresh_doubts
+
+    def open_senses(self) -> list:
+        """Mismatches that have not yet been re-asked under a pin."""
+        pending, self._senses = self._senses, []
+        return pending
+
+    def subject_of(self, question: str) -> str:
+        return self._subjects.get(question, "")
 
     def open_gaps(self) -> list[Gap]:
         """Gaps that have not yet been turned into questions, and mark them."""
@@ -329,6 +391,56 @@ class Buffer:
                 "differ": [one.about for one in differ if one.about]})
         return found
 
+    def overreach(self) -> list[dict]:
+        """Claims that belong to a few members and were filed under the class.
+
+        `do pigs fly` rests on `mammal.n.01 capable_of fly`. That is a true
+        fact about bats and false of the other forty kinds of mammal the
+        store knows, and a pig inherits it because it is a mammal.
+
+        The shape is general and does not depend on the words: a claim
+        *inherited* from an ancestor, put to that ancestor's own kinds, and
+        held by a minority of them. R11 hoists a fact every child states up
+        to the parent; this is the same measurement run as a check, and it
+        catches the hoisting that should never have happened -- whoever did
+        it, and whichever rule let it through.
+        """
+        families: dict[str, list] = {}
+        for answer in self.answers.values():
+            if answer.origin == "doubt" and answer.parent:
+                families.setdefault(answer.parent, []).append(answer)
+
+        found: list[dict] = []
+        for parent, kin in families.items():
+            asked = self.answers.get(parent)
+            if asked is None or asked.verdict not in POSITIVE:
+                continue
+            decided = [one for one in kin
+                       if one.verdict in POSITIVE | NEGATIVE]
+            if len(decided) < 3:
+                continue
+            hold = [one for one in decided if one.verdict in POSITIVE]
+            if len(hold) >= len(decided) / 2:
+                continue
+            if not hold:
+                # Nothing at all bears it out. That is the family denying the
+                # claim outright, which the conflict already reports; calling
+                # it "a fact about almost none of them" says nothing and says
+                # it twice.
+                continue
+            # The ancestor the claim was inherited *from*, which is where
+            # it is filed -- not the subject that inherited it.
+            source = next((one.concept for one in self.seen_doubts
+                           if one.question == parent and one.concept), "")
+            found.append({
+                "claim": kin[0].predicate, "question": parent,
+                "source": source,
+                "holders": [one.about for one in hold],
+                "held": len(hold), "asked": len(decided),
+                "detail": f"{len(hold)} of the {len(decided)} kinds it was "
+                          f"put to bear it out"})
+        return found
+
     def settled(self) -> bool:
         """Nothing left that the loop could act on by itself."""
         return (not self._gaps and not self._doubts and not self.carried
@@ -353,7 +465,7 @@ class Buffer:
         return blocked
 
     def as_dict(self) -> dict:
-        return {"text": self.text, "cycle": self.cycle,
+        return {"text": self.text, "cycle": self.cycle, "tags": dict(self.tags),
                 "activation": self.activation.as_dict(),
                 "pins": dict(self.pins),
                 "asked": len(self.answers),

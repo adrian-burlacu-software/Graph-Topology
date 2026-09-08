@@ -38,12 +38,22 @@ class Answer:
     started: float
     elapsed: float
     origin: str = "seed"
+    pins: dict = field(default_factory=dict)
     about: str = ""
     predicate: str = ""
     why: str = ""
     parent: str = ""
     cycle: int = 0
     error: str = ""
+
+    @property
+    def key(self) -> str:
+        """The same words under a different reading are a different answer."""
+        if not self.pins:
+            return self.question
+        held = " ".join(f"{word}={sense}" for word, sense in sorted(
+            self.pins.items()))
+        return f"{self.question} ⟨{held}⟩"
 
     @property
     def verdict(self) -> str:
@@ -63,7 +73,8 @@ class Answer:
         return (self.payload or {}).get("steps") or []
 
     def as_dict(self, with_payload: bool = True) -> dict:
-        record = {"question": self.question, "verdict": self.verdict,
+        record = {"question": self.question, "pins": dict(self.pins),
+                  "verdict": self.verdict,
                   "relation": self.relation, "note": self.note,
                   "worker": self.worker, "elapsed": round(self.elapsed, 4),
                   "started": round(self.started, 4), "origin": self.origin,
@@ -146,8 +157,10 @@ class EnginePool:
         if not questions:
             return []
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
-            futures = [pool.submit(self.ask_one, item.text, pinned,
-                                   item.origin, about=item.about,
+            futures = [pool.submit(self.ask_one, item.text,
+                                   dict(item.pins) or pinned,
+                                   item.origin, pins=dict(item.pins),
+                                   about=item.about,
                                    predicate=item.predicate, why=item.why,
                                    parent=item.parent)
                        for item in questions]

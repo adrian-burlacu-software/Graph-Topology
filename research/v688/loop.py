@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from . import attention
 from .buffer import Buffer
 from .pool import Answer, EnginePool
-from .question import Generator, Question, article
+from .question import Generator, Question, article, plural
 
 #: An utterance that opens with one of these is a question already.
 ASKING = re.compile(
@@ -83,11 +83,13 @@ class Run:
     pool: dict
     settled: bool
     elapsed: float
+    pinned: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {"utterance": self.utterance,
                 "cycles": [c.as_dict() for c in self.cycles],
                 "summary": self.summary, "buffer": self.buffer,
+                "pinned": self.pinned,
                 "pool": self.pool, "settled": self.settled,
                 "elapsed": round(self.elapsed, 3),
                 "asked": sum(len(c.answers) for c in self.cycles)}
@@ -157,7 +159,7 @@ class Loop:
     """attend -> generate -> fan out -> read -> update -> repeat."""
 
     def __init__(self, pool: EnginePool, curiosity: attention.Curiosity,
-                 max_cycles: int = 6, width: int | None = None) -> None:
+                 max_cycles: int = 8, width: int | None = None) -> None:
         self.pool = pool
         self.curiosity = curiosity
         self.max_cycles = max_cycles
@@ -174,9 +176,14 @@ class Loop:
         read = parser.nlp(word)
         return read[0].lemma_ if len(read) else word
 
-    def run(self, utterance: str) -> Run:
+    def run(self, utterance: str, pinned: dict | None = None) -> Run:
         engine = self.pool.engines[0]
         buffer = Buffer(utterance, engine, self.curiosity)
+        # A reading the reader chose. It is held for the whole utterance and
+        # every question the loop generates inherits it, which is the
+        # lifetime `pins.py` was written for and never had.
+        buffer.pins.update({word.lower(): sense
+                            for word, sense in (pinned or {}).items()})
         generator = Generator(engine, self.curiosity)
         started = time.time()
         cycles: list[Cycle] = []
@@ -228,7 +235,8 @@ class Loop:
             buffer.activation.decay()
             pending = generator.queue(buffer, self.width)
 
-        return Run(utterance=utterance, cycles=cycles,
+        return Run(pinned=dict(buffer.pins), utterance=utterance,
+                   cycles=cycles,
                    summary=self.summarise(buffer, cycles),
                    buffer=buffer.as_dict(), pool=self.pool.as_dict(),
                    settled=buffer.settled(), elapsed=time.time() - started)
@@ -243,10 +251,48 @@ class Loop:
         seed = cycles[0].answers if cycles else []
         headline = seed[0] if seed else None
         conflicts = buffer.conflicts()
+        overreached = buffer.overreach()
         telling = buffer.needs_telling()
 
+        # If the question was re-asked under a pin and the two readings
+        # disagree, the corrected reading is the headline. Leading with
+        # `VERIFIED — do pigs fly` and explaining underneath puts the loudest
+        # line on the reading nobody meant.
+        corrected = next(
+            (one for one in buffer.answers.values()
+             if one.origin == "sense" and headline is not None
+             and one.question == headline.question
+             and one.verdict != headline.verdict), None)
+
+        # A requirement the subject does not meet, or a family that denies
+        # the claim, overturns the headline. Leading with `VERIFIED — do fish
+        # run` and refuting it three lines down puts the loudest line on the
+        # answer the run spent its cycles disproving.
+        overturned = headline is not None and (
+            bool(overreached)
+            or
+            any(bad.question == headline.question for bad in conflicts)
+            or any(one.origin == "require" and one.about
+                   and self.failed(one, buffer)
+                   for one in buffer.answers.values()))
+
         lines: list[str] = []
-        if headline is not None:
+        if headline is not None and corrected is not None:
+            held = ", ".join(f"{word} as {sense}"
+                             for word, sense in corrected.pins.items())
+            lines.append(
+                f"{corrected.verdict} — {corrected.question}, reading "
+                f"{held}")
+            lines.append(
+                f"v687 read it as {(headline.payload or {}).get('concept')} "
+                f"and answered {headline.verdict}, which is a correct answer "
+                f"about something you did not ask about")
+        elif headline is not None and overturned:
+            lines.append(
+                f"NOT SUPPORTED — {headline.question}. v687 answers "
+                f"{headline.verdict}, and the rest of the store does not "
+                f"bear it out.")
+        elif headline is not None:
             lines.append(f"{headline.verdict} — {headline.question}")
         for bad in conflicts:
             names = ", ".join(question for question, _ in bad.against)
@@ -254,6 +300,82 @@ class Loop:
                      if headline is not None and bad.question == headline.question
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
+        for doubt in buffer.seen_doubts:
+            if doubt.reason == "negated_evidence":
+                lines.append(doubt.detail)
+            if (doubt.reason == "sense_mismatch" and corrected is None
+                    and headline is not None
+                    and doubt.question == headline.question):
+                lines.append(f"read the subject differently than you did: "
+                             f"{doubt.detail}")
+                again = next((one for one in buffer.answers.values()
+                              if one.origin == "sense"
+                              and one.question == headline.question), None)
+                if again is not None:
+                    held = ", ".join(f"{word} as {sense}" for word, sense
+                                     in again.pins.items())
+                    lines.append(
+                        f"held to {held} the same question answers "
+                        f"{again.verdict}, which is the reading you meant")
+                break
+
+        # The payoff of a requirement check, stated as an argument rather
+        # than left for the reader to assemble out of a conflict list.
+        for answer in buffer.answers.values():
+            if answer.origin != "require":
+                continue
+            needs = answer.predicate
+            denied = [bad for bad in conflicts
+                      if bad.question == answer.question]
+            negated = [one for one in buffer.seen_doubts
+                       if one.reason == "negated_evidence"
+                       and one.question == answer.question]
+            if (denied or negated) and headline is not None:
+                lines.append(
+                    f"and that is the trouble: {plural(needs)} are what the "
+                    f"things that do this have in common, and "
+                    f"{article(answer.about)} {answer.about} does not have "
+                    f"them — so the yes rests on nothing")
+            elif (headline is not None
+                  and headline.verdict in ("CONTRADICTED", "DENIED")
+                  and answer.verdict in ("VERIFIED", "HELD", "INHERITED")
+                  and not self.shaky(answer, buffer)):
+                lines.append(
+                    f"and the no is not about anatomy: "
+                    f"{article(answer.about)} {answer.about} does have "
+                    f"{plural(needs)}, which is what the things that do it "
+                    f"have in common")
+
+        if headline is not None and not overturned:
+            for doubt in buffer.seen_doubts:
+                if doubt.question != headline.question:
+                    continue
+                if doubt.reason in ("weak", "off_target"):
+                    lines.append(doubt.detail)
+                    break
+
+        # How obvious a reading it is. WordNet orders a word's senses by how
+        # often each is meant, and the store's evidence chooser overrules
+        # that -- rightly for `hammer`, wrongly for `mouse`. Neither is
+        # trustworthy on its own, so the reading is reported with its rank
+        # and the reader can see which kind of case this is.
+        if headline is not None:
+            rank = self.rank_of(headline)
+            if rank is not None and rank >= 2:
+                lines.append(
+                    f"and it is not the obvious reading: "
+                    f"{(headline.payload or {}).get('concept')} is WordNet's "
+                    f"sense {rank + 1} of that word, chosen because the store "
+                    f"holds more facts about it than about the earlier ones")
+
+        for wide in overreached:
+            holders = ", ".join(wide["holders"][:3]) or "almost none of them"
+            lines.append(
+                f"and it looks filed under the wrong thing: “{wide['claim']}” "
+                f"came from {wide['source'] or 'an ancestor'}, and only "
+                f"{wide['detail']} — {holders}. That is a fact about "
+                f"{holders}, hoisted to the class they belong to.")
+
         for hole in telling:
             lines.append(
                 f"“{hole.blocker}” is not something this ontology has a word "
@@ -265,9 +387,12 @@ class Loop:
                                           "DENIED", "HELD")]
         return {
             "headline": headline.as_dict(False) if headline else None,
-            "verdict": headline.verdict if headline else "",
+            "verdict": (corrected or headline).verdict if headline else "",
+            "as_asked": headline.verdict if headline else "",
+            "corrected": corrected.as_dict(False) if corrected else None,
             "lines": lines,
             "conflicts": [bad.as_dict() for bad in conflicts],
+            "overreach": overreached,
             "needs_telling": [hole.as_dict() for hole in telling],
             "doubts": [doubt.as_dict() for doubt in buffer.seen_doubts],
             "asked": len(buffer.answers),
@@ -279,6 +404,41 @@ class Loop:
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer),
         }
+
+    def rank_of(self, answer) -> int | None:
+        """Where the reading v687 took sits in WordNet's order for the word."""
+        parse = (answer.payload or {}).get("parse") or {}
+        word = (parse.get("subject") or "").strip().lower()
+        concept = (answer.payload or {}).get("concept") or ""
+        if not word or not concept:
+            return None
+        for sense in (self.pool.engines[0].reasoner.senses_of(word) or []):
+            if sense.get("id") == concept:
+                rank = sense.get("rank")
+                return None if rank is None or rank >= 90 else int(rank)
+        return None
+
+    @staticmethod
+    def shaky(answer, buffer: Buffer) -> bool:
+        """Is this answer too thin to assert as a fact of its own?
+
+        `does a whale have wings` comes back VERIFIED on `animal.n.01 has_a
+        their own wings` at confidence 0.10, seven levels up. Printing "a
+        whale does have wings" off the back of that is the loop making the
+        same mistake it exists to catch.
+        """
+        return any(one.question == answer.question
+                   and one.reason in ("weak", "inherited", "off_target")
+                   for one in buffer.seen_doubts)
+
+    @staticmethod
+    def failed(answer, buffer: Buffer) -> bool:
+        """Did a requirement check come back saying the subject lacks it?"""
+        if answer.verdict in ("CONTRADICTED", "DENIED"):
+            return True
+        return any(one.question == answer.question
+                   and one.reason == "negated_evidence"
+                   for one in buffer.seen_doubts)
 
     @staticmethod
     def thread(buffer: Buffer) -> list[dict]:
@@ -327,10 +487,22 @@ class Loop:
             return "contradicted by its own family"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
+        if any(one.reason == "sense_mismatch" for one in doubted):
+            return "about a different sense of the word"
+        if any(one.reason == "off_target" for one in doubted):
+            return "reached on a different predicate"
+        if any(one.reason == "negated_evidence" for one in doubted):
+            # The single fact behind the yes says the opposite of the yes.
+            # That is not a weak hold; it is a contradiction the answer did
+            # not notice.
+            return "its own evidence says the opposite"
         if doubted:
             return "weakly held"
         if headline.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH"):
             return "absent, not false"
+        if any(one["question"] == headline.question
+               for one in buffer.overreach()):
+            return "a fact about a few, filed under the class"
         if conflicts:
             # Something else did not hold up. The headline is untouched, and
             # the page says both things rather than one loudly.

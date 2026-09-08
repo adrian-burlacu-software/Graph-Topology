@@ -23,6 +23,20 @@ HERE = Path(__file__).resolve().parent
 PAGE = HERE / "app.html"
 
 
+#: The tagger's labels in WordNet's alphabet.
+WORDNET_POS = {"NOUN": "n", "PROPN": "n", "VERB": "v", "ADJ": "a",
+               "ADV": "r"}
+
+
+def subject_pos(parse) -> str | None:
+    """What part of speech the subject was used as, if the tagger said."""
+    subject = (getattr(parse, "subject", "") or "").lower()
+    for token in getattr(parse, "tokens", None) or []:
+        if (token.get("lemma") or token.get("text") or "").lower() == subject:
+            return WORDNET_POS.get(token.get("pos"))
+    return None
+
+
 class Engine:
     """Parser plus reasoner, shared by every request."""
 
@@ -57,7 +71,13 @@ class Engine:
 
         # Senses always come from the word in the question. `concept` selects
         # among them; it is a synset id, not something to look up as a lemma.
-        senses = self.reasoner.senses_of(parse.subject or "")
+        #
+        # The tagger has already said what part of speech the subject was
+        # used as, and offering a noun sense for a word tagged as a verb
+        # throws that away. It rarely changes a subject -- subjects are
+        # mostly nouns -- and it is free and correct.
+        senses = self.reasoner.senses_of(parse.subject or "",
+                                         subject_pos(parse))
         if not senses and not concept:
             return {"verdict": "UNKNOWN_WORD", "question": question,
                     "parse": parse.as_dict(), "senses": [], "steps": [],
