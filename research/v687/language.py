@@ -103,6 +103,10 @@ class Parse:
     polar: bool
     backend: str
     tokens: list[dict[str, Any]] = field(default_factory=list)
+    #: The word completing the auxiliary, when the shape has one. Grammar
+    #: settles this where the tagger cannot, and a pin is checked against it
+    #: rather than against a label.
+    verb_slot: str = ""
     note: str = ""
     #: The word the question is about that the ontology could not place. Set
     #: only when that is why there is no subject, so the answer can name it
@@ -121,6 +125,7 @@ class Parse:
             "relation": self.relation, "target": self.target,
             "polar": self.polar, "backend": self.backend,
             "tokens": self.tokens, "note": self.note,
+            "verb_slot": self.verb_slot,
             "unknown": self.unknown, "hedged": self.hedged,
         }
 
@@ -278,7 +283,7 @@ class Parser:
             words = [w for w in re.findall(r"[a-z0-9']+", text.lower())
                      if w not in STOP]
             return words[0] if words else None
-        doc = self._read(text)
+        doc, _ = self._read(text)
 
         # A polar question puts its subject right after the auxiliary, and the
         # ontology can say where that subject ends. This is needed because the
@@ -347,54 +352,78 @@ class Parser:
         return None
 
     def _read(self, text: str):
-        """Tag the question, then correct the one thing the tagger gets wrong.
+        """Tag the question, then fix the slots the tagger fills wrongly.
 
-        spaCy reads `a dog bark` as a compound noun and calls `bark` a NOUN.
-        So `can a bird fly`, `can a horse run` and `can a rock swim` -- every
-        word that is also a common noun. `head_noun` already works around the
-        same failure on the subject side, where `a canine fall` came back as
-        one noun phrase.
+        spaCy reads the middle of a polar question as one compound noun. In
+        `can a dog bark` that makes `bark` a NOUN; in `can dogs bark` it goes
+        further and swaps them outright, calling `dogs` a VERB and `bark` a
+        NOUN. Every word that is also a common noun is exposed -- `fly`,
+        `run`, `swim`, `bark` -- which is exactly the set where the reading
+        matters. `head_noun` already works around the same failure on the
+        subject side, where `a canine fall` came back as one noun phrase.
 
         It matters more than a label, because the tag is what the sense
-        picker offers a reading by: `bark` in `can a dog bark` was offered as
-        `bark.n.01`, the tough protective covering of a tree, and marked the
-        reader's default. The answer meanwhile came from matching the string
-        "bark" against the norms, so the reading shown had nothing to do with
-        the reading used.
+        picker offers a reading by. `can dogs bark` offered `chase.v.01` as
+        the default reading of `dog` and `bark.n.01`, the covering of a tree,
+        as the default reading of `bark`.
 
-        English settles it without a tagger. After `can`, `does` or `will`
-        the auxiliary needs completing and only a verb can complete it, so in
-        a run of consecutive nouns after the opener the last one is the verb.
-        Two guards keep that honest: the run has to have something before the
-        verb to be the subject, and the ontology gets a veto -- `can a fire
-        truck fly` splits after `truck` because `fire truck` is a lemma and
-        `truck fly` is not, and `can a fire truck` is left alone entirely.
+        So the slots are read off the grammar rather than off the labels.
+        After `can`, `does` or `will` comes the subject and then the word
+        completing the auxiliary, and only a verb can complete it. The
+        subject is the longest run the ontology knows as one lemma, which is
+        what keeps `fire truck` together and lets `dog bark` come apart, and
+        whatever follows it is the predicate. Nothing is forced when there is
+        no such word: `can a fire truck` is left exactly as it came.
         """
         doc = self.nlp(text)
         words = [token for token in doc if not token.is_punct]
         if not words:
-            return doc
-        first = words[0].text.lower()
-        rest = words[1:] if first in WH_WORDS else words
+            return doc, ""
+        rest = words[1:] if words[0].text.lower() in WH_WORDS else words
         if not rest or rest[0].text.lower() not in TAKES_A_VERB:
-            return doc
-        run: list = []
+            return doc, ""
+        # Determiners and the modifiers in front of the subject. An auxiliary
+        # must stay in: it is the verb in `does a dog have legs`, and dropping
+        # it as a stop word left `legs` standing in the slot and turned it
+        # into one. `large` has to go: it is a lemma this ontology holds, so
+        # `can a large dog fall` took it for the subject and made `dog` the
+        # verb.
+        after: list = []
         for token in rest[1:]:
-            if token.pos_ in ("DET", "ADJ") and not run:
-                continue               # `a`, `all`, `big` before the subject
-            if token.pos_ in ("NOUN", "PROPN"):
-                run.append(token)
+            if not after and token.pos_ in ("DET", "ADJ", "ADV", "NUM"):
                 continue
-            break                      # the tagger already found a verb
-        if len(run) < 2:
-            return doc
-        # The ontology's veto: two nouns that name one thing are one thing.
-        pair = f"{run[-2].lemma_.lower()} {run[-1].lemma_.lower()}"
-        plain_pair = f"{run[-2].text.lower()} {run[-1].text.lower()}"
-        if self.vocabulary & {pair, plain_pair}:
-            return doc
-        run[-1].pos_ = "VERB"
-        return doc
+            after.append(token)
+        if len(after) < 2:
+            return doc, ""             # nothing to be both subject and verb
+        # The ontology's veto. When everything after the auxiliary names one
+        # thing there is no predicate to find, and splitting it invents one:
+        # `can a fire truck` is not a question, and reading it as `fire` that
+        # `trucks` is worse than leaving it alone.
+        whole = {" ".join(t.lemma_.lower() for t in after),
+                 " ".join(t.text.lower() for t in after)}
+        if self.vocabulary & whole:
+            return doc, ""
+
+        # How much of what follows the auxiliary names one thing. Longest
+        # first, so `fire truck` wins over `fire`, and never all of it --
+        # something has to be left to complete the auxiliary.
+        span = 1
+        for length in range(min(self.MAX_SUBJECT_TOKENS, len(after) - 1), 0, -1):
+            forms = {" ".join(t.lemma_.lower() for t in after[:length]),
+                     " ".join(t.text.lower() for t in after[:length])}
+            if self.vocabulary & forms:
+                span = length
+                break
+
+        # The subject is a thing and the word after it completes the modal.
+        # Both directions are needed: `can dogs bark` has them the wrong way
+        # round, so setting only the verb would leave `dogs` a verb too.
+        for token in after[:span]:
+            if token.pos_ == "VERB":
+                token.pos_ = "NOUN"
+        if after[span].pos_ == "NOUN":
+            after[span].pos_ = "VERB"
+        return doc, after[span].lemma_.lower()
 
     def _usable(self, token) -> bool:
         """Can this token be the subject, or did the question spend it?"""
@@ -469,9 +498,11 @@ class Parser:
                 relation = "is_a"
 
         tokens: list[dict[str, Any]] = []
+        verb_slot = ""
         if self.nlp is not None:
+            read, verb_slot = self._read(text)
             tokens = [{"text": t.text, "lemma": t.lemma_, "pos": t.pos_,
-                       "dep": t.dep_} for t in self._read(text)]
+                       "dep": t.dep_} for t in read]
 
         note = ""
         if relation is None:
@@ -484,7 +515,8 @@ class Parser:
 
         return Parse(question=question, subject=subject, relation=relation,
                      target=target, polar=polar, backend=self.backend,
-                     tokens=tokens, note=note, unknown=blocked, hedged=hedged)
+                     tokens=tokens, note=note, unknown=blocked, hedged=hedged,
+                     verb_slot=verb_slot)
 
     # -- matching a target phrase against a stored fact --------------------
     def matcher(self, threshold: float = 0.6):

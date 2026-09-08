@@ -100,23 +100,33 @@ class ReasoningEngine(IdentifyingEngine):
         construction by name rather than answering the easier question hiding
         inside it, and this is one.
 
-        Only where the tagger is on firm ground: the word has to be one this
-        parse actually tagged, and the pin has to name a part of speech the
-        word was not used as.
+        Only the one slot grammar is certain about, which is why this asks
+        `verb_slot` rather than reading a tag. A pin is the reader overruling
+        the engine, so it must not be refused on the strength of a label the
+        engine got wrong -- and it did get them wrong: in `can dogs bark` the
+        tagger calls `dogs` a VERB and `bark` a NOUN, so a check against the
+        tags refused `bark.v.04`, the correct reading, on a question the
+        reader had already corrected twice over. After `can`, `does` or
+        `will` the auxiliary needs completing and only a verb can complete
+        it; everywhere else the pin is let through and `_report_unused_pins`
+        says what became of it.
         """
         if not pinned:
             return None
         parse = self.parser.parse(question or "")
-        used = {}
+        slot = (parse.verb_slot or "").lower()
+        if not slot:
+            return None
+        forms = {slot}
         for token in parse.tokens or []:
-            for form in ((token.get("lemma") or "").lower(),
-                         (token.get("text") or "").lower()):
-                if form:
-                    used.setdefault(form, self.USED_AS.get(token.get("pos")))
+            if (token.get("lemma") or "").lower() == slot:
+                forms.add((token.get("text") or "").lower())
         for word, sense in sorted(pinned.items()):
             parts = (sense or "").split(".")
-            was = used.get((word or "").lower())
-            if len(parts) < 3 or not was or parts[1] == was:
+            if (word or "").lower() not in forms:
+                continue
+            was = "v"
+            if len(parts) < 3 or parts[1] == was:
                 continue
             spoken = {"n": "a noun", "v": "a verb", "a": "an adjective",
                       "r": "an adverb"}

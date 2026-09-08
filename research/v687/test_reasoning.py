@@ -1447,6 +1447,35 @@ class PinnedSenseIsHonouredTests(unittest.TestCase):
         self.assertEqual(parser.parse("can a fire truck").subject,
                          "fire truck")
 
+    def test_the_tagger_can_swap_the_subject_and_the_verb(self):
+        """`can dogs bark` comes back with `dogs` a VERB and `bark` a NOUN --
+        both slots wrong at once. The picker offered `chase.v.01` as the
+        reading of `dog`, and a pin checked against the tags refused
+        `bark.v.04`, which is the correct reading, on a question the reader
+        had already corrected twice over."""
+        tags = {t["text"].lower(): t["pos"]
+                for t in self.engine.parser.parse("can dogs bark").tokens}
+        self.assertEqual(tags.get("dogs"), "NOUN", tags)
+        self.assertEqual(tags.get("bark"), "VERB", tags)
+        self.assertEqual(
+            self.engine.ask("can dogs bark", None,
+                            {"dog": "dog.n.01",
+                             "bark": "bark.v.04"})["verdict"], "VERIFIED")
+
+    def test_the_slot_is_read_off_the_grammar_not_off_a_tag(self):
+        """What completes the auxiliary, which is the only thing a pin is
+        checked against. `is` and `are` take a noun and have no such slot."""
+        for question, slot in (("can dogs bark", "bark"),
+                               ("can a dog bark", "bark"),
+                               ("can a large dog fall", "fall"),
+                               ("does a dog have legs", "have"),
+                               ("can a fire truck move", "move"),
+                               ("can a fire truck", ""),
+                               ("is a dog an animal", "")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).verb_slot, slot)
+
     def test_a_pin_the_sentence_cannot_take_is_refused(self):
         """The bug as reported: a noun sense pinned onto the word completing
         a modal. Asking whether a dog can tough-protective-covering-of-a-tree
