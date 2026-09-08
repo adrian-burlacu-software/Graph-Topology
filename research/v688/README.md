@@ -205,14 +205,46 @@ on trust, and the page no longer hides it.
   pins `mouse.n.01`, asks again, gets VERIFIED, and **leads with the corrected
   reading** rather than explaining underneath the one nobody meant.
 
-### The one change this makes to v687
+### The two changes this makes to v687
 
-`senses_of` demoted no sense for being multi-word, so `pig bed.n.01` — a
-mould for casting pig iron — was the primary sense of `pig`, because the
-build's evidence chooser counts crawled rows and the crawl has more about
-foundry beds than about pigs. Someone asking about a pig does not mean a pig
-bed, whatever the counts say. Multi-word concepts now sort last for a
-single-word question. v687's 317 tests are unchanged and still pass.
+**`senses_of` orders better.** `pig bed.n.01` — a mould for casting pig iron
+— was the primary sense of `pig`, because the build's evidence chooser counts
+crawled rows and the crawl has more about foundry beds than about pigs. Three
+things changed, none of which touches what the build decided:
+
+- a multi-word concept sorts last for a single-word question;
+- the caller may say what **part of speech** the word was used as, so `fly`
+  in `do pigs fly` offers `fly.v.01` — *travel through the air* — rather than
+  a fisherman's lure, for a word the tagger already called a verb;
+- **WordNet's own order for that lemma** breaks ties below the build's
+  choice, so `pig` reaches `hog.n.03`, domestic swine, instead of `pig.n.06`,
+  a crude block of metal with no facts at all, which was preferred only for
+  being named after the word.
+
+**`ranks.py` records that order.** The store knew which senses a word could
+mean and which the build chose, but never where each sits in WordNet's list
+*for that lemma* — `hog.n.03` is WordNet's first sense of "pig" and its third
+of "hog", and the number in the id is the second one. It is a backfill, not a
+rebuild: WordNet is local, so 186,606 lemma/sense pairs took six seconds.
+
+It is stored as evidence and is deliberately **not** the default order,
+because the two disagree in both directions and no threshold separates them:
+
+| word | WordNet first | the build chose | right |
+| --- | --- | --- | --- |
+| `hammer` | the part of a gunlock | the tool | the build |
+| `seal` | sealing wax | the animal (4th) | the build |
+| `pig` | domestic swine | a foundry mould (5th) | WordNet |
+| `mouse` | the animal | the device (4th) | WordNet |
+
+`seal` and `pig` are both the build's fourth choice, one right and one wrong.
+So the loop reports the rank rather than obeying it: *"it is not the obvious
+reading: mouse.n.04 is WordNet's sense 4 of that word, chosen because the
+store holds more facts about it than about the earlier ones."*
+
+v687's 317 tests are unchanged and still pass — including on a store built
+before the rank column existed, which `senses_of` now checks for rather than
+assuming.
 
 ## A fact about a few, filed under the class
 
@@ -251,6 +283,19 @@ the trust reads *reached on a different predicate*.
 The same fault is why the generated habitat questions carry no verb of their
 own. `is a dog on the ground` agrees with the feature norms on every animal
 tested; `does a dog live on the ground` agrees on three of five.
+
+## What the page is careful about
+
+- **One label on a sense, not three.** The chip marked `default` is the
+  reading v687 uses when nothing is pinned. Where that default came from is
+  in the flyout for anyone who wants it and was clutter on the chip.
+- **A failed fetch says so.** `/api/senses` reached the reasoner's single
+  read-only connection directly, and a dozen handler threads querying it
+  together killed the handler — 15 of 40 concurrent requests died. The page
+  rendered that as *"no sense in the ontology"*, which is a claim about the
+  data for what was a transport failure. Senses are now cached behind a lock
+  server-side and by word on the page, and a failure says *"could not read
+  the senses"*.
 
 ## Containment
 

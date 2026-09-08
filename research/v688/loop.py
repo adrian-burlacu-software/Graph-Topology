@@ -354,6 +354,20 @@ class Loop:
                     lines.append(doubt.detail)
                     break
 
+        # How obvious a reading it is. WordNet orders a word's senses by how
+        # often each is meant, and the store's evidence chooser overrules
+        # that -- rightly for `hammer`, wrongly for `mouse`. Neither is
+        # trustworthy on its own, so the reading is reported with its rank
+        # and the reader can see which kind of case this is.
+        if headline is not None:
+            rank = self.rank_of(headline)
+            if rank is not None and rank >= 2:
+                lines.append(
+                    f"and it is not the obvious reading: "
+                    f"{(headline.payload or {}).get('concept')} is WordNet's "
+                    f"sense {rank + 1} of that word, chosen because the store "
+                    f"holds more facts about it than about the earlier ones")
+
         for wide in overreached:
             holders = ", ".join(wide["holders"][:3]) or "almost none of them"
             lines.append(
@@ -390,6 +404,19 @@ class Loop:
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer),
         }
+
+    def rank_of(self, answer) -> int | None:
+        """Where the reading v687 took sits in WordNet's order for the word."""
+        parse = (answer.payload or {}).get("parse") or {}
+        word = (parse.get("subject") or "").strip().lower()
+        concept = (answer.payload or {}).get("concept") or ""
+        if not word or not concept:
+            return None
+        for sense in (self.pool.engines[0].reasoner.senses_of(word) or []):
+            if sense.get("id") == concept:
+                rank = sense.get("rank")
+                return None if rank is None or rank >= 90 else int(rank)
+        return None
 
     @staticmethod
     def shaky(answer, buffer: Buffer) -> bool:

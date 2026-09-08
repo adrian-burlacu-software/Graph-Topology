@@ -43,12 +43,12 @@ def pins_from(values: list[str]) -> dict:
 EXAMPLES = [
     # -- the answer was about a different word -----------------------------
     {"text": "do pigs fly",
-     "shows": "Four bugs came out of this one question. v687 read `pig` as "
-              "`pig bed.n.01`, a foundry mould, because the crawl has more "
-              "rows about those than about pigs — fixed in v687. Pin the "
-              "senses by hand and the yes turns out to rest on `mammal "
-              "capable_of fly`, which is a fact about bats.",
-     "expect": "absent, not false"},
+     "shows": "Five bugs came out of this one question. v687 read `pig` as "
+              "`pig bed.n.01`, a foundry mould, because the crawl holds more "
+              "rows about those — fixed in v687, which now reaches domestic "
+              "swine. What is left is a yes resting on `mammal capable_of "
+              "fly`, and the family check finds that is a fact about bats.",
+     "expect": "contradicted by its own family"},
 
     {"text": "is a mouse an animal",
      "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "
@@ -159,6 +159,8 @@ class Service:
         self.ready = True
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
+        self._senses: dict[tuple[str, str], list] = {}
+        self._senses_lock = threading.Lock()
 
     def run(self, utterance: str, pinned: dict | None = None) -> dict:
         key = utterance.strip().lower() + "|" + repr(sorted(
@@ -185,6 +187,26 @@ class Service:
             "subjects": read(
                 "SELECT COUNT(DISTINCT concept) FROM facts").fetchone()[0],
         }
+
+    def senses(self, word: str, used_as: str = "") -> list:
+        """Every reading of a word, cached and served one at a time.
+
+        The page asks for these while a run is being stepped through, and it
+        asks for several words at once. `Reasoner` holds a single sqlite
+        connection -- opened read-only and shared, which is fine until a
+        dozen handler threads query it together, at which point the handler
+        dies and the page shows a word with no senses at all.
+
+        A lock and a cache fix it outright: the answer never changes for a
+        given word, so it is computed once and handed out thereafter.
+        """
+        key = (word, used_as)
+        with self._senses_lock:
+            if key not in self._senses:
+                reasoner = self.pool.engines[0].reasoner
+                self._senses[key] = (
+                    reasoner.senses_of(word, used_as or None) or [])[:12]
+            return self._senses[key]
 
     def settings(self) -> dict:
         return {
@@ -231,20 +253,35 @@ class Handler(BaseHTTPRequestHandler):
             if not word or len(word) > 40:
                 self._json({"error": "no word"}, 400)
                 return
-            reasoner = self.service.pool.engines[0].reasoner
+            # The tagger already knows whether the word was used as a noun or
+            # a verb. Offering `fly.n.05`, a fisherman's lure, first for a
+            # word tagged VERB is throwing that away.
+            used_as = (query.get("as") or [""])[0].strip().lower()[:1]
             # `senses_of` already carries the definition, the part of
             # speech, how many facts the store holds about each sense and
             # which one v687 took. That is what v687's own sense card shows,
             # and a picker without the definitions is a list of numbers.
+            offered = self.service.senses(word, used_as)
             self._json({"word": word, "senses": [
                 {"id": sense["id"],
                  "definition": sense.get("definition") or "",
                  "pos": sense.get("pos") or "",
                  "facts": sense.get("fact_count") or 0,
-                 "chosen": bool(sense.get("chosen")),
+                 "rank": sense.get("rank"),
+                 # What v687 will actually use if nobody pins anything: it
+                 # takes the first sense this ordering returns. That is a
+                 # different thing from `default`, which is the row the
+                 # build's evidence marked primary -- the two part company
+                 # whenever the ordering demotes the primary, as it does for
+                 # a multi-word concept.
+                 "picks": index == 0,
+                 # `chosen` is the store's default reading of the word, not
+                 # a choice made for this question: v687 resolves the subject
+                 # and matches everything else as a string.
+                 "default": bool(sense.get("chosen")),
                  "named_after_the_word":
                      sense["id"].split(".")[0].replace("_", " ") == word}
-                for sense in (reasoner.senses_of(word) or [])[:12]]})
+                for index, sense in enumerate(offered)]})
         elif parsed.path == "/api/run":
             utterance = (query.get("q") or [""])[0].strip()
             if not utterance:

@@ -84,20 +84,34 @@ class Reasoner:
 
     def __init__(self, store: Path):
         self.store = store
+        self._has_rank: bool | None = None
         self.connection = sqlite3.connect(f"file:{store}?mode=ro", uri=True,
                                           check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._broad: set[str] | None = None      # R12, loaded on first use
 
     # -- lookup -----------------------------------------------------------
-    def senses_of(self, lemma: str) -> list[dict[str, Any]]:
-        """R6: a word is not a concept. Return every sense it could mean."""
+    def senses_of(self, lemma: str, pos: str | None = None
+                  ) -> list[dict[str, Any]]:
+        """R6: a word is not a concept. Return every sense it could mean.
+
+        `pos` is the part of speech the word was *used* as, when a parser has
+        said. Without it `fly` in `do pigs fly` offers four noun senses --
+        a fisherman's lure first -- ahead of every verb sense, for a word the
+        tagger has already called a verb. The order is a default, and a
+        default should give way to evidence from the sentence in front of it.
+        """
+        # A store built before `ranks.py` existed has no rank column, and a
+        # reasoner that cannot read an older store is a reasoner that breaks
+        # every build anyone still has lying about.
+        ranked = self.has_sense_rank
         rows = self.connection.execute(
             # The sense the build's evidence picked comes first. WordNet's own
             # order is not a usefulness ranking: it puts the part of a gunlock
             # ahead of the tool, so offering senses in it made every default
             # answer about `hammer` an answer about a gun.
-            "SELECT c.id, c.lemma, c.pos, c.sense, c.definition, l.primary_sense "
+            "SELECT c.id, c.lemma, c.pos, c.sense, c.definition, "
+            "l.primary_sense" + (", l.sense_rank " if ranked else ", 99 AS sense_rank ") +
             "FROM lemmas l JOIN concepts c ON c.id = l.concept "
             # And a multi-word concept is demoted below every single-word
             # one when the question used a single word. `pig` is a lemma of
@@ -106,19 +120,41 @@ class Reasoner:
             # foundry beds than about pigs. Someone asking about a pig does
             # not mean a pig bed, whatever the evidence counts say.
             "WHERE l.lemma = ? ORDER BY "
+            "(? <> '' AND c.pos <> ?), "
             "(instr(c.lemma, ' ') > 0 AND instr(?, ' ') = 0), "
-            "l.primary_sense DESC, (c.lemma <> ?), "
+            "l.primary_sense DESC, "
+            # WordNet's own order for *this* lemma, below the sense the build
+            # chose and above everything else. It is not a usefulness
+            # ranking on its own -- it puts the part of a gunlock ahead of
+            # the hammer -- which is why the build's choice still outranks
+            # it. But it beats preferring a synset merely for being *named*
+            # after the word: `pig` offered `pig.n.06`, a crude block of
+            # metal with no facts at all and WordNet's sixth reading, ahead
+            # of `hog.n.03`, domestic swine, which is WordNet's first and the
+            # one the store knows something about.
+            + ("l.sense_rank, " if ranked else "") +
+            "(c.lemma <> ?), "
             "CASE c.pos WHEN 'n' THEN 0 WHEN 'v' THEN 1 WHEN 'a' THEN 2 ELSE 3 END, "
-            "c.sense", (lemma.lower().strip(), lemma.lower().strip(),
-                        lemma.lower().strip())
+            "c.sense", (lemma.lower().strip(), (pos or ""), (pos or ""),
+                        lemma.lower().strip(), lemma.lower().strip())
         ).fetchall()
         return [
             {"id": r["id"], "lemma": r["lemma"], "pos": r["pos"],
              "sense": r["sense"], "definition": r["definition"],
              "chosen": bool(r["primary_sense"]),
+             "rank": r["sense_rank"],
              "fact_count": self.fact_count(r["id"])}
             for r in rows
         ]
+
+    @property
+    def has_sense_rank(self) -> bool:
+        """Whether this store carries WordNet's per-lemma sense order."""
+        if self._has_rank is None:
+            self._has_rank = any(
+                row[1] == "sense_rank" for row in
+                self.connection.execute("PRAGMA table_info(lemmas)"))
+        return self._has_rank
 
     def vocabulary(self) -> set[str]:
         """Every lemma the ontology knows, for the parser to find subjects with."""

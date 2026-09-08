@@ -51,6 +51,10 @@ ASKED_ON_PURPOSE = frozenset({"seed", "gap", "require", "chain"})
 #: Parts of speech that name something worth attending to.
 ATTENDED_POS = ("NOUN", "PROPN", "VERB", "ADJ", "INTJ")
 
+#: The tagger's labels in WordNet's alphabet.
+WORDNET_POS = {"NOUN": "n", "PROPN": "n", "VERB": "v", "ADJ": "a",
+               "ADV": "r"}
+
 #: Words that are in the ontology and never worth attending to: they are in
 #: every sentence and carry no situation.
 IGNORED = frozenset("""
@@ -111,6 +115,10 @@ class Buffer:
         #: actually said is worth corroborating; a guess about something you
         #: went and fetched is not.
         self.said: set[str] = set()
+        #: word -> the WordNet part-of-speech letter the tagger assigned it
+        #: in this utterance, so a sense list can be offered in the part of
+        #: speech the word was actually used as.
+        self.tags: dict[str, str] = {}
         #: Whether the utterance asked what something *is*. Only then does a
         #: definition ladder belong: otherwise it defines the words in the
         #: loop's own follow-ups, several rungs deep, about nothing.
@@ -164,6 +172,7 @@ class Buffer:
             if lemma in found:
                 continue
             found.append(lemma)
+            self.tags.setdefault(lemma, WORDNET_POS.get(token.get("pos"), ""))
             self.activation.bump(lemma, 0.6, self.cycle)
         # Only the *subject* becomes a topic. Everything else the sentence
         # names is activated -- it is part of the situation -- but it is not
@@ -413,6 +422,12 @@ class Buffer:
             hold = [one for one in decided if one.verdict in POSITIVE]
             if len(hold) >= len(decided) / 2:
                 continue
+            if not hold:
+                # Nothing at all bears it out. That is the family denying the
+                # claim outright, which the conflict already reports; calling
+                # it "a fact about almost none of them" says nothing and says
+                # it twice.
+                continue
             # The ancestor the claim was inherited *from*, which is where
             # it is filed -- not the subject that inherited it.
             source = next((one.concept for one in self.seen_doubts
@@ -450,7 +465,7 @@ class Buffer:
         return blocked
 
     def as_dict(self) -> dict:
-        return {"text": self.text, "cycle": self.cycle,
+        return {"text": self.text, "cycle": self.cycle, "tags": dict(self.tags),
                 "activation": self.activation.as_dict(),
                 "pins": dict(self.pins),
                 "asked": len(self.answers),

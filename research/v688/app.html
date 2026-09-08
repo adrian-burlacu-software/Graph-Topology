@@ -147,6 +147,10 @@
          border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px;
          color: var(--seed); }
   .tag.dim { color: var(--faint); }
+  .tag.took { color: var(--teal); }
+  .tag.picks { color: var(--seed); }
+  .opt.reading { border-color: var(--teal-dim); }
+  .opt.isdefault { border-color: var(--seed); }
   .sense { font-family: var(--mono); font-size: 10.5px; color: var(--faint);
            margin-top: 3px; }
   .sense .pinned { color: var(--sense); }
@@ -292,6 +296,8 @@ const ORIGINS = ["seed", "gap", "doubt", "sense", "require", "split",
                  "chain", "curiosity"];
 
 let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null, PINS = {};
+//: word|pos -> the senses, so stepping through cycles does not re-ask.
+const SENSES = {};
 
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -407,22 +413,48 @@ function sensePanel() {
     .filter(w => RUN.utterance.toLowerCase().includes(w)).slice(0, 6);
   if (!words.length) return null;
   const panel = el("div", "panel");
-  panel.appendChild(el("h2", "label", "how each word was read"));
+  panel.appendChild(el("h2", "label",
+    "how each word was read — the one marked default is what v687 uses"));
   const box = el("div", "readings");
   words.forEach(word => {
     const row = el("div", "reading");
     const head = el("div", "readhead");
     head.appendChild(el("b", null, word));
+    const tag = (RUN.buffer.tags || {})[word];
+    if (tag) head.appendChild(el("span", "why",
+      "used as " + ({n: "a noun", v: "a verb", a: "an adjective",
+                     r: "an adverb"}[tag] || tag)));
+    // The reading v687 took for this run, which is the default unless it was
+    // pinned. Where a default comes from is v687's business and was clutter.
+    const resolved = RUN.summary.headline && RUN.summary.headline.concept;
+    const isSubject = resolved &&
+      resolved.split(".")[0].replace(/_/g, " ") === word;
     const held = RUN.pinned && RUN.pinned[word];
     if (held) head.appendChild(el("span", "held", "held to " + held));
     row.appendChild(head);
     const options = el("div", "options", "…");
     row.appendChild(options);
-    fetch("/api/senses?w=" + encodeURIComponent(word)).then(r => r.json())
-      .then(data => {
+    const usedAs = (RUN.buffer.tags || {})[word] || "";
+    const key = word + "|" + usedAs;
+    // Cached, because `render` runs on every step and play tick and this
+    // panel does not change between cycles. Without it a run being played
+    // fires a dozen requests a second at one sqlite connection.
+    const senses = SENSES[key]
+      ? Promise.resolve(SENSES[key])
+      : fetch("/api/senses?w=" + encodeURIComponent(word) +
+              (usedAs ? "&as=" + usedAs : ""))
+          .then(r => r.json())
+          .then(d => { if (!d.error) SENSES[key] = d; return d; })
+          .catch(() => ({senses: [], failed: true}));
+    senses.then(data => {
         options.innerHTML = "";
         const senses = data.senses || [];
-        if (!senses.length) { options.appendChild(el("div", "why", "no sense in the ontology")); return; }
+        if (!senses.length) {
+          options.appendChild(el("div", "why", data.failed
+            ? "could not read the senses — try again"
+            : "no sense in the ontology"));
+          return;
+        }
         const choose = (value) => {
           if (value) PINS[word] = value; else delete PINS[word];
           ask(RUN.utterance);
@@ -433,11 +465,21 @@ function sensePanel() {
         any.onclick = () => choose("");
         options.appendChild(any);
         senses.forEach(sense => {
-          const opt = el("button", "opt" + (PINS[word] === sense.id ? " on" : ""));
+          const opt = el("button", "opt"
+            + (PINS[word] === sense.id ? " on" : "")
+            + (sense.picks ? " isdefault" : "")
+            + (isSubject && sense.id === resolved ? " reading" : ""));
           opt.type = "button";
           const line = el("div", "optid");
           line.appendChild(document.createTextNode(sense.id));
-          if (sense.chosen) line.appendChild(el("span", "tag", "v687 took this"));
+          // One label, on the reading v687 uses when nobody pins anything.
+          // Where the default comes from -- the build's evidence, WordNet's
+          // order, the part of speech -- is in the flyout for anyone who
+          // wants it, and is noise on the chip.
+          if (sense.picks)
+            line.appendChild(el("span", "tag picks", "default"));
+          else if (isSubject && sense.id === resolved)
+            line.appendChild(el("span", "tag took", "used here"));
           opt.appendChild(line);
           // The definition is what tells fly.v.01 from fly.v.05, and there
           // are eight of them: inline it and the row is unreadable, so it
@@ -448,7 +490,7 @@ function sensePanel() {
             sense.definition || "no definition recorded"));
           out.appendChild(el("div", "flyfacts",
             (sense.facts || 0) + " facts in the store" +
-            (sense.chosen ? " · the reading v687 took" : "")));
+            (sense.picks ? " · the default" : "")));
           opt.appendChild(out);
           opt.onclick = () => choose(sense.id);
           options.appendChild(opt);
@@ -459,7 +501,7 @@ function sensePanel() {
   panel.appendChild(box);
   panel.appendChild(el("div", "legend",
     "a choice here is held for every question the run generates — the loop " +
-    "sets one itself when the answer comes back about a different word"));
+    "sets one itself when another reading answers differently"));
   return panel;
 }
 
