@@ -49,29 +49,45 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | --- | --- |
 | `gap.py` | types a v687 payload's incompleteness — a **Gap** (memory says it lacks something) or a **Doubt** (the answer is thinner than its verdict looks). Reads the payload v687 already returns; **edits nothing in v687**. |
 | `attention.py` | salience (activation, decaying per cycle) · gain (bits of the candidate set a question removes, on the predicate trie) · urgency (what kind of hole). Ranked as a **product**, so a zero anywhere is fatal. |
-| `question.py` | the three generators, and the queue they feed. |
+| `question.py` | the five generators, and the queue they feed. |
 | `buffer.py` | one utterance's state: cycle, activation, topics, open gaps and doubts, carried questions, and the conflicts the answers add up to. |
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |
 | `loop.py` | attend → generate → fan out → read → update → settle. Emits a replayable `Run`. |
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
-| `test_v688.py` | 42 tests, including every page example against the claim its card makes. |
+| `test_v688.py` | 45 tests, including every page example against the claim its card makes. |
 
 ## Where a question comes from
 
-The executive never invents one. Three sources, each a mechanical transform of
-something already on the table:
+The executive never invents one. Five sources, each a mechanical transform of
+something already on the table. Two of them fan out and three run in a line.
+
+**Breadth — what the pool is for:**
 
 - **gap** — the last answer named its own blocker. `UNKNOWN_WORD` naming
   *which* word is what makes the follow-up derivable rather than guessed.
 - **doubt** — the claim is put to the concept it was inherited from and that
-  concept's other kinds. This is R19 corroboration run *across* queries
-  instead of inside one, which the subsystem audit lists as present but unrun.
+  concept's other kinds, all in one cycle. This is R19 corroboration run
+  *across* queries instead of inside one, which the subsystem audit lists as
+  present but unrun.
 - **curiosity** — the trie has a child here that would split the field.
 
-Gap questions are **serial** by nature: you cannot know the second before the
-first comes back. That is why curiosity exists. It supplies breadth on cycle
-one with nothing to wait for, and it is what a pool of workers can actually be
-given. A loop that only followed gaps would leave eighteen workers idle.
+**Depth — what the pool cannot help with:**
+
+- **chain** — the next question's *terms* are inside the last answer, so it
+  cannot be formed until that answer comes back. Two kinds are reliable
+  enough to follow: a **definition ladder** (R26 hands back the genus, so
+  `beagle → hound → hunting dog → dog → canine` is four questions nothing
+  could have predicted from the utterance) and an **inheritance grounding**
+  (`does a robin fly` rests on a robin being a bird, which is a claim of its
+  own and nobody checked it).
+- **split** — a family check that *disagreed with itself*. `1 of 6 deny it`
+  is a count, not an answer; the question it raises is which side the subject
+  is on, and R21 answers that. It cannot be named until the fan-out returns.
+
+That last pair is the honest limit of nineteen workers. A chain uses **one**
+worker and as many cycles as it has steps, however many engines are idle. The
+page shows the longest one as a thread, and the `depth` figure in the summary
+is how many answers had to come back before the last question was askable.
 
 **Attention is the bound.** Curiosity over a trie with no attention is a
 breadth-first crawl of 11,707 nodes — every question defensible on its own,
@@ -145,5 +161,17 @@ which is why `gap.py` exists at all rather than a field being added upstream.
   widening `pins.py` from request-scoped to utterance-scoped is done, using
   it is not.
 - **A conflict is reported, never resolved.** The loop says the family
-  disagrees. Deciding which side is right needs belief revision, and that
-  needs somewhere to write the answer down.
+  disagrees and asks which side the subject is on; it does not then decide.
+  Deciding needs belief revision, and that needs somewhere to write the
+  answer down.
+- **Explanations are not followed.** R23's objects were a third chain source
+  and are dropped: `why does a dog bark` resolves `bark` to a sense whose
+  recorded causes are nausea and vomiting, and the ladder ran
+  `nausea → symptom → evidence → information` — four correct definitions,
+  none about dogs. Following a crawled explanation is only as good as the
+  sense it was crawled under, and nothing here chooses that sense yet.
+- **One conflict on this page turned out to be a phrasing bug.** `is a shark
+  a fish` reported a family split on scales because the generated question
+  read `is a seahorse scales`. With the grammar fixed every fish agrees and
+  the conflict is gone — a reminder that a disagreement between generated
+  questions is evidence about the generator first.

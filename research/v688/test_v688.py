@@ -39,7 +39,10 @@ def setUpModule() -> None:                      # noqa: N802
     # are about never surface. The pool size is part of what is under test.
     POOL = EnginePool(STORE, workers=5)
     CURIOSITY = Curiosity(POOL.engines[0].profiles.plan)
-    LOOP = Loop(POOL, CURIOSITY, max_cycles=4)
+    # Six, matching the server default: a definition ladder four answers
+    # deep needs five cycles to run, and capping at four hides the only
+    # behaviour that is genuinely serial.
+    LOOP = Loop(POOL, CURIOSITY, max_cycles=6)
 
 
 def tearDownModule() -> None:                   # noqa: N802
@@ -385,8 +388,11 @@ class LoopTests(unittest.TestCase):
                 if answer.origin == "doubt" and answer.parent:
                     families.setdefault(answer.parent, set()).add(answer.about)
         self.assertTrue(families)
-        self.assertGreater(max(len(kin) for kin in families.values()),
-                           LOOP.width)
+        widest = max(len(kin) for kin in families.values())
+        # The whole family, however many workers there were. `subtypes`
+        # is the size it should have reached.
+        kinds = POOL.engines[0].profiles.subtypes("fish")
+        self.assertGreaterEqual(widest, min(len(kinds), 6))
 
 
 @requires_store
@@ -422,7 +428,36 @@ class ExampleTests(unittest.TestCase):
             found = run(example["text"])
             for cycle in found.cycles:
                 origins |= {answer.origin for answer in cycle.answers}
-        self.assertEqual(origins, {"seed", "gap", "doubt", "curiosity"})
+        self.assertEqual(origins, {"seed", "gap", "doubt", "split", "chain",
+                                   "curiosity"})
+
+    def test_some_example_reasons_in_a_line_rather_than_a_fan(self):
+        """A page that only ever fanned out would be a page about breadth.
+        The definition ladder is the case nineteen workers cannot shorten:
+        each rung's subject is inside the previous rung's answer."""
+        deepest = max(run(example["text"]).summary["depth"]
+                      for example in server.EXAMPLES)
+        self.assertGreaterEqual(deepest, 4)
+
+    def test_a_divided_family_is_probed_rather_than_counted(self):
+        """`1 of 3 deny it` is a count, not an answer. When the family
+        disagrees the question is which side the subject is on, and it cannot
+        be formed until the fan-out comes back."""
+        found = run("does a cat purr")
+        asked = [answer for cycle in found.cycles for answer in cycle.answers
+                 if answer.origin == "split"]
+        self.assertTrue(asked)
+        self.assertIn("difference between", asked[0].question)
+
+    def test_an_incidental_conflict_does_not_overturn_the_headline(self):
+        """`is a shark a fish` stayed VERIFIED while something asked on the
+        way past did not hold up. Reporting the second as the first says a
+        shark is not a fish, which nothing here concluded."""
+        found = run("does a cat purr")
+        self.assertEqual(found.summary["verdict"], "VERIFIED")
+        self.assertNotEqual(found.summary["trust"],
+                            "contradicted by its own family")
+        self.assertTrue(found.summary["conflicts"])
 
     def test_the_examples_cover_every_kind_of_outcome(self):
         outcomes = {example["expect"] for example in server.EXAMPLES}

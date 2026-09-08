@@ -64,6 +64,24 @@ MAX_DOUBT_DISTANCE = 4
 #: anything.
 MIN_FACTS_FOR_CURIOSITY = 20
 
+#: How many answers deep a chain of thought may run. Each step's subject comes
+#: out of the previous step's *content*, so nothing after the first can be
+#: asked until the one before it comes back: a chain uses one worker and as
+#: many cycles as it has steps. That is the honest limit of the pool, and the
+#: reason curiosity exists to fill the other eighteen lanes.
+MAX_CHAIN_DEPTH = 4
+
+#: Where a definition ladder stops being about anything. `beagle -> hound ->
+#: hunting dog -> dog -> canine -> carnivore` is a chain of thought;
+#: `-> organism -> physical entity` is the ontology's plumbing.
+LADDER_FLOOR = frozenset({
+    "entity", "physical entity", "abstraction", "object", "whole", "unit",
+    "living thing", "organism", "thing", "matter", "substance", "causal agent",
+    "artifact", "instrumentality", "attribute", "psychological feature",
+    "abstract entity", "relation", "measure", "group", "act", "event",
+    "state", "phenomenon", "process",
+})
+
 #: How a stored relation reads back as a question. The loop has to rebuild a
 #: question from (concept, relation, object) to put a doubted claim to a
 #: sibling, and the phrasing has to be one v687's parser routes to the same
@@ -181,6 +199,9 @@ class Question:
     gain: float = 1.0
     urgency: float = 1.0
     novelty: float = 0.0
+    #: How many answers had to come back before this question could be
+    #: formed. 0 for anything askable from the utterance alone.
+    depth: int = 0
 
     @property
     def rank(self) -> float:
@@ -191,7 +212,8 @@ class Question:
                 "predicate": self.predicate, "why": self.why,
                 "parent": self.parent, "salience": round(self.salience, 4),
                 "gain": round(self.gain, 4), "urgency": round(self.urgency, 4),
-                "novelty": self.novelty, "rank": round(self.rank, 5)}
+                "novelty": self.novelty, "depth": self.depth,
+                "rank": round(self.rank, 5)}
 
 
 def phrase(concept: str, relation: str, obj: str) -> str:
@@ -517,7 +539,126 @@ class Generator:
                 salience=salience * 0.9, gain=0.85, urgency=urgency))
         return asked
 
-    # -- source 3: nothing is wrong, but the trie has a child --------------
+    # -- source 3: the family disagreed, so ask which side the subject is on
+    def from_split(self, split: dict, buffer) -> list[Question]:
+        """Settle a divided family by comparing the subject with the dissent.
+
+        `is a shark a fish` puts `has scales` to six kinds of fish. Goldfish,
+        minnow and salmon have them; a seahorse does not; the shark itself is
+        unrecorded. Counting that up as "1 of 6 deny it" is not an answer --
+        the question it actually raises is whether the shark is more like the
+        minnow or more like the seahorse, and R21 is the rule that answers it.
+
+        This is the level that has to be serial. The comparison cannot be
+        named until the fan-out comes back, so nineteen workers buy the split
+        in one cycle and then wait while one worker resolves it.
+        """
+        subject = split["subject"]
+        if not subject:
+            return []
+        urgency = attention.URGENCY["split"]
+        salience = max(buffer.activation.salience(subject), 0.6)
+        depth = buffer.depth_of(split["parent"]) + 1
+        asked: list[Question] = []
+        for other in (split["differ"][:1] + split["agree"][:1]):
+            if other == subject:
+                continue
+            asked.append(Question(
+                f"what is the difference between {article(subject)} "
+                f"{subject} and {article(other)} {other}", "split", subject,
+                split["claim"],
+                why=f"the family split on “{split['claim']}” — "
+                    f"{', '.join(split['agree'][:3]) or 'some'} yes, "
+                    f"{', '.join(split['differ'][:3])} no. Which side "
+                    f"{subject} is on is the question that answers, and it "
+                    f"could not be asked before the split came back",
+                parent=split["parent"], salience=salience, gain=0.95,
+                urgency=urgency, depth=depth))
+        return asked
+
+    # -- source 4: the answer's own content names the next question --------
+    def from_content(self, answer, buffer) -> list[Question]:
+        """A chain of thought: the next subject comes out of the last answer.
+
+        This is the one source the pool cannot help with. A gap or a doubt can
+        be fanned out -- the family goes to nineteen workers at once -- but
+        here the *terms* of the next question are inside the previous answer,
+        so step three cannot be formed until step two comes back. One worker,
+        one step per cycle, however many engines are idle.
+
+        Three kinds of content are worth following, and each is a different
+        rule of v687 answering:
+
+            a definition    its genus is the next thing to ask about, and the
+                            ladder beagle -> hound -> hunting dog -> dog ->
+                            canine is a chain nothing could have predicted
+                            from the utterance.       (R26)
+            an inheritance  the ancestor the yes came from is a claim of its
+                            own: `does a robin fly` rests on `a robin is a
+                            bird`, which nobody checked.        (R1)
+            an explanation  what a why-question returns is a set of events,
+                            and each of those can be asked after.  (R23)
+        """
+        depth = buffer.depth_of(answer.question)
+        if depth >= MAX_CHAIN_DEPTH or answer.error:
+            return []
+        payload = answer.payload or {}
+        salience = max(buffer.activation.salience(answer.about), 0.5)
+        urgency = attention.URGENCY["chain"]
+        # A chain narrows as it goes: each step is one level further from what
+        # was actually said, and should not outrank a fresh doubt about it.
+        # Floored, though: a line of reasoning already under way should not be
+        # interrupted by a new interest, and without the floor a wide pool
+        # reached one rung less than a narrow one -- more curiosity questions
+        # to outbid the fourth rung, purely because there were more workers.
+        fade = max(0.85 ** (depth + 1), 0.62)
+        asked: list[Question] = []
+
+        definition = payload.get("definition") or {}
+        genus = bare(definition.get("genus") or "")
+        # A ladder that changes sort has stopped being about its subject.
+        # `why does a dog bark` returned an explanation mentioning vomiting,
+        # and the ladder walked vomiting -> expulsion -> propulsion -> force:
+        # four real definitions, none of them about dogs. R26 already reports
+        # which top partition a word sits under, so the rung has to match the
+        # one the chain started in.
+        sort = bare(definition.get("sort") or "")
+        started = buffer.sort_of_chain(answer.question) or sort
+        if genus and genus not in LADDER_FLOOR and sort == started:
+            asked.append(Question(
+                f"what is {article(genus)} {genus}", "chain", genus,
+                why=f"“{definition.get('word') or answer.about}” was defined "
+                    f"as a kind of {genus}, so {genus} is what the definition "
+                    f"leans on and nothing here has said what it is",
+                parent=answer.question, salience=salience, gain=fade,
+                urgency=urgency, depth=depth + 1))
+            buffer.note_sort(f"what is {article(genus)} {genus}", started)
+
+        evidence = (payload.get("evidence") or [{}])[0]
+        source = bare(evidence.get("concept") or "")
+        subject = bare(payload.get("concept") or answer.about or "")
+        if (answer.verdict in ("VERIFIED", "HELD", "INHERITED") and source
+                and subject and source != subject
+                and int(evidence.get("distance") or 0) > 0):
+            asked.append(Question(
+                f"is {article(subject)} {subject} {article(source)} {source}",
+                "chain", subject, source,
+                why=f"the yes rests on {subject} being {article(source)} "
+                    f"{source}, which is a claim of its own and was never "
+                    f"put as a question",
+                parent=answer.question, salience=salience, gain=fade * 0.95,
+                urgency=urgency, depth=depth + 1))
+
+        # R23's objects were the third source here and are now dropped.
+        # `why does a dog bark` resolves `bark` to a sense whose recorded
+        # causes are nausea and vomiting, and the ladder ran nausea ->
+        # symptom -> evidence -> information: four correct definitions and
+        # not one of them about dogs. Following a crawled explanation is only
+        # as good as the sense it was crawled under, and nothing here has
+        # chosen that sense yet -- the buffer holds pins and nothing sets them.
+        return asked
+
+    # -- source 4: nothing is wrong, but the trie has a child --------------
     def from_curiosity(self, concept: str, buffer, limit: int = 6
                        ) -> list[Question]:
         """The predicates that would tell this concept from its rivals."""
@@ -575,6 +716,10 @@ class Generator:
             candidates.extend(self.from_gap(hole, buffer))
         for doubt in buffer.open_doubts():
             candidates.extend(self.from_doubt(doubt, buffer))
+        for split in buffer.splits():
+            candidates.extend(self.from_split(split, buffer))
+        for answer in buffer.recent:
+            candidates.extend(self.from_content(answer, buffer))
 
         ranked = sorted(candidates, key=lambda q: -q.rank)
         chosen: list[Question] = []

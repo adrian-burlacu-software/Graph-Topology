@@ -92,6 +92,16 @@ class Buffer:
         #: short by the pool size reports `1 of 4 deny it` about a family of
         #: seven, which is worse arithmetic than not checking at all.
         self.carried: list = []
+        #: The answers from the cycle just finished. A chain of thought reads
+        #: their *content*, so it can only be formed once they are back.
+        self.recent: list = []
+        #: question -> how many answers deep it was formed. The seed is 0.
+        self.depths: dict[str, int] = {}
+        #: question -> the top partition the chain that produced it started
+        #: in, so a definition ladder cannot wander out of its own sort.
+        self.sorts: dict[str, str] = {}
+        #: family checks already probed for which side the subject is on
+        self._spent_splits: set[str] = set()
 
     # -- attending ---------------------------------------------------------
     def attend(self, text: str) -> list[str]:
@@ -131,6 +141,7 @@ class Buffer:
         """File a cycle's answers, and read what they left open."""
         fresh_gaps: list[Gap] = []
         fresh_doubts: list[Doubt] = []
+        self.recent = list(answers)
         for answer in answers:
             self.answers[answer.question] = answer
             if answer.error:
@@ -181,6 +192,20 @@ class Buffer:
                                     doubt.relation))
         return pending
 
+    def depth_of(self, question: str) -> int:
+        """How many answers had to come back before this was askable."""
+        return self.depths.get(question, 0)
+
+    def note_depth(self, question: str, depth: int) -> None:
+        self.depths[question] = depth
+
+    def sort_of_chain(self, question: str) -> str:
+        return self.sorts.get(question, "")
+
+    def note_sort(self, question: str, sort: str) -> None:
+        if sort:
+            self.sorts[question] = sort
+
     def already_asked(self, question: str) -> bool:
         return question in self.answers
 
@@ -215,9 +240,46 @@ class Buffer:
                        f"claim was put to deny it"))
         return found
 
+    def splits(self) -> list[dict]:
+        """Family checks that came back divided, and have not been probed.
+
+        A fan-out that all says one thing settles the claim. A fan-out that
+        *disagrees with itself* -- goldfish and minnow have scales, a seahorse
+        does not, the shark is unrecorded -- has not settled anything, and
+        reporting the count is not an answer. The question it raises is which
+        side the subject belongs on, and that question cannot be formed until
+        the split comes back. It is the one place the loop reasons in a line
+        rather than in a fan.
+        """
+        groups: dict[str, list] = {}
+        for answer in self.answers.values():
+            if answer.origin == "doubt" and answer.parent:
+                groups.setdefault(answer.parent, []).append(answer)
+
+        found: list[dict] = []
+        for parent, kin in groups.items():
+            if parent in self._spent_splits:
+                continue
+            agree = [one for one in kin if one.verdict in POSITIVE]
+            differ = [one for one in kin if one.verdict in NEGATIVE]
+            if not (agree and differ):
+                continue
+            asked = self.answers.get(parent)
+            subject = (asked.about if asked else "") or ""
+            if not subject:
+                continue
+            self._spent_splits.add(parent)
+            found.append({
+                "parent": parent, "subject": subject,
+                "claim": kin[0].predicate,
+                "agree": [one.about for one in agree if one.about],
+                "differ": [one.about for one in differ if one.about]})
+        return found
+
     def settled(self) -> bool:
         """Nothing left that the loop could act on by itself."""
-        return not self._gaps and not self._doubts and not self.carried
+        return (not self._gaps and not self._doubts and not self.carried
+                and not self.recent)
 
     def needs_telling(self) -> list[Gap]:
         """Gaps no question of ours can close: the system has to be told.

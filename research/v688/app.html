@@ -6,169 +6,214 @@
 <title>V688 — the loop around v687</title>
 <style>
   :root {
-    --ink: #16181d; --dim: #5c6472; --faint: #8b93a1;
-    --rule: #e2e5ea; --ground: #f7f8fa; --panel: #ffffff;
-    --seed: #2f6fbf; --gap: #b4531a; --doubt: #8b3fb0; --curiosity: #2e7d5b;
-    --yes: #1f7a4d; --no: #b3261e; --absent: #7a6a2f; --content: #3a5a94;
+    --bg: #080b0e; --panel: #0e1318; --raised: #131a21;
+    --rule: #1d262f; --rule2: #26313c;
+    --ink: #d7e0e8; --dim: #8b98a6; --faint: #5d6b78;
+    --teal: #2fe3c5; --teal-dim: #1b8f7c;
+    --seed: #4aa8ff; --gap: #ff9d4a; --doubt: #c07bff;
+    --split: #ff6b9d; --chain: #ffd24a; --curiosity: #3fd68a;
+    --yes: #3fd68a; --no: #ff6b6b; --absent: #e0b64a; --content: #6fb2ff;
     --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--ground); color: var(--ink);
+    margin: 0; background: var(--bg); color: var(--ink);
     font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   header {
     background: var(--panel); border-bottom: 1px solid var(--rule);
-    padding: 14px 20px; display: flex; align-items: baseline; gap: 18px;
+    padding: 14px 22px; display: flex; align-items: baseline; gap: 18px;
     flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
   }
-  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  header h1 {
+    font-size: 15px; margin: 0; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--teal);
+  }
   header .sub { color: var(--dim); font-size: 12.5px; }
-  header .stats { margin-left: auto; color: var(--faint); font-size: 12px; font-family: var(--mono); }
-  main { display: grid; grid-template-columns: 310px minmax(0,1fr); gap: 0; align-items: start; }
+  header .stats { margin-left: auto; color: var(--faint); font-size: 11.5px; font-family: var(--mono); }
+  main { display: grid; grid-template-columns: 320px minmax(0,1fr); }
   aside {
     border-right: 1px solid var(--rule); background: var(--panel);
-    min-height: calc(100vh - 56px); padding: 16px 14px 40px;
-    position: sticky; top: 56px; max-height: calc(100vh - 56px); overflow-y: auto;
+    min-height: calc(100vh - 55px); padding: 18px 16px 60px;
+    position: sticky; top: 55px; max-height: calc(100vh - 55px); overflow-y: auto;
   }
-  aside h2, section h2 {
-    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
-    color: var(--faint); margin: 0 0 10px; font-weight: 650;
+  aside::-webkit-scrollbar, .drawer::-webkit-scrollbar { width: 9px; }
+  aside::-webkit-scrollbar-thumb, .drawer::-webkit-scrollbar-thumb {
+    background: var(--rule2); border-radius: 5px; }
+  h2.label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .13em;
+    color: var(--faint); margin: 0 0 11px; font-weight: 600;
   }
   .ex { display: block; width: 100%; text-align: left; background: transparent;
-        border: 1px solid transparent; border-radius: 7px; padding: 8px 9px;
-        margin-bottom: 3px; cursor: pointer; font: inherit; color: inherit; }
-  .ex:hover { background: var(--ground); }
-  .ex[aria-current="true"] { background: #eef4fc; border-color: #cbdcf3; }
-  .ex b { display: block; font-weight: 550; font-size: 13.5px; }
-  .ex span { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.45; margin-top: 3px; }
-  form.ask { display: flex; gap: 6px; margin: 4px 0 18px; }
+        border: 1px solid transparent; border-radius: 9px; padding: 9px 11px;
+        margin-bottom: 3px; cursor: pointer; font: inherit; color: inherit;
+        transition: background .12s, border-color .12s; }
+  .ex:hover { background: var(--raised); border-color: var(--rule); }
+  .ex[aria-current="true"] { background: #0d2b28; border-color: var(--teal-dim); }
+  .ex b { display: block; font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .ex[aria-current="true"] b { color: var(--teal); }
+  .ex span { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.45; margin-top: 4px; }
+  form.ask { display: flex; gap: 7px; margin: 2px 0 22px; }
   form.ask input {
-    flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--rule);
-    border-radius: 6px; font: inherit; background: var(--ground);
+    flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--rule2);
+    border-radius: 8px; font: inherit; background: var(--bg); color: var(--ink);
   }
-  form.ask button, .ctl button {
-    border: 1px solid var(--rule); background: var(--panel); border-radius: 6px;
-    padding: 7px 11px; font: inherit; cursor: pointer; color: var(--ink);
+  form.ask input:focus { outline: none; border-color: var(--teal-dim); }
+  form.ask button {
+    border: 0; background: var(--teal); color: #05231e; border-radius: 8px;
+    padding: 9px 15px; font: inherit; font-weight: 650; cursor: pointer;
   }
-  form.ask button:hover, .ctl button:hover:not(:disabled) { background: var(--ground); }
-  .ctl button:disabled { opacity: .38; cursor: default; }
-  section.stage { padding: 20px 24px 80px; min-width: 0; }
-  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
-           padding: 16px 18px; margin-bottom: 16px; }
-  .utterance { font-size: 21px; font-weight: 600; letter-spacing: -.015em; margin: 0 0 10px; }
+  form.ask button:hover { filter: brightness(1.1); }
+  section.stage { padding: 22px 26px 90px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+           padding: 18px 20px; margin-bottom: 16px; }
+  .utterance { font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 12px; }
   .trust { display: inline-block; font-family: var(--mono); font-size: 11.5px;
-           padding: 3px 9px; border-radius: 999px; border: 1px solid; }
-  .trust.bad { color: var(--no); border-color: #f0c6c3; background: #fdf3f2; }
-  .trust.weak { color: var(--absent); border-color: #e8ddb5; background: #fbf8ec; }
-  .trust.good { color: var(--yes); border-color: #bfe0cd; background: #f1faf5; }
-  .trust.flat { color: var(--dim); border-color: var(--rule); background: var(--ground); }
-  ul.lines { margin: 12px 0 0; padding-left: 18px; }
-  ul.lines li { margin-bottom: 5px; }
-  .runbar { display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
-            color: var(--faint); font-size: 12px; font-family: var(--mono); margin-top: 10px; }
-  .ctl { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+           padding: 4px 11px; border-radius: 999px; border: 1px solid; }
+  .trust.bad { color: var(--no); border-color: #4a2222; background: #1c0f0f; }
+  .trust.weak { color: var(--absent); border-color: #453a1a; background: #1a1508; }
+  .trust.good { color: var(--yes); border-color: #1e4634; background: #08190f; }
+  .trust.flat { color: var(--dim); border-color: var(--rule2); background: var(--raised); }
+  ul.lines { margin: 14px 0 0; padding-left: 18px; color: var(--ink); }
+  ul.lines li { margin-bottom: 6px; }
+  ul.lines li::marker { color: var(--teal-dim); }
+  .runbar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+            color: var(--faint); font-size: 11.5px; font-family: var(--mono); margin-top: 14px;
+            padding-top: 12px; border-top: 1px solid var(--rule); }
+  .runbar b { color: var(--teal); font-weight: 600; }
+  .ctl { display: flex; align-items: center; gap: 9px; margin-bottom: 15px; flex-wrap: wrap; }
+  .ctl button {
+    border: 1px solid var(--rule2); background: var(--raised); border-radius: 8px;
+    padding: 7px 13px; font: inherit; cursor: pointer; color: var(--ink); }
+  .ctl button:hover:not(:disabled) { border-color: var(--teal-dim); color: var(--teal); }
+  .ctl button:disabled { opacity: .32; cursor: default; }
+  .ctl > span { color: var(--faint); font-family: var(--mono); font-size: 11.5px; }
   .ticks { display: flex; gap: 4px; margin-left: 6px; }
-  .tick { width: 30px; height: 6px; border-radius: 3px; background: var(--rule); cursor: pointer; border: 0; padding: 0; }
-  .tick.on { background: var(--seed); }
-  .tick.done { background: #b9c6d8; }
+  .tick { width: 32px; height: 7px; border-radius: 4px; background: var(--rule2);
+          cursor: pointer; border: 0; padding: 0; }
+  .tick.done { background: var(--teal-dim); }
+  .tick.on { background: var(--teal); }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
-       color: var(--faint); font-weight: 650; padding: 0 8px 7px; border-bottom: 1px solid var(--rule); }
-  td { padding: 7px 8px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .11em;
+       color: var(--faint); font-weight: 600; padding: 0 9px 8px; border-bottom: 1px solid var(--rule); }
+  td { padding: 9px; border-bottom: 1px solid var(--rule); vertical-align: top; }
   tr.q { cursor: pointer; }
-  tr.q:hover td { background: #fafbfd; }
-  .badge { display: inline-block; font-family: var(--mono); font-size: 10px;
-           padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
-           letter-spacing: .04em; border: 1px solid currentColor; white-space: nowrap; }
+  tr.q:hover td { background: var(--raised); }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 9.5px;
+           padding: 3px 7px; border-radius: 5px; text-transform: uppercase;
+           letter-spacing: .07em; border: 1px solid currentColor; white-space: nowrap; }
   .o-seed { color: var(--seed); } .o-gap { color: var(--gap); }
-  .o-doubt { color: var(--doubt); } .o-curiosity { color: var(--curiosity); }
-  .v { font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .o-doubt { color: var(--doubt); } .o-split { color: var(--split); }
+  .o-chain { color: var(--chain); } .o-curiosity { color: var(--curiosity); }
+  .v { font-family: var(--mono); font-size: 10.5px; font-weight: 600; white-space: nowrap;
+       letter-spacing: .04em; }
   .v-yes { color: var(--yes); } .v-no { color: var(--no); }
   .v-absent { color: var(--absent); } .v-content { color: var(--content); }
   .v-flat { color: var(--faint); }
-  .qtext { font-size: 13.5px; }
-  .why { color: var(--dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+  .qtext { font-size: 13.5px; color: var(--ink); }
+  .why { color: var(--dim); font-size: 11.5px; margin-top: 3px; line-height: 1.45; }
   .bars { display: flex; gap: 3px; align-items: center; }
-  .bar { width: 26px; height: 5px; background: #eceff3; border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--seed); }
-  .lanes { display: grid; gap: 2px; margin-top: 4px; }
-  .lane { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; }
-  .lane b { font-family: var(--mono); font-size: 10px; color: var(--faint); font-weight: 500; }
-  .track { position: relative; height: 13px; background: #f2f4f7; border-radius: 3px; }
-  .slot { position: absolute; top: 0; height: 13px; border-radius: 3px; min-width: 3px;
-          font-family: var(--mono); font-size: 9px; color: #fff; overflow: hidden;
-          white-space: nowrap; padding: 0 4px; line-height: 13px; }
+  .bar { width: 26px; height: 5px; background: var(--rule2); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--teal-dim); }
+  .lanes { display: grid; gap: 3px; margin: 6px 0 0; }
+  .lane { display: grid; grid-template-columns: 32px 1fr; gap: 9px; align-items: center; }
+  .lane b { font-family: var(--mono); font-size: 9.5px; color: var(--faint); font-weight: 500; }
+  .track { position: relative; height: 14px; background: var(--raised); border-radius: 4px; }
+  .slot { position: absolute; top: 0; height: 14px; border-radius: 4px; min-width: 3px;
+          font-family: var(--mono); font-size: 9px; color: #05121a; overflow: hidden;
+          white-space: nowrap; padding: 0 5px; line-height: 14px; font-weight: 600; }
   .s-seed { background: var(--seed); } .s-gap { background: var(--gap); }
-  .s-doubt { background: var(--doubt); } .s-curiosity { background: var(--curiosity); }
-  .idle { color: var(--faint); font-size: 11px; padding-left: 4px; line-height: 13px; }
-  .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-  .chip { font-size: 11.5px; border: 1px solid var(--rule); border-radius: 6px;
-          padding: 4px 8px; background: var(--ground); }
-  .chip b { font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+  .s-doubt { background: var(--doubt); } .s-split { background: var(--split); }
+  .s-chain { background: var(--chain); } .s-curiosity { background: var(--curiosity); }
+  .idle { position: absolute; color: var(--faint); font-size: 10px;
+          font-family: var(--mono); padding-left: 6px; line-height: 14px; }
+  .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+  .chip { font-size: 11.5px; border: 1px solid var(--rule2); border-radius: 7px;
+          padding: 5px 9px; background: var(--raised); color: var(--dim); }
+  .chip b { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; }
   .chip.gap b { color: var(--gap); } .chip.doubt b { color: var(--doubt); }
+  /* the serial thread */
+  .thread { margin-top: 4px; }
+  .link { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start;
+          padding-bottom: 14px; position: relative; }
+  .link:not(:last-child)::before {
+    content: ""; position: absolute; left: 14px; top: 22px; bottom: 0;
+    width: 2px; background: linear-gradient(var(--chain), var(--rule2)); }
+  .dot { width: 30px; height: 20px; display: flex; align-items: center; justify-content: center;
+         font-family: var(--mono); font-size: 10px; color: var(--bg); }
+  .dot i { width: 21px; height: 19px; border-radius: 5px; background: var(--chain);
+           display: flex; align-items: center; justify-content: center; font-style: normal;
+           font-weight: 700; }
+  .link p { margin: 0; font-size: 13.5px; }
+  .link .why { margin-top: 3px; }
   .drawer {
-    position: fixed; top: 0; right: 0; width: min(560px, 94vw); height: 100vh;
-    background: var(--panel); border-left: 1px solid var(--rule);
-    box-shadow: -18px 0 44px rgba(20,25,35,.12); padding: 18px 22px 60px;
-    overflow-y: auto; z-index: 40; transform: translateX(100%);
-    transition: transform .16s ease;
+    position: fixed; top: 0; right: 0; width: min(580px, 96vw); height: 100vh;
+    background: var(--panel); border-left: 1px solid var(--rule2);
+    box-shadow: -22px 0 60px rgba(0,0,0,.6); padding: 20px 24px 70px;
+    overflow-y: auto; z-index: 40; transform: translateX(101%);
+    transition: transform .17s ease;
   }
   .drawer.open { transform: none; }
-  .drawer h3 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
-  .drawer .close { position: absolute; top: 14px; right: 16px; border: 0;
-                   background: transparent; font-size: 20px; cursor: pointer; color: var(--faint); }
-  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px;
-        font-size: 12.5px; margin: 12px 0; }
-  .kv dt { color: var(--faint); font-family: var(--mono); font-size: 10.5px;
-           text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
-  .kv dd { margin: 0; }
-  .step { border-left: 2px solid var(--rule); padding: 4px 0 8px 12px; margin-left: 4px; }
-  .step b { font-family: var(--mono); font-size: 10.5px; color: var(--seed); }
+  .drawer h3 { margin: 0 0 6px; font-size: 17px; letter-spacing: -.015em; }
+  .drawer .close { position: absolute; top: 15px; right: 18px; border: 0;
+                   background: transparent; font-size: 22px; cursor: pointer; color: var(--faint); }
+  .drawer .close:hover { color: var(--teal); }
+  .kv { display: grid; grid-template-columns: 104px 1fr; gap: 5px 14px;
+        font-size: 12.5px; margin: 14px 0; }
+  .kv dt { color: var(--faint); font-family: var(--mono); font-size: 10px;
+           text-transform: uppercase; letter-spacing: .08em; padding-top: 3px; }
+  .kv dd { margin: 0; color: var(--ink); }
+  .step { border-left: 2px solid var(--rule2); padding: 5px 0 9px 13px; margin-left: 4px; }
+  .step b { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: .05em; }
   .step div { font-size: 12.5px; color: var(--dim); }
-  pre.ev { background: var(--ground); border: 1px solid var(--rule); border-radius: 7px;
-           padding: 10px 12px; font-family: var(--mono); font-size: 11px;
-           overflow-x: auto; margin: 6px 0 0; }
-  .note { font-size: 12.5px; color: var(--dim); background: var(--ground);
-          border-radius: 7px; padding: 9px 11px; margin-top: 8px; }
-  .empty { color: var(--faint); font-size: 13px; padding: 8px 0; }
+  pre.ev { background: var(--bg); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 11px 13px; font-family: var(--mono); font-size: 11px;
+           overflow-x: auto; margin: 6px 0 0; color: var(--dim); }
+  .note { font-size: 12.5px; color: var(--dim); background: var(--raised);
+          border-radius: 8px; padding: 10px 12px; margin-top: 9px;
+          border-left: 2px solid var(--teal-dim); }
+  .empty { color: var(--faint); font-size: 13px; padding: 10px 0; }
   .loading { color: var(--dim); font-size: 13px; }
-  .spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--rule);
-          border-top-color: var(--seed); border-radius: 50%; animation: sp .7s linear infinite;
-          vertical-align: -1px; margin-right: 7px; }
+  .spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--rule2);
+          border-top-color: var(--teal); border-radius: 50%; animation: sp .7s linear infinite;
+          vertical-align: -1px; margin-right: 8px; }
   @keyframes sp { to { transform: rotate(360deg); } }
-  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 12px; }
-  .legend span b { font-family: var(--mono); font-size: 10px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--dim);
+            margin-top: 12px; font-family: var(--mono); }
+  .explain { font-size: 12px; color: var(--dim); line-height: 1.55; }
+  .explain b { color: var(--ink); }
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
-    aside { position: static; max-height: none; min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule); }
+    aside { position: static; max-height: none; min-height: 0; border-right: 0;
+            border-bottom: 1px solid var(--rule); }
   }
 </style>
 </head>
 <body>
 <header>
-  <h1>V688 — the loop around v687</h1>
-  <div class="sub">one utterance, resolved over several internal cycles</div>
+  <h1>V688 Loop</h1>
+  <div class="sub">one utterance · resolved over several internal cycles · every question replayable</div>
   <div class="stats" id="stats">…</div>
 </header>
 
 <main>
   <aside>
-    <h2>Ask</h2>
+    <h2 class="label">Ask</h2>
     <form class="ask" id="askform">
       <input id="askbox" placeholder="a statement or a question" autocomplete="off">
       <button type="submit">Run</button>
     </form>
-    <h2>Examples</h2>
+    <h2 class="label">Examples</h2>
     <div id="examples"></div>
-    <h2 style="margin-top:22px">How a question is chosen</h2>
-    <div style="font-size:12px;color:var(--dim);line-height:1.5">
+    <h2 class="label" style="margin-top:24px">How a question is chosen</h2>
+    <div class="explain">
       Rank is <b>salience × gain × urgency</b>, as a product so a zero anywhere
       is fatal. <b>Salience</b> is activation in the buffer, decaying each
       cycle. <b>Gain</b> is bits of the candidate set a question removes,
       computed on the same predicate trie the reasoner stores with.
       <b>Urgency</b> comes from what kind of hole is being filled.
-      <div id="knobs" style="margin-top:9px;font-family:var(--mono);font-size:10.5px;color:var(--faint)"></div>
+      <div id="knobs" style="margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)"></div>
     </div>
   </aside>
 
@@ -198,10 +243,12 @@ const TRUST_CLASS = {
   "unreadable": "bad",
   "weakly held": "weak",
   "absent, not false": "weak",
+  "holds, but something it passed does not": "weak",
   "corroborated": "good",
   "denied, unchallenged": "flat",
   "content, not a verdict": "flat"
 };
+const ORIGINS = ["seed", "gap", "doubt", "split", "chain", "curiosity"];
 
 let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null;
 
@@ -218,8 +265,7 @@ async function boot() {
   const p = SETTINGS.pool;
   document.getElementById("stats").textContent =
     `${p.workers}/${p.requested} workers · built in ${p.build_seconds}s · ` +
-    `trie ${SETTINGS.trie.individuals} individuals / ${SETTINGS.trie.predicates} predicates · ` +
-    `${p.store}`;
+    `trie ${SETTINGS.trie.individuals} individuals / ${SETTINGS.trie.predicates} predicates`;
   document.getElementById("knobs").textContent =
     `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
     `weak-confidence ${SETTINGS.weak_confidence} · max ${SETTINGS.max_cycles} cycles`;
@@ -272,6 +318,8 @@ function render() {
   const stage = document.getElementById("stage");
   stage.innerHTML = "";
   stage.appendChild(summaryPanel());
+  const thread = threadPanel();
+  if (thread) stage.appendChild(thread);
   stage.appendChild(transport());
   stage.appendChild(cyclePanel());
 }
@@ -279,22 +327,61 @@ function render() {
 function summaryPanel() {
   const panel = el("div", "panel");
   panel.appendChild(el("p", "utterance", RUN.utterance));
-  const trust = el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
-                   RUN.summary.trust);
-  panel.appendChild(trust);
+  panel.appendChild(el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
+                       RUN.summary.trust));
 
   const lines = el("ul", "lines");
   (RUN.summary.lines || []).forEach(line => lines.appendChild(el("li", null, line)));
   if (lines.children.length) panel.appendChild(lines);
 
   const bar = el("div", "runbar");
-  bar.appendChild(el("span", null, `${RUN.cycles.length} cycles`));
-  bar.appendChild(el("span", null, `${RUN.asked} questions asked`));
-  bar.appendChild(el("span", null, `${RUN.buffer.gaps.length} gaps seen`));
-  bar.appendChild(el("span", null, `${RUN.buffer.doubts.length} doubts raised`));
-  bar.appendChild(el("span", null, `${RUN.summary.conflicts.length} conflicts`));
-  bar.appendChild(el("span", null, `${RUN.elapsed}s`));
+  const add = (value, name) => {
+    const item = el("span");
+    item.appendChild(el("b", null, String(value)));
+    item.appendChild(document.createTextNode(" " + name));
+    bar.appendChild(item);
+  };
+  add(RUN.cycles.length, "cycles");
+  add(RUN.asked, "questions asked");
+  add(RUN.summary.depth || 0, "answers deep");
+  add(RUN.buffer.gaps.length, "gaps");
+  add(RUN.buffer.doubts.length, "doubts");
+  add(RUN.summary.conflicts.length, "conflicts");
+  add(RUN.elapsed + "s", "");
   panel.appendChild(bar);
+  return panel;
+}
+
+function threadPanel() {
+  const thread = RUN.summary.thread || [];
+  if (thread.length < 2) return null;
+  const panel = el("div", "panel");
+  panel.appendChild(el("h2", "label",
+    `the serial part — ${thread.length} questions, each one only askable ` +
+    `once the one above it came back`));
+  const box = el("div", "thread");
+  thread.forEach(link => {
+    const row = el("div", "link");
+    const dot = el("div", "dot");
+    const mark = el("i", null, String(link.depth));
+    if (link.origin && link.origin !== "chain")
+      mark.style.background = `var(--${link.origin})`;
+    dot.appendChild(mark);
+    row.appendChild(dot);
+    const body = el("div");
+    const head = el("p");
+    head.appendChild(document.createTextNode(link.question + "  "));
+    head.appendChild(el("span", "v " + (VERDICT_CLASS[link.verdict] || "v-flat"),
+                        link.verdict));
+    body.appendChild(head);
+    if (link.why) body.appendChild(el("div", "why", link.why));
+    row.appendChild(body);
+    box.appendChild(row);
+  });
+  panel.appendChild(box);
+  panel.appendChild(el("div", "legend",
+    "nineteen workers do not shorten this: each question's terms are inside " +
+    "the previous answer"));
   return panel;
 }
 
@@ -327,7 +414,7 @@ function startPlay() {
   PLAYING = setInterval(() => {
     if (CYCLE >= RUN.cycles.length - 1) { stopPlay(true); return; }
     CYCLE++; render();
-  }, 1600);
+  }, 1700);
   render();
 }
 function stopPlay(redraw) {
@@ -337,17 +424,16 @@ function stopPlay(redraw) {
 function cyclePanel() {
   const cycle = RUN.cycles[CYCLE];
   const panel = el("div", "panel");
-
-  panel.appendChild(el("h2", null,
-    `Cycle ${cycle.number} — ${cycle.answers.length} questions, ` +
-    `${cycle.workers_used.length} workers, ${cycle.elapsed}s`));
+  panel.appendChild(el("h2", "label",
+    `Cycle ${cycle.number} — ${cycle.answers.length} questions · ` +
+    `${cycle.workers_used.length} of ${SETTINGS.pool.workers} workers · ${cycle.elapsed}s`));
 
   panel.appendChild(lanes(cycle));
 
   const table = el("table");
   table.innerHTML =
-    "<thead><tr><th>from</th><th>question</th><th style='width:120px'>rank</th>" +
-    "<th style='width:110px'>verdict</th></tr></thead>";
+    "<thead><tr><th style='width:88px'>from</th><th>question</th>" +
+    "<th style='width:118px'>rank</th><th style='width:112px'>verdict</th></tr></thead>";
   const body = el("tbody");
   const asked = new Map((cycle.questions || []).map(q => [q.text, q]));
   cycle.answers.forEach(answer => {
@@ -357,6 +443,7 @@ function cyclePanel() {
 
     const from = el("td");
     from.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
+    if (meta.depth) from.appendChild(el("div", "why", "depth " + meta.depth));
     row.appendChild(from);
 
     const what = el("td");
@@ -367,18 +454,17 @@ function cyclePanel() {
     const score = el("td");
     if (meta.rank !== undefined) {
       const bars = el("div", "bars");
-      [["salience", meta.salience], ["gain", Math.min(1, (meta.gain || 0))],
+      [["salience", meta.salience], ["gain", Math.min(1, meta.gain || 0)],
        ["urgency", meta.urgency]].forEach(([name, value]) => {
         const bar = el("div", "bar");
-        bar.title = `${name} ${Number(value || 0).toFixed(2)}`;
+        bar.title = `${name} ${Number(value || 0).toFixed(3)}`;
         const fill = el("i");
-        fill.style.width = Math.max(2, Math.min(100, (value || 0) * 100)) + "%";
+        fill.style.width = Math.max(3, Math.min(100, (value || 0) * 100)) + "%";
         bar.appendChild(fill);
         bars.appendChild(bar);
       });
-      bars.appendChild(el("span", null, ""));
       score.appendChild(bars);
-      score.appendChild(el("div", "why", "rank " + Number(meta.rank).toFixed(3)));
+      score.appendChild(el("div", "why", "rank " + Number(meta.rank).toFixed(4)));
     } else {
       score.appendChild(el("div", "why", "—"));
     }
@@ -408,11 +494,11 @@ function cyclePanel() {
     opened.appendChild(chip);
   });
   if (opened.children.length) {
-    panel.appendChild(el("h2", null, "opened this cycle → asked next"));
+    panel.appendChild(el("h2", "label", "opened this cycle → asked next"));
     panel.appendChild(opened);
   }
 
-  const live = (RUN.cycles[CYCLE].activation.live || []).slice(0, 8);
+  const live = (cycle.activation.live || []).slice(0, 8);
   if (live.length) {
     const att = el("div", "legend");
     att.appendChild(el("span", null, "attention:"));
@@ -427,7 +513,7 @@ function lanes(cycle) {
   const wrap = el("div");
   const total = SETTINGS.pool.workers;
   const starts = cycle.answers.map(a => a.started);
-  const base = Math.min.apply(null, starts.length ? starts : [0]);
+  const base = starts.length ? Math.min.apply(null, starts) : 0;
   const span = Math.max.apply(null,
     cycle.answers.map(a => a.started - base + a.elapsed).concat([0.001]));
   const box = el("div", "lanes");
@@ -436,17 +522,13 @@ function lanes(cycle) {
     lane.appendChild(el("b", null, "w" + worker));
     const track = el("div", "track");
     const mine = cycle.answers.filter(a => a.worker === worker);
-    if (!mine.length) {
-      const idle = el("div", "idle", "idle");
-      idle.style.position = "absolute";
-      track.appendChild(idle);
-    }
+    if (!mine.length) track.appendChild(el("div", "idle", "idle"));
     mine.forEach(answer => {
       const slot = el("div", "slot s-" + answer.origin);
       slot.style.left = ((answer.started - base) / span * 100) + "%";
       slot.style.width = Math.max(1.5, answer.elapsed / span * 100) + "%";
       slot.title = `${answer.question} — ${answer.elapsed}s`;
-      slot.textContent = answer.elapsed >= span * 0.16 ? answer.question : "";
+      slot.textContent = answer.elapsed >= span * 0.17 ? answer.question : "";
       track.appendChild(slot);
     });
     lane.appendChild(track);
@@ -454,14 +536,13 @@ function lanes(cycle) {
   }
   wrap.appendChild(box);
   const legend = el("div", "legend");
-  ["seed", "gap", "doubt", "curiosity"].forEach(kind => {
+  ORIGINS.forEach(kind => {
     const item = el("span");
-    item.innerHTML = `<b class="o-${kind}">■</b> ${kind}`;
+    item.innerHTML = `<b class="o-${kind}" style="font-style:normal">■</b> ${kind}`;
     legend.appendChild(item);
   });
   legend.appendChild(el("span", null,
-    `${cycle.answers.length} of ${total} workers busy · slowest ` +
-    `${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
+    `slowest ${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
   wrap.appendChild(legend);
   return wrap;
 }
@@ -489,6 +570,7 @@ function openDrawer(answer, meta) {
   add("concept", answer.concept);
   add("worker", "w" + answer.worker + " · " + answer.elapsed + "s");
   add("cycle", answer.cycle);
+  if (meta.depth) add("depth", meta.depth + " answers in");
   if (answer.parent) add("because of", answer.parent);
   if (meta.rank !== undefined) {
     add("salience", Number(meta.salience).toFixed(3));
@@ -499,12 +581,12 @@ function openDrawer(answer, meta) {
   body.appendChild(kv);
 
   if (answer.note) {
-    body.appendChild(el("h2", null, "what v687 said"));
+    body.appendChild(el("h2", "label", "what v687 said"));
     body.appendChild(el("div", "note", answer.note));
   }
 
   const steps = answer.steps || [];
-  body.appendChild(el("h2", null, `derivation — ${steps.length} step(s)`));
+  body.appendChild(el("h2", "label", `derivation — ${steps.length} step(s)`));
   if (!steps.length) body.appendChild(el("div", "empty", "no derivation recorded"));
   steps.forEach(step => {
     const node = el("div", "step");
@@ -516,7 +598,7 @@ function openDrawer(answer, meta) {
 
   const evidence = answer.evidence || [];
   if (evidence.length) {
-    body.appendChild(el("h2", null, "evidence"));
+    body.appendChild(el("h2", "label", "evidence"));
     const pre = el("pre", "ev");
     pre.textContent = evidence.slice(0, 6).map(row =>
       `${row.concept}  ${row.relation}  ${row.object}\n` +

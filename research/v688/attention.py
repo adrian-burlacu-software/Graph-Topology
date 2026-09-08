@@ -46,6 +46,8 @@ URGENCY = {
     "conflict": 0.80,       # the parts disagree; find out which part is wrong
     "coverage": 0.55,       # a real absence, informative but not blocking
     "doubt": 0.65,          # an answer that should not be trusted this far
+    "split": 0.70,          # a family check disagreed with itself; settle it
+    "chain": 0.55,          # the last answer named the next thing to ask
     "curiosity": 0.30,      # nothing is wrong; this is only worth knowing
 }
 
@@ -138,6 +140,19 @@ class Curiosity:
         # by that so `gain` is comparable across pools of different sizes.
         return (before - after)
 
+    def informative(self, predicate: str,
+                    pool: frozenset[str] | None = None) -> float:
+        """How good a question this is locally *and* in general.
+
+        `gain` over a pool of six saturates: any three-three split scores
+        1.0, so a dozen predicates tie and the ranking stops saying anything
+        -- every question on the page read `rank 0.250`. Multiplying by the
+        split over all 541 breaks the tie the right way round: a predicate
+        that halves the local field but is carried by one individual overall
+        is a near-singleton, informative here and useless as a question.
+        """
+        return self.gain(predicate, pool) * self.gain(predicate, self.universe)
+
     def rivals(self, concept: str, limit: int = 24) -> frozenset[str]:
         """The individuals a question about this concept is trying to tell it
         from: the ones sharing most of its predicates.
@@ -178,7 +193,7 @@ class Curiosity:
                 continue
             if not (pool & who):
                 continue
-            scored.append((self.gain(predicate, pool), predicate))
+            scored.append((self.informative(predicate, pool), predicate))
         scored.sort(key=lambda pair: (-pair[0], pair[1]))
         return [(predicate, score) for score, predicate in scored[:limit]]
 

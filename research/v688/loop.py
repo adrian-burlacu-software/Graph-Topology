@@ -146,7 +146,7 @@ class Loop:
     """attend -> generate -> fan out -> read -> update -> repeat."""
 
     def __init__(self, pool: EnginePool, curiosity: attention.Curiosity,
-                 max_cycles: int = 5, width: int | None = None) -> None:
+                 max_cycles: int = 6, width: int | None = None) -> None:
         self.pool = pool
         self.curiosity = curiosity
         self.max_cycles = max_cycles
@@ -187,6 +187,8 @@ class Loop:
             # new opened, so `settled` has to account for them.
             buffer.cycle = number
             clock = time.time()
+            for question in pending:
+                buffer.note_depth(question.text, question.depth)
             answers = self.pool.ask_many(pending, buffer.pins or None)
             for answer in answers:
                 answer.cycle = number
@@ -252,8 +254,39 @@ class Loop:
             "doubts": [doubt.as_dict() for doubt in buffer.seen_doubts],
             "asked": len(buffer.answers),
             "curiosity_settled": len(learned),
+            # How far the loop got from what was actually said. A depth of 3
+            # means three answers had to come back before the last question
+            # could even be formed, and no amount of workers shortens that.
+            "depth": max(buffer.depths.values(), default=0),
+            "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer),
         }
+
+    @staticmethod
+    def thread(buffer: Buffer) -> list[dict]:
+        """The longest chain of thought this utterance ran.
+
+        Each link could only be written once the link above it came back, so
+        this is the part of the work that nineteen workers cannot shorten.
+        """
+        deepest, best = [], -1
+        for question, depth in buffer.depths.items():
+            if depth <= best:
+                continue
+            answer = buffer.answers.get(question)
+            if answer is None or answer.origin != "chain":
+                continue
+            walk, seen = [], set()
+            while answer is not None and answer.question not in seen:
+                seen.add(answer.question)
+                walk.append({"question": answer.question,
+                             "verdict": answer.verdict,
+                             "origin": answer.origin,
+                             "why": answer.why,
+                             "depth": buffer.depth_of(answer.question)})
+                answer = buffer.answers.get(answer.parent)
+            deepest, best = list(reversed(walk)), depth
+        return deepest
 
     @staticmethod
     def trust(headline, conflicts, buffer: Buffer) -> str:
@@ -267,7 +300,12 @@ class Loop:
             return "none"
         if headline.verdict in ("UNKNOWN_WORD", "UNPARSED", "UNSUPPORTED"):
             return "unreadable"
-        if conflicts:
+        # Only a conflict about *this* claim overturns it. `is a shark a fish`
+        # stays VERIFIED even when `does a shark have scales` -- asked on the
+        # way past -- does not survive its own family. Reporting the second as
+        # though it were the first says the shark is not a fish, which is both
+        # wrong and not what any part of the system concluded.
+        if any(bad.question == headline.question for bad in conflicts):
             return "contradicted by its own family"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
@@ -275,6 +313,10 @@ class Loop:
             return "weakly held"
         if headline.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH"):
             return "absent, not false"
+        if conflicts:
+            # Something else did not hold up. The headline is untouched, and
+            # the page says both things rather than one loudly.
+            return "holds, but something it passed does not"
         if headline.verdict in ("CONTRADICTED", "DENIED"):
             # A no that nothing disputed. Calling this "corroborated" reads as
             # though the claim were corroborated, which is the opposite of
