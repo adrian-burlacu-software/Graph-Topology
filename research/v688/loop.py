@@ -41,6 +41,11 @@ STATEMENT = re.compile(
 #: neither.
 CLAUSE = re.compile(r"\s+(?:that|which|and|but|who)\s+", re.I)
 
+#: `a dog is a kind of animal` is a claim about animals, not about kinds.
+#: Left in, it asked `is a dog a kind of animal` and got UNKNOWN.
+HEDGE = re.compile(r"^(?:an?\s+)?(?:kind|type|sort|form|species)\s+of\s+",
+                   re.I)
+
 
 @dataclass
 class Cycle:
@@ -121,6 +126,12 @@ def seed_questions(text: str, lemmatise=None) -> list[str]:
             who = found.group("subject").strip() if index == 0 else subject
             if not who:
                 continue
+            if HEDGE.match(rest):
+                # `a kind of animal` is `an animal`: dropping the hedge has to
+                # give the noun back its own article, or the claim reads
+                # `is a dog animal`.
+                rest = HEDGE.sub("", rest).strip()
+                rest = f"{article(rest)} {rest}"
             if verb in ("is", "are", "was", "were"):
                 asked.append(f"is {article(who)} {who} {rest}")
             elif verb == "can":
@@ -199,8 +210,15 @@ class Loop:
             # dogs.
             for answer in answers:
                 concept = (answer.payload or {}).get("concept") or ""
-                if concept:
-                    buffer.activation.bump(concept.split(".")[0], 0.5, number)
+                if not concept:
+                    continue
+                buffer.activation.bump(concept.split(".")[0], 0.5, number)
+                # Looking something up on purpose is how it becomes a topic.
+                # `fish` is the target of `a whale is a fish` and not what the
+                # sentence is about; it earns curiosity once the loop has
+                # chosen to ask `what is a fish` to close a gap.
+                if answer.origin in ("gap", "chain"):
+                    buffer.take_topic(concept)
             cycles.append(Cycle(
                 number=number, questions=pending, answers=answers,
                 gaps_found=gaps, doubts_found=doubts,

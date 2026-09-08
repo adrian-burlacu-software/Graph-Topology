@@ -54,7 +54,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |
 | `loop.py` | attend → generate → fan out → read → update → settle. Emits a replayable `Run`. |
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
-| `test_v688.py` | 45 tests, including every page example against the claim its card makes. |
+| `test_v688.py` | 49 tests, including every page example against the claim its card makes. |
 
 ## Where a question comes from
 
@@ -91,8 +91,29 @@ is how many answers had to come back before the last question was askable.
 
 **Attention is the bound.** Curiosity over a trie with no attention is a
 breadth-first crawl of 11,707 nodes — every question defensible on its own,
-none of them about anything. Only concepts named by the utterance generate
-curiosity, and activation decays, so the frontier is small and moving.
+none of them about anything. Three rules keep the frontier small and moving,
+and each one was written after watching the loop wander:
+
+- **Only the subject is a topic.** Everything else a sentence names is
+  activated, but is not something to be curious about: the object of a
+  question is not what the question is about. Without this, `does a snake
+  have legs` asked `is a leg furry` and `what eats meat` asked
+  `can a meat walk`.
+- **A concept becomes a topic by being looked up on purpose.** `fish` is the
+  target of `a whale is a fish`, not its subject; it earns curiosity once the
+  loop has chosen to ask `what is a fish` to close a gap.
+- **Attention withdraws from a topic that yields nothing.** `meat` really is
+  one of the corpus concepts, so the questions are legitimate — and all six
+  come back UNKNOWN. The loop asks once and stops. This is the only thing it
+  learns within an utterance.
+
+**Follow-ups are only built on deliberate answers.** A corroboration question
+is a means, not a topic, and a curiosity question is a guess: chaining off
+either walks away from the utterance. A run about whales went
+`does a goldfish have a gill` → `is a goldfish a bony fish` — true, and about
+nothing — and `is a shark a fish` spent 37 questions on gills and slime. The
+exception is curiosity about the subject you actually named, which is how
+`does a cat purr` found that the cat family disagrees about being active.
 
 Salience-with-decay is also, quietly, the **activation dynamics** the
 subsystem audit lists as the deepest missing piece. It arrives as a side

@@ -80,6 +80,13 @@ LADDER_FLOOR = frozenset({
     "artifact", "instrumentality", "attribute", "psychological feature",
     "abstract entity", "relation", "measure", "group", "act", "event",
     "state", "phenomenon", "process",
+    # The rungs a taxonomy passes through on its way to saying nothing.
+    # `violin -> bowed stringed instrument -> stringed instrument -> musical
+    # instrument` is a chain of thought; `-> device` is filing. Likewise
+    # `bat -> vertebrate -> chordate -> animal`: the first rung answers the
+    # question and the rest are the ontology's own scaffolding.
+    "animal", "chordate", "vertebrate", "invertebrate", "device",
+    "food", "material", "part", "structure", "body part", "person",
 })
 
 #: How a stored relation reads back as a question. The loop has to rebuild a
@@ -434,9 +441,15 @@ class Generator:
             # -- and `what is a for rabbits` is a question the loop invented
             # and nobody asked.
             words = hole.blocker.split()
+            # And only when the blocker is a *noun*. `is a dog wild` leaves
+            # `wild` uncovered; `wild` has a noun sense -- a wild region --
+            # so `what is a wild` came back defining wilderness, and the
+            # ladder then walked geographical area -> region -> location.
+            # The word was an adjective in the question that raised it.
             if (words and len(words) <= 2
                     and hole.blocker.replace(" ", "").isalpha()
-                    and words[0] not in FRAGMENT):
+                    and words[0] not in FRAGMENT
+                    and self.pos_of(words[-1]) == "n"):
                 asked.append(Question(
                     f"what is {article(hole.blocker)} {hole.blocker}", "gap",
                     hole.blocker,
@@ -602,6 +615,12 @@ class Generator:
         depth = buffer.depth_of(answer.question)
         if depth >= MAX_CHAIN_DEPTH or answer.error:
             return []
+        if answer.origin not in ("seed", "gap", "chain"):
+            # A chain is a line of reasoning about what was said. Starting one
+            # from a corroboration answer walks away from the utterance: a run
+            # about whales went `does a goldfish have a gill` -> `is a
+            # goldfish a bony fish`, which is true and about nothing.
+            return []
         payload = answer.payload or {}
         salience = max(buffer.activation.salience(answer.about), 0.5)
         urgency = attention.URGENCY["chain"]
@@ -664,6 +683,8 @@ class Generator:
         """The predicates that would tell this concept from its rivals."""
         salience = buffer.activation.salience(concept)
         if salience < attention.FLOOR or not self.substantial(concept):
+            return []
+        if buffer.barren(concept):
             return []
         urgency = attention.URGENCY["curiosity"]
         anchor, pool = self.pool_for(concept)

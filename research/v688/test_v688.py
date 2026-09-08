@@ -346,6 +346,53 @@ class LoopTests(unittest.TestCase):
         found = run("a whale is a fish")
         self.assertEqual(found.summary["trust"], "absent, not false")
 
+    def test_curiosity_is_about_the_subject_not_the_object(self):
+        """`does a snake have legs` asked `is a leg furry`, and `what eats
+        meat` asked `can a meat walk`. Curiosity asks what a thing is like,
+        and the object of a question is not what the question is about."""
+        found = run("does a snake have legs")
+        for cycle in found.cycles:
+            for answer in cycle.answers:
+                if answer.origin == "curiosity":
+                    self.assertNotEqual(answer.about, "leg", answer.question)
+
+    def test_attention_withdraws_from_a_topic_that_yields_nothing(self):
+        """`meat` really is one of the corpus concepts, so the questions are
+        legitimate -- and every one comes back UNKNOWN. The loop asks once
+        and stops rather than spending another cycle on it."""
+        found = run("what eats meat")
+        curious = [answer for cycle in found.cycles
+                   for answer in cycle.answers if answer.origin == "curiosity"]
+        self.assertTrue(curious)
+        self.assertTrue(all(a.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH")
+                            for a in curious))
+        self.assertLessEqual(len(found.cycles), 3)
+
+    def test_a_chain_never_starts_from_a_guess(self):
+        """A run about whales went `does a goldfish have a gill` -> `is a
+        goldfish a bony fish`: true, and about nothing."""
+        for utterance in ("a whale is a fish", "does a beagle swim"):
+            found = run(utterance)
+            answers = {a.question: a for c in found.cycles for a in c.answers}
+            for answer in answers.values():
+                if answer.origin != "chain" or not answer.parent:
+                    continue
+                parent = answers.get(answer.parent)
+                if parent is None:
+                    continue
+                with self.subTest(question=answer.question):
+                    self.assertIn(parent.origin, ("seed", "gap", "chain"))
+
+    def test_a_property_word_is_not_looked_up_as_a_thing(self):
+        """`is a dog wild` left `wild` uncovered; `wild` has a noun sense --
+        a wild region -- so `what is a wild` came back defining wilderness
+        and the ladder walked off to geographical area, region, location."""
+        found = run("is a dog wild")
+        asked = {answer.question for cycle in found.cycles
+                 for answer in cycle.answers}
+        self.assertNotIn("what is a wild", asked)
+        self.assertFalse({q for q in asked if "geographical" in q}, asked)
+
     def test_curiosity_never_asks_about_a_word_nobody_used(self):
         """Attention is the bound on curiosity. Without it the loop crawls
         the ontology: `what is a wemble` defines `greeting`, whose definition
@@ -378,10 +425,10 @@ class LoopTests(unittest.TestCase):
                 self.assertLessEqual(len(cycle.answers), LOOP.width)
 
     def test_a_family_check_is_not_cut_short_by_the_pool_size(self):
-        """`is a shark a fish` puts `has scales` to seven kinds of fish. At
-        five workers the last two used to be dropped, and the conflict a wide
-        pool found was one a narrow pool never saw."""
-        found = run("is a shark a fish")
+        """`can a dog fall into a hole` puts the claim to seven kinds of
+        canine. At five workers the last two used to be dropped, and a
+        conflict a wide pool found was one a narrow pool never saw."""
+        found = run("can a dog fall into a hole")
         families: dict[str, set[str]] = {}
         for cycle in found.cycles:
             for answer in cycle.answers:
@@ -391,8 +438,7 @@ class LoopTests(unittest.TestCase):
         widest = max(len(kin) for kin in families.values())
         # The whole family, however many workers there were. `subtypes`
         # is the size it should have reached.
-        kinds = POOL.engines[0].profiles.subtypes("fish")
-        self.assertGreaterEqual(widest, min(len(kinds), 6))
+        self.assertGreater(widest, LOOP.width)
 
 
 @requires_store

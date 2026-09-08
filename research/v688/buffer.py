@@ -29,6 +29,12 @@ from .gap import Gap, Doubt, read_doubts, read_gap
 POSITIVE = frozenset({"VERIFIED", "HELD", "INHERITED"})
 NEGATIVE = frozenset({"CONTRADICTED", "DENIED"})
 
+#: Answers the loop is entitled to build further work on. A doubt question is
+#: a means, not a topic, and a curiosity question is a guess: following either
+#: is how a run about whales ends up asking whether a goldfish is a bony fish,
+#: and how `is a shark a fish` spent 37 questions on gills and slime.
+DELIBERATE = frozenset({"seed", "gap", "chain", "split"})
+
 #: Parts of speech that name something worth attending to.
 ATTENDED_POS = ("NOUN", "PROPN", "VERB", "ADJ", "INTJ")
 
@@ -87,6 +93,11 @@ class Buffer:
         #: back defining `greeting`, whose definition mentions `land`, and two
         #: cycles later the system is asking whether land is brown.
         self.topics: list[str] = []
+        #: The subset of `topics` the utterance itself named, as opposed to
+        #: ones the loop chose to look up. A guess about something you
+        #: actually said is worth corroborating; a guess about something you
+        #: went and fetched is not.
+        self.said: set[str] = set()
         #: Gap and doubt questions that were generated but did not fit in a
         #: cycle. They are carried rather than dropped: a family check cut
         #: short by the pool size reports `1 of 4 deny it` about a family of
@@ -127,14 +138,32 @@ class Buffer:
                 continue
             found.append(lemma)
             self.activation.bump(lemma, 0.6, self.cycle)
+        # Only the *subject* becomes a topic. Everything else the sentence
+        # names is activated -- it is part of the situation -- but it is not
+        # something to be curious about, because curiosity asks what a thing
+        # is like and the object of a question is not what the question is
+        # about. `does a snake have legs` produced `is a leg furry`, and
+        # `what eats meat` produced `can a meat walk`.
         if parse.subject:
-            self.activation.bump(parse.subject.lower(), 1.0, self.cycle)
-            if parse.subject.lower() not in found:
-                found.insert(0, parse.subject.lower())
-        for word in found:
-            if word not in self.topics:
-                self.topics.append(word)
+            subject = parse.subject.lower()
+            self.activation.bump(subject, 1.0, self.cycle)
+            if subject not in found:
+                found.insert(0, subject)
+            if subject not in self.topics:
+                self.topics.append(subject)
+            self.said.add(subject)
         return found
+
+    def take_topic(self, concept: str) -> None:
+        """A concept becomes a topic by having been looked up on purpose.
+
+        `fish` is not a topic in `a whale is a fish` -- it is the target. It
+        becomes one when the loop asks `what is a fish` to close a gap,
+        because then the system has chosen to be about it.
+        """
+        word = (concept or "").split(".")[0].replace("_", " ").lower()
+        if word and word not in self.topics:
+            self.topics.append(word)
 
     # -- recording ---------------------------------------------------------
     def record(self, answers) -> tuple[list[Gap], list[Doubt]]:
@@ -167,10 +196,18 @@ class Buffer:
                 if key in self._spent_doubts or not doubt.predicate:
                     self.seen_doubts.append(doubt)
                     continue
-                if answer.origin == "doubt":
-                    # A corroboration question is not itself put out for
-                    # corroboration: that is how a loop recurses forever
-                    # over its own weak evidence.
+                worth = (answer.origin in DELIBERATE
+                         or (answer.origin == "curiosity"
+                             and answer.about in self.said))
+                if not worth:
+                    # A corroboration question is not itself corroborated, and
+                    # neither is a guess about something nobody mentioned.
+                    # `does a fish have gills` was curiosity about a word the
+                    # loop had gone and fetched, and fanning its doubt out to
+                    # six kinds of fish cost 25 questions in a run about
+                    # sharks. Curiosity about the subject you actually named
+                    # is different: it is how `does a cat purr` found that the
+                    # cat family disagrees about being active.
                     self.seen_doubts.append(doubt)
                     continue
                 self._doubts.append(doubt)
@@ -205,6 +242,22 @@ class Buffer:
     def note_sort(self, question: str, sort: str) -> None:
         if sort:
             self.sorts[question] = sort
+
+    def barren(self, topic: str) -> bool:
+        """Has being curious about this turned up nothing at all?
+
+        `what eats meat` takes `meat` as its subject, and `meat` really is one
+        of the corpus concepts -- so the questions are legitimate and every
+        one of them comes back UNKNOWN. Attention withdraws rather than
+        spending another cycle on it. This is the one place the loop learns
+        anything within an utterance.
+        """
+        seen = [answer for answer in self.answers.values()
+                if answer.origin == "curiosity" and answer.about == topic]
+        if len(seen) < 3:
+            return False
+        return all(answer.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH", "")
+                   for answer in seen)
 
     def already_asked(self, question: str) -> bool:
         return question in self.answers

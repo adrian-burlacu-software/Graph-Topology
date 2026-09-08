@@ -31,84 +31,81 @@ HERE = Path(__file__).parent
 #: keeping the ones that make the machinery visible: each note says which part
 #: it is there to show, and no two show the same part.
 EXAMPLES = [
-    # -- the serial ones: A -> B -> C, where nineteen workers do not help ---
+    # -- reasoning in a line: A -> B -> C, where more workers do not help ---
     {"text": "what is a beagle",
      "shows": "Four answers deep, in a line: beagle → hound → hunting dog → "
               "dog → canine. Each rung is inside the previous answer, so "
-              "nothing after the first could be asked in advance.",
+              "nothing after the first could have been asked in advance.",
+     "expect": "content, not a verdict"},
+    {"text": "what is a whale",
+     "shows": "The same ladder somewhere else entirely — whale → cetacean → "
+              "aquatic mammal → placental — and curiosity following it down "
+              "to ask what a cetacean is like.",
      "expect": "content, not a verdict"},
     {"text": "does a cat purr",
      "shows": "Fan out, then reason in a line. The cat family splits on "
               "`active` — bobcat and siamese yes, persian no — and the "
               "question that raises is which side a cat is on.",
      "expect": "holds, but something it passed does not"},
-    {"text": "is a dog wild",
-     "shows": "Crawl noise at 0.54 answering yes, then three answers deep "
-              "chasing what the yes actually rests on.",
-     "expect": "weakly held"},
-    {"text": "a whale is a fish",
-     "shows": "The longest run here: 35 questions, three deep, and eleven "
-              "gaps. Absent is not false, and the loop goes looking for "
-              "where the absence starts.",
-     "expect": "absent, not false"},
-    {"text": "is a bat a bird",
-     "shows": "The classic misconception, resolved by walking what a bat "
-              "actually is rather than by denying it.",
-     "expect": "absent, not false"},
     {"text": "what is a violin",
-     "shows": "The same definition ladder on the artifact half of the trie: "
-              "violin → bowed stringed instrument → stringed instrument → "
-              "musical instrument.",
+     "shows": "The ladder on the artifact half of the trie, and curiosity "
+              "moving with it: once `stringed instrument` has been looked "
+              "up, it becomes something to be curious about too.",
      "expect": "content, not a verdict"},
+    {"text": "is a penguin a typical bird",
+     "shows": "Four deep, because what a penguin is has to be settled before "
+              "whether it is a typical one: penguin → sphenisciform seabird → "
+              "seabird → aquatic bird → bird.",
+     "expect": "absent, not false"},
+    {"text": "is a spider an insect",
+     "shows": "The seed question is unanswerable, so the loop goes after the "
+              "word it could not place and finds `arthropod` on the way.",
+     "expect": "absent, not false"},
 
-    # -- the ones where breadth is what finds it ---------------------------
+    # -- breadth: what nineteen workers are actually for -------------------
     {"text": "does a beagle swim",
      "shows": "A yes that does not survive its own family. One Ascent++ fact "
               "at confidence 0.42, inherited three levels; every kind of dog "
               "the norms cover denies it, all asked in one cycle.",
      "expect": "contradicted by its own family"},
     {"text": "can a dog fall into a hole",
-     "shows": "The question that broke v687's page sweep. Twenty doubts: "
-              "almost nothing about the answer is stated of dogs themselves.",
+     "shows": "The question that broke v687's page sweep. Almost nothing "
+              "about the answer is stated of dogs themselves, so the loop "
+              "spends eighteen questions finding out whose claim it is.",
      "expect": "weakly held"},
-    {"text": "is a shark a fish",
-     "shows": "37 questions across six cycles — the widest fan-out here. The "
-              "seed answer holds; what the loop spends its workers on is "
-              "everything the answer quietly assumed.",
+    {"text": "is a dog wild",
+     "shows": "Crawl noise at 0.54 answering yes. The three kinds of dog the "
+              "norms cover cannot corroborate it, and nothing contradicts it "
+              "either — so it is reported as a weak hold, not an objection.",
+     "expect": "weakly held"},
+    {"text": "a whale is a fish",
+     "shows": "A false statement, put back as a question. Absent is not "
+              "false: the loop chases the word it could not place rather "
+              "than denying the claim it was handed.",
+     "expect": "absent, not false"},
+    {"text": "a dog is a kind of animal",
+     "shows": "A statement checked as a claim, then put to the family. "
+              "`a kind of` is dropped before asking — it is a hedge, not "
+              "part of what was said.",
      "expect": "weakly held"},
     {"text": "a beagle is a dog that hunts rabbits",
      "shows": "A statement with two clauses, checked as two claims. Checking "
               "it as one would check neither.",
      "expect": "weakly held"},
-    {"text": "is a penguin a typical bird",
-     "shows": "Typicality — and four answers deep, because what a penguin is "
-              "has to be settled before whether it is a typical one.",
-     "expect": "absent, not false"},
 
-    # -- the short ones, which are short for a reason -----------------------
-    {"text": "is hello a greeting",
-     "shows": "The question this line of work started from. v687 says "
-              "VERIFIED; the loop says on what, and how far to take it.",
-     "expect": "weakly held"},
+    # -- the short ones, short for a reason --------------------------------
+    {"text": "is a bat a bird",
+     "shows": "The classic misconception. The loop looks up what a bird is "
+              "rather than denying the claim, because the store records an "
+              "absence and an absence is not a no.",
+     "expect": "absent, not false"},
     {"text": "is a wemble a greeting",
      "shows": "A word gap. Two asks and it stops: nothing downstream of an "
               "unknown word means anything, and no third attempt is invented.",
      "expect": "unreadable"},
-    {"text": "is a mouse an animal",
-     "shows": "A sense hazard: `mouse` resolves to the device, and the "
-              "answer is correct about the wrong thing.",
-     "expect": "denied, unchallenged"},
-    {"text": "is a violin made of wood",
-     "shows": "An artifact rather than an animal, so curiosity draws on the "
-              "XCSLB half of the trie instead of the AwA2 half.",
-     "expect": "denied, unchallenged"},
-    {"text": "what is the difference between a dog and a wolf",
-     "shows": "Contrast (R21). Two live topics, and attention splitting "
-              "between them across cycles.",
-     "expect": "content, not a verdict"},
     {"text": "does a robin fly",
      "shows": "The control. Well recorded, well corroborated, no doubt "
-              "raised — so the loop settles quickly and says so.",
+              "raised — so the loop is curious for one cycle and settles.",
      "expect": "corroborated"},
 ]
 
