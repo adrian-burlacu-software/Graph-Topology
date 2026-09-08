@@ -382,6 +382,11 @@ class Reasoner:
         steps = answer.steps
         blocked_by: Fact | None = None
         nearby: list[Fact] = []
+        # R28: matches that carry the target inside a wider claim. Held back
+        # rather than dropped -- they are the whole of what the store knows,
+        # and the note reports them.
+        qualified: list[Fact] = []
+        plain = getattr(matcher, "plain", None) or (lambda obj, want: True)
 
         steps.append(Step(len(steps), "resolve", concept, 0, "R6",
                           f"Reading “{concept}” as this sense, not as a word."))
@@ -444,6 +449,65 @@ class Reasoner:
                               f"Check {len(candidates)} `{relation}` fact(s) on "
                               f"{node.rsplit('.', 2)[0]}.",
                               facts_checked=len(candidates), parents=parents))
+
+            # R3 again, from inside the object. The relation column says
+            # `has_part` and the object column says "no legs", so the negation
+            # pre-pass above -- which only ever looked at the relation --
+            # never saw it, and lemma overlap read "no legs" as an answer to
+            # "legs". `does a fish have legs` came back VERIFIED on the fact
+            # that a fish has none.
+            #
+            # A whole pass over the node before any positive is considered,
+            # not a test inside the positive loop, because `facts_of` orders
+            # by confidence and a denial is routinely the weaker row. Snake
+            # River carries both `has_a "leg"` at 0.46 and `has_a "no legs"`
+            # at 0.35, and whichever is read first decides the answer. R3's
+            # rule is that an explicit negation at a level blocks the
+            # positive at that level, so the pass has to finish first.
+            for fact in candidates:
+                if not rules.denial_in(fact.object, target, matcher):
+                    continue
+                # Unless the same node states it plainly, from the same
+                # source, at a higher confidence. `winter has_property cold`
+                # is 0.87 and `winter has_property "never cold"` is 0.23 --
+                # both Ascent++, and somebody's sentence about a mild winter
+                # does not outweigh twenty saying it is cold.
+                #
+                # Same source is the whole of the comparison. Confidences do
+                # not compare across sources here: Ascent++ has a real
+                # distribution, ConceptNet is the constant 0.35 for every row
+                # it holds. Snake River carries `has_a "leg"` at 0.46 from
+                # the crawl and `has_a "no legs"` at 0.35 from ConceptNet,
+                # and reading 0.46 > 0.35 as "the positive is better attested"
+                # compares a percentile against a placeholder.
+                louder = any(
+                    other.source == fact.source
+                    and other.confidence > fact.confidence
+                    and plain(other.object, target)
+                    and matcher(other.object, target)
+                    and not rules.denial_in(other.object, target, matcher)
+                    for other in candidates)
+                if louder:
+                    continue
+                fact.distance = distance
+                fact.confidence = rules.confidence_at(fact.confidence, distance)
+                answer.verdict = "CONTRADICTED"
+                answer.evidence.append(fact)
+                steps.append(Step(len(steps), "block", node, distance, "R3",
+                                  f"{node.rsplit('.', 2)[0]} "
+                                  f"{relation.replace('_', ' ')} "
+                                  f"“{fact.object}” — stated in "
+                                  f"the negative, so it denies "
+                                  f"“{target}” rather than answering "
+                                  f"it.",
+                                  matched=fact.as_dict()))
+                answer.note = (
+                    f"{node.rsplit('.', 2)[0]} is recorded as "
+                    f"“{fact.object}”. That is a denial written into "
+                    f"the object rather than the relation, and it is about "
+                    f"the thing asked, so this is a no.")
+                return answer
+
             for fact in candidates:
                 if not matcher(fact.object, target):
                     # A partial hit is worth showing and worth not believing.
@@ -461,6 +525,24 @@ class Reasoner:
                 fact.distance = distance
                 fact.confidence = rules.confidence_at(fact.confidence, distance)
                 if fact.confidence < rules.FLOOR:
+                    continue
+                if not plain(fact.object, target):
+                    # R28. The fact says more than the question asked, and the
+                    # surplus is doing the work: `rock capable_of "go for
+                    # swim"` is about a place people swim, and `fish capable_of
+                    # "walk on land"` is about the fish that do. Keep walking:
+                    # a plainer statement further up still answers.
+                    if len(qualified) < self.MAX_SUGGESTIONS:
+                        steps.append(Step(len(steps), "skip", node, distance,
+                                          "R28",
+                                          f"{node.rsplit('.', 2)[0]} "
+                                          f"{relation.replace('_', ' ')} "
+                                          f"“{fact.object}” — that "
+                                          f"is a narrower claim than "
+                                          f"“{target}”, so it is not "
+                                          f"an answer to it.",
+                                          matched=fact.as_dict()))
+                    qualified.append(fact)
                     continue
                 answer.verdict = "VERIFIED"
                 answer.evidence.append(fact)
@@ -482,6 +564,22 @@ class Reasoner:
                 answer.suggestions.append(near)
                 if len(answer.suggestions) >= self.MAX_SUGGESTIONS:
                     break
+            if qualified and not answer.note:
+                # R28. Not silence: the store had something, and it was not
+                # this. Saying so is the difference between "nothing is
+                # recorded" and "what is recorded is narrower than the
+                # question", and only the second names what to ask next.
+                shown = ", ".join(f"“{fact.object}”"
+                                  for fact in qualified[:3])
+                where = qualified[0].concept.rsplit('.', 2)[0]
+                answer.note = (
+                    f"The store records {shown} of {where}, but each of those "
+                    f"is a narrower claim than “{target}”. Affirming a "
+                    f"qualified property does not affirm the property, so on "
+                    f"the question as asked this is unsettled rather than "
+                    f"yes.")
+                answer.suggestions = (qualified[:self.MAX_SUGGESTIONS]
+                                      + answer.suggestions)[:self.MAX_SUGGESTIONS]
             if not answer.note:
                 answer.note = (f"Walked {len(answer.chain)} concepts up from "
                                f"{concept} without finding it. Absent, not false.")

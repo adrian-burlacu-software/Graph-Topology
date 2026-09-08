@@ -675,7 +675,7 @@ class Generator:
         word = (doubt.question and buffer.subject_of(doubt.question)) or ""
         if not word:
             return []
-        chosen = self.sense_named(word)
+        chosen = self.better_sense(word, doubt.concept)
         if not chosen or word in buffer.pins:
             return []
         buffer.pins[word] = chosen
@@ -733,27 +733,41 @@ class Generator:
                 depth=buffer.depth_of(answer.question) + 1)]
         return []
 
-    def sense_named(self, word: str) -> str:
-        """The noun sense whose own name is the word, if there is one.
+    def better_sense(self, word: str, taken: str) -> str:
+        """A reading of the word more obvious than the one v687 took.
 
-        `pig` offers `pig bed.n.01` before `pig.n.06`; only the second is
-        named after the word. It is a weak rule and it is the one v687 does
-        not apply, which is why `pig` reads as a foundry mould.
+        This used to prefer whichever sense was *named* after the word, which
+        was right while `pig` resolved to `pig bed.n.01` and became wrong the
+        moment v687 was fixed: it then overruled `hog.n.03`, domestic swine
+        and WordNet's first reading, in favour of `pig.n.06`, a crude block
+        of metal that happens to be spelt like the word.
+
+        The test is WordNet's own order for the lemma. Only a sense the
+        dictionary lists *earlier* than the one v687 took is a candidate, so
+        a fixed default is never argued with.
         """
-        for sense in self.engine.reasoner.senses_of(word) or []:
-            name = sense.get("id") or ""
-            if (bare(name) == word and name.split(".")[-2:-1] == ["n"]):
-                return name
+        senses = self.engine.reasoner.senses_of(word) or []
+        here = next((one for one in senses if one.get("id") == taken), None)
+        floor = here.get("rank") if here else None
+        if floor is None or floor >= 90:
+            return ""
+        for sense in senses:
+            rank = sense.get("rank")
+            if rank is None or rank >= floor:
+                continue
+            if (sense.get("id") or "").split(".")[-2:-1] == ["n"]:
+                return sense["id"]
         return ""
 
     # -- source 4: does the subject have what the act needs? ---------------
     def from_requirement(self, answer, buffer) -> list[Question]:
         """Check a capability against what doing it turns out to need.
 
-        `do fish run` comes back VERIFIED. Rather than take that or leave it,
-        work out what running needs -- the things the store says can run have
-        a **leg**, 12 of 90 of them, 102 times commoner than among concepts
-        at large -- and put that to the fish.
+        `do fish run` used to come back VERIFIED, on `animal capable_of "could
+        run"`. R19 and R28 stopped that, and it is UNKNOWN now. Rather than
+        take that or leave it, work out what running needs -- the things the
+        store says can run have a **leg**, 12 of 90 of them, 102 times
+        commoner than among concepts at large -- and put that to the fish.
 
         Three steps, and each needs the one before it: the claim has to come
         back before it is worth grounding, the requirement has to be derived
@@ -767,8 +781,15 @@ class Generator:
         # A denial is worth grounding too, and differently: a penguin cannot
         # fly and *does* have the wings flying needs, which says the answer
         # is not about anatomy.
+        #
+        # And silence most of all. When v687 has nothing to say about whether
+        # a fish runs, what running *needs* is the only route left to an
+        # answer, and it is the route a person would take. Excluding UNKNOWN
+        # here meant the one question this generator was written for stopped
+        # reaching it the moment v687 stopped over-affirming: the loop spent
+        # its cycles defining "run" and wondering whether a fish is slimy.
         if answer.verdict not in ("VERIFIED", "HELD", "INHERITED",
-                                  "CONTRADICTED", "DENIED"):
+                                  "CONTRADICTED", "DENIED", "UNKNOWN"):
             return []
         parse = (answer.payload or {}).get("parse") or {}
         # The word that was said, not the sense v687 resolved it to. Asked

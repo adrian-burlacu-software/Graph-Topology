@@ -317,7 +317,8 @@ async function boot() {
     `feature norms cover ${SETTINGS.trie.individuals} of them`;
   document.getElementById("knobs").textContent =
     `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
-    `weak-confidence ${SETTINGS.weak_confidence} · max ${SETTINGS.max_cycles} cycles`;
+    `weak below ${JSON.stringify(SETTINGS.weak_below)} · ` +
+    `max ${SETTINGS.max_cycles} cycles`;
 
   const box = document.getElementById("examples");
   SETTINGS.examples.forEach((example) => {

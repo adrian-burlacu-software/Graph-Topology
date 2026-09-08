@@ -343,7 +343,14 @@ class Buffer:
             original = self.answers.get(parent)
             if original is None or original.verdict not in POSITIVE:
                 continue
-            against = [(child.question, child.verdict) for child in children
+            # Only the kin that answered either way. An UNKNOWN is not a
+            # concept that failed to deny the claim, and counting it in the
+            # denominator made this read `4 of the 7` beside an
+            # over-generalisation line reading `2 of the 6` -- two tallies of
+            # one family, and no way to tell which was wrong.
+            decided = [child for child in children
+                       if child.verdict in POSITIVE | NEGATIVE]
+            against = [(child.question, child.verdict) for child in decided
                        if child.verdict in NEGATIVE]
             if not against:
                 continue
@@ -351,7 +358,7 @@ class Buffer:
             found.append(Conflict(
                 claim=claim, question=parent, verdict=original.verdict,
                 against=against,
-                detail=f"{len(against)} of the {len(children)} concepts this "
+                detail=f"{len(against)} of the {len(decided)} concepts this "
                        f"claim was put to deny it"))
         return found
 
@@ -410,10 +417,16 @@ class Buffer:
             if answer.origin == "doubt" and answer.parent:
                 families.setdefault(answer.parent, []).append(answer)
 
+        reported = {bad.question for bad in self.conflicts()}
         found: list[dict] = []
         for parent, kin in families.items():
             asked = self.answers.get(parent)
             if asked is None or asked.verdict not in POSITIVE:
+                continue
+            if parent in reported:
+                # The conflict already says the family denies this. Saying it
+                # again as a hoisting complaint is the same finding twice,
+                # and `does a beagle swim` read both at once.
                 continue
             decided = [one for one in kin
                        if one.verdict in POSITIVE | NEGATIVE]
@@ -440,6 +453,23 @@ class Buffer:
                 "detail": f"{len(hold)} of the {len(decided)} kinds it was "
                           f"put to bear it out"})
         return found
+
+    def borne_out(self, question: str) -> bool:
+        """Did the family actually agree, or did it merely not object?
+
+        `is a dog wild` rests on one Ascent++ fact and the three kinds of dog
+        the norms cover returned two UNKNOWNs and one yes. Nothing
+        contradicted it, which is not the same as corroboration, and calling
+        both "corroborated" makes the word mean nothing.
+        """
+        kin = [one for one in self.answers.values()
+               if one.origin == "doubt" and one.parent == question]
+        decided = [one for one in kin
+                   if one.verdict in POSITIVE | NEGATIVE]
+        if len(decided) < 2:
+            return False
+        hold = [one for one in decided if one.verdict in POSITIVE]
+        return len(hold) > len(decided) / 2
 
     def settled(self) -> bool:
         """Nothing left that the loop could act on by itself."""

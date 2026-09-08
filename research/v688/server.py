@@ -21,7 +21,7 @@ from pathlib import Path
 from research.v687 import build
 
 from .attention import Curiosity, DECAY, FLOOR, URGENCY, WEIGHTS
-from .gap import WEAK_CONFIDENCE
+from .gap import WEAK_BELOW
 from .loop import Loop
 from .pool import DEFAULT_WORKERS, EnginePool
 
@@ -43,28 +43,33 @@ def pins_from(values: list[str]) -> dict:
 EXAMPLES = [
     # -- the answer was about a different word -----------------------------
     {"text": "do pigs fly",
-     "shows": "Five bugs came out of this one question. v687 read `pig` as "
+     "shows": "Six bugs came out of this one question. v687 read `pig` as "
               "`pig bed.n.01`, a foundry mould, because the crawl holds more "
               "rows about those — fixed in v687, which now reaches domestic "
-              "swine. What is left is a yes resting on `mammal capable_of "
-              "fly`, and the family check finds that is a fact about bats.",
-     "expect": "contradicted by its own family"},
+              "swine. The yes that was left rested on `mammal capable_of "
+              "fly`, five levels up, and R19 now refuses it: 1 of the 65 "
+              "kinds of mammal the norms cover flies. The loop still asks "
+              "what flying needs and puts it to the pig, and nothing says a "
+              "pig has wings either. Absent, not false — which is the "
+              "honest reading of a store that never recorded it.",
+     "expect": "absent, not false"},
 
     {"text": "is a mouse an animal",
      "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "
               "R27's exclusion is sound and it is about the wrong mouse. The "
               "loop finds that another reading answers yes, asks again under "
               "a pin, and leads with that.",
-     "expect": "weakly held"},
+     "expect": "holds, but something it passed does not"},
 
     # -- the claim checked against what the act needs ----------------------
     {"text": "do fish run",
      "shows": "One crawled row says fish can run. So: what do things that "
               "run have? A leg — 12 of 90 of them, 102× commoner than among "
               "concepts at large. Does a fish have legs? Every kind of fish "
-              "the norms cover is scored and denied. Three steps, none of "
-              "which nineteen workers shorten.",
-     "expect": "weakly held"},
+              "the norms cover is scored and denied, and the fact behind the "
+              "yes reads `has_a no legs`. Three steps, none of which "
+              "nineteen workers shorten.",
+     "expect": "not supported by the rest of the store"},
     {"text": "can a penguin fly",
      "shows": "The same check on a denial, and the answer is the interesting "
               "one: a penguin does have the wings flying needs, so the no is "
@@ -80,7 +85,7 @@ EXAMPLES = [
      "shows": "A yes that does not survive its own family. One Ascent++ fact "
               "at confidence 0.42, inherited three levels; every kind of dog "
               "the norms cover denies it, all asked in one cycle.",
-     "expect": "contradicted by its own family"},
+     "expect": "not supported by the rest of the store"},
     {"text": "does a cat purr",
      "shows": "Fan out, then reason in a line. The cat family splits on "
               "`active` — bobcat and siamese yes, persian no — and the "
@@ -90,12 +95,13 @@ EXAMPLES = [
      "shows": "The question that broke v687's page sweep. Almost nothing "
               "about the answer is stated of dogs themselves, so eighteen "
               "questions go looking for whose claim it actually is.",
-     "expect": "weakly held"},
+     "expect": "corroborated"},
     {"text": "is a dog wild",
-     "shows": "Crawl noise at 0.54 answering yes. The kinds of dog the norms "
-              "cover cannot corroborate it and nothing contradicts it, so it "
-              "is reported as a weak hold rather than an objection.",
-     "expect": "weakly held"},
+     "shows": "One Ascent++ fact says yes. That fact is not weak — 0.54 is "
+              "around that source's 90th percentile — but nothing bears it "
+              "out either: the kinds of dog the norms cover return two "
+              "shrugs and a yes. Unchallenged is not corroborated.",
+     "expect": "unchallenged"},
 
     # -- statements, checked rather than believed --------------------------
     {"text": "a whale is a fish",
@@ -106,11 +112,11 @@ EXAMPLES = [
     {"text": "a dog is a kind of animal",
      "shows": "`a kind of` is dropped before asking — a hedge, not part of "
               "the claim — and what is left is put to the family.",
-     "expect": "weakly held"},
+     "expect": "corroborated"},
     {"text": "a beagle is a dog that hunts rabbits",
      "shows": "Two clauses, checked as two claims. Checking it as one would "
               "check neither.",
-     "expect": "weakly held"},
+     "expect": "unchallenged"},
 
     # -- and the short ones ------------------------------------------------
     {"text": "is a violin made of wood",
@@ -218,7 +224,7 @@ class Service:
             "graph": self.graph_size(),
             "weights": WEIGHTS, "urgency": URGENCY,
             "decay": DECAY, "floor": FLOOR,
-            "weak_confidence": WEAK_CONFIDENCE,
+            "weak_below": WEAK_BELOW,
             "examples": EXAMPLES,
         }
 

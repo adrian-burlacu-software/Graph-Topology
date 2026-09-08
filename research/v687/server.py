@@ -38,7 +38,8 @@ from .relevance import RULE_TEXT as V685_RULES
 from .bridged import BridgedEngine
 from . import logic, profile
 from .identify import Identifier
-from .profile import Profiles
+from .profile import (Profiles, CORROBORATION_FLOOR,
+                      CORROBORATION_MIN_KINDS)
 
 #: Rule text for the identification half, listed on the page beside the rest.
 V686_RULES: dict[str, str] = {
@@ -75,6 +76,52 @@ class IdentifyingEngine(BridgedEngine):
                                      parser=self.parser)
         # The same norms, the same reasoner and the same trie, read upwards.
         self.profiles = Profiles(self.identifier)
+
+    def corroborate(self, answer, target: str):
+        """R19 on the fact path: is the inherited fact true of the class?
+
+        R19 was written for the norms path and wired only into it, so the two
+        paths held opposite standards of proof. The norms path refuses `animal
+        has a wing` because 20 of 143 animals bear it out. The fact path
+        believed `mammal capable_of fly` on one crawled sentence, and that is
+        why `do pigs fly` came back VERIFIED: nothing on hog, swine, ungulate
+        or placental, and then a giant class five levels up that some of its
+        members can indeed do.
+
+        A crawled fact about a class summarises its members existentially --
+        bats fly, monotremes lay eggs -- and inheriting it reads that
+        existential as a universal. The norms are the only thing here that can
+        tell the two apart, because they asked a fixed question of every
+        concept they cover, so silence in them is informative where silence in
+        a crawl is not.
+
+        Only inherited facts are put to this test. A fact stated of the asked
+        concept itself is not being generalised, so there is nothing to check.
+        """
+        if answer.verdict != "VERIFIED" or not answer.evidence:
+            return answer
+        fact = answer.evidence[0]
+        if not getattr(fact, "distance", 0):
+            return answer
+        bearing, kinds = self.profiles.corroboration(fact.concept, target)
+        if kinds < CORROBORATION_MIN_KINDS or bearing / kinds >= CORROBORATION_FLOOR:
+            return answer
+        name = fact.concept.rsplit(".", 2)[0]
+        answer.verdict = "UNKNOWN"
+        answer.suggestions = [fact] + list(answer.suggestions)
+        answer.evidence = []
+        answer.note = (
+            f"{name} is recorded as “{fact.object}”, but only {bearing} "
+            f"of the {kinds} kinds of {name} the norms cover bear that out. A "
+            f"crawled sentence about a class says some of its members do this, "
+            f"not that this one does, so it is not inherited down to "
+            f"{answer.concept.rsplit('.', 2)[0]}. R19.")
+        answer.steps.append(v684_rules.Step(
+            len(answer.steps), "stop", fact.concept,
+            getattr(fact, "distance", 0), "R19",
+            f"Put “{fact.object}” to the other kinds of {name}: "
+            f"{bearing} of {kinds} bear it out. Not inherited."))
+        return answer
 
     def ask(self, question: str, concept: str | None = None) -> dict:
         if not concept:
@@ -517,7 +564,12 @@ V687_RULES: dict[str, str] = {
            "kinds before it is believed. `bird capable_of fly` is borne out "
            "by 21 of 29 birds in the norms and is inherited; `animal has a "
            "wing` by 20 of 143 and is refused. One crawled sentence is not a "
-           "property of a category.",
+           "property of a category. This governs both answering paths. It was "
+           "written for the norms and wired only into them, so the fact store "
+           "believed `mammal capable_of fly` on one sentence and answered `do "
+           "pigs fly` yes; a crawled fact about a class says some of its "
+           "members do this, and the norms are what tell an existential from "
+           "a universal.",
     "R20": "Three-valued composition: a question with structure is evaluated "
            "in Kleene's logic, because silence is not falsehood. One false "
            "conjunct settles a conjunction, one true disjunct settles a "
@@ -537,6 +589,16 @@ V687_RULES: dict[str, str] = {
            "is explained by ranking causes as competing hypotheses, scored by "
            "specificity, directness and confidence. A cause that causes forty "
            "things explains none of them.",
+    "R28": "Qualified claims: a fact that carries the question inside a wider "
+           "claim does not answer it. `rock capable_of “go for swim”` "
+           "is about a place people swim and `fish capable_of “walk on "
+           "land”` is about the fish that do, and both answered yes. "
+           "v687 already declined the mirror of this -- denying a qualified "
+           "property does not deny the property -- and this is the same "
+           "reading applied to yes. The match itself is whole-word now: "
+           "`fly` was named by “attract butterfly”, `walk` by "
+           "“block the sidewalk” and `run` by “get drunk”, "
+           "so `can a tree fly` was VERIFIED on a butterfly.",
     "R26": "Definition: `what is a robin` is answered from the taxonomy "
            "itself -- which sense is meant, the gloss WordNet gives it, what "
            "it is a kind of, and what kinds it has. Before this it fell "

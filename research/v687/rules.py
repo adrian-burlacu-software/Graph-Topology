@@ -175,6 +175,32 @@ def confidence_at(base: float, distance: int) -> float:
     return base * (DECAY ** distance)
 
 
+#: R3: words that turn an object phrase into a denial of itself.
+#:
+#: The sources write negation in two places. `not_has_part` puts it in the
+#: relation, which R3 has always read; `has_part "no legs"` puts it in the
+#: object, which nothing read at all. Lemma overlap then scored "no legs" as
+#: a full answer to "legs", and `does a fish have legs` came back VERIFIED on
+#: the fact that a fish has none.
+DENIERS = frozenset({"no", "not", "never", "cannot", "without", "lack",
+                     "lacks", "lacking"})
+
+
+def denial_in(fact_object: str, target: str | None, matcher) -> bool:
+    """Does this object state the target only to deny it?
+
+    The denier has to lead, and what follows it has to be the thing asked --
+    otherwise "no longer hungry" would deny every question about an apple
+    rather than the one about hunger.
+    """
+    if not target:
+        return False
+    words = fact_object.strip().split()
+    if len(words) < 2 or words[0].lower().strip(",.;:") not in DENIERS:
+        return False
+    return bool(matcher(" ".join(words[1:]), target))
+
+
 def blocks(stated: str, candidate: str) -> bool:
     """R3: does a directly stated relation block an inherited one?"""
     return NEGATIONS.get(stated) == candidate or POSITIVES.get(stated) == candidate

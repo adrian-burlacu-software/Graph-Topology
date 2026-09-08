@@ -116,13 +116,21 @@ class GapReadingTests(unittest.TestCase):
         self.assertEqual(hole.blocker, "fish")
         self.assertFalse(hole.blocking)
 
-    def test_the_beagle_yes_carries_three_reasons_to_doubt_it(self):
-        """Confidence 0.42, inherited three levels, sense assumed -- and the
-        verdict says VERIFIED."""
+    def test_the_beagle_yes_is_inherited_but_not_weakly_sourced(self):
+        """It was called weak on a 0.60 floor that 92.5% of the store falls
+        below. 0.42 is around Ascent++'s 78th percentile -- an above-average
+        fact for where it came from. What is actually wrong with the answer
+        is that it is inherited three levels and the family denies it, and
+        saying `weak` alongside that was a claim the data does not support."""
         payload = POOL.engines[0].ask("does a beagle swim")
         self.assertEqual(payload["verdict"], "VERIFIED")
         reasons = {doubt.reason for doubt in gap.read_doubts(payload)}
-        self.assertEqual(reasons, {"weak", "inherited", "assumed_sense"})
+        self.assertEqual(reasons, {"inherited", "assumed_sense"})
+        self.assertFalse(gap.is_weak("ascentpp", 0.42))
+        self.assertTrue(gap.is_weak("ascentpp", 0.10))
+        self.assertFalse(gap.is_weak("conceptnet", 0.35),
+                         "every conceptnet fact is 0.35; the number is not a"
+                         " signal")
 
     def test_a_well_recorded_answer_raises_no_doubt(self):
         """The control. If everything were doubted, nothing would be."""
@@ -312,7 +320,7 @@ class LoopTests(unittest.TestCase):
         found = run("does a beagle swim")
         self.assertEqual(found.summary["verdict"], "VERIFIED")
         self.assertEqual(found.summary["trust"],
-                         "contradicted by its own family")
+                         "not supported by the rest of the store")
         conflict = found.summary["conflicts"][0]
         denied = {row["question"] for row in conflict["against"]}
         self.assertIn("can a dog swim", denied)
@@ -488,18 +496,24 @@ class ExampleTests(unittest.TestCase):
             found = needs.of(action)
             self.assertIsNone(found, found and found.part)
 
-    def test_the_requirement_check_reaches_the_family_that_denies_it(self):
-        """The payoff, and it takes three answers: derive the requirement,
-        ask it of the fish, and let the family check take over -- `does a
-        fish have legs` is inherited from animal, and carp, goldfish, minnow,
-        salmon, seahorse and shark are every one of them scored and denied."""
+    def test_the_requirement_check_reaches_the_denial(self):
+        """The payoff, and it takes two answers: derive the requirement and
+        ask it of the fish.
+
+        This used to take three. `does a fish have legs` came back VERIFIED
+        -- on `fish has_part "no legs"`, whose negation lives in the object
+        column where nothing read it -- and the family fan-out was what
+        eventually overturned it. R3 reads the object now, so the denial
+        arrives on the first answer and the fan-out is not needed. Fewer
+        steps to the same place is the point; the assertion is on the
+        conclusion, not on the route."""
         found = run("do fish run")
         asked = [answer for cycle in found.cycles for answer in cycle.answers
                  if answer.origin == "require"]
         self.assertEqual([a.question for a in asked], ["does a fish have legs"])
-        self.assertTrue(any("have in common" in line
-                            for line in found.summary["lines"]),
-                        found.summary["lines"])
+        self.assertEqual(asked[0].verdict, "CONTRADICTED")
+        self.assertEqual(found.summary["trust"],
+                         "not supported by the rest of the store")
 
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
@@ -626,6 +640,62 @@ class ExampleTests(unittest.TestCase):
         self.assertTrue(asked)
         self.assertIn("difference between", asked[0].question)
 
+    def test_only_an_undermining_doubt_weakens_a_hold(self):
+        """`is a dog an animal` -- WordNet, 0.95, two levels up -- read
+        `weakly held`, because `inherited` and `assumed_sense` fired on
+        almost every answer the loop ever gave. They are how a taxonomy and
+        a crawl work, not defects of a particular answer."""
+        for utterance in ("is a dog an animal", "does a bird have wings"):
+            with self.subTest(utterance=utterance):
+                found = run(utterance)
+                self.assertNotEqual(found.summary["trust"], "weakly held")
+
+    def test_corroborated_means_something_bore_it_out(self):
+        """`is a dog wild` rests on one fact and the family returns two
+        shrugs and a yes. Nothing contradicted it, which is not the same as
+        corroboration, and calling both the same makes the word useless."""
+        self.assertEqual(run("is a dog wild").summary["trust"], "unchallenged")
+        self.assertEqual(run("does a robin fly").summary["trust"],
+                         "corroborated")
+
+    def test_a_no_scored_one_word_at_a_time_is_flagged(self):
+        """`is a violin made of wood` is denied by scoring `made` and `wood`
+        apart and failing one of them -- the norms record "can be made of
+        ebony" as false, and denying one wood does not deny wood. The claim
+        as asked was never put to anything, v687 says so in its own note, and
+        a correct denial does not.
+
+        This was `does a cow eat grass` until R3 learned that negation scopes
+        forward. `cattle capable_of "digest grass but humans cannot"` asserts
+        the grass and denies it of humans, and reading the trailing `cannot`
+        as a denial made that a no. It is a yes now, so the detector needed a
+        denial that is still wrong; the violin is the one left.
+
+        The assertion is on the doubt, not on the headline. `off_target`
+        fires on the violin too and outranks this one for the summary line,
+        and which of two true complaints gets shown is a presentation choice
+        -- that the pair was scored apart is the finding under test."""
+        found = run("is a violin made of wood")
+        doubts = [one["reason"] for one in found.summary["doubts"]]
+        self.assertIn("scored_apart", doubts, doubts)
+        self.assertEqual(run("can a dog fly").summary["trust"],
+                         "denied, unchallenged")
+
+    def test_no_source_file_carries_a_mangled_escape(self):
+        """Three regexes in this tree have had their word boundaries turned
+        into literal backspace characters in transit, and each one silently
+        stopped matching -- including one in v687 that disabled a guard
+        outright. A control character in source is never intended."""
+        import pathlib
+        here = pathlib.Path(__file__).parent
+        for folder in (here, here.parent / "v687"):
+            for source in folder.glob("*.py"):
+                text = source.read_text(encoding="utf-8")
+                stray = [character for character in text
+                         if ord(character) < 9 or 11 <= ord(character) < 32]
+                with self.subTest(source=source.name):
+                    self.assertFalse(stray, f"{source}: {stray!r}")
+
     def test_an_incidental_conflict_does_not_overturn_the_headline(self):
         """`is a shark a fish` stayed VERIFIED while something asked on the
         way past did not hold up. Reporting the second as the first says a
@@ -638,8 +708,9 @@ class ExampleTests(unittest.TestCase):
 
     def test_the_examples_cover_every_kind_of_outcome(self):
         outcomes = {example["expect"] for example in server.EXAMPLES}
-        for expected in ("contradicted by its own family", "weakly held",
-                         "unreadable", "absent, not false", "corroborated"):
+        for expected in ("not supported by the rest of the store",
+                         "unchallenged", "unreadable", "absent, not false",
+                         "corroborated"):
             self.assertIn(expected, outcomes)
 
 

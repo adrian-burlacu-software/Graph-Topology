@@ -55,7 +55,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |
 | `loop.py` | attend → generate → fan out → read → update → settle. Emits a replayable `Run`. |
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
-| `test_v688.py` | 61 tests, including every page example against the claim its card makes. |
+| `test_v688.py` | 65 tests, including every page example against the claim its card makes. |
 
 ## Where a question comes from
 
@@ -296,6 +296,51 @@ tested; `does a dog live on the ground` agrees on three of five.
   data for what was a transport failure. Senses are now cached behind a lock
   server-side and by word on the page, and a failure says *"could not read
   the senses"*.
+
+## The badge had to mean something
+
+An audit of the answers themselves — not the badges — found the badge was
+close to noise, and for a reason worth writing down.
+
+**A single confidence floor was wrong for a store with three sources.**
+`WEAK_CONFIDENCE = 0.60` flagged **92.5% of the 1.96M facts**, so the loop
+called almost every answer it ever gave weakly held, including `is a dog an
+animal`. The sources are not comparable:
+
+| source | facts | p25 | p50 | p75 | p90 |
+| --- | --- | --- | --- | --- | --- |
+| ascentpp | 1,808,006 | 0.16 | 0.26 | 0.39 | 0.51 |
+| conceptnet | 88,683 | 0.35 | 0.35 | 0.35 | 0.35 |
+| wordnet | 66,376 | 0.95 | 0.95 | 0.95 | 0.95 |
+
+Two of the three have a *constant* confidence, so comparing it to a threshold
+is theatre. And 0.42 — what `does a beagle swim` rests on, which this README
+called weak — is around Ascent++'s **78th percentile**. It is an above-average
+fact for where it came from, and saying otherwise buried what was actually
+wrong with the answer: it is inherited three levels and the family denies it.
+Weakness is now measured against a source's own first quartile.
+
+**Most doubts describe how an answer was reached, not what is wrong with it.**
+`inherited` and `assumed_sense` fired on nearly everything — a taxonomy
+answers by inheriting, and almost no crawled object has had its sense
+resolved. They still earn a corroboration fan-out, which is how the beagle
+case is found; they no longer decide the verdict on the verdict.
+
+**Corroborated now means something bore it out.** `is a dog wild` rests on one
+fact and its family returns two shrugs and a yes. Nothing contradicted it,
+which is not the same thing, and it reads `unchallenged`.
+
+**A no can be reached by scoring the words one at a time.** `does a cow eat
+grass` is CONTRADICTED because `eat` and `grass` are scored apart and one of
+them fails — the claim was never put to anything. v687 says so in its own
+note, which opens `(“eat” and “grass”): no.`; every wrong denial found in the
+audit has that shape and no correct one does.
+
+**Three regexes in this tree had their word boundaries turned into literal
+backspace characters** somewhere in transit, and each silently stopped
+matching. One of them was in v687 and had disabled a guard outright since it
+was written. A test now walks every source file and fails on any control
+character, because that damage is invisible on the page and in review.
 
 ## Containment
 

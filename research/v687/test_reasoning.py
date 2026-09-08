@@ -1284,5 +1284,115 @@ class AnswerWordingTests(unittest.TestCase):
         self.assertNotIn("0 of 7", note)
 
 
+class OverAffirmationTests(unittest.TestCase):
+    """The audit that asked why `can a rock swim` was VERIFIED.
+
+    Four questions were named and all four came back yes. Behind them were
+    four separate defects, and this class holds one test per defect plus the
+    two answers that must not be lost to the fixes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def verdict(self, question):
+        return self.engine.ask(question)["verdict"]
+
+    def test_a_target_inside_a_longer_word_is_not_a_match(self):
+        """The shortcut for "the fact names the target outright" was a raw
+        substring test. `can a tree fly` was VERIFIED because a plant
+        attracts a butterfly, `can a car walk` because a car blocks the
+        sidewalk, `can a horse sing` because a horse goes missing."""
+        from research.v687.language import whole_words
+        for target, phrase in (("fly", "attract butterfly"),
+                               ("walk", "block the sidewalk"),
+                               ("sing", "go missing"),
+                               ("run", "get drunk"),
+                               ("run", "develop stronger trunk")):
+            with self.subTest(target=target):
+                self.assertIn(target, phrase, "the old test passed on this")
+                self.assertFalse(whole_words(target, phrase))
+        self.assertTrue(whole_words("swim", "go for swim"))
+        self.assertTrue(whole_words("lay eggs", "lay eggs today"))
+        for question in ("can a tree fly", "can a car walk", "can a horse sing"):
+            with self.subTest(question=question):
+                self.assertNotEqual(self.verdict(question), "VERIFIED")
+
+    def test_a_qualified_fact_does_not_affirm_the_bare_claim(self):
+        """R28. `rock capable_of "go for swim"` is about a place people swim
+        and `fish capable_of "walk on land"` is about the fish that do.
+
+        v687 already declined the mirror of this -- denying a qualified
+        property does not deny the property -- and this is the same reading
+        applied to yes. The note has to say which, because "the store records
+        this narrower thing" and "the store records nothing" are different
+        answers and only the first names what to ask next."""
+        answer = self.engine.ask("can a rock swim")
+        self.assertEqual(answer["verdict"], "UNKNOWN")
+        self.assertIn("go for swim", answer["note"])
+        self.assertIn("narrower claim", answer["note"])
+
+    def test_a_class_fact_is_put_to_the_class_before_it_is_inherited(self):
+        """R19, which existed and was wired into the norms path only.
+
+        `do pigs fly` found nothing on hog, swine, even-toed ungulate,
+        ungulate or placental, then took `mammal capable_of fly` five levels
+        up. That is a fact about bats. The norms are what tell an existential
+        from a universal, because they asked a fixed question of every
+        concept they cover."""
+        for question, ancestor in (("do pigs fly", "mammal"),
+                                   ("does a cat lay eggs", "mammal")):
+            with self.subTest(question=question):
+                answer = self.engine.ask(question)
+                self.assertEqual(answer["verdict"], "UNKNOWN")
+                self.assertIn(ancestor, answer["note"])
+                self.assertIn("R19", answer["note"])
+
+    def test_a_negation_written_into_the_object_is_read_as_one(self):
+        """R3 only ever looked at the relation column. `fish has_a "no legs"`
+        put the negation in the object, lemma overlap scored it a full answer
+        to "legs", and `does a fish have legs` came back VERIFIED on the fact
+        that a fish has none."""
+        for question in ("does a fish have legs", "does a snake have legs"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_a_denial_does_not_outweigh_the_same_source_saying_otherwise(self):
+        """`winter has_property cold` is 0.87 and `"never cold"` is 0.23,
+        both from Ascent++. One sentence about a mild winter does not
+        overturn twenty saying it is cold. Same source is the whole of the
+        comparison -- ConceptNet's 0.35 is a constant, not a percentile."""
+        self.assertEqual(self.verdict("is winter cold"), "VERIFIED")
+
+    def test_negation_scopes_forward(self):
+        """`cattle capable_of "digest grass but humans cannot"` asserts the
+        grass and denies it of humans. Counting any negator anywhere in the
+        phrase made `does a cow eat grass` CONTRADICTED."""
+        from research.v687.profile import Profiles
+        denies = Profiles._denies
+        self.assertFalse(denies("digest grass but humans cannot", "grass"))
+        self.assertTrue(denies("no legs", "legs"))
+        self.assertTrue(denies("cannot fly", "fly"))
+        self.assertTrue(denies("digest grass but humans cannot"))
+        self.assertEqual(self.verdict("does a cow eat grass"), "VERIFIED")
+
+    def test_the_answers_that_must_survive_all_of_it(self):
+        """Four rules that each refuse something, and the yes they must not
+        take with them. Every one of these rests on the target stated plainly
+        and near: `bird capable_of "fly"`, not "fly in the sky"."""
+        for question in ("can a bird fly", "can a fish swim", "can a horse run",
+                         "does a bird lay eggs", "can a person speak",
+                         "does a dog have legs", "can a dog bark",
+                         "do all animals breathe", "is a dog an animal"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+
 if __name__ == "__main__":
     unittest.main()
