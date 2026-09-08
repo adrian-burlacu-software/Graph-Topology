@@ -65,6 +65,13 @@ QUOTED = re.compile("[“\"]([^”\"]{1,40})[”\"]")
 #: manufactured for itself.
 SYNSET = re.compile(r"^(.+)\.[nvasr]\.\d+$")
 
+#: A stored object that denies rather than states. `fish has_a "no legs"` is
+#: how the store records that fish lack them, and v687's verify path matches
+#: `legs` inside it and answers VERIFIED. Reading that as a yes, and then
+#: putting `no legs` to the family, gives `does a carp have no legs` --
+#: whose denial means the carp *has* legs. Two wrongs that read as a right.
+DENYING = re.compile(r"^\s*(?:no|not|non|never)\s+", re.I)
+
 #: Determiners a blocker can arrive wearing. `does a beagle have an agility`
 #: leaves the target as `an agility`, and `what is an an agility` follows.
 LEADING = re.compile(r"^(?:an?|the|some|any|its|their|his|her)\s+", re.I)
@@ -187,6 +194,50 @@ def read_gap(payload: dict, question: str = "") -> Gap | None:
                question=question, options=options, detail=note.strip())
 
 
+def off_target(payload: dict) -> Doubt | None:
+    """A verdict reached on a predicate that is not what was asked about.
+
+    v687 scores a question as a set of content terms. `is a violin made of
+    wood` becomes `made` and `wood`; `made` matches the stored predicate
+    `can be made of ebony`, which the norms deny of violins, and the answer
+    comes back CONTRADICTED -- about ebony. `does a dog live on the ground`
+    goes the same way through `lives in a stable`.
+
+    It is detectable without touching v687: the predicate it cites shares no
+    word with the thing the question asked about.
+    """
+    parse = payload.get("parse") or {}
+    target = (parse.get("target") or "").lower()
+    note = payload.get("note") or ""
+    cited = QUOTED.findall(note)
+    if not target or not cited:
+        return None
+    wanted = {word for word in re.findall(r"[a-z]+", target)
+              if word not in FRAME_WORDS}
+    for phrase in cited:
+        words = set(re.findall(r"[a-z]+", phrase.lower()))
+        if len(words) < 2:
+            continue
+        if wanted & words:
+            return None
+        return Doubt(
+            "off_target", payload.get("question") or "",
+            payload.get("concept") or "", phrase,
+            parse.get("relation") or "", 0.0, 0,
+            f"the verdict rests on “{phrase}”, which has no word in common "
+            f"with “{target}” — v687 scores a question one term at a time, "
+            f"and a verb can match a predicate that is not what you asked "
+            f"about")
+    return None
+
+
+#: Words that carry no content when matching a cited predicate to a question.
+FRAME_WORDS = frozenset("""
+a an the of in on at to for is are was were be been do does did have has had
+can could will would made make making live lives living found find its their
+""".split())
+
+
 def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     """Every reason this answer is weaker than its verdict looks.
 
@@ -196,11 +247,13 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     ever got.
     """
     verdict = payload.get("verdict") or ""
+    stray = off_target(payload)
     if verdict not in ("VERIFIED", "HELD", "INHERITED"):
-        return []
+        # A no reached on the wrong predicate is as wrong as a yes.
+        return [stray] if stray else []
     question = question or payload.get("question") or ""
     parse = payload.get("parse") or {}
-    doubts: list[Doubt] = []
+    doubts: list[Doubt] = [stray] if stray else []
 
     evidence = payload.get("evidence") or []
     lead = evidence[0] if evidence else {}
@@ -214,6 +267,7 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
     # relation asked `is a collie a wild`.
     relation = lead.get("relation") or parse.get("relation") or ""
 
+    predicate = DENYING.sub("", predicate).strip() or predicate
     if lead and confidence and confidence < WEAK_CONFIDENCE:
         doubts.append(Doubt(
             "weak", question, concept, predicate, relation, confidence,
@@ -232,6 +286,32 @@ def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
             "assumed_sense", question, concept, predicate, relation,
             confidence, distance,
             "the sense of the object was assumed rather than resolved"))
+    if DENYING.match(lead.get("object") or ""):
+        # The fact behind the yes says the opposite of the yes. Nothing
+        # downstream should be built on the negated string, so the predicate
+        # is handed on in its positive form and the fan-out asks `does a carp
+        # have legs`, which the store answers CONTRADICTED -- correctly.
+        positive = DENYING.sub("", lead["object"]).strip()
+        doubts.append(Doubt(
+            "negated_evidence", question, concept, positive, relation,
+            confidence, distance,
+            f"the only fact behind this yes is “{concept} {relation} "
+            f"{lead['object']}” — which says the opposite of what the answer "
+            f"says"))
+        predicate = positive
+
+    asked_about = (parse.get("subject") or "").strip().lower()
+    resolved = plain(payload.get("concept") or "")
+    if asked_about and resolved and resolved.lower() != asked_about:
+        # v687 reads `pig` as `pig bed.n.01`, a mould for casting pig iron,
+        # and answers correctly about that. The verdict is right and the
+        # subject is not the one the question named, which is the single
+        # most misleading thing an answer here can do.
+        doubts.append(Doubt(
+            "sense_mismatch", question, concept, predicate, relation,
+            confidence, distance,
+            f"the answer is about {payload.get('concept')}, and the question "
+            f"was about “{asked_about}”"))
     if (payload.get("corroborated") is False
             or parse.get("corroborated") is False):
         doubts.append(Doubt(

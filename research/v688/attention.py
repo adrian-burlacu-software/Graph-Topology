@@ -46,6 +46,7 @@ URGENCY = {
     "conflict": 0.80,       # the parts disagree; find out which part is wrong
     "coverage": 0.55,       # a real absence, informative but not blocking
     "doubt": 0.65,          # an answer that should not be trusted this far
+    "sense": 0.88,          # the answer was about a different word
     "require": 0.75,        # check the claim against what the act needs
     "split": 0.70,          # a family check disagreed with itself; settle it
     "chain": 0.55,          # the last answer named the next thing to ask

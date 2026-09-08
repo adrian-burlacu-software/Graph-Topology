@@ -27,10 +27,36 @@ from .pool import DEFAULT_WORKERS, EnginePool
 
 HERE = Path(__file__).parent
 
+
+def pins_from(values: list[str]) -> dict:
+    """Read `pin=pig:pig.n.06` parameters, the way v687's own page does."""
+    pinned: dict[str, str] = {}
+    for value in values:
+        word, _, sense = value.partition(":")
+        if word.strip() and sense.strip():
+            pinned[word.strip().lower()] = sense.strip()
+    return pinned
+
 #: The examples the page ships with. Chosen by running forty candidates and
 #: keeping the ones that make the machinery visible: each note says which part
 #: it is there to show, and no two show the same part.
 EXAMPLES = [
+    # -- the answer was about a different word -----------------------------
+    {"text": "do pigs fly",
+     "shows": "Four bugs came out of this one question. v687 read `pig` as "
+              "`pig bed.n.01`, a foundry mould, because the crawl has more "
+              "rows about those than about pigs — fixed in v687. Pin the "
+              "senses by hand and the yes turns out to rest on `mammal "
+              "capable_of fly`, which is a fact about bats.",
+     "expect": "absent, not false"},
+
+    {"text": "is a mouse an animal",
+     "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "
+              "R27's exclusion is sound and it is about the wrong mouse. The "
+              "loop finds that another reading answers yes, asks again under "
+              "a pin, and leads with that.",
+     "expect": "weakly held"},
+
     # -- the claim checked against what the act needs ----------------------
     {"text": "do fish run",
      "shows": "One crawled row says fish can run. So: what do things that "
@@ -88,10 +114,11 @@ EXAMPLES = [
 
     # -- and the short ones ------------------------------------------------
     {"text": "is a violin made of wood",
-     "shows": "An artifact, so curiosity comes from the graph rather than "
-              "the feature norms: three of the four other bowed instruments "
-              "are used to make music, and a violin has not been asked.",
-     "expect": "denied, unchallenged"},
+     "shows": "v687 says no. It reached that through `made`, which matched "
+              "the stored predicate `can be made of ivory` — a fact about "
+              "ivory, not about wood. The loop says which predicate the "
+              "verdict actually rests on.",
+     "expect": "reached on a different predicate"},
     {"text": "is a spider an insect",
      "shows": "Absent, not false — and the loop says which of the two it "
               "found rather than guessing between them.",
@@ -133,12 +160,13 @@ class Service:
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
 
-    def run(self, utterance: str) -> dict:
-        key = utterance.strip().lower()
+    def run(self, utterance: str, pinned: dict | None = None) -> dict:
+        key = utterance.strip().lower() + "|" + repr(sorted(
+            (pinned or {}).items()))
         with self._lock:
             if key in self._cache:
                 return self._cache[key]
-        answer = self.loop.run(utterance).as_dict()
+        answer = self.loop.run(utterance, pinned).as_dict()
         with self._lock:
             self._cache[key] = answer
         return answer
@@ -198,6 +226,25 @@ class Handler(BaseHTTPRequestHandler):
             self._send(page.encode("utf-8"), "text/html; charset=utf-8")
         elif parsed.path == "/api/settings":
             self._json(self.service.settings())
+        elif parsed.path == "/api/senses":
+            word = (query.get("w") or [""])[0].strip().lower()
+            if not word or len(word) > 40:
+                self._json({"error": "no word"}, 400)
+                return
+            reasoner = self.service.pool.engines[0].reasoner
+            # `senses_of` already carries the definition, the part of
+            # speech, how many facts the store holds about each sense and
+            # which one v687 took. That is what v687's own sense card shows,
+            # and a picker without the definitions is a list of numbers.
+            self._json({"word": word, "senses": [
+                {"id": sense["id"],
+                 "definition": sense.get("definition") or "",
+                 "pos": sense.get("pos") or "",
+                 "facts": sense.get("fact_count") or 0,
+                 "chosen": bool(sense.get("chosen")),
+                 "named_after_the_word":
+                     sense["id"].split(".")[0].replace("_", " ") == word}
+                for sense in (reasoner.senses_of(word) or [])[:12]]})
         elif parsed.path == "/api/run":
             utterance = (query.get("q") or [""])[0].strip()
             if not utterance:
@@ -206,8 +253,9 @@ class Handler(BaseHTTPRequestHandler):
             if len(utterance) > 200:
                 self._json({"error": "too long"}, 400)
                 return
+            pinned = pins_from(query.get("pin") or [])
             try:
-                self._json(self.service.run(utterance))
+                self._json(self.service.run(utterance, pinned))
             except Exception as bad:            # noqa: BLE001
                 self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
         else:
@@ -220,7 +268,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
                         help="engines in the pool; each costs about 264 MB "
                              "and 3.4s to build after the first")
-    parser.add_argument("--cycles", type=int, default=4,
+    parser.add_argument("--cycles", type=int, default=8,
                         help="most internal cycles one utterance may run")
     parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
     parser.add_argument("--warm", action="store_true",

@@ -227,7 +227,7 @@ class QuestionShapeTests(unittest.TestCase):
         self.assertEqual(phrase_predicate("collie", "tail", "n"),
                          "does a collie have a tail")
         self.assertEqual(phrase_predicate("collie", "ground", "n"),
-                         "does a collie live on the ground")
+                         "is a collie on the ground")
         self.assertEqual(phrase_predicate("wolf", "meat", "n"),
                          "does a wolf eat meat")
 
@@ -497,7 +497,7 @@ class ExampleTests(unittest.TestCase):
         asked = [answer for cycle in found.cycles for answer in cycle.answers
                  if answer.origin == "require"]
         self.assertEqual([a.question for a in asked], ["does a fish have legs"])
-        self.assertTrue(any("what the store says doing this needs" in line
+        self.assertTrue(any("have in common" in line
                             for line in found.summary["lines"]),
                         found.summary["lines"])
 
@@ -533,13 +533,69 @@ class ExampleTests(unittest.TestCase):
         self.assertIn("make music", {one.object for one in found})
 
     def test_a_habitat_column_is_lived_on_or_in_but_never_found_in(self):
-        """`is a dog found in the ground` is a question about burial, and
-        v687 strips the preposition before matching so it answers `on` and
-        `in` alike -- the phrasing has to be right going in."""
+        """`is a dog found in the ground` is a question about burial; v687
+        strips the preposition before matching, so it answers `on` and `in`
+        alike and the mistake is invisible from the answer. And the frame
+        carries no verb, because `live` is scored as a content term of its
+        own and matches `lives in a stable`, which the norms deny of dogs."""
         self.assertEqual(phrase_predicate("dog", "ground", "n"),
-                         "does a dog live on the ground")
+                         "is a dog on the ground")
         self.assertEqual(phrase_predicate("fish", "water", "n"),
-                         "does a fish live in the water")
+                         "is a fish in the water")
+
+    def test_a_multi_word_concept_is_not_a_single_word_question(self):
+        """v687 made `pig bed.n.01` -- a mould for casting pig iron -- the
+        primary sense of `pig`, because the crawl has more rows about foundry
+        beds than about pigs. Fixed in v687's `senses_of`, which is the only
+        change this branch makes there."""
+        senses = POOL.engines[0].reasoner.senses_of("pig")
+        self.assertTrue(senses)
+        self.assertNotIn(" ", senses[0]["id"].split(".")[0])
+
+    def test_a_fact_about_a_few_is_not_a_fact_about_the_class(self):
+        """`do pigs fly` rests on `mammal capable_of fly`, true of bats and
+        false of the other kinds the store knows. The shape is general: a
+        claim inherited from an ancestor that a minority of that ancestor's
+        own kinds bear out."""
+        found = run("does a beagle swim")
+        self.assertTrue(found.summary["conflicts"]
+                        or found.summary.get("overreach"))
+
+    def test_a_no_another_reading_would_answer_yes_to_is_re_asked(self):
+        """`is a mouse an animal` comes back CONTRADICTED, correctly, about
+        `mouse.n.04` -- the device. The exclusion is sound and it is about
+        the wrong mouse."""
+        found = run("is a mouse an animal")
+        again = [a for c in found.cycles for a in c.answers
+                 if a.origin == "sense"]
+        self.assertTrue(again)
+        self.assertEqual(again[0].question, "is a mouse an animal")
+        self.assertEqual(again[0].pins, {"mouse": "mouse.n.01"})
+        self.assertEqual(again[0].verdict, "VERIFIED")
+        # The corrected reading becomes the headline; `as_asked` keeps what
+        # v687 said about the sense it chose.
+        self.assertEqual(found.summary["verdict"], "VERIFIED")
+        self.assertEqual(found.summary["as_asked"], "CONTRADICTED")
+
+    def test_the_same_words_under_two_readings_are_two_questions(self):
+        """Keyed by text alone, the pinned re-ask is deduplicated against
+        the answer it exists to disagree with."""
+        found = run("is a mouse an animal")
+        keys = {a.key for c in found.cycles for a in c.answers}
+        self.assertIn("is a mouse an animal", keys)
+        self.assertTrue(
+            any(k.startswith("is a mouse an animal ⟨") for k in keys),
+            keys)
+
+    def test_a_means_never_opens_a_gap_of_its_own(self):
+        """Checking the penguin family asked `is an emperor penguin strong`,
+        which came back UNRECORDED -- and the loop went off to find out what
+        an emperor is, what a king is, and what a jackass is."""
+        found = run("can a penguin fly")
+        asked = {a.question for c in found.cycles for a in c.answers}
+        for stray in ("what is an emperor", "what is a king",
+                      "what is a jackass"):
+            self.assertNotIn(stray, asked)
 
     def test_the_examples_between_them_exercise_every_generator(self):
         """A page of sixteen examples that only ever showed one source of
@@ -549,8 +605,8 @@ class ExampleTests(unittest.TestCase):
             found = run(example["text"])
             for cycle in found.cycles:
                 origins |= {answer.origin for answer in cycle.answers}
-        self.assertEqual(origins, {"seed", "gap", "doubt", "split", "chain",
-                                   "require", "curiosity"})
+        self.assertEqual(origins, {"seed", "gap", "doubt", "sense", "split",
+                                   "chain", "require", "curiosity"})
 
     def test_some_example_reasons_in_a_line_rather_than_a_fan(self):
         """A page that only ever fanned out would be a page about breadth.

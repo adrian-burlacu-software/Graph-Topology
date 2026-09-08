@@ -245,6 +245,14 @@ class Requirements:
         self.reasoner = reasoner
         self._cache: dict[str, Requirement | None] = {}
         self._overall: dict[str, int] = {}
+        # Narrowing this to the 24,733 concepts that have parts recorded was
+        # tried and made things worse: it cost `run -> leg`, which is the one
+        # this exists for, and kept `swim -> tooth`, which is the one it was
+        # meant to drop. Lift does not separate a requirement from a part
+        # most animals happen to have, and no threshold over this measure
+        # will. So the claim stays modest -- `the things the store says can
+        # swim have a tooth, 15 of 54` is true, and is not a claim that
+        # swimming needs teeth.
         self._total = reasoner.connection.execute(
             "SELECT COUNT(DISTINCT concept) FROM facts").fetchone()[0] or 1
 

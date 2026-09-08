@@ -44,6 +44,11 @@ did have has had can could will would
 #: it is how `hunt` ended up being asked whether it was a small bird.
 MAX_ANCHOR_DISTANCE = 3
 
+#: Words a stored object should never open with when it is being put to a
+#: sibling as a thing the sibling has.
+AUXILIARY = frozenset("can could will would do does did is are was were "
+                      "has have had must should may might".split())
+
 #: Body parts come out of the store singular -- `leg`, `wing` -- and the
 #: feature norms record them plural: `has legs` is what XCSLB scores and
 #: denies. `does a fish have a leg` comes back UNRECORDED where `does a fish
@@ -73,9 +78,12 @@ def plural(word: str) -> str:
 MAX_FAMILY = 12
 
 #: How far a claim may have been inherited and still be worth putting to the
-#: family it came from. Beagle inherits `swim` from dog at three levels, which
-#: is the far end of useful.
-MAX_DOUBT_DISTANCE = 4
+#: family it came from. It was 4, on the reasoning that a distant ancestor is
+#: an unrelated one -- but distance is not what makes an ancestor unrelated,
+#: family size is, and `Kinds` already bounds that. Meanwhile the cap was
+#: hiding the worst case it exists for: `do pigs fly` rests on `mammal
+#: capable_of fly` at five levels, which is a fact about bats.
+MAX_DOUBT_DISTANCE = 7
 
 #: How much the store has to hold about a word before curiosity will take it
 #: as a topic. `purr`, `hunt` and `hello` each have one recorded fact and are
@@ -166,14 +174,21 @@ POS_PREFERENCE = ("a", "s", "n", "v", "r")
 #: preposition before matching, so it answers `on` and `in` identically and
 #: the mistake is invisible from the answer -- the phrasing has to be right
 #: going in.
+#: And with no verb of its own. v687 splits a question into content terms
+#: and scores each: `does a dog live on the ground` becomes `live` and
+#: `ground`, and `live` matches the stored predicate `lives in a stable`,
+#: which the norms deny of dogs. `ground` alone is HELD, which is right, and
+#: the conjunction of the two comes out CONTRADICTED, which is not. Checked
+#: against the norms across dog, fish, whale, bird and lion, the verbless
+#: form agrees with them every time and `live` agrees on three of five.
 LIVES_ON = frozenset("ground plains fields".split())
-LIVES_ON_FRAME = "does {article} {concept} live on the {object}"
+LIVES_ON_FRAME = "is {article} {concept} on the {object}"
 
 HABITAT = frozenset("""
 water tree cave coastal desert bush forest jungle mountains ocean arctic
 swamp
 """.split())
-HABITAT_FRAME = "does {article} {concept} live in the {object}"
+HABITAT_FRAME = "is {article} {concept} in the {object}"
 
 #: AwA2 diet columns, which have the same problem one frame over: read as
 #: nouns they become `does a wolf have a fish`.
@@ -238,6 +253,18 @@ class Question:
     #: How many answers had to come back before this question could be
     #: formed. 0 for anything askable from the utterance alone.
     depth: int = 0
+    #: word -> synset, held for this question only. v687 takes these; the
+    #: buffer keeps them for the rest of the utterance once one is set.
+    pins: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def key(self) -> str:
+        """What counts as the same question. The same words under a different
+        reading are a different question, and the whole point of asking."""
+        if not self.pins:
+            return self.text
+        held = " ".join(f"{word}={sense}" for word, sense in self.pins)
+        return f"{self.text} ⟨{held}⟩"
 
     @property
     def rank(self) -> float:
@@ -249,6 +276,7 @@ class Question:
                 "parent": self.parent, "salience": round(self.salience, 4),
                 "gain": round(self.gain, 4), "urgency": round(self.urgency, 4),
                 "novelty": self.novelty, "depth": self.depth,
+                "pins": {word: sense for word, sense in self.pins},
                 "rank": round(self.rank, 5)}
 
 
@@ -357,6 +385,16 @@ class Generator:
         """
         if token in self._pos:
             return self._pos[token]
+        # A word whose dictionary form is not itself is a plural, and takes
+        # no article: `does a carp have a legs` was asked because `legs` is
+        # a WordNet lemma in its own right and resolved as a singular noun.
+        dictionary = self.lemma(token)
+        if dictionary != token and any(
+                (sense.get("id") or "").split(".")[-2:-1] == ["n"]
+                for sense in self.engine.reasoner.senses_of(dictionary) or []):
+            self._singular[token] = dictionary
+            self._pos[token] = "np"
+            return "np"
         senses = self.engine.reasoner.senses_of(token) or []
         available = set()
         for sense in senses:
@@ -498,13 +536,13 @@ class Generator:
             # so `what is a wild` came back defining wilderness, and the
             # ladder then walked geographical area -> region -> location.
             # The word was an adjective in the question that raised it.
+            blocker = self.lemma(hole.blocker) if len(words) == 1                 else hole.blocker
             if (words and len(words) <= 2
                     and hole.blocker.replace(" ", "").isalpha()
                     and words[0] not in FRAGMENT
                     and self.pos_of(words[-1]) == "n"):
                 asked.append(Question(
-                    f"what is {article(hole.blocker)} {hole.blocker}", "gap",
-                    hole.blocker,
+                    f"what is {article(blocker)} {blocker}", "gap", blocker,
                     why=f"nothing covers “{hole.blocker}”; this asks what it "
                         f"is before asking anything of it",
                     parent=hole.question, salience=salience, gain=0.8,
@@ -531,6 +569,13 @@ class Generator:
         A property whose head word is a noun is a thing the concept *has*.
         """
         words = obj.split()
+        # An object that carries its own auxiliary is a claim, not a thing.
+        # The store records `capable_of "can walk"`, and putting that to a
+        # sibling under a having relation asked `does a bobcat have a can
+        # walk`. Strip the auxiliary and it is a capability again.
+        if words and words[0].lower() in AUXILIARY and len(words) > 1:
+            rest = " ".join(words[1:])
+            return f"{words[0].lower()} {article(concept)} {concept} {rest}"
         if relation == "used_for" and words and self.could_be_a_verb(words[0]):
             # `used_for make music` is a purpose, not a thing: `is a violin
             # used for make music` has to become `used to make music`.
@@ -612,7 +657,96 @@ class Generator:
                 salience=salience * 0.9, gain=0.85, urgency=urgency))
         return asked
 
-    # -- source 3: does the subject have what the act needs? ---------------
+    # -- source 3: read it the other way and see whether it still holds ----
+    def from_sense(self, doubt, buffer) -> list[Question]:
+        """Re-ask the question with the subject held to the sense you meant.
+
+        `do pigs fly` comes back VERIFIED about `pig bed.n.01`, a mould for
+        casting pig iron. The verdict is correct and the subject is not the
+        one you named. v687 already takes a pin -- `pins.py` exists for
+        exactly this and has been request-scoped and unused since it was
+        written -- so the loop pins the sense that carries the word itself
+        and asks again.
+
+        Which sense to read a word in is v687's to decide, and this does not
+        overrule it: it asks a *second* question and reports both readings.
+        When they disagree, that disagreement is the answer.
+        """
+        word = (doubt.question and buffer.subject_of(doubt.question)) or ""
+        if not word:
+            return []
+        chosen = self.sense_named(word)
+        if not chosen or word in buffer.pins:
+            return []
+        buffer.pins[word] = chosen
+        return [Question(
+            doubt.question, "sense", word, chosen, pins=((word, chosen),),
+            why=f"asked again with “{word}” held to {chosen}, the sense that "
+                f"carries the word itself. The first reading resolved it to "
+                f"{doubt.concept or 'something else'}, and an answer about "
+                f"the wrong thing is worse than no answer.",
+            parent=doubt.question, salience=1.0, gain=1.0,
+            urgency=attention.URGENCY["sense"],
+            depth=buffer.depth_of(doubt.question) + 1)]
+
+    def other_sense_answers(self, answer, buffer) -> list[Question]:
+        """A no that another reading of the same word would have said yes to.
+
+        `is a mouse an animal` comes back CONTRADICTED, correctly, about
+        `mouse.n.04` -- the device. R27 excludes it because an artifact is
+        not an animal, and the exclusion is sound. It is also about the
+        wrong mouse: `mouse.n.01` is under animal, and nothing said so.
+
+        The name-matching check misses this because both senses are called
+        `mouse`. What separates them is that one of them answers the question
+        and the other does not, which costs one call to v687's classifier per
+        sense and is worth it on a denial.
+        """
+        if answer.origin != "seed" or answer.verdict not in ("CONTRADICTED",
+                                                             "DENIED"):
+            return []
+        parse = (answer.payload or {}).get("parse") or {}
+        subject, target = parse.get("subject"), parse.get("target")
+        if not subject or not target or parse.get("relation") != "is_a":
+            return []
+        chosen = (answer.payload or {}).get("concept") or ""
+        for sense in (self.engine.reasoner.senses_of(subject) or [])[:6]:
+            name = sense.get("id") or ""
+            if name == chosen or name.split(".")[-2:-1] != ["n"]:
+                continue
+            found = self.engine.reasoner.classify(name, target)
+            if getattr(found, "verdict", "") not in ("VERIFIED", "HELD"):
+                continue
+            if subject in buffer.pins:
+                return []
+            buffer.pins[subject] = name
+            return [Question(
+                answer.question, "sense", subject, name,
+                pins=((subject, name),),
+                why=f"read as {chosen} the answer is no, and correctly so. "
+                    f"But {name} — “{sense.get('definition') or name}” — is "
+                    f"another reading of “{subject}”, and it answers yes. "
+                    f"Which of the two you meant is not something the store "
+                    f"can tell.",
+                parent=answer.question, salience=1.0, gain=1.0,
+                urgency=attention.URGENCY["sense"],
+                depth=buffer.depth_of(answer.question) + 1)]
+        return []
+
+    def sense_named(self, word: str) -> str:
+        """The noun sense whose own name is the word, if there is one.
+
+        `pig` offers `pig bed.n.01` before `pig.n.06`; only the second is
+        named after the word. It is a weak rule and it is the one v687 does
+        not apply, which is why `pig` reads as a foundry mould.
+        """
+        for sense in self.engine.reasoner.senses_of(word) or []:
+            name = sense.get("id") or ""
+            if (bare(name) == word and name.split(".")[-2:-1] == ["n"]):
+                return name
+        return ""
+
+    # -- source 4: does the subject have what the act needs? ---------------
     def from_requirement(self, answer, buffer) -> list[Question]:
         """Check a capability against what doing it turns out to need.
 
@@ -637,8 +771,14 @@ class Generator:
                                   "CONTRADICTED", "DENIED"):
             return []
         parse = (answer.payload or {}).get("parse") or {}
-        subject = bare((answer.payload or {}).get("concept")
-                       or answer.about or parse.get("subject") or "")
+        # The word that was said, not the sense v687 resolved it to. Asked
+        # `do pigs fly`, v687 takes `pig` to mean `pig bed.n.01` -- a foundry
+        # mould -- and building the follow-up from the concept asked `does a
+        # pig bed have wings`, which opened a gap on `bed` and spent a cycle
+        # wondering whether a bed is furry. Which sense to read a word in is
+        # v687's to decide; the question text is not.
+        subject = bare(parse.get("subject") or answer.about
+                       or (answer.payload or {}).get("concept") or "")
         action = self.lemma((parse.get("target") or "").split()[0]
                             if parse.get("target") else "")
         if not subject or not action:
@@ -653,8 +793,9 @@ class Generator:
             why=f"the things the store says can {action} have "
                 f"{article(needs.part)} {needs.part} — {needs.holders} of "
                 f"{needs.doers} of them, {needs.lift:.0f} times commoner than "
-                f"among concepts at large. So this asks whether "
-                f"{article(subject)} {subject} has {many}.",
+                f"among concepts at large. That is what they have in common, "
+                f"not a proof that {action}ning needs it; this asks whether "
+                f"{article(subject)} {subject} has {many} too.",
             parent=answer.question, salience=1.0, gain=0.95,
             urgency=attention.URGENCY["require"],
             depth=buffer.depth_of(answer.question) + 1)]
@@ -854,6 +995,10 @@ class Generator:
             candidates.extend(self.from_gap(hole, buffer))
         for doubt in buffer.open_doubts():
             candidates.extend(self.from_doubt(doubt, buffer))
+        for doubt in buffer.open_senses():
+            candidates.extend(self.from_sense(doubt, buffer))
+        for answer in buffer.recent:
+            candidates.extend(self.other_sense_answers(answer, buffer))
         for answer in buffer.recent:
             candidates.extend(self.from_requirement(answer, buffer))
         for split in buffer.splits():
@@ -865,9 +1010,9 @@ class Generator:
         chosen: list[Question] = []
         seen: set[str] = set()
         for question in ranked:
-            if question.text in seen or buffer.already_asked(question.text):
+            if question.key in seen or buffer.already_asked(question.key):
                 continue
-            seen.add(question.text)
+            seen.add(question.key)
             chosen.append(question)
         # Whatever a cycle could not hold waits for the next one, ahead of any
         # new curiosity. Without this the pool size silently decides which
@@ -884,9 +1029,9 @@ class Generator:
             for concept in buffer.topics[:4]:
                 spare.extend(self.from_curiosity(concept, buffer))
             for question in sorted(spare, key=lambda q: -q.rank):
-                if question.text in seen or buffer.already_asked(question.text):
+                if question.key in seen or buffer.already_asked(question.key):
                     continue
-                seen.add(question.text)
+                seen.add(question.key)
                 chosen.append(question)
                 if len(chosen) >= width:
                     break

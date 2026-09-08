@@ -55,7 +55,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |
 | `loop.py` | attend → generate → fan out → read → update → settle. Emits a replayable `Run`. |
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
-| `test_v688.py` | 56 tests, including every page example against the claim its card makes. |
+| `test_v688.py` | 61 tests, including every page example against the claim its card makes. |
 
 ## Where a question comes from
 
@@ -74,6 +74,9 @@ something already on the table. Two of them fan out and three run in a line.
 
 **Depth — what the pool cannot help with:**
 
+- **sense** — the answer came back about a different word, so ask again with
+  the subject pinned. Serial by construction: the mismatch has to be seen
+  before the pin can be chosen.
 - **require** — check a capability against what doing it turns out to need.
   The store has `has_prerequisite`, but ConceptNet means it about people:
   reading requires `find book`, flying requires `get airline ticket`. What
@@ -186,9 +189,73 @@ The rest of the machinery now reads the whole graph:
   and dalmatian.
 - **requirements** are derived over all 45,219 concepts.
 
+## Reading a word, and noticing when the reading was wrong
+
+Which sense a word is taken in is v687's decision. The loop no longer takes it
+on trust, and the page no longer hides it.
+
+- **Every question shows the sense it was read in**, and the sense panel lets
+  you overrule it — each option carries its WordNet definition, its part of
+  speech, how many facts the store holds about it, and which one v687 took. A
+  choice is held for the whole utterance and every question the run generates
+  inherits it.
+- **A no that another reading would answer yes to is re-asked.** `is a mouse
+  an animal` comes back CONTRADICTED, correctly, about `mouse.n.04` — the
+  device. R27's exclusion is sound and it is about the wrong mouse. The loop
+  pins `mouse.n.01`, asks again, gets VERIFIED, and **leads with the corrected
+  reading** rather than explaining underneath the one nobody meant.
+
+### The one change this makes to v687
+
+`senses_of` demoted no sense for being multi-word, so `pig bed.n.01` — a
+mould for casting pig iron — was the primary sense of `pig`, because the
+build's evidence chooser counts crawled rows and the crawl has more about
+foundry beds than about pigs. Someone asking about a pig does not mean a pig
+bed, whatever the counts say. Multi-word concepts now sort last for a
+single-word question. v687's 317 tests are unchanged and still pass.
+
+## A fact about a few, filed under the class
+
+Ask `do pigs fly` with both senses pinned correctly and it *still* said yes —
+on `mammal.n.01 capable_of fly` at confidence 0.16, five levels up. That is a
+true fact about **bats**, hoisted to every mammal.
+
+The shape is general and does not depend on the words: a claim **inherited**
+from an ancestor, put to that ancestor's own kinds, and borne out by a
+**minority** of them. R11 hoists a fact every child states up to the parent;
+`Buffer.overreach` is the same measurement run as a check, and it catches
+hoisting that should never have happened — whichever rule let it through:
+
+> and it looks filed under the wrong thing: “fly” came from mammal.n.01, and
+> only 1 of the 4 kinds it was put to bear it out — bat. That is a fact about
+> bat, hoisted to the class they belong to.
+
+Finding it needed one other change: the doubt fan-out used to stop at four
+levels of inheritance, on the reasoning that a distant ancestor is an
+unrelated one. Distance is not what makes an ancestor unrelated — family size
+is, and `Kinds` already bounds that. The cap was hiding the worst case it
+existed for.
+
+## When a verdict is about a different predicate
+
+v687 scores a question one content term at a time. `is a violin made of wood`
+becomes `made` and `wood`; `made` matches the stored predicate `can be made
+of ivory`, which the norms deny of violins, and the answer comes back
+CONTRADICTED — about ivory. `does a dog live on the ground` goes the same way
+through `lives in a stable`.
+
+It is detectable without touching v687: **the predicate the verdict cites
+shares no word with what the question asked about.** The loop reports it, and
+the trust reads *reached on a different predicate*.
+
+The same fault is why the generated habitat questions carry no verb of their
+own. `is a dog on the ground` agrees with the feature norms on every animal
+tested; `does a dog live on the ground` agrees on three of five.
+
 ## Containment
 
-`research/v688/` imports `research.v687` and **never edits it**. The semantic
+`research/v688/` imports `research.v687` and edits it once, by request: the
+`senses_of` ordering above. The semantic
 system stays frozen behind `ReasoningEngine.ask()`; v687's 317 tests are
 untouched. Every typed gap is recovered from the payload v687 already returns,
 which is why `gap.py` exists at all rather than a field being added upstream.
@@ -212,10 +279,15 @@ which is why `gap.py` exists at all rather than a field being added upstream.
   columns get locative and eating frames; a short list of AwA2 coinages
   (`oldworld`, `quadrapedal`) is skipped as unaskable. This is a corpus
   problem wearing a phrasing costume.
-- **Sense choice is still v687's**, so `wing` reads as an aircraft wing and
-  `mouse` as the device. The buffer holds pins but nothing sets them yet;
-  widening `pins.py` from request-scoped to utterance-scoped is done, using
-  it is not.
+- **Sense choice is still v687's to make**, and the loop no longer takes it
+  on trust. Where the resolved concept is not the word you asked about --
+  `do pigs fly` reads `pig` as `pig bed.n.01`, a mould for casting pig iron
+  -- that is reported as a doubt of its own and the question is **asked
+  again under a pin**, held to the sense that carries the word. The two
+  readings are reported side by side: VERIFIED as a foundry mould, UNKNOWN
+  as an animal. This is what `pins.py` was written for and it had been
+  request-scoped and unused since; the buffer now holds one for the length
+  of the utterance.
 - **A conflict is reported, never resolved.** The loop says the family
   disagrees and asks which side the subject is on; it does not then decide.
   Deciding needs belief revision, and that needs somewhere to write the

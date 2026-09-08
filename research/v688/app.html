@@ -12,6 +12,7 @@
     --teal: #2fe3c5; --teal-dim: #1b8f7c;
     --seed: #4aa8ff; --gap: #ff9d4a; --doubt: #c07bff;
     --split: #ff6b9d; --chain: #ffd24a; --curiosity: #3fd68a;
+    --require: #4ad9e6; --sense: #ff9de0;
     --yes: #3fd68a; --no: #ff6b6b; --absent: #e0b64a; --content: #6fb2ff;
     --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
@@ -106,6 +107,7 @@
   .o-seed { color: var(--seed); } .o-gap { color: var(--gap); }
   .o-doubt { color: var(--doubt); } .o-split { color: var(--split); }
   .o-chain { color: var(--chain); } .o-curiosity { color: var(--curiosity); }
+  .o-require { color: var(--require); }
   .v { font-family: var(--mono); font-size: 10.5px; font-weight: 600; white-space: nowrap;
        letter-spacing: .04em; }
   .v-yes { color: var(--yes); } .v-no { color: var(--no); }
@@ -113,6 +115,43 @@
   .v-flat { color: var(--faint); }
   .qtext { font-size: 13.5px; color: var(--ink); }
   .why { color: var(--dim); font-size: 11.5px; margin-top: 3px; line-height: 1.45; }
+  .readings { display: grid; gap: 12px; }
+  .reading { background: var(--raised); border: 1px solid var(--rule);
+             border-radius: 9px; padding: 10px 12px; }
+  .readhead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .readhead b { font-size: 14px; }
+  .reading .held { font-family: var(--mono); font-size: 10px; color: var(--sense); }
+  .options { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opt { text-align: left; background: var(--bg); border: 1px solid var(--rule2);
+         border-radius: 7px; padding: 6px 9px; cursor: pointer; color: var(--ink);
+         font: inherit; max-width: 320px; }
+  .opt:hover { border-color: var(--teal-dim); }
+  .opt.on { border-color: var(--sense); background: #20141d; }
+  .optid { font-family: var(--mono); font-size: 10.5px; color: var(--teal);
+           display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .opt.on .optid { color: var(--sense); }
+  .opt { position: relative; }
+  .flyout { position: absolute; left: 0; top: calc(100% + 6px); z-index: 30;
+            width: 300px; background: var(--panel); border: 1px solid var(--rule2);
+            border-radius: 8px; padding: 10px 12px; text-align: left;
+            box-shadow: 0 14px 34px rgba(0,0,0,.6); display: none; }
+  .opt:hover .flyout, .opt:focus .flyout, .opt:focus-visible .flyout { display: block; }
+  .flyid { font-family: var(--mono); font-size: 10px; color: var(--teal);
+           letter-spacing: .04em; }
+  .flydef { font-size: 12.5px; color: var(--ink); margin-top: 5px; line-height: 1.45; }
+  .flyfacts { font-family: var(--mono); font-size: 10px; color: var(--faint);
+              margin-top: 6px; }
+  .options { overflow: visible; }
+  .reading { overflow: visible; }
+  .tag { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+         border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px;
+         color: var(--seed); }
+  .tag.dim { color: var(--faint); }
+  .sense { font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+           margin-top: 3px; }
+  .sense .pinned { color: var(--sense); }
+  .o-sense { color: var(--sense); }
+  .s-sense { background: var(--sense); }
   .bars { display: flex; gap: 3px; align-items: center; }
   .bar { width: 26px; height: 5px; background: var(--rule2); border-radius: 3px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--teal-dim); }
@@ -126,6 +165,7 @@
   .s-seed { background: var(--seed); } .s-gap { background: var(--gap); }
   .s-doubt { background: var(--doubt); } .s-split { background: var(--split); }
   .s-chain { background: var(--chain); } .s-curiosity { background: var(--curiosity); }
+  .s-require { background: var(--require); }
   .idle { position: absolute; color: var(--faint); font-size: 10px;
           font-family: var(--mono); padding-left: 6px; line-height: 14px; }
   .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
@@ -248,9 +288,10 @@ const TRUST_CLASS = {
   "denied, unchallenged": "flat",
   "content, not a verdict": "flat"
 };
-const ORIGINS = ["seed", "gap", "doubt", "split", "chain", "curiosity"];
+const ORIGINS = ["seed", "gap", "doubt", "sense", "require", "split",
+                 "chain", "curiosity"];
 
-let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null;
+let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null, PINS = {};
 
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -306,7 +347,9 @@ async function ask(text) {
     `across ${SETTINGS.pool.workers} workers…</div>`;
   stage.appendChild(panel);
   try {
-    const response = await fetch("/api/run?q=" + encodeURIComponent(text));
+    const held = Object.entries(PINS).map(
+      ([word, sense]) => "&pin=" + encodeURIComponent(word + ":" + sense)).join("");
+    const response = await fetch("/api/run?q=" + encodeURIComponent(text) + held);
     const data = await response.json();
     if (data.error) { panel.innerHTML = `<div class="empty">${esc(data.error)}</div>`; return; }
     RUN = data; CYCLE = 0;
@@ -320,6 +363,8 @@ function render() {
   const stage = document.getElementById("stage");
   stage.innerHTML = "";
   stage.appendChild(summaryPanel());
+  const reading = sensePanel();
+  if (reading) stage.appendChild(reading);
   const thread = threadPanel();
   if (thread) stage.appendChild(thread);
   stage.appendChild(transport());
@@ -351,6 +396,70 @@ function summaryPanel() {
   add(RUN.summary.conflicts.length, "conflicts");
   add(RUN.elapsed + "s", "");
   panel.appendChild(bar);
+  return panel;
+}
+
+function sensePanel() {
+  // Which sense each word of the utterance was read in, and a way to say
+  // otherwise. v687 chooses; this is where a reader overrules it, and the
+  // choice is held for every question the run generates.
+  const words = Object.keys(RUN.buffer.activation.table || {})
+    .filter(w => RUN.utterance.toLowerCase().includes(w)).slice(0, 6);
+  if (!words.length) return null;
+  const panel = el("div", "panel");
+  panel.appendChild(el("h2", "label", "how each word was read"));
+  const box = el("div", "readings");
+  words.forEach(word => {
+    const row = el("div", "reading");
+    const head = el("div", "readhead");
+    head.appendChild(el("b", null, word));
+    const held = RUN.pinned && RUN.pinned[word];
+    if (held) head.appendChild(el("span", "held", "held to " + held));
+    row.appendChild(head);
+    const options = el("div", "options", "…");
+    row.appendChild(options);
+    fetch("/api/senses?w=" + encodeURIComponent(word)).then(r => r.json())
+      .then(data => {
+        options.innerHTML = "";
+        const senses = data.senses || [];
+        if (!senses.length) { options.appendChild(el("div", "why", "no sense in the ontology")); return; }
+        const choose = (value) => {
+          if (value) PINS[word] = value; else delete PINS[word];
+          ask(RUN.utterance);
+        };
+        const any = el("button", "opt" + (PINS[word] ? "" : " on"));
+        any.type = "button";
+        any.appendChild(el("div", "optid", "let v687 choose"));
+        any.onclick = () => choose("");
+        options.appendChild(any);
+        senses.forEach(sense => {
+          const opt = el("button", "opt" + (PINS[word] === sense.id ? " on" : ""));
+          opt.type = "button";
+          const line = el("div", "optid");
+          line.appendChild(document.createTextNode(sense.id));
+          if (sense.chosen) line.appendChild(el("span", "tag", "v687 took this"));
+          opt.appendChild(line);
+          // The definition is what tells fly.v.01 from fly.v.05, and there
+          // are eight of them: inline it and the row is unreadable, so it
+          // rides in a flyout the way v687's sense card does.
+          const out = el("div", "flyout");
+          out.appendChild(el("div", "flyid", sense.id + (sense.pos ? "  ·  " + sense.pos : "")));
+          out.appendChild(el("div", "flydef",
+            sense.definition || "no definition recorded"));
+          out.appendChild(el("div", "flyfacts",
+            (sense.facts || 0) + " facts in the store" +
+            (sense.chosen ? " · the reading v687 took" : "")));
+          opt.appendChild(out);
+          opt.onclick = () => choose(sense.id);
+          options.appendChild(opt);
+        });
+      });
+    box.appendChild(row);
+  });
+  panel.appendChild(box);
+  panel.appendChild(el("div", "legend",
+    "a choice here is held for every question the run generates — the loop " +
+    "sets one itself when the answer comes back about a different word"));
   return panel;
 }
 
@@ -452,6 +561,14 @@ function cyclePanel() {
 
     const what = el("td");
     what.appendChild(el("div", "qtext", answer.question));
+    const read = el("div", "sense");
+    if (Object.keys(answer.pins || {}).length) {
+      read.appendChild(el("span", "pinned",
+        "pinned " + Object.entries(answer.pins).map(p => p.join(" → ")).join(", ")));
+    } else if (answer.concept) {
+      read.appendChild(el("span", null, "read as " + answer.concept));
+    }
+    if (read.childNodes.length) what.appendChild(read);
     if (answer.why || meta.why) what.appendChild(el("div", "why", answer.why || meta.why));
     row.appendChild(what);
 
@@ -571,7 +688,9 @@ function openDrawer(answer, meta) {
     kv.appendChild(el("dd", null, String(value)));
   };
   add("rule", answer.relation);
-  add("concept", answer.concept);
+  add("read as", answer.concept);
+  if (Object.keys(answer.pins || {}).length)
+    add("pinned", Object.entries(answer.pins).map(p => p.join(" → ")).join(", "));
   add("worker", "w" + answer.worker + " · " + answer.elapsed + "s");
   add("cycle", answer.cycle);
   if (meta.depth) add("depth", meta.depth + " answers in");

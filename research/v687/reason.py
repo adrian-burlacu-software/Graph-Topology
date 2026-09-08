@@ -99,9 +99,18 @@ class Reasoner:
             # answer about `hammer` an answer about a gun.
             "SELECT c.id, c.lemma, c.pos, c.sense, c.definition, l.primary_sense "
             "FROM lemmas l JOIN concepts c ON c.id = l.concept "
-            "WHERE l.lemma = ? ORDER BY l.primary_sense DESC, (c.lemma <> ?), "
+            # And a multi-word concept is demoted below every single-word
+            # one when the question used a single word. `pig` is a lemma of
+            # `pig bed.n.01`, a mould for casting pig iron, which the build's
+            # evidence made primary because the crawl has more rows about
+            # foundry beds than about pigs. Someone asking about a pig does
+            # not mean a pig bed, whatever the evidence counts say.
+            "WHERE l.lemma = ? ORDER BY "
+            "(instr(c.lemma, ' ') > 0 AND instr(?, ' ') = 0), "
+            "l.primary_sense DESC, (c.lemma <> ?), "
             "CASE c.pos WHEN 'n' THEN 0 WHEN 'v' THEN 1 WHEN 'a' THEN 2 ELSE 3 END, "
-            "c.sense", (lemma.lower().strip(), lemma.lower().strip())
+            "c.sense", (lemma.lower().strip(), lemma.lower().strip(),
+                        lemma.lower().strip())
         ).fetchall()
         return [
             {"id": r["id"], "lemma": r["lemma"], "pos": r["pos"],
