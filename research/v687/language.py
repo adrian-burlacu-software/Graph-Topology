@@ -61,6 +61,19 @@ prerequisite able capable
 POLAR = ("can", "could", "is", "are", "was", "were", "does", "do", "did",
          "has", "have", "will", "would", "should", "must", "may", "might")
 
+#: The polar openers that take a bare infinitive, so whatever completes them
+#: is a verb whatever the tagger says.
+#:
+#: `is`, `are`, `has` and `have` are deliberately absent: `is a dog an animal`
+#: and `does a dog have legs` complete with a noun, and forcing a verb there
+#: would break both.
+TAKES_A_VERB = frozenset({"can", "could", "do", "does", "did", "will",
+                          "would", "shall", "should", "may", "might", "must"})
+
+#: A question word may stand in front of the auxiliary without changing the
+#: shape: `why does a dog bark` completes `does` exactly as `does a dog bark`.
+WH_WORDS = frozenset({"why", "how", "when", "where", "what", "which", "who"})
+
 #: Words that never carry the content of a question.
 STOP = frozenset({
     "a", "an", "the", "some", "any", "this", "that", "these", "those",
@@ -265,7 +278,7 @@ class Parser:
             words = [w for w in re.findall(r"[a-z0-9']+", text.lower())
                      if w not in STOP]
             return words[0] if words else None
-        doc = self.nlp(text)
+        doc = self._read(text)
 
         # A polar question puts its subject right after the auxiliary, and the
         # ontology can say where that subject ends. This is needed because the
@@ -332,6 +345,56 @@ class Parser:
                 if form in self.vocabulary:
                     return form
         return None
+
+    def _read(self, text: str):
+        """Tag the question, then correct the one thing the tagger gets wrong.
+
+        spaCy reads `a dog bark` as a compound noun and calls `bark` a NOUN.
+        So `can a bird fly`, `can a horse run` and `can a rock swim` -- every
+        word that is also a common noun. `head_noun` already works around the
+        same failure on the subject side, where `a canine fall` came back as
+        one noun phrase.
+
+        It matters more than a label, because the tag is what the sense
+        picker offers a reading by: `bark` in `can a dog bark` was offered as
+        `bark.n.01`, the tough protective covering of a tree, and marked the
+        reader's default. The answer meanwhile came from matching the string
+        "bark" against the norms, so the reading shown had nothing to do with
+        the reading used.
+
+        English settles it without a tagger. After `can`, `does` or `will`
+        the auxiliary needs completing and only a verb can complete it, so in
+        a run of consecutive nouns after the opener the last one is the verb.
+        Two guards keep that honest: the run has to have something before the
+        verb to be the subject, and the ontology gets a veto -- `can a fire
+        truck fly` splits after `truck` because `fire truck` is a lemma and
+        `truck fly` is not, and `can a fire truck` is left alone entirely.
+        """
+        doc = self.nlp(text)
+        words = [token for token in doc if not token.is_punct]
+        if not words:
+            return doc
+        first = words[0].text.lower()
+        rest = words[1:] if first in WH_WORDS else words
+        if not rest or rest[0].text.lower() not in TAKES_A_VERB:
+            return doc
+        run: list = []
+        for token in rest[1:]:
+            if token.pos_ in ("DET", "ADJ") and not run:
+                continue               # `a`, `all`, `big` before the subject
+            if token.pos_ in ("NOUN", "PROPN"):
+                run.append(token)
+                continue
+            break                      # the tagger already found a verb
+        if len(run) < 2:
+            return doc
+        # The ontology's veto: two nouns that name one thing are one thing.
+        pair = f"{run[-2].lemma_.lower()} {run[-1].lemma_.lower()}"
+        plain_pair = f"{run[-2].text.lower()} {run[-1].text.lower()}"
+        if self.vocabulary & {pair, plain_pair}:
+            return doc
+        run[-1].pos_ = "VERB"
+        return doc
 
     def _usable(self, token) -> bool:
         """Can this token be the subject, or did the question spend it?"""
@@ -408,7 +471,7 @@ class Parser:
         tokens: list[dict[str, Any]] = []
         if self.nlp is not None:
             tokens = [{"text": t.text, "lemma": t.lemma_, "pos": t.pos_,
-                       "dep": t.dep_} for t in self.nlp(text)]
+                       "dep": t.dep_} for t in self._read(text)]
 
         note = ""
         if relation is None:

@@ -1394,5 +1394,96 @@ class OverAffirmationTests(unittest.TestCase):
                 self.assertEqual(self.verdict(question), "VERIFIED")
 
 
+class PinnedSenseIsHonouredTests(unittest.TestCase):
+    """`can a dog bark` answered VERIFIED with `bark` pinned to the covering
+    of a tree, and to a three-masted sailing ship, with the same note both
+    times. The reading shown was never the reading used."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_a_modal_is_completed_by_a_verb_whatever_the_tagger_says(self):
+        """spaCy reads `a dog bark` as a compound noun, so every word that is
+        also a common noun came back NOUN: bark, fly, run, swim. The tag is
+        what the sense picker offers a reading by, which is how `bark` in
+        `can a dog bark` was offered as the covering of a tree and marked the
+        default."""
+        for question, word in (("can a dog bark", "bark"),
+                               ("can a bird fly", "fly"),
+                               ("can a horse run", "run"),
+                               ("can a rock swim", "swim"),
+                               ("why does a dog bark", "bark"),
+                               ("do all dogs bark", "bark")):
+            with self.subTest(question=question):
+                tags = {t["text"].lower(): t["pos"]
+                        for t in self.engine.parser.parse(question).tokens}
+                self.assertEqual(tags.get(word), "VERB", tags)
+
+    def test_the_noun_after_the_verb_is_left_alone(self):
+        """Reading past the verb turned `legs` into one. `is` and `have` take
+        a noun and are not in the set at all."""
+        for question, word, pos in (("does a dog have legs", "legs", "NOUN"),
+                                    ("does a bird lay eggs", "eggs", "NOUN"),
+                                    ("is a dog an animal", "animal", "NOUN"),
+                                    ("is a chair furniture", "furniture",
+                                     "NOUN")):
+            with self.subTest(question=question):
+                tags = {t["text"].lower(): t["pos"]
+                        for t in self.engine.parser.parse(question).tokens}
+                self.assertEqual(tags.get(word), pos, tags)
+
+    def test_the_ontology_vetoes_splitting_a_compound(self):
+        """`fire truck` is a lemma, so `can a fire truck` keeps its subject.
+        `truck fly` is not, so `can a fire truck fly` splits after truck."""
+        parser = self.engine.parser
+        self.assertEqual(parser.parse("can a fire truck fly").subject,
+                         "fire truck")
+        self.assertEqual(parser.parse("can a fire truck").subject,
+                         "fire truck")
+
+    def test_a_pin_the_sentence_cannot_take_is_refused(self):
+        """The bug as reported: a noun sense pinned onto the word completing
+        a modal. Asking whether a dog can tough-protective-covering-of-a-tree
+        is not a question, and answering it yes is worse than declining."""
+        for sense in ("bark.n.01", "bark.n.03"):
+            with self.subTest(sense=sense):
+                answer = self.engine.ask("can a dog bark", None,
+                                         {"bark": sense})
+                self.assertEqual(answer["verdict"], "UNSUPPORTED")
+                self.assertIn(sense, answer["note"])
+                self.assertIn("as a verb", answer["note"])
+        # And the same word pinned to a reading the sentence *can* take is
+        # not refused.
+        self.assertEqual(
+            self.engine.ask("can a dog bark", None,
+                            {"bark": "bark.v.04"})["verdict"], "VERIFIED")
+
+    def test_a_pin_that_did_not_bear_on_the_answer_says_so(self):
+        """R17 matches the word against its own predicates and resolves no
+        sense, so every reading of `bark` gives the same answer. A control
+        that looks as though it works everywhere and works in places is
+        worse than no control."""
+        answer = self.engine.ask("can a dog bark", None,
+                                 {"bark": "bark.v.04"})
+        self.assertEqual(answer["pins_unused"], {"bark": "bark.v.04"})
+        self.assertEqual(answer["pins_used"], {})
+        self.assertIn("did not use the reading you pinned", answer["note"])
+
+    def test_a_pin_that_did_bear_on_the_answer_is_not_complained_about(self):
+        """`mouse` pinned to the animal is what the derivation stands on."""
+        answer = self.engine.ask("is a mouse an animal", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertEqual(answer["pins_used"], {"mouse": "mouse.n.01"})
+        self.assertEqual(answer["pins_unused"], {})
+        self.assertNotIn("did not use the reading", answer["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

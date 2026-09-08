@@ -559,7 +559,13 @@ V687_RULES: dict[str, str] = {
            "counterfactuals, dates, questions about words rather than senses, "
            "facts about named individuals and antonyms are named and "
            "declined -- every silent wrong answer found in the v686 and v687 "
-           "audits came from answering an easier question than the one asked.",
+           "audits came from answering an easier question than the one asked. "
+           "A pinned sense whose part of speech cannot complete the sentence "
+           "is refused the same way: `can a dog bark` answered VERIFIED with "
+           "`bark` pinned to the covering of a tree, and to a three-masted "
+           "sailing ship, because the norms match the word and never resolve "
+           "it. Where a pin merely fails to bite rather than contradicting "
+           "the sentence, the answer says which pins it did not use.",
     "R19": "Corroboration: an inherited fact is put to the ancestor's other "
            "kinds before it is believed. `bird capable_of fly` is borne out "
            "by 21 of 29 birds in the norms and is inherited; `animal has a "
