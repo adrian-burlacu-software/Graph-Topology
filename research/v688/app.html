@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V688 — the loop around v687</title>
+<style>
+  :root {
+    --bg: #080b0e; --panel: #0e1318; --raised: #131a21;
+    --rule: #1d262f; --rule2: #26313c;
+    --ink: #d7e0e8; --dim: #8b98a6; --faint: #5d6b78;
+    --teal: #2fe3c5; --teal-dim: #1b8f7c;
+    --seed: #4aa8ff; --gap: #ff9d4a; --doubt: #c07bff;
+    --split: #ff6b9d; --chain: #ffd24a; --curiosity: #3fd68a;
+    --yes: #3fd68a; --no: #ff6b6b; --absent: #e0b64a; --content: #6fb2ff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--rule);
+    padding: 14px 22px; display: flex; align-items: baseline; gap: 18px;
+    flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
+  }
+  header h1 {
+    font-size: 15px; margin: 0; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--teal);
+  }
+  header .sub { color: var(--dim); font-size: 12.5px; }
+  header .stats { margin-left: auto; color: var(--faint); font-size: 11.5px; font-family: var(--mono); }
+  main { display: grid; grid-template-columns: 320px minmax(0,1fr); }
+  aside {
+    border-right: 1px solid var(--rule); background: var(--panel);
+    min-height: calc(100vh - 55px); padding: 18px 16px 60px;
+    position: sticky; top: 55px; max-height: calc(100vh - 55px); overflow-y: auto;
+  }
+  aside::-webkit-scrollbar, .drawer::-webkit-scrollbar { width: 9px; }
+  aside::-webkit-scrollbar-thumb, .drawer::-webkit-scrollbar-thumb {
+    background: var(--rule2); border-radius: 5px; }
+  h2.label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .13em;
+    color: var(--faint); margin: 0 0 11px; font-weight: 600;
+  }
+  .ex { display: block; width: 100%; text-align: left; background: transparent;
+        border: 1px solid transparent; border-radius: 9px; padding: 9px 11px;
+        margin-bottom: 3px; cursor: pointer; font: inherit; color: inherit;
+        transition: background .12s, border-color .12s; }
+  .ex:hover { background: var(--raised); border-color: var(--rule); }
+  .ex[aria-current="true"] { background: #0d2b28; border-color: var(--teal-dim); }
+  .ex b { display: block; font-weight: 600; font-size: 13.5px; color: var(--ink); }
+  .ex[aria-current="true"] b { color: var(--teal); }
+  .ex span { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.45; margin-top: 4px; }
+  form.ask { display: flex; gap: 7px; margin: 2px 0 22px; }
+  form.ask input {
+    flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--rule2);
+    border-radius: 8px; font: inherit; background: var(--bg); color: var(--ink);
+  }
+  form.ask input:focus { outline: none; border-color: var(--teal-dim); }
+  form.ask button {
+    border: 0; background: var(--teal); color: #05231e; border-radius: 8px;
+    padding: 9px 15px; font: inherit; font-weight: 650; cursor: pointer;
+  }
+  form.ask button:hover { filter: brightness(1.1); }
+  section.stage { padding: 22px 26px 90px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+           padding: 18px 20px; margin-bottom: 16px; }
+  .utterance { font-size: 22px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 12px; }
+  .trust { display: inline-block; font-family: var(--mono); font-size: 11.5px;
+           padding: 4px 11px; border-radius: 999px; border: 1px solid; }
+  .trust.bad { color: var(--no); border-color: #4a2222; background: #1c0f0f; }
+  .trust.weak { color: var(--absent); border-color: #453a1a; background: #1a1508; }
+  .trust.good { color: var(--yes); border-color: #1e4634; background: #08190f; }
+  .trust.flat { color: var(--dim); border-color: var(--rule2); background: var(--raised); }
+  ul.lines { margin: 14px 0 0; padding-left: 18px; color: var(--ink); }
+  ul.lines li { margin-bottom: 6px; }
+  ul.lines li::marker { color: var(--teal-dim); }
+  .runbar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+            color: var(--faint); font-size: 11.5px; font-family: var(--mono); margin-top: 14px;
+            padding-top: 12px; border-top: 1px solid var(--rule); }
+  .runbar b { color: var(--teal); font-weight: 600; }
+  .ctl { display: flex; align-items: center; gap: 9px; margin-bottom: 15px; flex-wrap: wrap; }
+  .ctl button {
+    border: 1px solid var(--rule2); background: var(--raised); border-radius: 8px;
+    padding: 7px 13px; font: inherit; cursor: pointer; color: var(--ink); }
+  .ctl button:hover:not(:disabled) { border-color: var(--teal-dim); color: var(--teal); }
+  .ctl button:disabled { opacity: .32; cursor: default; }
+  .ctl > span { color: var(--faint); font-family: var(--mono); font-size: 11.5px; }
+  .ticks { display: flex; gap: 4px; margin-left: 6px; }
+  .tick { width: 32px; height: 7px; border-radius: 4px; background: var(--rule2);
+          cursor: pointer; border: 0; padding: 0; }
+  .tick.done { background: var(--teal-dim); }
+  .tick.on { background: var(--teal); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .11em;
+       color: var(--faint); font-weight: 600; padding: 0 9px 8px; border-bottom: 1px solid var(--rule); }
+  td { padding: 9px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tr.q { cursor: pointer; }
+  tr.q:hover td { background: var(--raised); }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 9.5px;
+           padding: 3px 7px; border-radius: 5px; text-transform: uppercase;
+           letter-spacing: .07em; border: 1px solid currentColor; white-space: nowrap; }
+  .o-seed { color: var(--seed); } .o-gap { color: var(--gap); }
+  .o-doubt { color: var(--doubt); } .o-split { color: var(--split); }
+  .o-chain { color: var(--chain); } .o-curiosity { color: var(--curiosity); }
+  .v { font-family: var(--mono); font-size: 10.5px; font-weight: 600; white-space: nowrap;
+       letter-spacing: .04em; }
+  .v-yes { color: var(--yes); } .v-no { color: var(--no); }
+  .v-absent { color: var(--absent); } .v-content { color: var(--content); }
+  .v-flat { color: var(--faint); }
+  .qtext { font-size: 13.5px; color: var(--ink); }
+  .why { color: var(--dim); font-size: 11.5px; margin-top: 3px; line-height: 1.45; }
+  .bars { display: flex; gap: 3px; align-items: center; }
+  .bar { width: 26px; height: 5px; background: var(--rule2); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--teal-dim); }
+  .lanes { display: grid; gap: 3px; margin: 6px 0 0; }
+  .lane { display: grid; grid-template-columns: 32px 1fr; gap: 9px; align-items: center; }
+  .lane b { font-family: var(--mono); font-size: 9.5px; color: var(--faint); font-weight: 500; }
+  .track { position: relative; height: 14px; background: var(--raised); border-radius: 4px; }
+  .slot { position: absolute; top: 0; height: 14px; border-radius: 4px; min-width: 3px;
+          font-family: var(--mono); font-size: 9px; color: #05121a; overflow: hidden;
+          white-space: nowrap; padding: 0 5px; line-height: 14px; font-weight: 600; }
+  .s-seed { background: var(--seed); } .s-gap { background: var(--gap); }
+  .s-doubt { background: var(--doubt); } .s-split { background: var(--split); }
+  .s-chain { background: var(--chain); } .s-curiosity { background: var(--curiosity); }
+  .idle { position: absolute; color: var(--faint); font-size: 10px;
+          font-family: var(--mono); padding-left: 6px; line-height: 14px; }
+  .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+  .chip { font-size: 11.5px; border: 1px solid var(--rule2); border-radius: 7px;
+          padding: 5px 9px; background: var(--raised); color: var(--dim); }
+  .chip b { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; }
+  .chip.gap b { color: var(--gap); } .chip.doubt b { color: var(--doubt); }
+  /* the serial thread */
+  .thread { margin-top: 4px; }
+  .link { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start;
+          padding-bottom: 14px; position: relative; }
+  .link:not(:last-child)::before {
+    content: ""; position: absolute; left: 14px; top: 22px; bottom: 0;
+    width: 2px; background: linear-gradient(var(--chain), var(--rule2)); }
+  .dot { width: 30px; height: 20px; display: flex; align-items: center; justify-content: center;
+         font-family: var(--mono); font-size: 10px; color: var(--bg); }
+  .dot i { width: 21px; height: 19px; border-radius: 5px; background: var(--chain);
+           display: flex; align-items: center; justify-content: center; font-style: normal;
+           font-weight: 700; }
+  .link p { margin: 0; font-size: 13.5px; }
+  .link .why { margin-top: 3px; }
+  .drawer {
+    position: fixed; top: 0; right: 0; width: min(580px, 96vw); height: 100vh;
+    background: var(--panel); border-left: 1px solid var(--rule2);
+    box-shadow: -22px 0 60px rgba(0,0,0,.6); padding: 20px 24px 70px;
+    overflow-y: auto; z-index: 40; transform: translateX(101%);
+    transition: transform .17s ease;
+  }
+  .drawer.open { transform: none; }
+  .drawer h3 { margin: 0 0 6px; font-size: 17px; letter-spacing: -.015em; }
+  .drawer .close { position: absolute; top: 15px; right: 18px; border: 0;
+                   background: transparent; font-size: 22px; cursor: pointer; color: var(--faint); }
+  .drawer .close:hover { color: var(--teal); }
+  .kv { display: grid; grid-template-columns: 104px 1fr; gap: 5px 14px;
+        font-size: 12.5px; margin: 14px 0; }
+  .kv dt { color: var(--faint); font-family: var(--mono); font-size: 10px;
+           text-transform: uppercase; letter-spacing: .08em; padding-top: 3px; }
+  .kv dd { margin: 0; color: var(--ink); }
+  .step { border-left: 2px solid var(--rule2); padding: 5px 0 9px 13px; margin-left: 4px; }
+  .step b { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: .05em; }
+  .step div { font-size: 12.5px; color: var(--dim); }
+  pre.ev { background: var(--bg); border: 1px solid var(--rule); border-radius: 8px;
+           padding: 11px 13px; font-family: var(--mono); font-size: 11px;
+           overflow-x: auto; margin: 6px 0 0; color: var(--dim); }
+  .note { font-size: 12.5px; color: var(--dim); background: var(--raised);
+          border-radius: 8px; padding: 10px 12px; margin-top: 9px;
+          border-left: 2px solid var(--teal-dim); }
+  .empty { color: var(--faint); font-size: 13px; padding: 10px 0; }
+  .loading { color: var(--dim); font-size: 13px; }
+  .spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--rule2);
+          border-top-color: var(--teal); border-radius: 50%; animation: sp .7s linear infinite;
+          vertical-align: -1px; margin-right: 8px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--dim);
+            margin-top: 12px; font-family: var(--mono); }
+  .explain { font-size: 12px; color: var(--dim); line-height: 1.55; }
+  .explain b { color: var(--ink); }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    aside { position: static; max-height: none; min-height: 0; border-right: 0;
+            border-bottom: 1px solid var(--rule); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>V688 Loop</h1>
+  <div class="sub">one utterance · resolved over several internal cycles · every question replayable</div>
+  <div class="stats" id="stats">…</div>
+</header>
+
+<main>
+  <aside>
+    <h2 class="label">Ask</h2>
+    <form class="ask" id="askform">
+      <input id="askbox" placeholder="a statement or a question" autocomplete="off">
+      <button type="submit">Run</button>
+    </form>
+    <h2 class="label">Examples</h2>
+    <div id="examples"></div>
+    <h2 class="label" style="margin-top:24px">How a question is chosen</h2>
+    <div class="explain">
+      Rank is <b>salience × gain × urgency</b>, as a product so a zero anywhere
+      is fatal. <b>Salience</b> is activation in the buffer, decaying each
+      cycle. <b>Gain</b> is bits of the candidate set a question removes,
+      computed on the same predicate trie the reasoner stores with.
+      <b>Urgency</b> comes from what kind of hole is being filled.
+      <div id="knobs" style="margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--faint)"></div>
+    </div>
+  </aside>
+
+  <section class="stage" id="stage">
+    <div class="panel"><div class="empty">Pick an example, or ask something.</div></div>
+  </section>
+</main>
+
+<div class="drawer" id="drawer">
+  <button class="close" id="closedrawer" aria-label="close">×</button>
+  <div id="drawerbody"></div>
+</div>
+
+<script>
+"use strict";
+
+const VERDICT_CLASS = {
+  VERIFIED: "v-yes", HELD: "v-yes", INHERITED: "v-yes",
+  CONTRADICTED: "v-no", DENIED: "v-no",
+  UNKNOWN: "v-absent", UNRECORDED: "v-absent", NO_MATCH: "v-absent",
+  UNKNOWN_WORD: "v-no", UNPARSED: "v-no", UNSUPPORTED: "v-no",
+  LISTING: "v-content", DEFINED: "v-content", PROFILE: "v-content",
+  IDENTIFIED: "v-content", AMBIGUOUS: "v-absent", MIXED: "v-absent"
+};
+const TRUST_CLASS = {
+  "contradicted by its own family": "bad",
+  "unreadable": "bad",
+  "weakly held": "weak",
+  "absent, not false": "weak",
+  "holds, but something it passed does not": "weak",
+  "corroborated": "good",
+  "denied, unchallenged": "flat",
+  "content, not a verdict": "flat"
+};
+const ORIGINS = ["seed", "gap", "doubt", "split", "chain", "curiosity"];
+
+let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null;
+
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const esc = (s) => String(s == null ? "" : s);
+
+async function boot() {
+  SETTINGS = await (await fetch("/api/settings")).json();
+  const p = SETTINGS.pool;
+  document.getElementById("stats").textContent =
+    `${p.workers}/${p.requested} workers · built in ${p.build_seconds}s · ` +
+    `trie ${SETTINGS.trie.individuals} individuals / ${SETTINGS.trie.predicates} predicates`;
+  document.getElementById("knobs").textContent =
+    `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
+    `weak-confidence ${SETTINGS.weak_confidence} · max ${SETTINGS.max_cycles} cycles`;
+
+  const box = document.getElementById("examples");
+  SETTINGS.examples.forEach((example) => {
+    const button = el("button", "ex");
+    button.type = "button";
+    button.appendChild(el("b", null, example.text));
+    button.appendChild(el("span", null, example.shows));
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".ex").forEach(n => n.removeAttribute("aria-current"));
+      button.setAttribute("aria-current", "true");
+      ask(example.text);
+    });
+    box.appendChild(button);
+  });
+}
+
+document.getElementById("askform").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = document.getElementById("askbox").value.trim();
+  if (text) {
+    document.querySelectorAll(".ex").forEach(n => n.removeAttribute("aria-current"));
+    ask(text);
+  }
+});
+
+async function ask(text) {
+  stopPlay();
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  const panel = el("div", "panel");
+  panel.innerHTML = `<div class="loading"><span class="spin"></span>` +
+    `running <b>${esc(text)}</b> — up to ${SETTINGS.max_cycles} cycles ` +
+    `across ${SETTINGS.pool.workers} workers…</div>`;
+  stage.appendChild(panel);
+  try {
+    const response = await fetch("/api/run?q=" + encodeURIComponent(text));
+    const data = await response.json();
+    if (data.error) { panel.innerHTML = `<div class="empty">${esc(data.error)}</div>`; return; }
+    RUN = data; CYCLE = 0;
+    render();
+  } catch (bad) {
+    panel.innerHTML = `<div class="empty">${esc(bad)}</div>`;
+  }
+}
+
+function render() {
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  stage.appendChild(summaryPanel());
+  const thread = threadPanel();
+  if (thread) stage.appendChild(thread);
+  stage.appendChild(transport());
+  stage.appendChild(cyclePanel());
+}
+
+function summaryPanel() {
+  const panel = el("div", "panel");
+  panel.appendChild(el("p", "utterance", RUN.utterance));
+  panel.appendChild(el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
+                       RUN.summary.trust));
+
+  const lines = el("ul", "lines");
+  (RUN.summary.lines || []).forEach(line => lines.appendChild(el("li", null, line)));
+  if (lines.children.length) panel.appendChild(lines);
+
+  const bar = el("div", "runbar");
+  const add = (value, name) => {
+    const item = el("span");
+    item.appendChild(el("b", null, String(value)));
+    item.appendChild(document.createTextNode(" " + name));
+    bar.appendChild(item);
+  };
+  add(RUN.cycles.length, "cycles");
+  add(RUN.asked, "questions asked");
+  add(RUN.summary.depth || 0, "answers deep");
+  add(RUN.buffer.gaps.length, "gaps");
+  add(RUN.buffer.doubts.length, "doubts");
+  add(RUN.summary.conflicts.length, "conflicts");
+  add(RUN.elapsed + "s", "");
+  panel.appendChild(bar);
+  return panel;
+}
+
+function threadPanel() {
+  const thread = RUN.summary.thread || [];
+  if (thread.length < 2) return null;
+  const panel = el("div", "panel");
+  panel.appendChild(el("h2", "label",
+    `the serial part — ${thread.length} questions, each one only askable ` +
+    `once the one above it came back`));
+  const box = el("div", "thread");
+  thread.forEach(link => {
+    const row = el("div", "link");
+    const dot = el("div", "dot");
+    const mark = el("i", null, String(link.depth));
+    if (link.origin && link.origin !== "chain")
+      mark.style.background = `var(--${link.origin})`;
+    dot.appendChild(mark);
+    row.appendChild(dot);
+    const body = el("div");
+    const head = el("p");
+    head.appendChild(document.createTextNode(link.question + "  "));
+    head.appendChild(el("span", "v " + (VERDICT_CLASS[link.verdict] || "v-flat"),
+                        link.verdict));
+    body.appendChild(head);
+    if (link.why) body.appendChild(el("div", "why", link.why));
+    row.appendChild(body);
+    box.appendChild(row);
+  });
+  panel.appendChild(box);
+  panel.appendChild(el("div", "legend",
+    "nineteen workers do not shorten this: each question's terms are inside " +
+    "the previous answer"));
+  return panel;
+}
+
+function transport() {
+  const wrap = el("div", "ctl");
+  const back = el("button", null, "◀ Back");
+  const fwd = el("button", null, "Step ▶");
+  const play = el("button", null, PLAYING ? "Pause" : "Play");
+  back.disabled = CYCLE === 0;
+  fwd.disabled = CYCLE >= RUN.cycles.length - 1;
+  back.onclick = () => { stopPlay(); CYCLE--; render(); };
+  fwd.onclick = () => { stopPlay(); CYCLE++; render(); };
+  play.onclick = () => PLAYING ? stopPlay(true) : startPlay();
+  wrap.append(back, fwd, play);
+
+  const ticks = el("div", "ticks");
+  RUN.cycles.forEach((cycle, index) => {
+    const tick = el("button", "tick" + (index === CYCLE ? " on" : index < CYCLE ? " done" : ""));
+    tick.title = `cycle ${index}`;
+    tick.onclick = () => { stopPlay(); CYCLE = index; render(); };
+    ticks.appendChild(tick);
+  });
+  wrap.appendChild(ticks);
+  wrap.appendChild(el("span", null, `cycle ${CYCLE} of ${RUN.cycles.length - 1}`));
+  return wrap;
+}
+
+function startPlay() {
+  if (CYCLE >= RUN.cycles.length - 1) CYCLE = 0;
+  PLAYING = setInterval(() => {
+    if (CYCLE >= RUN.cycles.length - 1) { stopPlay(true); return; }
+    CYCLE++; render();
+  }, 1700);
+  render();
+}
+function stopPlay(redraw) {
+  if (PLAYING) { clearInterval(PLAYING); PLAYING = null; if (redraw) render(); }
+}
+
+function cyclePanel() {
+  const cycle = RUN.cycles[CYCLE];
+  const panel = el("div", "panel");
+  panel.appendChild(el("h2", "label",
+    `Cycle ${cycle.number} — ${cycle.answers.length} questions · ` +
+    `${cycle.workers_used.length} of ${SETTINGS.pool.workers} workers · ${cycle.elapsed}s`));
+
+  panel.appendChild(lanes(cycle));
+
+  const table = el("table");
+  table.innerHTML =
+    "<thead><tr><th style='width:88px'>from</th><th>question</th>" +
+    "<th style='width:118px'>rank</th><th style='width:112px'>verdict</th></tr></thead>";
+  const body = el("tbody");
+  const asked = new Map((cycle.questions || []).map(q => [q.text, q]));
+  cycle.answers.forEach(answer => {
+    const meta = asked.get(answer.question) || {};
+    const row = el("tr", "q");
+    row.onclick = () => openDrawer(answer, meta);
+
+    const from = el("td");
+    from.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
+    if (meta.depth) from.appendChild(el("div", "why", "depth " + meta.depth));
+    row.appendChild(from);
+
+    const what = el("td");
+    what.appendChild(el("div", "qtext", answer.question));
+    if (answer.why || meta.why) what.appendChild(el("div", "why", answer.why || meta.why));
+    row.appendChild(what);
+
+    const score = el("td");
+    if (meta.rank !== undefined) {
+      const bars = el("div", "bars");
+      [["salience", meta.salience], ["gain", Math.min(1, meta.gain || 0)],
+       ["urgency", meta.urgency]].forEach(([name, value]) => {
+        const bar = el("div", "bar");
+        bar.title = `${name} ${Number(value || 0).toFixed(3)}`;
+        const fill = el("i");
+        fill.style.width = Math.max(3, Math.min(100, (value || 0) * 100)) + "%";
+        bar.appendChild(fill);
+        bars.appendChild(bar);
+      });
+      score.appendChild(bars);
+      score.appendChild(el("div", "why", "rank " + Number(meta.rank).toFixed(4)));
+    } else {
+      score.appendChild(el("div", "why", "—"));
+    }
+    row.appendChild(score);
+
+    const verdict = el("td");
+    verdict.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
+                           answer.verdict || "—"));
+    verdict.appendChild(el("div", "why", answer.relation || ""));
+    row.appendChild(verdict);
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  panel.appendChild(table);
+
+  const opened = el("div", "opened");
+  (cycle.gaps_found || []).forEach(gap => {
+    const chip = el("div", "chip gap");
+    chip.innerHTML = `<b>gap · ${esc(gap.kind)}</b> ${esc(gap.blocker)}` +
+      (gap.blocking ? " · blocking" : "");
+    opened.appendChild(chip);
+  });
+  (cycle.doubts_found || []).forEach(doubt => {
+    const chip = el("div", "chip doubt");
+    chip.innerHTML = `<b>doubt · ${esc(doubt.reason)}</b> ${esc(doubt.predicate)}` +
+      (doubt.confidence ? ` · ${doubt.confidence.toFixed(2)}` : "");
+    opened.appendChild(chip);
+  });
+  if (opened.children.length) {
+    panel.appendChild(el("h2", "label", "opened this cycle → asked next"));
+    panel.appendChild(opened);
+  }
+
+  const live = (cycle.activation.live || []).slice(0, 8);
+  if (live.length) {
+    const att = el("div", "legend");
+    att.appendChild(el("span", null, "attention:"));
+    live.forEach(([word, value]) =>
+      att.appendChild(el("span", null, `${word} ${value.toFixed(2)}`)));
+    panel.appendChild(att);
+  }
+  return panel;
+}
+
+function lanes(cycle) {
+  const wrap = el("div");
+  const total = SETTINGS.pool.workers;
+  const starts = cycle.answers.map(a => a.started);
+  const base = starts.length ? Math.min.apply(null, starts) : 0;
+  const span = Math.max.apply(null,
+    cycle.answers.map(a => a.started - base + a.elapsed).concat([0.001]));
+  const box = el("div", "lanes");
+  for (let worker = 0; worker < total; worker++) {
+    const lane = el("div", "lane");
+    lane.appendChild(el("b", null, "w" + worker));
+    const track = el("div", "track");
+    const mine = cycle.answers.filter(a => a.worker === worker);
+    if (!mine.length) track.appendChild(el("div", "idle", "idle"));
+    mine.forEach(answer => {
+      const slot = el("div", "slot s-" + answer.origin);
+      slot.style.left = ((answer.started - base) / span * 100) + "%";
+      slot.style.width = Math.max(1.5, answer.elapsed / span * 100) + "%";
+      slot.title = `${answer.question} — ${answer.elapsed}s`;
+      slot.textContent = answer.elapsed >= span * 0.17 ? answer.question : "";
+      track.appendChild(slot);
+    });
+    lane.appendChild(track);
+    box.appendChild(lane);
+  }
+  wrap.appendChild(box);
+  const legend = el("div", "legend");
+  ORIGINS.forEach(kind => {
+    const item = el("span");
+    item.innerHTML = `<b class="o-${kind}" style="font-style:normal">■</b> ${kind}`;
+    legend.appendChild(item);
+  });
+  legend.appendChild(el("span", null,
+    `slowest ${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
+  wrap.appendChild(legend);
+  return wrap;
+}
+
+function openDrawer(answer, meta) {
+  const body = document.getElementById("drawerbody");
+  body.innerHTML = "";
+  body.appendChild(el("h3", null, answer.question));
+  const badge = el("div");
+  badge.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
+  badge.appendChild(document.createTextNode(" "));
+  badge.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
+                       answer.verdict || "—"));
+  body.appendChild(badge);
+
+  if (answer.why) body.appendChild(el("div", "note", answer.why));
+
+  const kv = el("dl", "kv");
+  const add = (key, value) => {
+    if (value === undefined || value === null || value === "") return;
+    kv.appendChild(el("dt", null, key));
+    kv.appendChild(el("dd", null, String(value)));
+  };
+  add("rule", answer.relation);
+  add("concept", answer.concept);
+  add("worker", "w" + answer.worker + " · " + answer.elapsed + "s");
+  add("cycle", answer.cycle);
+  if (meta.depth) add("depth", meta.depth + " answers in");
+  if (answer.parent) add("because of", answer.parent);
+  if (meta.rank !== undefined) {
+    add("salience", Number(meta.salience).toFixed(3));
+    add("gain", Number(meta.gain).toFixed(3) + " bits");
+    add("urgency", Number(meta.urgency).toFixed(2));
+    add("rank", Number(meta.rank).toFixed(4));
+  }
+  body.appendChild(kv);
+
+  if (answer.note) {
+    body.appendChild(el("h2", "label", "what v687 said"));
+    body.appendChild(el("div", "note", answer.note));
+  }
+
+  const steps = answer.steps || [];
+  body.appendChild(el("h2", "label", `derivation — ${steps.length} step(s)`));
+  if (!steps.length) body.appendChild(el("div", "empty", "no derivation recorded"));
+  steps.forEach(step => {
+    const node = el("div", "step");
+    node.appendChild(el("b", null, [step.rule, step.kind, step.term]
+      .filter(Boolean).join(" · ")));
+    if (step.detail) node.appendChild(el("div", null, step.detail));
+    body.appendChild(node);
+  });
+
+  const evidence = answer.evidence || [];
+  if (evidence.length) {
+    body.appendChild(el("h2", "label", "evidence"));
+    const pre = el("pre", "ev");
+    pre.textContent = evidence.slice(0, 6).map(row =>
+      `${row.concept}  ${row.relation}  ${row.object}\n` +
+      `    source=${row.source}  confidence=${row.confidence}` +
+      `  distance=${row.distance}` +
+      (row.sense_assumed ? "  sense_assumed" : "")).join("\n");
+    body.appendChild(pre);
+  }
+  document.getElementById("drawer").classList.add("open");
+}
+
+document.getElementById("closedrawer").onclick = () =>
+  document.getElementById("drawer").classList.remove("open");
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") document.getElementById("drawer").classList.remove("open");
+  if (!RUN) return;
+  if (event.key === "ArrowRight" && CYCLE < RUN.cycles.length - 1) { stopPlay(); CYCLE++; render(); }
+  if (event.key === "ArrowLeft" && CYCLE > 0) { stopPlay(); CYCLE--; render(); }
+});
+
+boot();
+</script>
+</body>
+</html>
