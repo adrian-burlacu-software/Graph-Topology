@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V688 — the loop around v687</title>
+<style>
+  :root {
+    --ink: #16181d; --dim: #5c6472; --faint: #8b93a1;
+    --rule: #e2e5ea; --ground: #f7f8fa; --panel: #ffffff;
+    --seed: #2f6fbf; --gap: #b4531a; --doubt: #8b3fb0; --curiosity: #2e7d5b;
+    --yes: #1f7a4d; --no: #b3261e; --absent: #7a6a2f; --content: #3a5a94;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--rule);
+    padding: 14px 20px; display: flex; align-items: baseline; gap: 18px;
+    flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  header .sub { color: var(--dim); font-size: 12.5px; }
+  header .stats { margin-left: auto; color: var(--faint); font-size: 12px; font-family: var(--mono); }
+  main { display: grid; grid-template-columns: 310px minmax(0,1fr); gap: 0; align-items: start; }
+  aside {
+    border-right: 1px solid var(--rule); background: var(--panel);
+    min-height: calc(100vh - 56px); padding: 16px 14px 40px;
+    position: sticky; top: 56px; max-height: calc(100vh - 56px); overflow-y: auto;
+  }
+  aside h2, section h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--faint); margin: 0 0 10px; font-weight: 650;
+  }
+  .ex { display: block; width: 100%; text-align: left; background: transparent;
+        border: 1px solid transparent; border-radius: 7px; padding: 8px 9px;
+        margin-bottom: 3px; cursor: pointer; font: inherit; color: inherit; }
+  .ex:hover { background: var(--ground); }
+  .ex[aria-current="true"] { background: #eef4fc; border-color: #cbdcf3; }
+  .ex b { display: block; font-weight: 550; font-size: 13.5px; }
+  .ex span { display: block; color: var(--dim); font-size: 11.5px; line-height: 1.45; margin-top: 3px; }
+  form.ask { display: flex; gap: 6px; margin: 4px 0 18px; }
+  form.ask input {
+    flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--rule);
+    border-radius: 6px; font: inherit; background: var(--ground);
+  }
+  form.ask button, .ctl button {
+    border: 1px solid var(--rule); background: var(--panel); border-radius: 6px;
+    padding: 7px 11px; font: inherit; cursor: pointer; color: var(--ink);
+  }
+  form.ask button:hover, .ctl button:hover:not(:disabled) { background: var(--ground); }
+  .ctl button:disabled { opacity: .38; cursor: default; }
+  section.stage { padding: 20px 24px 80px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+           padding: 16px 18px; margin-bottom: 16px; }
+  .utterance { font-size: 21px; font-weight: 600; letter-spacing: -.015em; margin: 0 0 10px; }
+  .trust { display: inline-block; font-family: var(--mono); font-size: 11.5px;
+           padding: 3px 9px; border-radius: 999px; border: 1px solid; }
+  .trust.bad { color: var(--no); border-color: #f0c6c3; background: #fdf3f2; }
+  .trust.weak { color: var(--absent); border-color: #e8ddb5; background: #fbf8ec; }
+  .trust.good { color: var(--yes); border-color: #bfe0cd; background: #f1faf5; }
+  .trust.flat { color: var(--dim); border-color: var(--rule); background: var(--ground); }
+  ul.lines { margin: 12px 0 0; padding-left: 18px; }
+  ul.lines li { margin-bottom: 5px; }
+  .runbar { display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+            color: var(--faint); font-size: 12px; font-family: var(--mono); margin-top: 10px; }
+  .ctl { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .ticks { display: flex; gap: 4px; margin-left: 6px; }
+  .tick { width: 30px; height: 6px; border-radius: 3px; background: var(--rule); cursor: pointer; border: 0; padding: 0; }
+  .tick.on { background: var(--seed); }
+  .tick.done { background: #b9c6d8; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+       color: var(--faint); font-weight: 650; padding: 0 8px 7px; border-bottom: 1px solid var(--rule); }
+  td { padding: 7px 8px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+  tr.q { cursor: pointer; }
+  tr.q:hover td { background: #fafbfd; }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 10px;
+           padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+           letter-spacing: .04em; border: 1px solid currentColor; white-space: nowrap; }
+  .o-seed { color: var(--seed); } .o-gap { color: var(--gap); }
+  .o-doubt { color: var(--doubt); } .o-curiosity { color: var(--curiosity); }
+  .v { font-family: var(--mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .v-yes { color: var(--yes); } .v-no { color: var(--no); }
+  .v-absent { color: var(--absent); } .v-content { color: var(--content); }
+  .v-flat { color: var(--faint); }
+  .qtext { font-size: 13.5px; }
+  .why { color: var(--dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+  .bars { display: flex; gap: 3px; align-items: center; }
+  .bar { width: 26px; height: 5px; background: #eceff3; border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--seed); }
+  .lanes { display: grid; gap: 2px; margin-top: 4px; }
+  .lane { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; }
+  .lane b { font-family: var(--mono); font-size: 10px; color: var(--faint); font-weight: 500; }
+  .track { position: relative; height: 13px; background: #f2f4f7; border-radius: 3px; }
+  .slot { position: absolute; top: 0; height: 13px; border-radius: 3px; min-width: 3px;
+          font-family: var(--mono); font-size: 9px; color: #fff; overflow: hidden;
+          white-space: nowrap; padding: 0 4px; line-height: 13px; }
+  .s-seed { background: var(--seed); } .s-gap { background: var(--gap); }
+  .s-doubt { background: var(--doubt); } .s-curiosity { background: var(--curiosity); }
+  .idle { color: var(--faint); font-size: 11px; padding-left: 4px; line-height: 13px; }
+  .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 11.5px; border: 1px solid var(--rule); border-radius: 6px;
+          padding: 4px 8px; background: var(--ground); }
+  .chip b { font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+  .chip.gap b { color: var(--gap); } .chip.doubt b { color: var(--doubt); }
+  .drawer {
+    position: fixed; top: 0; right: 0; width: min(560px, 94vw); height: 100vh;
+    background: var(--panel); border-left: 1px solid var(--rule);
+    box-shadow: -18px 0 44px rgba(20,25,35,.12); padding: 18px 22px 60px;
+    overflow-y: auto; z-index: 40; transform: translateX(100%);
+    transition: transform .16s ease;
+  }
+  .drawer.open { transform: none; }
+  .drawer h3 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
+  .drawer .close { position: absolute; top: 14px; right: 16px; border: 0;
+                   background: transparent; font-size: 20px; cursor: pointer; color: var(--faint); }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px;
+        font-size: 12.5px; margin: 12px 0; }
+  .kv dt { color: var(--faint); font-family: var(--mono); font-size: 10.5px;
+           text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+  .kv dd { margin: 0; }
+  .step { border-left: 2px solid var(--rule); padding: 4px 0 8px 12px; margin-left: 4px; }
+  .step b { font-family: var(--mono); font-size: 10.5px; color: var(--seed); }
+  .step div { font-size: 12.5px; color: var(--dim); }
+  pre.ev { background: var(--ground); border: 1px solid var(--rule); border-radius: 7px;
+           padding: 10px 12px; font-family: var(--mono); font-size: 11px;
+           overflow-x: auto; margin: 6px 0 0; }
+  .note { font-size: 12.5px; color: var(--dim); background: var(--ground);
+          border-radius: 7px; padding: 9px 11px; margin-top: 8px; }
+  .empty { color: var(--faint); font-size: 13px; padding: 8px 0; }
+  .loading { color: var(--dim); font-size: 13px; }
+  .spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--rule);
+          border-top-color: var(--seed); border-radius: 50%; animation: sp .7s linear infinite;
+          vertical-align: -1px; margin-right: 7px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 12px; }
+  .legend span b { font-family: var(--mono); font-size: 10px; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    aside { position: static; max-height: none; min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>V688 — the loop around v687</h1>
+  <div class="sub">one utterance, resolved over several internal cycles</div>
+  <div class="stats" id="stats">…</div>
+</header>
+
+<main>
+  <aside>
+    <h2>Ask</h2>
+    <form class="ask" id="askform">
+      <input id="askbox" placeholder="a statement or a question" autocomplete="off">
+      <button type="submit">Run</button>
+    </form>
+    <h2>Examples</h2>
+    <div id="examples"></div>
+    <h2 style="margin-top:22px">How a question is chosen</h2>
+    <div style="font-size:12px;color:var(--dim);line-height:1.5">
+      Rank is <b>salience × gain × urgency</b>, as a product so a zero anywhere
+      is fatal. <b>Salience</b> is activation in the buffer, decaying each
+      cycle. <b>Gain</b> is bits of the candidate set a question removes,
+      computed on the same predicate trie the reasoner stores with.
+      <b>Urgency</b> comes from what kind of hole is being filled.
+      <div id="knobs" style="margin-top:9px;font-family:var(--mono);font-size:10.5px;color:var(--faint)"></div>
+    </div>
+  </aside>
+
+  <section class="stage" id="stage">
+    <div class="panel"><div class="empty">Pick an example, or ask something.</div></div>
+  </section>
+</main>
+
+<div class="drawer" id="drawer">
+  <button class="close" id="closedrawer" aria-label="close">×</button>
+  <div id="drawerbody"></div>
+</div>
+
+<script>
+"use strict";
+
+const VERDICT_CLASS = {
+  VERIFIED: "v-yes", HELD: "v-yes", INHERITED: "v-yes",
+  CONTRADICTED: "v-no", DENIED: "v-no",
+  UNKNOWN: "v-absent", UNRECORDED: "v-absent", NO_MATCH: "v-absent",
+  UNKNOWN_WORD: "v-no", UNPARSED: "v-no", UNSUPPORTED: "v-no",
+  LISTING: "v-content", DEFINED: "v-content", PROFILE: "v-content",
+  IDENTIFIED: "v-content", AMBIGUOUS: "v-absent", MIXED: "v-absent"
+};
+const TRUST_CLASS = {
+  "contradicted by its own family": "bad",
+  "unreadable": "bad",
+  "weakly held": "weak",
+  "absent, not false": "weak",
+  "corroborated": "good",
+  "denied, unchallenged": "flat",
+  "content, not a verdict": "flat"
+};
+
+let SETTINGS = null, RUN = null, CYCLE = 0, PLAYING = null;
+
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const esc = (s) => String(s == null ? "" : s);
+
+async function boot() {
+  SETTINGS = await (await fetch("/api/settings")).json();
+  const p = SETTINGS.pool;
+  document.getElementById("stats").textContent =
+    `${p.workers}/${p.requested} workers · built in ${p.build_seconds}s · ` +
+    `trie ${SETTINGS.trie.individuals} individuals / ${SETTINGS.trie.predicates} predicates · ` +
+    `${p.store}`;
+  document.getElementById("knobs").textContent =
+    `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
+    `weak-confidence ${SETTINGS.weak_confidence} · max ${SETTINGS.max_cycles} cycles`;
+
+  const box = document.getElementById("examples");
+  SETTINGS.examples.forEach((example) => {
+    const button = el("button", "ex");
+    button.type = "button";
+    button.appendChild(el("b", null, example.text));
+    button.appendChild(el("span", null, example.shows));
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".ex").forEach(n => n.removeAttribute("aria-current"));
+      button.setAttribute("aria-current", "true");
+      ask(example.text);
+    });
+    box.appendChild(button);
+  });
+}
+
+document.getElementById("askform").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = document.getElementById("askbox").value.trim();
+  if (text) {
+    document.querySelectorAll(".ex").forEach(n => n.removeAttribute("aria-current"));
+    ask(text);
+  }
+});
+
+async function ask(text) {
+  stopPlay();
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  const panel = el("div", "panel");
+  panel.innerHTML = `<div class="loading"><span class="spin"></span>` +
+    `running <b>${esc(text)}</b> — up to ${SETTINGS.max_cycles} cycles ` +
+    `across ${SETTINGS.pool.workers} workers…</div>`;
+  stage.appendChild(panel);
+  try {
+    const response = await fetch("/api/run?q=" + encodeURIComponent(text));
+    const data = await response.json();
+    if (data.error) { panel.innerHTML = `<div class="empty">${esc(data.error)}</div>`; return; }
+    RUN = data; CYCLE = 0;
+    render();
+  } catch (bad) {
+    panel.innerHTML = `<div class="empty">${esc(bad)}</div>`;
+  }
+}
+
+function render() {
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  stage.appendChild(summaryPanel());
+  stage.appendChild(transport());
+  stage.appendChild(cyclePanel());
+}
+
+function summaryPanel() {
+  const panel = el("div", "panel");
+  panel.appendChild(el("p", "utterance", RUN.utterance));
+  const trust = el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
+                   RUN.summary.trust);
+  panel.appendChild(trust);
+
+  const lines = el("ul", "lines");
+  (RUN.summary.lines || []).forEach(line => lines.appendChild(el("li", null, line)));
+  if (lines.children.length) panel.appendChild(lines);
+
+  const bar = el("div", "runbar");
+  bar.appendChild(el("span", null, `${RUN.cycles.length} cycles`));
+  bar.appendChild(el("span", null, `${RUN.asked} questions asked`));
+  bar.appendChild(el("span", null, `${RUN.buffer.gaps.length} gaps seen`));
+  bar.appendChild(el("span", null, `${RUN.buffer.doubts.length} doubts raised`));
+  bar.appendChild(el("span", null, `${RUN.summary.conflicts.length} conflicts`));
+  bar.appendChild(el("span", null, `${RUN.elapsed}s`));
+  panel.appendChild(bar);
+  return panel;
+}
+
+function transport() {
+  const wrap = el("div", "ctl");
+  const back = el("button", null, "◀ Back");
+  const fwd = el("button", null, "Step ▶");
+  const play = el("button", null, PLAYING ? "Pause" : "Play");
+  back.disabled = CYCLE === 0;
+  fwd.disabled = CYCLE >= RUN.cycles.length - 1;
+  back.onclick = () => { stopPlay(); CYCLE--; render(); };
+  fwd.onclick = () => { stopPlay(); CYCLE++; render(); };
+  play.onclick = () => PLAYING ? stopPlay(true) : startPlay();
+  wrap.append(back, fwd, play);
+
+  const ticks = el("div", "ticks");
+  RUN.cycles.forEach((cycle, index) => {
+    const tick = el("button", "tick" + (index === CYCLE ? " on" : index < CYCLE ? " done" : ""));
+    tick.title = `cycle ${index}`;
+    tick.onclick = () => { stopPlay(); CYCLE = index; render(); };
+    ticks.appendChild(tick);
+  });
+  wrap.appendChild(ticks);
+  wrap.appendChild(el("span", null, `cycle ${CYCLE} of ${RUN.cycles.length - 1}`));
+  return wrap;
+}
+
+function startPlay() {
+  if (CYCLE >= RUN.cycles.length - 1) CYCLE = 0;
+  PLAYING = setInterval(() => {
+    if (CYCLE >= RUN.cycles.length - 1) { stopPlay(true); return; }
+    CYCLE++; render();
+  }, 1600);
+  render();
+}
+function stopPlay(redraw) {
+  if (PLAYING) { clearInterval(PLAYING); PLAYING = null; if (redraw) render(); }
+}
+
+function cyclePanel() {
+  const cycle = RUN.cycles[CYCLE];
+  const panel = el("div", "panel");
+
+  panel.appendChild(el("h2", null,
+    `Cycle ${cycle.number} — ${cycle.answers.length} questions, ` +
+    `${cycle.workers_used.length} workers, ${cycle.elapsed}s`));
+
+  panel.appendChild(lanes(cycle));
+
+  const table = el("table");
+  table.innerHTML =
+    "<thead><tr><th>from</th><th>question</th><th style='width:120px'>rank</th>" +
+    "<th style='width:110px'>verdict</th></tr></thead>";
+  const body = el("tbody");
+  const asked = new Map((cycle.questions || []).map(q => [q.text, q]));
+  cycle.answers.forEach(answer => {
+    const meta = asked.get(answer.question) || {};
+    const row = el("tr", "q");
+    row.onclick = () => openDrawer(answer, meta);
+
+    const from = el("td");
+    from.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
+    row.appendChild(from);
+
+    const what = el("td");
+    what.appendChild(el("div", "qtext", answer.question));
+    if (answer.why || meta.why) what.appendChild(el("div", "why", answer.why || meta.why));
+    row.appendChild(what);
+
+    const score = el("td");
+    if (meta.rank !== undefined) {
+      const bars = el("div", "bars");
+      [["salience", meta.salience], ["gain", Math.min(1, (meta.gain || 0))],
+       ["urgency", meta.urgency]].forEach(([name, value]) => {
+        const bar = el("div", "bar");
+        bar.title = `${name} ${Number(value || 0).toFixed(2)}`;
+        const fill = el("i");
+        fill.style.width = Math.max(2, Math.min(100, (value || 0) * 100)) + "%";
+        bar.appendChild(fill);
+        bars.appendChild(bar);
+      });
+      bars.appendChild(el("span", null, ""));
+      score.appendChild(bars);
+      score.appendChild(el("div", "why", "rank " + Number(meta.rank).toFixed(3)));
+    } else {
+      score.appendChild(el("div", "why", "—"));
+    }
+    row.appendChild(score);
+
+    const verdict = el("td");
+    verdict.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
+                           answer.verdict || "—"));
+    verdict.appendChild(el("div", "why", answer.relation || ""));
+    row.appendChild(verdict);
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  panel.appendChild(table);
+
+  const opened = el("div", "opened");
+  (cycle.gaps_found || []).forEach(gap => {
+    const chip = el("div", "chip gap");
+    chip.innerHTML = `<b>gap · ${esc(gap.kind)}</b> ${esc(gap.blocker)}` +
+      (gap.blocking ? " · blocking" : "");
+    opened.appendChild(chip);
+  });
+  (cycle.doubts_found || []).forEach(doubt => {
+    const chip = el("div", "chip doubt");
+    chip.innerHTML = `<b>doubt · ${esc(doubt.reason)}</b> ${esc(doubt.predicate)}` +
+      (doubt.confidence ? ` · ${doubt.confidence.toFixed(2)}` : "");
+    opened.appendChild(chip);
+  });
+  if (opened.children.length) {
+    panel.appendChild(el("h2", null, "opened this cycle → asked next"));
+    panel.appendChild(opened);
+  }
+
+  const live = (RUN.cycles[CYCLE].activation.live || []).slice(0, 8);
+  if (live.length) {
+    const att = el("div", "legend");
+    att.appendChild(el("span", null, "attention:"));
+    live.forEach(([word, value]) =>
+      att.appendChild(el("span", null, `${word} ${value.toFixed(2)}`)));
+    panel.appendChild(att);
+  }
+  return panel;
+}
+
+function lanes(cycle) {
+  const wrap = el("div");
+  const total = SETTINGS.pool.workers;
+  const starts = cycle.answers.map(a => a.started);
+  const base = Math.min.apply(null, starts.length ? starts : [0]);
+  const span = Math.max.apply(null,
+    cycle.answers.map(a => a.started - base + a.elapsed).concat([0.001]));
+  const box = el("div", "lanes");
+  for (let worker = 0; worker < total; worker++) {
+    const lane = el("div", "lane");
+    lane.appendChild(el("b", null, "w" + worker));
+    const track = el("div", "track");
+    const mine = cycle.answers.filter(a => a.worker === worker);
+    if (!mine.length) {
+      const idle = el("div", "idle", "idle");
+      idle.style.position = "absolute";
+      track.appendChild(idle);
+    }
+    mine.forEach(answer => {
+      const slot = el("div", "slot s-" + answer.origin);
+      slot.style.left = ((answer.started - base) / span * 100) + "%";
+      slot.style.width = Math.max(1.5, answer.elapsed / span * 100) + "%";
+      slot.title = `${answer.question} — ${answer.elapsed}s`;
+      slot.textContent = answer.elapsed >= span * 0.16 ? answer.question : "";
+      track.appendChild(slot);
+    });
+    lane.appendChild(track);
+    box.appendChild(lane);
+  }
+  wrap.appendChild(box);
+  const legend = el("div", "legend");
+  ["seed", "gap", "doubt", "curiosity"].forEach(kind => {
+    const item = el("span");
+    item.innerHTML = `<b class="o-${kind}">■</b> ${kind}`;
+    legend.appendChild(item);
+  });
+  legend.appendChild(el("span", null,
+    `${cycle.answers.length} of ${total} workers busy · slowest ` +
+    `${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
+  wrap.appendChild(legend);
+  return wrap;
+}
+
+function openDrawer(answer, meta) {
+  const body = document.getElementById("drawerbody");
+  body.innerHTML = "";
+  body.appendChild(el("h3", null, answer.question));
+  const badge = el("div");
+  badge.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
+  badge.appendChild(document.createTextNode(" "));
+  badge.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
+                       answer.verdict || "—"));
+  body.appendChild(badge);
+
+  if (answer.why) body.appendChild(el("div", "note", answer.why));
+
+  const kv = el("dl", "kv");
+  const add = (key, value) => {
+    if (value === undefined || value === null || value === "") return;
+    kv.appendChild(el("dt", null, key));
+    kv.appendChild(el("dd", null, String(value)));
+  };
+  add("rule", answer.relation);
+  add("concept", answer.concept);
+  add("worker", "w" + answer.worker + " · " + answer.elapsed + "s");
+  add("cycle", answer.cycle);
+  if (answer.parent) add("because of", answer.parent);
+  if (meta.rank !== undefined) {
+    add("salience", Number(meta.salience).toFixed(3));
+    add("gain", Number(meta.gain).toFixed(3) + " bits");
+    add("urgency", Number(meta.urgency).toFixed(2));
+    add("rank", Number(meta.rank).toFixed(4));
+  }
+  body.appendChild(kv);
+
+  if (answer.note) {
+    body.appendChild(el("h2", null, "what v687 said"));
+    body.appendChild(el("div", "note", answer.note));
+  }
+
+  const steps = answer.steps || [];
+  body.appendChild(el("h2", null, `derivation — ${steps.length} step(s)`));
+  if (!steps.length) body.appendChild(el("div", "empty", "no derivation recorded"));
+  steps.forEach(step => {
+    const node = el("div", "step");
+    node.appendChild(el("b", null, [step.rule, step.kind, step.term]
+      .filter(Boolean).join(" · ")));
+    if (step.detail) node.appendChild(el("div", null, step.detail));
+    body.appendChild(node);
+  });
+
+  const evidence = answer.evidence || [];
+  if (evidence.length) {
+    body.appendChild(el("h2", null, "evidence"));
+    const pre = el("pre", "ev");
+    pre.textContent = evidence.slice(0, 6).map(row =>
+      `${row.concept}  ${row.relation}  ${row.object}\n` +
+      `    source=${row.source}  confidence=${row.confidence}` +
+      `  distance=${row.distance}` +
+      (row.sense_assumed ? "  sense_assumed" : "")).join("\n");
+    body.appendChild(pre);
+  }
+  document.getElementById("drawer").classList.add("open");
+}
+
+document.getElementById("closedrawer").onclick = () =>
+  document.getElementById("drawer").classList.remove("open");
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") document.getElementById("drawer").classList.remove("open");
+  if (!RUN) return;
+  if (event.key === "ArrowRight" && CYCLE < RUN.cycles.length - 1) { stopPlay(); CYCLE++; render(); }
+  if (event.key === "ArrowLeft" && CYCLE > 0) { stopPlay(); CYCLE--; render(); }
+});
+
+boot();
+</script>
+</body>
+</html>

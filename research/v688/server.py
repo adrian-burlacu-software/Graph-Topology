@@ -1,0 +1,224 @@
+"""The v688 page: one utterance, played cycle by cycle.
+
+Run:  python -m research.v688 --workers 19 --port 8688
+
+The whole run is computed server-side and handed to the page in one JSON
+document, so stepping through cycles, opening a question and reading its v687
+derivation are all local. A run is therefore replayable without asking
+anything twice, which is the only way a page about a loop is legible.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import threading
+import time
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+from research.v687 import build
+
+from .attention import Curiosity, DECAY, FLOOR, URGENCY, WEIGHTS
+from .gap import WEAK_CONFIDENCE
+from .loop import Loop
+from .pool import DEFAULT_WORKERS, EnginePool
+
+HERE = Path(__file__).parent
+
+#: The examples the page ships with. Chosen by running forty candidates and
+#: keeping the ones that make the machinery visible: each note says which part
+#: it is there to show, and no two show the same part.
+EXAMPLES = [
+    {"text": "does a beagle swim",
+     "shows": "A yes that does not survive its own family. One Ascent++ fact "
+              "at confidence 0.42, inherited three levels; every kind of dog "
+              "the norms cover denies it.",
+     "expect": "contradicted by its own family"},
+    {"text": "is a shark a fish",
+     "shows": "The richest run here: four cycles, a conflict found in "
+              "passing, and a word the ontology turns out not to have.",
+     "expect": "contradicted by its own family"},
+    {"text": "does a cat purr",
+     "shows": "The seed answer holds. Something the loop asked on the way to "
+              "checking it does not — a conflict nobody went looking for.",
+     "expect": "contradicted by its own family"},
+    {"text": "is a dog wild",
+     "shows": "Crawl noise at 0.54 answering yes. Nothing contradicts it, so "
+              "the loop reports a weak hold rather than an objection.",
+     "expect": "weakly held"},
+    {"text": "is hello a greeting",
+     "shows": "The question this line of work started from. v687 says "
+              "VERIFIED; the loop says on what, and how far to take it.",
+     "expect": "weakly held"},
+    {"text": "is a wemble a greeting",
+     "shows": "A word gap. Two asks and it stops: nothing downstream of an "
+              "unknown word means anything, and no third attempt is invented.",
+     "expect": "unreadable"},
+    {"text": "a whale is a fish",
+     "shows": "A false statement, put back as a question. Absent is not "
+              "false, and the loop chases the coverage gaps underneath.",
+     "expect": "absent, not false"},
+    {"text": "a dolphin is a fish",
+     "shows": "The same mistake about a different animal, and a different "
+              "route through the store.",
+     "expect": "weakly held"},
+    {"text": "a beagle is a dog that hunts rabbits",
+     "shows": "A statement with two clauses, checked as two claims. Checking "
+              "it as one would check neither.",
+     "expect": "weakly held"},
+    {"text": "can a dog fall into a hole",
+     "shows": "The question that broke v687's page sweep. Twenty doubts: "
+              "almost nothing about the answer is stated of dogs themselves.",
+     "expect": "weakly held"},
+    {"text": "is a penguin a typical bird",
+     "shows": "Typicality, where the interesting part is what curiosity asks "
+              "about penguins while the seed question goes unanswered.",
+     "expect": "absent, not false"},
+    {"text": "what is the difference between a dog and a wolf",
+     "shows": "Contrast (R21). Two live topics, and attention splitting "
+              "between them across cycles.",
+     "expect": "content, not a verdict"},
+    {"text": "why does a dog bark",
+     "shows": "A causal question (R23) — a different rule of v687 entirely, "
+              "read by the same gap vocabulary.",
+     "expect": "content, not a verdict"},
+    {"text": "is a violin made of wood",
+     "shows": "An artifact rather than an animal, so curiosity draws on the "
+              "XCSLB half of the trie instead of the AwA2 half.",
+     "expect": "denied, unchallenged"},
+    {"text": "is a mouse an animal",
+     "shows": "A sense hazard: `mouse` resolves to the device, and the "
+              "answer is correct about the wrong thing.",
+     "expect": "denied, unchallenged"},
+    {"text": "does a robin fly",
+     "shows": "The control. Well recorded, well corroborated, no doubt "
+              "raised — so the loop settles quickly and says so.",
+     "expect": "corroborated"},
+]
+
+
+class Service:
+    """The pool, the trie index and the loop, built once and shared."""
+
+    def __init__(self, store: Path, workers: int, max_cycles: int) -> None:
+        self.ready = False
+        self.progress = (0, workers)
+        self.store = store
+        self.max_cycles = max_cycles
+
+        def note(done: int, total: int) -> None:
+            self.progress = (done, total)
+
+        started = time.time()
+        self.pool = EnginePool(store, workers=workers, on_ready=note)
+        self.curiosity = Curiosity(self.pool.engines[0].profiles.plan)
+        self.loop = Loop(self.pool, self.curiosity, max_cycles=max_cycles)
+        self.startup = time.time() - started
+        self.ready = True
+        self._lock = threading.Lock()
+        self._cache: dict[str, dict] = {}
+
+    def run(self, utterance: str) -> dict:
+        key = utterance.strip().lower()
+        with self._lock:
+            if key in self._cache:
+                return self._cache[key]
+        answer = self.loop.run(utterance).as_dict()
+        with self._lock:
+            self._cache[key] = answer
+        return answer
+
+    def settings(self) -> dict:
+        return {
+            "pool": self.pool.as_dict(),
+            "startup_seconds": round(self.startup, 1),
+            "max_cycles": self.max_cycles,
+            "trie": {"individuals": len(self.curiosity.universe),
+                     "predicates": len(self.curiosity.holders)},
+            "weights": WEIGHTS, "urgency": URGENCY,
+            "decay": DECAY, "floor": FLOOR,
+            "weak_confidence": WEAK_CONFIDENCE,
+            "examples": EXAMPLES,
+        }
+
+
+class Handler(BaseHTTPRequestHandler):
+    service: Service = None            # type: ignore[assignment]
+
+    def log_message(self, *_args) -> None:      # quiet
+        pass
+
+    def _send(self, body: bytes, kind: str, code: int = 200) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, payload: dict, code: int = 200) -> None:
+        self._send(json.dumps(payload).encode("utf-8"),
+                   "application/json; charset=utf-8", code)
+
+    def do_GET(self) -> None:                   # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path in ("/", "/index.html"):
+            page = (HERE / "app.html").read_text(encoding="utf-8")
+            self._send(page.encode("utf-8"), "text/html; charset=utf-8")
+        elif parsed.path == "/api/settings":
+            self._json(self.service.settings())
+        elif parsed.path == "/api/run":
+            utterance = (query.get("q") or [""])[0].strip()
+            if not utterance:
+                self._json({"error": "no utterance"}, 400)
+                return
+            if len(utterance) > 200:
+                self._json({"error": "too long"}, 400)
+                return
+            try:
+                self._json(self.service.run(utterance))
+            except Exception as bad:            # noqa: BLE001
+                self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
+        else:
+            self._json({"error": "not found"}, 404)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=8688)
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                        help="engines in the pool; each costs about 264 MB "
+                             "and 3.4s to build after the first")
+    parser.add_argument("--cycles", type=int, default=4,
+                        help="most internal cycles one utterance may run")
+    parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
+    parser.add_argument("--warm", action="store_true",
+                        help="run every example once at startup so the page "
+                             "answers instantly")
+    options = parser.parse_args()
+
+    print(f"building {options.workers} engines from {options.store.name} ...")
+    service = Service(options.store, options.workers, options.cycles)
+    print(f"  {service.pool.workers} engines up in "
+          f"{service.pool.build_seconds:.1f}s")
+    if options.warm:
+        for example in EXAMPLES:
+            clock = time.time()
+            service.run(example["text"])
+            print(f"  warmed {example['text']!r} in {time.time()-clock:.1f}s")
+
+    Handler.service = service
+    httpd = ThreadingHTTPServer(("127.0.0.1", options.port), Handler)
+    print(f"v688 loop on http://127.0.0.1:{options.port}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        service.pool.close()
+
+
+if __name__ == "__main__":
+    main()
