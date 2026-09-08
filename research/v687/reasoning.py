@@ -163,12 +163,19 @@ class ReasoningEngine(IdentifyingEngine):
         payload["pins_used"], payload["pins_unused"] = {}, {}
         if not pinned:
             return
+        # Both columns. R29 answers between two senses and the pinned one is
+        # the *object* of the row it stands on -- `car.n.01 part_of
+        # accelerator.n.01` -- so reading concepts alone reported the pin
+        # that had just decided the answer as unused.
         stood_on = {payload.get("concept") or ""}
         for fact in payload.get("evidence") or []:
-            stood_on.add(fact.get("concept") or "")
+            stood_on.update({fact.get("concept") or "",
+                             fact.get("object") or ""})
         for step in payload.get("steps") or []:
-            stood_on.add(step.get("concept") or "")
-            stood_on.add((step.get("matched") or {}).get("concept") or "")
+            matched = step.get("matched") or {}
+            stood_on.update({step.get("concept") or "",
+                             matched.get("concept") or "",
+                             matched.get("object") or ""})
         for word, sense in pinned.items():
             if sense in stood_on:
                 payload["pins_used"][word] = sense

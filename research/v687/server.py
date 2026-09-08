@@ -605,6 +605,18 @@ V687_RULES: dict[str, str] = {
            "`fly` was named by “attract butterfly”, `walk` by "
            "“block the sidewalk” and `run` by “get drunk”, "
            "so `can a tree fly` was VERIFIED on a butterfly.",
+    "R29": "Sense-to-sense lookup: where both ends of a question are synsets, "
+           "it is answered between them and no string is matched. Only "
+           "WordNet writes an object as a synset id -- has_part, part_of, "
+           "similar_to, entails and causes, 36,283 concepts -- and that is "
+           "the only place a pin on the object has anything to bind to. "
+           "`does a car have an accelerator` is UNKNOWN through the words, "
+           "because the accelerator is recorded only as a synset, and "
+           "VERIFIED through the graph. It is tried first and it is not "
+           "authoritative: the synset rows are patchy (they have a car's "
+           "wheel and a dog's tail, and not a fish's gills), so when the "
+           "graph is silent the words still answer and the note says which "
+           "of the two spoke.",
     "R26": "Definition: `what is a robin` is answered from the taxonomy "
            "itself -- which sense is meant, the gloss WordNet gives it, what "
            "it is a kind of, and what kinds it has. Before this it fell "

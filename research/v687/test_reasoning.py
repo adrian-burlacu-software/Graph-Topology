@@ -1514,5 +1514,94 @@ class PinnedSenseIsHonouredTests(unittest.TestCase):
         self.assertNotIn("did not use the reading", answer["note"])
 
 
+class SenseToSenseTests(unittest.TestCase):
+    """R29. A pin on the object only means something where there is a sense
+    to bind it to, and in this store that is WordNet's synset-to-synset rows.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_the_direction_is_the_stores_and_not_the_columns_name(self):
+        """`(car.n.01, part_of, accelerator.n.01)` is in the store and an
+        accelerator is a part of a car, not the reverse. Both spellings are
+        held and both read the same way round, so a "does X have Y" question
+        looks in `part_of`. Asserted on four unambiguous pairs, because
+        reading it off the column name gets it backwards."""
+        rows = self.engine.reasoner.connection.execute(
+            "SELECT concept, object FROM facts WHERE relation = 'part_of' "
+            "AND source = 'wordnet' AND concept IN "
+            "('car.n.01', 'hand.n.01', 'bird.n.01', 'tree.n.01')").fetchall()
+        held = {(row["concept"], row["object"]) for row in rows}
+        for whole, part in (("car.n.01", "accelerator.n.01"),
+                            ("hand.n.01", "finger.n.01"),
+                            ("bird.n.01", "beak.n.02"),
+                            ("tree.n.01", "limb.n.02")):
+            with self.subTest(whole=whole):
+                self.assertIn((whole, part), held)
+
+    def test_a_pinned_object_is_answered_between_senses(self):
+        """`does a car have an accelerator` is UNKNOWN through the words --
+        the accelerator is recorded only as a synset -- and VERIFIED through
+        the graph. This is the pin changing an answer, which on a free-text
+        relation it cannot do."""
+        self.assertEqual(
+            self.engine.ask("does a car have an accelerator")["verdict"],
+            "UNKNOWN")
+        answer = self.engine.ask("does a car have an accelerator", None,
+                                 {"accelerator": "accelerator.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertIn("Between senses", answer["note"])
+        self.assertEqual(answer["pins_used"],
+                         {"accelerator": "accelerator.n.01"})
+
+    def test_it_inherits(self):
+        """What is true of a car is true of a hatchback."""
+        self.assertEqual(
+            self.engine.reasoner.verify_sense(
+                "hatchback.n.01", "has_part", "accelerator.n.01").verdict,
+            "VERIFIED")
+
+    def test_a_sense_the_graph_does_not_link_falls_back_to_the_words(self):
+        """`beak.n.01` is the beak of an animal other than a bird, so the
+        graph has no bird-to-beak.n.01 row. The words still answer, and the
+        note says the graph was asked first and had nothing -- "the graph
+        does not record this" and "no word matched" are different things to
+        know."""
+        answer = self.engine.ask("does a bird have a beak", None,
+                                 {"beak": "beak.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertIn("Asked between senses first", answer["note"])
+
+    def test_the_graph_is_not_authoritative(self):
+        """The synset rows are patchy: they hold a car's wheel and a dog's
+        tail and not a fish's gills or a horse's legs. Letting the graph's
+        silence stand as the answer would lose every one of those."""
+        reasoner = self.engine.reasoner
+        for concept, sense in (("fish.n.01", "gill.n.01"),
+                               ("horse.n.01", "leg.n.01")):
+            with self.subTest(concept=concept):
+                self.assertEqual(
+                    reasoner.verify_sense(concept, "has_part", sense).verdict,
+                    "UNKNOWN")
+        self.assertEqual(self.engine.ask("does a horse have legs")["verdict"],
+                         "VERIFIED")
+
+    def test_a_free_text_relation_has_nothing_to_bind_to(self):
+        """`capable_of` is 772,890 rows of crawled text and none of them name
+        a sense, so `can a dog bark` cannot be answered between senses however
+        the reader pins it."""
+        self.assertNotIn("capable_of", self.engine.reasoner.SENSE_TAGGED)
+        self.assertEqual(
+            self.engine.reasoner.verify_sense(
+                "dog.n.01", "capable_of", "bark.v.04").verdict, "UNKNOWN")
+
+
 if __name__ == "__main__":
     unittest.main()
