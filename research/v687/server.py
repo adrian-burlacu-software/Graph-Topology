@@ -160,8 +160,26 @@ class IdentifyingEngine(BridgedEngine):
             # conjunction and answer half of it, which is the defect R20 was
             # written for -- so the three-valued answer is kept and says which
             # part is unknown.
-            single = len(found.asked.parts) <= 1 and not found.asked.quantifier
-            if (found.asked.verdict == "UNRECORDED" and single
+            # A question is structured when it says so. Several *parts* is
+            # not the same thing: `fall into a hole` is one claim that split
+            # into words, and handing that to v684 is right because v684
+            # matches the phrase whole. `a tail and wings` is a real
+            # conjunction and must keep its three-valued answer, which is the
+            # defect R20 was written for.
+            tail = self._tail(question, name)
+            structured = bool(found.asked.quantifier) or bool(
+                re.search(r"\b(and|or|not|no|never)\b", tail))
+            # An inherited answer the norms could not corroborate is not an
+            # answer the norms gave. It came from one crawled sentence at an
+            # ancestor, which is the fact graph's own material -- and the fact
+            # graph reads it better, with the relation typed and the
+            # confidence attached. `can a dog fall into a hole` was answered
+            # here as `verify` over feature norms, on a card that promises
+            # R1-R9, citing an ancestor the norms describe 7 kinds of.
+            lean = (found.asked.verdict == "INHERITED"
+                    and found.asked.corroborated is False)
+            if ((found.asked.verdict == "UNRECORDED" or lean)
+                    and not structured
                     and self.parser.parse(question).subject == name):
                 return None
         return self._payload(question, mode, found)

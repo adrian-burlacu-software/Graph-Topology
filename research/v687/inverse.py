@@ -228,6 +228,19 @@ class Inverse:
         return any(word in cls.DENIALS
                    for word in re.findall(r"[a-z]+", text.lower()))
 
+    def _contradicted(self, row, wanted: list[str]) -> bool:
+        """Does this concept also claim the opposite relation to the phrase?"""
+        partner = PAIRS.get(row["relation"])
+        if not partner:
+            return False
+        for other in self.reasoner.connection.execute(
+                "SELECT object FROM facts WHERE concept = ? AND relation = ?",
+                (row["concept"], partner)):
+            text = other["object"].rsplit(".", 2)[0].replace("_", " ")
+            if self._names(text, wanted):
+                return True
+        return False
+
     @staticmethod
     def _names(text: str, wanted: list[str]) -> bool:
         """Whole words only. `LIKE '%fin%'` also matches `definite`."""
@@ -250,6 +263,20 @@ class Inverse:
             # The answer is whichever column the question was not about.
             answer = row["concept"] if way == SUBJECT else row["object"]
             if answer in seen:
+                continue
+            # The crawler restating the word is not an answer to a question
+            # about it. `what has wings` returned `wing part_of bastard wing`
+            # -- a wing, offered as a thing that has wings. Same move as
+            # abduction refusing `fire.v.02 causes fire.v.05`.
+            if self._names(answer.rsplit(".", 2)[0].replace("_", " "), wanted):
+                continue
+            # `aileron has_part wing` and `aileron part_of wing` are both in
+            # the store, and only one can be true. A thing that says it is
+            # part of what it also claims to have is contradicting itself,
+            # and for this crawl the part_of direction is the one that holds:
+            # ailerons, flaps and flight feathers are parts of wings. Without
+            # this, `what has wings` offers them as things that have wings.
+            if way == SUBJECT and self._contradicted(row, wanted):
                 continue
             if SKIP_BROAD and self.reasoner.too_broad(answer):
                 continue

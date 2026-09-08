@@ -300,9 +300,14 @@ class Identifier:
 
     @classmethod
     def _hit(cls, term: str, predicates: frozenset[str]) -> str | None:
-        """The predicate a query word names, if one does. Whole words only."""
+        """The predicate a query word names, if one does. Whole words only.
+
+        Sorted, because `predicates` is a frozenset and iteration order is not
+        defined: with both `capable of fall victim` and `capable of fall into
+        hole` matching `fall`, which one an answer cited varied between runs.
+        """
         wanted = cls.stem(term)
-        for predicate in predicates:
+        for predicate in sorted(predicates):
             if any(cls.stem(word) == wanted for word in predicate.split()):
                 return predicate
         return None

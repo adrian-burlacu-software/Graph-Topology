@@ -1083,5 +1083,206 @@ class SemanticDialogueTests(unittest.TestCase):
                 self.assertEqual(self.verdict(question), verdict)
 
 
+@requires_store
+class PageExampleTests(unittest.TestCase):
+    """Every example question on the page, against the card it sits on.
+
+    A card is a claim: click Analogy and every question there is answered by
+    R24. An example that routes elsewhere is broken even when its answer is
+    defensible, because the reader clicked the card to see that rule work.
+    The questions are read out of `app.html` rather than copied here, so
+    adding one to the page adds it to this test.
+    """
+
+    #: card name -> (rules it may route to, verdicts it may return)
+    PROMISED = {
+        "Taxonomy & facts": ({"is_a", "capable_of", "made_of", "at_location",
+                              "used_for", "has_part", "has_property", "verify"},
+                             {"VERIFIED", "CONTRADICTED", "LISTING"}),
+        "Bridging": (None, {"LISTING"}),
+        "Identification": ({"identify"}, {"IDENTIFIED", "AMBIGUOUS"}),
+        "Retrieval": ({"profile", "verify"},
+                      {"PROFILE", "VERIFIED", "CONTRADICTED"}),
+        "Logic & quantifiers": ({"verify"},
+                                {"VERIFIED", "CONTRADICTED", "UNRECORDED"}),
+        "Contrast & counting": ({"R21", "R25"},
+                                {"LISTING", "VERIFIED", "CONTRADICTED"}),
+        "Inverse": ({"R22"}, {"LISTING"}),
+        "Scripts & abduction": ({"R23"}, {"LISTING"}),
+        "Analogy": ({"R24"}, {"LISTING"}),
+        "Exclusion": ({"is_a"}, {"CONTRADICTED", "UNKNOWN"}),
+        "Definition": ({"R26"}, {"DEFINED", "UNKNOWN_WORD"}),
+        "Refused": ({"R18"}, {"UNSUPPORTED"}),
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    @staticmethod
+    def cards():
+        import re
+        page = (Path(__file__).parent / "app.html").read_text(encoding="utf-8")
+        opening = page.index("const REASONING = [")
+        block = page[opening:page.index("\n];", opening)]
+        for match in re.finditer(
+                r'name:\s*"([^"]+)",\s*rule:\s*"([^"]+)",(.*?)'
+                r'questions:\s*\[(.*?)\]', block, re.S):
+            name, _, _, listed = match.groups()
+            yield name, re.findall(r'"([^"]+)"', listed)
+
+    def test_every_example_is_answered_by_the_rule_its_card_promises(self):
+        seen = 0
+        for name, questions in self.cards():
+            rules, verdicts = self.PROMISED[name]
+            for question in questions:
+                seen += 1
+                with self.subTest(card=name, question=question):
+                    payload = self.engine.ask(question)
+                    if rules:
+                        self.assertIn(payload["parse"]["relation"], rules)
+                    self.assertIn(payload["verdict"], verdicts)
+                    self.assertTrue(payload["steps"],
+                                    "an example with no derivation to show")
+        self.assertGreaterEqual(seen, 60, "the page lost its examples")
+
+
+@requires_store
+class AnswerRoutingTests(unittest.TestCase):
+    """Which rule answers, and which fact it cites."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_the_norms_hand_back_what_they_did_not_answer(self):
+        """`can a dog fall into a hole` is on the R1-R9 card and was answered
+        as `verify` over feature norms, which had nothing of their own to say:
+        the answer came from one crawled sentence at an ancestor the norms
+        describe seven kinds of."""
+        payload = self.engine.ask("can a dog fall into a hole")
+        self.assertEqual(payload["parse"]["relation"], "capable_of")
+        self.assertEqual(payload["verdict"], "VERIFIED")
+        self.assertEqual(payload["evidence"][0]["object"], "fall into hole")
+
+    def test_a_corroborated_inheritance_stays_with_the_norms(self):
+        """The hand-back must not take `does a robin fly` with it: there the
+        norms really do bear on the answer, 21 of 29 birds."""
+        payload = self.engine.ask("does a robin fly")
+        self.assertEqual(payload["parse"]["relation"], "verify")
+        self.assertEqual(payload["verdict"], "VERIFIED")
+        self.assertIn("21 of 29", payload["note"])
+
+    def test_an_ancestor_fact_is_ranked_by_what_it_accounts_for(self):
+        """Shortest-first picked `capable of fall victim` over `capable of
+        fall into hole`. Coverage first, shortness among equals."""
+        answer = self.engine.profiles.verify_one("dog", "fall",
+                                                 asked=["fall", "hole"])
+        self.assertEqual(answer.predicate, "capable of fall into hole")
+
+    def test_a_preposition_is_not_a_property(self):
+        _, _, terms = self.engine.profiles.route("can a dog fall into a hole")
+        self.assertEqual(terms, ["fall", "hole"])
+
+    def test_a_yes_no_question_is_not_a_compound_role(self):
+        """spaCy tags `breathe` as a noun, so the bridge read `dog breathe`
+        the way it reads `violin player` and answered about breathe.v.01."""
+        for question in ("does a dog breathe", "does a beagle bark"):
+            with self.subTest(question=question):
+                payload = self.engine.ask(question)
+                self.assertTrue(payload["concept"].startswith(
+                    question.split()[2]), payload["concept"])
+
+    def test_a_possessive_still_bridges(self):
+        payload = self.engine.ask("what does a dog's owner need")
+        self.assertTrue(payload.get("bridge"))
+        self.assertEqual(payload["concept"], "owner.n.01")
+
+
+@requires_store
+class BackwardsQualityTests(unittest.TestCase):
+    """What the inverse offers as an answer."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_the_word_restated_is_not_an_answer_about_itself(self):
+        """`what has wings` answered `wing part_of bastard wing` -- a wing,
+        offered as a thing that has wings."""
+        from research.v687.inverse import SUBJECT
+        found = self.engine.inverse.find("has_part", "wings", SUBJECT)
+        names = {row["concept"].split(".")[0] for row in found.subjects}
+        self.assertNotIn("wing", names)
+        self.assertTrue({"bird", "bat", "angel"} & names, names)
+
+    def test_a_self_contradicting_row_is_not_an_answer(self):
+        """`aileron has_part wing` and `aileron part_of wing` are both stored
+        and only one can be true."""
+        from research.v687.inverse import SUBJECT
+        found = self.engine.inverse.find("has_part", "wings", SUBJECT)
+        names = {row["concept"].split(".")[0] for row in found.subjects}
+        self.assertNotIn("aileron", names)
+        self.assertNotIn("flight feather", names)
+
+    def test_a_pin_that_empties_the_reading_says_so(self):
+        loose = self.engine.ask("what is a mouse part of")
+        pinned = self.engine.ask("what is a mouse part of", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertGreater(len(loose["backwards"]["subjects"]),
+                           len(pinned["backwards"]["subjects"]))
+        self.assertIn("pinned", pinned["note"])
+
+
+@requires_store
+class AnswerWordingTests(unittest.TestCase):
+    """Sentences that argued with themselves."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_a_list_cut_short_says_it_was_cut_short(self):
+        """`7 do not: chicken, cockerel, emu, magpie` names four and claims
+        seven, which reads as arithmetic gone wrong."""
+        note = self.engine.ask("do all birds fly")["note"]
+        self.assertIn("7 do not", note)
+        self.assertIn("more", note)
+
+    def test_sharing_no_prefix_is_not_a_parting_point(self):
+        """`they walk 0 node(s) together before parting at X` cannot both be
+        true."""
+        note = self.engine.ask(
+            "what is the difference between a dog and a wolf")["note"]
+        self.assertNotIn("0 node(s)", note)
+        self.assertIn("first node", note)
+
+    def test_corroboration_is_reported_only_where_it_was_consulted(self):
+        """Printing `0 of 7 bear it out` beside a yes reads as the answer
+        arguing with itself; below the minimum R19 declines to judge."""
+        note = self.engine.ask("is a wolf dangerous")["note"]
+        self.assertNotIn("0 of 7", note)
+
+
 if __name__ == "__main__":
     unittest.main()
