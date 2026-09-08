@@ -31,74 +31,76 @@ HERE = Path(__file__).parent
 #: keeping the ones that make the machinery visible: each note says which part
 #: it is there to show, and no two show the same part.
 EXAMPLES = [
-    # -- reasoning in a line: A -> B -> C, where more workers do not help ---
-    {"text": "what is a beagle",
-     "shows": "Four answers deep, in a line: beagle → hound → hunting dog → "
-              "dog → canine. Each rung is inside the previous answer, so "
-              "nothing after the first could have been asked in advance.",
-     "expect": "content, not a verdict"},
-    {"text": "what is a whale",
-     "shows": "The same ladder somewhere else entirely — whale → cetacean → "
-              "aquatic mammal → placental — and curiosity following it down "
-              "to ask what a cetacean is like.",
-     "expect": "content, not a verdict"},
-    {"text": "does a cat purr",
-     "shows": "Fan out, then reason in a line. The cat family splits on "
-              "`active` — bobcat and siamese yes, persian no — and the "
-              "question that raises is which side a cat is on.",
-     "expect": "holds, but something it passed does not"},
-    {"text": "what is a violin",
-     "shows": "The ladder on the artifact half of the trie, and curiosity "
-              "moving with it: once `stringed instrument` has been looked "
-              "up, it becomes something to be curious about too.",
-     "expect": "content, not a verdict"},
-    {"text": "is a penguin a typical bird",
-     "shows": "Four deep, because what a penguin is has to be settled before "
-              "whether it is a typical one: penguin → sphenisciform seabird → "
-              "seabird → aquatic bird → bird.",
-     "expect": "absent, not false"},
-    {"text": "is a spider an insect",
-     "shows": "The seed question is unanswerable, so the loop goes after the "
-              "word it could not place and finds `arthropod` on the way.",
-     "expect": "absent, not false"},
+    # -- the claim checked against what the act needs ----------------------
+    {"text": "do fish run",
+     "shows": "One crawled row says fish can run. So: what do things that "
+              "run have? A leg — 12 of 90 of them, 102× commoner than among "
+              "concepts at large. Does a fish have legs? Every kind of fish "
+              "the norms cover is scored and denied. Three steps, none of "
+              "which nineteen workers shorten.",
+     "expect": "weakly held"},
+    {"text": "can a penguin fly",
+     "shows": "The same check on a denial, and the answer is the interesting "
+              "one: a penguin does have the wings flying needs, so the no is "
+              "not about anatomy.",
+     "expect": "denied, unchallenged"},
+    {"text": "can a whale fly",
+     "shows": "Two answers deep and denied at every level — what a clean "
+              "refutation looks like when the store actually has the facts.",
+     "expect": "denied, unchallenged"},
 
-    # -- breadth: what nineteen workers are actually for -------------------
+    # -- breadth: nineteen workers earning their keep ----------------------
     {"text": "does a beagle swim",
      "shows": "A yes that does not survive its own family. One Ascent++ fact "
               "at confidence 0.42, inherited three levels; every kind of dog "
               "the norms cover denies it, all asked in one cycle.",
      "expect": "contradicted by its own family"},
+    {"text": "does a cat purr",
+     "shows": "Fan out, then reason in a line. The cat family splits on "
+              "`active` — bobcat and siamese yes, persian no — and the "
+              "question that raises is which side a cat is on.",
+     "expect": "holds, but something it passed does not"},
     {"text": "can a dog fall into a hole",
      "shows": "The question that broke v687's page sweep. Almost nothing "
-              "about the answer is stated of dogs themselves, so the loop "
-              "spends eighteen questions finding out whose claim it is.",
+              "about the answer is stated of dogs themselves, so eighteen "
+              "questions go looking for whose claim it actually is.",
      "expect": "weakly held"},
     {"text": "is a dog wild",
-     "shows": "Crawl noise at 0.54 answering yes. The three kinds of dog the "
-              "norms cover cannot corroborate it, and nothing contradicts it "
-              "either — so it is reported as a weak hold, not an objection.",
-     "expect": "weakly held"},
-    {"text": "a whale is a fish",
-     "shows": "A false statement, put back as a question. Absent is not "
-              "false: the loop chases the word it could not place rather "
-              "than denying the claim it was handed.",
-     "expect": "absent, not false"},
-    {"text": "a dog is a kind of animal",
-     "shows": "A statement checked as a claim, then put to the family. "
-              "`a kind of` is dropped before asking — it is a hedge, not "
-              "part of what was said.",
-     "expect": "weakly held"},
-    {"text": "a beagle is a dog that hunts rabbits",
-     "shows": "A statement with two clauses, checked as two claims. Checking "
-              "it as one would check neither.",
+     "shows": "Crawl noise at 0.54 answering yes. The kinds of dog the norms "
+              "cover cannot corroborate it and nothing contradicts it, so it "
+              "is reported as a weak hold rather than an objection.",
      "expect": "weakly held"},
 
-    # -- the short ones, short for a reason --------------------------------
-    {"text": "is a bat a bird",
-     "shows": "The classic misconception. The loop looks up what a bird is "
-              "rather than denying the claim, because the store records an "
-              "absence and an absence is not a no.",
+    # -- statements, checked rather than believed --------------------------
+    {"text": "a whale is a fish",
+     "shows": "A false statement, put back as a question. Absent is not "
+              "false: the loop goes after the word it could not place rather "
+              "than denying what it was handed.",
      "expect": "absent, not false"},
+    {"text": "a dog is a kind of animal",
+     "shows": "`a kind of` is dropped before asking — a hedge, not part of "
+              "the claim — and what is left is put to the family.",
+     "expect": "weakly held"},
+    {"text": "a beagle is a dog that hunts rabbits",
+     "shows": "Two clauses, checked as two claims. Checking it as one would "
+              "check neither.",
+     "expect": "weakly held"},
+
+    # -- and the short ones ------------------------------------------------
+    {"text": "is a violin made of wood",
+     "shows": "An artifact, so curiosity comes from the graph rather than "
+              "the feature norms: three of the four other bowed instruments "
+              "are used to make music, and a violin has not been asked.",
+     "expect": "denied, unchallenged"},
+    {"text": "is a spider an insect",
+     "shows": "Absent, not false — and the loop says which of the two it "
+              "found rather than guessing between them.",
+     "expect": "absent, not false"},
+    {"text": "what is a beagle",
+     "shows": "The one definition ladder kept as an example: beagle → hound "
+              "→ hunting dog → dog → canine, four answers deep. It only runs "
+              "when a definition is what you asked for.",
+     "expect": "content, not a verdict"},
     {"text": "is a wemble a greeting",
      "shows": "A word gap. Two asks and it stops: nothing downstream of an "
               "unknown word means anything, and no third attempt is invented.",
@@ -141,6 +143,21 @@ class Service:
             self._cache[key] = answer
         return answer
 
+    def graph_size(self) -> dict:
+        """What the store actually holds, as against the slice of it the
+        feature norms cover.
+
+        The header used to read `trie 541 individuals`, which reads as though
+        the whole semantic memory were 541 things. It is the XCSLB and AwA2
+        norms -- 1.2% of the concepts the store has facts for.
+        """
+        read = self.pool.engines[0].reasoner.connection.execute
+        return {
+            "facts": read("SELECT COUNT(*) FROM facts").fetchone()[0],
+            "subjects": read(
+                "SELECT COUNT(DISTINCT concept) FROM facts").fetchone()[0],
+        }
+
     def settings(self) -> dict:
         return {
             "pool": self.pool.as_dict(),
@@ -148,6 +165,7 @@ class Service:
             "max_cycles": self.max_cycles,
             "trie": {"individuals": len(self.curiosity.universe),
                      "predicates": len(self.curiosity.holders)},
+            "graph": self.graph_size(),
             "weights": WEIGHTS, "urgency": URGENCY,
             "decay": DECAY, "floor": FLOOR,
             "weak_confidence": WEAK_CONFIDENCE,

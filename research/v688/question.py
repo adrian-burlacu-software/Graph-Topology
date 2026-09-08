@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 
 from . import attention
 from .gap import Doubt, Gap
+from .graph import GraphCuriosity, Kinds, Requirements
 
 VOWELS = "aeiou"
 
@@ -42,6 +43,26 @@ did have has had can could will would
 #: `artifact` and its kinds have nothing to do with the concept asked about:
 #: it is how `hunt` ended up being asked whether it was a small bird.
 MAX_ANCHOR_DISTANCE = 3
+
+#: Body parts come out of the store singular -- `leg`, `wing` -- and the
+#: feature norms record them plural: `has legs` is what XCSLB scores and
+#: denies. `does a fish have a leg` comes back UNRECORDED where `does a fish
+#: have legs` reaches the norms and the family that denies it.
+IRREGULAR = {"tooth": "teeth", "foot": "feet", "mouse": "mice",
+             "goose": "geese", "child": "children"}
+
+
+def plural(word: str) -> str:
+    word = (word or "").strip()
+    if word in IRREGULAR:
+        return IRREGULAR[word]
+    if not word or word.endswith("s"):
+        return word
+    if word.endswith("y") and word[-2:-1] not in "aeiou":
+        return word[:-1] + "ies"
+    if word.endswith(("ch", "sh", "x", "z")):
+        return word + "es"
+    return word + "s"
 
 #: How many kinds a concept may have and still count as a family. `dog` has
 #: three and putting a claim to all three is a check; `device` has fifty-nine
@@ -140,11 +161,19 @@ POS_PREFERENCE = ("a", "s", "n", "v", "r")
 #: AwA2 habitat columns. They are nouns, and read as nouns they become `does
 #: a beagle have a ground`; they are places, and the frame they need is
 #: locative. This list is corpus-specific and says so.
+#: A surface you live *on*, not in. `is a dog found in the ground` was asked
+#: of every animal, and it is a question about burial. v687 strips the
+#: preposition before matching, so it answers `on` and `in` identically and
+#: the mistake is invisible from the answer -- the phrasing has to be right
+#: going in.
+LIVES_ON = frozenset("ground plains fields".split())
+LIVES_ON_FRAME = "does {article} {concept} live on the {object}"
+
 HABITAT = frozenset("""
-ground plains fields water tree cave coastal desert bush forest jungle
-mountains ocean arctic swamp
+water tree cave coastal desert bush forest jungle mountains ocean arctic
+swamp
 """.split())
-HABITAT_FRAME = "is {article} {concept} found in the {object}"
+HABITAT_FRAME = "does {article} {concept} live in the {object}"
 
 #: AwA2 diet columns, which have the same problem one frame over: read as
 #: nouns they become `does a wolf have a fish`.
@@ -250,7 +279,9 @@ def phrase_predicate(concept: str, predicate: str, pos: str = "",
             return ""
         if pos == "vs":
             return f"can {art} {concept} {singular or token}"
-        if token in HABITAT:
+        if token in LIVES_ON:
+            frame = LIVES_ON_FRAME
+        elif token in HABITAT:
             frame = HABITAT_FRAME
         elif token in DIET:
             frame = DIET_FRAME
@@ -281,13 +312,18 @@ class Generator:
     is handed, so a cycle can be replayed by handing it the same buffer.
     """
 
-    def __init__(self, engine, curiosity: attention.Curiosity) -> None:
+    def __init__(self, engine, curiosity: attention.Curiosity,
+                 requirements=None) -> None:
         self.engine = engine
         self.curiosity = curiosity
+        self.requirements = requirements or Requirements(engine.reasoner)
+        self.wider = GraphCuriosity(engine.reasoner)
+        self.kinds = Kinds(engine.reasoner, engine.profiles)
         self._pos: dict[str, str] = {}
         self._facts: dict[str, bool] = {}
         self._singular: dict[str, str] = {}
         self._lemma: dict[str, str] = {}
+        self._verbish: dict[str, bool] = {}
 
     def lemma(self, word: str) -> str:
         """The dictionary form, from the spaCy model the engine already holds.
@@ -351,6 +387,20 @@ class Generator:
         self._pos[token] = found
         return found
 
+    def could_be_a_verb(self, word: str) -> bool:
+        """Any verb sense at all, not the preferred one.
+
+        `pos_of` prefers the adjective and then the noun, which is right for
+        an AwA2 attribute column and wrong here: `make` has a noun sense (a
+        brand) and `used_for make music` is plainly a purpose.
+        """
+        if word in self._verbish:
+            return self._verbish[word]
+        found = any((sense.get("id") or "").split(".")[-2:-1] == ["v"]
+                    for sense in self.engine.reasoner.senses_of(word) or [])
+        self._verbish[word] = found
+        return found
+
     def substantial(self, concept: str) -> bool:
         """Does the store hold enough about this word to compare it to
         anything? See MIN_FACTS_FOR_CURIOSITY."""
@@ -398,6 +448,8 @@ class Generator:
                        if self.curiosity.knows(kind)]
                 if 2 <= len(kin) <= MAX_FAMILY:
                     return word, frozenset(kin)
+                if len(kin) > MAX_FAMILY:
+                    return word, frozenset(kin[:MAX_FAMILY])
         return "", self.curiosity.universe
 
     # -- source 1: the answer named what it lacked ------------------------
@@ -479,6 +531,14 @@ class Generator:
         A property whose head word is a noun is a thing the concept *has*.
         """
         words = obj.split()
+        if relation == "used_for" and words and self.could_be_a_verb(words[0]):
+            # `used_for make music` is a purpose, not a thing: `is a violin
+            # used for make music` has to become `used to make music`.
+            return f"is {article(concept)} {concept} used to {obj}"
+        if words and words[0].lower() in ("no", "not"):
+            # The store records `fish has_a "no legs"`, and an article in
+            # front of it gives `does a carp have a no legs`.
+            return f"does {article(concept)} {concept} have {obj}"
         if relation in HAVING and words:
             tag = self.pos_of(words[-1])
             if tag == "vs":
@@ -513,7 +573,7 @@ class Generator:
             return []
         if doubt.distance > MAX_DOUBT_DISTANCE:
             return []
-        kinds = self.engine.profiles.subtypes(parent)
+        kinds = self.kinds.of(parent, doubt.concept)
         if len(kinds) > MAX_FAMILY:
             return []
         if parent in TOO_GENERAL:
@@ -552,7 +612,54 @@ class Generator:
                 salience=salience * 0.9, gain=0.85, urgency=urgency))
         return asked
 
-    # -- source 3: the family disagreed, so ask which side the subject is on
+    # -- source 3: does the subject have what the act needs? ---------------
+    def from_requirement(self, answer, buffer) -> list[Question]:
+        """Check a capability against what doing it turns out to need.
+
+        `do fish run` comes back VERIFIED. Rather than take that or leave it,
+        work out what running needs -- the things the store says can run have
+        a **leg**, 12 of 90 of them, 102 times commoner than among concepts
+        at large -- and put that to the fish.
+
+        Three steps, and each needs the one before it: the claim has to come
+        back before it is worth grounding, the requirement has to be derived
+        before it can be asked, and the answer to `does a fish have legs` is
+        itself inherited from `animal`, so the family check takes over from
+        there and finds that sharks, salmon and goldfish are all scored and
+        denied. Nineteen workers shorten none of it.
+        """
+        if answer.origin not in ("seed", "gap"):
+            return []
+        # A denial is worth grounding too, and differently: a penguin cannot
+        # fly and *does* have the wings flying needs, which says the answer
+        # is not about anatomy.
+        if answer.verdict not in ("VERIFIED", "HELD", "INHERITED",
+                                  "CONTRADICTED", "DENIED"):
+            return []
+        parse = (answer.payload or {}).get("parse") or {}
+        subject = bare((answer.payload or {}).get("concept")
+                       or answer.about or parse.get("subject") or "")
+        action = self.lemma((parse.get("target") or "").split()[0]
+                            if parse.get("target") else "")
+        if not subject or not action:
+            return []
+        needs = self.requirements.of(action)
+        if needs is None or needs.part == subject:
+            return []
+        many = plural(needs.part)
+        return [Question(
+            f"does {article(subject)} {subject} have {many}", "require",
+            subject, needs.part,
+            why=f"the things the store says can {action} have "
+                f"{article(needs.part)} {needs.part} — {needs.holders} of "
+                f"{needs.doers} of them, {needs.lift:.0f} times commoner than "
+                f"among concepts at large. So this asks whether "
+                f"{article(subject)} {subject} has {many}.",
+            parent=answer.question, salience=1.0, gain=0.95,
+            urgency=attention.URGENCY["require"],
+            depth=buffer.depth_of(answer.question) + 1)]
+
+    # -- source 4: the family disagreed, so ask which side the subject is on
     def from_split(self, split: dict, buffer) -> list[Question]:
         """Settle a divided family by comparing the subject with the dissent.
 
@@ -606,16 +713,15 @@ class Generator:
                             ladder beagle -> hound -> hunting dog -> dog ->
                             canine is a chain nothing could have predicted
                             from the utterance.       (R26)
-            an inheritance  the ancestor the yes came from is a claim of its
-                            own: `does a robin fly` rests on `a robin is a
-                            bird`, which nobody checked.        (R1)
-            an explanation  what a why-question returns is a set of events,
-                            and each of those can be asked after.  (R23)
+        Only the definition ladder is left of the three that were tried.
+        Grounding an inheritance asked a taxonomic question nothing doubted;
+        following an explanation walked into whichever sense the crawl had
+        used. Both are recorded below where they were removed.
         """
         depth = buffer.depth_of(answer.question)
         if depth >= MAX_CHAIN_DEPTH or answer.error:
             return []
-        if answer.origin not in ("seed", "gap", "chain"):
+        if answer.origin not in ("seed", "gap", "chain", "require"):
             # A chain is a line of reasoning about what was said. Starting one
             # from a corroboration answer walks away from the utterance: a run
             # about whales went `does a goldfish have a gill` -> `is a
@@ -643,7 +749,13 @@ class Generator:
         # one the chain started in.
         sort = bare(definition.get("sort") or "")
         started = buffer.sort_of_chain(answer.question) or sort
-        if genus and genus not in LADDER_FLOOR and sort == started:
+        # And only when a definition is what was asked for. `does a snake
+        # run` produced a coverage gap on `snake`, whose definition v687 read
+        # as the winding-river sense, and the ladder walked river -> stream ->
+        # body of water: three real definitions, none about snakes. Defining
+        # the words in your own follow-ups is not reasoning.
+        if (genus and genus not in LADDER_FLOOR and sort == started
+                and buffer.wants_a_definition):
             asked.append(Question(
                 f"what is {article(genus)} {genus}", "chain", genus,
                 why=f"“{definition.get('word') or answer.about}” was defined "
@@ -653,28 +765,13 @@ class Generator:
                 urgency=urgency, depth=depth + 1))
             buffer.note_sort(f"what is {article(genus)} {genus}", started)
 
-        evidence = (payload.get("evidence") or [{}])[0]
-        source = bare(evidence.get("concept") or "")
-        subject = bare(payload.get("concept") or answer.about or "")
-        if (answer.verdict in ("VERIFIED", "HELD", "INHERITED") and source
-                and subject and source != subject
-                and int(evidence.get("distance") or 0) > 0):
-            asked.append(Question(
-                f"is {article(subject)} {subject} {article(source)} {source}",
-                "chain", subject, source,
-                why=f"the yes rests on {subject} being {article(source)} "
-                    f"{source}, which is a claim of its own and was never "
-                    f"put as a question",
-                parent=answer.question, salience=salience, gain=fade * 0.95,
-                urgency=urgency, depth=depth + 1))
-
-        # R23's objects were the third source here and are now dropped.
-        # `why does a dog bark` resolves `bark` to a sense whose recorded
-        # causes are nausea and vomiting, and the ladder ran nausea ->
-        # symptom -> evidence -> information: four correct definitions and
-        # not one of them about dogs. Following a crawled explanation is only
-        # as good as the sense it was crawled under, and nothing here has
-        # chosen that sense yet -- the buffer holds pins and nothing sets them.
+        # The inheritance grounding used to live here -- `does a goldfish
+        # have a gill` rests on `bony fish has_a single gill`, so ask whether
+        # a goldfish is a bony fish. It is factually right and asks the wrong
+        # half. Goldfish being a bony fish is WordNet taxonomy at 0.95 and
+        # was never in doubt; what is doubtful is the fact itself, at
+        # confidence 0.37 and five levels up. The doubt generator already
+        # puts that to the ancestor, which is the half that can be wrong.
         return asked
 
     # -- source 4: nothing is wrong, but the trie has a child --------------
@@ -688,7 +785,8 @@ class Generator:
             return []
         urgency = attention.URGENCY["curiosity"]
         anchor, pool = self.pool_for(concept)
-        if not anchor:
+        if not anchor and not self.wider.expectations(
+                self.wider.sense_of(concept) or "", 1):
             # Nothing in the norms is near this word, so there is no field for
             # a question to split and the gain scores are meaningless. `swim`
             # became live as the object of `does a beagle swim` and produced
@@ -699,6 +797,25 @@ class Generator:
                       f", judged against the kinds of {anchor}"
                       if anchor else ", judged against the whole corpus")
         asked: list[Question] = []
+        # The family first, where there is one. The feature norms cover 541
+        # concepts and give the same six columns to all of them; the graph
+        # covers 45,219 and gives this concept's own relatives. An
+        # expectation is a better question than a slot: `every other bowed
+        # instrument is used to make music -- is a violin?`
+        sense = self.wider.sense_of(concept)
+        for expects in (self.wider.expectations(sense, 3) if sense else []):
+            text = self.reask(concept, expects.relation, expects.object)
+            if not text:
+                continue
+            asked.append(Question(
+                text, "curiosity", concept, expects.object,
+                why=f"{round(expects.share * 100)}% of the other kinds of "
+                    f"{bare(expects.parent)} are recorded as this, and "
+                    f"{concept} is not — so it is either an exception or a "
+                    f"hole in the store",
+                salience=salience, gain=0.9 * expects.share, urgency=urgency,
+                novelty=self.curiosity.novelty(concept)))
+
         for predicate, gain in self.curiosity.candidates(
                 concept, limit * 3, pool):
             pos = self.pos_of(predicate) if " " not in predicate else ""
@@ -737,6 +854,8 @@ class Generator:
             candidates.extend(self.from_gap(hole, buffer))
         for doubt in buffer.open_doubts():
             candidates.extend(self.from_doubt(doubt, buffer))
+        for answer in buffer.recent:
+            candidates.extend(self.from_requirement(answer, buffer))
         for split in buffer.splits():
             candidates.extend(self.from_split(split, buffer))
         for answer in buffer.recent:

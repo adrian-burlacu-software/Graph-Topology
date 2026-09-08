@@ -18,6 +18,7 @@ utterance is a lifetime change and not a new mechanism, and it is what makes
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from . import attention
@@ -33,7 +34,13 @@ NEGATIVE = frozenset({"CONTRADICTED", "DENIED"})
 #: a means, not a topic, and a curiosity question is a guess: following either
 #: is how a run about whales ends up asking whether a goldfish is a bony fish,
 #: and how `is a shark a fish` spent 37 questions on gills and slime.
-DELIBERATE = frozenset({"seed", "gap", "chain", "split"})
+DELIBERATE = frozenset({"seed", "gap", "chain", "split", "require"})
+
+#: How many *guesses* -- curiosity answers about a subject the utterance
+#: named -- may earn a corroboration fan-out in one run. One. It is enough to
+#: find that the cat family disagrees about being active; letting eight
+#: through turned `do fish run` into 47 questions about gills and slime.
+GUESSES_WORTH_CHECKING = 1
 
 #: Parts of speech that name something worth attending to.
 ATTENDED_POS = ("NOUN", "PROPN", "VERB", "ADJ", "INTJ")
@@ -98,6 +105,12 @@ class Buffer:
         #: actually said is worth corroborating; a guess about something you
         #: went and fetched is not.
         self.said: set[str] = set()
+        #: Whether the utterance asked what something *is*. Only then does a
+        #: definition ladder belong: otherwise it defines the words in the
+        #: loop's own follow-ups, several rungs deep, about nothing.
+        self.wants_a_definition = bool(
+            re.match(r"^\s*(what|who)\s+(is|are|was|were)\s", text or "",
+                     re.I))
         #: Gap and doubt questions that were generated but did not fit in a
         #: cycle. They are carried rather than dropped: a family check cut
         #: short by the pool size reports `1 of 4 deny it` about a family of
@@ -113,6 +126,10 @@ class Buffer:
         self.sorts: dict[str, str] = {}
         #: family checks already probed for which side the subject is on
         self._spent_splits: set[str] = set()
+        #: How many curiosity answers have earned a corroboration fan-out.
+        #: `do fish run` let eight of them through and spent 47 questions on
+        #: gills, slime and fishy smell -- none of it about running.
+        self._guesses_checked = 0
 
     # -- attending ---------------------------------------------------------
     def attend(self, text: str) -> list[str]:
@@ -196,9 +213,10 @@ class Buffer:
                 if key in self._spent_doubts or not doubt.predicate:
                     self.seen_doubts.append(doubt)
                     continue
-                worth = (answer.origin in DELIBERATE
-                         or (answer.origin == "curiosity"
-                             and answer.about in self.said))
+                guess = (answer.origin == "curiosity"
+                         and answer.about in self.said
+                         and self._guesses_checked < GUESSES_WORTH_CHECKING)
+                worth = answer.origin in DELIBERATE or guess
                 if not worth:
                     # A corroboration question is not itself corroborated, and
                     # neither is a guess about something nobody mentioned.
@@ -210,6 +228,8 @@ class Buffer:
                     # cat family disagrees about being active.
                     self.seen_doubts.append(doubt)
                     continue
+                if guess:
+                    self._guesses_checked += 1
                 self._doubts.append(doubt)
                 self.seen_doubts.append(doubt)
                 fresh_doubts.append(doubt)

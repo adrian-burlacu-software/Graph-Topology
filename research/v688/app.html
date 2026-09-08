@@ -265,7 +265,9 @@ async function boot() {
   const p = SETTINGS.pool;
   document.getElementById("stats").textContent =
     `${p.workers}/${p.requested} workers · built in ${p.build_seconds}s · ` +
-    `trie ${SETTINGS.trie.individuals} individuals / ${SETTINGS.trie.predicates} predicates`;
+    `store ${(SETTINGS.graph.facts / 1e6).toFixed(2)}M facts over ` +
+    `${SETTINGS.graph.subjects.toLocaleString()} concepts · ` +
+    `feature norms cover ${SETTINGS.trie.individuals} of them`;
   document.getElementById("knobs").textContent =
     `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
     `weak-confidence ${SETTINGS.weak_confidence} · max ${SETTINGS.max_cycles} cycles`;
@@ -354,7 +356,9 @@ function summaryPanel() {
 
 function threadPanel() {
   const thread = RUN.summary.thread || [];
-  if (thread.length < 2) return null;
+  // Two links is a follow-up, not a chain of thought. The panel promises
+  // multi-step reasoning and should only appear when there is some.
+  if (thread.length < 3) return null;
   const panel = el("div", "panel");
   panel.appendChild(el("h2", "label",
     `the serial part — ${thread.length} questions, each one only askable ` +

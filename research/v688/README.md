@@ -47,6 +47,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 
 | file | what it does |
 | --- | --- |
+| `graph.py` | the rest of the store: what a concept's family expects of it, what an action turns out to need, and which kinds a claim should be put to. |
 | `gap.py` | types a v687 payload's incompleteness — a **Gap** (memory says it lacks something) or a **Doubt** (the answer is thinner than its verdict looks). Reads the payload v687 already returns; **edits nothing in v687**. |
 | `attention.py` | salience (activation, decaying per cycle) · gain (bits of the candidate set a question removes, on the predicate trie) · urgency (what kind of hole). Ranked as a **product**, so a zero anywhere is fatal. |
 | `question.py` | the five generators, and the queue they feed. |
@@ -54,7 +55,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |
 | `loop.py` | attend → generate → fan out → read → update → settle. Emits a replayable `Run`. |
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
-| `test_v688.py` | 49 tests, including every page example against the claim its card makes. |
+| `test_v688.py` | 56 tests, including every page example against the claim its card makes. |
 
 ## Where a question comes from
 
@@ -72,6 +73,14 @@ something already on the table. Two of them fan out and three run in a line.
 - **curiosity** — the trie has a child here that would split the field.
 
 **Depth — what the pool cannot help with:**
+
+- **require** — check a capability against what doing it turns out to need.
+  The store has `has_prerequisite`, but ConceptNet means it about people:
+  reading requires `find book`, flying requires `get airline ticket`. What
+  running needs of a *body* is nowhere in it — so it is derived. Take
+  everything the store says can run, ask what those things have, and keep
+  what is commoner among them than among concepts at large: running gives
+  **leg** (12 of 90, 102×), flying gives **wing** (31 of 87, 304×).
 
 - **chain** — the next question's *terms* are inside the last answer, so it
   cannot be formed until that answer comes back. Two kinds are reliable
@@ -151,6 +160,32 @@ compresses the ontology schedules the questions**: storage keeps
 is maximised by a predicate splitting the field in half — not by the rarest
 one, which is `anti_coverage`'s greedy approximation.
 
+## The store is 1.96M facts, not 541 things
+
+The header used to read `trie 541 individuals`, which reads as though the
+whole semantic memory were 541 things. It is not:
+
+| | |
+| --- | --- |
+| facts | **1,963,065** |
+| concepts with facts | **45,219** |
+| concepts the feature norms cover | **541** (1.2%) |
+
+The 541 are XCSLB and AwA2 — the only place a denial is *scored* rather than
+merely absent, which is what makes a family check decisive. But reading only
+them is why every run asked the same six columns whatever the subject was.
+The rest of the machinery now reads the whole graph:
+
+- **curiosity** takes a concept's own relatives out of the taxonomy and asks
+  what they are recorded as having that it is not — an *expectation* rather
+  than a slot. Three of the four other bowed instruments are used to make
+  music; a violin has not been asked.
+- **families** for a doubt check are the union of the norms' subtypes and the
+  taxonomy's children ranked by how much the store holds about each, so a
+  claim about dogs reaches puppy, pug, poodle and basenji as well as collie
+  and dalmatian.
+- **requirements** are derived over all 45,219 concepts.
+
 ## Containment
 
 `research/v688/` imports `research.v687` and **never edits it**. The semantic
@@ -185,6 +220,11 @@ which is why `gap.py` exists at all rather than a field being added upstream.
   disagrees and asks which side the subject is on; it does not then decide.
   Deciding needs belief revision, and that needs somewhere to write the
   answer down.
+- **Two chain sources were tried and removed.** *Grounding an inheritance*
+  asked whether a goldfish is a bony fish — factually the right ancestor, and
+  the wrong half of the question: the taxonomy is 0.95 and never in doubt,
+  while the fact it carried (`bony fish has_a single gill`) sits at 0.37, five
+  levels up, and the doubt generator already puts that to the ancestor.
 - **Explanations are not followed.** R23's objects were a third chain source
   and are dropped: `why does a dog bark` resolves `bark` to a sense whose
   recorded causes are nausea and vomiting, and the ladder ran

@@ -254,6 +254,27 @@ class Loop:
                      if headline is not None and bad.question == headline.question
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
+        # The payoff of a requirement check, stated as an argument rather
+        # than left for the reader to assemble out of a conflict list.
+        for answer in buffer.answers.values():
+            if answer.origin != "require":
+                continue
+            needs = answer.predicate
+            denied = [bad for bad in conflicts if bad.question == answer.question]
+            if denied and headline is not None:
+                lines.append(
+                    f"and that is the trouble: {needs} is what the store says "
+                    f"doing this needs, and every kind of {answer.about} it "
+                    f"could be put to is scored and denied on it — so the yes "
+                    f"rests on nothing the family will support")
+            elif (headline is not None
+                  and headline.verdict in ("CONTRADICTED", "DENIED")
+                  and answer.verdict in ("VERIFIED", "HELD", "INHERITED")):
+                lines.append(
+                    f"and the no is not about anatomy: "
+                    f"{article(answer.about)} {answer.about} does have "
+                    f"{needs}, which is what the store says doing this needs")
+
         for hole in telling:
             lines.append(
                 f"“{hole.blocker}” is not something this ontology has a word "

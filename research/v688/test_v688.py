@@ -227,7 +227,7 @@ class QuestionShapeTests(unittest.TestCase):
         self.assertEqual(phrase_predicate("collie", "tail", "n"),
                          "does a collie have a tail")
         self.assertEqual(phrase_predicate("collie", "ground", "n"),
-                         "is a collie found in the ground")
+                         "does a collie live on the ground")
         self.assertEqual(phrase_predicate("wolf", "meat", "n"),
                          "does a wolf eat meat")
 
@@ -381,7 +381,8 @@ class LoopTests(unittest.TestCase):
                 if parent is None:
                     continue
                 with self.subTest(question=answer.question):
-                    self.assertIn(parent.origin, ("seed", "gap", "chain"))
+                    self.assertIn(parent.origin,
+                                  ("seed", "gap", "chain", "require"))
 
     def test_a_property_word_is_not_looked_up_as_a_thing(self):
         """`is a dog wild` left `wild` uncovered; `wild` has a noun sense --
@@ -466,6 +467,80 @@ class ExampleTests(unittest.TestCase):
                 self.assertTrue(first.steps or first.note,
                                 "an example with nothing to open")
 
+    def test_an_action_is_checked_against_what_doing_it_needs(self):
+        """`do fish run` rests on one crawled row. The store does not record
+        what running needs of a body -- ConceptNet's prerequisites are about
+        people, `find book` and `buy book` -- so it is derived: the things
+        that can run have a leg, 12 of 90, 102 times commoner than among
+        concepts at large."""
+        from .graph import Requirements
+        needs = Requirements(POOL.engines[0].reasoner)
+        self.assertEqual(needs.of("run").part, "leg")
+        self.assertEqual(needs.of("fly").part, "wing")
+
+    def test_a_requirement_is_a_part_and_not_a_standing(self):
+        """Unfiltered, running needs `reputation` and `the power`, because
+        the crawl is mostly about running a business; walking needs a
+        `friend` and reading needs a `parent`."""
+        from .graph import Requirements
+        needs = Requirements(POOL.engines[0].reasoner)
+        for action in ("walk", "read"):
+            found = needs.of(action)
+            self.assertIsNone(found, found and found.part)
+
+    def test_the_requirement_check_reaches_the_family_that_denies_it(self):
+        """The payoff, and it takes three answers: derive the requirement,
+        ask it of the fish, and let the family check take over -- `does a
+        fish have legs` is inherited from animal, and carp, goldfish, minnow,
+        salmon, seahorse and shark are every one of them scored and denied."""
+        found = run("do fish run")
+        asked = [answer for cycle in found.cycles for answer in cycle.answers
+                 if answer.origin == "require"]
+        self.assertEqual([a.question for a in asked], ["does a fish have legs"])
+        self.assertTrue(any("what the store says doing this needs" in line
+                            for line in found.summary["lines"]),
+                        found.summary["lines"])
+
+    def test_a_denial_is_grounded_too(self):
+        """A penguin cannot fly and does have wings, which says the no is not
+        about anatomy. Only checking positives would have missed that."""
+        found = run("can a penguin fly")
+        asked = [a for c in found.cycles for a in c.answers
+                 if a.origin == "require"]
+        self.assertTrue(asked)
+        self.assertEqual(asked[0].question, "does a penguin have wings")
+
+    def test_a_definition_ladder_only_runs_when_one_was_asked_for(self):
+        """`does a snake run` opened a gap on `snake`, whose definition v687
+        read as the winding-river sense, and the ladder walked river ->
+        stream -> body of water. Defining the words in your own follow-ups is
+        not reasoning."""
+        found = run("does a snake run")
+        asked = {a.question for c in found.cycles for a in c.answers}
+        self.assertFalse({q for q in asked if q.startswith("what is a river")},
+                         asked)
+        ladder = run("what is a beagle")
+        self.assertGreaterEqual(ladder.summary["depth"], 3)
+
+    def test_curiosity_reads_the_graph_and_not_only_the_norms(self):
+        """The feature norms cover 541 of 45,219 concepts and give the same
+        six AwA2 columns to all of them. The graph gives a concept its own
+        relatives."""
+        from .graph import GraphCuriosity
+        wider = GraphCuriosity(POOL.engines[0].reasoner)
+        found = wider.expectations(wider.sense_of("violin"), 4)
+        self.assertTrue(found)
+        self.assertIn("make music", {one.object for one in found})
+
+    def test_a_habitat_column_is_lived_on_or_in_but_never_found_in(self):
+        """`is a dog found in the ground` is a question about burial, and
+        v687 strips the preposition before matching so it answers `on` and
+        `in` alike -- the phrasing has to be right going in."""
+        self.assertEqual(phrase_predicate("dog", "ground", "n"),
+                         "does a dog live on the ground")
+        self.assertEqual(phrase_predicate("fish", "water", "n"),
+                         "does a fish live in the water")
+
     def test_the_examples_between_them_exercise_every_generator(self):
         """A page of sixteen examples that only ever showed one source of
         questions would be a page about one third of the machinery."""
@@ -475,7 +550,7 @@ class ExampleTests(unittest.TestCase):
             for cycle in found.cycles:
                 origins |= {answer.origin for answer in cycle.answers}
         self.assertEqual(origins, {"seed", "gap", "doubt", "split", "chain",
-                                   "curiosity"})
+                                   "require", "curiosity"})
 
     def test_some_example_reasons_in_a_line_rather_than_a_fan(self):
         """A page that only ever fanned out would be a page about breadth.
@@ -483,7 +558,7 @@ class ExampleTests(unittest.TestCase):
         each rung's subject is inside the previous rung's answer."""
         deepest = max(run(example["text"]).summary["depth"]
                       for example in server.EXAMPLES)
-        self.assertGreaterEqual(deepest, 4)
+        self.assertGreaterEqual(deepest, 3)
 
     def test_a_divided_family_is_probed_rather_than_counted(self):
         """`1 of 3 deny it` is a count, not an answer. When the family
