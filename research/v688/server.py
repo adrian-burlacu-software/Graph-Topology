@@ -55,11 +55,17 @@ EXAMPLES = [
      "expect": "absent, not false"},
 
     {"text": "is a mouse an animal",
-     "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "
-              "R27's exclusion is sound and it is about the wrong mouse. The "
-              "loop finds that another reading answers yes, asks again under "
-              "a pin, and leads with that.",
-     "expect": "holds, but something it passed does not"},
+     "shows": "This said **no** until 2026-09-09, correctly, about "
+              "`mouse.n.04` — the device. R27's exclusion was sound and it "
+              "was about the wrong mouse, and the loop's job here was to "
+              "notice, re-ask under a pin, and lead with the other reading.\n"
+              "v687 now picks the reading itself: `animal` places the "
+              "question in one branch of the taxonomy, and the mouse sense "
+              "in that branch is the rodent. So the loop has nothing to "
+              "repair and the answer is simply right — which cost the "
+              "`sense` generator the only example on this page that "
+              "exercised it. See research/v688/AUDIT.md §10.",
+     "expect": "corroborated"},
 
     # -- the claim checked against what the act needs ----------------------
     {"text": "do fish run",
@@ -93,12 +99,20 @@ EXAMPLES = [
      "expect": "corroborated"},
 
     {"text": "does a boat have sails",
-     "shows": "What the beagle used to show, with a source whose negatives "
-              "are negatives. `has sails` is inherited from `vessel`, and of "
-              "the six kinds put to it a canoe denies it. One ask cannot see "
-              "that disagreement; the run leads with the doubt rather than "
-              "with the yes.",
-     "expect": "not supported by the rest of the store"},
+     "shows": "A right answer reached for the wrong reason, which one ask "
+              "cannot tell from a right answer. The yes rests on `can sail` "
+              "— v687 scores a question one term at a time, and `sail` "
+              "matches a predicate that is not the one asked about. The "
+              "norms do assert `boat has sails`, so the verdict stands; what "
+              "the loop adds is that the derivation behind it does not. "
+              "This card used to claim family disagreement: `has sails` "
+              "inherited from `vessel` and denied by a canoe. That denial was "
+              "a COMPS foil, not a judgement — nobody was ever asked whether "
+              "a canoe has sails — and it went when foils stopped being read "
+              "as denials. It is the second example of this machinery to rest "
+              "on absence read as denial, after `does a beagle swim` rested "
+              "on AwA2's zeros. See research/v688/AUDIT.md.",
+     "expect": "reached on a different predicate"},
     {"text": "does a cat purr",
      "shows": "Fan out, then reason in a line. The cat family splits on "
               "`active` — bobcat and siamese yes, persian no — and the "
@@ -133,11 +147,16 @@ EXAMPLES = [
 
     # -- and the short ones ------------------------------------------------
     {"text": "is a violin made of wood",
-     "shows": "v687 says no. It reached that through `made`, which matched "
-              "the stored predicate `can be made of ivory` — a fact about "
-              "ivory, not about wood. The loop says which predicate the "
-              "verdict actually rests on.",
-     "expect": "reached on a different predicate"},
+     "shows": "v687 used to say **no** — reaching it through `made`, which "
+              "matched the stored predicate `can be made of ivory`, a fact "
+              "about ivory and not about wood. Two bugs stacked: that "
+              "“denial” was a COMPS foil rather than anything anyone "
+              "judged false, and one content term was enough to match it. "
+              "The foils are gone and it reads absent now, which is what a "
+              "store that never recorded the answer should say. Kept as the "
+              "example of a confident wrong answer becoming an honest "
+              "silence.",
+     "expect": "absent, not false"},
     {"text": "is a spider an insect",
      "shows": "Absent, not false — and the loop says which of the two it "
               "found rather than guessing between them.",

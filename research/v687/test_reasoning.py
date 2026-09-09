@@ -733,8 +733,19 @@ class AnswerAuditTests(unittest.TestCase):
                 self.assertNotEqual(self.verdict(question), "CONTRADICTED")
 
     def test_the_qualified_denial_still_answers_its_own_question(self):
+        """`has small ears` denies small ears, whatever it fails to say about
+        ears.
+
+        The beaver row behind this was a COMPS foil and is gone, so the rule
+        is asserted where it lives. `does a beaver have small ears` now reads
+        UNKNOWN, which is the honest answer to a question nobody was asked.
+        """
+        hit, narrower = self.engine.identifier.denial_hit(
+            ["small", "ears"], frozenset({"has small ears"}))
+        self.assertEqual(hit, "has small ears")
+        self.assertEqual(narrower, [])
         self.assertEqual(self.verdict("does a beaver have small ears"),
-                         "CONTRADICTED")
+                         "UNKNOWN")
 
     def test_an_unqualified_denial_is_untouched(self):
         for question in ("is a whale furry", "does a penguin fly"):
@@ -742,12 +753,24 @@ class AnswerAuditTests(unittest.TestCase):
                 self.assertEqual(self.verdict(question), "CONTRADICTED")
 
     def test_a_locative_tail_does_not_qualify_the_claim(self):
-        """`has spots on its body` says where, not which, so it still denies
-        spots -- which is what separates a dog from a dalmatian."""
-        profiles = self.engine.profiles
-        self.assertEqual(profiles.verify("dog", ["spots"]).verdict, "DENIED")
-        self.assertEqual(profiles.verify("dalmatian", ["spots"]).verdict,
-                         "HELD")
+        """`has spots on its body` says where, not which, so it would still
+        deny spots, while `has small ears` says which and would not.
+
+        Asserted against `denial_hit` rather than through an answer. The only
+        instance this had was `dog / spots`, which turned out to be a COMPS
+        foil rather than a denial, so the data went and the rule did not --
+        and a rule tested only through one row of data is a rule tested
+        through that row.
+        """
+        hit = self.engine.identifier.denial_hit(
+            ["spots"], frozenset({"has spots on its body"}))
+        self.assertEqual(hit[0], "has spots on its body")
+        narrower = self.engine.identifier.denial_hit(
+            ["ears"], frozenset({"has small ears"}))
+        self.assertIsNone(narrower[0])
+        self.assertEqual(narrower[1], ["has small ears"])
+        self.assertEqual(self.engine.profiles.verify(
+            "dalmatian", ["spots"]).verdict, "HELD")
 
     # -- F2: the subject is the thing asked about, or nothing --------------
     def test_a_subject_that_is_not_a_noun_is_still_the_subject(self):
@@ -1064,6 +1087,43 @@ class SemanticDialogueTests(unittest.TestCase):
         self.assertEqual(self.verdict("is a wolf wild"), "VERIFIED")
         self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
 
+    def test_r27_does_not_deny_a_property_by_excluding_a_noun_sense(self):
+        """Every high-confidence false denial the COMPS audit found.
+
+        `modern`, `aquatic`, `cold` and `feminine` all carry a noun sense in
+        a branch the subject cannot be in, so the taxonomy reading excluded
+        and answered CONTRADICTED at 0.95 -- confident, and about a question
+        nobody asked. On a bare predicate the is_a reading is a guess, so the
+        exclusion is withdrawn and the property reading gets its turn.
+
+        These are outside the 521 concepts the norms cover, which is where
+        the bug bites: R17 answers the covered ones and hides it.
+        """
+        for question, concept in (("is a laptop modern", "laptop.n.01"),
+                                  ("is a skyscraper modern", "skyscraper.n.01")):
+            with self.subTest(question=question):
+                self.assertIsNone(self.engine.profiles.route(question))
+                self.assertIsNotNone(              # the exclusion is armed
+                    self.engine.reasoner.excludes(concept, "modern"))
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_a_withdrawn_exclusion_leaves_absence_and_not_denial(self):
+        """When the property reading finds nothing either, the taxonomy
+        answer is still standing and still answers the wrong question."""
+        answer = self.engine.ask("is a mussel aquatic")
+        self.assertNotEqual(answer["verdict"], "CONTRADICTED")
+
+    def test_the_determiner_is_what_withdraws_it_and_not_the_adjective(self):
+        """`animal` owns an adjective sense too, so gating the withdrawal on
+        the target having one would have taken `is a mouse an animal` -- a
+        page example -- with it. `an animal` carries a determiner and is not
+        hedged; `modern` is bare and is."""
+        parse = self.engine.parser.parse
+        self.assertTrue(parse("is a television modern").hedged)
+        self.assertFalse(parse("is a mouse an animal").hedged)
+        self.assertEqual(self.verdict("is a dog a plant"), "CONTRADICTED")
+        self.assertEqual(self.verdict("is a dog an idea"), "CONTRADICTED")
+
     # -- what the dialogue asks and gets -----------------------------------
     def test_the_semantic_turn_answers_end_to_end(self):
         for question, verdict in (
@@ -1263,11 +1323,26 @@ class AnswerWordingTests(unittest.TestCase):
         cls.engine.reasoner.close()
 
     def test_a_list_cut_short_says_it_was_cut_short(self):
-        """`7 do not: chicken, cockerel, emu, magpie` names four and claims
-        seven, which reads as arithmetic gone wrong."""
-        note = self.engine.ask("do all birds fly")["note"]
-        self.assertIn("7 do not", note)
+        """`41 do not: antelope, beaver, blue whale, bobcat` names four and
+        claims forty-one, which reads as arithmetic gone wrong.
+
+        This used to ask `do all birds fly` and expect seven exceptions. Four
+        of those seven were COMPS foils rather than denials, and with them
+        gone the honest list is `chicken, emu, penguin` -- three named, three
+        claimed, nothing to truncate. So the truncation is exercised on a list
+        that is still long.
+        """
+        note = self.engine.ask("do all mammals fly")["note"]
+        self.assertIn("41 do not", note)
         self.assertIn("more", note)
+
+    def test_dropping_the_foils_left_the_flightless_birds_that_really_are(self):
+        """The same question, as a record of what the change bought: seven
+        exceptions became three, and the three are flightless."""
+        note = self.engine.ask("do all birds fly")["note"]
+        self.assertIn("3 do not", note)
+        for bird in ("chicken", "emu", "penguin"):
+            self.assertIn(bird, note)
 
     def test_sharing_no_prefix_is_not_a_parting_point(self):
         """`they walk 0 node(s) together before parting at X` cannot both be

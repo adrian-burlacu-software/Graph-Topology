@@ -42,7 +42,8 @@ ROOT = HERE.parent
 #: starting the 89-second one last is how a 100-second run becomes 150.
 SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
           "research.v687.test_v687", "research.v687.test_norms",
-          "research.v687.test_bridging", "research.v687.test_trie")
+          "research.v687.test_bridging", "research.v687.test_trie",
+          "research.v688.test_audit")
 
 COUNT = re.compile(r"^Ran (\d+) test")
 

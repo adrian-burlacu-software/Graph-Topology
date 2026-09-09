@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import build, compress, pins
+from . import build, compress, pins, rules
 from .language import Parser
 from .reason import Reasoner
 
@@ -95,25 +95,82 @@ class Engine:
             # has none, and answered no. Asking a word whether it names a kind
             # of something is asking whether *any* of its senses does, so the
             # other senses are tried and the one that answers is named.
-            if (answer.verdict == "UNKNOWN" and concept is None
-                    and len(senses) > 1):
+            # An exclusion does not settle the word either, and gating this on
+            # UNKNOWN meant it did. `is a donkey a mammal` came back
+            # CONTRADICTED because `donkey.n.01` is the symbol of the
+            # Democratic Party, under `emblem -> symbol -> abstraction`; the
+            # animal is `domestic ass.n.01` and was never asked. R27 is right
+            # about the sense it was given and that is exactly why its answer
+            # cannot end the search -- the sentence above says a word names a
+            # kind of something if *any* of its senses does, and a no about
+            # one sense is not a no about the word.
+            excluded = any(step.rule == "R27" for step in answer.steps)
+            unsettled = answer.verdict == "UNKNOWN" or excluded
+            if unsettled and concept is None and len(senses) > 1:
+                # Where the target is unambiguous about its branch it says
+                # which reading of the subject was meant. `flowering plant` is
+                # `angiosperm.n.01`, under `plant`, so `is a hyacinth a
+                # flowering plant` is about `hyacinth.n.02` and not about the
+                # zircon -- and the answer is then UNKNOWN, because WordNet
+                # files hyacinth under `vascular plant` and never reaches
+                # `angiosperm`. A hole in the tree is an absence; the zircon
+                # was a confident no about the wrong thing.
+                #
+                # Only a *match* moves the sense, never the mere absence of an
+                # exclusion. `dog` has senses the partitions cannot place at
+                # all -- a hot dog is under `substance` -- and taking one of
+                # those as permission to withdraw would lose `is a dog a
+                # plant`, which is a correct no.
+                # One branch, or none of this applies. `plant` is a factory and
+                # a stooge as well as a herb, so its partitions are three and
+                # it says nothing about which dog was meant -- and taking the
+                # andiron as a match there lost `is a dog a plant`. A target
+                # that could be anywhere places nothing.
+                wanted = (self.reasoner.target_partitions(parse.target)
+                          if excluded else set())
+                if len(wanted) != 1:
+                    wanted = set()
                 for other in senses[1:8]:
                     if other["id"] == chosen:
                         continue
                     attempt = self.reasoner.classify(other["id"], parse.target)
-                    if attempt.verdict != "VERIFIED":
+                    fits = bool(wanted) and (
+                        self.reasoner.partition_of(other["id"]) in wanted)
+                    if attempt.verdict != "VERIFIED" and not fits:
                         continue
                     attempt.note = (
                         f"Not of {chosen}, the sense carrying the most facts, "
                         f"but of {other['id']} — {other['definition']}. A word "
-                        f"names a kind of something if any of its senses does.")
+                        f"names a kind of something if any of its senses does."
+                        if attempt.verdict == "VERIFIED" else
+                        f"Not of {chosen} — “{parse.target}” places this "
+                        f"question in a branch {chosen} is not in, and "
+                        f"{other['id']} is: {other['definition']}. "
+                        f"{attempt.note}")
                     answer, chosen = attempt, other["id"]
                     break
             # A hedged `is_a` was a guess -- `is winter cold` has the shape of
             # `is a chair furniture`, and only the data tells them apart. When
             # the taxonomy has nothing, the property reading gets its turn,
             # and `winter has_property cold` was there the whole time.
-            if answer.verdict == "UNKNOWN" and parse.hedged:
+            #
+            # R27's exclusion counts as having nothing. It is a sound answer
+            # to the taxonomy question, and on a hedged predicate the taxonomy
+            # question is the guess: `modern`, `aquatic`, `cold` and
+            # `feminine` all carry noun senses under a different top branch,
+            # so `is a television modern` came back CONTRADICTED at 0.95 --
+            # confident, and about a reading nobody asked for. Every
+            # high-confidence false denial the COMPS audit found was this.
+            #
+            # The determiner is what separates the two readings and the parser
+            # already has it: `an animal` is not hedged and `modern` is, which
+            # is why this is gated on the grammar rather than on whether the
+            # target happens to own an adjective sense. `animal` owns one too,
+            # and gating on that would have taken `is a mouse an animal` with
+            # it.
+            excluded = (answer.verdict == "CONTRADICTED"
+                        and any(step.rule == "R27" for step in answer.steps))
+            if parse.hedged and (answer.verdict == "UNKNOWN" or excluded):
                 attempt = self.reasoner.verify(chosen, "has_property",
                                                parse.target, self.match)
                 # Only what the concept says of itself. A hedged reading is
@@ -124,6 +181,24 @@ class Engine:
                         if not getattr(fact, "distance", 0)]
                 if attempt.verdict != "UNKNOWN" and here:
                     answer = attempt
+                elif excluded:
+                    # Neither reading has anything. The taxonomy one is still
+                    # standing, and it answers a question that was not asked,
+                    # so it goes back to what this codebase says everywhere
+                    # else about a store that never recorded something.
+                    answer.verdict = "UNKNOWN"
+                    answer.note = (
+                        f"“{parse.target}” has a noun sense in a branch of "
+                        f"the taxonomy {chosen} cannot be in, but nothing "
+                        f"here asked a taxonomy question: with no determiner "
+                        f"this reads as a property, and nothing states "
+                        f"{chosen.rsplit('.', 2)[0]} as “{parse.target}”. "
+                        f"Absent, not false. R27 withdrawn.")
+                    answer.steps.append(rules.Step(
+                        len(answer.steps), "stop", chosen, 0, "R27",
+                        f"“{parse.target}” is bare, so the is_a reading was a "
+                        f"guess. The exclusion answers the other question and "
+                        f"is withdrawn."))
         elif parse.polar and parse.target and parse.relation:
             answer = self.sense_first(chosen, parse)
             answer = self.corroborate(answer, parse.target)

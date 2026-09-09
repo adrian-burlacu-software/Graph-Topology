@@ -201,13 +201,26 @@ def denied_awa2() -> dict[str, frozenset[str]]:
 
 
 def denied_xcslb() -> dict[str, frozenset[str]]:
-    """concept -> properties COMPS records it as *not* having.
+    """concept -> the properties COMPS picked it as a *foil* for.
 
-    Every row of the pair file is a minimal pair: one concept the property is
-    acceptable of and one it is not. The acceptable half is the corpus
-    `load_xcslb` builds; the unacceptable half is the other side of the same
-    elicitation, and it is the only place in any of this data where absence is
-    stated rather than merely observed.
+    **Not denials, and not a denial source.** This docstring used to call the
+    unacceptable half "the only place in any of this data where absence is
+    stated rather than merely observed". It is the opposite:
+    `concept_matrix.txt` is 521 x 3,644 binary and 1.58% dense -- 30,009 ones
+    in 1.9M cells -- so it is a free listing, and a zero is what no
+    participant happened to mention. COMPS samples its foils out of those
+    zeros, which is why they do not read as denials:
+
+        stocking  NOT absorbs sweat     (taxonomic)
+        potato    NOT absorbs water     (co-occurrence)
+
+    `Profiles` merged this into the denials it answers DENIED from until
+    2026-09-09, and `is a violin made of wood` was CONTRADICTED because a
+    violin is COMPS' foil for `can be made of ivory`.
+
+    Kept because the foils are real data and `negative_sample_type` orders
+    them by nearness, which is what `research/v688/audit.py` scores against.
+    Do not wire it back into an answer.
     """
     denied: dict[str, set[str]] = {}
     with (XCSLB_DIR / "comps_base.jsonl").open(encoding="utf-8") as handle:

@@ -465,11 +465,19 @@ class ProfileTests(unittest.TestCase):
         self.assertIn("blue whale", said)
         self.assertIn("killer whale", said)
 
-    def test_what_the_concept_states_itself_outranks_the_kinds_below(self):
-        """A dalmatian has spots and a dog does not, and both are right: the
-        question is about the typical dog, and the norms scored that."""
+    def test_a_foil_is_not_a_denial_however_true_it_sounds(self):
+        """This asserted DENIED for `dog / spots` on the grounds that "the
+        norms scored that". They did not. `dog` is COMPS' *taxonomic foil* for
+        `hyena has spots on its body` — a near miss sampled out of a
+        1.58%-dense free listing, never a judgement about dogs. That it
+        happens to be true of the typical dog is exactly what made it
+        convincing, and why the test encoded the bug rather than catching it.
+
+        The positive half is untouched: a feature somebody listed really is an
+        assertion, and `dalmatian has spots` is one.
+        """
         self.assertEqual(self.profiles.verify("dog", ["spots"]).verdict,
-                         "DENIED")
+                         "UNRECORDED")
         self.assertEqual(self.profiles.verify("dalmatian", ["spots"]).verdict,
                          "HELD")
 

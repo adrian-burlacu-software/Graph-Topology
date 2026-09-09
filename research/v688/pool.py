@@ -102,8 +102,14 @@ class EnginePool:
     """`workers` v687 engines, checked out one per question."""
 
     def __init__(self, store: Path, workers: int = DEFAULT_WORKERS,
-                 build_parallel: bool = True, on_ready=None) -> None:
+                 build_parallel: bool = True, on_ready=None,
+                 engine_class=None) -> None:
+        # `engine_class` exists for `audit.py`, which asks the same questions
+        # of subclasses with parts turned off. Nothing in the served system
+        # passes it, and the default is the engine the server has always
+        # built.
         from research.v687.reasoning import ReasoningEngine
+        engine_class = engine_class or ReasoningEngine
 
         self.store = Path(store)
         self.requested = int(workers)
@@ -113,7 +119,7 @@ class EnginePool:
         started = time.time()
 
         def build(index: int):
-            engine = ReasoningEngine(self.store)
+            engine = engine_class(self.store)
             with self._lock:
                 self.engines.append(engine)
                 self.free.put((index, engine))
