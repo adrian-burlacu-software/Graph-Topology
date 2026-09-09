@@ -515,6 +515,31 @@ class ExampleTests(unittest.TestCase):
         self.assertEqual(found.summary["trust"],
                          "not supported by the rest of the store")
 
+    def test_a_requirement_already_settled_is_not_asked(self):
+        """`does a beagle swim` derived `tooth` -- swimmers have teeth, 15 of
+        54, because swimmers are animals -- and asked `does a beagle have
+        teeth`. The store settles that before a worker is spent on it, and it
+        grounded nothing when it came back.
+
+        The derivation is left alone; what changed is whether the question is
+        worth putting. `animal.n.01` is what makes the difference: its `has a
+        leg` and `has a wing` are the rows R19 refuses to inherit, so a fish
+        and its legs stay an open question while a beagle and its teeth,
+        recorded on `dog.n.01`, do not."""
+        found = run("does a beagle swim")
+        asked = [a.question for cycle in found.cycles for a in cycle.answers
+                 if a.origin == "require"]
+        self.assertEqual(asked, [])
+        self.assertEqual(found.summary["trust"],
+                         "not supported by the rest of the store")
+        needs = self.requirements()
+        self.assertTrue(needs.recorded_of("beagle.n.01", "tooth"))
+        self.assertFalse(needs.recorded_of("fish.n.01", "leg"))
+
+    def requirements(self):
+        from .graph import Requirements
+        return Requirements(POOL.engines[0].reasoner)
+
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
         about anatomy. Only checking positives would have missed that."""

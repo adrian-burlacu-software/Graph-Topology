@@ -807,6 +807,20 @@ class Generator:
         needs = self.requirements.of(action)
         if needs is None or needs.part == subject:
             return []
+        # A check that cannot come back other than yes is not a check.
+        # `does a beagle swim` derived `tooth` -- swimmers have teeth,
+        # 15 of 54, because swimmers are animals -- and asked `does a beagle
+        # have teeth`, which the store settles before a worker is spent on
+        # it and which grounds nothing when it comes back.
+        #
+        # A denial is the exception, and it is the reason this is not simply
+        # dropped: `can a penguin fly` is a no, and confirming the penguin
+        # *does* have the wings flying needs is what says the no is not about
+        # anatomy. There the foregone yes is the finding.
+        settled = self.requirements.recorded_of(
+            (answer.payload or {}).get("concept") or "", needs.part)
+        if settled and answer.verdict not in ("CONTRADICTED", "DENIED"):
+            return []
         many = plural(needs.part)
         return [Question(
             f"does {article(subject)} {subject} have {many}", "require",
