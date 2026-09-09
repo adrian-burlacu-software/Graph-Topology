@@ -597,6 +597,93 @@ be sceptical beat the specific instruction to be lenient.
 
 ---
 
+## 15. A model, measured four ways
+
+### It beats the store, and it never shuts up
+
+`--config llm` puts the gold questions to SmolLM3-3B with no graph at all.
+
+| | coverage | confirm | contra | accuracy | foil ladder |
+| --- | --- | --- | --- | --- | --- |
+| crawl | 19.1% | 17.2% | 0.2% | 82.8% | .933 .836 .802 .736 |
+| **LLM alone** | **100%** | **86.9%** | 13.1% | **86.4%** | .936 .860 .824 .829 |
+
+A 3B model on a laptop beats 1.9M facts on every measure, by 9 points on the
+hardest rung. What the store still has is precision when it speaks — 0.2%
+confident falsehoods against 13.1% — and the honesty to say nothing, which
+the model never does. **A better answerer and a worse epistemic agent.**
+
+### The prompt was worth more than the threshold
+
+150 true claims against 150 built by corruption:
+
+    strategy      floor   says yes to TRUE   to FALSE   separation
+    plain         0.99          98.9%           7.7%      +91.2%
+    careful       0.99          96.0%           0.0%      +96.0%
+    unsure        0.99         100.0%          10.7%      +89.3%
+    challenged    0.90         100.0%          38.5%      +61.5%
+
+Two failures worth not repeating. **Offering `unsure` does nothing** — the
+model puts no mass on it even when invited, so abstention must be imposed from
+outside. **A second turn asking "are you certain?" makes it much worse**: it
+revises 1.3% of the time and capitulates otherwise, 7.7% -> 38.5% false
+acceptance, and taking the lower confidence does not rescue it.
+
+At `careful` + 0.99 it asserts **1.0%** of corrupted claims — exactly the
+store's own rate — while reaching 41.5% of true claims against 17.2%.
+
+### Judgement is unstable to surface phrasing
+
+The same three facts behind `can a person run`, worded three ways:
+
+    run for short distances              supports 0.86   sup 0.88  ref 0.51   3/3
+    capable of run for short distances   refuses  0.77   sup 0.94  ref 0.59   2/3
+    can run for short distances          refuses  0.96   sup 0.94  sup 0.93   1/3
+
+Tidier English scores worse and the tidiest supports `running shop`. This is
+a limit of asking a model to judge, not a thing to tune away.
+
+### Teaching: safe, and nearly useless
+
+23,304 questions, 3,363 written at 0.99 (14.5% accepted), 409 concepts, 25
+GPU-minutes.
+
+| | coverage | confirm | accuracy | over-affirmed |
+| --- | --- | --- | --- | --- |
+| before | 19.1% | 17.2% | 82.8% | 1.0% |
+| after | 19.8% | 18.0% | 76.4% | 1.0% |
+
+**+0.7 coverage for -6.4 accuracy** — a worse trade than GenericsKB's
++4.2/-2.1, which was already marginal. The good half: **over-affirmation did
+not move.** The floor and the prompt did their job; 3,363 written facts added
+no measurable falsehood.
+
+And the holdout, `bird`/`tool`/`fruit`, 95 concepts never written to:
+
+| holdout only | coverage | confirm | accuracy | over-affirmed |
+| --- | --- | --- | --- | --- |
+| before | 21.6% | 17.8% | 73.5% | 2.1% |
+| after | 21.6% | 17.8% | 73.1% | 2.1% |
+
+**The control held** — nothing leaked — and **teaching does not generalise**.
+409 taught concepts bought 95 untaught ones nothing. Covering 45,219 concepts
+means asking about 45,219 concepts: ~2.6M questions, ~36 GPU-hours, no
+dividend to wait for.
+
+### And the benchmark blocked a third conclusion
+
+Teaching wrote facts for all 409 non-held XCSLB concepts, and **COMPS foils
+are XCSLB concepts**. Teaching a foil a *true* property makes it compete with
+the held concept and the pair scores wrong. So part of that -6.4 is §1 again,
+the same confound that inflated GenericsKB's cost and that made the R28
+distance-zero relaxation look like a win.
+
+Three conclusions this file could not settle cleanly, all for one reason:
+**the foils are absence, not denial.** The corrupted claims of §14 are the
+only unconfounded measure here, and they say teaching changed nothing.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
