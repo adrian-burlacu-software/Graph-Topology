@@ -411,6 +411,95 @@ class Profiles:
                    f"cover state it and {len(denied)} deny it, so the class "
                    f"does not settle it. Defeasible, which is R3's point.")
 
+    #: Confidence at or above which a fact is worth setting against an AwA2
+    #: zero: each source's own median, because the three are not comparable.
+    #: Ascent++'s is 0.264 over 1,808,006 rows; ConceptNet and WordNet write
+    #: one number on every row, so any row of theirs counts.
+    TYPICAL = {"ascentpp": 0.264}
+
+    #: Relations that assert something of the concept, for that test, split
+    #: by whether a subtype inherits them.
+    #:
+    #: A capability and a part are the two that can be set against a zero.
+    #: Dogs swim, so a collie swims, and `dog capable_of "swim"` is worth
+    #: putting against AwA2's zero on the collie.
+    #:
+    #: `has_property` is left out, and that is the whole of the judgement
+    #: here. AwA2's adjectives -- colours, sizes, temperaments -- are where
+    #: its zeros are least reliable, and they are also where the crawl is:
+    #: some cats are white and a bobcat is not, `bear has_property "small"`
+    #: is about sun bears and not grizzlies. Setting one noisy source against
+    #: another buys nothing, and letting it made `is a bobcat white` a yes.
+    ASSERTING = ("capable_of", "has_a", "has_part")
+
+    def _zero_that_is_not_a_no(self, name: str, terms: list[str]) -> bool:
+        """Is this denial an AwA2 zero that another source contradicts?
+
+        AwA2 annotates 85 attributes per class from a strength matrix, and a
+        zero means the attribute is not *characteristic* of the class. Read as
+        a denial it says a collie has no claws, no muscle, is never black and
+        is not found in fields -- and that a collie does not swim, which is
+        how `does a dog swim` came back CONTRADICTED with all three kinds of
+        dog the norms cover lined up behind it.
+
+        XCSLB is not touched. Its negatives were elicited from people as
+        negatives -- a dog cannot croak, cannot be made of ceramic -- and they
+        are denials in the sense the word is being used here.
+
+        The test is disagreement, not overruling: an AwA2 zero stands unless
+        another source positively asserts the same thing of this concept, at
+        or above that source's own median. `dog capable_of swim` is Ascent++
+        at 0.68, its 97th percentile, so the zero on `swims` is a
+        disagreement between sources and not a no. Nothing in the store says
+        a dog flies, so the zero on `flys` is left alone and `can a dog fly`
+        stays CONTRADICTED.
+        """
+        if self.origin.get(name) != "awa2":
+            return False
+        concept = self.synset.get(name)
+        if not concept:
+            return False
+        wanted = {self.identifier.stem(word) for word in terms}
+        if not wanted:
+            return False
+        marks = ",".join("?" * len(self.ASSERTING))
+        for node, _distance, _parents in self.reasoner.ascend(concept):
+            # A class too wide to speak for its members cannot rescue a zero
+            # either. `animal capable_of swim` would clear every AwA2 denial
+            # of swimming there is; `dog capable_of swim` is about dogs.
+            if self.reasoner.too_broad(node) or self._wide(node):
+                continue
+            for row in self.reasoner.connection.execute(
+                    f"SELECT object, source, confidence FROM facts WHERE "
+                    f"concept = ? AND relation IN ({marks}) "
+                    f"ORDER BY confidence DESC LIMIT 400",
+                    (node, *self.ASSERTING)):
+                if row["confidence"] < self.TYPICAL.get(row["source"], 0.0):
+                    continue
+                said = {self.identifier.stem(word)
+                        for word in re.findall(r"[a-z]+",
+                                               row["object"].lower())
+                        if word not in self.identifier.FRAME
+                        and word not in self.identifier.LOCATORS}
+                # R28's standard, and for R28's reason. `whale capable_of
+                # "walk on land"` carries `walk` and is about the whales that
+                # do; letting it clear AwA2's zero on `walks` said a killer
+                # whale might walk. The fact has to state the thing and add
+                # nothing to it, which `dog capable_of "swim"` does.
+                if said == wanted:
+                    return True
+        return False
+
+    #: Where a class stops speaking for its members. `animal` has 4,016
+    #: descendants and R19 already refuses to inherit its rows.
+    WIDE = 1000
+
+    def _wide(self, concept: str) -> bool:
+        row = self.reasoner.connection.execute(
+            "SELECT descendants FROM concepts WHERE id = ?",
+            (concept,)).fetchone()
+        return bool(row and (row[0] or 0) >= self.WIDE)
+
     def corroboration(self, ancestor: str, term: str) -> tuple[int, int]:
         """R19: how many of an ancestor's norm-covered kinds bear a fact out.
 
@@ -533,7 +622,8 @@ class Profiles:
         # this system gave a confident wrong answer.
         hit, narrower = self.identifier.denial_hit(
             asked or terms, self.denied.get(name, frozenset()))
-        if hit is not None:
+        if hit is not None and not self._zero_that_is_not_a_no(name, asked
+                                                              or terms):
             return Verdict(
                 term=term, verdict="DENIED", predicate=hit,
                 source=self.origin.get(name, "?"),

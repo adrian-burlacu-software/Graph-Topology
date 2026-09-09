@@ -559,7 +559,13 @@ V687_RULES: dict[str, str] = {
            "counterfactuals, dates, questions about words rather than senses, "
            "facts about named individuals and antonyms are named and "
            "declined -- every silent wrong answer found in the v686 and v687 "
-           "audits came from answering an easier question than the one asked.",
+           "audits came from answering an easier question than the one asked. "
+           "A pinned sense whose part of speech cannot complete the sentence "
+           "is refused the same way: `can a dog bark` answered VERIFIED with "
+           "`bark` pinned to the covering of a tree, and to a three-masted "
+           "sailing ship, because the norms match the word and never resolve "
+           "it. Where a pin merely fails to bite rather than contradicting "
+           "the sentence, the answer says which pins it did not use.",
     "R19": "Corroboration: an inherited fact is put to the ancestor's other "
            "kinds before it is believed. `bird capable_of fly` is borne out "
            "by 21 of 29 birds in the norms and is inherited; `animal has a "
@@ -599,6 +605,18 @@ V687_RULES: dict[str, str] = {
            "`fly` was named by “attract butterfly”, `walk` by "
            "“block the sidewalk” and `run` by “get drunk”, "
            "so `can a tree fly` was VERIFIED on a butterfly.",
+    "R29": "Sense-to-sense lookup: where both ends of a question are synsets, "
+           "it is answered between them and no string is matched. Only "
+           "WordNet writes an object as a synset id -- has_part, part_of, "
+           "similar_to, entails and causes, 36,283 concepts -- and that is "
+           "the only place a pin on the object has anything to bind to. "
+           "`does a car have an accelerator` is UNKNOWN through the words, "
+           "because the accelerator is recorded only as a synset, and "
+           "VERIFIED through the graph. It is tried first and it is not "
+           "authoritative: the synset rows are patchy (they have a car's "
+           "wheel and a dog's tail, and not a fish's gills), so when the "
+           "graph is silent the words still answer and the note says which "
+           "of the two spoke.",
     "R26": "Definition: `what is a robin` is answered from the taxonomy "
            "itself -- which sense is meant, the gloss WordNet gives it, what "
            "it is a kind of, and what kinds it has. Before this it fell "

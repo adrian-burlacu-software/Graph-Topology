@@ -585,6 +585,112 @@ class Reasoner:
                                f"{concept} without finding it. Absent, not false.")
         return answer
 
+    #: R29: the relations whose objects are synsets rather than free text,
+    #: and which store rows answer a question asked under each.
+    #:
+    #: Only WordNet writes an object as a synset id -- 22,187 rows each for
+    #: `has_part` and `part_of`, 21,374 `similar_to`, 408 `entails`, 220
+    #: `causes`, across 36,283 concepts. Every other relation in this store,
+    #: `capable_of` and its 772,890 rows included, is free text from a crawl.
+    #:
+    #: The direction is the store's, not the name's. `(car.n.01, part_of,
+    #: accelerator.n.01)` is in there and an accelerator is a part of a car,
+    #: not the reverse; so are `(hand.n.01, part_of, finger.n.01)` and
+    #: `(bird.n.01, part_of, beak.n.02)`. Both spellings are held and both
+    #: read the same way round, so `part_of` is where a "does X have Y"
+    #: question looks. Checked against four unambiguous pairs rather than
+    #: assumed from the column name.
+    #:
+    #: (concept column, relation to search, object column) per asked relation.
+    SENSE_TAGGED: dict[str, tuple[str, bool]] = {
+        "has_part": ("part_of", False),   # the object is a part of the node
+        "has_a": ("part_of", False),
+        "part_of": ("part_of", True),     # the node is a part of the object
+        "similar_to": ("similar_to", None),   # symmetric: either column
+        "causes": ("causes", False),
+        "entails": ("entails", False),
+    }
+
+    def verify_sense(self, concept: str, relation: str, sense: str) -> Answer:
+        """R29: answer between two synsets, with no string matching at all.
+
+        A pin on the object is the reader saying which thing they mean, and
+        on the free-text relations there is nothing for it to bind to: `can a
+        dog bark` is answered by matching the word "bark" against a norm
+        predicate, and every one of `bark`'s nine senses is spelled the same.
+
+        Where both ends are synsets there is something to bind to, and this
+        is that path. It matches the pinned synset itself or one of its
+        recorded kinds -- `accelerator.n.01` is answered by a gas pedal too
+        -- and it inherits, so what is true of a car is true of a hatchback.
+
+        UNKNOWN here is not an answer, it is this path declining; the caller
+        falls back to the words and says which of the two spoke.
+        """
+        answer = Answer(question="", verdict="UNKNOWN", concept=concept,
+                        concept_gloss=self.gloss(concept))
+        route = self.SENSE_TAGGED.get(relation)
+        if not route or not sense:
+            return answer
+        stored, reversed_ = route
+        steps = answer.steps
+        steps.append(Step(len(steps), "resolve", concept, 0, "R29",
+                          f"Reading “{concept}” as this sense, not as a "
+                          f"word, and “{sense}” as well — both ends of "
+                          f"this are senses, so no word is matched."))
+        wanted = {sense} | {row[0] for row in self.connection.execute(
+            "SELECT child FROM taxonomy WHERE parent = ?", (sense,))}
+        marks = ",".join("?" * len(wanted))
+        for node, distance, parents in self.ascend(concept):
+            answer.chain.append(node)
+            if distance and not rules.inheritable(relation):
+                break
+            if reversed_:
+                rows = self.connection.execute(
+                    f"SELECT * FROM facts WHERE relation = ? AND object = ? "
+                    f"AND concept IN ({marks})",
+                    (stored, node, *wanted)).fetchall()
+            elif reversed_ is None:
+                rows = self.connection.execute(
+                    f"SELECT * FROM facts WHERE relation = ? AND "
+                    f"((concept = ? AND object IN ({marks})) OR "
+                    f" (object = ? AND concept IN ({marks})))",
+                    (stored, node, *wanted, node, *wanted)).fetchall()
+            else:
+                rows = self.connection.execute(
+                    f"SELECT * FROM facts WHERE relation = ? AND concept = ? "
+                    f"AND object IN ({marks})",
+                    (stored, node, *wanted)).fetchall()
+            steps.append(Step(len(steps), "check", node, distance, "R29",
+                              f"Ask the graph whether "
+                              f"{node.rsplit('.', 2)[0]} and "
+                              f"{sense.rsplit('.', 2)[0]} are recorded as "
+                              f"`{relation}`: {len(rows)} row(s).",
+                              facts_checked=len(rows), parents=parents))
+            if not rows:
+                continue
+            row = rows[0]
+            fact = Fact(row["concept"], row["relation"], row["object"],
+                        row["source"], row["confidence"],
+                        bool(row["sense_assumed"]), distance)
+            fact.confidence = rules.confidence_at(fact.confidence, distance)
+            answer.verdict = "VERIFIED"
+            answer.evidence.append(fact)
+            answer.note = (
+                f"Between senses, not between words: the graph records "
+                f"{row['concept']} — {row['relation'].replace('_', ' ')} "
+                f"→ {row['object']}"
+                + (f", inherited {distance} level(s) down to "
+                   f"{concept.rsplit('.', 2)[0]}" if distance else "") +
+                f". Nothing here was matched as a string, so the reading you "
+                f"pinned is the reading that answered.")
+            steps.append(Step(len(steps), "match", node, distance, "R29",
+                              f"Found it: {row['concept']} "
+                              f"{row['relation'].replace('_', ' ')} "
+                              f"{row['object']}.", matched=fact.as_dict()))
+            return answer
+        return answer
+
     def describe(self, concept: str, relation: str | None, limit: int = 40) -> Answer:
         """What is true of this concept, directly or by inheritance?"""
         answer = Answer(question="", verdict="LISTING", concept=concept,

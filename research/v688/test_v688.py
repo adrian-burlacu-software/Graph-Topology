@@ -316,15 +316,22 @@ class LoopTests(unittest.TestCase):
 
     def test_a_weak_yes_is_put_to_its_own_family_and_loses(self):
         """The example the whole thing exists for. Neither answer is wrong;
-        the disagreement is invisible to anything that asks once."""
-        found = run("does a beagle swim")
+        the disagreement is invisible to anything that asks once.
+
+        This was `does a beagle swim` until AwA2's zeros stopped being read
+        as denials. The three kinds of dog the norms cover were annotated 0
+        for `swims`, which in AwA2 means the attribute is not characteristic
+        of the class and not that it is false of it -- and beagles swim. The
+        shape is unchanged; `has sails` inherited from `vessel` and denied by
+        a canoe is the same thing with a source whose negatives are
+        negatives."""
+        found = run("does a boat have sails")
         self.assertEqual(found.summary["verdict"], "VERIFIED")
         self.assertEqual(found.summary["trust"],
                          "not supported by the rest of the store")
         conflict = found.summary["conflicts"][0]
         denied = {row["question"] for row in conflict["against"]}
-        self.assertIn("can a dog swim", denied)
-        self.assertIn("can a collie swim", denied)
+        self.assertIn("can a canoe sail", denied)
 
     def test_the_family_is_asked_in_one_cycle_not_one_at_a_time(self):
         """Corroboration is the breadth the pool exists for: the parent and
@@ -515,6 +522,70 @@ class ExampleTests(unittest.TestCase):
         self.assertEqual(found.summary["trust"],
                          "not supported by the rest of the store")
 
+    def test_a_requirement_already_settled_is_not_asked(self):
+        """`does a beagle swim` derived `tooth` -- swimmers have teeth, 15 of
+        54, because swimmers are animals -- and asked `does a beagle have
+        teeth`. The store settles that before a worker is spent on it, and it
+        grounded nothing when it came back.
+
+        The derivation is left alone; what changed is whether the question is
+        worth putting. `animal.n.01` is what makes the difference: its `has a
+        leg` and `has a wing` are the rows R19 refuses to inherit, so a fish
+        and its legs stay an open question while a beagle and its teeth,
+        recorded on `dog.n.01`, do not."""
+        found = run("does a beagle swim")
+        asked = [a.question for cycle in found.cycles for a in cycle.answers
+                 if a.origin == "require"]
+        self.assertEqual(asked, [])
+        self.assertEqual(found.summary["trust"], "corroborated")
+        needs = self.requirements()
+        self.assertTrue(needs.recorded_of("beagle.n.01", "tooth"))
+        self.assertFalse(needs.recorded_of("fish.n.01", "leg"))
+
+    def requirements(self):
+        from .graph import Requirements
+        return Requirements(POOL.engines[0].reasoner)
+
+    def test_an_awa2_zero_is_not_a_denial(self):
+        """`does a dog swim` came back denied, with all three kinds of dog
+        the norms cover lined up behind it. Those three are AwA2 rows
+        annotated 0 for `swims`, and a 0 there means the attribute is not
+        characteristic of the class -- the same zeros deny that a collie has
+        claws or muscle, or is ever black.
+
+        A zero stands unless another source states the same thing plainly of
+        the concept or a class tight enough to speak for it. `dog capable_of
+        "swim"` is Ascent++ at 0.68, its 97th percentile, so the zero on
+        `swims` is a disagreement between sources rather than a no. Nothing
+        says a dog flies, so that zero is untouched."""
+        engine = POOL.engines[0]
+        self.assertEqual(engine.ask("does a dog swim")["verdict"], "VERIFIED")
+        self.assertEqual(engine.ask("does a collie swim")["verdict"],
+                         "VERIFIED")
+        self.assertEqual(engine.ask("can a dog fly")["verdict"],
+                         "CONTRADICTED")
+        # Adjectives are left alone in both directions: AwA2's colours and
+        # sizes are its least reliable zeros and the crawl's are no better,
+        # so `is a bobcat white` keeps its no.
+        self.assertEqual(engine.ask("is a bobcat white")["verdict"],
+                         "CONTRADICTED")
+
+    def test_only_a_decisive_requirement_grounds_a_denial(self):
+        """Saying "the no is not about anatomy" claims to know what the
+        anatomy is for. `does a dog swim` said "a dog does have teeth, which
+        is what the things that do it have in common" -- true, and nothing to
+        do with swimming.
+
+        Only flying has a part that stands out from the anatomy its doers
+        share, so only there is the line worth putting."""
+        from .graph import Requirements
+        needs = Requirements(POOL.engines[0].reasoner)
+        self.assertTrue(needs.of("fly").decisive)
+        for action in ("swim", "run", "climb", "jump"):
+            with self.subTest(action=action):
+                found = needs.of(action)
+                self.assertFalse(found.decisive, f"{action} -> {found.part}")
+
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
         about anatomy. Only checking positives would have missed that."""
@@ -571,7 +642,7 @@ class ExampleTests(unittest.TestCase):
         false of the other kinds the store knows. The shape is general: a
         claim inherited from an ancestor that a minority of that ancestor's
         own kinds bear out."""
-        found = run("does a beagle swim")
+        found = run("does a boat have sails")
         self.assertTrue(found.summary["conflicts"]
                         or found.summary.get("overreach"))
 
@@ -712,6 +783,93 @@ class ExampleTests(unittest.TestCase):
                          "unchallenged", "unreadable", "absent, not false",
                          "corroborated"):
             self.assertIn(expected, outcomes)
+
+
+class ReadingTests(unittest.TestCase):
+    """Four outcomes and a number, in place of seventeen verdicts and none.
+
+    The seventeen still decide the repair; `gap.kind_of` reads them and this
+    does not. What changed is what a person reads off the page.
+    """
+
+    def test_every_verdict_reads_as_one_of_four(self):
+        """Including ones this map has never seen: an unlisted verdict has
+        settled nothing, and `unknown` is the reading that says so."""
+        from . import confidence, gap
+        every = (gap.ABOUT_THE_WORLD | gap.ABOUT_CONTENT | gap.ABOUT_COVERAGE
+                 | gap.ABOUT_THE_QUESTION | gap.ABOUT_RELIABILITY)
+        for verdict in sorted(every) + ["ERROR", "", "SOMETHING_NEW"]:
+            with self.subTest(verdict=verdict):
+                self.assertIn(confidence.outcome_of(verdict),
+                              ("verified", "denied", "unknown", "retrieved"))
+        self.assertEqual(confidence.outcome_of("HELD"), "verified")
+        self.assertEqual(confidence.outcome_of("CONTRADICTED"), "denied")
+        self.assertEqual(confidence.outcome_of("DEFINED"), "retrieved")
+        self.assertEqual(confidence.outcome_of("UNRECORDED"), "unknown")
+
+    def test_a_fact_is_placed_within_its_own_source(self):
+        """The finding this rests on: 0.42 sounds low and is Ascent++'s 78th
+        percentile. ConceptNet and WordNet write one number on every row, so
+        for them the number is not a signal and the source is."""
+        from .confidence import percentile
+        self.assertAlmostEqual(percentile("ascentpp", 0.42)[0], 0.78, places=2)
+        self.assertAlmostEqual(percentile("ascentpp", 0.157)[0], 0.25,
+                               places=2)
+        for source in ("conceptnet", "wordnet"):
+            with self.subTest(source=source):
+                self.assertIn("says nothing", percentile(source, 0.35)[1])
+
+    def test_subsumption_does_not_decay_with_distance(self):
+        """`is a beagle a dog` read 0.55 -- medium confidence that a beagle
+        is a dog -- because the dog is three levels up and R5 decays what is
+        borrowed. Subsumption is not borrowed: the walk is the proof."""
+        found = run("is a beagle a dog")
+        self.assertEqual(found.summary["outcome"], "verified")
+        self.assertEqual(found.summary["band"], "high")
+        self.assertTrue(any(one["name"] == "exact"
+                            for one in found.summary["factors"]),
+                        found.summary["factors"])
+
+    def test_silence_carries_no_confidence(self):
+        """A number beside `unknown` would be read as a weakly held claim,
+        and there is no claim. `do pigs fly` is not a faint yes."""
+        found = run("do pigs fly")
+        self.assertEqual(found.summary["outcome"], "unknown")
+        self.assertEqual(found.summary["confidence"], 0.0)
+
+    def test_the_loop_is_what_moves_the_number(self):
+        """The point of the whole thing. v687 answers `does a beagle swim`
+        VERIFIED; the family denies it, and the number says so while the
+        outcome still reports what v687 concluded."""
+        found = run("does a boat have sails")
+        self.assertEqual(found.summary["outcome"], "verified")
+        self.assertEqual(found.summary["band"], "low")
+        named = {one["name"] for one in found.summary["factors"]}
+        self.assertIn("its family denied it", named)
+
+    def test_every_factor_is_reported_with_its_reason(self):
+        """A confidence that cannot be argued with is one to be suspicious
+        of, so nothing goes into the product without saying why."""
+        for utterance in ("is a dog an animal", "does a beagle swim",
+                          "what is a beagle"):
+            with self.subTest(utterance=utterance):
+                for one in run(utterance).summary["factors"]:
+                    self.assertTrue(one["why"].strip(), one)
+                    self.assertIsInstance(one["factor"], float)
+
+    def test_every_answer_carries_its_own_reading(self):
+        """Not only the headline: every row in the table is one of the four,
+        with its own number."""
+        found = run("does a beagle swim")
+        rows = [a.as_dict(False) for c in found.cycles for a in c.answers]
+        self.assertTrue(rows)
+        for row in rows:
+            with self.subTest(question=row["question"]):
+                self.assertIn(row["outcome"],
+                              ("verified", "denied", "unknown", "retrieved"))
+                self.assertIn(row["band"], ("low", "medium", "high"))
+                self.assertGreaterEqual(row["confidence"], 0.0)
+                self.assertLessEqual(row["confidence"], 1.0)
 
 
 if __name__ == "__main__":

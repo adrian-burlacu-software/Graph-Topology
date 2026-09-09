@@ -61,6 +61,9 @@ class ReasoningEngine(IdentifyingEngine):
             subject = (self.parser.parse(question or "").subject or "").lower()
             subject_sense = pins.of(subject)
         if not concept:
+            clash = self._pin_fights_the_question(question or "", pinned)
+            if clash is not None:
+                return clash
             for attempt in (self._gated, self._define, self._contrast,
                             self._causal, self._analogy):
                 answer = attempt(question or "")
@@ -72,7 +75,123 @@ class ReasoningEngine(IdentifyingEngine):
                 return backwards
         payload = super().ask(question, concept or subject_sense)
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
+        self._report_unused_pins(payload, pinned)
         return payload
+
+    #: The tagger's labels in WordNet's alphabet, for comparing a pin against
+    #: the way its word was actually used.
+    USED_AS = {"NOUN": "n", "PROPN": "n", "VERB": "v", "ADJ": "a", "ADV": "r"}
+
+    def _pin_fights_the_question(self, question: str,
+                                 pinned: dict[str, str] | None) -> dict | None:
+        """R18: a pin whose part of speech cannot complete the sentence.
+
+        `can a dog bark` used to answer VERIFIED with `bark` pinned to
+        `bark.n.01`, the tough protective covering of a tree -- and to
+        `bark.n.03`, a three-masted sailing ship. Every reading gave the same
+        answer with the same note, because the norms match the *word* against
+        their predicates and never resolve it to a sense at all.
+
+        Reporting that is `_report_unused_pins` below. This is the stronger
+        case: the pin does not merely fail to bite, it contradicts the
+        sentence it was made on. `can a dog bark` completes an auxiliary, so
+        `bark` there is a verb, and asking whether a dog can tough-protective-
+        covering-of-a-tree is not a question anyone can answer. R18 refuses a
+        construction by name rather than answering the easier question hiding
+        inside it, and this is one.
+
+        Only the one slot grammar is certain about, which is why this asks
+        `verb_slot` rather than reading a tag. A pin is the reader overruling
+        the engine, so it must not be refused on the strength of a label the
+        engine got wrong -- and it did get them wrong: in `can dogs bark` the
+        tagger calls `dogs` a VERB and `bark` a NOUN, so a check against the
+        tags refused `bark.v.04`, the correct reading, on a question the
+        reader had already corrected twice over. After `can`, `does` or
+        `will` the auxiliary needs completing and only a verb can complete
+        it; everywhere else the pin is let through and `_report_unused_pins`
+        says what became of it.
+        """
+        if not pinned:
+            return None
+        parse = self.parser.parse(question or "")
+        slot = (parse.verb_slot or "").lower()
+        if not slot:
+            return None
+        forms = {slot}
+        for token in parse.tokens or []:
+            if (token.get("lemma") or "").lower() == slot:
+                forms.add((token.get("text") or "").lower())
+        for word, sense in sorted(pinned.items()):
+            parts = (sense or "").split(".")
+            if (word or "").lower() not in forms:
+                continue
+            was = "v"
+            if len(parts) < 3 or parts[1] == was:
+                continue
+            spoken = {"n": "a noun", "v": "a verb", "a": "an adjective",
+                      "r": "an adverb"}
+            gloss = self.reasoner.gloss(sense) or ""
+            reason = (f"“{word}” pinned to {sense}, "
+                      f"{spoken.get(parts[1], parts[1])}"
+                      + (f" — {gloss}" if gloss else "") +
+                      f", where the question uses it as "
+                      f"{spoken.get(was, was)}")
+            return self._shell(
+                question, "UNSUPPORTED", "R18", note=f"This asks for {reason}.",
+                steps=[self._step(0, "R18", "refused", "",
+                                  f"Not answerable here: {reason}. Pick a "
+                                  f"reading the sentence can take, or drop "
+                                  f"the pin.", kind="block")],
+                extra={"pins_refused": {word: sense}})
+        return None
+
+    def _report_unused_pins(self, payload: dict,
+                            pinned: dict[str, str] | None) -> None:
+        """Say which pins the answer did not actually use.
+
+        `pins.applies_to` already reports which *rules* can honour a pin on a
+        word, but it is asked about a word and not about a question, so it
+        cannot know that this particular answer came from R17 -- which reads
+        the sense key XCSLB ships and has nothing to overrule -- or that the
+        predicate reached the answer as a bare string.
+
+        A control that looks as though it works everywhere and works in
+        places is worse than no control, so the answer carries what happened:
+        a pin is honoured when its synset is the one the derivation actually
+        stood on, and listed as unused when it is not.
+        """
+        payload["pins_used"], payload["pins_unused"] = {}, {}
+        if not pinned:
+            return
+        # Both columns. R29 answers between two senses and the pinned one is
+        # the *object* of the row it stands on -- `car.n.01 part_of
+        # accelerator.n.01` -- so reading concepts alone reported the pin
+        # that had just decided the answer as unused.
+        stood_on = {payload.get("concept") or ""}
+        for fact in payload.get("evidence") or []:
+            stood_on.update({fact.get("concept") or "",
+                             fact.get("object") or ""})
+        for step in payload.get("steps") or []:
+            matched = step.get("matched") or {}
+            stood_on.update({step.get("concept") or "",
+                             matched.get("concept") or "",
+                             matched.get("object") or ""})
+        for word, sense in pinned.items():
+            if sense in stood_on:
+                payload["pins_used"][word] = sense
+            else:
+                payload["pins_unused"][word] = sense
+        if payload["pins_unused"]:
+            said = ", ".join(f"“{word}” to {sense}"
+                             for word, sense in
+                             sorted(payload["pins_unused"].items()))
+            payload["note"] = ((payload.get("note") or "").rstrip() + " "
+                               + f"This answer did not use the reading you "
+                                 f"pinned: {said}. Nothing on the path that "
+                                 f"reached it resolves that word to a sense — "
+                                 f"the norms match it as a word against their "
+                                 f"own predicates — so the answer would read "
+                                 f"the same under any reading of it.").strip()
 
     #: Words that never name a concept, so never get a sense chip.
     #:

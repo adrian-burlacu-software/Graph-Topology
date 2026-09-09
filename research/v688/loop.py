@@ -17,7 +17,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from . import attention
+from . import attention, confidence
 from .buffer import Buffer
 from .gap import UNDERMINING
 from .pool import Answer, EnginePool
@@ -387,6 +387,21 @@ class Loop:
                     f"sense {rank + 1} of that word, chosen because the store "
                     f"holds more facts about it than about the earlier ones")
 
+        unused = ((headline.payload or {}).get("pins_unused") or {}
+                  if headline else {})
+        if unused:
+            # The reader made a choice and the answer did not use it. Saying
+            # so beats a page that shows a held-to chip beside an answer the
+            # chip had no part in: `can a dog bark` reads the same under
+            # every sense of `bark`, because the norms match the word.
+            said = ", ".join(f"“{word}” to {sense}"
+                             for word, sense in sorted(unused.items()))
+            lines.append(
+                f"and your reading did not bear on it: {said} was pinned, "
+                f"but the path that answered resolves no sense for that "
+                f"word — the norms match it as a word against their own "
+                f"predicates, so the answer is the same either way")
+
         for wide in overreached:
             holders = ", ".join(wide["holders"][:3]) or "almost none of them"
             lines.append(
@@ -396,6 +411,16 @@ class Loop:
                 f"{holders}, hoisted to the class they belong to.")
 
         for hole in telling:
+            if hole.kind == "construction":
+                # Not an unknown word -- a question v687 declined by name,
+                # and it already said why. `can a dog bark` pinned to
+                # `bark.n.01` read as "this ontology has no word for bark",
+                # which is both false and not what R18 complained about.
+                lines.append(
+                    "R18 declined the question as put: "
+                    + (hole.detail or "no rule covers this construction")
+                      .removeprefix("This asks for ").rstrip("."))
+                continue
             lines.append(
                 f"“{hole.blocker}” is not something this ontology has a word "
                 f"for; nothing about it can be settled until it is told")
@@ -422,6 +447,12 @@ class Loop:
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer, overturned),
+            # The badge. `trust` says in a phrase what went wrong and the
+            # verdict says which of seventeen things v687 concluded; this
+            # says which of four readings it comes to and how far it should
+            # be taken, with every factor that made the number.
+            **confidence.of_run(headline, buffer, conflicts, overturned,
+                                corrected).as_dict(),
         }
 
     def rank_of(self, answer) -> int | None:
@@ -476,8 +507,13 @@ class Loop:
             walk, seen = [], set()
             while answer is not None and answer.question not in seen:
                 seen.add(answer.question)
+                weighed = confidence.of_answer(answer.payload,
+                                               answer.verdict)
                 walk.append({"question": answer.question,
                              "verdict": answer.verdict,
+                             "outcome": weighed.outcome,
+                             "confidence": round(weighed.value, 2),
+                             "band": weighed.band,
                              "origin": answer.origin,
                              "why": answer.why,
                              "depth": buffer.depth_of(answer.question)})

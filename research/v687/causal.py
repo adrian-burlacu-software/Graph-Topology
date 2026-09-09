@@ -404,11 +404,12 @@ class Causal:
                  if token.pos_ == "VERB" and token.lemma_.lower() in words]
         if verbs:
             return verbs
-        # The tagger is not reliable on these: in "why does a dog bark" the
-        # small model calls `bark` a NOUN, and in "what happens when a dog
-        # bites" it calls `bites` one. When no verb is found, the event is the
-        # last content word -- which is where English puts it in exactly the
-        # question shapes this module reads.
+        # The tagger is not reliable on these: in "what happens when a dog
+        # bites" the small model calls `bites` a NOUN. `Parser._read` now
+        # corrects the modal shape -- "why does a dog bark" does come back
+        # with a verb -- but it corrects only that shape, and this module
+        # reads several. When no verb is found, the event is the last content
+        # word, which is where English puts it in the ones it reads.
         return words[-1:] or words
 
     def _event(self, phrase: str, kinds: tuple[str, ...] = THEN,

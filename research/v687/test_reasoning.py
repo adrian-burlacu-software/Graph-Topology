@@ -1394,5 +1394,214 @@ class OverAffirmationTests(unittest.TestCase):
                 self.assertEqual(self.verdict(question), "VERIFIED")
 
 
+class PinnedSenseIsHonouredTests(unittest.TestCase):
+    """`can a dog bark` answered VERIFIED with `bark` pinned to the covering
+    of a tree, and to a three-masted sailing ship, with the same note both
+    times. The reading shown was never the reading used."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_a_modal_is_completed_by_a_verb_whatever_the_tagger_says(self):
+        """spaCy reads `a dog bark` as a compound noun, so every word that is
+        also a common noun came back NOUN: bark, fly, run, swim. The tag is
+        what the sense picker offers a reading by, which is how `bark` in
+        `can a dog bark` was offered as the covering of a tree and marked the
+        default."""
+        for question, word in (("can a dog bark", "bark"),
+                               ("can a bird fly", "fly"),
+                               ("can a horse run", "run"),
+                               ("can a rock swim", "swim"),
+                               ("why does a dog bark", "bark"),
+                               ("do all dogs bark", "bark")):
+            with self.subTest(question=question):
+                tags = {t["text"].lower(): t["pos"]
+                        for t in self.engine.parser.parse(question).tokens}
+                self.assertEqual(tags.get(word), "VERB", tags)
+
+    def test_the_noun_after_the_verb_is_left_alone(self):
+        """Reading past the verb turned `legs` into one. `is` and `have` take
+        a noun and are not in the set at all."""
+        for question, word, pos in (("does a dog have legs", "legs", "NOUN"),
+                                    ("does a bird lay eggs", "eggs", "NOUN"),
+                                    ("is a dog an animal", "animal", "NOUN"),
+                                    ("is a chair furniture", "furniture",
+                                     "NOUN")):
+            with self.subTest(question=question):
+                tags = {t["text"].lower(): t["pos"]
+                        for t in self.engine.parser.parse(question).tokens}
+                self.assertEqual(tags.get(word), pos, tags)
+
+    def test_the_ontology_vetoes_splitting_a_compound(self):
+        """`fire truck` is a lemma, so `can a fire truck` keeps its subject.
+        `truck fly` is not, so `can a fire truck fly` splits after truck."""
+        parser = self.engine.parser
+        self.assertEqual(parser.parse("can a fire truck fly").subject,
+                         "fire truck")
+        self.assertEqual(parser.parse("can a fire truck").subject,
+                         "fire truck")
+
+    def test_the_tagger_can_swap_the_subject_and_the_verb(self):
+        """`can dogs bark` comes back with `dogs` a VERB and `bark` a NOUN --
+        both slots wrong at once. The picker offered `chase.v.01` as the
+        reading of `dog`, and a pin checked against the tags refused
+        `bark.v.04`, which is the correct reading, on a question the reader
+        had already corrected twice over."""
+        tags = {t["text"].lower(): t["pos"]
+                for t in self.engine.parser.parse("can dogs bark").tokens}
+        self.assertEqual(tags.get("dogs"), "NOUN", tags)
+        self.assertEqual(tags.get("bark"), "VERB", tags)
+        self.assertEqual(
+            self.engine.ask("can dogs bark", None,
+                            {"dog": "dog.n.01",
+                             "bark": "bark.v.04"})["verdict"], "VERIFIED")
+
+    def test_the_slot_is_read_off_the_grammar_not_off_a_tag(self):
+        """What completes the auxiliary, which is the only thing a pin is
+        checked against. `is` and `are` take a noun and have no such slot."""
+        for question, slot in (("can dogs bark", "bark"),
+                               ("can a dog bark", "bark"),
+                               ("can a large dog fall", "fall"),
+                               ("does a dog have legs", "have"),
+                               ("can a fire truck move", "move"),
+                               ("can a fire truck", ""),
+                               ("is a dog an animal", "")):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    self.engine.parser.parse(question).verb_slot, slot)
+
+    def test_a_pin_the_sentence_cannot_take_is_refused(self):
+        """The bug as reported: a noun sense pinned onto the word completing
+        a modal. Asking whether a dog can tough-protective-covering-of-a-tree
+        is not a question, and answering it yes is worse than declining."""
+        for sense in ("bark.n.01", "bark.n.03"):
+            with self.subTest(sense=sense):
+                answer = self.engine.ask("can a dog bark", None,
+                                         {"bark": sense})
+                self.assertEqual(answer["verdict"], "UNSUPPORTED")
+                self.assertIn(sense, answer["note"])
+                self.assertIn("as a verb", answer["note"])
+        # And the same word pinned to a reading the sentence *can* take is
+        # not refused.
+        self.assertEqual(
+            self.engine.ask("can a dog bark", None,
+                            {"bark": "bark.v.04"})["verdict"], "VERIFIED")
+
+    def test_a_pin_that_did_not_bear_on_the_answer_says_so(self):
+        """R17 matches the word against its own predicates and resolves no
+        sense, so every reading of `bark` gives the same answer. A control
+        that looks as though it works everywhere and works in places is
+        worse than no control."""
+        answer = self.engine.ask("can a dog bark", None,
+                                 {"bark": "bark.v.04"})
+        self.assertEqual(answer["pins_unused"], {"bark": "bark.v.04"})
+        self.assertEqual(answer["pins_used"], {})
+        self.assertIn("did not use the reading you pinned", answer["note"])
+
+    def test_a_pin_that_did_bear_on_the_answer_is_not_complained_about(self):
+        """`mouse` pinned to the animal is what the derivation stands on."""
+        answer = self.engine.ask("is a mouse an animal", None,
+                                 {"mouse": "mouse.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertEqual(answer["pins_used"], {"mouse": "mouse.n.01"})
+        self.assertEqual(answer["pins_unused"], {})
+        self.assertNotIn("did not use the reading", answer["note"])
+
+
+class SenseToSenseTests(unittest.TestCase):
+    """R29. A pin on the object only means something where there is a sense
+    to bind it to, and in this store that is WordNet's synset-to-synset rows.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687.reasoning import ReasoningEngine
+        cls.engine = ReasoningEngine(STORE)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.reasoner.close()
+
+    def test_the_direction_is_the_stores_and_not_the_columns_name(self):
+        """`(car.n.01, part_of, accelerator.n.01)` is in the store and an
+        accelerator is a part of a car, not the reverse. Both spellings are
+        held and both read the same way round, so a "does X have Y" question
+        looks in `part_of`. Asserted on four unambiguous pairs, because
+        reading it off the column name gets it backwards."""
+        rows = self.engine.reasoner.connection.execute(
+            "SELECT concept, object FROM facts WHERE relation = 'part_of' "
+            "AND source = 'wordnet' AND concept IN "
+            "('car.n.01', 'hand.n.01', 'bird.n.01', 'tree.n.01')").fetchall()
+        held = {(row["concept"], row["object"]) for row in rows}
+        for whole, part in (("car.n.01", "accelerator.n.01"),
+                            ("hand.n.01", "finger.n.01"),
+                            ("bird.n.01", "beak.n.02"),
+                            ("tree.n.01", "limb.n.02")):
+            with self.subTest(whole=whole):
+                self.assertIn((whole, part), held)
+
+    def test_a_pinned_object_is_answered_between_senses(self):
+        """`does a car have an accelerator` is UNKNOWN through the words --
+        the accelerator is recorded only as a synset -- and VERIFIED through
+        the graph. This is the pin changing an answer, which on a free-text
+        relation it cannot do."""
+        self.assertEqual(
+            self.engine.ask("does a car have an accelerator")["verdict"],
+            "UNKNOWN")
+        answer = self.engine.ask("does a car have an accelerator", None,
+                                 {"accelerator": "accelerator.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertIn("Between senses", answer["note"])
+        self.assertEqual(answer["pins_used"],
+                         {"accelerator": "accelerator.n.01"})
+
+    def test_it_inherits(self):
+        """What is true of a car is true of a hatchback."""
+        self.assertEqual(
+            self.engine.reasoner.verify_sense(
+                "hatchback.n.01", "has_part", "accelerator.n.01").verdict,
+            "VERIFIED")
+
+    def test_a_sense_the_graph_does_not_link_falls_back_to_the_words(self):
+        """`beak.n.01` is the beak of an animal other than a bird, so the
+        graph has no bird-to-beak.n.01 row. The words still answer, and the
+        note says the graph was asked first and had nothing -- "the graph
+        does not record this" and "no word matched" are different things to
+        know."""
+        answer = self.engine.ask("does a bird have a beak", None,
+                                 {"beak": "beak.n.01"})
+        self.assertEqual(answer["verdict"], "VERIFIED")
+        self.assertIn("Asked between senses first", answer["note"])
+
+    def test_the_graph_is_not_authoritative(self):
+        """The synset rows are patchy: they hold a car's wheel and a dog's
+        tail and not a fish's gills or a horse's legs. Letting the graph's
+        silence stand as the answer would lose every one of those."""
+        reasoner = self.engine.reasoner
+        for concept, sense in (("fish.n.01", "gill.n.01"),
+                               ("horse.n.01", "leg.n.01")):
+            with self.subTest(concept=concept):
+                self.assertEqual(
+                    reasoner.verify_sense(concept, "has_part", sense).verdict,
+                    "UNKNOWN")
+        self.assertEqual(self.engine.ask("does a horse have legs")["verdict"],
+                         "VERIFIED")
+
+    def test_a_free_text_relation_has_nothing_to_bind_to(self):
+        """`capable_of` is 772,890 rows of crawled text and none of them name
+        a sense, so `can a dog bark` cannot be answered between senses however
+        the reader pins it."""
+        self.assertNotIn("capable_of", self.engine.reasoner.SENSE_TAGGED)
+        self.assertEqual(
+            self.engine.reasoner.verify_sense(
+                "dog.n.01", "capable_of", "bark.v.04").verdict, "UNKNOWN")
+
+
 if __name__ == "__main__":
     unittest.main()

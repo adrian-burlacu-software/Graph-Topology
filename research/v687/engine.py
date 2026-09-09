@@ -125,8 +125,7 @@ class Engine:
                 if attempt.verdict != "UNKNOWN" and here:
                     answer = attempt
         elif parse.polar and parse.target and parse.relation:
-            answer = self.reasoner.verify(chosen, parse.relation, parse.target,
-                                          self.match)
+            answer = self.sense_first(chosen, parse)
             answer = self.corroborate(answer, parse.target)
         else:
             answer = self.reasoner.describe(chosen, parse.relation)
@@ -144,6 +143,45 @@ class Engine:
         payload["neighbourhood"] = self.neighbourhood(chosen, answer.chain, distances)
         payload["store"] = self.reasoner.store.name
         return payload
+
+    def sense_first(self, concept: str, parse):
+        """R29 before R2: ask the graph, then fall back to the words.
+
+        A pin on the object only means something where there is a sense to
+        bind it to, and in this store that is WordNet's synset-to-synset
+        rows -- `has_part`, `part_of`, `similar_to`, `entails`, `causes`.
+        Everything else, `capable_of` and its 772,890 rows included, is free
+        text from a crawl, and `can a dog bark` is answered by matching the
+        word "bark" against a norm predicate that could be any of its nine
+        senses.
+
+        So: if the reader pinned a word in the object and the relation has a
+        sense-tagged form, put the question to the graph between the two
+        synsets, with no string matching anywhere in it. `does a car have an
+        accelerator` is UNKNOWN through the words -- the accelerator is
+        recorded only as a synset -- and VERIFIED through the graph.
+
+        When the graph has nothing the words still get their turn, and the
+        answer says which of the two spoke, because "the graph does not
+        record this" and "no word matched" are different things to know.
+        """
+        pinned = ""
+        for word in (parse.target or "").replace("-", " ").split():
+            pinned = pins.of(word.strip(".,;:").lower()) or pinned
+            if pinned:
+                break
+        if pinned:
+            found = self.reasoner.verify_sense(concept, parse.relation, pinned)
+            if found.verdict != "UNKNOWN":
+                return found
+        answer = self.reasoner.verify(concept, parse.relation, parse.target,
+                                      self.match)
+        if pinned and parse.relation in self.reasoner.SENSE_TAGGED:
+            answer.note = ((answer.note or "").rstrip() + " " + (
+                f"Asked between senses first — the graph records no "
+                f"`{parse.relation}` between {concept} and {pinned} — and "
+                f"then between words, which is what answered.")).strip()
+        return answer
 
     def corroborate(self, answer, target: str):
         """R19 hook: put an inherited fact to the ancestor's other kinds.

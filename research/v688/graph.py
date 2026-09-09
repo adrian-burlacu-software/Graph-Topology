@@ -200,6 +200,37 @@ MIN_DOERS = 20
 #: among things that fly than among concepts at large.
 REQUIRES_LIFT = 60.0
 
+#: How far the best candidate must lead the next before it is worth saying
+#: a *denial* is not about anatomy.
+#:
+#: Measured over the actions the store has enough doers for:
+#:
+#:     fly    wing  304.0   next: leg   114.5   margin 2.66
+#:     swim   tooth 176.9   next: leg   113.5   margin 1.56
+#:     run    leg   102.2   next: tooth  77.8   margin 1.31
+#:     climb  claw  321.0   next: tooth 243.5   margin 1.32
+#:     jump   tooth 217.1   next: claw  212.6   margin 1.02
+#:
+#: Only flying has a part that stands out from the anatomy its doers happen
+#: to share, and only there is `the no is not about anatomy` a claim worth
+#: making. `does a dog swim` came back denied and said "a dog does have
+#: teeth, which is what the things that do it have in common" -- true, and
+#: it has nothing to do with swimming.
+#:
+#: This gates the denial branch only. A probe on a yes or a silence is
+#: hedged in its own `why` text and costs one worker; a line on a denial is
+#: the run's conclusion.
+DECISIVE = 2.0
+
+#: How wide a class stops speaking for its members, for `recorded_of`.
+#:
+#: `animal.n.01` has 4,016 descendants and carries `has a leg` and `has a
+#: wing`; R19 refuses to inherit that row because 20 of 143 animals bear it
+#: out. `dog.n.01` has 189 and its teeth are every beagle's. The line only
+#: has to fall between those two, and 1,000 puts `mammal` (1,181) on the
+#: right side of it as well.
+BROAD_FOR_PARTS = 1000
+
 
 @dataclass(frozen=True)
 class Requirement:
@@ -210,10 +241,17 @@ class Requirement:
     holders: int
     doers: int
     lift: float
+    #: How far this part leads the next one the same doers share. Only
+    #: `fly -> wing` leads decisively; see `DECISIVE`.
+    margin: float = 1.0
 
     @property
     def share(self) -> float:
         return self.holders / self.doers if self.doers else 0.0
+
+    @property
+    def decisive(self) -> bool:
+        return self.margin >= DECISIVE
 
     def as_dict(self) -> dict:
         return {"action": self.action, "part": self.part,
@@ -239,12 +277,34 @@ class Requirements:
     walking a child; `swim` gives `tooth`. Where no part clears both floors
     the loop says the store could not tell it what the action needs, which is
     a better answer than a confident wrong one.
+
+    Four other measures were tried against `swim -> tooth` and none of them
+    separates it from `run -> leg`. The numbers, so nobody spends the
+    afternoon again:
+
+        measure                     fly/wing  swim/tooth  run/leg
+        lift vs all concepts           304.0       176.9    102.2
+        vs non-doers that have parts   399.2       122.4     72.3
+        vs the median rival action      22.9         7.7      5.0
+        margin over the runner-up        2.7         1.6      1.3
+
+    On every one of them `swim -> tooth` outscores `run -> leg`, so no
+    threshold keeps the second and drops the first. The parts' own
+    `used_for` rows do not help either: `wing.n.02 capable_of "move through
+    the air"` is there, and `leg.n.03` gives "hang by tendon" and "protect
+    against rust". The store records what animals have, not what actions
+    need, and `fly -> wing` is the one place the two coincide.
+
+    So the derivation is left as it is and `recorded_of` decides whether the
+    question is worth asking, which is a different question and one the data
+    can answer.
     """
 
     def __init__(self, reasoner) -> None:
         self.reasoner = reasoner
         self._cache: dict[str, Requirement | None] = {}
         self._overall: dict[str, int] = {}
+        self._width: dict[str, int] = {}
         # Narrowing this to the 24,733 concepts that have parts recorded was
         # tried and made things worse: it cost `run -> leg`, which is the one
         # this exists for, and kept `swim -> tooth`, which is the one it was
@@ -277,6 +337,52 @@ class Requirements:
             in ("abstraction.n.06", "person.n.01")
             for sense in senses[:3])
 
+    def recorded_of(self, concept: str, part: str) -> bool:
+        """Is this part already recorded of the concept, or inherited?
+
+        A requirement check is meant to ground a claim, and it can only do
+        that if the answer could come back either way. `does a beagle swim`
+        derived `tooth` and asked `does a beagle have teeth`, which is not a
+        check: the store says a dog has teeth and a beagle is a dog, so the
+        answer was settled before a worker was spent on it, and it grounded
+        nothing when it came back.
+
+        A fact on a class too wide to speak for its members does not settle
+        anything, and this is the whole of the difference here. Every part
+        worth asking about is refused by `animal.n.01` and its 4,016
+        descendants -- `animal has a leg`, `animal has a wing` -- which is
+        the same row R19 refuses to inherit because 20 of 143 animals bear it
+        out. Measured:
+
+            beagle / tooth   found on dog.n.01     (189)   settled
+            penguin / wing   found on penguin.n.01 (0)     settled
+            fish / leg       found on animal.n.01  (4,016) not settled
+            hog / wing       found on animal.n.01  (4,016) not settled
+
+        Cheap on purpose -- one query per ancestor against the store, no
+        engine and no worker, because this runs before the question is
+        queued.
+        """
+        if not concept or not part:
+            return False
+        for node, _distance, _parents in self.reasoner.ascend(concept):
+            if self._breadth(node) >= BROAD_FOR_PARTS:
+                continue
+            if self.reasoner.connection.execute(
+                    "SELECT 1 FROM facts WHERE concept = ? AND relation IN "
+                    "('has_a', 'has_part') AND object = ? LIMIT 1",
+                    (node, part)).fetchone():
+                return True
+        return False
+
+    def _breadth(self, concept: str) -> int:
+        if concept not in self._width:
+            row = self.reasoner.connection.execute(
+                "SELECT descendants FROM concepts WHERE id = ?",
+                (concept,)).fetchone()
+            self._width[concept] = int(row[0]) if row and row[0] else 0
+        return self._width[concept]
+
     def of(self, action: str) -> Requirement | None:
         action = (action or "").strip().lower()
         if action in self._cache:
@@ -296,7 +402,7 @@ class Requirements:
             f"GROUP BY object HAVING holders > 2 "
             f"ORDER BY holders DESC LIMIT 30", doers).fetchall()
 
-        best: Requirement | None = None
+        scored: list = []
         for row in rows:
             part = (row["object"] or "").strip()
             if " " in part or not self._concrete(part):
@@ -305,9 +411,15 @@ class Requirements:
             lift = share / self._commonness(part)
             if share < REQUIRES_SHARE or lift < REQUIRES_LIFT:
                 continue
-            if best is None or lift > best.lift:
-                best = Requirement(action, part, row["holders"], len(doers),
-                                   lift)
+            scored.append((lift, part, row["holders"]))
+        best = None
+        if scored:
+            scored.sort(reverse=True)
+            lift, part, holders = scored[0]
+            runner_up = scored[1][0] if len(scored) > 1 else 0.0
+            best = Requirement(action, part, holders, len(doers), lift,
+                               lift / runner_up if runner_up
+                               else float("inf"))
         self._cache[action] = best
         return best
 

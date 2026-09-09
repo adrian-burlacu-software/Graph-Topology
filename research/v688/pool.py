@@ -73,8 +73,16 @@ class Answer:
         return (self.payload or {}).get("steps") or []
 
     def as_dict(self, with_payload: bool = True) -> dict:
+        # Four readings and a number, beside the seventeen-word verdict. The
+        # verdict stays: it is what chooses the repair. This is what a person
+        # reads.
+        from .confidence import of_answer
+        weighed = of_answer(self.payload, self.verdict)
         record = {"question": self.question, "pins": dict(self.pins),
                   "verdict": self.verdict,
+                  "outcome": weighed.outcome,
+                  "confidence": round(weighed.value, 2),
+                  "band": weighed.band,
                   "relation": self.relation, "note": self.note,
                   "worker": self.worker, "elapsed": round(self.elapsed, 4),
                   "started": round(self.started, 4), "origin": self.origin,
@@ -82,6 +90,7 @@ class Answer:
                   "why": self.why, "parent": self.parent, "cycle": self.cycle,
                   "error": self.error}
         if with_payload:
+            record["factors"] = weighed.as_dict()["factors"]
             record["steps"] = self.steps
             record["evidence"] = (self.payload or {}).get("evidence") or []
             record["concept"] = (self.payload or {}).get("concept")
