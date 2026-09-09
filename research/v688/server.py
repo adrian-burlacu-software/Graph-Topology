@@ -93,12 +93,20 @@ EXAMPLES = [
      "expect": "corroborated"},
 
     {"text": "does a boat have sails",
-     "shows": "What the beagle used to show, with a source whose negatives "
-              "are negatives. `has sails` is inherited from `vessel`, and of "
-              "the six kinds put to it a canoe denies it. One ask cannot see "
-              "that disagreement; the run leads with the doubt rather than "
-              "with the yes.",
-     "expect": "not supported by the rest of the store"},
+     "shows": "A right answer reached for the wrong reason, which one ask "
+              "cannot tell from a right answer. The yes rests on `can sail` "
+              "— v687 scores a question one term at a time, and `sail` "
+              "matches a predicate that is not the one asked about. The "
+              "norms do assert `boat has sails`, so the verdict stands; what "
+              "the loop adds is that the derivation behind it does not. "
+              "This card used to claim family disagreement: `has sails` "
+              "inherited from `vessel` and denied by a canoe. That denial was "
+              "a COMPS foil, not a judgement — nobody was ever asked whether "
+              "a canoe has sails — and it went when foils stopped being read "
+              "as denials. It is the second example of this machinery to rest "
+              "on absence read as denial, after `does a beagle swim` rested "
+              "on AwA2's zeros. See research/v688/AUDIT.md.",
+     "expect": "reached on a different predicate"},
     {"text": "does a cat purr",
      "shows": "Fan out, then reason in a line. The cat family splits on "
               "`active` — bobcat and siamese yes, persian no — and the "
@@ -133,11 +141,16 @@ EXAMPLES = [
 
     # -- and the short ones ------------------------------------------------
     {"text": "is a violin made of wood",
-     "shows": "v687 says no. It reached that through `made`, which matched "
-              "the stored predicate `can be made of ivory` — a fact about "
-              "ivory, not about wood. The loop says which predicate the "
-              "verdict actually rests on.",
-     "expect": "reached on a different predicate"},
+     "shows": "v687 used to say **no** — reaching it through `made`, which "
+              "matched the stored predicate `can be made of ivory`, a fact "
+              "about ivory and not about wood. Two bugs stacked: that "
+              "“denial” was a COMPS foil rather than anything anyone "
+              "judged false, and one content term was enough to match it. "
+              "The foils are gone and it reads absent now, which is what a "
+              "store that never recorded the answer should say. Kept as the "
+              "example of a confident wrong answer becoming an honest "
+              "silence.",
+     "expect": "absent, not false"},
     {"text": "is a spider an insect",
      "shows": "Absent, not false — and the loop says which of the two it "
               "found rather than guessing between them.",

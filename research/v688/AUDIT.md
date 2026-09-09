@@ -246,6 +246,67 @@ is pliers a garden tool          |  weak gold, arguably correct
 
 ---
 
+## 9. Acted on: COMPS foils are no longer denials
+
+Committed after §8. `Profiles.denied` merged `denied_xcslb()` — 36,701 rows
+— and none of them was a judgement. AwA2 stays, guarded, and the distinction
+is now written into `Profiles.__init__`: **AwA2's matrix is closed**, every
+class scored on all 85 attributes, so its zeros are real judgements and the
+only question is what they mean. **XCSLB's is 1.58% dense**, so its zeros were
+never judgements and there is nothing to guard.
+
+What it cost, and what it bought:
+
+| | before | after |
+| --- | --- | --- |
+| `is a violin made of wood` | CONTRADICTED | **absent, not false** |
+| `do all birds fly` exceptions | 7: chicken, cockerel, emu, magpie… | **3: chicken, emu, penguin** |
+| `does a boat have sails` | family disagreement | reached on a different predicate |
+
+Cockerels and magpies fly. Four of the seven flightless birds were foils, and
+the violin was denied because `violin` is COMPS' foil for `can be made of
+ivory`, matched on the single term `made`. Two bugs stacked.
+
+**Four v687 tests were encoding the bug rather than catching it.** Each
+asserted a rule through one row of data, and when the row turned out to be a
+foil the rule looked broken — `denial_hit`'s locative-tail logic was correct
+throughout. They now assert the mechanism directly.
+
+### And the machinery has never had a sound example
+
+`does a boat have sails` was the **second** flagship example of v688's
+family-disagreement claim to rest on absence read as denial, after
+`does a beagle swim` rested on AwA2's zeros. `canoe NOT has sails` is a foil
+in three flavours, and the norms positively assert `boat has sails`.
+
+So the store was searched for a third. Sixty-eight questions through the loop;
+four fired, and all four are artefacts:
+
+```
+does a rat swim     AwA2 zero on `swims`                  rats swim
+does a zebra run    AwA2 zero                             zebras run
+does a deer run     ("red" and "run") matched `red`,      deer run
+                    and AwA2 says deer are not red
+does a moth fly     denied by `can a tineoid fly in may`  moths fly
+```
+
+Enumerating what the machinery *could* fire on gives the structural reason:
+with XCSLB's foils gone, the denial side is AwA2's 85 attributes plus crawled
+qualified text, and the candidate pairs are things like
+`container.n.01 / chewteeth` at 1/39. **Every family disagreement the loop can
+currently report is grounded in something that is not a denial.**
+
+Four tests asserted this claim. They now assert the mechanism, plus
+`test_no_family_disagreement_in_the_store_is_currently_sound`, which records
+the finding so it is noticed if it stops being true.
+
+What survives is real and is not that claim: the boat's yes is **correct** —
+the norms assert `boat has sails` — and it is reached through `can sail`,
+which shares no word with `sails`. The loop catches a right answer arriving by
+a wrong route, which one ask cannot do.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

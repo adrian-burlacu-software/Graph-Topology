@@ -234,10 +234,22 @@ class Profiles:
         self.origin = identifier.origin
 
         self._ancestors: dict[str, set[str]] | None = None
+        # AwA2 only. `denied_xcslb` used to be merged in here and it is not a
+        # set of denials: XCSLB's matrix is 521 x 3,644 and 1.58% dense, a free
+        # listing whose zeros are what nobody happened to say, and COMPS builds
+        # its foils by sampling concepts out of them. Nothing judged them
+        # false. `violin` is the foil for `can be made of ivory`, which is how
+        # `is a violin made of wood` came back CONTRADICTED.
+        #
+        # AwA2 is different in the way that matters: its matrix *is* closed --
+        # every class was scored on every one of the 85 attributes -- so its
+        # zeros are real judgements and the only question is what they mean.
+        # That is a semantics problem on data that exists, which is what
+        # `_zero_that_is_not_a_no` is for. XCSLB's zeros were never judgements
+        # at all, so there is nothing to guard and nothing to keep.
         self.denied: dict[str, frozenset[str]] = {}
-        for source in (corpora.denied_awa2(), corpora.denied_xcslb()):
-            for name, properties in source.items():
-                self.denied[name] = self.denied.get(name, frozenset()) | properties
+        for name, properties in corpora.denied_awa2().items():
+            self.denied[name] = self.denied.get(name, frozenset()) | properties
 
         corpus = Corpus("norms", tuple(sorted(
             (name, predicates) for name, predicates in self.stated.items()
@@ -442,9 +454,11 @@ class Profiles:
         how `does a dog swim` came back CONTRADICTED with all three kinds of
         dog the norms cover lined up behind it.
 
-        XCSLB is not touched. Its negatives were elicited from people as
-        negatives -- a dog cannot croak, cannot be made of ceramic -- and they
-        are denials in the sense the word is being used here.
+        XCSLB is not reached here because it is no longer a denial source at
+        all. This docstring used to claim its negatives "were elicited from
+        people as negatives"; they were not. They are COMPS foils sampled out
+        of a 1.58%-dense free listing, and `Profiles.__init__` says why they
+        are gone rather than guarded.
 
         The test is disagreement, not overruling: an AwA2 zero stands unless
         another source positively asserts the same thing of this concept, at

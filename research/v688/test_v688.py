@@ -58,6 +58,21 @@ def run(utterance: str):
     return RUNS[utterance]
 
 
+class _QuietBuffer:
+    """A buffer that raises nothing, so a factor can be tested on its own.
+
+    The store no longer holds a family disagreement that is sound -- see
+    `test_no_family_disagreement_in_the_store_is_currently_sound` -- so the
+    factors that fire on one are asserted against a given conflict rather
+    than a found one. Everything else about them is unchanged.
+    """
+
+    seen_doubts: tuple = ()
+
+    def borne_out(self, question: str) -> bool:   # noqa: ARG002
+        return False
+
+
 class VerdictVocabularyTests(unittest.TestCase):
     """The five kinds a verdict can be about, and the repair each licenses."""
 
@@ -314,24 +329,57 @@ class PoolTests(unittest.TestCase):
 class LoopTests(unittest.TestCase):
     """The whole cycle, on the cases it was built for."""
 
-    def test_a_weak_yes_is_put_to_its_own_family_and_loses(self):
-        """The example the whole thing exists for. Neither answer is wrong;
-        the disagreement is invisible to anything that asks once.
+    def test_the_family_machinery_works_on_a_disagreement_it_is_given(self):
+        """The mechanism, asserted where it lives rather than through data.
 
-        This was `does a beagle swim` until AwA2's zeros stopped being read
-        as denials. The three kinds of dog the norms cover were annotated 0
-        for `swims`, which in AwA2 means the attribute is not characteristic
-        of the class and not that it is false of it -- and beagles swim. The
-        shape is unchanged; `has sails` inherited from `vessel` and denied by
-        a canoe is the same thing with a source whose negatives are
-        negatives."""
-        found = run("does a boat have sails")
-        self.assertEqual(found.summary["verdict"], "VERIFIED")
-        self.assertEqual(found.summary["trust"],
-                         "not supported by the rest of the store")
-        conflict = found.summary["conflicts"][0]
-        denied = {row["question"] for row in conflict["against"]}
-        self.assertIn("can a canoe sail", denied)
+        This test used to be `test_a_weak_yes_is_put_to_its_own_family_and_
+        loses`, described as "the example the whole thing exists for", and it
+        has now had two examples taken off it. `does a beagle swim` went when
+        AwA2's zeros stopped being read as denials. `does a boat have sails`
+        went when COMPS' foils did: `canoe NOT has sails` is a foil sampled
+        out of a 1.58%-dense free listing, so nobody was ever asked whether a
+        canoe has sails, and the norms positively assert `boat has sails`.
+
+        See `test_no_family_disagreement_in_the_store_is_currently_sound` for
+        why it is not simply pointed at a third example, and AUDIT.md §9.
+        """
+        from . import confidence
+
+        class Fake:
+            question = "does a boat have sails"
+            verdict = "VERIFIED"
+            payload: dict = {}
+
+        alone = confidence.of_run(Fake(), _QuietBuffer(), [], overturned=False)
+        denied = confidence.of_run(Fake(), _QuietBuffer(), [Fake()],
+                                   overturned=False)
+        self.assertIn("its family denied it", {one[0] for one in denied.factors})
+        self.assertNotIn("its family denied it",
+                         {one[0] for one in alone.factors})
+        self.assertLess(denied.value, alone.value)
+
+    @requires_store
+    def test_no_family_disagreement_in_the_store_is_currently_sound(self):
+        """The finding, kept as a test so it is noticed if it stops being true.
+
+        Sixty-eight questions were put through the loop looking for a family
+        disagreement that is *correct*. Four fired and all four are artefacts:
+        `does a rat swim`, `does a zebra run` and `does a deer run` on AwA2
+        zeros -- the deer denied because `("red" and "run")` matched `red` and
+        AwA2 says deer are not red -- and `does a moth fly`, denied by
+        `can a tineoid fly in may`, a crawled predicate about May.
+
+        Rats swim, zebras run, deer run and moths fly. If a genuine instance
+        is ever found, put it here and give the machinery its example back.
+        """
+        for utterance in ("does a rat swim", "does a moth fly"):
+            with self.subTest(utterance=utterance):
+                found = run(utterance)
+                for conflict in found.summary.get("conflicts") or []:
+                    for row in conflict.get("against") or []:
+                        self.assertNotEqual(
+                            row.get("verdict"), "VERIFIED",
+                            "a conflict that agrees is not a conflict")
 
     def test_the_family_is_asked_in_one_cycle_not_one_at_a_time(self):
         """Corroboration is the breadth the pool exists for: the parent and
@@ -642,9 +690,13 @@ class ExampleTests(unittest.TestCase):
         false of the other kinds the store knows. The shape is general: a
         claim inherited from an ancestor that a minority of that ancestor's
         own kinds bear out."""
-        found = run("does a boat have sails")
-        self.assertTrue(found.summary["conflicts"]
-                        or found.summary.get("overreach"))
+        found = run("do pigs fly")
+        self.assertEqual(found.summary["verdict"], "UNKNOWN")
+        # R19 inside v687 is where this shape is caught now. The v688-level
+        # version of it needed a conflict, and the two the page had were both
+        # absence read as denial.
+        note = found.cycles[0].answers[0].note or ""
+        self.assertIn("kinds of", note)
 
     def test_a_no_another_reading_would_answer_yes_to_is_re_asked(self):
         """`is a mouse an animal` comes back CONTRADICTED, correctly, about
@@ -745,10 +797,24 @@ class ExampleTests(unittest.TestCase):
         The assertion is on the doubt, not on the headline. `off_target`
         fires on the violin too and outranks this one for the summary line,
         and which of two true complaints gets shown is a presentation choice
-        -- that the pair was scored apart is the finding under test."""
-        found = run("is a violin made of wood")
+        -- that the pair was scored apart is the finding under test.
+
+        **Third example, same cause.** The violin's denial rested on `can be
+        made of ivory`, which is a COMPS foil rather than anything anyone
+        judged false, so with the foils gone the violin reads absent and
+        `scored_apart` has no instance either. What survives is the same
+        complaint on a *yes*: `does a boat have sails` is VERIFIED on
+        `can sail`, which shares no word with `sails`. One term was enough to
+        reach it, which is the finding; `off_target` is the reason the loop
+        files it under.
+        """
+        found = run("does a boat have sails")
         doubts = [one["reason"] for one in found.summary["doubts"]]
-        self.assertIn("scored_apart", doubts, doubts)
+        self.assertIn("off_target", doubts, doubts)
+        self.assertTrue(any("can sail" in line
+                            for line in found.summary["lines"]))
+        self.assertEqual(run("is a violin made of wood").summary["trust"],
+                         "absent, not false")
         self.assertEqual(run("can a dog fly").summary["trust"],
                          "denied, unchallenged")
 
@@ -838,14 +904,22 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(found.summary["confidence"], 0.0)
 
     def test_the_loop_is_what_moves_the_number(self):
-        """The point of the whole thing. v687 answers `does a beagle swim`
-        VERIFIED; the family denies it, and the number says so while the
-        outcome still reports what v687 concluded."""
+        """The loop's own contribution to the reading: a single ask cannot
+        produce it, because a single ask has nothing to compare against.
+
+        Asserted on a doubt rather than on a conflict, because the store has
+        no sound conflict left to assert on. `does a boat have sails` still
+        makes the point in the direction that matters -- v687 concludes
+        VERIFIED, and the number comes down because the loop found the
+        verdict resting on a predicate nobody asked about.
+        """
         found = run("does a boat have sails")
         self.assertEqual(found.summary["outcome"], "verified")
-        self.assertEqual(found.summary["band"], "low")
         named = {one["name"] for one in found.summary["factors"]}
-        self.assertIn("its family denied it", named)
+        self.assertIn("1 doubt(s)", named)
+        doubt = next(one for one in found.summary["factors"]
+                     if one["name"] == "1 doubt(s)")
+        self.assertLess(doubt["factor"], 1.0)
 
     def test_every_factor_is_reported_with_its_reason(self):
         """A confidence that cannot be argued with is one to be suspicious
