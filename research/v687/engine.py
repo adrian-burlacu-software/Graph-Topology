@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import build, compress, pins
+from . import build, compress, pins, rules
 from .language import Parser
 from .reason import Reasoner
 
@@ -113,7 +113,24 @@ class Engine:
             # `is a chair furniture`, and only the data tells them apart. When
             # the taxonomy has nothing, the property reading gets its turn,
             # and `winter has_property cold` was there the whole time.
-            if answer.verdict == "UNKNOWN" and parse.hedged:
+            #
+            # R27's exclusion counts as having nothing. It is a sound answer
+            # to the taxonomy question, and on a hedged predicate the taxonomy
+            # question is the guess: `modern`, `aquatic`, `cold` and
+            # `feminine` all carry noun senses under a different top branch,
+            # so `is a television modern` came back CONTRADICTED at 0.95 --
+            # confident, and about a reading nobody asked for. Every
+            # high-confidence false denial the COMPS audit found was this.
+            #
+            # The determiner is what separates the two readings and the parser
+            # already has it: `an animal` is not hedged and `modern` is, which
+            # is why this is gated on the grammar rather than on whether the
+            # target happens to own an adjective sense. `animal` owns one too,
+            # and gating on that would have taken `is a mouse an animal` with
+            # it.
+            excluded = (answer.verdict == "CONTRADICTED"
+                        and any(step.rule == "R27" for step in answer.steps))
+            if parse.hedged and (answer.verdict == "UNKNOWN" or excluded):
                 attempt = self.reasoner.verify(chosen, "has_property",
                                                parse.target, self.match)
                 # Only what the concept says of itself. A hedged reading is
@@ -124,6 +141,24 @@ class Engine:
                         if not getattr(fact, "distance", 0)]
                 if attempt.verdict != "UNKNOWN" and here:
                     answer = attempt
+                elif excluded:
+                    # Neither reading has anything. The taxonomy one is still
+                    # standing, and it answers a question that was not asked,
+                    # so it goes back to what this codebase says everywhere
+                    # else about a store that never recorded something.
+                    answer.verdict = "UNKNOWN"
+                    answer.note = (
+                        f"“{parse.target}” has a noun sense in a branch of "
+                        f"the taxonomy {chosen} cannot be in, but nothing "
+                        f"here asked a taxonomy question: with no determiner "
+                        f"this reads as a property, and nothing states "
+                        f"{chosen.rsplit('.', 2)[0]} as “{parse.target}”. "
+                        f"Absent, not false. R27 withdrawn.")
+                    answer.steps.append(rules.Step(
+                        len(answer.steps), "stop", chosen, 0, "R27",
+                        f"“{parse.target}” is bare, so the is_a reading was a "
+                        f"guess. The exclusion answers the other question and "
+                        f"is withdrawn."))
         elif parse.polar and parse.target and parse.relation:
             answer = self.sense_first(chosen, parse)
             answer = self.corroborate(answer, parse.target)

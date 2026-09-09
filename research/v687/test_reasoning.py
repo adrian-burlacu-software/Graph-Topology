@@ -1064,6 +1064,43 @@ class SemanticDialogueTests(unittest.TestCase):
         self.assertEqual(self.verdict("is a wolf wild"), "VERIFIED")
         self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
 
+    def test_r27_does_not_deny_a_property_by_excluding_a_noun_sense(self):
+        """Every high-confidence false denial the COMPS audit found.
+
+        `modern`, `aquatic`, `cold` and `feminine` all carry a noun sense in
+        a branch the subject cannot be in, so the taxonomy reading excluded
+        and answered CONTRADICTED at 0.95 -- confident, and about a question
+        nobody asked. On a bare predicate the is_a reading is a guess, so the
+        exclusion is withdrawn and the property reading gets its turn.
+
+        These are outside the 521 concepts the norms cover, which is where
+        the bug bites: R17 answers the covered ones and hides it.
+        """
+        for question, concept in (("is a laptop modern", "laptop.n.01"),
+                                  ("is a skyscraper modern", "skyscraper.n.01")):
+            with self.subTest(question=question):
+                self.assertIsNone(self.engine.profiles.route(question))
+                self.assertIsNotNone(              # the exclusion is armed
+                    self.engine.reasoner.excludes(concept, "modern"))
+                self.assertEqual(self.verdict(question), "VERIFIED")
+
+    def test_a_withdrawn_exclusion_leaves_absence_and_not_denial(self):
+        """When the property reading finds nothing either, the taxonomy
+        answer is still standing and still answers the wrong question."""
+        answer = self.engine.ask("is a mussel aquatic")
+        self.assertNotEqual(answer["verdict"], "CONTRADICTED")
+
+    def test_the_determiner_is_what_withdraws_it_and_not_the_adjective(self):
+        """`animal` owns an adjective sense too, so gating the withdrawal on
+        the target having one would have taken `is a mouse an animal` -- a
+        page example -- with it. `an animal` carries a determiner and is not
+        hedged; `modern` is bare and is."""
+        parse = self.engine.parser.parse
+        self.assertTrue(parse("is a television modern").hedged)
+        self.assertFalse(parse("is a mouse an animal").hedged)
+        self.assertEqual(self.verdict("is a dog a plant"), "CONTRADICTED")
+        self.assertEqual(self.verdict("is a dog an idea"), "CONTRADICTED")
+
     # -- what the dialogue asks and gets -----------------------------------
     def test_the_semantic_turn_answers_end_to_end(self):
         for question, verdict in (
