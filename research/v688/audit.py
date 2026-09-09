@@ -102,7 +102,8 @@ STORE = ROOT / "data" / "v684_reasoning.sqlite"
 COMPS = ROOT / "data" / "xcslb" / "comps_base.jsonl"
 
 #: The four configurations, in the order the report reads them.
-CONFIGS = ("shipped", "crawl", "lenient", "pinned", "corroborated", "loop")
+CONFIGS = ("shipped", "crawl", "lenient", "stated", "pinned",
+           "corroborated", "loop")
 
 #: Predicate openers that are already a question's auxiliary.
 AUXILIARY = {"is", "can", "was", "are", "does", "has", "have", "will",
@@ -348,6 +349,27 @@ def engine_class(config: str):
                 return answer
 
         return NoR28
+
+    if config == "stated":
+        class R28OnInheritedOnly(NoNorms):
+            """R28 kept for inherited facts, dropped for stated ones.
+
+            `lenient` showed R28 costs a third of the reachable coverage for
+            three points of accuracy. This asks whether the trade is really
+            about qualification or about *inheritance*: the case R28 was
+            written for -- `fish capable_of "walk on land"` -- is a class fact
+            carried down to a member, and at distance zero there is nothing to
+            carry.
+            """
+
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                self.reasoner.R28_ON_STATED = False
+
+            def corroborate(self, answer, target):
+                return answer
+
+        return R28OnInheritedOnly
 
     class CrawlAlone(NoNorms):
         """...and nothing checks the crawl against them either.

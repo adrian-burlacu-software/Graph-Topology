@@ -185,6 +185,21 @@ class Reasoner:
         ).fetchone()
         return row["definition"] if row else None
 
+    #: Whether R28 applies to a fact stated of the asked concept itself.
+    #:
+    #: R28 exists because a qualified fact can be about a minority: `fish
+    #: capable_of "walk on land"` is the mudskippers. That is a claim about a
+    #: *class* being carried down to its members, which is inheritance, and at
+    #: distance zero there is no inheritance to abuse -- `leopard capable_of
+    #: "hunt at night"` is about leopards, and a leopard that hunts at night
+    #: hunts.
+    #:
+    #: Set False to test that reading; `research/v688/audit.py` does, and the
+    #: number is in AUDIT.md. It is True here because the audit says so: the
+    #: relaxation is not safe, and the reason is that `rock capable_of "go for
+    #: swim"` is stated of rock itself.
+    R28_ON_STATED = True
+
     #: R27. Branches of the taxonomy that nothing belongs to two of. These
     #: are not guessed: `plant.n.02`, `animal.n.01`, `person.n.01`,
     #: `artifact.n.01` and `abstraction.n.06` were checked against each other
@@ -543,7 +558,8 @@ class Reasoner:
                 fact.confidence = rules.confidence_at(fact.confidence, distance)
                 if fact.confidence < rules.FLOOR:
                     continue
-                if not plain(fact.object, target):
+                if not plain(fact.object, target) and (
+                        distance or self.R28_ON_STATED):
                     # R28. The fact says more than the question asked, and the
                     # surplus is doing the work: `rock capable_of "go for
                     # swim"` is about a place people swim, and `fish capable_of

@@ -395,6 +395,79 @@ were not what was wrong.
 
 ---
 
+## 12. Not acted on: R28, and what the benchmark cannot see
+
+The verdict in §3 said the missing 79% is absence. That rested on `pinned`,
+and pinning tests *sense selection* only — it says nothing about a fact
+sitting in the store under different words. Sampling 120 missed positives:
+**54% have a row sharing a content word**, and many are one shape.
+
+```
+bra      / "can be fastened"     capable_of: fasten in the front
+leopard  / "can hunt"            capable_of: hunt at night, hunt monkey
+hose     / "is used to wash"     used_for: washing car
+```
+
+R28 refuses those. So two ablations, both against `crawl`:
+
+| config | coverage | confirmed | accuracy | foil ladder |
+| --- | --- | --- | --- | --- |
+| crawl | 19.1% | 17.2% | 82.8% | .933 .836 .802 .736 |
+| stated (R28 off at distance 0) | 22.5% | 20.7% | 82.3% | .933 .815 .797 .744 |
+| lenient (R28 off entirely) | 25.4% | 23.6% | 79.8% | .910 .786 .773 .722 |
+
+**R28 costs a third of the reachable coverage for three points of accuracy.**
+That bounds §3 rather than overturning it: 6.3 points of an 80.9-point gap is
+8%, so data is still 92% of the problem — but "the store does not have it" was
+doing work that "the store has it and R28 will not take it" should have done.
+
+### The benchmark said ship it. The benchmark was wrong.
+
+`stated` looks like a clear win: half of `lenient`'s coverage for a tenth of
+its accuracy cost, and the taxonomic rung *improves*. It is not a win. It
+resurrects the bugs this whole line of work started from:
+
+```
+                        strict     relaxed
+can a rock swim        UNKNOWN    VERIFIED
+can a fish walk        UNKNOWN    VERIFIED
+can a person fly       UNKNOWN    VERIFIED
+```
+
+`rock capable_of "go for swim"` is stated **of rock, at distance zero**, so
+the qualification problem is not about inheritance and the distance-0
+hypothesis was simply wrong.
+
+**XCSLB's 521 concepts are almost all leaves** — accordion, barrel, beagle —
+so the gold set barely contains the class-level concepts where the relaxation
+fails, and cannot see the failure. The v687 suite caught it, because those
+cases were added by hand after the over-affirmation audit. *The benchmark is
+necessary and not sufficient, and the hand-picked adversarial cases are still
+earning their place.*
+
+### Why there is no cheap fix
+
+The failures are classes and the wins are leaves — rock 31 descendants, fish
+617, person 10,296, against hose 5, leopard 2, bra 1 — and a threshold
+anywhere between would separate all seven. That is a threshold picked off
+seven hand-chosen points, which is the move this file exists to discourage.
+The principled alternatives do not work either:
+
+- **R19's corroboration** cannot clear a leaf: `leopard` has no norm-covered
+  kinds, so it would refuse the wins along with the failures.
+- **Grammar** cannot separate them: `hunt at night` and `walk on land` are
+  both VERB + PP.
+- The existing width constant (`WIDE = 1000`) does not separate them; rock
+  and fish are both far below it.
+
+What actually distinguishes `leopard hunt at night` from `fish walk on land`
+is whether the class is homogeneous, which is corroboration, which needs the
+norms, which cover 1.2% of concepts. **R28's bluntness is downstream of norm
+sparsity, not a defect of the rule.** `R28_ON_STATED` is left True and carries
+this reasoning.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
