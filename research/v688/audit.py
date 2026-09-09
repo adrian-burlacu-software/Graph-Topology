@@ -102,7 +102,7 @@ STORE = ROOT / "data" / "v684_reasoning.sqlite"
 COMPS = ROOT / "data" / "xcslb" / "comps_base.jsonl"
 
 #: The four configurations, in the order the report reads them.
-CONFIGS = ("shipped", "crawl", "corroborated", "loop")
+CONFIGS = ("shipped", "crawl", "pinned", "corroborated", "loop")
 
 #: Predicate openers that are already a question's auxiliary.
 AUXILIARY = {"is", "can", "was", "are", "does", "has", "have", "will",
@@ -168,6 +168,54 @@ class Pair:
 
     def keys(self) -> tuple:
         return (f"{self.held}|{self.prop}", f"{self.foil}|{self.prop}")
+
+
+def store_senses() -> dict:
+    """concept -> the synset XCSLB says it means, in the store's spelling.
+
+    The audit was asking `is a donkey a mammal` in bare English and letting
+    v687 choose, and v687 chose `donkey.n.01` -- "the symbol of the Democratic
+    Party", which sits under `emblem -> symbol -> abstraction`. R27 then
+    denied the claim at 0.95, correctly, about the wrong animal. Six of the
+    ten confident false denials in the first sweep were that.
+
+    XCSLB ships the sense key, so none of that guessing is necessary:
+    `donkey%1:05:00::` resolves to `domestic_ass.n.01`. `identify.py` makes
+    this join already but keeps only the lemma half of the key and drops the
+    sense index, so it is redone here from the key itself.
+
+    The `pinned` configuration is what this is for. It is `crawl` with the
+    reader's sense supplied, so `pinned - crawl` separates a store that does
+    not know from a reasoner that looked in the wrong place.
+    """
+    from nltk.corpus import wordnet
+
+    out = {}
+    for concept, key in corpora.senses().items():
+        try:
+            name = wordnet.lemma_from_key(key).synset().name()
+        except Exception:                           # noqa: BLE001
+            continue
+        out[concept.replace("_", " ")] = name.replace("_", " ")
+    return out
+
+
+def pins_for(concept: str, senses: dict) -> dict:
+    """The pin for one concept, keyed the way the parser will ask for it.
+
+    `pins.of` is looked up by the parsed subject, so a two-word concept is
+    pinned under both its full name and its head word. A pin that matches
+    neither goes unused, and v687 already reports unused pins rather than
+    swallowing them.
+    """
+    name = concept.replace("_", " ")
+    sense = senses.get(name)
+    if not sense:
+        return {}
+    pinned = {name: sense}
+    if " " in name:
+        pinned[name.rsplit(" ", 1)[-1]] = sense
+    return pinned
 
 
 def articles() -> dict:
@@ -273,7 +321,11 @@ def engine_class(config: str):
         return NoNorms
 
     class CrawlAlone(NoNorms):
-        """...and nothing checks the crawl against them either."""
+        """...and nothing checks the crawl against them either.
+
+        `crawl` and `pinned` share this: they differ only in whether the
+        reader's sense is supplied with the question.
+        """
 
         def corroborate(self, answer, target):
             return answer
@@ -301,6 +353,11 @@ def ask_shard(config: str, asked: list, workers: int, cycles: int) -> list:
 
     pool = EnginePool(STORE, workers=workers,
                       engine_class=engine_class(config))
+    senses = store_senses() if config == "pinned" else {}
+
+    def pinned_for(key: str) -> dict:
+        return pins_for(key.split("|")[0], senses) if senses else {}
+
     rows = []
     try:
         if config == "loop":
@@ -312,7 +369,7 @@ def ask_shard(config: str, asked: list, workers: int, cycles: int) -> list:
             for key, text in asked:
                 started = time.time()
                 try:
-                    run = loop.run(text)
+                    run = loop.run(text, pinned_for(key) or None)
                     summary = run.summary or {}
                     read = {"verdict": summary.get("verdict") or "",
                             "outcome": summary.get("outcome") or "unknown",
@@ -331,7 +388,8 @@ def ask_shard(config: str, asked: list, workers: int, cycles: int) -> list:
 
             def one(item):
                 key, text = item
-                return key, text, pool.ask_one(text)
+                return key, text, pool.ask_one(
+                    text, pinned_for(key) or None)
 
             with ThreadPoolExecutor(max_workers=pool.workers) as runner:
                 for key, text, answer in runner.map(one, asked):
@@ -399,14 +457,20 @@ def score_pairs(answers: dict, chosen: list) -> dict:
         return {"n": 0, "decided": 0, "right": 0}
 
     overall, by_foil, by_kind = bucket(), {}, {}
+    edges = ((0.0, 0.2), (0.2, 0.4), (0.4, 0.6), (0.6, 0.8), (0.8, 2.1))
+    margins = {f"{low:.1f}-{min(high, 1.0):.1f}": bucket()
+               for low, high in edges}
     for pair in chosen:
         held_key, foil_key = pair.keys()
         if held_key not in answers or foil_key not in answers:
             continue
         margin = stance(answers[held_key]) - stance(answers[foil_key])
+        rung = next(margins[f"{low:.1f}-{min(high, 1.0):.1f}"]
+                    for low, high in edges if low <= abs(margin) < high)
         for target in (overall,
                        by_foil.setdefault(pair.foil_kind, bucket()),
-                       by_kind.setdefault(pair.kind, bucket())):
+                       by_kind.setdefault(pair.kind, bucket()),
+                       *([rung] if margin else [])):
             target["n"] += 1
             if margin != 0:
                 target["decided"] += 1
@@ -422,6 +486,8 @@ def score_pairs(answers: dict, chosen: list) -> dict:
     return {"overall": finish(overall),
             "by_foil": {name: finish(by_foil[name])
                         for name in LADDER if name in by_foil},
+            "by_margin": [{"margin": label, **finish(one)}
+                          for label, one in margins.items() if one["n"]],
             "by_feature_type": {k: finish(v) for k, v in sorted(
                 by_kind.items(), key=lambda kv: -kv[1]["n"])}}
 
@@ -552,7 +618,15 @@ def as_text(reports: list) -> str:
                 lines.append(f"     {name:<15} n={one['n']:<6} "
                              f"decided={one['decided_share']:<7.1%} "
                              f"{one['accuracy']:.1%}")
-        lines.append("   reliability (stated confidence vs. how often right):")
+        margins = r["relative"].get("by_margin") or []
+        if margins:
+            lines.append("   calibration: does a wider margin mean more often "
+                         "right?")
+            for one in margins:
+                lines.append(f"     margin {one['margin']}  "
+                             f"n={one['decided']:<6} {one['accuracy']:.1%}")
+        lines.append("   reliability on positives (stated confidence vs. how "
+                     "often right):")
         for one in r["reliability"]:
             if one["n"]:
                 lines.append(f"     {one['band']}  n={one['n']:<6} "
@@ -598,7 +672,10 @@ def main(argv=None) -> int:
 
     # -- a child: answer one slice and write it out ------------------------
     if options.shard >= 0:
-        asked = sorted(questions_for(pairs(limit_for(options.config))).items())
+        # `--limit` as given, never re-resolved: the parent has already chosen
+        # the effective limit for this config and a child that recomputes it
+        # answers a different sample than the parent scores.
+        asked = sorted(questions_for(pairs(options.limit)).items())
         mine = [item for index, item in enumerate(asked)
                 if index % options.shards == options.shard]
         rows = ask_shard(options.config, mine, options.workers, options.cycles)
