@@ -316,15 +316,22 @@ class LoopTests(unittest.TestCase):
 
     def test_a_weak_yes_is_put_to_its_own_family_and_loses(self):
         """The example the whole thing exists for. Neither answer is wrong;
-        the disagreement is invisible to anything that asks once."""
-        found = run("does a beagle swim")
+        the disagreement is invisible to anything that asks once.
+
+        This was `does a beagle swim` until AwA2's zeros stopped being read
+        as denials. The three kinds of dog the norms cover were annotated 0
+        for `swims`, which in AwA2 means the attribute is not characteristic
+        of the class and not that it is false of it -- and beagles swim. The
+        shape is unchanged; `has sails` inherited from `vessel` and denied by
+        a canoe is the same thing with a source whose negatives are
+        negatives."""
+        found = run("does a boat have sails")
         self.assertEqual(found.summary["verdict"], "VERIFIED")
         self.assertEqual(found.summary["trust"],
                          "not supported by the rest of the store")
         conflict = found.summary["conflicts"][0]
         denied = {row["question"] for row in conflict["against"]}
-        self.assertIn("can a dog swim", denied)
-        self.assertIn("can a collie swim", denied)
+        self.assertIn("can a canoe sail", denied)
 
     def test_the_family_is_asked_in_one_cycle_not_one_at_a_time(self):
         """Corroboration is the breadth the pool exists for: the parent and
@@ -530,8 +537,7 @@ class ExampleTests(unittest.TestCase):
         asked = [a.question for cycle in found.cycles for a in cycle.answers
                  if a.origin == "require"]
         self.assertEqual(asked, [])
-        self.assertEqual(found.summary["trust"],
-                         "not supported by the rest of the store")
+        self.assertEqual(found.summary["trust"], "corroborated")
         needs = self.requirements()
         self.assertTrue(needs.recorded_of("beagle.n.01", "tooth"))
         self.assertFalse(needs.recorded_of("fish.n.01", "leg"))
@@ -539,6 +545,46 @@ class ExampleTests(unittest.TestCase):
     def requirements(self):
         from .graph import Requirements
         return Requirements(POOL.engines[0].reasoner)
+
+    def test_an_awa2_zero_is_not_a_denial(self):
+        """`does a dog swim` came back denied, with all three kinds of dog
+        the norms cover lined up behind it. Those three are AwA2 rows
+        annotated 0 for `swims`, and a 0 there means the attribute is not
+        characteristic of the class -- the same zeros deny that a collie has
+        claws or muscle, or is ever black.
+
+        A zero stands unless another source states the same thing plainly of
+        the concept or a class tight enough to speak for it. `dog capable_of
+        "swim"` is Ascent++ at 0.68, its 97th percentile, so the zero on
+        `swims` is a disagreement between sources rather than a no. Nothing
+        says a dog flies, so that zero is untouched."""
+        engine = POOL.engines[0]
+        self.assertEqual(engine.ask("does a dog swim")["verdict"], "VERIFIED")
+        self.assertEqual(engine.ask("does a collie swim")["verdict"],
+                         "VERIFIED")
+        self.assertEqual(engine.ask("can a dog fly")["verdict"],
+                         "CONTRADICTED")
+        # Adjectives are left alone in both directions: AwA2's colours and
+        # sizes are its least reliable zeros and the crawl's are no better,
+        # so `is a bobcat white` keeps its no.
+        self.assertEqual(engine.ask("is a bobcat white")["verdict"],
+                         "CONTRADICTED")
+
+    def test_only_a_decisive_requirement_grounds_a_denial(self):
+        """Saying "the no is not about anatomy" claims to know what the
+        anatomy is for. `does a dog swim` said "a dog does have teeth, which
+        is what the things that do it have in common" -- true, and nothing to
+        do with swimming.
+
+        Only flying has a part that stands out from the anatomy its doers
+        share, so only there is the line worth putting."""
+        from .graph import Requirements
+        needs = Requirements(POOL.engines[0].reasoner)
+        self.assertTrue(needs.of("fly").decisive)
+        for action in ("swim", "run", "climb", "jump"):
+            with self.subTest(action=action):
+                found = needs.of(action)
+                self.assertFalse(found.decisive, f"{action} -> {found.part}")
 
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
@@ -596,7 +642,7 @@ class ExampleTests(unittest.TestCase):
         false of the other kinds the store knows. The shape is general: a
         claim inherited from an ancestor that a minority of that ancestor's
         own kinds bear out."""
-        found = run("does a beagle swim")
+        found = run("does a boat have sails")
         self.assertTrue(found.summary["conflicts"]
                         or found.summary.get("overreach"))
 
@@ -795,7 +841,7 @@ class ReadingTests(unittest.TestCase):
         """The point of the whole thing. v687 answers `does a beagle swim`
         VERIFIED; the family denies it, and the number says so while the
         outcome still reports what v687 concluded."""
-        found = run("does a beagle swim")
+        found = run("does a boat have sails")
         self.assertEqual(found.summary["outcome"], "verified")
         self.assertEqual(found.summary["band"], "low")
         named = {one["name"] for one in found.summary["factors"]}

@@ -819,7 +819,16 @@ class Generator:
         # anatomy. There the foregone yes is the finding.
         settled = self.requirements.recorded_of(
             (answer.payload or {}).get("concept") or "", needs.part)
-        if settled and answer.verdict not in ("CONTRADICTED", "DENIED"):
+        denial = answer.verdict in ("CONTRADICTED", "DENIED")
+        if settled and not denial:
+            return []
+        # And the denial only earns the exception when the requirement is
+        # one. Saying "the no is not about anatomy" claims to know what the
+        # anatomy is for, and only `fly -> wing` leads the field by enough to
+        # support that -- `does a dog swim` came back denied and offered that
+        # a dog has teeth, which is what swimmers have in common and has
+        # nothing to do with swimming.
+        if settled and denial and not needs.decisive:
             return []
         many = plural(needs.part)
         return [Question(

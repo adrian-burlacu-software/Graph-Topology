@@ -200,6 +200,28 @@ MIN_DOERS = 20
 #: among things that fly than among concepts at large.
 REQUIRES_LIFT = 60.0
 
+#: How far the best candidate must lead the next before it is worth saying
+#: a *denial* is not about anatomy.
+#:
+#: Measured over the actions the store has enough doers for:
+#:
+#:     fly    wing  304.0   next: leg   114.5   margin 2.66
+#:     swim   tooth 176.9   next: leg   113.5   margin 1.56
+#:     run    leg   102.2   next: tooth  77.8   margin 1.31
+#:     climb  claw  321.0   next: tooth 243.5   margin 1.32
+#:     jump   tooth 217.1   next: claw  212.6   margin 1.02
+#:
+#: Only flying has a part that stands out from the anatomy its doers happen
+#: to share, and only there is `the no is not about anatomy` a claim worth
+#: making. `does a dog swim` came back denied and said "a dog does have
+#: teeth, which is what the things that do it have in common" -- true, and
+#: it has nothing to do with swimming.
+#:
+#: This gates the denial branch only. A probe on a yes or a silence is
+#: hedged in its own `why` text and costs one worker; a line on a denial is
+#: the run's conclusion.
+DECISIVE = 2.0
+
 #: How wide a class stops speaking for its members, for `recorded_of`.
 #:
 #: `animal.n.01` has 4,016 descendants and carries `has a leg` and `has a
@@ -219,10 +241,17 @@ class Requirement:
     holders: int
     doers: int
     lift: float
+    #: How far this part leads the next one the same doers share. Only
+    #: `fly -> wing` leads decisively; see `DECISIVE`.
+    margin: float = 1.0
 
     @property
     def share(self) -> float:
         return self.holders / self.doers if self.doers else 0.0
+
+    @property
+    def decisive(self) -> bool:
+        return self.margin >= DECISIVE
 
     def as_dict(self) -> dict:
         return {"action": self.action, "part": self.part,
@@ -373,7 +402,7 @@ class Requirements:
             f"GROUP BY object HAVING holders > 2 "
             f"ORDER BY holders DESC LIMIT 30", doers).fetchall()
 
-        best: Requirement | None = None
+        scored: list = []
         for row in rows:
             part = (row["object"] or "").strip()
             if " " in part or not self._concrete(part):
@@ -382,9 +411,15 @@ class Requirements:
             lift = share / self._commonness(part)
             if share < REQUIRES_SHARE or lift < REQUIRES_LIFT:
                 continue
-            if best is None or lift > best.lift:
-                best = Requirement(action, part, row["holders"], len(doers),
-                                   lift)
+            scored.append((lift, part, row["holders"]))
+        best = None
+        if scored:
+            scored.sort(reverse=True)
+            lift, part, holders = scored[0]
+            runner_up = scored[1][0] if len(scored) > 1 else 0.0
+            best = Requirement(action, part, holders, len(doers), lift,
+                               lift / runner_up if runner_up
+                               else float("inf"))
         self._cache[action] = best
         return best
 

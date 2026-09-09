@@ -82,9 +82,22 @@ EXAMPLES = [
 
     # -- breadth: nineteen workers earning their keep ----------------------
     {"text": "does a beagle swim",
-     "shows": "A yes that does not survive its own family. One Ascent++ fact "
-              "at confidence 0.42, inherited three levels; every kind of dog "
-              "the norms cover denies it, all asked in one cycle.",
+     "shows": "The example this loop was built around, and it was wrong. "
+              "v687 said yes on one Ascent++ fact inherited from `dog`, and "
+              "the family said no — collie, dalmatian and german shepherd "
+              "are all annotated 0 for `swims` in AwA2. But a 0 there means "
+              "the attribute is not characteristic of the class, not that it "
+              "is false of it, and beagles swim. `dog capable_of “swim”` "
+              "is Ascent++ at 0.68, its 97th percentile, and it now stands "
+              "against that zero. The yes is corroborated.",
+     "expect": "corroborated"},
+
+    {"text": "does a boat have sails",
+     "shows": "What the beagle used to show, with a source whose negatives "
+              "are negatives. `has sails` is inherited from `vessel`, and of "
+              "the six kinds put to it a canoe denies it. One ask cannot see "
+              "that disagreement; the run leads with the doubt rather than "
+              "with the yes.",
      "expect": "not supported by the rest of the store"},
     {"text": "does a cat purr",
      "shows": "Fan out, then reason in a line. The cat family splits on "
