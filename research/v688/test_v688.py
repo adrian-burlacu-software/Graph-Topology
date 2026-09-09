@@ -739,5 +739,92 @@ class ExampleTests(unittest.TestCase):
             self.assertIn(expected, outcomes)
 
 
+class ReadingTests(unittest.TestCase):
+    """Four outcomes and a number, in place of seventeen verdicts and none.
+
+    The seventeen still decide the repair; `gap.kind_of` reads them and this
+    does not. What changed is what a person reads off the page.
+    """
+
+    def test_every_verdict_reads_as_one_of_four(self):
+        """Including ones this map has never seen: an unlisted verdict has
+        settled nothing, and `unknown` is the reading that says so."""
+        from . import confidence, gap
+        every = (gap.ABOUT_THE_WORLD | gap.ABOUT_CONTENT | gap.ABOUT_COVERAGE
+                 | gap.ABOUT_THE_QUESTION | gap.ABOUT_RELIABILITY)
+        for verdict in sorted(every) + ["ERROR", "", "SOMETHING_NEW"]:
+            with self.subTest(verdict=verdict):
+                self.assertIn(confidence.outcome_of(verdict),
+                              ("verified", "denied", "unknown", "retrieved"))
+        self.assertEqual(confidence.outcome_of("HELD"), "verified")
+        self.assertEqual(confidence.outcome_of("CONTRADICTED"), "denied")
+        self.assertEqual(confidence.outcome_of("DEFINED"), "retrieved")
+        self.assertEqual(confidence.outcome_of("UNRECORDED"), "unknown")
+
+    def test_a_fact_is_placed_within_its_own_source(self):
+        """The finding this rests on: 0.42 sounds low and is Ascent++'s 78th
+        percentile. ConceptNet and WordNet write one number on every row, so
+        for them the number is not a signal and the source is."""
+        from .confidence import percentile
+        self.assertAlmostEqual(percentile("ascentpp", 0.42)[0], 0.78, places=2)
+        self.assertAlmostEqual(percentile("ascentpp", 0.157)[0], 0.25,
+                               places=2)
+        for source in ("conceptnet", "wordnet"):
+            with self.subTest(source=source):
+                self.assertIn("says nothing", percentile(source, 0.35)[1])
+
+    def test_subsumption_does_not_decay_with_distance(self):
+        """`is a beagle a dog` read 0.55 -- medium confidence that a beagle
+        is a dog -- because the dog is three levels up and R5 decays what is
+        borrowed. Subsumption is not borrowed: the walk is the proof."""
+        found = run("is a beagle a dog")
+        self.assertEqual(found.summary["outcome"], "verified")
+        self.assertEqual(found.summary["band"], "high")
+        self.assertTrue(any(one["name"] == "exact"
+                            for one in found.summary["factors"]),
+                        found.summary["factors"])
+
+    def test_silence_carries_no_confidence(self):
+        """A number beside `unknown` would be read as a weakly held claim,
+        and there is no claim. `do pigs fly` is not a faint yes."""
+        found = run("do pigs fly")
+        self.assertEqual(found.summary["outcome"], "unknown")
+        self.assertEqual(found.summary["confidence"], 0.0)
+
+    def test_the_loop_is_what_moves_the_number(self):
+        """The point of the whole thing. v687 answers `does a beagle swim`
+        VERIFIED; the family denies it, and the number says so while the
+        outcome still reports what v687 concluded."""
+        found = run("does a beagle swim")
+        self.assertEqual(found.summary["outcome"], "verified")
+        self.assertEqual(found.summary["band"], "low")
+        named = {one["name"] for one in found.summary["factors"]}
+        self.assertIn("its family denied it", named)
+
+    def test_every_factor_is_reported_with_its_reason(self):
+        """A confidence that cannot be argued with is one to be suspicious
+        of, so nothing goes into the product without saying why."""
+        for utterance in ("is a dog an animal", "does a beagle swim",
+                          "what is a beagle"):
+            with self.subTest(utterance=utterance):
+                for one in run(utterance).summary["factors"]:
+                    self.assertTrue(one["why"].strip(), one)
+                    self.assertIsInstance(one["factor"], float)
+
+    def test_every_answer_carries_its_own_reading(self):
+        """Not only the headline: every row in the table is one of the four,
+        with its own number."""
+        found = run("does a beagle swim")
+        rows = [a.as_dict(False) for c in found.cycles for a in c.answers]
+        self.assertTrue(rows)
+        for row in rows:
+            with self.subTest(question=row["question"]):
+                self.assertIn(row["outcome"],
+                              ("verified", "denied", "unknown", "retrieved"))
+                self.assertIn(row["band"], ("low", "medium", "high"))
+                self.assertGreaterEqual(row["confidence"], 0.0)
+                self.assertLessEqual(row["confidence"], 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

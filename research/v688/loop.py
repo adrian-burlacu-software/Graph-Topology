@@ -17,7 +17,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from . import attention
+from . import attention, confidence
 from .buffer import Buffer
 from .gap import UNDERMINING
 from .pool import Answer, EnginePool
@@ -447,6 +447,12 @@ class Loop:
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer, overturned),
+            # The badge. `trust` says in a phrase what went wrong and the
+            # verdict says which of seventeen things v687 concluded; this
+            # says which of four readings it comes to and how far it should
+            # be taken, with every factor that made the number.
+            **confidence.of_run(headline, buffer, conflicts, overturned,
+                                corrected).as_dict(),
         }
 
     def rank_of(self, answer) -> int | None:
@@ -501,8 +507,13 @@ class Loop:
             walk, seen = [], set()
             while answer is not None and answer.question not in seen:
                 seen.add(answer.question)
+                weighed = confidence.of_answer(answer.payload,
+                                               answer.verdict)
                 walk.append({"question": answer.question,
                              "verdict": answer.verdict,
+                             "outcome": weighed.outcome,
+                             "confidence": round(weighed.value, 2),
+                             "band": weighed.band,
                              "origin": answer.origin,
                              "why": answer.why,
                              "depth": buffer.depth_of(answer.question)})

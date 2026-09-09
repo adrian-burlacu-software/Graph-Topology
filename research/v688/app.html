@@ -76,6 +76,27 @@
   .trust.weak { color: var(--absent); border-color: #453a1a; background: #1a1508; }
   .trust.good { color: var(--yes); border-color: #1e4634; background: #08190f; }
   .trust.flat { color: var(--dim); border-color: var(--rule2); background: var(--raised); }
+  /* The reading: one of four outcomes, and how far to take it. */
+  .call { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono);
+          font-size: 11.5px; padding: 4px 11px; border-radius: 999px; border: 1px solid; }
+  .call.verified { color: var(--yes); border-color: #1e4634; background: #08190f; }
+  .call.denied { color: var(--no); border-color: #4a2222; background: #1c0f0f; }
+  .call.unknown { color: var(--absent); border-color: #453a1a; background: #1a1508; }
+  .call.retrieved { color: var(--dim); border-color: var(--rule2); background: var(--raised); }
+  .call .num { opacity: .75; font-variant-numeric: tabular-nums; }
+  .meter { display: inline-block; width: 46px; height: 5px; border-radius: 3px;
+           background: #2a2a2a; overflow: hidden; vertical-align: middle; }
+  .meter i { display: block; height: 100%; background: currentColor; }
+  .callsmall { font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; }
+  .callsmall.verified { color: var(--yes); }
+  .callsmall.denied { color: var(--no); }
+  .callsmall.unknown { color: var(--absent); }
+  .callsmall.retrieved { color: var(--dim); }
+  table.factors { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  table.factors td { padding: 3px 8px 3px 0; vertical-align: top;
+                     border-bottom: 1px solid var(--rule2); font-size: 11.5px; }
+  table.factors td.f { font-family: var(--mono); color: var(--dim);
+                       white-space: nowrap; font-variant-numeric: tabular-nums; }
   ul.lines { margin: 14px 0 0; padding-left: 18px; color: var(--ink); }
   ul.lines li { margin-bottom: 6px; }
   ul.lines li::marker { color: var(--teal-dim); }
@@ -282,6 +303,48 @@ const VERDICT_CLASS = {
   LISTING: "v-content", DEFINED: "v-content", PROFILE: "v-content",
   IDENTIFIED: "v-content", AMBIGUOUS: "v-absent", MIXED: "v-absent"
 };
+// The reading a person actually wants: which of four things happened, and
+// how far it should be taken. The seventeen-word verdict stays beside it --
+// it is what chooses the repair -- but it is no longer what shouts.
+function callBadge(outcome, value, band, big) {
+  // Resolve first, then decide. Testing the raw argument drew a meter
+  // labelled `undefined 0.00` whenever the fields were missing -- which is
+  // exactly what a page served by an older process looks like, so the one
+  // case the guard existed for was the one it got wrong.
+  const call = outcome || "unknown";
+  const wrap = el("span", (big ? "call " : "callsmall ") + call);
+  wrap.appendChild(el("span", null, call));
+  const known = call !== "unknown" && band && value !== undefined
+                && value !== null;
+  if (known) {
+    const meter = el("span", "meter");
+    const fill = el("i");
+    fill.style.width = Math.round(value * 100) + "%";
+    meter.appendChild(fill);
+    wrap.appendChild(meter);
+    wrap.appendChild(el("span", "num", band + " " + Number(value).toFixed(2)));
+  }
+  return wrap;
+}
+
+// Why the number is the number. Every factor the loop applied, with the
+// reason it applied it, so the confidence can be argued with rather than
+// only believed.
+function factorTable(factors) {
+  const table = el("table", "factors");
+  (factors || []).forEach(one => {
+    const row = el("tr");
+    const mult = el("td", "f", (one.factor === 0 ? "" : "×") + one.factor);
+    row.appendChild(mult);
+    const name = el("td");
+    name.appendChild(el("div", null, one.name));
+    name.appendChild(el("div", "why", one.why));
+    row.appendChild(name);
+    table.appendChild(row);
+  });
+  return table;
+}
+
 const TRUST_CLASS = {
   "contradicted by its own family": "bad",
   "unreadable": "bad",
@@ -381,8 +444,19 @@ function render() {
 function summaryPanel() {
   const panel = el("div", "panel");
   panel.appendChild(el("p", "utterance", RUN.utterance));
-  panel.appendChild(el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
-                       RUN.summary.trust));
+  const call = el("div", "callrow");
+  call.appendChild(callBadge(RUN.summary.outcome, RUN.summary.confidence,
+                             RUN.summary.band, true));
+  call.appendChild(document.createTextNode(" "));
+  call.appendChild(el("span", "trust " + (TRUST_CLASS[RUN.summary.trust] || "flat"),
+                      RUN.summary.trust));
+  panel.appendChild(call);
+  if ((RUN.summary.factors || []).length) {
+    const why = el("details", "factorwrap");
+    why.appendChild(el("summary", "why", "how that number was reached"));
+    why.appendChild(factorTable(RUN.summary.factors));
+    panel.appendChild(why);
+  }
 
   const lines = el("ul", "lines");
   (RUN.summary.lines || []).forEach(line => lines.appendChild(el("li", null, line)));
@@ -527,8 +601,7 @@ function threadPanel() {
     const body = el("div");
     const head = el("p");
     head.appendChild(document.createTextNode(link.question + "  "));
-    head.appendChild(el("span", "v " + (VERDICT_CLASS[link.verdict] || "v-flat"),
-                        link.verdict));
+    head.appendChild(callBadge(link.outcome, link.confidence, link.band, false));
     body.appendChild(head);
     if (link.why) body.appendChild(el("div", "why", link.why));
     row.appendChild(body);
@@ -635,9 +708,10 @@ function cyclePanel() {
     row.appendChild(score);
 
     const verdict = el("td");
-    verdict.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
-                           answer.verdict || "—"));
-    verdict.appendChild(el("div", "why", answer.relation || ""));
+    verdict.appendChild(callBadge(answer.outcome, answer.confidence,
+                                  answer.band, false));
+    verdict.appendChild(el("div", "why", (answer.verdict || "—")
+                           + (answer.relation ? " · " + answer.relation : "")));
     row.appendChild(verdict);
     body.appendChild(row);
   });
@@ -718,9 +792,18 @@ function openDrawer(answer, meta) {
   const badge = el("div");
   badge.appendChild(el("span", "badge o-" + answer.origin, answer.origin));
   badge.appendChild(document.createTextNode(" "));
+  badge.appendChild(callBadge(answer.outcome, answer.confidence,
+                              answer.band, true));
+  badge.appendChild(document.createTextNode(" "));
   badge.appendChild(el("span", "v " + (VERDICT_CLASS[answer.verdict] || "v-flat"),
                        answer.verdict || "—"));
   body.appendChild(badge);
+  if ((answer.factors || []).length) {
+    const why = el("details");
+    why.appendChild(el("summary", "why", "how that number was reached"));
+    why.appendChild(factorTable(answer.factors));
+    body.appendChild(why);
+  }
 
   if (answer.why) body.appendChild(el("div", "note", answer.why));
 
