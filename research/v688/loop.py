@@ -57,6 +57,9 @@ class Cycle:
     answers: list[Answer]
     gaps_found: list = field(default_factory=list)
     doubts_found: list = field(default_factory=list)
+    #: R28 refusals this cycle put to the teacher. Not answers: nothing here
+    #: was asked of v687, and nothing here edits what v687 said.
+    adjudications: list = field(default_factory=list)
     activation: dict = field(default_factory=dict)
     elapsed: float = 0.0
 
@@ -67,6 +70,7 @@ class Cycle:
             "answers": [a.as_dict() for a in self.answers],
             "gaps_found": [g.as_dict() for g in self.gaps_found],
             "doubts_found": [d.as_dict() for d in self.doubts_found],
+            "adjudications": [a.as_dict() for a in self.adjudications],
             "activation": self.activation,
             "elapsed": round(self.elapsed, 3),
             "workers_used": sorted({a.worker for a in self.answers}),
@@ -177,10 +181,15 @@ class Loop:
     """attend -> generate -> fan out -> read -> update -> repeat."""
 
     def __init__(self, pool: EnginePool, curiosity: attention.Curiosity,
-                 max_cycles: int = 8, width: int | None = None) -> None:
+                 max_cycles: int = 8, width: int | None = None,
+                 teacher=None) -> None:
         self.pool = pool
         self.curiosity = curiosity
         self.max_cycles = max_cycles
+        #: Optional, and the loop must run identically without it. One GPU
+        #: means one process, so this is a serial stage after the fan-out
+        #: rather than another lane of it.
+        self.teacher = teacher
         #: how many questions a cycle may put out at once. One per worker:
         #: a twentieth question would only wait for a nineteenth to finish.
         self.width = width or pool.workers
@@ -228,6 +237,13 @@ class Loop:
             answers = self.pool.ask_many(pending, buffer.pins or None)
             for answer in answers:
                 answer.cycle = number
+            # The teacher runs after the fan-out and before the reading,
+            # because what it rules on is what the fan-out just refused. It
+            # is serial by construction: nineteen workers finish, one GPU
+            # starts.
+            judged = []
+            if self.teacher is not None and self.teacher.available:
+                judged = self.teacher.review(answers)
             gaps, doubts = buffer.record(answers)
             # Whatever an answer turned out to be about is now live. This is
             # how attention follows the reasoning instead of only the words:
@@ -246,7 +262,7 @@ class Loop:
                     buffer.take_topic(concept)
             cycles.append(Cycle(
                 number=number, questions=pending, answers=answers,
-                gaps_found=gaps, doubts_found=doubts,
+                gaps_found=gaps, doubts_found=doubts, adjudications=judged,
                 activation=buffer.activation.as_dict(),
                 elapsed=time.time() - clock))
 
@@ -318,6 +334,29 @@ class Loop:
                      if headline is not None and bad.question == headline.question
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
+        # What the teacher made of the refusals. R28 is right about
+        # `fish walk on land` and wrong about `leopard hunt at night`, and
+        # nothing in the store tells them apart -- so when a judgement is
+        # available it is reported *beside* v687's answer and never in place
+        # of it. The reader is told a model said so, because that is a
+        # different kind of evidence from a walk over the taxonomy.
+        judged = [one for cycle in cycles for one in cycle.adjudications]
+        for one in judged:
+            if headline is None or one.question != headline.question:
+                continue
+            if one.supports:
+                lines.append(
+                    f"R28 held back “{one.fact}” as a narrower claim than "
+                    f"you asked. Put to the teacher, that fact does support "
+                    f"“{one.claim}” ({one.confidence:.0%} confident) — so "
+                    f"this may be absent from the phrasing rather than from "
+                    f"the store.")
+            else:
+                lines.append(
+                    f"R28 held back “{one.fact}”, and the teacher agrees it "
+                    f"does not support “{one.claim}” "
+                    f"({one.confidence:.0%} confident).")
+
         for doubt in buffer.seen_doubts:
             if doubt.reason == "negated_evidence":
                 lines.append(doubt.detail)
@@ -447,6 +486,7 @@ class Loop:
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer, overturned),
+            "adjudications": [one.as_dict() for one in judged],
             # The badge. `trust` says in a phrase what went wrong and the
             # verdict says which of seventeen things v687 concluded; this
             # says which of four readings it comes to and how far it should

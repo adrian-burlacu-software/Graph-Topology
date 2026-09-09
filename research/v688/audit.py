@@ -108,7 +108,7 @@ COMPS = ROOT / "data" / "xcslb" / "comps_base.jsonl"
 
 #: The four configurations, in the order the report reads them.
 CONFIGS = ("shipped", "crawl", "lenient", "stated", "pinned",
-           "corroborated", "loop")
+           "corroborated", "loop", "llm")
 
 #: Predicate openers that are already a question's auxiliary.
 AUXILIARY = {"is", "can", "was", "are", "does", "has", "have", "will",
@@ -403,8 +403,51 @@ def read_answer(payload: dict, verdict: str) -> dict:
             "distance": int(lead.get("distance") or 0)}
 
 
+def ask_llm(asked: list) -> list:
+    """The control this whole file needs and did not have.
+
+    A store that reaches 19% of what people list is only worth building if it
+    beats asking a model the same question. So: same gold, same scoring, no
+    graph at all -- SmolLM3 is handed the question `audit.py` would have put
+    to v687 and answers yes or no.
+
+    It always answers, so its coverage is 100% by construction and the number
+    that matters is accuracy. A model that is right more often than the store
+    *and* never silent is a model that makes the store redundant; one that is
+    confidently wrong where the store is honestly absent is the opposite.
+
+    One process, because it is one GPU. `--shards` is ignored here.
+    """
+    from .teacher import Teacher
+
+    teacher = Teacher()
+    rows = []
+    for key, text in asked:
+        started = time.time()
+        if not teacher.available:
+            rows.append({"key": key, "question": text, "outcome": "error",
+                         "confidence": 0.0, "error": teacher.error,
+                         "elapsed": 0.0})
+            continue
+        # The gold question as it stands. `judge` wants a fact to weigh, so
+        # the claim is put to it directly instead.
+        supports, confidence, cached = teacher.judge("", "", text)
+        rows.append({"key": key, "question": text,
+                     "verdict": "VERIFIED" if supports else "CONTRADICTED",
+                     "outcome": "verified" if supports else "denied",
+                     "confidence": round(confidence, 3),
+                     "band": "high" if confidence >= 2 / 3 else
+                             ("medium" if confidence >= 1 / 3 else "low"),
+                     "rule": "LLM", "source": "smollm3", "distance": 0,
+                     "cached": cached,
+                     "elapsed": round(time.time() - started, 3)})
+    return rows
+
+
 def ask_shard(config: str, asked: list, workers: int, cycles: int) -> list:
     """Answer a slice of the question set. `asked` is a list of (key, text)."""
+    if config == "llm":
+        return ask_llm(asked)
     from .pool import EnginePool
 
     pool = EnginePool(USING, workers=workers,
@@ -604,6 +647,8 @@ def run_config(config: str, limit: int, shards: int, workers: int,
     chosen = pairs(limit)
     asked = questions_for(chosen)
     started = time.time()
+    if config == "llm":
+        shards = 1                      # one GPU, so one process
 
     procs = [subprocess.Popen(
         [sys.executable, "-m", "research.v688.audit",

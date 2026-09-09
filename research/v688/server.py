@@ -180,7 +180,8 @@ EXAMPLES = [
 class Service:
     """The pool, the trie index and the loop, built once and shared."""
 
-    def __init__(self, store: Path, workers: int, max_cycles: int) -> None:
+    def __init__(self, store: Path, workers: int, max_cycles: int,
+                 teacher: bool = False) -> None:
         self.ready = False
         self.progress = (0, workers)
         self.store = store
@@ -192,7 +193,16 @@ class Service:
         started = time.time()
         self.pool = EnginePool(store, workers=workers, on_ready=note)
         self.curiosity = Curiosity(self.pool.engines[0].profiles.plan)
-        self.loop = Loop(self.pool, self.curiosity, max_cycles=max_cycles)
+        # One GPU, so one teacher, built after the pool rather than beside
+        # it: nineteen engines and a 6 GB checkpoint competing for the same
+        # machine at startup is how a laptop goes to swap for no gain.
+        self.teacher = None
+        if teacher:
+            from .teacher import Teacher
+
+            self.teacher = Teacher()
+        self.loop = Loop(self.pool, self.curiosity, max_cycles=max_cycles,
+                         teacher=self.teacher)
         self.startup = time.time() - started
         self.ready = True
         self._lock = threading.Lock()
@@ -249,6 +259,8 @@ class Service:
     def settings(self) -> dict:
         return {
             "pool": self.pool.as_dict(),
+            "teacher": (self.teacher.as_dict() if self.teacher is not None
+                        else {"available": False}),
             "startup_seconds": round(self.startup, 1),
             "max_cycles": self.max_cycles,
             "trie": {"individuals": len(self.curiosity.universe),
@@ -346,15 +358,25 @@ def main() -> None:
     parser.add_argument("--cycles", type=int, default=8,
                         help="most internal cycles one utterance may run")
     parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
+    parser.add_argument("--teacher", action="store_true",
+                        help="load the local model that adjudicates R28 "
+                             "refusals; one process, about 6.2 GB of VRAM. "
+                             "Without it the loop runs exactly as before.")
     parser.add_argument("--warm", action="store_true",
                         help="run every example once at startup so the page "
                              "answers instantly")
     options = parser.parse_args()
 
     print(f"building {options.workers} engines from {options.store.name} ...")
-    service = Service(options.store, options.workers, options.cycles)
+    service = Service(options.store, options.workers, options.cycles,
+                      teacher=options.teacher)
     print(f"  {service.pool.workers} engines up in "
           f"{service.pool.build_seconds:.1f}s")
+    if options.teacher:
+        state = service.teacher.as_dict()
+        print(f"  teacher {state['model']} on {state['device'] or 'nothing'}"
+              f" in {state['load_seconds']}s"
+              + (f" — {state['error']}" if state["error"] else ""))
     if options.warm:
         for example in EXAMPLES:
             clock = time.time()

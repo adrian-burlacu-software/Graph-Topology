@@ -772,6 +772,29 @@ function lanes(cycle) {
     lane.appendChild(track);
     box.appendChild(lane);
   }
+  // The teacher is one process because it is one GPU, so it gets one lane
+  // and it sits below the pool rather than inside it. Its work starts when
+  // the fan-out has finished: that gap is the point of drawing it here.
+  const judged = cycle.adjudications || [];
+  if (judged.length) {
+    const lane = el("div", "lane llm");
+    lane.appendChild(el("b", null, "llm"));
+    const track = el("div", "track");
+    judged.forEach(one => {
+      const slot = el("div", "slot s-adjudicate" +
+                      (one.supports ? " supports" : ""));
+      slot.style.left = ((one.started - base) / span * 100) + "%";
+      slot.style.width = Math.max(1.5, one.elapsed / span * 100) + "%";
+      slot.title = `${one.fact} → ${one.claim} — ` +
+        `${one.supports ? "supports" : "does not support"}, ` +
+        `${(one.confidence * 100).toFixed(0)}% confident` +
+        (one.cached ? " (cached)" : `, ${one.elapsed}s`);
+      slot.textContent = one.elapsed >= span * 0.17 ? one.fact : "";
+      track.appendChild(slot);
+    });
+    lane.appendChild(track);
+    box.appendChild(lane);
+  }
   wrap.appendChild(box);
   const legend = el("div", "legend");
   ORIGINS.forEach(kind => {
@@ -779,6 +802,12 @@ function lanes(cycle) {
     item.innerHTML = `<b class="o-${kind}" style="font-style:normal">■</b> ${kind}`;
     legend.appendChild(item);
   });
+  if (judged.length) {
+    const item = el("span");
+    item.innerHTML = '<b class="o-adjudicate" style="font-style:normal">■</b> ' +
+      `adjudicate (${judged.filter(o => o.supports).length}/${judged.length} support)`;
+    legend.appendChild(item);
+  }
   legend.appendChild(el("span", null,
     `slowest ${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
   wrap.appendChild(legend);

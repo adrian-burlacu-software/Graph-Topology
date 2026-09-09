@@ -1,0 +1,13 @@
+# Ingestion: turning a downloaded source into facts the store can hold.
+#
+#   pip install -r ingestion/requirements.txt
+#   python -m ingestion.genericskb --fetch
+#
+# Nothing here is needed to *run* the reasoner or the loop -- only to acquire
+# a source and load it. `research/v687/build.py` reads CSV and SQLite with the
+# standard library alone, and still does.
+
+# GenericsKB ships as parquet on HuggingFace. Read directly rather than
+# through `datasets`, which pulls in most of the training stack for a file
+# that is one table.
+pyarrow>=14.0
