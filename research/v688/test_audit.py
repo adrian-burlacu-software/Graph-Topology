@@ -147,6 +147,64 @@ class TheGoldSetIsNotWhatItLooksLike(unittest.TestCase):
         self.assertEqual(absolute["confirmed"], 1.0)
 
 
+class TheCorruptedClaims(unittest.TestCase):
+    """Negatives that are actually false, which COMPS does not provide."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.claims = audit.corrupted()
+
+    def test_a_claim_is_built_for_most_concepts(self):
+        self.assertGreater(len(self.claims), 400)
+
+    def test_the_property_is_never_one_the_concept_holds(self):
+        listed = {concept: set(features)
+                  for concept, features in corpora.load_xcslb().items}
+        for claim in self.claims:
+            self.assertNotIn(claim.prop, listed.get(claim.held, set()),
+                             f"{claim.held} actually has {claim.prop!r}")
+
+    def test_the_property_comes_from_another_category(self):
+        path = audit.ROOT / "data" / "xcslb" / "concept_senses.csv"
+        with path.open(encoding="utf-8") as handle:
+            where = {row["concept"]: row["category"]
+                     for row in csv.DictReader(handle)}
+        holders = {}
+        for concept, features in corpora.load_xcslb().items:
+            for feature in features:
+                holders.setdefault(feature, set()).add(where.get(concept))
+        for claim in self.claims:
+            self.assertNotIn(where.get(claim.held), holders[claim.prop],
+                             f"{claim.prop!r} is held in {claim.held}'s own "
+                             f"category, so it is not safely false")
+
+    def test_the_keys_cannot_shadow_the_pair_set(self):
+        """A concept appears in both, and one set overwriting the other would
+        silently measure the wrong thing."""
+        pair_keys = set(audit.questions_for(audit.pairs(30)))
+        bad_keys = set(audit.corrupted_questions(self.claims[:30]))
+        self.assertEqual(pair_keys & bad_keys, set())
+
+    def test_asserting_one_is_always_counted_wrong(self):
+        chosen = self.claims[:10]
+        asserted = {f"!{c.held}|{c.prop}": {"outcome": "verified"}
+                    for c in chosen}
+        silent = {f"!{c.held}|{c.prop}": {"outcome": "unknown"}
+                  for c in chosen}
+        self.assertEqual(audit.score_corrupted(asserted, chosen)["asserted"],
+                         1.0)
+        self.assertEqual(audit.score_corrupted(silent, chosen)["asserted"],
+                         0.0)
+        self.assertEqual(audit.score_corrupted(silent, chosen)["silent"], 1.0)
+
+    def test_it_is_the_measure_the_foils_could_not_give(self):
+        """`carp can be a trophy` is a COMPS foil and is true, which is why a
+        foil cannot measure over-affirmation. A corrupted claim is not drawn
+        from anybody's absence."""
+        source = Path(audit.__file__).read_text(encoding="utf-8")
+        self.assertIn("absence rather than denial", source)
+
+
 class TheScoring(unittest.TestCase):
 
     def test_an_unsettled_answer_is_zero_and_not_a_small_yes(self):

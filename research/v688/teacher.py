@@ -62,6 +62,51 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MODEL = REPOSITORY_ROOT / "llm" / "SmolLM3-3B"
 CACHE = REPOSITORY_ROOT / "llm" / "adjudications.json"
 
+#: The system prompt, chosen by measurement rather than by design. Against
+#: 150 true claims and 150 built by corruption (`does an arm have a bubble
+#: tube`), asked four ways:
+#:
+#:     strategy      floor   says yes to TRUE   to FALSE   separation
+#:     plain         0.99          98.9%           7.7%      +91.2%
+#:     careful       0.99          96.0%           0.0%      +96.0%
+#:     unsure        0.99         100.0%          10.7%      +89.3%
+#:     challenged    0.90         100.0%          38.5%      +61.5%
+#:
+#: Three points of recall for essentially all of the false-assertion rate.
+#:
+#: Two things that did *not* work, recorded so they are not tried again.
+#: Offering `unsure` as an answer does nothing -- the model puts no mass on
+#: it even when invited, so abstention has to be imposed from outside with a
+#: threshold. And asking "are you certain?" in a second turn makes it much
+#: worse: it revises 1.3% of the time and capitulates the rest, so false
+#: acceptance goes from 7.7% to 38.5%. Taking the lower of the two
+#: confidences does not rescue it.
+#:
+#: A prompt written specially for adjudication -- "extra detail does not
+#: defeat the claim" -- scored 5/6 against this one's 6/6, accepting `a fish
+#: walks` at 0.88. The general instruction to be sceptical beats the specific
+#: instruction to be lenient.
+CAREFUL = (
+    "You judge whether a claim is true of a kind of thing in general. "
+    "Most claims put to you are false. Say yes only if the property is "
+    "typical of that kind; if it is merely possible, unusual, or you are "
+    "not sure, say no."
+)
+
+#: What a judgement must be worth before it may *write* a fact. Nothing
+#: teaches yet; this is the floor the measurement above supports when
+#: something does, and it is high because a wrong fact written into the store
+#: is permanent and a refused one is merely absent.
+TEACHING_FLOOR = 0.99
+
+#: Adjudication has no floor, and the asymmetry is deliberate. It ratifies a
+#: row the crawl already wrote, so the worst case is believing something the
+#: store already contains; teaching invents. `careful` costs marginal truths
+#: their confidence -- `a person runs` from "run for short distances" falls
+#: from 0.79 to 0.55 -- and at 0.99 that answer would be refused, which is
+#: exactly the coverage R28 already costs. The number travels with the
+#: judgement instead, for `confidence.py` to price.
+
 #: One question, and the shortest answer that settles it. The claim is spelled
 #: out rather than implied because `walk on land` and `hunt at night` differ
 #: only in whether the surplus changes who the subject is.
@@ -198,7 +243,8 @@ class Teacher:
                 else PROMPT.format(subject=subject, fact=fact, claim=claim))
         with self.lock:
             enc = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": text}],
+                [{"role": "system", "content": CAREFUL},
+                 {"role": "user", "content": text}],
                 add_generation_prompt=True, return_tensors="pt",
                 return_dict=True, enable_thinking=False)
             enc = {name: value.to(self.device) for name, value in enc.items()}

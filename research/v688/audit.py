@@ -88,6 +88,7 @@ import argparse
 import collections
 import csv
 import json
+import random
 import subprocess
 import sys
 import time
@@ -280,6 +281,116 @@ def questions_for(chosen: list) -> dict:
             if key not in out:
                 out[key] = phrase(article.get(concept, ""), pair.prop)
     return out
+
+
+#: Properties held inside exactly one XCSLB category are the safe ones to
+#: move: `has feathers` is only ever a bird's, so a spanner does not have
+#: them. Single-word properties are excluded because they are the generic
+#: ones -- `is small`, `is used` -- which travel.
+def corrupted(limit: int = 0, seed: int = 0) -> list:
+    """Claims that are false, which nothing else here provides.
+
+    Every negative this file had was a COMPS foil, and §1 established those
+    are absence rather than denial: `carp can be a trophy` is a foil and is
+    true. That makes a **false-assertion rate unmeasurable**, which is the one
+    number that matters for over-affirmation -- and over-affirmation is what
+    the audit that started all this found by hand.
+
+    So negatives are built by corruption. Take a property only one category
+    ever holds and put it on a concept from another: `does an arm have a
+    bubble tube`. Verifiably false, cheap, and not drawn from anybody's
+    absence.
+
+    It also lifts §12's limitation. XCSLB is leaf-heavy and cannot see
+    class-level over-generalisation; a corrupted claim can be built for any
+    concept, so a config that over-affirms shows up here whatever it
+    over-affirms about.
+    """
+    import csv as _csv
+
+    path = ROOT / "data" / "xcslb" / "concept_senses.csv"
+    with path.open(encoding="utf-8") as handle:
+        where = {row["concept"]: row["category"]
+                 for row in _csv.DictReader(handle)}
+    article = articles()
+    kinds = corpora.feature_types()
+    holders: dict = collections.defaultdict(set)
+    listed: dict = collections.defaultdict(set)
+    for concept, features in corpora.load_xcslb().items:
+        for feature in features:
+            holders[feature].add(where.get(concept, "?"))
+            listed[concept].add(feature)
+    # Held by one category *and* by several of its members. One concept's
+    # idiosyncratic feature is not a category marker and does not travel
+    # safely: `has various styles` is listed only for an armchair, and an
+    # armchair is not the only thing that has them. Requiring three holders
+    # keeps `has feathers` and drops that.
+    counted: dict = collections.Counter()
+    for _concept, features in corpora.load_xcslb().items:
+        for feature in features:
+            counted[feature] += 1
+    exclusive = {feature: next(iter(cats))
+                 for feature, cats in holders.items()
+                 if len(cats) == 1 and len(feature.split()) >= 2
+                 and counted[feature] >= 3}
+
+    rng = random.Random(seed)
+    out = []
+    for concept in sorted(listed):
+        subject = article.get(concept, "")
+        if not subject:
+            continue
+        mine = where.get(concept, "?")
+        far = sorted(feature for feature, cat in exclusive.items()
+                     if cat != mine and feature not in listed[concept])
+        if not far:
+            continue
+        feature = far[rng.randrange(len(far))]
+        text = phrase(subject, feature)
+        if text:
+            out.append(Pair(feature, concept, concept, "corrupted",
+                            kinds.get(feature, "NA")))
+    rng.shuffle(out)
+    return out[:limit] if limit else out
+
+
+def corrupted_questions(chosen: list) -> dict:
+    """key -> question for corrupted claims. Keyed apart from the pair set so
+    a concept can appear in both without one overwriting the other."""
+    article = articles()
+    out = {}
+    for pair in chosen:
+        key = f"!{pair.held}|{pair.prop}"
+        if key not in out:
+            out[key] = phrase(article.get(pair.held, ""), pair.prop)
+    return out
+
+
+def score_corrupted(answers: dict, chosen: list) -> dict:
+    """How often a config asserts something built to be false.
+
+    The over-affirmation number, at last measurable. `verified` here is
+    always wrong; `unknown` is right, and so is `denied`.
+    """
+    rows = [answers[f"!{p.held}|{p.prop}"] for p in chosen
+            if f"!{p.held}|{p.prop}" in answers]
+    counts = collections.Counter(r["outcome"] for r in rows)
+    total = len(rows) or 1
+    spoke = counts["verified"] + counts["denied"]
+    return {"n": len(rows), "outcomes": dict(counts),
+            "asserted": round(counts["verified"] / total, 4),
+            "refused": round(counts["denied"] / total, 4),
+            "silent": round(counts["unknown"] / total, 4),
+            "wrong_when_it_spoke": (round(counts["verified"] / spoke, 4)
+                                    if spoke else 0.0)}
+
+
+def all_questions(limit: int = 0, corrupt: int = 0) -> dict:
+    """Every question one configuration is asked: the pairs and the
+    corrupted claims, keyed apart so neither can shadow the other."""
+    asked = questions_for(pairs(limit))
+    asked.update(corrupted_questions(corrupted(corrupt)))
+    return asked
 
 
 def phrasing_report() -> dict:
@@ -638,14 +749,15 @@ def out_dir(where: str | None) -> Path:
 
 
 def run_config(config: str, limit: int, shards: int, workers: int,
-               cycles: int, where: Path) -> dict:
+               cycles: int, where: Path, corrupt: int = 0) -> dict:
     """Fan one configuration across processes, then score what comes back.
 
     One process per shard, each with its own pool, because the engines are
     the cost and they do not share. Five shards of four is twenty engines.
     """
     chosen = pairs(limit)
-    asked = questions_for(chosen)
+    bad = corrupted(corrupt)
+    asked = all_questions(limit, corrupt)
     started = time.time()
     if config == "llm":
         shards = 1                      # one GPU, so one process
@@ -655,7 +767,7 @@ def run_config(config: str, limit: int, shards: int, workers: int,
          "--config", config, "--limit", str(limit),
          "--shard", str(index), "--shards", str(shards),
          "--workers", str(workers), "--cycles", str(cycles),
-         "--out", str(where)]
+         "--corrupt", str(corrupt), "--out", str(where)]
         + (["--store", str(USING)] if USING != STORE else []), cwd=str(ROOT))
         for index in range(shards)]
     failed = [index for index, proc in enumerate(procs) if proc.wait() != 0]
@@ -674,6 +786,7 @@ def run_config(config: str, limit: int, shards: int, workers: int,
               "shards_failed": failed,
               "wall_seconds": round(time.time() - started, 1),
               "absolute": score_absolute(answers, chosen),
+              "corrupted": score_corrupted(answers, bad),
               "relative": score_pairs(answers, chosen),
               "reliability": reliability(answers, chosen),
               "by_source": by_field(answers, chosen, "source"),
@@ -699,6 +812,21 @@ def as_text(reports: list) -> str:
         lines.append(f"{r['config']:<14}{a['n']:>7}{a['coverage']:>10.1%}"
                      f"{a['confirmed']:>9.1%}{a['contradicted']:>9.1%}"
                      f"{r['wall_seconds']:>8.0f}s")
+
+    lines += ["", "CORRUPTED -- claims built to be false, so over-affirmation",
+              "  can be measured at all. A COMPS foil is absence, not denial;",
+              "  `does an arm have a bubble tube` is a denial.",
+              "  asserted  how much of it the config claimed is true", "",
+              f"{'config':<14}{'n':>7}{'asserted':>10}{'refused':>9}"
+              f"{'silent':>9}{'wrong when it spoke':>22}"]
+    lines.append("-" * 76)
+    for r in reports:
+        c = r.get("corrupted") or {}
+        if not c.get("n"):
+            continue
+        lines.append(f"{r['config']:<14}{c['n']:>7}{c['asserted']:>10.1%}"
+                     f"{c['refused']:>9.1%}{c['silent']:>9.1%}"
+                     f"{c['wrong_when_it_spoke']:>22.1%}")
 
     lines += ["", "RELATIVE -- the minimal pair, which is what COMPS is for.",
               "  decided   pairs where the two sides did not score the same",
@@ -759,6 +887,9 @@ def main(argv=None) -> int:
                         help="most internal cycles one loop run may take")
     parser.add_argument("--shard", type=int, default=-1,
                         help=argparse.SUPPRESS)   # set by the parent
+    parser.add_argument("--corrupt", type=int, default=0,
+                        help="corrupted false claims to ask as well "
+                             "(0 = all 521); the over-affirmation measure")
     parser.add_argument("--store", default="",
                         help="a store other than the built one, e.g. one "
                              "`ingestion.load` wrote")
@@ -783,7 +914,8 @@ def main(argv=None) -> int:
         # `--limit` as given, never re-resolved: the parent has already chosen
         # the effective limit for this config and a child that recomputes it
         # answers a different sample than the parent scores.
-        asked = sorted(questions_for(pairs(options.limit)).items())
+        asked = sorted(all_questions(options.limit,
+                                     options.corrupt).items())
         mine = [item for index, item in enumerate(asked)
                 if index % options.shards == options.shard]
         rows = ask_shard(options.config, mine, options.workers, options.cycles)
@@ -799,7 +931,8 @@ def main(argv=None) -> int:
         print(f"[audit] {config}: {options.shards} shards x "
               f"{options.workers} engines, {limit} pairs per rung", flush=True)
         reports.append(run_config(config, limit, options.shards,
-                                  options.workers, options.cycles, where))
+                                  options.workers, options.cycles, where,
+                                  options.corrupt))
         last = reports[-1]
         print(f"[audit] {config}: {last['answered']} questions in "
               f"{last['wall_seconds']}s", flush=True)

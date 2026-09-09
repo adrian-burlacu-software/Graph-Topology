@@ -528,6 +528,75 @@ different.
 
 ---
 
+## 14. Corrupted claims, and the measure that was missing
+
+Every negative this file had was a COMPS foil, and §1 established those are
+absence rather than denial — `carp can be a trophy` is a foil and is true.
+So a **false-assertion rate was unmeasurable**, which is the one number
+over-affirmation needs, and over-affirmation is what the audit that started
+all this found by hand.
+
+`audit.corrupted()` builds negatives instead: take a property only one XCSLB
+category ever holds, held by at least three of its members, and put it on a
+concept from another category. `can jam drool`. `does a puppet have a deck`.
+`is a mitten an appliance`. 521 of them, one per concept, asked of every
+configuration alongside the pairs.
+
+This also lifts §12's limitation. XCSLB is leaf-heavy and cannot see
+class-level over-generalisation; a corrupted claim can be built for any
+concept at all.
+
+| config | asserted | refused | silent | wrong when it spoke |
+| --- | --- | --- | --- | --- |
+| crawl | **1.0%** | 2.1% | 95.2% | 31.2% |
+| llm (no floor) | 10.2% | 89.8% | 0.0% | 10.2% |
+
+**The graph almost never over-affirms because it almost never speaks.** When
+it does settle a false claim it is wrong a third of the time, on n=16.
+
+### What the confidence floor does
+
+| floor | false asserted | true asserted | true claims it is sure about |
+| --- | --- | --- | --- |
+| 0.00 | 10.2% | 82.5% | 100% |
+| 0.90 | 4.6% | 89.0% | 75.2% |
+| 0.95 | 3.3% | 91.8% | 66.8% |
+| **0.99** | **1.0%** | **95.2%** | **41.5%** |
+
+**At 0.99 the model matches the graph's over-affirmation rate exactly, while
+reaching 41.5% of true claims against the graph's 17.2%.** Same safety, 2.3
+times the coverage.
+
+And the five corrupted claims it still asserts there — `is turnip used for
+eating`, `can raspberry be served with ice cream`, `can an owl cling to
+rocks` — are all true. The residue is this file's test set, not the model.
+
+### The prompt was worth more than the threshold
+
+Measured on 150 true and 150 corrupted claims:
+
+    strategy      floor   says yes to TRUE   to FALSE   separation
+    plain         0.99          98.9%           7.7%      +91.2%
+    careful       0.99          96.0%           0.0%      +96.0%
+    unsure        0.99         100.0%          10.7%      +89.3%
+    challenged    0.90         100.0%          38.5%      +61.5%
+
+Telling it *most claims put to you are false; say yes only if the property is
+typical* costs three points of recall and removes essentially all the false
+assertion. Two things that failed, recorded so they are not retried:
+
+- **Offering `unsure` does nothing.** The model puts no probability mass on
+  it even when invited, so abstention must be imposed from outside.
+- **A second turn asking "are you certain?" makes it much worse.** It revises
+  1.3% of the time and capitulates otherwise; false acceptance goes 7.7% ->
+  38.5%. Taking the lower of the two confidences does not rescue it.
+
+A prompt written specially for adjudication — "extra detail does not defeat
+the claim" — scored 5/6 against `careful`'s 6/6. The general instruction to
+be sceptical beat the specific instruction to be lenient.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
