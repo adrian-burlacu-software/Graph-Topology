@@ -1,0 +1,229 @@
+# The v688 audit — results
+
+2026-09-09. Run with:
+
+```
+python -m research.v688.audit --limit 1200 --loop-limit 500 --shards 5 --workers 4
+python -m research.v688.audit --phrasing        # the transform, no engines
+```
+
+Five configurations differing only in what is switched off, asked COMPS'
+minimal pairs over XCSLB's 521 concepts. 4,800 pairs (1,200 per rung of the
+foil ladder); the loop at 2,000. `audit.py`'s docstring carries the method and
+the caveats; this file is what came back.
+
+---
+
+## 1. The gold set is not what it was documented to be
+
+Found before any accuracy number, and the most consequential result here.
+
+`concept_matrix.txt` is 521 × 3,644 binary and **1.58% dense** — 30,009 ones
+in 1.9M cells. That is a free-listing norm: a zero means no participant
+mentioned the feature, not that anyone judged it false. COMPS draws its foils
+from those zeros, so they are not denials:
+
+```
+stocking  NOT absorbs sweat     (taxonomic)
+potato    NOT absorbs water     (co-occurrence)
+```
+
+So `corpora.denied_xcslb`'s docstring — *"the only place in any of this data
+where absence is stated rather than merely observed"* — is **false**, and this
+is the AwA2-zeros trap one level up. `profile.py` merges it into
+`Profiles.denied`, which is what **R17 answers DENIED from**: a live
+false-denial source in the shipped system.
+
+Not fixed here. The audit works around it by never scoring a foil as a
+denial. Fixing it in v687 is a separate change and it will cost real denials.
+
+---
+
+## 2. The crawl is not wrong. It is absent.
+
+Positives only, where a listed feature *is* an assertion (n = 1,200):
+
+| config | coverage | confirmed | contradicted |
+| --- | --- | --- | --- |
+| shipped | 92.3% | 89.9% | 2.2% |
+| **crawl** | **19.4%** | 16.9% | 0.8% |
+| pinned | 19.9% | 17.7% | 0.6% |
+| corroborated | 14.8% | 12.3% | 0.8% |
+| loop | 14.8% | 12.2% | 0.8% |
+
+1.9M crawled facts reach **19.4%** of what people list about 521 everyday
+concepts. Where the crawl does settle a positive it is essentially never
+wrong — `R4` 100% (n=165), `ascentpp` 100% (n=147), `R1` 100% (n=47).
+
+`shipped` is a control, not a result: R17 answers from the rows the questions
+were built from, so its 92.3% says the harness works. Anything much below
+that would have meant the phrasing was broken.
+
+**"Sparsity is the binding constraint" now has a number, and the number says
+the rules are fine.**
+
+---
+
+## 3. The loop adds nothing R19 was not already adding
+
+Matched on the identical 2,000-pair sample — the first comparison put the loop
+and `corroborated` on different strides, which is not a comparison:
+
+| config | decided | accuracy |
+| --- | --- | --- |
+| crawl | 20.9% | 75.4% |
+| corroborated | 14.1% | 82.6% |
+| **loop** | **14.0%** | **83.2%** |
+
+83.2% against 82.6% is about two pairs of 282 decided, and two rungs of the
+foil ladder agree to three decimal places. The loop does not decide more
+either.
+
+**The case for v688 cannot rest on accuracy.** The honest reading is not that
+the loop is useless: 86% of these pairs are undecided because the store holds
+no row either way, and no amount of asking around repairs an absence. What the
+loop does is explain and expose — and this benchmark measures neither.
+
+---
+
+## 4. What R19 costs and what it buys
+
+A measured trade, where before there was one example:
+
+| | coverage | accuracy | random | co-occur | overlap | taxonomic |
+| --- | --- | --- | --- | --- | --- | --- |
+| crawl | 19.4% | 81.6% | 92.0% | 81.8% | 79.2% | 72.7% |
+| corroborated | 14.8% | 87.3% | 94.0% | 85.5% | 87.0% | 82.2% |
+
+R19 refuses about a quarter of what the crawl reached and returns **+5.7
+points**, of which **+9.5 lands on the near foils it was written for and +2.0
+on random ones**. Near foils are exactly where an existential class fact gets
+wrongly inherited down, so it does its designed job and now there is evidence
+rather than an anecdote.
+
+**Caveat that limits this row.** R19 corroborates against the ancestor's other
+kinds, and on this gold set those siblings are other rows of the same
+instrument. The delta describes the shipped system on these 521 concepts and
+says nothing about the other 44,678.
+
+---
+
+## 5. The foil ladder falls monotonically — the audit's own control
+
+Accuracy against how near the foil is, in every configuration:
+
+```
+                random   co-occur   overlap   taxonomic
+crawl            92.0%     81.8%     79.2%      72.7%
+pinned           93.9%     83.5%     82.3%      74.8%
+corroborated     94.0%     85.5%     87.0%      82.2%
+loop             95.6%     80.6%     83.8%      73.6%
+shipped          99.6%     99.2%     99.4%      99.2%
+```
+
+A near foil is harder than a distant one, consistently. Had this come out flat
+the whole method would have been measuring noise. `shipped` is flat *because*
+it is at ceiling.
+
+---
+
+## 6. `confidence.py` holds up
+
+Tested the sound way: the margin between the two sides of a pair against how
+often the listed concept won. This needs no absolute label for the foil, which
+is what makes it valid here.
+
+```
+margin        0.0-0.2  0.2-0.4  0.4-0.6  0.6-0.8  0.8-1.0
+crawl           68.5%    67.7%    87.6%    89.0%    91.8%
+pinned          72.8%    68.9%    88.2%    90.4%    95.5%
+corroborated    77.5%    72.6%    89.3%    88.5%    91.5%
+loop            60.0%    45.5%    69.2%    92.9%    93.7%
+```
+
+23 points of spread for `crawl`, the same shape four times independently. The
+`0.2-0.4` dip recurs in every configuration and is unexplained.
+
+The per-answer reliability curve looks *inverted* (0.8–1.0 at 88–91%, every
+lower band at 100%) and that is an artefact, not a finding: scored on
+positives only, the sole way to be wrong is to answer DENIED, so that curve
+measures false denials. Which is how §7 was found.
+
+---
+
+## 7. The one real bug: R27 at 0.95 on a misread sense
+
+Every confident false denial is R27, all at 0.95, and R27 is reasoning
+correctly:
+
+```
+is a donkey a mammal              donkey.n.01 = "symbol of the Democratic
+                                  Party", under emblem -> symbol ->
+                                  abstraction. The animal is
+                                  domestic ass.n.01.
+is a hyacinth a flowering plant   hyacinth.n.01 = a zircon gemstone.
+                                  The plant is hyacinth.n.02.
+```
+
+A sound inference about the wrong sense, delivered at maximum confidence,
+which is worse than being unsure. This is the backlog's open
+"context-sensitive sense choice" item with a cost attached.
+
+**Pinning the sense fixes some of it and buys almost no coverage.** XCSLB
+ships a sense key per concept; all 530 resolve through `nltk`
+(`donkey%1:05:00::` → `domestic ass.n.01`). `identify.py` makes the same join
+but keeps only the lemma half and drops the sense index.
+
+```
+crawl -> pinned    coverage 19.4% -> 19.9%   (+0.5)
+                   accuracy 81.6% -> 83.9%   (+2.3)
+                   false denials 10 -> 7
+```
+
+**This is the important negative.** If the 80% silence had been the reasoner
+looking in the wrong place, pinning would have moved coverage a long way. It
+moved it half a point. The silence is genuine absence, and §2 stands
+unqualified.
+
+### The residue is a different bug
+
+What survives pinning is not about senses:
+
+```
+is a television modern
+is a mussel aquatic
+is a calf an infant
+is pliers a garden tool     (weak gold — arguably correct)
+```
+
+`modern`, `aquatic`, `feminine`, `cold` are used adjectivally and all have
+noun synsets, so R27 reads `is X <adjective>` as a taxonomy question and
+excludes on it. **R27 should not answer a polar `is X Y` by taxonomy
+exclusion when Y is being used as a property.** Distinct from the sense bug,
+same 0.95 confidence.
+
+---
+
+## What to do with this
+
+Ranked by evidence, not by appeal:
+
+1. **Stop R27 excluding on adjectival predicates.** Smallest change, clearest
+   evidence, removes the highest-confidence errors in the audit.
+2. **Decide what to do about `denied_xcslb` feeding `Profiles.denied`** (§1).
+   It is a real false-denial source. Fixing it will lose denials the page
+   currently shows, so the examples need re-checking after.
+3. **Do not tune the loop for accuracy.** §3 says there is nothing there to
+   win. If v688's claim is explanation, the page should say that and this file
+   should be cited for why.
+4. **Re-read the coverage number before any new rule.** 19.4%, unmoved by
+   pinning, is the ceiling every rule is working under.
+
+## Reproducing
+
+Numbers above are `--limit 1200` (`--loop-limit 500`), sharded 5 × 4 engines;
+`crawl`/`corroborated`/`loop` at `--limit 500` for the matched §3 comparison.
+Sampling is a strided walk over a sorted list, not a random draw, so a given
+`--limit` gives the same items on every machine. Output lands in
+`audit-out/` (git-ignored): `audit.txt`, `audit.json`, and per-config JSONL
+with one row per question.
