@@ -204,19 +204,66 @@ same 0.95 confidence.
 
 ---
 
+## 8. Acted on: R27 withdrawn on a hedged predicate
+
+Committed `8aaa0df`. `engine.py` already tried the property reading for a
+hedged `is_a` and never reached it, because that fallback fires on UNKNOWN and
+R27 answers CONTRADICTED. The exclusion now counts as having nothing, and is
+withdrawn to UNKNOWN if the property reading finds nothing either.
+
+Gated on the **determiner**, not on whether the target owns an adjective
+sense. `animal` owns `animal.a.01`, so the data-side guard would have taken
+`is a mouse an animal` with it. `sense_rank` does separate them (live
+adjectival readings at 1-3, `animal.a.01` at 99) but that is a threshold
+picked off six points.
+
+`crawl`, same 1,200-per-rung sample, before and after:
+
+| | coverage | confirmed | contradicted | accuracy | false denials |
+| --- | --- | --- | --- | --- | --- |
+| before | 19.4% | 16.9% | 0.8% | 81.6% | 10 |
+| after | 19.2% | 17.1% | **0.4%** | 81.9% | **5** |
+
+Half the false denials gone, and they were the 0.95-confidence half. The
+aggregate barely moves because ten items in 1,200 cannot move it — the point
+was never the average, it was that the errors were confident.
+
+**R17 was masking this.** `is a television modern` reads VERIFIED on the
+shipped engine and read CONTRADICTED on the crawl path, so the bug was
+invisible on the 521 concepts the examples exercise and live on the other
+44,678. Same shape as the R19 finding: a defect on the path that generalises,
+hidden by the path that is tested.
+
+The five that remain are not this bug:
+
+```
+is a hyacinth a flowering plant  |  sense selection -- pinning fixes all three
+is a donkey a mammal             |
+is a worm an invertebrate        |
+is a calf an infant              |  weak gold: WordNet's infant.n.01 is human
+is pliers a garden tool          |  weak gold, arguably correct
+```
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
 
-1. **Stop R27 excluding on adjectival predicates.** Smallest change, clearest
-   evidence, removes the highest-confidence errors in the audit.
+1. ~~**Stop R27 excluding on adjectival predicates.**~~ Done, §8.
 2. **Decide what to do about `denied_xcslb` feeding `Profiles.denied`** (§1).
    It is a real false-denial source. Fixing it will lose denials the page
-   currently shows, so the examples need re-checking after.
+   currently shows, so the examples need re-checking after. Deliberately kept
+   as a separate pass: change it in the same commit as §8 and you cannot tell
+   which moved an example.
 3. **Do not tune the loop for accuracy.** §3 says there is nothing there to
    win. If v688's claim is explanation, the page should say that and this file
    should be cited for why.
-4. **Re-read the coverage number before any new rule.** 19.4%, unmoved by
+4. **Sense selection is now the largest measured defect.** Three of the five
+   surviving false denials, and `pinned` shows they go away when the reader's
+   sense is supplied. This is the backlog's open item, and it is the one with
+   a number behind it.
+5. **Re-read the coverage number before any new rule.** 19.2%, unmoved by
    pinning, is the ceiling every rule is working under.
 
 ## Reproducing
