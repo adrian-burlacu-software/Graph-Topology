@@ -102,7 +102,7 @@ STORE = ROOT / "data" / "v684_reasoning.sqlite"
 COMPS = ROOT / "data" / "xcslb" / "comps_base.jsonl"
 
 #: The four configurations, in the order the report reads them.
-CONFIGS = ("shipped", "crawl", "pinned", "corroborated", "loop")
+CONFIGS = ("shipped", "crawl", "lenient", "pinned", "corroborated", "loop")
 
 #: Predicate openers that are already a question's auxiliary.
 AUXILIARY = {"is", "can", "was", "are", "does", "has", "have", "will",
@@ -319,6 +319,35 @@ def engine_class(config: str):
 
     if config in ("corroborated", "loop"):
         return NoNorms
+
+    if config == "lenient":
+        class NoR28(NoNorms):
+            """Crawl alone, with R28's plain-match requirement removed.
+
+            R28 holds that a qualified fact does not affirm the bare claim:
+            `leopard capable_of "hunt at night"` is not `a leopard hunts`. It
+            is the rule that keeps `fish capable_of "walk on land"` from
+            saying fish walk, and it is why `can a person run` is UNKNOWN.
+
+            The audit found that 54% of the gold positives the crawl misses
+            have a row in the store sharing a content word, and many are this
+            shape -- `hose used_for "washing car"` for `is used to wash`. So
+            the question is what R28 costs and what it buys, and `verify`
+            reads its standard off `matcher.plain`: a matcher without one
+            leaves every match plain, which is R28 off.
+            """
+
+            def __init__(self, *args, **kwargs) -> None:
+                super().__init__(*args, **kwargs)
+                lenient = self.parser.matcher()
+                if hasattr(lenient, "plain"):
+                    del lenient.plain
+                self.match = lenient
+
+            def corroborate(self, answer, target):
+                return answer
+
+        return NoR28
 
     class CrawlAlone(NoNorms):
         """...and nothing checks the crawl against them either.
