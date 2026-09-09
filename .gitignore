@@ -30,3 +30,5 @@ hs_err_pid*
 # LLM and Data files
 llm/
 data/
+data/v684_genericskb.sqlite
+data/genericskb/*.parquet

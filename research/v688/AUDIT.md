@@ -468,6 +468,66 @@ this reasoning.
 
 ---
 
+## 13. GenericsKB, measured
+
+570,717 facts over 21,424 concepts, from AI2's GenericsKB-Best. Loaded into a
+copy of the store by `ingestion/load.py`; the baseline differs from it only by
+this source. `crawl`, same 1,200-per-rung sample:
+
+| store | coverage | contradicted | accuracy | foil ladder |
+| --- | --- | --- | --- | --- |
+| baseline | 19.1% | 0.2% | 82.8% | .933 .836 .802 .736 |
+| + GenericsKB (all) | 23.9% | 0.5% | 79.1% | .890 .791 .767 .705 |
+| **+ GenericsKB (score >= p50)** | **23.3%** | **0.2%** | **80.7%** | .905 .810 .781 .722 |
+
+**I predicted 7 to 12 coverage points and got 4.8**, and did not predict an
+accuracy cost at all.
+
+Filtering to GenericsKB's own median score is most of the fix: half the data
+(259,791 facts) gets 88% of the coverage gain, recovers half the accuracy, and
+puts false denials back at baseline. The net is **+4.2 coverage for -2.1
+accuracy** — which is roughly the same trade as turning R28 off (+6.3 for
+-3.0), and that was rejected.
+
+**The adversarial set is clean.** `can a rock swim`, `does a cat lay eggs`,
+`can a fish walk`, `do pigs fly`, `can a person fly` all stay UNKNOWN. Per
+§12, this check is not optional.
+
+### It does not relieve R28, which was the argument for it
+
+```
+can a leopard hunt             UNKNOWN -> UNKNOWN
+does a crocodile ambush prey   UNKNOWN -> UNKNOWN
+```
+
+GenericsKB holds *Leopards hunt at night.* and *Crocodiles ambush large
+prey.* R28 refuses both, for the surplus. The corpus is generic in its
+*subject*, not bare in its predicate, and the 15%-to-9% measurement in
+`ingestion/genericskb.py` is that fact in advance.
+
+### Part of the accuracy cost is the benchmark, not the data
+
+Of the 30 pairs the baseline got right and GenericsKB got wrong:
+
+```
+"contains water"   ketchup vs tomato       tomato now verified
+"contains water"   ketchup vs oil_tanker   oil_tanker now verified
+```
+
+Tomatoes contain water. GenericsKB is correctly affirming a true thing about
+a *foil*, and the scoring counts it as an error, because the foils are
+absence-derived (§1). But the ladder drops on `random` foils too (.933 ->
+.905), where foil-truth is least likely, so real noise is present as well.
+
+**Verdict: marginal, and a values call rather than a factual one.** It buys
+reach at the price of precision, at about the same rate as the R28 relaxation
+this file already rejected, and precision is what the three fixes above spent
+the day buying back. Not merged into `build.py`. The branch is
+`data/genericskb` and the numbers are here for when that trade looks
+different.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

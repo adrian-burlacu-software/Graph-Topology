@@ -99,6 +99,11 @@ from . import confidence
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE = ROOT / "data" / "v684_reasoning.sqlite"
+
+#: Overridden by `--store`, so a source added by `ingestion.load` can be
+#: measured against the same questions. Module-level because the shard
+#: children re-import rather than inherit.
+USING = STORE
 COMPS = ROOT / "data" / "xcslb" / "comps_base.jsonl"
 
 #: The four configurations, in the order the report reads them.
@@ -402,7 +407,7 @@ def ask_shard(config: str, asked: list, workers: int, cycles: int) -> list:
     """Answer a slice of the question set. `asked` is a list of (key, text)."""
     from .pool import EnginePool
 
-    pool = EnginePool(STORE, workers=workers,
+    pool = EnginePool(USING, workers=workers,
                       engine_class=engine_class(config))
     senses = store_senses() if config == "pinned" else {}
 
@@ -605,7 +610,8 @@ def run_config(config: str, limit: int, shards: int, workers: int,
          "--config", config, "--limit", str(limit),
          "--shard", str(index), "--shards", str(shards),
          "--workers", str(workers), "--cycles", str(cycles),
-         "--out", str(where)], cwd=str(ROOT))
+         "--out", str(where)]
+        + (["--store", str(USING)] if USING != STORE else []), cwd=str(ROOT))
         for index in range(shards)]
     failed = [index for index, proc in enumerate(procs) if proc.wait() != 0]
 
@@ -708,11 +714,17 @@ def main(argv=None) -> int:
                         help="most internal cycles one loop run may take")
     parser.add_argument("--shard", type=int, default=-1,
                         help=argparse.SUPPRESS)   # set by the parent
+    parser.add_argument("--store", default="",
+                        help="a store other than the built one, e.g. one "
+                             "`ingestion.load` wrote")
     parser.add_argument("--out", default="")
     parser.add_argument("--phrasing", action="store_true",
                         help="report the transform's coverage and stop")
     options = parser.parse_args(argv)
     where = out_dir(options.out)
+    if options.store:
+        global USING
+        USING = Path(options.store)
 
     if options.phrasing:
         print(json.dumps(phrasing_report(), indent=2))
