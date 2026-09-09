@@ -367,6 +367,34 @@ defects.**
 
 ---
 
+## 11. Where the three fixes left it, measured
+
+Same 1,200-per-rung sample, before and after R27's withdrawal, the foils, and
+the sense rule:
+
+| config | coverage | confirmed | contradicted | accuracy |
+| --- | --- | --- | --- | --- |
+| crawl before | 19.4% | 16.9% | 0.8% | 81.6% |
+| **crawl after** | 19.1% | 17.2% | **0.2%** | **82.8%** |
+| pinned before | 19.9% | 17.7% | 0.6% | 83.9% |
+| pinned after | 19.7% | 17.8% | 0.2% | 84.1% |
+
+**False denials on positives: 10 -> 2**, and both survivors are weak gold
+rather than defects — `is pliers a garden tool`, and `is a calf an infant`
+where WordNet's `infant.n.01` is human. Every false denial that was actually
+wrong is gone.
+
+**The gap `pinned` measured has half closed.** Being told the sense was worth
+2.3 points over guessing it; it is worth 1.3 now. The remaining 1.3 is what a
+better sense rule could still buy, and it is a smaller prize than it looked.
+
+**Coverage did not move**: 19.4% -> 19.1%, which is noise plus a few
+CONTRADICTED becoming UNKNOWN. Three real fixes, and the ceiling is exactly
+where it was. That is the whole finding of this audit in one line — the rules
+were not what was wrong.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
