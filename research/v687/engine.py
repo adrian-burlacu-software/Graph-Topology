@@ -95,18 +95,58 @@ class Engine:
             # has none, and answered no. Asking a word whether it names a kind
             # of something is asking whether *any* of its senses does, so the
             # other senses are tried and the one that answers is named.
-            if (answer.verdict == "UNKNOWN" and concept is None
-                    and len(senses) > 1):
+            # An exclusion does not settle the word either, and gating this on
+            # UNKNOWN meant it did. `is a donkey a mammal` came back
+            # CONTRADICTED because `donkey.n.01` is the symbol of the
+            # Democratic Party, under `emblem -> symbol -> abstraction`; the
+            # animal is `domestic ass.n.01` and was never asked. R27 is right
+            # about the sense it was given and that is exactly why its answer
+            # cannot end the search -- the sentence above says a word names a
+            # kind of something if *any* of its senses does, and a no about
+            # one sense is not a no about the word.
+            excluded = any(step.rule == "R27" for step in answer.steps)
+            unsettled = answer.verdict == "UNKNOWN" or excluded
+            if unsettled and concept is None and len(senses) > 1:
+                # Where the target is unambiguous about its branch it says
+                # which reading of the subject was meant. `flowering plant` is
+                # `angiosperm.n.01`, under `plant`, so `is a hyacinth a
+                # flowering plant` is about `hyacinth.n.02` and not about the
+                # zircon -- and the answer is then UNKNOWN, because WordNet
+                # files hyacinth under `vascular plant` and never reaches
+                # `angiosperm`. A hole in the tree is an absence; the zircon
+                # was a confident no about the wrong thing.
+                #
+                # Only a *match* moves the sense, never the mere absence of an
+                # exclusion. `dog` has senses the partitions cannot place at
+                # all -- a hot dog is under `substance` -- and taking one of
+                # those as permission to withdraw would lose `is a dog a
+                # plant`, which is a correct no.
+                # One branch, or none of this applies. `plant` is a factory and
+                # a stooge as well as a herb, so its partitions are three and
+                # it says nothing about which dog was meant -- and taking the
+                # andiron as a match there lost `is a dog a plant`. A target
+                # that could be anywhere places nothing.
+                wanted = (self.reasoner.target_partitions(parse.target)
+                          if excluded else set())
+                if len(wanted) != 1:
+                    wanted = set()
                 for other in senses[1:8]:
                     if other["id"] == chosen:
                         continue
                     attempt = self.reasoner.classify(other["id"], parse.target)
-                    if attempt.verdict != "VERIFIED":
+                    fits = bool(wanted) and (
+                        self.reasoner.partition_of(other["id"]) in wanted)
+                    if attempt.verdict != "VERIFIED" and not fits:
                         continue
                     attempt.note = (
                         f"Not of {chosen}, the sense carrying the most facts, "
                         f"but of {other['id']} — {other['definition']}. A word "
-                        f"names a kind of something if any of its senses does.")
+                        f"names a kind of something if any of its senses does."
+                        if attempt.verdict == "VERIFIED" else
+                        f"Not of {chosen} — “{parse.target}” places this "
+                        f"question in a branch {chosen} is not in, and "
+                        f"{other['id']} is: {other['definition']}. "
+                        f"{attempt.note}")
                     answer, chosen = attempt, other["id"]
                     break
             # A hedged `is_a` was a guess -- `is winter cold` has the shape of

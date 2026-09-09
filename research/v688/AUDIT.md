@@ -307,6 +307,66 @@ a wrong route, which one ask cannot do.
 
 ---
 
+## 10. Acted on: sense selection, and the pattern it completes
+
+The same structural bug, a third time. `engine.py` retries the other senses of
+a subject only when the answer is UNKNOWN, and R27 answers CONTRADICTED — so
+`is a donkey a mammal` denied on `donkey.n.01` (the symbol of the Democratic
+Party) and never tried `domestic ass.n.01`. The comment directly above the
+gate states the principle the gate breaks: *a word names a kind of something
+if any of its senses does*.
+
+**All three defects fixed today have one shape: a confident wrong answer
+blocking the repair path a silent one would have taken.** R27's exclusion is
+sound every time; what is wrong is treating soundness on one reading as
+settling the question.
+
+Retrying was not enough on its own. `hyacinth.n.02` is under `vascular plant`
+and WordNet never joins it to `angiosperm.n.01`, so the right sense answers
+UNKNOWN and the wrong sense's CONTRADICTED stood. The rule that works is the
+one the question already carries: **the target picks the subject's sense.**
+`mammal` is under `animal`, so `is a donkey a mammal` is about the donkey
+under `animal`.
+
+Gated on the target naming **exactly one** branch. `plant` is a factory and a
+stooge as well as a herb, and matching on any of its three took `is a dog a
+plant` — an andiron is an artifact, and so is a factory.
+
+```
+is a donkey a mammal              CONTRADICTED -> VERIFIED
+is a worm an invertebrate         CONTRADICTED -> VERIFIED
+is a hyacinth a flowering plant   CONTRADICTED -> UNKNOWN   (a hole in the tree)
+is a dog a plant                  CONTRADICTED (unchanged)
+```
+
+### And it cost v688 its fourth example in one sitting
+
+`is a mouse an animal` was on the page because v687 answered CONTRADICTED
+about `mouse.n.04`, the device, and **the loop** re-asked it pinned to
+`mouse.n.01`. v687 now picks the rodent itself — and the pin the loop used to
+supply is the sense v687 now chooses, which is the point: the repair was real,
+and so is its being unnecessary.
+
+That was the `sense` generator's only instance. Twenty-four candidates were
+tried for a replacement (`why does a dog bark`, `is a crane a bird`, `is a
+bass a fish`, `is a date a fruit` …) and **none fires it**.
+
+Running total for one session:
+
+| v688 machinery | its example | what happened |
+| --- | --- | --- |
+| family disagreement | `does a beagle swim` | AwA2 zeros are not denials |
+| family disagreement | `does a boat have sails` | COMPS foils are not denials |
+| `scored_apart` doubt | `is a violin made of wood` | the denial was a foil |
+| `sense` re-ask | `is a mouse an animal` | v687 resolves it now |
+
+Four demonstrations, four removals, and no replacement found for three of
+them despite deliberate search. **Each v687 defect fixed removes a
+demonstration of v688's value, because the demonstrations were v687's
+defects.**
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

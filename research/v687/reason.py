@@ -212,6 +212,23 @@ class Reasoner:
                 return node
         return None
 
+    def target_partitions(self, target_lemma: str) -> set:
+        """The top branches every noun sense of a lemma lives in.
+
+        `excludes` computes this to refuse; `engine.py` uses it to *choose*.
+        A question names two things, and when one of them is unambiguous about
+        its branch it says which reading of the other was meant: `mammal` is
+        under `animal`, so `is a donkey a mammal` is about the donkey that is
+        also under `animal` and not about the symbol of the Democratic Party.
+        """
+        forms = {target_lemma.lower(), target_lemma.lower().replace(" ", "_")}
+        marks = ",".join("?" * len(forms))
+        senses = [row["concept"] for row in self.connection.execute(
+            f"SELECT concept FROM lemmas WHERE lemma IN ({marks})",
+            tuple(forms)) if ".n." in row["concept"]]
+        return {branch for branch in
+                (self.partition_of(sense) for sense in senses) if branch}
+
     def excludes(self, concept: str, target_lemma: str) -> str | None:
         """R27. Is the target in a branch this concept cannot be in?
 

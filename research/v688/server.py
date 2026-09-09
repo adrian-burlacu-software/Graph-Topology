@@ -55,11 +55,17 @@ EXAMPLES = [
      "expect": "absent, not false"},
 
     {"text": "is a mouse an animal",
-     "shows": "v687 says no, correctly, about `mouse.n.04` — the device. "
-              "R27's exclusion is sound and it is about the wrong mouse. The "
-              "loop finds that another reading answers yes, asks again under "
-              "a pin, and leads with that.",
-     "expect": "holds, but something it passed does not"},
+     "shows": "This said **no** until 2026-09-09, correctly, about "
+              "`mouse.n.04` — the device. R27's exclusion was sound and it "
+              "was about the wrong mouse, and the loop's job here was to "
+              "notice, re-ask under a pin, and lead with the other reading.\n"
+              "v687 now picks the reading itself: `animal` places the "
+              "question in one branch of the taxonomy, and the mouse sense "
+              "in that branch is the rodent. So the loop has nothing to "
+              "repair and the answer is simply right — which cost the "
+              "`sense` generator the only example on this page that "
+              "exercised it. See research/v688/AUDIT.md §10.",
+     "expect": "corroborated"},
 
     # -- the claim checked against what the act needs ----------------------
     {"text": "do fish run",

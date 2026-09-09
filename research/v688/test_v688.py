@@ -698,31 +698,65 @@ class ExampleTests(unittest.TestCase):
         note = found.cycles[0].answers[0].note or ""
         self.assertIn("kinds of", note)
 
-    def test_a_no_another_reading_would_answer_yes_to_is_re_asked(self):
-        """`is a mouse an animal` comes back CONTRADICTED, correctly, about
-        `mouse.n.04` -- the device. The exclusion is sound and it is about
-        the wrong mouse."""
+    def test_a_no_another_reading_would_answer_yes_is_not_produced_any_more(self):
+        """This asserted the repair. It now asserts there is nothing to repair.
+
+        `is a mouse an animal` came back CONTRADICTED about `mouse.n.04`, the
+        device, and the loop re-asked it pinned to `mouse.n.01` and led with
+        the yes. v687 picks the rodent itself now: `animal` places the
+        question in one branch of the taxonomy and one mouse sense is in it.
+
+        The pin the loop used to supply and the sense v687 now chooses are the
+        same one, which is the point -- the repair was real and so is its
+        being unnecessary.
+        """
         found = run("is a mouse an animal")
-        again = [a for c in found.cycles for a in c.answers
-                 if a.origin == "sense"]
-        self.assertTrue(again)
-        self.assertEqual(again[0].question, "is a mouse an animal")
-        self.assertEqual(again[0].pins, {"mouse": "mouse.n.01"})
-        self.assertEqual(again[0].verdict, "VERIFIED")
-        # The corrected reading becomes the headline; `as_asked` keeps what
-        # v687 said about the sense it chose.
         self.assertEqual(found.summary["verdict"], "VERIFIED")
-        self.assertEqual(found.summary["as_asked"], "CONTRADICTED")
+        self.assertEqual(found.cycles[0].answers[0].payload["concept"],
+                         "mouse.n.01")
+        self.assertFalse([a for c in found.cycles for a in c.answers
+                          if a.origin == "sense"])
+        # `as_asked` kept what v687 said about the sense it chose, and it
+        # agrees with the headline now because there is no longer a correction
+        # to record. That equality is the whole finding.
+        self.assertEqual(found.summary["as_asked"], "VERIFIED")
 
     def test_the_same_words_under_two_readings_are_two_questions(self):
-        """Keyed by text alone, the pinned re-ask is deduplicated against
-        the answer it exists to disagree with."""
-        found = run("is a mouse an animal")
-        keys = {a.key for c in found.cycles for a in c.answers}
-        self.assertIn("is a mouse an animal", keys)
-        self.assertTrue(
-            any(k.startswith("is a mouse an animal ⟨") for k in keys),
-            keys)
+        """Keyed by text alone, a pinned re-ask would be deduplicated against
+        the answer it exists to disagree with.
+
+        Asserted on the key rather than through a run: the loop no longer
+        produces a pinned re-ask anywhere, because the one example that made
+        it — `is a mouse an animal` — is answered correctly by v687 now. The
+        keying is still what stops the two collapsing if it ever does.
+        """
+        from .pool import Answer
+
+        plain = Answer(question="is a mouse an animal", payload={}, worker=0,
+                       started=0.0, elapsed=0.0)
+        pinned = Answer(question="is a mouse an animal", payload={}, worker=0,
+                        started=0.0, elapsed=0.0,
+                        pins={"mouse": "mouse.n.01"})
+        self.assertEqual(plain.key, "is a mouse an animal")
+        self.assertNotEqual(pinned.key, plain.key)
+        self.assertTrue(pinned.key.startswith("is a mouse an animal "))
+
+    @requires_store
+    def test_the_sense_generator_has_no_live_example(self):
+        """The finding, kept so it is noticed if it stops being true.
+
+        `sense` re-asks when v687's answer came back about a different word.
+        Its only instance on the page was `is a mouse an animal`, and v687
+        picking the rodent itself removed it. Twenty-four candidates were
+        tried — `why does a dog bark`, `is a crane a bird`, `is a bass a
+        fish`, `is a date a fruit` and so on — and none fires it.
+
+        This is the fourth piece of v688 machinery to lose its example to a
+        v687 fix or a data correction in one sitting. AUDIT.md §10.
+        """
+        origins = {a.origin for c in run("is a mouse an animal").cycles
+                   for a in c.answers}
+        self.assertNotIn("sense", origins)
 
     def test_a_means_never_opens_a_gap_of_its_own(self):
         """Checking the penguin family asked `is an emperor penguin strong`,
@@ -742,7 +776,14 @@ class ExampleTests(unittest.TestCase):
             found = run(example["text"])
             for cycle in found.cycles:
                 origins |= {answer.origin for answer in cycle.answers}
-        self.assertEqual(origins, {"seed", "gap", "doubt", "sense", "split",
+        # `sense` is absent, and its absence is a finding rather than a gap in
+        # the page. It fired on exactly one example -- `is a mouse an animal`,
+        # where v687 answered CONTRADICTED about `mouse.n.04`, the device --
+        # and v687 now picks the rodent itself, because `animal` places the
+        # question in a branch and one mouse sense is in it. Twenty-four
+        # candidate questions were tried for a replacement and none fires it.
+        # See `test_the_sense_generator_has_no_live_example` and AUDIT.md §10.
+        self.assertEqual(origins, {"seed", "gap", "doubt", "split",
                                    "chain", "require", "curiosity"})
 
     def test_some_example_reasons_in_a_line_rather_than_a_fan(self):
