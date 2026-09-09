@@ -97,6 +97,7 @@ from pathlib import Path
 
 from research.v687 import corpora
 from . import confidence
+from .holdout import held as holdout_held
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE = ROOT / "data" / "v684_reasoning.sqlite"
@@ -635,6 +636,18 @@ def stance(row: dict) -> float:
     return 0.0
 
 
+def only_held(chosen: list) -> list:
+    """The pairs whose concept was reserved from teaching.
+
+    After anything is taught, the number that matters is this one: the store
+    answering about concepts nothing wrote to. `holdout.py` says why, and why
+    the reservation is over writing rather than over answering.
+    """
+    from . import holdout
+
+    return [pair for pair in chosen if holdout.held(pair.held)]
+
+
 def score_absolute(answers: dict, chosen: list) -> dict:
     """Positives only: did the store confirm what people listed?
 
@@ -749,7 +762,8 @@ def out_dir(where: str | None) -> Path:
 
 
 def run_config(config: str, limit: int, shards: int, workers: int,
-               cycles: int, where: Path, corrupt: int = 0) -> dict:
+               cycles: int, where: Path, corrupt: int = 0,
+               held_only: bool = False) -> dict:
     """Fan one configuration across processes, then score what comes back.
 
     One process per shard, each with its own pool, because the engines are
@@ -781,6 +795,9 @@ def run_config(config: str, limit: int, shards: int, workers: int,
                     row = json.loads(line)
                     answers[row["key"]] = row
 
+    if held_only:
+        chosen = only_held(chosen)
+        bad = [one for one in bad if holdout_held(one.held)]
     report = {"config": config, "pairs": len(chosen),
               "questions": len(asked), "answered": len(answers),
               "shards_failed": failed,
@@ -887,6 +904,10 @@ def main(argv=None) -> int:
                         help="most internal cycles one loop run may take")
     parser.add_argument("--shard", type=int, default=-1,
                         help=argparse.SUPPRESS)   # set by the parent
+    parser.add_argument("--only-holdout", action="store_true",
+                        help="score only the concepts reserved from "
+                             "teaching; the reading that matters after any "
+                             "of it has happened")
     parser.add_argument("--corrupt", type=int, default=0,
                         help="corrupted false claims to ask as well "
                              "(0 = all 521); the over-affirmation measure")
@@ -932,7 +953,7 @@ def main(argv=None) -> int:
               f"{options.workers} engines, {limit} pairs per rung", flush=True)
         reports.append(run_config(config, limit, options.shards,
                                   options.workers, options.cycles, where,
-                                  options.corrupt))
+                                  options.corrupt, options.only_holdout))
         last = reports[-1]
         print(f"[audit] {config}: {last['answered']} questions in "
               f"{last['wall_seconds']}s", flush=True)

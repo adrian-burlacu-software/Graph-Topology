@@ -341,6 +341,14 @@ class Loop:
         # of it. The reader is told a model said so, because that is a
         # different kind of evidence from a walk over the taxonomy.
         judged = [one for cycle in cycles for one in cycle.adjudications]
+        # An adjudication that supports the headline settles it. Reporting
+        # `unknown` on the badge over three lines saying the fact does hold
+        # is incoherent, and `unknown` is the wrong word once something has
+        # answered. v687's own verdict is untouched and `as_asked` still
+        # carries it -- the same arrangement a pinned re-ask already uses.
+        ratified = [one for one in judged
+                    if one.supports and headline is not None
+                    and one.question == headline.question]
         for one in judged:
             if headline is None or one.question != headline.question:
                 continue
@@ -485,14 +493,16 @@ class Loop:
             # could even be formed, and no amount of workers shortens that.
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
-            "trust": self.trust(headline, conflicts, buffer, overturned),
+            "trust": self.trust(headline, conflicts, buffer, overturned,
+                                ratified),
             "adjudications": [one.as_dict() for one in judged],
             # The badge. `trust` says in a phrase what went wrong and the
             # verdict says which of seventeen things v687 concluded; this
             # says which of four readings it comes to and how far it should
             # be taken, with every factor that made the number.
             **confidence.of_run(headline, buffer, conflicts, overturned,
-                                corrected).as_dict(),
+                                corrected=corrected,
+                                ratified=ratified).as_dict(),
         }
 
     def rank_of(self, answer) -> int | None:
@@ -562,7 +572,7 @@ class Loop:
         return deepest
 
     def trust(self, headline, conflicts, buffer: Buffer,
-              overturned: bool = False) -> str:
+              overturned: bool = False, ratified=None) -> str:
         """One word for how far the headline should be taken.
 
         The point of the whole loop, compressed: v687 answers questions, and
@@ -573,6 +583,11 @@ class Loop:
             return "none"
         if headline.verdict in ("UNKNOWN_WORD", "UNPARSED", "UNSUPPORTED"):
             return "unreadable"
+        # Said before anything else about an absence, because it is no longer
+        # one: the store held the fact and only the phrasing kept it back.
+        if ratified and headline.verdict in ("UNKNOWN", "UNRECORDED",
+                                             "NO_MATCH"):
+            return "held on a fact R28 set aside"
         # Whatever overturned the headline in the summary overturns it here.
         # `do fish run` read NOT SUPPORTED in the lines and `weakly held` on
         # the badge, because the conflict is filed under `does a fish have

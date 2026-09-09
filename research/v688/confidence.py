@@ -221,8 +221,20 @@ def of_answer(payload: dict, verdict: str = "") -> Weight:
     return Weight(max(min(value, 1.0), 0.0), outcome, factors)
 
 
+#: What a claim is worth when the only thing that settled it is the teacher
+#: ratifying a fact R28 held back. It is the crawled fact's own standing,
+#: discounted: the store did record the thing, and what the model supplied is
+#: the judgement that the surplus in the phrasing does not destroy it.
+#:
+#: Below the norms (0.85) and well below a walk over WordNet (0.95), because
+#: it rests on a model rather than on anything anyone recorded, and because
+#: `AUDIT.md` §14 measures that model asserting 1.0% of claims built to be
+#: false. Deliberately not 1.0 however sure the model is.
+RATIFIED = 0.70
+
+
 def of_run(headline, buffer, conflicts, overturned: bool,
-           corrected=None) -> Weight:
+           corrected=None, ratified=None) -> Weight:
     """What the run is worth once the loop has had its say.
 
     The answer's own payload is the ground; everything the loop went and
@@ -234,6 +246,22 @@ def of_run(headline, buffer, conflicts, overturned: bool,
         return Weight(0.0, "unknown", [("nothing asked", 0.0, "no answer")])
     speaking = corrected or headline
     weight = of_answer(speaking.payload, speaking.verdict)
+    if weight.outcome == "unknown" and ratified:
+        # Something did settle it, so `unknown` is the wrong reading and a
+        # badge saying so over lines saying otherwise is the wrong page. The
+        # number is the teacher's own confidence, discounted for being a
+        # model's word rather than a record.
+        best = max(float(getattr(one, "confidence", 0.0)) for one in ratified)
+        return Weight(
+            max(min(best * RATIFIED, 1.0), 0.0), "verified",
+            [("the store had it", RATIFIED,
+              f"R28 held back “{ratified[0].fact}” for saying more than you "
+              f"asked; the fact was recorded and only the phrasing kept it "
+              f"out"),
+             ("the teacher ratified it", best,
+              f"a model judged that it supports “{ratified[0].claim}”, at "
+              f"{best:.0%} — not a walk over the taxonomy, and priced below "
+              f"one")])
     if weight.outcome == "unknown":
         return weight
     value, factors = weight.value, list(weight.factors)

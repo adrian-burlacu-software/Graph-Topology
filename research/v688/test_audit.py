@@ -205,6 +205,57 @@ class TheCorruptedClaims(unittest.TestCase):
         self.assertIn("absence rather than denial", source)
 
 
+class TheHoldout(unittest.TestCase):
+    """Concepts nothing may teach, so that teaching can be measured."""
+
+    def test_three_categories_are_reserved(self):
+        from research.v688 import holdout
+
+        self.assertEqual(holdout.CATEGORIES, ("bird", "tool", "fruit"))
+        self.assertEqual(len(holdout.concepts()), 95)
+
+    def test_membership_reads_both_spellings(self):
+        from research.v688 import holdout
+
+        self.assertTrue(holdout.held("robin"))
+        self.assertTrue(holdout.held("apple"))
+        self.assertFalse(holdout.held("dog"))
+        self.assertFalse(holdout.held(""))
+
+    def test_the_teaching_plan_never_reaches_it(self):
+        """The reservation is worth nothing if the thing that writes ignores
+        it, so this asserts against the plan rather than against the flag."""
+        from ingestion import teach
+        from research.v688 import holdout
+
+        touched = {concept for concept, _s, _f, _q in teach.plan(4)}
+        self.assertTrue(touched)
+        self.assertEqual(touched & holdout.concepts(), set())
+
+    def test_it_holds_at_teaching_and_not_at_answering(self):
+        """A held-out concept is asked, walked and inherited through exactly
+        as any other. The control is over what was learned, never over what
+        may be said."""
+        source = Path(
+            audit.ROOT / "research" / "v688" / "holdout.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("holds at teaching, not at answering", source)
+        # nothing in the answering path consults it
+        for module in ("engine.py", "reason.py", "reasoning.py"):
+            text = Path(audit.ROOT / "research" / "v687" /
+                        module).read_text(encoding="utf-8")
+            self.assertNotIn("holdout", text)
+
+    def test_scoring_can_be_narrowed_to_it(self):
+        chosen = audit.pairs(200)
+        held = audit.only_held(chosen)
+        self.assertTrue(held)
+        self.assertLess(len(held), len(chosen))
+        from research.v688 import holdout
+        for pair in held:
+            self.assertTrue(holdout.held(pair.held))
+
+
 class TheScoring(unittest.TestCase):
 
     def test_an_unsettled_answer_is_zero_and_not_a_small_yes(self):

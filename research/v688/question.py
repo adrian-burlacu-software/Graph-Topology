@@ -21,11 +21,32 @@ workers can actually be given.
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from . import attention
 from .gap import Doubt, Gap
 from .graph import GraphCuriosity, Kinds, Requirements
+
+#: XCSLB's own category column onto R27's top branches. The categories are
+#: the corpus author's, the branches are WordNet's, and the join is the only
+#: place in `near_enough` that needs no sense resolution -- which is why it
+#: goes first. `food`, `drink` and `body part` are deliberately unmapped:
+#: none of the five partitions is where they sit, and a wrong branch is worse
+#: than none, because none only means the filter declines to judge.
+CATEGORY_BRANCH = {
+    "animal": "animal.n.01", "bird": "animal.n.01", "fish": "animal.n.01",
+    "invertebrate": "animal.n.01", "sea creature": "animal.n.01",
+    "flower": "plant.n.02", "tree": "plant.n.02", "vegetable": "plant.n.02",
+    "fruit": "plant.n.02",
+    "appliance": "artifact.n.01", "clothing": "artifact.n.01",
+    "container": "artifact.n.01", "furniture": "artifact.n.01",
+    "kitchenware": "artifact.n.01", "music": "artifact.n.01",
+    "reading": "artifact.n.01", "tool": "artifact.n.01",
+    "toy": "artifact.n.01", "vehicle": "artifact.n.01",
+    "water vehicle": "artifact.n.01", "weapon": "artifact.n.01",
+}
 
 VOWELS = "aeiou"
 
@@ -350,6 +371,11 @@ class Generator:
         self._pos: dict[str, str] = {}
         self._facts: dict[str, bool] = {}
         self._singular: dict[str, str] = {}
+        #: word -> its top branch of the taxonomy, for `near_enough`. Cached
+        #: because the check runs per candidate predicate per holder and the
+        #: answer never changes.
+        self._branch: dict[str, str] = {}
+        self._categories: dict | None = None
         self._lemma: dict[str, str] = {}
         self._verbish: dict[str, bool] = {}
 
@@ -453,6 +479,91 @@ class Generator:
                 break
         self._facts[concept] = held
         return held
+
+    # -- which top branch a concept sits in, for the curiosity filter -----
+    def branch_of(self, word: str) -> str:
+        """`plant.n.02`, `animal.n.01`, `artifact.n.01` ... or "" if none.
+
+        R27's partitions, reused to *choose* a question rather than to refuse
+        an answer.
+
+        **XCSLB's own category first, for the 530 concepts it covers.** It
+        ships one and it needs no sense resolution at all, which matters
+        because every attempt to guess this by sense has been wrong somewhere:
+        `profiles.synset` calls `pig` a foundry mould and `mouse` a device;
+        `senses_of` fixes the pig and keeps the device; and `meat` comes back
+        `abstraction.n.06`, because WordNet's dominant sense is the meat of an
+        argument. A filter built on a sense guess amplifies every one of
+        those into silence.
+
+        `senses_of` is the fallback, for words the norms do not cover --
+        `person`, `meat` -- and it is the answering path's own resolution, so
+        a question is judged by the same reading that would answer it.
+        """
+        if word not in self._branch:
+            found = CATEGORY_BRANCH.get(self._category().get(word, ""), "")
+            if not found:
+                for sense in (self.engine.reasoner.senses_of(word) or [])[:3]:
+                    found = self.engine.reasoner.partition_of(sense["id"])
+                    if found:
+                        break
+            self._branch[word] = found or ""
+        return self._branch[word]
+
+    def _category(self) -> dict:
+        """XCSLB's concept -> category column, read once."""
+        if self._categories is None:
+            import csv
+
+            path = (Path(__file__).resolve().parents[2] / "data" / "xcslb" /
+                    "concept_senses.csv")
+            try:
+                with path.open(encoding="utf-8") as handle:
+                    self._categories = {row["concept"]: row["category"]
+                                        for row in csv.DictReader(handle)}
+            except OSError:
+                self._categories = {}
+        return self._categories
+
+    def near_enough(self, concept: str, predicate: str) -> bool:
+        """Is this predicate asked of things like this at all?
+
+        `whiskers` splits the norms beautifully -- bear, buffalo, cow,
+        elephant and fox have them -- and `does a person have whiskers` is
+        still an absurd question. Gain measures how much an answer would tell
+        you and says nothing about whether the question belongs, and the norms
+        are 29% living kinds, so the predicates with the best gain for
+        *anything* are overwhelmingly animal features.
+
+        The test is the one R27 already uses: nothing is asked of a concept
+        unless something in its own top branch is recorded with it. That kills
+        all six of `person`'s -- `oldworld`, `quadrapedal`, `walks`,
+        `chewteeth` and the rest are held only by animals -- and leaves `can
+        it swim` among dogs untouched, because dogs and the things that swim
+        are in the same branch.
+
+        A concept the partitions cannot place is left alone: no evidence is
+        not evidence of a mismatch.
+
+        The test is what the holders are *mostly* about, not whether any one
+        of them matches. `oldworld` is held by 44 concepts, 40 of them
+        animals -- and `sheep` resolves to `person.n.01`, because WordNet's
+        first sense of it is "a docile and vulnerable person who would rather
+        follow than make an independent decision". One mis-sensed holder made
+        `any()` true and turned the whole filter off, which is how this
+        function met the sense trap for the third time.
+        """
+        mine = self.branch_of(concept)
+        if not mine:
+            return True
+        holders = self.curiosity.holders.get(predicate, frozenset())
+        if not holders:
+            return True
+        counted = Counter(self.branch_of(holder) for holder in holders)
+        counted.pop("", None)
+        if not counted:
+            return True
+        return counted.most_common(1)[0][0] == mine
 
     # -- where a question about this concept is aimed ---------------------
     def pool_for(self, concept: str) -> tuple[str, frozenset[str]]:
@@ -1008,6 +1119,11 @@ class Generator:
                 # An AwA2 coinage the ontology has no word for -- `oldworld`,
                 # `quadrapedal`. It is a real column of the corpus and a
                 # nonsense question, so it is skipped rather than asked.
+                continue
+            if not self.near_enough(concept, predicate):
+                # `does a person have whiskers`. Real word, real column, best
+                # gain in the field, and nothing like a person is recorded
+                # with it.
                 continue
             words = predicate.split()
             head = self.lemma(words[0]) if len(words) > 1 else ""
