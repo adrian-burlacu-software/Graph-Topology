@@ -112,7 +112,7 @@ TEACHING_FLOOR = 0.99
 #: only in whether the surplus changes who the subject is.
 PROMPT = (
     'A knowledge base records this about {subject}: "{fact}".\n'
-    'Does that support the plain claim "{claim}"?\n'
+    'Does that support answering yes to: "{claim}?"\n'
     "Answer yes or no, one word only."
 )
 
@@ -139,10 +139,14 @@ class Adjudication:
     started: float
     elapsed: float
     cached: bool = False
+    #: The fact as a reader can read it -- `has wing` rather than `wing`.
+    #: Never what the model was shown; see `READS`.
+    reads: str = ""
 
     def as_dict(self) -> dict:
         return {"question": self.question, "subject": self.subject,
-                "fact": self.fact, "claim": self.claim,
+                "fact": self.reads or self.fact, "asked_as": self.fact,
+                "claim": self.claim,
                 "supports": self.supports,
                 "confidence": round(self.confidence, 3),
                 "started": self.started, "elapsed": round(self.elapsed, 3),
@@ -284,7 +288,7 @@ class Teacher:
         for answer in answers:
             if len(out) >= limit:
                 break
-            for subject, fact, claim in refusals(answer):
+            for subject, fact, claim, reads in refusals(answer):
                 if len(out) >= limit:
                     break
                 started = time.time()
@@ -293,7 +297,7 @@ class Teacher:
                     question=answer.question, subject=subject, fact=fact,
                     claim=claim, supports=supports, confidence=confidence,
                     started=started, elapsed=time.time() - started,
-                    cached=cached))
+                    cached=cached, reads=reads))
         return out
 
     def as_dict(self) -> dict:
@@ -309,8 +313,28 @@ def refusals(answer) -> list:
 
     R28 leaves two things in the payload: a `skip` step naming the rule, and
     the fact itself in `suggestions`, which is where `verify` puts what it
-    held back. The suggestions are what carry the object, so they are what is
-    read; the step is only how we know R28 is why.
+    held back.
+
+    **`suggestions` is not only R28's.** `verify` prepends the qualified facts
+    to a list that already holds *near misses* -- facts scoring above
+    `SUGGEST_FLOOR` on the target without matching it -- and reading the whole
+    list sent things R28 never touched to the teacher. `does a pig have wings`
+    produced `wing -> does a pig have wings`, which is a near miss on a plural
+    and not a qualified claim at all. The two are told apart by `similarity`:
+    a near miss carries the share it covered, and a fact R28 held back carries
+    zero.
+
+    The object is also read with its relation. A bare `wing` is not something
+    a reader or a model can judge; `has a wing` is the claim the store
+    actually made.
+
+    **And it is read of the concept it was recorded of.** `does a pig have
+    wings` offered `animal.n.01 has_a "wing"` at eight levels up, and the
+    prompt said "a knowledge base records this about a pig", which is false:
+    it records it about animals. The model answered no, which was correct
+    pushback against a premise nobody should have given it. An inherited fact
+    is now named as inherited, because whether the inheritance holds is the
+    entire question R28 exists to ask.
     """
     payload = getattr(answer, "payload", None) or {}
     steps = payload.get("steps") or []
@@ -324,13 +348,79 @@ def refusals(answer) -> list:
     claim = (answer.question or "").strip().rstrip("?")
     out = []
     seen = set()
-    for fact in (payload.get("suggestions") or [])[:3]:
+    for fact in (payload.get("suggestions") or [])[:5]:
+        if float(fact.get("similarity") or 0.0) > 0.0:
+            continue                      # a near miss, not an R28 refusal
         obj = (fact.get("object") or "").strip()
         if not obj or obj in seen:
             continue
         seen.add(obj)
-        out.append((article(subject), obj, claim))
+        out.append((about(subject, fact), obj, claim,
+                    stated(fact.get("relation"), obj)))
+        if len(out) >= 3:
+            break
     return out
+
+
+def about(subject: str, fact: dict) -> str:
+    """Who the fact was actually recorded of, said plainly.
+
+    At distance zero that is the subject. Above it, the ancestor is named and
+    the inheritance is spelled out, because a fact eight levels up is not a
+    fact about the thing asked and the model should be told which it is
+    judging.
+    """
+    where = (fact.get("concept") or "").rsplit(".", 2)[0].strip()
+    distance = int(fact.get("distance") or 0)
+    if not where or not distance:
+        return article(subject)
+    return (f"{article(where)}, which {article(subject)} is a kind of")
+
+
+#: A relation as the verb a claim would use -- **for the reader, not for the
+#: model.**
+#:
+#: The prompt gets the bare object, because that is what measures best, and
+#: the difference is not small. The same three facts behind `can a person
+#: run`, judged three ways:
+#:
+#:     fact as written                        short distances  to safety  shop
+#:     run for short distances                 supports 0.86    sup 0.88  ref 0.51
+#:     capable of run for short distances      refuses  0.77    sup 0.94  ref 0.59
+#:     can run for short distances             refuses  0.96    sup 0.94  sup 0.93
+#:
+#: Bare is 3/3; the tidier English is 1/3, and the last row cheerfully
+#: supports `running shop`. **Adjudication is unstable to surface phrasing**,
+#: which is a real limit of asking a model to judge, and the answer is to use
+#: the wording with evidence behind it rather than the one that reads best.
+#:
+#: So this is display only. A reader looking at `wing -> does a pig have
+#: wings` cannot tell what was claimed; `has wing` can be read. The model is
+#: not shown it.
+READS = {
+    "capable_of": "can {}",
+    "has_a": "has {}",
+    "has_part": "has {}",
+    "part_of": "has {}",
+    "has_property": "is {}",
+    "made_of": "is made of {}",
+    "used_for": "is used for {}",
+    "at_location": "is found in {}",
+    "is_a": "is a kind of {}",
+    "receives_action": "can be {}",
+    "causes": "causes {}",
+    "entails": "involves {}",
+    "similar_to": "is similar to {}",
+}
+
+
+def stated(relation: str, obj: str) -> str:
+    """A fact as something readable: `has_a` + `wing` -> `has a wing`."""
+    obj = (obj or "").strip()
+    frame = READS.get((relation or "").strip())
+    if not frame:
+        return obj
+    return frame.format(obj)
 
 
 def article(word: str) -> str:
