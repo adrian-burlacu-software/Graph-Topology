@@ -1237,11 +1237,22 @@ class AnswerRoutingTests(unittest.TestCase):
 
     def test_a_corroborated_inheritance_stays_with_the_norms(self):
         """The hand-back must not take `does a robin fly` with it: there the
-        norms really do bear on the answer, 21 of 29 birds."""
+        norms really do bear on the answer, a clear majority of the birds.
+
+        The count is read from `corroboration` rather than written in, because
+        it is not a constant. `data/distilled_norms.json` is a build product
+        (`research/v688/densify.py`), and loading it moves this answer from
+        `21 of 29` to `28 of 29` -- both correct, and a fresh clone has
+        neither the file nor the larger number. Pinning either one makes this
+        test assert which files happen to be on disk.
+        """
         payload = self.engine.ask("does a robin fly")
         self.assertEqual(payload["parse"]["relation"], "verify")
         self.assertEqual(payload["verdict"], "VERIFIED")
-        self.assertIn("21 of 29", payload["note"])
+        bearing, kinds = self.engine.profiles.corroboration("bird.n.01", "fly")
+        self.assertEqual(kinds, 29)
+        self.assertGreaterEqual(bearing, 21)
+        self.assertIn(f"{bearing} of {kinds}", payload["note"])
 
     def test_an_ancestor_fact_is_ranked_by_what_it_accounts_for(self):
         """Shortest-first picked `capable of fall victim` over `capable of

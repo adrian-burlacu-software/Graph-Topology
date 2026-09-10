@@ -191,6 +191,14 @@
   .s-doubt { background: var(--doubt); } .s-split { background: var(--split); }
   .s-chain { background: var(--chain); } .s-curiosity { background: var(--curiosity); }
   .s-require { background: var(--require); }
+  .s-adjudicate { background: #8b6fd6; }
+  .s-adjudicate.supports { background: #b98bff; }
+  .lane.llm { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line); }
+  .lane.llm b { color: #b98bff; position: relative; }
+  .lane.llm .after { position: absolute; left: 0; top: 11px; font-size: 8px;
+                     color: var(--faint); white-space: nowrap; }
+  .lane.llm { align-items: start; }
+  .slot.cached { opacity: 0.72; border: 1px dashed rgba(255,255,255,0.35); }
   .idle { position: absolute; color: var(--faint); font-size: 10px;
           font-family: var(--mono); padding-left: 6px; line-height: 14px; }
   .opened { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
@@ -378,7 +386,11 @@ async function boot() {
     `store ${(SETTINGS.graph.facts / 1e6).toFixed(2)}M facts over ` +
     `${SETTINGS.graph.subjects.toLocaleString()} concepts · ` +
     `feature norms cover ${SETTINGS.trie.individuals} of them`;
+  const t = SETTINGS.teacher || {};
   document.getElementById("knobs").textContent =
+    (t.available
+      ? `teacher ${t.model} on ${t.device}, ${t.cached} judgements cached · `
+      : "no teacher (R28 refusals go unadjudicated) · ") +
     `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
     `weak below ${JSON.stringify(SETTINGS.weak_below)} · ` +
     `max ${SETTINGS.max_cycles} cycles`;
@@ -772,6 +784,65 @@ function lanes(cycle) {
     lane.appendChild(track);
     box.appendChild(lane);
   }
+  // The teacher is one process because it is one GPU, so it gets one lane
+  // and it sits below the pool rather than inside it. Its work starts when
+  // the fan-out has finished: that gap is the point of drawing it here.
+  const judged = cycle.adjudications || [];
+  const teacher = SETTINGS.teacher || {};
+  // Drawn on every cycle once a teacher is loaded, idle where it did no work
+  // -- exactly as the nineteen worker lanes are. A lane that appears only on
+  // the cycle that used it makes "nothing to adjudicate" and "no teacher
+  // running" look identical, which is the one thing this is meant to show.
+  if (teacher.available) {
+    const lane = el("div", "lane llm");
+    lane.appendChild(el("b", null, "llm"));
+    const track = el("div", "track");
+    if (!judged.length) track.appendChild(el("div", "idle", "idle"));
+    // Its own time axis, because sharing the pool's makes it unreadable: the
+    // teacher starts only when the fan-out is done, so on a 4s cycle its
+    // 0.13s of work is 3% of the width, jammed against the right edge. The
+    // seriality is the point and is kept as a number on the label -- `+3.83s`
+    // is how long it waited -- rather than as an unreadable gap.
+    const llmBase = judged.length
+      ? Math.min.apply(null, judged.map(o => o.started)) : 0;
+    const llmSpan = judged.length
+      ? Math.max(Math.max.apply(null,
+          judged.map(o => o.started - llmBase + o.elapsed)), 0.001) : 1;
+    if (judged.length) {
+      lane.querySelector("b").textContent = "llm";
+      lane.querySelector("b").title =
+        `started ${(llmBase - base).toFixed(2)}s into the cycle, ` +
+        `after the workers finished`;
+      const after = el("span", "after", `+${(llmBase - base).toFixed(2)}s`);
+      lane.querySelector("b").appendChild(after);
+    }
+    // A cached judgement takes no measurable time, so on a replayed run the
+    // whole lane is zero wide and every slot lands on top of the last. Then
+    // the honest drawing is order, not duration: laid out evenly and marked
+    // cached, because that is what there is to show.
+    const timed = llmSpan > 0.01;
+    judged.forEach((one, index) => {
+      const slot = el("div", "slot s-adjudicate" +
+                      (one.supports ? " supports" : "") +
+                      (timed ? "" : " cached"));
+      const share = 100 / Math.max(judged.length, 1);
+      slot.style.left = timed
+        ? ((one.started - llmBase) / llmSpan * 100) + "%"
+        : (index * share + 0.5) + "%";
+      slot.style.width = timed
+        ? Math.max(6, one.elapsed / llmSpan * 100) + "%"
+        : (share - 1) + "%";
+      slot.title = `${one.fact} → ${one.claim} — ` +
+        `${one.supports ? "supports" : "does not support"}, ` +
+        `${(one.confidence * 100).toFixed(0)}% confident` +
+        (one.cached ? " (cached)" : `, ${one.elapsed}s`);
+      slot.textContent = (!timed || one.elapsed >= llmSpan * 0.17)
+        ? one.fact : "";
+      track.appendChild(slot);
+    });
+    lane.appendChild(track);
+    box.appendChild(lane);
+  }
   wrap.appendChild(box);
   const legend = el("div", "legend");
   ORIGINS.forEach(kind => {
@@ -779,6 +850,17 @@ function lanes(cycle) {
     item.innerHTML = `<b class="o-${kind}" style="font-style:normal">■</b> ${kind}`;
     legend.appendChild(item);
   });
+  if (teacher.available) {
+    const item = el("span");
+    item.innerHTML = '<b style="color:#b98bff;font-style:normal">■</b> ' +
+      (judged.length
+        ? `adjudicate (${judged.filter(o => o.supports).length}/` +
+          `${judged.length} support, ` +
+          (judged.every(o => o.cached) ? "cached, shown in order)"
+                                       : "own time axis)")
+        : "adjudicate (idle this cycle)");
+    legend.appendChild(item);
+  }
   legend.appendChild(el("span", null,
     `slowest ${Math.max.apply(null, cycle.answers.map(a => a.elapsed).concat([0])).toFixed(2)}s`));
   wrap.appendChild(legend);

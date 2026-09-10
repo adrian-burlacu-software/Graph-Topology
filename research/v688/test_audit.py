@@ -147,6 +147,115 @@ class TheGoldSetIsNotWhatItLooksLike(unittest.TestCase):
         self.assertEqual(absolute["confirmed"], 1.0)
 
 
+class TheCorruptedClaims(unittest.TestCase):
+    """Negatives that are actually false, which COMPS does not provide."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.claims = audit.corrupted()
+
+    def test_a_claim_is_built_for_most_concepts(self):
+        self.assertGreater(len(self.claims), 400)
+
+    def test_the_property_is_never_one_the_concept_holds(self):
+        listed = {concept: set(features)
+                  for concept, features in corpora.load_xcslb().items}
+        for claim in self.claims:
+            self.assertNotIn(claim.prop, listed.get(claim.held, set()),
+                             f"{claim.held} actually has {claim.prop!r}")
+
+    def test_the_property_comes_from_another_category(self):
+        path = audit.ROOT / "data" / "xcslb" / "concept_senses.csv"
+        with path.open(encoding="utf-8") as handle:
+            where = {row["concept"]: row["category"]
+                     for row in csv.DictReader(handle)}
+        holders = {}
+        for concept, features in corpora.load_xcslb().items:
+            for feature in features:
+                holders.setdefault(feature, set()).add(where.get(concept))
+        for claim in self.claims:
+            self.assertNotIn(where.get(claim.held), holders[claim.prop],
+                             f"{claim.prop!r} is held in {claim.held}'s own "
+                             f"category, so it is not safely false")
+
+    def test_the_keys_cannot_shadow_the_pair_set(self):
+        """A concept appears in both, and one set overwriting the other would
+        silently measure the wrong thing."""
+        pair_keys = set(audit.questions_for(audit.pairs(30)))
+        bad_keys = set(audit.corrupted_questions(self.claims[:30]))
+        self.assertEqual(pair_keys & bad_keys, set())
+
+    def test_asserting_one_is_always_counted_wrong(self):
+        chosen = self.claims[:10]
+        asserted = {f"!{c.held}|{c.prop}": {"outcome": "verified"}
+                    for c in chosen}
+        silent = {f"!{c.held}|{c.prop}": {"outcome": "unknown"}
+                  for c in chosen}
+        self.assertEqual(audit.score_corrupted(asserted, chosen)["asserted"],
+                         1.0)
+        self.assertEqual(audit.score_corrupted(silent, chosen)["asserted"],
+                         0.0)
+        self.assertEqual(audit.score_corrupted(silent, chosen)["silent"], 1.0)
+
+    def test_it_is_the_measure_the_foils_could_not_give(self):
+        """`carp can be a trophy` is a COMPS foil and is true, which is why a
+        foil cannot measure over-affirmation. A corrupted claim is not drawn
+        from anybody's absence."""
+        source = Path(audit.__file__).read_text(encoding="utf-8")
+        self.assertIn("absence rather than denial", source)
+
+
+class TheHoldout(unittest.TestCase):
+    """Concepts nothing may teach, so that teaching can be measured."""
+
+    def test_three_categories_are_reserved(self):
+        from research.v688 import holdout
+
+        self.assertEqual(holdout.CATEGORIES, ("bird", "tool", "fruit"))
+        self.assertEqual(len(holdout.concepts()), 95)
+
+    def test_membership_reads_both_spellings(self):
+        from research.v688 import holdout
+
+        self.assertTrue(holdout.held("robin"))
+        self.assertTrue(holdout.held("apple"))
+        self.assertFalse(holdout.held("dog"))
+        self.assertFalse(holdout.held(""))
+
+    def test_the_teaching_plan_never_reaches_it(self):
+        """The reservation is worth nothing if the thing that writes ignores
+        it, so this asserts against the plan rather than against the flag."""
+        from ingestion import teach
+        from research.v688 import holdout
+
+        touched = {concept for concept, _s, _f, _q in teach.plan(4)}
+        self.assertTrue(touched)
+        self.assertEqual(touched & holdout.concepts(), set())
+
+    def test_it_holds_at_teaching_and_not_at_answering(self):
+        """A held-out concept is asked, walked and inherited through exactly
+        as any other. The control is over what was learned, never over what
+        may be said."""
+        source = Path(
+            audit.ROOT / "research" / "v688" / "holdout.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("holds at teaching, not at answering", source)
+        # nothing in the answering path consults it
+        for module in ("engine.py", "reason.py", "reasoning.py"):
+            text = Path(audit.ROOT / "research" / "v687" /
+                        module).read_text(encoding="utf-8")
+            self.assertNotIn("holdout", text)
+
+    def test_scoring_can_be_narrowed_to_it(self):
+        chosen = audit.pairs(200)
+        held = audit.only_held(chosen)
+        self.assertTrue(held)
+        self.assertLess(len(held), len(chosen))
+        from research.v688 import holdout
+        for pair in held:
+            self.assertTrue(holdout.held(pair.held))
+
+
 class TheScoring(unittest.TestCase):
 
     def test_an_unsettled_answer_is_zero_and_not_a_small_yes(self):

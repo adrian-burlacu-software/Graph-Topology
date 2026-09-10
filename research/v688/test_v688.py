@@ -420,16 +420,55 @@ class LoopTests(unittest.TestCase):
                     self.assertNotEqual(answer.about, "leg", answer.question)
 
     def test_attention_withdraws_from_a_topic_that_yields_nothing(self):
-        """`meat` really is one of the corpus concepts, so the questions are
-        legitimate -- and every one comes back UNKNOWN. The loop asks once
-        and stops rather than spending another cycle on it."""
+        """The loop asks once and stops rather than spending another cycle.
+
+        This used to assert that curiosity *fires* here, on the grounds that
+        "`meat` really is one of the corpus concepts, so the questions are
+        legitimate". They were not: the predicates on offer were
+        `quadrapedal`, `fast` and `ground`, because the norms are 29% living
+        kinds and those split the field best for anything. `is meat
+        quadrapedal` is not a legitimate question, and `near_enough` now
+        declines it -- which is the same withdrawal one step earlier.
+        """
         found = run("what eats meat")
         curious = [answer for cycle in found.cycles
                    for answer in cycle.answers if answer.origin == "curiosity"]
-        self.assertTrue(curious)
         self.assertTrue(all(a.verdict in ("UNKNOWN", "UNRECORDED", "NO_MATCH")
                             for a in curious))
         self.assertLessEqual(len(found.cycles), 3)
+
+    def test_a_predicate_is_not_asked_of_something_unlike_its_holders(self):
+        """`does a person have whiskers`, reported from the page.
+
+        `whiskers` is held by bear, buffalo, cow, elephant and fox, so it
+        splits the norms beautifully and gain says it is the best question
+        available. Gain measures what an answer would tell you and says
+        nothing about whether the question belongs.
+        """
+        from .question import Generator
+
+        maker = Generator(POOL.engines[0], CURIOSITY)
+        for predicate in ("oldworld", "quadrapedal", "walks", "chewteeth"):
+            with self.subTest(predicate=predicate):
+                self.assertFalse(maker.near_enough("person", predicate))
+        # and the field it was built for is untouched
+        for predicate in ("quadrapedal", "walks"):
+            self.assertTrue(maker.near_enough("dog", predicate))
+
+    def test_the_branch_is_read_from_the_corpus_before_it_is_guessed(self):
+        """Every sense guess this filter tried was wrong somewhere: `pig` is
+        a foundry mould to `profiles.synset`, `mouse` a device to both it and
+        `senses_of`, and `sheep` resolves to `person.n.01` -- one holder in
+        44, which was enough to turn the whole filter off. XCSLB ships a
+        category and it needs no resolving."""
+        from .question import Generator
+
+        maker = Generator(POOL.engines[0], CURIOSITY)
+        for word in ("pig", "mouse", "sheep", "dog"):
+            with self.subTest(word=word):
+                self.assertEqual(maker.branch_of(word), "animal.n.01")
+        self.assertEqual(maker.branch_of("apple"), "plant.n.02")
+        self.assertEqual(maker.branch_of("hammer"), "artifact.n.01")
 
     def test_a_chain_never_starts_from_a_guess(self):
         """A run about whales went `does a goldfish have a gill` -> `is a

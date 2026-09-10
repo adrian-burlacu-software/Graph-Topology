@@ -37,6 +37,7 @@ ancestor that supplies it.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -93,6 +94,12 @@ CORROBORATION_FLOOR = 1 / 3
 #: kinds in the norms; one of them singing is not evidence that whales do not
 #: sing. Below this, an inherited fact is taken as it was before.
 CORROBORATION_MIN_KINDS = 8
+
+#: Set `V687_NO_DISTILLED_NORMS=1` to run R19 on elicited norms alone. The
+#: ablation the audit needs, and the switch to reach for first when a denial
+#: looks wrong: it separates "the crawl is bad" from "the distilled evidence
+#: is bad" in one run, without moving a file.
+DISTILLED_OFF = bool(os.environ.get("V687_NO_DISTILLED_NORMS"))
 
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
@@ -250,6 +257,14 @@ class Profiles:
         self.denied: dict[str, frozenset[str]] = {}
         for name, properties in corpora.denied_awa2().items():
             self.denied[name] = self.denied.get(name, frozenset()) | properties
+
+        # R19's evidence, and nothing else's. Model-distilled, so it is held
+        # apart from `stated` rather than merged into it -- see
+        # `corpora.load_distilled` and `corroboration`. Empty on a fresh
+        # clone, which is the shipped behaviour until somebody runs
+        # `research/v688/densify.py`.
+        self.distilled: dict[str, frozenset[str]] = (
+            {} if DISTILLED_OFF else corpora.load_distilled())
 
         corpus = Corpus("norms", tuple(sorted(
             (name, predicates) for name, predicates in self.stated.items()
@@ -523,11 +538,31 @@ class Profiles:
         and not of the category. That is the difference between `bird.n.01
         capable_of fly`, which every robin should inherit, and `animal.n.01
         has a wing`, which no dog should.
+
+        That paragraph assumed the norms had been asked, and they had not.
+        XCSLB is a **free listing** and 0.66% dense per concept: people
+        describing a leopard say `can pounce`, never `has four legs`, so a
+        property the elicitation simply never reached counted here as a kind
+        failing to bear the fact out. `AUDIT.md` §17 measured what that costs
+        on the 30 concepts XCSLB and AwA2 share -- every probe flips, all to
+        REFUSED, 26 of 30 animals having four legs against 4 who said so --
+        and R19's errors were overwhelmingly *lost true inheritances*, 27.6%
+        against 1.3% over-affirmed.
+
+        So `distilled` is consulted beside `stated`: a dense matrix over the
+        cells this method is actually asked for, where a zero is an answer
+        rather than a silence. It only ever adds bearing. **The denominator
+        is untouched** -- `kinds` still comes from `stated`, because the
+        distillation adds properties to concepts the norms already cover and
+        does not introduce new kinds. That keeps the change to one term of
+        one ratio, which is what makes the ablation clean.
         """
         kinds = [name for name, above in self._lineage().items()
                  if ancestor in above and self.stated.get(name)]
         bearing = sum(1 for name in kinds
-                      if self.identifier._hit(term, self.stated[name]))
+                      if self.identifier._hit(term, self.stated[name])
+                      or self.identifier._hit(
+                          term, self.distilled.get(name, frozenset())))
         return bearing, len(kinds)
 
     # -- above the leaf ----------------------------------------------------

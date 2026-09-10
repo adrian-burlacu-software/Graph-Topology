@@ -466,6 +466,15 @@ norms, which cover 1.2% of concepts. **R28's bluntness is downstream of norm
 sparsity, not a defect of the rule.** `R28_ON_STATED` is left True and carries
 this reasoning.
 
+> **Revised by §16.** The "three accuracy points" here were measured on foils
+> that are absence, not denial, and two-thirds of them were the benchmark
+> punishing the store for correctly affirming a true foil. On screened
+> material relaxing R28 at distance zero costs **0.4 accuracy points**, not
+> three. The rule survives anyway, on a different column: it buys 0.9 points
+> of over-affirmation overall and 1.1 on the taxonomic rung, which is what it
+> was written for and what nothing here could see until §16. The conclusion
+> is unchanged and the reason for it is not.
+
 ---
 
 ## 13. GenericsKB, measured
@@ -528,16 +537,713 @@ different.
 
 ---
 
+## 14. Corrupted claims, and the measure that was missing
+
+Every negative this file had was a COMPS foil, and §1 established those are
+absence rather than denial — `carp can be a trophy` is a foil and is true.
+So a **false-assertion rate was unmeasurable**, which is the one number
+over-affirmation needs, and over-affirmation is what the audit that started
+all this found by hand.
+
+`audit.corrupted()` builds negatives instead: take a property only one XCSLB
+category ever holds, held by at least three of its members, and put it on a
+concept from another category. `can jam drool`. `does a puppet have a deck`.
+`is a mitten an appliance`. 521 of them, one per concept, asked of every
+configuration alongside the pairs.
+
+This also lifts §12's limitation. XCSLB is leaf-heavy and cannot see
+class-level over-generalisation; a corrupted claim can be built for any
+concept at all.
+
+| config | asserted | refused | silent | wrong when it spoke |
+| --- | --- | --- | --- | --- |
+| crawl | **1.0%** | 2.1% | 95.2% | 31.2% |
+| llm (no floor) | 10.2% | 89.8% | 0.0% | 10.2% |
+
+**The graph almost never over-affirms because it almost never speaks.** When
+it does settle a false claim it is wrong a third of the time, on n=16.
+
+### What the confidence floor does
+
+| floor | false asserted | true asserted | true claims it is sure about |
+| --- | --- | --- | --- |
+| 0.00 | 10.2% | 82.5% | 100% |
+| 0.90 | 4.6% | 89.0% | 75.2% |
+| 0.95 | 3.3% | 91.8% | 66.8% |
+| **0.99** | **1.0%** | **95.2%** | **41.5%** |
+
+**At 0.99 the model matches the graph's over-affirmation rate exactly, while
+reaching 41.5% of true claims against the graph's 17.2%.** Same safety, 2.3
+times the coverage.
+
+And the five corrupted claims it still asserts there — `is turnip used for
+eating`, `can raspberry be served with ice cream`, `can an owl cling to
+rocks` — are all true. The residue is this file's test set, not the model.
+
+### The prompt was worth more than the threshold
+
+Measured on 150 true and 150 corrupted claims:
+
+    strategy      floor   says yes to TRUE   to FALSE   separation
+    plain         0.99          98.9%           7.7%      +91.2%
+    careful       0.99          96.0%           0.0%      +96.0%
+    unsure        0.99         100.0%          10.7%      +89.3%
+    challenged    0.90         100.0%          38.5%      +61.5%
+
+Telling it *most claims put to you are false; say yes only if the property is
+typical* costs three points of recall and removes essentially all the false
+assertion. Two things that failed, recorded so they are not retried:
+
+- **Offering `unsure` does nothing.** The model puts no probability mass on
+  it even when invited, so abstention must be imposed from outside.
+- **A second turn asking "are you certain?" makes it much worse.** It revises
+  1.3% of the time and capitulates otherwise; false acceptance goes 7.7% ->
+  38.5%. Taking the lower of the two confidences does not rescue it.
+
+A prompt written specially for adjudication — "extra detail does not defeat
+the claim" — scored 5/6 against `careful`'s 6/6. The general instruction to
+be sceptical beat the specific instruction to be lenient.
+
+---
+
+## 15. A model, measured four ways
+
+### It beats the store, and it never shuts up
+
+`--config llm` puts the gold questions to SmolLM3-3B with no graph at all.
+
+| | coverage | confirm | contra | accuracy | foil ladder |
+| --- | --- | --- | --- | --- | --- |
+| crawl | 19.1% | 17.2% | 0.2% | 82.8% | .933 .836 .802 .736 |
+| **LLM alone** | **100%** | **86.9%** | 13.1% | **86.4%** | .936 .860 .824 .829 |
+
+A 3B model on a laptop beats 1.9M facts on every measure, by 9 points on the
+hardest rung. What the store still has is precision when it speaks — 0.2%
+confident falsehoods against 13.1% — and the honesty to say nothing, which
+the model never does. **A better answerer and a worse epistemic agent.**
+
+### The prompt was worth more than the threshold
+
+150 true claims against 150 built by corruption:
+
+    strategy      floor   says yes to TRUE   to FALSE   separation
+    plain         0.99          98.9%           7.7%      +91.2%
+    careful       0.99          96.0%           0.0%      +96.0%
+    unsure        0.99         100.0%          10.7%      +89.3%
+    challenged    0.90         100.0%          38.5%      +61.5%
+
+Two failures worth not repeating. **Offering `unsure` does nothing** — the
+model puts no mass on it even when invited, so abstention must be imposed from
+outside. **A second turn asking "are you certain?" makes it much worse**: it
+revises 1.3% of the time and capitulates otherwise, 7.7% -> 38.5% false
+acceptance, and taking the lower confidence does not rescue it.
+
+At `careful` + 0.99 it asserts **1.0%** of corrupted claims — exactly the
+store's own rate — while reaching 41.5% of true claims against 17.2%.
+
+### Judgement is unstable to surface phrasing
+
+The same three facts behind `can a person run`, worded three ways:
+
+    run for short distances              supports 0.86   sup 0.88  ref 0.51   3/3
+    capable of run for short distances   refuses  0.77   sup 0.94  ref 0.59   2/3
+    can run for short distances          refuses  0.96   sup 0.94  sup 0.93   1/3
+
+Tidier English scores worse and the tidiest supports `running shop`. This is
+a limit of asking a model to judge, not a thing to tune away.
+
+### Teaching: safe, and nearly useless
+
+23,304 questions, 3,363 written at 0.99 (14.5% accepted), 409 concepts, 25
+GPU-minutes.
+
+| | coverage | confirm | accuracy | over-affirmed |
+| --- | --- | --- | --- | --- |
+| before | 19.1% | 17.2% | 82.8% | 1.0% |
+| after | 19.8% | 18.0% | 76.4% | 1.0% |
+
+**+0.7 coverage for -6.4 accuracy** — a worse trade than GenericsKB's
++4.2/-2.1, which was already marginal. The good half: **over-affirmation did
+not move.** The floor and the prompt did their job; 3,363 written facts added
+no measurable falsehood.
+
+And the holdout, `bird`/`tool`/`fruit`, 95 concepts never written to:
+
+| holdout only | coverage | confirm | accuracy | over-affirmed |
+| --- | --- | --- | --- | --- |
+| before | 21.6% | 17.8% | 73.5% | 2.1% |
+| after | 21.6% | 17.8% | 73.1% | 2.1% |
+
+**The control held** — nothing leaked — and **teaching does not generalise**.
+409 taught concepts bought 95 untaught ones nothing. Covering 45,219 concepts
+means asking about 45,219 concepts: ~2.6M questions, ~36 GPU-hours, no
+dividend to wait for.
+
+### And the benchmark blocked a third conclusion
+
+Teaching wrote facts for all 409 non-held XCSLB concepts, and **COMPS foils
+are XCSLB concepts**. Teaching a foil a *true* property makes it compete with
+the held concept and the pair scores wrong. So part of that -6.4 is §1 again,
+the same confound that inflated GenericsKB's cost and that made the R28
+distance-zero relaxation look like a win.
+
+Three conclusions this file could not settle cleanly, all for one reason:
+**the foils are absence, not denial.** The corrupted claims of §14 are the
+only unconfounded measure here, and they say teaching changed nothing.
+
+---
+
+## 16. Acted on: the foils are screened, and 40% of them were never negatives
+
+2026-09-10. `research/v688/screen.py`, and `audit.py --gold screened`.
+
+§1 found the flaw and every section since has worked around it. This fixes
+it, and the first thing the fix produced was a measurement of how bad it was.
+
+### The calibration, which is the whole argument
+
+Screening a benchmark with a language model looks like the mistake §13 warns
+about — the model is a *worse* epistemic agent than the store, 13.1% confident
+falsehoods and never silent. The difference is that a screen is one bit, and
+its two error rates can be **counted** against material whose truth is known
+independently of both the model and XCSLB:
+
+- **AwA2's continuous matrix**, which is *closed* — 50 classes each scored on
+  every one of 85 attributes — so a low score is somebody saying no, which is
+  exactly what XCSLB has never had. Taking only the ends (≤ 5 denied, ≥ 60
+  held, against a published binary threshold at 20.8) gives 1,766 claims known
+  false and 448 known true. `corpora.denied_awa2` has said this all along;
+  what was missing was phrasing the 85 attributes as questions, which is the
+  bulk of `screen.py`.
+- **XCSLB's own ones** — 1,500 claims known true.
+- **§14's corrupted claims** — 521 known false, and the only negative set no
+  model had a hand in.
+
+```
+theta   denies awa2-F   denies corrupt-F   denies awa2-T   denies xcslb-T
+0.50           91.9%              89.8%           17.6%           20.4%
+0.75           88.3%              85.4%           13.2%           14.5%
+0.90           81.4%              78.1%            9.2%            9.4%
+0.95           75.8%              74.7%            8.3%            6.4%
+0.99           58.3%              54.3%            4.5%            2.3%
+```
+
+Two things to read here. The separation is wide — 72 points at 0.90. And
+**the two negative sets agree**: 81.4% against 78.1%, natural claims about
+real animals against synthetic corruptions. §14 worried that `does an arm
+have a bubble tube` was too easy to calibrate anything. It is not much easier
+than `is a beaver blue`, which is the first evidence that the corrupted set
+was measuring something after all.
+
+### What COMPS is actually made of
+
+With sensitivity R and false-alarm rate K known, the share p of an unlabelled
+pool that is genuinely false follows from the rate F the screen fires at it:
+`p = (F - K) / (R - K)`. That is prevalence from a screening test, and it is
+what turns "the foils are suspect" into a number. All 36,701 distinct foil
+claims, at theta 0.90:
+
+| rung | n | screen denies | est. really false | **est. not a negative** |
+| --- | --- | --- | --- | --- |
+| random | 12,149 | 74.1% | 89.8% | **10.2%** |
+| co-occurrence | 9,929 | 46.8% | 51.9% | **48.1%** |
+| overlap | 7,830 | 38.6% | 40.6% | **59.4%** |
+| taxonomic | 6,793 | 38.8% | 40.8% | **59.2%** |
+
+**About 40% of COMPS' foils are not false, and on the three near rungs it is
+about half.** The rung that matters most — taxonomic, the near miss the whole
+ladder was built to test — is roughly a coin flip between a denial and a true
+statement nobody happened to list.
+
+That is the confound, quantified. A system scored on the base set is being
+marked down, on the near rungs, for about half of what it correctly affirms.
+
+**The estimate is a range, not a point.** It drifts with theta — the taxonomic
+rung reads 55.3% false at 0.50 and 26.8% at 0.99 — and the drift has a
+direction that means something: the screen is *less* confident denying foils
+than denying AwA2 negatives, which is what near misses being harder looks
+like. The true sensitivity on the taxonomic rung is therefore below the 81.4%
+plugged in, and a lower R raises p. So **these figures overstate how broken
+the benchmark is, and it is still this broken.** Sensitivity on the hardest
+rung is not directly measurable with anything in this repository; that is the
+honest limit of §16 and it is why the screen is a filter and not a label.
+
+### The artifact
+
+`data/xcslb/comps_screened.jsonl`, built at theta 0.95: **20,925 of 49,340
+pairs** (random 8,317, co-occurrence 4,684, taxonomic 4,107, overlap 3,817),
+each carrying the question the judge was asked and how sure it was. It is a
+build product — `screen.py --build`, free from cache — and `audit.py` falls
+back to `base` with a warning when it is absent, so a fresh clone still runs.
+
+0.95 leaves about 6% of kept foils still true against roughly 40% before,
+a sevenfold reduction, and keeps the near rungs populated. 0.99 gives 4.1%
+contamination at half the size and is one flag away; the table is in
+`screen.py` so the choice can be remade without another GPU hour.
+
+### What this changes about reading the audit
+
+A fourth column appears, and it is the one §14 was a stand-in for:
+
+    denials   the foil side, scored as denial. `verified` is now an error.
+
+That is over-affirmation on thousands of **natural near misses sorted by how
+near**, where `corrupted` is 521 synthetic ones at no distance at all. Class
+level over-affirmation that only shows up on the taxonomic rung — the kind
+this project keeps finding by hand, `does a pig have wings` — is visible in a
+column for the first time.
+
+Two rules for using it:
+
+1. **`base` and `screened` levels are not comparable.** They are different
+   rows, and the screened set is easier by selection. Differences *between
+   configurations* on one gold are what carry.
+2. **`llm` is excluded from screened runs, in code.** It screened this gold,
+   so it would be marking its own paper. `audit.py` drops it from the sweep
+   and says why rather than reporting it with an asterisk. §13 is its honest
+   measurement.
+
+And the standing caveat: the screen shares a model with `teacher.py`.
+Measuring a **taught** store against a model-screened benchmark is circular
+in a way measuring an untaught one is not — the same judge decided what to
+write and what counts as false. §14's corrupted claims stay in the report for
+exactly that case and remain the arbiter whenever teaching is what is being
+weighed.
+
+### What it changed, measured
+
+Five configurations, `--limit 600 --shards 5 --workers 4 --corrupt 0`, run
+twice over the same store, differing only in which gold they were scored
+against:
+
+| config | gold | coverage | rel. acc | corrupted | **denials** | random | co-occ | overlap | taxonomic |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| crawl | base | 18.2% | 83.9% | 1.0% | — | | | | |
+| crawl | screened | 25.8% | 87.1% | 1.0% | **6.7%** | 0.8% | 7.8% | 7.9% | 10.7% |
+| stated | base | 21.2% | 82.7% | 1.7% | — | | | | |
+| stated | screened | 28.1% | 86.7% | 1.7% | **7.6%** | 1.2% | 8.7% | 9.2% | 11.8% |
+| lenient | base | 24.0% | 79.6% | 3.5% | — | | | | |
+| lenient | screened | 31.2% | 85.7% | 3.5% | **9.2%** | 2.7% | 10.3% | 10.4% | 14.0% |
+| pinned | base | 18.3% | 83.7% | 1.0% | — | | | | |
+| pinned | screened | 26.2% | 87.3% | 1.0% | **6.8%** | 0.8% | 7.2% | 9.0% | 10.8% |
+| corroborated | base | 13.3% | 87.6% | 0.4% | — | | | | |
+| corroborated | screened | 19.2% | 90.9% | 0.4% | **2.5%** | 0.2% | 3.2% | 2.3% | 4.4% |
+
+**Four findings.**
+
+**1. §14's corrupted claims understated over-affirmation about sixfold.**
+`crawl` asserts 1.0% of the synthetic corruptions and **6.7%** of screened
+foils. `does an arm have a bubble tube` is not the shape of mistake this
+system makes. The *ordering* of configurations survives intact — 0.4 < 1.0 <
+1.7 < 3.5 against 2.5 < 6.7 < 7.6 < 9.2 — so §14 was reading the right
+direction at the wrong scale, which is the most useful way for a proxy to be
+wrong. The corrupted set keeps its job as the model-free arbiter; it is not a
+level.
+
+**2. Over-affirmation has a distance gradient, and it is the one the ladder
+predicts.** `crawl` runs 0.8% → 7.8% → 7.9% → **10.7%** from the farthest
+foil to the nearest. This is the first column in this file that can see class
+level over-generalisation sorted by how near the miss is — the `does a pig
+have wings` shape the project keeps finding by hand — and it rises
+monotonically, which is the audit's own control saying the measurement is
+real rather than noise.
+
+**3. Most of R28's apparent accuracy benefit was the benchmark.** The
+comparison that matters is within one gold, on one fixed sample:
+
+```
+                      base gold        screened gold
+crawl -> stated       -1.2 acc          -0.4 acc
+crawl -> lenient      -4.3 acc          -1.4 acc
+```
+
+**Two-thirds of the accuracy R28 appeared to buy was COMPS punishing the
+store for correctly affirming true foils.** §12 priced R28 at "a third of the
+reachable coverage for three accuracy points" and recommended keeping it on
+that basis. On material where the foils are denials, relaxing R28 at distance
+zero costs **0.4 points**, for +2.3 coverage.
+
+**4. And R28 still earns its keep — on the axis it was written for.** The
+relative score cannot see over-affirmation and the denials column can:
+`crawl` 6.7% → `stated` 7.6% → `lenient` 9.2%, and on the taxonomic rung
+10.7% → 11.8% → **14.0%**. R28's real product was never pair accuracy. It was
+confident falsehood on near misses, which is exactly what "a qualified fact
+does not affirm the bare claim" is a rule against. **The trade is now +2.3
+coverage and −0.4 accuracy against +0.9 points of confident falsehood, +1.1
+of it on the nearest rung.** That is a decision someone can actually make.
+It was not one before, and I would still not take it.
+
+The other two results are unchanged and now better supported. `pinned` is
+`crawl` to within a rounding error on every column (26.2/87.3/6.8 against
+25.8/87.1/6.7), so supplying the reader's sense still does not move the
+aggregate — §11's finding, on cleaner material. And `corroborated` more than
+halves over-affirmation, 6.7% → **2.5%**, and cuts the taxonomic rung from
+10.7% to 4.4%, at 6.6 points of coverage; R19 remains advantaged here for the
+reason the module docstring gives, so read it as the shape and not the size.
+
+**One thing the table cannot say.** Levels are not comparable across the two
+golds — screened coverage of 25.8% against base 18.2% is a different sample
+of held claims, not an improvement, and the 3.2-point accuracy rise from
+83.9% to 87.1% is an *upper* bound on the confound: removing contaminated
+pairs also removes pairs that were hard for reasons the screen correlates
+with. The within-gold deltas in findings 3 and 4 do not have this problem,
+which is why the argument rests on them.
+
+### The third blocked conclusion, settled: teaching cost nothing
+
+§15 priced teaching at **+0.7 coverage for −6.4 accuracy** and could not say
+how much of that loss was the foils — teaching wrote facts about the foil
+concepts themselves, because COMPS' foils *are* XCSLB concepts. Same taught
+store (`data/v684_taught.sqlite`), same `crawl` configuration, screened gold:
+
+| all concepts | coverage | rel. acc | denials | taxonomic | corrupted |
+| --- | --- | --- | --- | --- | --- |
+| before | 25.8% | 87.1% | 6.7% | 10.7% | 1.0% |
+| after teaching | 26.1% | 87.2% | 6.7% | 10.7% | 1.0% |
+
+**The −6.4 was the benchmark. All of it.** On material where the foils are
+denials, teaching costs **+0.1 accuracy** — nothing, within noise — and moves
+over-affirmation not at all, on the near rungs or anywhere else.
+
+The holdout is identical to the last decimal on every column, before and
+after (n=360, 28.1% / 84.6% / 8.4% / 2.1%). The control held, and teaching
+still **generalises not at all**, which §15 already had right.
+
+**How much of this to believe.** The screen and the teacher are the same
+model, and a claim it would teach is a claim it would not have denied, so
+taught facts and screened foils are close to disjoint by construction. The
+denials column therefore *cannot* show teaching's over-affirmation and its
+0.0 change is not evidence. What is evidence is the **corrupted** column,
+which no model touched: 1.0% → 1.0%, agreeing with §15's own base-gold
+reading. Two independent measures say teaching did not make the store more
+confidently wrong.
+
+So the verdict on teaching changes, and only in one direction. It was
+"+0.7 coverage for −6.4 accuracy", which is a bad trade. It is
+**+0.3 to +0.7 coverage for nothing at all**, which is a cheap trade for a
+small gain — and the reason not to scale it is unchanged and is §15's: no
+transfer, and 45,219 concepts is ~36 GPU-hours. `TEACHING_FLOOR` at 0.99
+threw away 85% of what the model knew; §14 says 0.95 keeps 79% at 3.3% false
+assertion. That lever now has a clean measurement behind it and is worth
+pulling, which it was not yesterday.
+
+---
+
+## 17. The hours should buy norms, not facts
+
+2026-09-10. `research/v688/norms.py`.
+
+§15 priced a flat teaching sweep: covering 45,219 concepts means ~2.6M
+questions and ~36 GPU-hours, and §16 showed the +0.7 coverage it bought was
+real but small. The question this section answers is what those hours should
+be spent on instead.
+
+**A fact about a beagle helps beagles.** A norm is different in kind: it is
+not an answer, it is the evidence **R19** weighs before believing an
+inherited fact, and one norm-covered sibling serves every question about
+every member of its class. So the proposal is to distil norms. Three
+measurements had to come first, and the first one kills the obvious version.
+
+### R19 does not need more reach. It needs less altitude.
+
+R19 can already fire for **70.5%** of the store's 45,219 fact-bearing
+concepts — 86 ancestors carry eight or more norm-covered kinds. Norming every
+remaining concept would take that to **71.5%**. One point. The 86 firing
+ancestors are the huge ones and they sit above nearly everything.
+
+But firing is not the same as saying something, and R19's own docstring is
+the authority on that: `bird.n.01 "fly" 21 of 29` is signal, `animal.n.01
+"wings" 20 of 143` is noise. So the real question is how *specific* the
+ancestor is that each concept actually gets:
+
+| narrowest corroborating ancestor | now | if fully normed |
+| --- | --- | --- |
+| under 300 kinds — says something | **1,709 (3.8%)** | 23,919 (52.9%) |
+| 300–1,000 | 2,571 | 5,229 |
+| 1,000+ — `animal.n.01`-level noise | **27,610 (61.0%)** | 3,193 |
+| no corroborating ancestor at all | 13,329 | 12,878 |
+
+**61% of concepts can only be corroborated against a thousand-plus
+siblings**, which is the case the rule was written to avoid. Zero concepts
+currently have an ancestor under 30 kinds; fully normed, 5,280 would.
+
+### R19 is running on the bug §16 just fixed one level up
+
+`corroboration` counts a kind as *not bearing a term out* when the norms
+never asked. XCSLB averages **23.7 properties per concept out of a 3,592
+feature lexicon — 0.66% dense.** AwA2 averages 31.2 of 85, **36.8%**.
+
+On the 30 concepts in both corpora, with exact feature matching:
+
+```
+XCSLB feature      free-listed    AwA2 (closed) says    R19 verdict
+has four legs         4/30              26/30             REFUSED
+has a tail            3/30              25/30             REFUSED
+can be fast           2/30              25/30             REFUSED
+can walk              2/30              23/30             REFUSED
+is agile              1/30              20/30             REFUSED
+has sharp teeth       5/30              11/30             REFUSED
+is domesticated       2/30              10/30             REFUSED
+can swim              2/30               5/30             REFUSED
+```
+
+Every probe flips, all one direction. **Free listers mention what is
+distinctive and never what is typical** — describing a leopard they say `can
+pounce`, not `has four legs` — and typicality is the entire thing R19 tests.
+This is absence-as-denial, live, in the shipped reasoner. It is also why
+`corroborated` costs five points of coverage in §16's table.
+
+### The experiment
+
+AwA2 is the only closed gold here, so it can validate a norm source the way
+it validated the screen. **4,150 cells — 50 classes × 83 phrasable
+attributes — asked of SmolLM3 at 20.1/s**, roughly three minutes, most of it
+already cached because `screen.py` asked the extremes of this same grid.
+
+**Are distilled norms any good?** Against the closed matrix:
+
+| floor | density | accuracy | precision | recall | accuracy on clear cells |
+| --- | --- | --- | --- | --- | --- |
+| 0.50 | 100.0% | 77.7% | 71.5% | 62.2% | **90.0%** |
+| 0.90 | 76.2% | 83.5% | 78.0% | 47.7% | 94.0% |
+| 0.99 | 46.9% | 89.3% | 84.8% | 29.0% | 96.8% |
+
+77.7% raw looks poor until the last column: on cells humans were not split on
+(continuous rating ≤ 5 or ≥ 60) it is **90.0% at full density**. Most of the
+disagreement is the ambiguous middle — `is a leopard big`, `is a rat active`
+— where AwA2's own raters were divided.
+
+For contrast, on the 19 attributes XCSLB can express at all: of 238 cells the
+closed matrix says are true, free listing mentions **58 — 24.4% recall.**
+
+### Does it change what R19 concludes?
+
+The measurement that matters, and it is not the same question. A source can
+be individually noisy and still give R19 the right verdict, because a third
+of eight siblings is a blunt threshold. Verdicts computed three ways over the
+same ancestors and attributes, scored against AwA2:
+
+```
+four ancestors narrower than 400 (ruminant, even-toed ungulate,
+ungulate, carnivore):
+
+evidence                  pairs   agreed     lost     over   silent
+distilled                   332    78.6%    14.5%     6.9%     0.0%
+free listing                 76    46.1%    27.6%     1.3%    25.0%
+distilled, same subset       76    81.6%    11.8%     6.6%     0.0%
+```
+
+**On the identical 76 comparisons, distilled norms agree with the closed
+human matrix 81.6% of the time and free listing 46.1%.** Distilled nearly
+doubles it, and the error profile is exactly what the sparsity argument
+predicts:
+
+- **Free listing's errors are almost entirely `lost`** — 27.6% here and 40.4%
+  across all ancestors — true inheritances refused, with essentially no
+  over-affirmation (1.3%). Sparsity makes R19 say no.
+- **Distilled halves the losses and pays for it in over-affirmation**, 11.8%
+  lost against 6.6% over. That is a real cost and it is the thing to watch.
+- Free listing is **silent 25% of the time** even where it applies, because
+  XCSLB covers 30 of the 50 classes and cannot reach eight kinds.
+
+The result holds across all 15 ancestors (76.0% distilled, 46.0% free
+listing), so it is not an artefact of the two narrow ones.
+
+### What this does not show
+
+**The per-ancestor ladder does not measure the altitude effect**, and it
+would be easy to read it as though it did. Every row draws its kinds from the
+same 50 classes, so `animal.n.01` is scored over 50 mammals rather than the
+143 diverse kinds real R19 finds there. The dilution cannot appear in that
+table by construction. The altitude evidence is the table at the top of this
+section, and it is separate.
+
+The simulation also computes R19's arithmetic rather than calling
+`profile.corroboration`, deliberately: real R19 reaches its evidence through
+`_hit`, a whole-word stem match between a fact's object and a norm's
+predicate. Feeding it AwA2 attributes would measure that matcher as much as
+the norms. **The evidence question is answered here; the matching question is
+not, and it is the next one.**
+
+And 50 classes over 83 attributes of one domain is a narrow base. Animals are
+where free listing's typicality gap is most obvious; artefacts may differ.
+
+### What it would cost
+
+Not norms for concepts — **dense norms for eight members of each narrow
+class**, chosen by greedy set cover over the 1,539 classes that are narrower
+than 300 and have eight members available:
+
+| concepts distilled | narrow classes firing | concepts with a real corroborator |
+| --- | --- | --- |
+| today | 26 | 3.8% |
+| 1,000 | 510 | 19.7% |
+| 2,000 | 810 | **31.2%** |
+| 5,000 | 1,326 | 49.3% |
+
+Median 26 questions to norm one member — the union of inheritable terms on
+its narrow ancestors — with a heavy tail that needs capping; a few classes
+carry 4,000+. At 20/s, **2,000 concepts is roughly two GPU-hours**, about 4%
+of the flat sweep, aimed at the mechanism §16 measured as the largest single
+quality lever (`corroborated` cuts over-affirmation 6.7% → 2.5%, taxonomic
+10.7% → 4.4%).
+
+### Verdict
+
+**Worth doing, and the two things that had to be true are true.** Distilled
+norms are 90% accurate where humans agree, and they nearly double R19's
+agreement with a closed matrix against the free listing it uses today.
+
+Three conditions on doing it:
+
+1. **Keep distilled norms provenance-separable** from elicited ones.
+   `identify.origin` already tracks `awa2` against `xcslb` and a third value
+   belongs beside them. Without it the `shipped` control in this file stops
+   meaning anything.
+2. **Watch over-affirmation, not accuracy.** Density buys back refused
+   inheritances and pays in confident falsehood — 1.3% → 6.6% here. That is
+   the number that decides whether the floor should be 0.5 or 0.9.
+3. **Answer the matching question before shipping.** `_hit` is a stem match,
+   and a distilled norm phrased as `walks` has to meet a crawled fact
+   phrased as `walk on land`. Nothing here tested that.
+
+---
+
+## 18. Acted on: R19's evidence is dense now, and it barely matters
+
+2026-09-10. `research/v688/densify.py`, `corpora.load_distilled`,
+`Profiles.corroboration`.
+
+§17 said distil norms and gave three conditions. All three are met, the
+mechanism works exactly as predicted, and **the end-to-end result is much
+smaller than §17 implied.** Recording that gap is the point of this section.
+
+### Condition 3 first: what R19 is actually asked
+
+§17 simulated R19's arithmetic with AwA2 attribute names on both sides, so it
+never tested `_hit`. Recording a live engine over 1,468 audit questions --
+**1,503 consultations, 553 distinct (ancestor, term), 118 ancestors** --
+changed the plan before it was built:
+
+```
+animal.n.01      317 calls   143 norm-covered kinds
+plant.n.02       142          52
+furniture.n.01   131          17
+device.n.01       87          59
+bird.n.01         85          29
+```
+
+The ancestors R19 reaches are **basic level**, chosen by where the crawl put
+the fact rather than by how narrow the class is, and **not one has more than
+150 norm-covered kinds**. So §17's greedy set cover over narrow classes was
+the wrong target and no new concepts were needed: the 477 concepts XCSLB and
+AwA2 already cover *are* the kinds R19 consults, and they are simply empty.
+Of the 17,607 cells in the 8-to-150-kind band, the existing norms bear out
+**10.1%**.
+
+`_hit` matches a query word against any word of a predicate, so storing
+`teacher.stated(relation, object)` -- `has_a` + `wing` becomes `has a wing`
+-- makes the term reachable **by construction**. Condition 3 answered.
+
+### The distillation
+
+17,607 cells, **14.5 GPU-minutes at 19.8/s**, asked as the bare claim
+`audit.phrase` builds. 4,137 predicates written at 0.90 and **1,408 at 0.99**
+over 328 concepts. Relations `teacher.READS` cannot frame are dropped (100
+cells): `has_prerequisite` + `cold or warm water` asks `does a gown cold or
+warm water`, and the model answers such a question rather than refusing it.
+
+### The mechanism works. 34.3% of R19's verdicts flip.
+
+At 0.90, of the 391 recorded calls R19 could speak on, **134 flip — all
+refused → believed**, and the named ones are precisely what free listing
+misses:
+
+```
+mammal   blooded     4 -> 55 of 65        mammal   four      8 -> 59 of 65
+mammal   warm        3 -> 55              mammal   legs     15 -> 59
+mammal   fur        13 -> 50              bird     food      2 -> 27 of 29
+```
+
+`does a robin fly` goes from *21 of 29 kinds bear it out* to **28 of 29**.
+§17's prediction is confirmed at scale on the real store.
+
+### And it buys almost nothing
+
+`corroborated`, screened gold, on the sample the fill was recorded from:
+
+| distilled norms | coverage | confirmed | accuracy | denials | taxonomic | corrupted |
+| --- | --- | --- | --- | --- | --- | --- |
+| off | 20.3% | 18.2% | 88.9% | 3.8% | 5.8% | 0.4% |
+| **on, floor 0.99** | **20.5%** | **18.4%** | **89.0%** | 3.8% | 5.8% | 0.4% |
+| on, floor 0.90 | 20.5% | 18.4% | 88.0% | 4.0% | 5.8% | 0.4% |
+
+**+0.2 coverage and +0.1 accuracy.** Not the transfer §17 was reaching for.
+A larger sample (`--limit 600`, partly outside the recorded fill) reads
++0.6 coverage and −0.8 accuracy at 0.90; the matched sample above is the
+honest one, and dilution was not the explanation — the effect is simply
+small.
+
+**Why §17 over-promised.** §17 measured R19's verdict over **AwA2's
+attributes** — curated typicality claims like `has four legs`, `is furry`,
+`can walk`, which are exactly what free listing omits. Real R19 is asked
+about **the crawl's fact objects**, and those are mostly not typicality
+claims at all: the recorded terms include `used`, `body`, `filled`,
+`touching`, `conceal`, `riddled with bullet`. Densifying the evidence about
+noise lets more noise through. At 0.90 `animal capable_of used` goes from 14
+of 143 to 129, which is the whole of the accuracy loss.
+
+So §17's limitation was not the one it declared. It said "50 classes of one
+domain is a narrow base"; the real gap was the **property distribution**, and
+that is the more useful lesson: *validating a mechanism on curated properties
+says little about a workload made of crawled ones.*
+
+### Where it leaves things
+
+**Shipped at 0.99, on by default**, because it is a strict small improvement
+with over-affirmation flat on both the screened foils and §14's model-free
+corrupted claims. `V687_NO_DISTILLED_NORMS=1` ablates it in one run.
+
+The three conditions held:
+
+1. **Provenance is separable.** `identify.stated` does not merge distilled
+   norms — a test asserts it — so the predicate trie, `_from_below`, the
+   profile display and the `shipped` control are untouched. Only
+   `Profiles.corroboration` reads them, and only the numerator: `kinds` still
+   comes from `stated`, so the change is one term of one ratio.
+2. **Over-affirmation was the number watched**, and the floor is where it
+   lives. 0.90 costs a point of accuracy for the same coverage; 0.99 does
+   not.
+3. **`_hit` is answered by construction**, above.
+
+**And pigs still do not fly.** `do pigs fly` and `does a pig have wings` are
+UNKNOWN before and after, for the same reason as before — `only 1 of the 65
+kinds of mammal` and `20 of the 143 kinds of animal` bear it out. The
+distillation was asked about those cells and correctly declined to add
+bearing, which is the negative control this whole change most needed to pass.
+
+**The real conclusion is about the crawl, not about R19.** R19's evidence was
+genuinely broken and is now genuinely fixed, and the store barely moved,
+because R19 spends most of its time adjudicating claims like `an animal can
+be riddled with bullet`. **Fact quality is upstream of everything measured
+here**, and it is the first thing this file has pointed at that no amount of
+better evidence or better rules can reach.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
 
 1. ~~**Stop R27 excluding on adjectival predicates.**~~ Done, §8.
-2. **Decide what to do about `denied_xcslb` feeding `Profiles.denied`** (§1).
-   It is a real false-denial source. Fixing it will lose denials the page
-   currently shows, so the examples need re-checking after. Deliberately kept
-   as a separate pass: change it in the same commit as §8 and you cannot tell
-   which moved an example.
+2. ~~**Decide what to do about `denied_xcslb` feeding `Profiles.denied`**~~
+   Done, §9 — it was cut out. §16 now makes the other half available:
+   `comps_screened.jsonl` **is** a denial source, 16,910 claims a calibrated
+   judge denied at 0.95, and wiring the screened half back into
+   `Profiles.denied` would give R17 something real to answer DENIED from for
+   the first time. Not done here. It changes what the shipped system says,
+   the residual contamination is about 6%, and it would need the page
+   examples re-checked after — a separate pass, on its own evidence.
 3. **Do not tune the loop for accuracy.** §3 says there is nothing there to
    win. If v688's claim is explanation, the page should say that and this file
    should be cited for why.
@@ -545,10 +1251,66 @@ Ranked by evidence, not by appeal:
    surviving false denials, and `pinned` shows they go away when the reader's
    sense is supplied. This is the backlog's open item, and it is the one with
    a number behind it.
+   **Superseded as the top item by §17**: R19's evidence base is worse. Sense
+   selection costs three false denials in a sample; free listing gives R19
+   the wrong verdict on more than half of what it is asked.
 5. **Re-read the coverage number before any new rule.** 19.2%, unmoved by
    pinning, is the ceiling every rule is working under.
+6. **Report over-affirmation from the denials column, not the corrupted
+   set** (§16). 6.7% against 1.0% for the same store: the synthetic claims
+   were six times too easy, and they have no notion of how near the miss
+   was. Keep `--corrupt` running — it is the only model-free negative here
+   and it is the arbiter for anything about teaching — but quote it as an
+   ordering, not a level.
+7. ~~**Re-measure teaching against screened gold.**~~ Done, §16. The −6.4
+   accuracy was the benchmark; on screened gold teaching costs **+0.1**, and
+   the model-free corrupted column agrees it added no over-affirmation.
+   **`TEACHING_FLOOR` is now the live lever**: 0.99 threw away 85% of what
+   the model knew, §14 says 0.95 keeps 79% at 3.3% false assertion, and the
+   thing that made the trade look bad no longer exists. The argument against
+   scaling teaching is now only §15's — no transfer, ~36 GPU-hours for the
+   remaining 45,219 concepts — which is a cost argument, not a safety one.
+8. ~~**Spend the hours on norms rather than facts**~~ Done, §18. Built in 15
+   GPU-minutes rather than two hours, because recording what R19 is asked
+   showed no new concepts were needed. It flips 34.3% of R19's verdicts and
+   buys **+0.2 coverage and +0.1 accuracy**. Shipped at floor 0.99 because it
+   costs nothing, not because it achieved much.
+9. **Fact quality is the next thing, and nothing else measured here can
+   reach it** (§18). R19's evidence was broken and is now fixed, and the
+   store barely moved, because R19 spends its time adjudicating claims like
+   `an animal can be riddled with bullet`. Every lever this file has pulled —
+   rules, corroboration, evidence density, teaching — sits downstream of what
+   the crawl put in the store. The 19% coverage ceiling and the noise are the
+   same problem seen from two sides.
+10. **Validate a mechanism on the distribution it will face.** §17 measured
+   R19 over AwA2's curated typicality attributes and predicted a large win;
+   R19's real workload is crawled free text and the win was 0.2 points. The
+   limitation §17 declared — one domain — was not the one that mattered.
 
 ## Reproducing
+
+The screen, which needs the GPU once and then never again:
+
+```
+python -m research.v688.screen --questions              # the claim sets, no model
+python -m research.v688.screen --calibrate              # §16's error rates,  ~4 min
+python -m research.v688.screen --survey                 # what the foils are, ~31 min
+python -m research.v688.screen --build                  # comps_screened.jsonl, free from cache
+python -m research.v688.audit --gold screened --limit 600 --shards 5 --workers 4
+```
+
+§17's norm distillation, which needs the GPU for about three minutes:
+
+```
+python -m research.v688.norms --questions                # the 50 x 83 grid, no model
+python -m research.v688.norms --distil --validate        # against the closed matrix
+python -m research.v688.norms --corroborate --narrow 400 # R19 three ways
+```
+
+Every judgement caches to `llm/adjudications.json` by claim, so the survey is
+paid once: 36,701 foils at 19.7/s, and a rerun is a file read. The cache is
+flushed every 2,000 fresh judgements rather than held to the end, so an
+interruption at minute thirty costs two minutes.
 
 Numbers above are `--limit 1200` (`--loop-limit 500`), sharded 5 × 4 engines;
 `crawl`/`corroborated`/`loop` at `--limit 500` for the matched §3 comparison.

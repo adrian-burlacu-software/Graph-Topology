@@ -25,6 +25,30 @@ COMPS release is the practical route to the same data.
 | `xcslb/concept_senses.csv` | concept → WordNet sense key and category. This is the join to v687's synsets. |
 | `xcslb/concept_matrix.txt` | 521 × 3,643 binary matrix. **Not used** — see below. |
 
+## Built here, not pulled in
+
+| file | what it is |
+| --- | --- |
+| `xcslb/comps_screened.jsonl` | 20,925 of the 49,340 pairs, kept because a calibrated judge denied the foil. **Not from COMPS** — build it with `python -m research.v688.screen --build`, and see below for why it exists. |
+
+## The foils are absence, not denial
+
+`concept_matrix.txt` is **1.58% dense** — 30,009 ones in 1.9M cells — which is
+what a free-listing norm looks like: a zero means no participant mentioned the
+feature, not that anyone judged it false. COMPS draws every foil from those
+zeros, so a foil is not a negative:
+
+    stocking  NOT absorbs sweat     (taxonomic)
+    potato    NOT absorbs water     (co-occurrence)
+
+`research/v688/screen.py` measured how much of the file this affects, using
+AwA2's closed matrix to calibrate the judge: **about 40% of the foils are not
+false, and about half on the three near rungs.** `AUDIT.md` §16 has the
+method, the error rates and what changed. Anything scoring against
+`comps_base.jsonl` is marking a system down for correctly affirming true
+statements about foils; score against `comps_screened.jsonl` instead, and do
+not compare levels between the two.
+
 ## Why the matrix is not used
 
 `concept_matrix.txt` ships without column labels, and its column order is not
