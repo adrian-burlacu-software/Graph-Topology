@@ -929,6 +929,186 @@ pulling, which it was not yesterday.
 
 ---
 
+## 17. The hours should buy norms, not facts
+
+2026-09-10. `research/v688/norms.py`.
+
+§15 priced a flat teaching sweep: covering 45,219 concepts means ~2.6M
+questions and ~36 GPU-hours, and §16 showed the +0.7 coverage it bought was
+real but small. The question this section answers is what those hours should
+be spent on instead.
+
+**A fact about a beagle helps beagles.** A norm is different in kind: it is
+not an answer, it is the evidence **R19** weighs before believing an
+inherited fact, and one norm-covered sibling serves every question about
+every member of its class. So the proposal is to distil norms. Three
+measurements had to come first, and the first one kills the obvious version.
+
+### R19 does not need more reach. It needs less altitude.
+
+R19 can already fire for **70.5%** of the store's 45,219 fact-bearing
+concepts — 86 ancestors carry eight or more norm-covered kinds. Norming every
+remaining concept would take that to **71.5%**. One point. The 86 firing
+ancestors are the huge ones and they sit above nearly everything.
+
+But firing is not the same as saying something, and R19's own docstring is
+the authority on that: `bird.n.01 "fly" 21 of 29` is signal, `animal.n.01
+"wings" 20 of 143` is noise. So the real question is how *specific* the
+ancestor is that each concept actually gets:
+
+| narrowest corroborating ancestor | now | if fully normed |
+| --- | --- | --- |
+| under 300 kinds — says something | **1,709 (3.8%)** | 23,919 (52.9%) |
+| 300–1,000 | 2,571 | 5,229 |
+| 1,000+ — `animal.n.01`-level noise | **27,610 (61.0%)** | 3,193 |
+| no corroborating ancestor at all | 13,329 | 12,878 |
+
+**61% of concepts can only be corroborated against a thousand-plus
+siblings**, which is the case the rule was written to avoid. Zero concepts
+currently have an ancestor under 30 kinds; fully normed, 5,280 would.
+
+### R19 is running on the bug §16 just fixed one level up
+
+`corroboration` counts a kind as *not bearing a term out* when the norms
+never asked. XCSLB averages **23.7 properties per concept out of a 3,592
+feature lexicon — 0.66% dense.** AwA2 averages 31.2 of 85, **36.8%**.
+
+On the 30 concepts in both corpora, with exact feature matching:
+
+```
+XCSLB feature      free-listed    AwA2 (closed) says    R19 verdict
+has four legs         4/30              26/30             REFUSED
+has a tail            3/30              25/30             REFUSED
+can be fast           2/30              25/30             REFUSED
+can walk              2/30              23/30             REFUSED
+is agile              1/30              20/30             REFUSED
+has sharp teeth       5/30              11/30             REFUSED
+is domesticated       2/30              10/30             REFUSED
+can swim              2/30               5/30             REFUSED
+```
+
+Every probe flips, all one direction. **Free listers mention what is
+distinctive and never what is typical** — describing a leopard they say `can
+pounce`, not `has four legs` — and typicality is the entire thing R19 tests.
+This is absence-as-denial, live, in the shipped reasoner. It is also why
+`corroborated` costs five points of coverage in §16's table.
+
+### The experiment
+
+AwA2 is the only closed gold here, so it can validate a norm source the way
+it validated the screen. **4,150 cells — 50 classes × 83 phrasable
+attributes — asked of SmolLM3 at 20.1/s**, roughly three minutes, most of it
+already cached because `screen.py` asked the extremes of this same grid.
+
+**Are distilled norms any good?** Against the closed matrix:
+
+| floor | density | accuracy | precision | recall | accuracy on clear cells |
+| --- | --- | --- | --- | --- | --- |
+| 0.50 | 100.0% | 77.7% | 71.5% | 62.2% | **90.0%** |
+| 0.90 | 76.2% | 83.5% | 78.0% | 47.7% | 94.0% |
+| 0.99 | 46.9% | 89.3% | 84.8% | 29.0% | 96.8% |
+
+77.7% raw looks poor until the last column: on cells humans were not split on
+(continuous rating ≤ 5 or ≥ 60) it is **90.0% at full density**. Most of the
+disagreement is the ambiguous middle — `is a leopard big`, `is a rat active`
+— where AwA2's own raters were divided.
+
+For contrast, on the 19 attributes XCSLB can express at all: of 238 cells the
+closed matrix says are true, free listing mentions **58 — 24.4% recall.**
+
+### Does it change what R19 concludes?
+
+The measurement that matters, and it is not the same question. A source can
+be individually noisy and still give R19 the right verdict, because a third
+of eight siblings is a blunt threshold. Verdicts computed three ways over the
+same ancestors and attributes, scored against AwA2:
+
+```
+four ancestors narrower than 400 (ruminant, even-toed ungulate,
+ungulate, carnivore):
+
+evidence                  pairs   agreed     lost     over   silent
+distilled                   332    78.6%    14.5%     6.9%     0.0%
+free listing                 76    46.1%    27.6%     1.3%    25.0%
+distilled, same subset       76    81.6%    11.8%     6.6%     0.0%
+```
+
+**On the identical 76 comparisons, distilled norms agree with the closed
+human matrix 81.6% of the time and free listing 46.1%.** Distilled nearly
+doubles it, and the error profile is exactly what the sparsity argument
+predicts:
+
+- **Free listing's errors are almost entirely `lost`** — 27.6% here and 40.4%
+  across all ancestors — true inheritances refused, with essentially no
+  over-affirmation (1.3%). Sparsity makes R19 say no.
+- **Distilled halves the losses and pays for it in over-affirmation**, 11.8%
+  lost against 6.6% over. That is a real cost and it is the thing to watch.
+- Free listing is **silent 25% of the time** even where it applies, because
+  XCSLB covers 30 of the 50 classes and cannot reach eight kinds.
+
+The result holds across all 15 ancestors (76.0% distilled, 46.0% free
+listing), so it is not an artefact of the two narrow ones.
+
+### What this does not show
+
+**The per-ancestor ladder does not measure the altitude effect**, and it
+would be easy to read it as though it did. Every row draws its kinds from the
+same 50 classes, so `animal.n.01` is scored over 50 mammals rather than the
+143 diverse kinds real R19 finds there. The dilution cannot appear in that
+table by construction. The altitude evidence is the table at the top of this
+section, and it is separate.
+
+The simulation also computes R19's arithmetic rather than calling
+`profile.corroboration`, deliberately: real R19 reaches its evidence through
+`_hit`, a whole-word stem match between a fact's object and a norm's
+predicate. Feeding it AwA2 attributes would measure that matcher as much as
+the norms. **The evidence question is answered here; the matching question is
+not, and it is the next one.**
+
+And 50 classes over 83 attributes of one domain is a narrow base. Animals are
+where free listing's typicality gap is most obvious; artefacts may differ.
+
+### What it would cost
+
+Not norms for concepts — **dense norms for eight members of each narrow
+class**, chosen by greedy set cover over the 1,539 classes that are narrower
+than 300 and have eight members available:
+
+| concepts distilled | narrow classes firing | concepts with a real corroborator |
+| --- | --- | --- |
+| today | 26 | 3.8% |
+| 1,000 | 510 | 19.7% |
+| 2,000 | 810 | **31.2%** |
+| 5,000 | 1,326 | 49.3% |
+
+Median 26 questions to norm one member — the union of inheritable terms on
+its narrow ancestors — with a heavy tail that needs capping; a few classes
+carry 4,000+. At 20/s, **2,000 concepts is roughly two GPU-hours**, about 4%
+of the flat sweep, aimed at the mechanism §16 measured as the largest single
+quality lever (`corroborated` cuts over-affirmation 6.7% → 2.5%, taxonomic
+10.7% → 4.4%).
+
+### Verdict
+
+**Worth doing, and the two things that had to be true are true.** Distilled
+norms are 90% accurate where humans agree, and they nearly double R19's
+agreement with a closed matrix against the free listing it uses today.
+
+Three conditions on doing it:
+
+1. **Keep distilled norms provenance-separable** from elicited ones.
+   `identify.origin` already tracks `awa2` against `xcslb` and a third value
+   belongs beside them. Without it the `shipped` control in this file stops
+   meaning anything.
+2. **Watch over-affirmation, not accuracy.** Density buys back refused
+   inheritances and pays in confident falsehood — 1.3% → 6.6% here. That is
+   the number that decides whether the floor should be 0.5 or 0.9.
+3. **Answer the matching question before shipping.** `_hit` is a stem match,
+   and a distilled norm phrased as `walks` has to meet a crawled fact
+   phrased as `walk on land`. Nothing here tested that.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -949,6 +1129,9 @@ Ranked by evidence, not by appeal:
    surviving false denials, and `pinned` shows they go away when the reader's
    sense is supplied. This is the backlog's open item, and it is the one with
    a number behind it.
+   **Superseded as the top item by §17**: R19's evidence base is worse. Sense
+   selection costs three false denials in a sample; free listing gives R19
+   the wrong verdict on more than half of what it is asked.
 5. **Re-read the coverage number before any new rule.** 19.2%, unmoved by
    pinning, is the ceiling every rule is working under.
 6. **Report over-affirmation from the denials column, not the corrupted
@@ -965,6 +1148,14 @@ Ranked by evidence, not by appeal:
    thing that made the trade look bad no longer exists. The argument against
    scaling teaching is now only §15's — no transfer, ~36 GPU-hours for the
    remaining 45,219 concepts — which is a cost argument, not a safety one.
+8. **Spend the hours on norms rather than facts** (§17). Distilled norms are
+   90% accurate where humans agree, and they take R19's agreement with a
+   closed matrix from 46.1% to 81.6% on the same comparisons. ~2 GPU-hours
+   over 2,000 set-cover-chosen concepts takes the share of the store with a
+   corroborating ancestor narrow enough to mean anything from 3.8% to 31.2%.
+   Three conditions before shipping any of it: keep the provenance separable,
+   watch over-affirmation rather than accuracy, and answer the `_hit`
+   matching question, which §17 deliberately did not.
 
 ## Reproducing
 
@@ -976,6 +1167,14 @@ python -m research.v688.screen --calibrate              # §16's error rates,  ~
 python -m research.v688.screen --survey                 # what the foils are, ~31 min
 python -m research.v688.screen --build                  # comps_screened.jsonl, free from cache
 python -m research.v688.audit --gold screened --limit 600 --shards 5 --workers 4
+```
+
+§17's norm distillation, which needs the GPU for about three minutes:
+
+```
+python -m research.v688.norms --questions                # the 50 x 83 grid, no model
+python -m research.v688.norms --distil --validate        # against the closed matrix
+python -m research.v688.norms --corroborate --narrow 400 # R19 three ways
 ```
 
 Every judgement caches to `llm/adjudications.json` by claim, so the survey is

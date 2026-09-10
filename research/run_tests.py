@@ -43,7 +43,8 @@ ROOT = HERE.parent
 SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
           "research.v687.test_v687", "research.v687.test_norms",
           "research.v687.test_bridging", "research.v687.test_trie",
-          "research.v688.test_audit", "research.v688.test_screen")
+          "research.v688.test_audit", "research.v688.test_screen",
+          "research.v688.test_distil")
 
 COUNT = re.compile(r"^Ran (\d+) test")
 
