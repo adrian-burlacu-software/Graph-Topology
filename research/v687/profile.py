@@ -138,6 +138,10 @@ DISTILLED_OFF = bool(os.environ.get("V687_NO_DISTILLED_NORMS"))
 CORROBORATION_REQUIRED = bool(
     os.environ.get("V687_CORROBORATION_REQUIRED"))
 
+#: Set `V687_NO_DISTILLED_KINDS=1` to draw R19's denominator from the 571
+#: norm-covered concepts alone, the way it did before `research/v688/kinds.py`.
+KINDS_OFF = bool(os.environ.get("V687_NO_DISTILLED_KINDS"))
+
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
 what which is are was were be been does do did has have had can could would
@@ -354,6 +358,15 @@ class Profiles:
         # `research/v688/densify.py`.
         self.distilled: dict[str, frozenset[str]] = (
             {} if DISTILLED_OFF else corpora.load_distilled())
+
+        # Extra kinds for the ancestors the norms leave R19 unable to speak
+        # at. Keyed by synset because they came from the taxonomy rather than
+        # from a word, so the sense question never arises. `_above` is built
+        # lazily: 312 ascents is cheap but not free, and a run that never
+        # corroborates should not pay for it.
+        self.distilled_kinds: dict[str, dict] = (
+            {} if KINDS_OFF else corpora.load_distilled_kinds())
+        self._kind_lineage: dict[str, set[str]] | None = None
 
         corpus = Corpus("norms", tuple(sorted(
             (name, predicates) for name, predicates in self.stated.items()
@@ -652,7 +665,35 @@ class Profiles:
                       if self.identifier._hit(term, self.stated[name])
                       or self.identifier._hit(
                           term, self.distilled.get(name, frozenset())))
-        return bearing, len(kinds)
+        extra, borne = self.witnesses(ancestor, term)
+        return bearing + borne, len(kinds) + extra
+
+    def witnesses(self, ancestor: str, term: str) -> tuple[int, int]:
+        """(kinds, bearing) the distilled witnesses add for one term.
+
+        A witness counts only where it has testimony: it joins the
+        denominator when it was **asked** something matching the term, and
+        the numerator when it **affirmed** one. Counting it on terms it was
+        never put to would be padding the denominator with silence, which is
+        the failure `corpora.load_distilled_kinds` exists to avoid.
+        """
+        if not self.distilled_kinds:
+            return 0, 0
+        if self._kind_lineage is None:
+            self._kind_lineage = {
+                concept: {node for node, distance, _
+                          in self.reasoner.ascend(concept) if distance}
+                for concept in self.distilled_kinds}
+        kinds = borne = 0
+        for concept, above in self._kind_lineage.items():
+            if ancestor not in above:
+                continue
+            one = self.distilled_kinds[concept]
+            if not self.identifier._hit(term, one["asked"]):
+                continue
+            kinds += 1
+            borne += bool(self.identifier._hit(term, one["predicates"]))
+        return kinds, borne
 
     # -- above the leaf ----------------------------------------------------
     def ancestry(self, name: str) -> list[Ancestry]:
@@ -839,13 +880,14 @@ class Profiles:
                 # itself -- which is what `can a dog fall into a hole` did.
                 if kinds >= CORROBORATION_MIN_KINDS:
                     support = (f" {bearing} of {kinds} kinds of "
-                               f"{level.concept.split('.')[0]} in the norms "
+                               f"{level.concept.split('.')[0]} on record "
                                f"bear it out.")
                 elif kinds:
-                    support = (f" The norms describe only {kinds} kind"
+                    support = (f" Only {kinds} kind"
                                f"{'' if kinds == 1 else 's'} of "
-                               f"{level.concept.split('.')[0]}, too few to "
-                               f"corroborate either way.")
+                               f"{level.concept.split('.')[0]} on record can "
+                               f"speak to this, too few to corroborate "
+                               f"either way.")
                 else:
                     support = ""
                 return Verdict(

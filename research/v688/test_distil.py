@@ -279,9 +279,19 @@ class TheCorroborationChange(unittest.TestCase):
             self.distilled = distilled
             self.identifier = Identifier
             self._ancestors = {name: {"bird.n.01"} for name in stated}
+            # `corroboration` consults the distilled witnesses too; none
+            # here, so this class still measures the norms half alone.
+            self.distilled_kinds: dict = {}
+            self._kind_lineage: dict = {}
 
         def _lineage(self):
             return self._ancestors
+
+        def witnesses(self, ancestor, term):
+            """The real one, so this stub exercises the real arithmetic."""
+            from research.v687.profile import Profiles
+
+            return Profiles.witnesses(self, ancestor, term)
 
     def run_it(self, stated, distilled, term="fly"):
         from research.v687.profile import Profiles
@@ -409,3 +419,102 @@ class TheDerivedArtifactsAreTracked(unittest.TestCase):
         for step in ("record_r19", "densify --build", "prune --build",
                      "record_inherited"):
             self.assertIn(step, readme)
+
+
+class TheDistilledKinds(unittest.TestCase):
+    """A witness counts only where it has testimony."""
+
+    def stub(self, distilled_kinds, lineage):
+        from research.v687.identify import Identifier
+
+        class Stub:
+            pass
+
+        one = Stub()
+        one.identifier = Identifier
+        one.stated = {}
+        one.distilled = {}
+        one.distilled_kinds = distilled_kinds
+        one._kind_lineage = lineage
+        one._ancestors = {}
+        one._lineage = lambda: {}
+        return one
+
+    def witnesses(self, kinds, lineage, term="fly"):
+        from research.v687.profile import Profiles
+
+        return Profiles.witnesses(self.stub(kinds, lineage), "bird.n.01", term)
+
+    def test_a_witness_asked_and_affirming_counts_both_ways(self):
+        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+                            "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
+                         (1, 1))
+
+    def test_a_witness_asked_and_denying_counts_against(self):
+        """It is in the denominator and not the numerator, which is the whole
+        value of having asked it."""
+        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+                            "predicates": frozenset()}}
+        self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
+                         (1, 0))
+
+    def test_a_witness_never_asked_about_the_term_does_not_count_at_all(self):
+        """The design: padding the denominator with silence would bias R19
+        toward refusal, which is §17's trap self-inflicted."""
+        kinds = {"a.n.01": {"asked": frozenset({"can swim"}),
+                            "predicates": frozenset({"can swim"})}}
+        self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
+                         (0, 0))
+
+    def test_a_witness_under_a_different_ancestor_is_not_counted(self):
+        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+                            "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, {"a.n.01": {"fish.n.01"}}),
+                         (0, 0))
+
+    def test_no_witnesses_is_free(self):
+        self.assertEqual(self.witnesses({}, {}), (0, 0))
+
+    def test_the_loader_drops_a_witness_with_nothing_asked(self):
+        """It could only ever pad a denominator."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from research.v687 import corpora
+
+        with tempfile.TemporaryDirectory() as where:
+            path = Path(where) / "kinds.json"
+            path.write_text(json.dumps({
+                "kept.n.01": {"name": "kept", "asked": ["can fly"],
+                              "predicates": ["can fly"]},
+                "empty.n.01": {"name": "empty", "asked": [],
+                               "predicates": []}}), encoding="utf-8")
+            loaded = corpora.load_distilled_kinds(path)
+        self.assertEqual(sorted(loaded), ["kept.n.01"])
+
+    def test_a_missing_file_is_an_ablation(self):
+        from research.v687 import corpora
+
+        self.assertEqual(corpora.load_distilled_kinds(
+            norms.ROOT / "derived" / "no-such-file.json"), {})
+
+    def test_the_artifact_is_tracked_beside_the_others(self):
+        from research.v687 import corpora
+        from research.v688 import kinds
+
+        self.assertEqual(corpora.KINDS.parent.name, "derived")
+        self.assertEqual(kinds.KINDS, corpora.KINDS)
+
+    def test_the_ablation_switch_exists(self):
+        from research.v687 import profile
+
+        self.assertIn("V687_NO_DISTILLED_KINDS", inspect_source(profile))
+
+    def test_r19_no_longer_calls_its_denominator_the_norms(self):
+        """With witnesses loaded, `the kinds of X the norms cover` is false."""
+        from research.v687 import server
+
+        self.assertNotIn("the norms cover bear that out",
+                         inspect_source(server))

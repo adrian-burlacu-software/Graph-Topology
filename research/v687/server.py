@@ -112,7 +112,7 @@ class IdentifyingEngine(BridgedEngine):
         answer.evidence = []
         answer.note = (
             f"{name} is recorded as “{fact.object}”, but only {bearing} "
-            f"of the {kinds} kinds of {name} the norms cover bear that out. A "
+            f"of the {kinds} kinds of {name} on record bear that out. A "
             f"crawled sentence about a class says some of its members do this, "
             f"not that this one does, so it is not inherited down to "
             f"{answer.concept.rsplit('.', 2)[0]}. R19.")

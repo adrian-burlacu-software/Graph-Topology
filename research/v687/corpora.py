@@ -292,3 +292,41 @@ def load_demoted(path: Path | None = None) -> frozenset[tuple[str, str, str]]:
     except Exception:                               # noqa: BLE001
         return frozenset()
     return frozenset((row[0], row[1], row[2]) for row in rows)
+
+
+#: Written by `research/v688/kinds.py`. Tracked, like `DISTILLED`.
+KINDS = REPOSITORY_ROOT / "derived" / "distilled_kinds.json"
+
+
+def load_distilled_kinds(path: Path | None = None) -> dict[str, dict]:
+    """synset -> what a distilled witness was asked, and what it affirmed.
+
+    `Profiles.corroboration` draws its denominator from the 571 concepts the
+    norms cover, so an ancestor with fewer than eight of them beneath it
+    leaves R19 unable to speak -- 83 of the 118 ancestors it is actually
+    consulted at. `dog.n.01` has three. These are extra kinds for those.
+
+    Two lists per concept, and the distinction is the whole design:
+
+        asked        the claims this witness was put to, whatever it said
+        predicates   the ones it affirmed
+
+    A distilled kind counts in R19's **denominator only for terms it was
+    asked about**, and in the numerator only for those it affirmed. Counting
+    it everywhere would put warm bodies in the denominator for terms it
+    cannot speak to and bias R19 toward refusal -- the sparsity trap of
+    `AUDIT.md` §17, self-inflicted. So it witnesses where it has testimony
+    and is absent where it does not.
+
+    Kept out of `identify.stated` for the same reason as `load_distilled`.
+    """
+    target = Path(path) if path else KINDS
+    try:
+        rows = json.loads(target.read_text(encoding="utf-8"))
+    except Exception:                               # noqa: BLE001
+        return {}
+    return {concept: {"name": one.get("name") or concept,
+                      "asked": frozenset(one.get("asked") or ()),
+                      "predicates": frozenset(one.get("predicates") or ())}
+            for concept, one in rows.items()
+            if one.get("asked")}

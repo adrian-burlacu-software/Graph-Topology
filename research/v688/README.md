@@ -68,6 +68,7 @@ And the measuring apparatus, which answers nothing and is not on the page:
 | `screen.py` | puts COMPS' foils to a calibrated judge and keeps the ones that are actually false — because XCSLB's zeros are silence, and scoring them as denial punished the store for knowing things. |
 | `norms.py` | distils a dense property matrix with the model and checks it against AwA2's closed one, to answer whether R19's evidence base should be free listing. It should not. |
 | `prune.py` + `record_inherited.py` | ask whether a class-node fact is a claim about the class, and record which facts inheritance actually reads. §19: the prune found 2,985 junk facts and moved nothing, because none was ever read. |
+| `kinds.py` | distils new *witnesses* for the ancestors where the norms leave R19 unable to speak — counted only for the terms they were actually asked. |
 | `densify.py` | fills the cells R19 actually reads, for the concepts it already consults, so its silences stop counting as "no". Writes `data/distilled_norms.json`; `V687_NO_DISTILLED_NORMS=1` ablates it. |
 
 ## Where a question comes from

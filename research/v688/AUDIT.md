@@ -1358,6 +1358,86 @@ facts that were read before proposing to fix the ones that were written.**
 
 ---
 
+## 20. Kinds, not just properties — and what still blocks the precondition
+
+2026-09-10. `research/v688/kinds.py`, `corpora.load_distilled_kinds`,
+`Profiles.witnesses`.
+
+§18 added *properties* to the 571 concepts the norms cover. This adds
+*concepts*, which is the half deferred twice, and it was deferred because
+`Profiles.corroboration` draws its **denominator** from those 571 alone. When
+an ancestor has fewer than eight beneath it R19 cannot speak: **83 of the 118
+consulted ancestors, 195 of 1,503 calls.** `dog.n.01` has three covered
+kinds. `turtle.n.02` has one.
+
+### The design decision that mattered
+
+A new kind would enter the denominator for **every** term asked at that
+ancestor, including ones it was never asked about, where it contributes
+nothing. Five thin kinds under `dog.n.01` take `bearing / 3` to `bearing / 8`
+and make refusal *more* likely — §17's sparsity trap, self-inflicted.
+
+Asking each new kind about everything avoids that and costs **11.2 GPU-hours**
+(806,597 cells; a median of 2,621 inheritable facts per concept's ancestry).
+Capping is arbitrary and only bounds the damage.
+
+So a distilled kind **counts only for terms it was actually asked about**. The
+artifact records `asked` beside `predicates`, and a witness joins the
+denominator only where it has testimony:
+
+```
+dog.n.01  transport    0 of 3  ->  0 of 8    R19 can now speak
+dog.n.01  bark         0 of 3  ->  0 of 3    no witness was asked; still silent
+bird.n.01 fly         28 of 29 -> 30 of 35
+```
+
+That is R19 doing what it should have all along: speaking where there is
+evidence, silent where there is none.
+
+### What it cost and bought
+
+319 concepts by greedy cover close all 66 feedable ancestors. **10,914 claims
+asked, 9 GPU-minutes, 594 affirmed**, 312 witnesses with any testimony.
+`corroborated`, screened gold:
+
+| | coverage | confirmed | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- | --- |
+| kinds off | 18.7% | 16.8% | 91.6% | 2.2% | 3.7% |
+| **kinds on** | **18.4%** | **16.6%** | **92.2%** | **2.0%** | **3.5%** |
+| kinds on + precondition | 17.8% | 15.9% | 93.9% | 1.5% | 2.4% |
+
+−0.3 coverage for +0.6 accuracy and a tenth off over-affirmation, and **no
+page example changes**. Shipped on; `V687_NO_DISTILLED_KINDS=1` ablates.
+
+### The precondition is still blocked, and now by something else
+
+With witnesses loaded it reads better than ever — **+1.7 accuracy, −0.5
+over-affirmation, −0.6 coverage against kinds-on** — and it still turns `does
+a beagle bark` into UNKNOWN. §19 said the blocker was *kind* coverage. It was
+not: `beagle.n.01` is now a witness under `dog.n.01`. The blocker is **term**
+coverage — `bark` is not a term COMPS ever asks, so nobody was ever asked it,
+so there is no testimony either way.
+
+And there is a deeper reason it cannot simply be widened. A free-listing norm
+has **no record of what was asked**, so for XCSLB-derived kinds "nobody listed
+it" and "nobody was asked" are indistinguishable. The precondition is only
+safe over witnesses whose `asked` set is known, and those are exactly the 312
+distilled ones. **Running R19 as a precondition would mean running it over
+distilled witnesses alone** — a coherent design, and a different one from
+what is here.
+
+### The mistake worth recording
+
+`test_reasoning` pinned `21 of 29` for `does a robin fly`. §18 moved it to
+`28 of 29`, so the fix read the count from `corroboration` — and pinned the
+*denominator* instead. §20 moved that to 35 and it broke again. Both readings
+were correct on some checkout, because both artifacts are build products a
+fresh clone lacks. **A test over a derived artifact has to assert the claim,
+not the number**: R19 can speak here, a majority bear it out, and the note
+quotes what it counted.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

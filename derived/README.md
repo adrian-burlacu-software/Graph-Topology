@@ -2,13 +2,14 @@
 
 Files a model produced that the code then reads. **Tracked, unlike `data/`**,
 and the distinction is not tidiness: `data/` holds corpora somebody else
-published and this holds things this repository computed. Two of these change
+published and this holds things this repository computed. Three of these change
 what v687 answers, and a repository whose shipped behaviour depends on an
 untracked file cannot be reproduced or reviewed.
 
 | file | read by | changes answers? |
 | --- | --- | --- |
 | `distilled_norms.json` | `corpora.load_distilled` → `Profiles.corroboration` | **yes** — R19's evidence |
+| `distilled_kinds.json` | `corpora.load_distilled_kinds` → `Profiles.witnesses` | **yes** — R19's denominator |
 | `demoted_facts.json` | `corpora.load_demoted` → `reason.py` R30 | in principle; measured inert (§19) |
 | `r19-calls.json` | `densify.observed` | no — it decides what to *ask* |
 | `inherited.json` | nothing; a measurement | no |
@@ -31,7 +32,11 @@ python -m research.v688.densify --build
 #    claims about the class
 python -m research.v688.prune --build
 
-# 4. what inheritance actually uses      ~13 min, one engine, no GPU
+# 4. witnesses where the norms leave R19  ~9 min GPU (free from cache)
+#    unable to speak at all
+python -m research.v688.kinds --build
+
+# 5. what inheritance actually uses      ~13 min, one engine, no GPU
 python -m research.v688.record_inherited 120 crawl
 ```
 

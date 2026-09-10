@@ -1239,19 +1239,21 @@ class AnswerRoutingTests(unittest.TestCase):
         """The hand-back must not take `does a robin fly` with it: there the
         norms really do bear on the answer, a clear majority of the birds.
 
-        The count is read from `corroboration` rather than written in, because
-        it is not a constant. `data/distilled_norms.json` is a build product
-        (`research/v688/densify.py`), and loading it moves this answer from
-        `21 of 29` to `28 of 29` -- both correct, and a fresh clone has
-        neither the file nor the larger number. Pinning either one makes this
-        test assert which files happen to be on disk.
+        **Neither number is pinned, and the second attempt got that wrong
+        too.** `derived/distilled_norms.json` moved this from `21 of 29` to
+        `28 of 29`; a later pin on the denominator then broke when
+        `derived/distilled_kinds.json` moved it to `30 of 35`. Both artifacts
+        are build products and a fresh clone has neither, so every one of
+        those readings is correct on some checkout. What is invariant is the
+        claim the test is named for: R19 can speak here, a majority of the
+        birds bear it out, and the note quotes whatever it actually counted.
         """
         payload = self.engine.ask("does a robin fly")
         self.assertEqual(payload["parse"]["relation"], "verify")
         self.assertEqual(payload["verdict"], "VERIFIED")
         bearing, kinds = self.engine.profiles.corroboration("bird.n.01", "fly")
-        self.assertEqual(kinds, 29)
-        self.assertGreaterEqual(bearing, 21)
+        self.assertGreaterEqual(kinds, 8)          # R19 can speak at all
+        self.assertGreater(bearing / kinds, 0.5)   # and a majority agrees
         self.assertIn(f"{bearing} of {kinds}", payload["note"])
 
     def test_an_ancestor_fact_is_ranked_by_what_it_accounts_for(self):
