@@ -231,10 +231,12 @@ def denied_xcslb() -> dict[str, frozenset[str]]:
             for concept, properties in sorted(denied.items())}
 
 
-#: Written by `research/v688/densify.py`, and absent from a fresh clone --
-#: it is a build product like `comps_screened.jsonl`, not a corpus anyone
-#: shipped. Every caller treats a missing file as "no distilled norms".
-DISTILLED = REPOSITORY_ROOT / "data" / "distilled_norms.json"
+#: Written by `research/v688/densify.py`. **Tracked**, unlike the corpora in
+#: `data/`, because it changes what v687 answers: a repository whose shipped
+#: behaviour depends on an untracked file cannot be reproduced or reviewed.
+#: `derived/README.md` says how to rebuild it. Every caller still treats a
+#: missing file as "no distilled norms", so deleting it is a valid ablation.
+DISTILLED = REPOSITORY_ROOT / "derived" / "distilled_norms.json"
 
 
 def load_distilled(path: Path | None = None) -> dict[str, frozenset[str]]:
@@ -263,10 +265,11 @@ def load_distilled(path: Path | None = None) -> dict[str, frozenset[str]]:
             for concept, properties in rows.items() if properties}
 
 
-#: Written by `research/v688/prune.py`, and a build product like
-#: `distilled_norms.json`. Absent from a fresh clone, and every caller treats
-#: that as "demote nothing".
-DEMOTED = REPOSITORY_ROOT / "data" / "demoted_facts.json"
+#: Written by `research/v688/prune.py`. Tracked for the same reason as
+#: `DISTILLED`, though `AUDIT.md` §19 measured this particular artifact as
+#: inert -- not one demoted fact was ever the evidence for an answer. A
+#: missing file means "demote nothing".
+DEMOTED = REPOSITORY_ROOT / "derived" / "demoted_facts.json"
 
 
 def load_demoted(path: Path | None = None) -> frozenset[tuple[str, str, str]]:

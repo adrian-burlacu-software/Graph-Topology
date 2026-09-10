@@ -61,7 +61,7 @@ from research.v687 import rules
 from . import audit, densify, teacher
 
 ROOT = Path(__file__).resolve().parents[2]
-DEMOTED = ROOT / "data" / "demoted_facts.json"
+DEMOTED = ROOT / "derived" / "demoted_facts.json"
 
 #: Descendants a node must have before its facts are worth judging. See the
 #: blast-radius table in the docstring.

@@ -361,3 +361,51 @@ def inspect_source(module):
     import inspect
 
     return inspect.getsource(module)
+
+
+class TheDerivedArtifactsAreTracked(unittest.TestCase):
+    """A repository whose answers depend on an untracked file is not one.
+
+    `distilled_norms.json` changes what `Profiles.corroboration` counts, so it
+    belongs in git beside the code that reads it rather than in `data/`, which
+    is ignored wholesale and holds corpora somebody else published.
+    """
+
+    def test_the_paths_point_at_derived_and_not_at_data(self):
+        from research.v687 import corpora
+        from research.v688 import densify, prune, record_r19
+
+        for name, path in (("DISTILLED", corpora.DISTILLED),
+                           ("DEMOTED", corpora.DEMOTED),
+                           ("densify.NORMS", densify.NORMS),
+                           ("densify.CALLS", densify.CALLS),
+                           ("prune.DEMOTED", prune.DEMOTED),
+                           ("record_r19.CALLS", record_r19.CALLS)):
+            with self.subTest(name):
+                self.assertEqual(path.parent.name, "derived", name)
+
+    def test_the_writers_and_the_readers_agree(self):
+        """`densify.py` writes what `corpora.load_distilled` reads, and
+        `prune.py` writes what `corpora.load_demoted` reads. They were
+        separate literals until they disagreed."""
+        from research.v687 import corpora
+        from research.v688 import densify, prune
+
+        self.assertEqual(densify.NORMS, corpora.DISTILLED)
+        self.assertEqual(prune.DEMOTED, corpora.DEMOTED)
+
+    def test_a_missing_artifact_is_an_ablation_and_not_a_crash(self):
+        from research.v687 import corpora
+
+        missing = norms.ROOT / "derived" / "no-such-file.json"
+        self.assertEqual(corpora.load_distilled(missing), {})
+        self.assertEqual(corpora.load_demoted(missing), frozenset())
+
+    def test_the_rebuild_order_is_written_down(self):
+        """Step 1 has to run before step 2 and the reason is expensive to
+        rediscover: without `r19-calls.json`, `densify` has 824,431 cells."""
+        readme = (norms.ROOT / "derived" / "README.md").read_text(
+            encoding="utf-8")
+        for step in ("record_r19", "densify --build", "prune --build",
+                     "record_inherited"):
+            self.assertIn(step, readme)

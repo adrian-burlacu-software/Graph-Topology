@@ -73,8 +73,8 @@ from research.v687 import rules
 from . import audit, teacher
 
 ROOT = Path(__file__).resolve().parents[2]
-NORMS = ROOT / "data" / "distilled_norms.json"
-CALLS = ROOT / "research" / "v688" / "audit-out" / "r19-calls.json"
+NORMS = ROOT / "derived" / "distilled_norms.json"
+CALLS = ROOT / "derived" / "r19-calls.json"
 
 #: Nothing above 150 norm-covered kinds was ever consulted in 1,503 recorded
 #: calls, so above that a cell is never read.

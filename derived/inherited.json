@@ -1,0 +1,934 @@
+{
+ "facts": [
+  {
+   "concept": "clothing.n.01",
+   "relation": "has_a",
+   "object": "sleeve",
+   "right": 2,
+   "wrong": 2,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_a",
+   "object": "beak",
+   "right": 0,
+   "wrong": 2,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 5
+  },
+  {
+   "concept": "container.n.01",
+   "relation": "has_a",
+   "object": "air conditioning",
+   "right": 0,
+   "wrong": 2,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "tree.n.01",
+   "relation": "has_a",
+   "object": "trunk",
+   "right": 3,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "boat.n.01",
+   "relation": "has_a",
+   "object": "engine",
+   "right": 2,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "capable_of",
+   "object": "kill people",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 6
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_property",
+   "object": "stealthy",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 6
+  },
+  {
+   "concept": "device.n.01",
+   "relation": "has_a",
+   "object": "keyboard",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "mammal.n.01",
+   "relation": "has_a",
+   "object": "four legs",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "musical instrument.n.01",
+   "relation": "has_a",
+   "object": "string",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 5
+  },
+  {
+   "concept": "beverage.n.01",
+   "relation": "has_a",
+   "object": "cream",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "furniture.n.01",
+   "relation": "has_a",
+   "object": "cushion",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "bird.n.01",
+   "relation": "capable_of",
+   "object": "fly in formation",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "invertebrate.n.01",
+   "relation": "has_a",
+   "object": "shell",
+   "right": 1,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "vegetable.n.02",
+   "relation": "has_property",
+   "object": "juicy",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "parrot.n.01",
+   "relation": "capable_of",
+   "object": "eat nectar",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "food.n.01",
+   "relation": "has_a",
+   "object": "bacteria",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "tree.n.01",
+   "relation": "has_property",
+   "object": "deciduous",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "amphibian.n.03",
+   "relation": "has_a",
+   "object": "gill",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "clothing.n.01",
+   "relation": "has_property",
+   "object": "rigid",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "insect.n.01",
+   "relation": "has_a",
+   "object": "ear",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "locust tree.n.01",
+   "relation": "is_a",
+   "object": "tree.n.01",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "invertebrate.n.01",
+   "relation": "capable_of",
+   "object": "grow",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "motorcycle.n.01",
+   "relation": "has_a",
+   "object": "saddle",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "capable_of",
+   "object": "climb tree",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 7
+  },
+  {
+   "concept": "mammal.n.01",
+   "relation": "capable_of",
+   "object": "eat meat",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "mammal.n.01",
+   "relation": "capable_of",
+   "object": "lay egg",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "insect.n.01",
+   "relation": "capable_of",
+   "object": "sting",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "insect.n.01",
+   "relation": "has_a",
+   "object": "four wings",
+   "right": 0,
+   "wrong": 1,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "eagle.n.01",
+   "relation": "is_a",
+   "object": "bird of prey.n.01",
+   "right": 2,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "tree.n.01",
+   "relation": "capable_of",
+   "object": "grow",
+   "right": 2,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "bird.n.01",
+   "relation": "has_a",
+   "object": "beak",
+   "right": 2,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "aircraft.n.01",
+   "relation": "has_a",
+   "object": "engine",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "airplane.n.01",
+   "relation": "is_a",
+   "object": "aircraft.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "car.n.01",
+   "relation": "has_a",
+   "object": "air conditioning",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "clothing.n.01",
+   "relation": "has_property",
+   "object": "fashionable",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "birch.n.02",
+   "relation": "is_a",
+   "object": "tree.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "body part.n.01",
+   "relation": "part_of",
+   "object": "human body",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "conceptnet",
+   "distance": 4
+  },
+  {
+   "concept": "tissue.n.01",
+   "relation": "has_property",
+   "object": "porous",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "butterfly.n.01",
+   "relation": "is_a",
+   "object": "insect.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "buzzard.n.01",
+   "relation": "is_a",
+   "object": "bird of prey.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "camper.n.02",
+   "relation": "has_a",
+   "object": "bed",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_a",
+   "object": "face",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "chain saw.n.01",
+   "relation": "is_a",
+   "object": "power saw.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "machine.n.01",
+   "relation": "has_property",
+   "object": "rigid",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 3
+  },
+  {
+   "concept": "champagne.n.01",
+   "relation": "is_a",
+   "object": "wine.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "cheese.n.01",
+   "relation": "is_a",
+   "object": "dairy product.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "club.n.03",
+   "relation": "is_a",
+   "object": "stick.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "coconut.n.02",
+   "relation": "is_a",
+   "object": "nut.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "produce.n.01",
+   "relation": "has_property",
+   "object": "juicy",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "capable_of",
+   "object": "jump",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 9
+  },
+  {
+   "concept": "bird.n.01",
+   "relation": "has_a",
+   "object": "talon",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "elephant.n.01",
+   "relation": "is_a",
+   "object": "living thing.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 8
+  },
+  {
+   "concept": "falcon.n.01",
+   "relation": "is_a",
+   "object": "bird of prey.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "boat.n.01",
+   "relation": "has_a",
+   "object": "anchor",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "flounder.n.01",
+   "relation": "is_a",
+   "object": "flatfish.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "goldfish.n.01",
+   "relation": "is_a",
+   "object": "fish.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 6
+  },
+  {
+   "concept": "goose.n.01",
+   "relation": "is_a",
+   "object": "waterfowl.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "plant.n.02",
+   "relation": "capable_of",
+   "object": "perform photosynthesis",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 7
+  },
+  {
+   "concept": "guinea pig.n.02",
+   "relation": "is_a",
+   "object": "mammal.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 4
+  },
+  {
+   "concept": "hawk.n.01",
+   "relation": "is_a",
+   "object": "living thing.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 7
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_a",
+   "object": "long neck",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 6
+  },
+  {
+   "concept": "herring.n.02",
+   "relation": "is_a",
+   "object": "fish.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "leg.n.01",
+   "relation": "is_a",
+   "object": "body part.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 4
+  },
+  {
+   "concept": "lemon.n.01",
+   "relation": "is_a",
+   "object": "citrus.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_a",
+   "object": "mouth",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 8
+  },
+  {
+   "concept": "llama.n.01",
+   "relation": "is_a",
+   "object": "animal.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 7
+  },
+  {
+   "concept": "fish.n.01",
+   "relation": "has_a",
+   "object": "gill",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 6
+  },
+  {
+   "concept": "mushroom.n.01",
+   "relation": "is_a",
+   "object": "fungus.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "oak.n.02",
+   "relation": "is_a",
+   "object": "plant.n.02",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 4
+  },
+  {
+   "concept": "oak.n.02",
+   "relation": "is_a",
+   "object": "tree.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "tree.n.01",
+   "relation": "capable_of",
+   "object": "produce wood",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "mammal.n.01",
+   "relation": "has_a",
+   "object": "fur",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 4
+  },
+  {
+   "concept": "oyster.n.01",
+   "relation": "is_a",
+   "object": "mollusk.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "pansy.n.01",
+   "relation": "is_a",
+   "object": "plant.n.02",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 4
+  },
+  {
+   "concept": "bird.n.01",
+   "relation": "capable_of",
+   "object": "sing",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "gun.n.01",
+   "relation": "has_property",
+   "object": "violent",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 2
+  },
+  {
+   "concept": "porcupine.n.01",
+   "relation": "is_a",
+   "object": "rodent.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "prawn.n.02",
+   "relation": "is_a",
+   "object": "arthropod.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "puppet.n.01",
+   "relation": "is_a",
+   "object": "figure.n.04",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "pistol.n.01",
+   "relation": "has_a",
+   "object": "bullet",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 1
+  },
+  {
+   "concept": "rifle.n.01",
+   "relation": "is_a",
+   "object": "gun.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "has_a",
+   "object": "ear",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 7
+  },
+  {
+   "concept": "satsuma.n.02",
+   "relation": "is_a",
+   "object": "citrus.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 2
+  },
+  {
+   "concept": "scorpion.n.03",
+   "relation": "is_a",
+   "object": "arachnid.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "bird.n.01",
+   "relation": "capable_of",
+   "object": "make sound",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "ascentpp",
+   "distance": 5
+  },
+  {
+   "concept": "tambourine.n.01",
+   "relation": "is_a",
+   "object": "musical instrument.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "toaster.n.02",
+   "relation": "is_a",
+   "object": "appliance.n.02",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "wheelchair.n.01",
+   "relation": "is_a",
+   "object": "chair.n.01",
+   "right": 1,
+   "wrong": 0,
+   "unlabelled": 0,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "bullet train.n.01",
+   "relation": "is_a",
+   "object": "public transport.n.01",
+   "right": 0,
+   "wrong": 0,
+   "unlabelled": 1,
+   "source": "wordnet",
+   "distance": 3
+  },
+  {
+   "concept": "animal.n.01",
+   "relation": "capable_of",
+   "object": "make noise",
+   "right": 0,
+   "wrong": 0,
+   "unlabelled": 2,
+   "source": "ascentpp",
+   "distance": 6
+  },
+  {
+   "concept": "organ.n.01",
+   "relation": "is_a",
+   "object": "body part.n.01",
+   "right": 0,
+   "wrong": 0,
+   "unlabelled": 1,
+   "source": "wordnet",
+   "distance": 1
+  },
+  {
+   "concept": "plant.n.02",
+   "relation": "has_property",
+   "object": "deciduous",
+   "right": 0,
+   "wrong": 0,
+   "unlabelled": 1,
+   "source": "ascentpp",
+   "distance": 3
+  }
+ ]
+}

@@ -15,6 +15,9 @@ from pathlib import Path
 from research.v687.reasoning import ReasoningEngine
 from research.v688 import audit
 
+CALLS = (Path(__file__).resolve().parents[2] / "derived"
+         / "r19-calls.json")
+
 seen = collections.Counter()
 sized = {}
 
@@ -60,12 +63,12 @@ def main() -> int:
     spoke = [k for k, (_b, kinds) in sized.items() if kinds >= 8]
     print(f"\ncalls where R19 could speak (>= 8 kinds): "
           f"{len(spoke)} of {len(sized)}")
-    Path("r19-calls.json").write_text(json.dumps(
+    CALLS.write_text(json.dumps(
         {"calls": [{"ancestor": a, "term": t, "hits": n,
                     "bearing": sized[(a, t)][0], "kinds": sized[(a, t)][1]}
                    for (a, t), n in seen.most_common()]}, indent=2),
         encoding="utf-8")
-    print("written to r19-calls.json")
+    print(f"written to {CALLS}")
     return 0
 
 

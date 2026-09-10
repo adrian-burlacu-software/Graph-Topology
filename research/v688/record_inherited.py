@@ -23,7 +23,7 @@ from pathlib import Path
 
 from . import audit
 
-OUT = Path(__file__).resolve().parent / "audit-out" / "inherited.json"
+OUT = Path(__file__).resolve().parents[2] / "derived" / "inherited.json"
 
 
 def run(limit: int = 120, gold: str = "screened",

@@ -1,0 +1,2128 @@
+{
+ "accordion": [
+  "can be of high quality"
+ ],
+ "airplane": [
+  "can be involved in accident",
+  "can travel long distances"
+ ],
+ "alligator": [
+  "can chase people",
+  "can eat fish",
+  "can grow big",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has sharp teeth",
+  "is aquatic"
+ ],
+ "ambulance": [
+  "can be involved in accident",
+  "can end up in ditch",
+  "can travel long distances"
+ ],
+ "ant": [
+  "can be sensitive to smell",
+  "can climb tree",
+  "can prey on pest",
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "antelope": [
+  "can be used in research",
+  "can eat plant",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "apple": [
+  "can be donated to food pantries"
+ ],
+ "apricot": [
+  "can be donated to food pantries"
+ ],
+ "armchair": [
+  "has cushion",
+  "is used for people"
+ ],
+ "artichoke": [
+  "can be used in cooking",
+  "is used for food"
+ ],
+ "ashtray": [
+  "can be built of wood"
+ ],
+ "asparagus": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "avocado": [
+  "can be donated to food pantries"
+ ],
+ "bag": [
+  "can store many different items",
+  "is used for containing"
+ ],
+ "banana": [
+  "can be donated to food pantries",
+  "is yellow"
+ ],
+ "banjo": [
+  "can be of high quality"
+ ],
+ "barge": [
+  "can be involved in accident",
+  "can end up in ditch",
+  "can travel long distances"
+ ],
+ "basket": [
+  "can end up being full",
+  "can store many different items",
+  "can vary in construction",
+  "is used for containing"
+ ],
+ "bat": [
+  "can be used in research",
+  "can find food",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has fur",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "bathtub": [
+  "can be heated",
+  "can hold water"
+ ],
+ "bean": [
+  "can absorb water",
+  "can be used in cooking",
+  "can produce protein",
+  "is edible",
+  "is used for food"
+ ],
+ "bear": [
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "beaver": [
+  "can be used in research",
+  "can come up for air",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "bee": [
+  "can be sensitive to smell",
+  "can fly",
+  "has animal tissue"
+ ],
+ "beer": [
+  "can affect the body",
+  "can be served in mug"
+ ],
+ "beetle": [
+  "can be killed",
+  "can be sensitive to smell",
+  "can climb tree",
+  "can eat plant",
+  "can possess biting jaws",
+  "can prey on pest",
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "bench": [
+  "can be exposed to sunlight"
+ ],
+ "bicycle": [
+  "can be involved in accident",
+  "can end up in ditch"
+ ],
+ "bin": [
+  "can store many different items"
+ ],
+ "birch": [
+  "can survive the cold"
+ ],
+ "blue whale": [
+  "can find food",
+  "can swim in the water",
+  "has animal tissue",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "blueberry": [
+  "can be considered healthy food",
+  "can be donated to food pantries"
+ ],
+ "boat": [
+  "can be built of wood",
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can be sold",
+  "can set sail",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "bobcat": [
+  "can drink water",
+  "can feel pain",
+  "can find food",
+  "can maintain constant body temperature",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is stealthy"
+ ],
+ "bomb": [
+  "can generate heat"
+ ],
+ "bookcase": [
+  "can be used to hold object"
+ ],
+ "bottle": [
+  "is used for containing"
+ ],
+ "bow": [
+  "can be of high quality"
+ ],
+ "bowl": [
+  "can hold water",
+  "is used for containing"
+ ],
+ "box": [
+  "can store many different items"
+ ],
+ "broccoli": [
+  "can be donated to food pantries"
+ ],
+ "brussels_sprout": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "bucket": [
+  "can vary in construction",
+  "is used for containing"
+ ],
+ "budgie": [
+  "can feel pain",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is used for provide companionship"
+ ],
+ "buggy": [
+  "can be involved in accident",
+  "can end up in ditch"
+ ],
+ "bullet": [
+  "can generate heat",
+  "is fast"
+ ],
+ "buttercup": [
+  "is found in outside"
+ ],
+ "butterfly": [
+  "can be sensitive to smell",
+  "can fly",
+  "has animal tissue"
+ ],
+ "buzzard": [
+  "can eat small animals",
+  "can find food",
+  "can fly",
+  "has animal tissue",
+  "has beak"
+ ],
+ "cabbage": [
+  "can be donated to food pantries"
+ ],
+ "calf": [
+  "can feel pain",
+  "can grow big",
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "camel": [
+  "can find food",
+  "has animal tissue"
+ ],
+ "cannon": [
+  "can generate heat"
+ ],
+ "canoe": [
+  "can be built of wood",
+  "can be involved in accident"
+ ],
+ "car": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can be operated on rough or damaged road surfaces",
+  "can be sold",
+  "can comprise a steering system",
+  "can end up in ditch",
+  "can travel long distances"
+ ],
+ "caravan": [
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be heated",
+  "can be involved in accident",
+  "can be sold",
+  "can end up in ditch",
+  "can vary in construction"
+ ],
+ "carp": [
+  "has animal tissue"
+ ],
+ "carriage": [
+  "can be available in white",
+  "can be of high quality"
+ ],
+ "carrot": [
+  "can be donated to food pantries"
+ ],
+ "cart": [
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can end up in ditch",
+  "can vary in construction"
+ ],
+ "cat": [
+  "can climb tree",
+  "can drink water",
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is used for provide companionship"
+ ],
+ "caterpillar": [
+  "can eat plant",
+  "can feed on leave",
+  "has animal tissue",
+  "is found in tree"
+ ],
+ "cauliflower": [
+  "can be donated to food pantries"
+ ],
+ "celery": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "cello": [
+  "can be of high quality",
+  "can be used in orchestra"
+ ],
+ "centipede": [
+  "has animal tissue"
+ ],
+ "chair": [
+  "can be exposed to sunlight",
+  "can be used to hold object"
+ ],
+ "cheese": [
+  "has bacteria"
+ ],
+ "cheetah": [
+  "can be outside a body of water",
+  "can drink water",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "cherry": [
+  "is used for food"
+ ],
+ "chest_of_drawers": [
+  "can be used to hold object"
+ ],
+ "chestnut": [
+  "is found in outside",
+  "is used for food"
+ ],
+ "chicken": [
+  "can feel pain",
+  "can find food",
+  "can maintain their body temperature",
+  "can run after prey",
+  "has animal tissue",
+  "has beak"
+ ],
+ "chimpanzee": [
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "chipmunk": [
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "cider": [
+  "can be full of flavour",
+  "can be served in mug"
+ ],
+ "clam": [
+  "has animal tissue",
+  "has shell",
+  "is aquatic"
+ ],
+ "clarinet": [
+  "can be of high quality",
+  "is found in high school bandroom"
+ ],
+ "clock": [
+  "can be concealed",
+  "can be connected to the web"
+ ],
+ "club": [
+  "can be founded"
+ ],
+ "cockerel": [
+  "can be provided with food",
+  "can feel pain",
+  "can find food",
+  "can maintain their body temperature",
+  "can make a lot of noise",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has beak"
+ ],
+ "cockroach": [
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "coffee": [
+  "can be served in mug"
+ ],
+ "collie": [
+  "can be boarded",
+  "can be outside a body of water",
+  "can be used in research",
+  "can chase people",
+  "can feel pain",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "corn": [
+  "can be used in cooking",
+  "can produce protein",
+  "is edible",
+  "is used for food"
+ ],
+ "cow": [
+  "can be used in research",
+  "can eat plant",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "crab": [
+  "can eat fish",
+  "has animal tissue",
+  "has shell",
+  "is aquatic"
+ ],
+ "crane": [
+  "can be of high quality",
+  "is strong"
+ ],
+ "crayfish": [
+  "can swim in the water",
+  "has animal tissue",
+  "has shell",
+  "is aquatic"
+ ],
+ "crocodile": [
+  "can eat fish",
+  "can grow big",
+  "can swim in the water",
+  "has animal tissue",
+  "has sharp teeth",
+  "is aquatic"
+ ],
+ "crossbow": [
+  "can be of high quality",
+  "can fall into wrong hands"
+ ],
+ "cucumber": [
+  "can be donated to food pantries",
+  "can be kept cool"
+ ],
+ "cup": [
+  "is round",
+  "is used for containing"
+ ],
+ "cymbal": [
+  "can be of high quality",
+  "is found in drum store"
+ ],
+ "daffodil": [
+  "is found in outside"
+ ],
+ "daisy": [
+  "can produce seed",
+  "is found in outside"
+ ],
+ "dalmatian": [
+  "can be boarded",
+  "can be outside a body of water",
+  "can chase people",
+  "can feel pain",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "is used for provide companionship"
+ ],
+ "dandelion": [
+  "can produce seed",
+  "is found in outside"
+ ],
+ "deckchair": [
+  "can be exposed to sunlight"
+ ],
+ "deer": [
+  "can be riddled with bullet",
+  "can be used in research",
+  "can eat plant",
+  "can feel pain",
+  "can find food",
+  "can maintain constant body temperature",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "desk": [
+  "can be exposed to sunlight",
+  "can be used to hold object"
+ ],
+ "dinghy": [
+  "can be built of wood",
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "is found in sea"
+ ],
+ "dog": [
+  "can be used in research",
+  "can chase people",
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood",
+  "is used for provide companionship"
+ ],
+ "doll": [
+  "can be attached to stroller",
+  "can be placed on seamless hard surface"
+ ],
+ "dolphin": [
+  "can be used in research",
+  "can come up for air",
+  "can eat fish",
+  "can find food",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has sharp teeth",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "donkey": [
+  "can be outside a body of water",
+  "can feel pain",
+  "can make noise",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "dove": [
+  "can be used in research",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "has animal tissue",
+  "has beak"
+ ],
+ "dragonfly": [
+  "can fly",
+  "can prey on pest",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "dress": [
+  "can make statement"
+ ],
+ "dresser": [
+  "can be used to hold object"
+ ],
+ "duck": [
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can maintain their body temperature",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak",
+  "is aquatic"
+ ],
+ "eagle": [
+  "can be perched on rock",
+  "can eat fish",
+  "can eat small animals",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "has animal tissue",
+  "has beak"
+ ],
+ "eggplant": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "elephant": [
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has warm blood",
+  "is found in group"
+ ],
+ "elm": [
+  "can absorb water",
+  "can be destroyed by fire",
+  "can grow tall",
+  "is deciduous"
+ ],
+ "emu": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can maintain their body temperature",
+  "can run after prey",
+  "has animal tissue",
+  "has beak",
+  "is large"
+ ],
+ "eucalyptus": [
+  "can absorb water",
+  "can be destroyed by fire",
+  "can breathe out oxygen",
+  "can grow tall"
+ ],
+ "falcon": [
+  "can be perched on rock",
+  "can eat fish",
+  "can eat small animals",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "has animal tissue",
+  "has beak"
+ ],
+ "ferry": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can set sail",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "flamingo": [
+  "can walk on two legs",
+  "has animal tissue",
+  "has beak"
+ ],
+ "flea": [
+  "can possess biting jaws",
+  "can run after prey",
+  "has animal tissue",
+  "has sharp teeth"
+ ],
+ "flute": [
+  "can be of high quality"
+ ],
+ "fox": [
+  "can be outside a body of water",
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is stealthy"
+ ],
+ "french_horn": [
+  "can be used in jazz music",
+  "is used for make sounds"
+ ],
+ "frog": [
+  "can be used in research",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "garlic": [
+  "can be used in traditional medicine",
+  "is used for food"
+ ],
+ "geranium": [
+  "is found in outside"
+ ],
+ "gerbil": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "german shepherd": [
+  "can be boarded",
+  "can be outside a body of water",
+  "can be used in research",
+  "can chase people",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "giant panda": [
+  "can feel pain",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has long arms",
+  "has warm blood"
+ ],
+ "giraffe": [
+  "can be outside a body of water",
+  "can eat plant",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "goat": [
+  "can be outside a body of water",
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "goldfish": [
+  "can be used in research",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "is aquatic"
+ ],
+ "gong": [
+  "can be of high quality"
+ ],
+ "goose": [
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make a lot of noise",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak",
+  "is large"
+ ],
+ "gorilla": [
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has long arms",
+  "has warm blood"
+ ],
+ "grape": [
+  "can be donated to food pantries"
+ ],
+ "grapefruit": [
+  "is used for food"
+ ],
+ "grasshopper": [
+  "can eat plant",
+  "has animal tissue"
+ ],
+ "grizzly bear": [
+  "can be found near water",
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "guinea_pig": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "guitar": [
+  "can be available in white",
+  "can be of high quality"
+ ],
+ "gun": [
+  "can be concealed"
+ ],
+ "hamster": [
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "harmonica": [
+  "can be concealed",
+  "can be of high quality"
+ ],
+ "harp": [
+  "can be of high quality",
+  "can be used in orchestra"
+ ],
+ "harpsichord": [
+  "can be of high quality",
+  "has keyboard"
+ ],
+ "hawk": [
+  "can be outside a body of water",
+  "can be perched on rock",
+  "can eat small animals",
+  "can find food",
+  "can fly",
+  "can leave the area",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is airborne"
+ ],
+ "hedgehog": [
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "helicopter": [
+  "can be equipped with seat belts",
+  "can be involved in accident"
+ ],
+ "heron": [
+  "can be perched on rock",
+  "can be used in research",
+  "can eat fish",
+  "can eat small animals",
+  "can find food",
+  "can fly",
+  "can make nest",
+  "can swim in the water",
+  "has animal tissue"
+ ],
+ "hippo": [
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has warm blood",
+  "is found in water"
+ ],
+ "hippopotamus": [
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has warm blood",
+  "is found in water"
+ ],
+ "hornet": [
+  "can fly",
+  "can sting",
+  "has animal tissue"
+ ],
+ "horse": [
+  "can be outside a body of water",
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "houseboat": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can travel long distances"
+ ],
+ "housefly": [
+  "can fly",
+  "has animal tissue"
+ ],
+ "hummingbird": [
+  "can be used in research",
+  "can find food",
+  "can fly",
+  "can pollinate plant",
+  "has animal tissue",
+  "has beak",
+  "is airborne",
+  "is found in tree"
+ ],
+ "humpback whale": [
+  "can be used in research",
+  "can come up for air",
+  "can eat fish",
+  "can find food",
+  "can grow big",
+  "can grow in size",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "hyena": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "ice_cream": [
+  "is sweet"
+ ],
+ "iguana": [
+  "can feel pain",
+  "can grow big",
+  "can run after prey",
+  "has animal tissue",
+  "has leg"
+ ],
+ "jacket": [
+  "can make statement",
+  "has sleeve"
+ ],
+ "jar": [
+  "is used for containing"
+ ],
+ "jellyfish": [
+  "can be preyed on by fish",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "jug": [
+  "can be exposed to the sun",
+  "can be filled with salt",
+  "can vary in construction",
+  "is used for containing"
+ ],
+ "kangaroo": [
+  "can be outside a body of water",
+  "can chase people",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "kayak": [
+  "can be built of wood",
+  "can be involved in accident"
+ ],
+ "killer whale": [
+  "can come up for air",
+  "can eat fish",
+  "can find food",
+  "can grow big",
+  "can grow in size",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has sharp teeth",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "kingfisher": [
+  "can be perched on rock",
+  "can eat fish",
+  "can find food",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is aquatic"
+ ],
+ "kiwi": [
+  "is used for food"
+ ],
+ "ladle": [
+  "can hold water"
+ ],
+ "ladybird": [
+  "can climb tree",
+  "can fly",
+  "can prey on pest",
+  "has animal tissue"
+ ],
+ "lamp": [
+  "can be exposed to sunlight"
+ ],
+ "leek": [
+  "is used for food"
+ ],
+ "leg": [
+  "can be available in white"
+ ],
+ "lemon": [
+  "is used for food"
+ ],
+ "leopard": [
+  "can drink water",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth"
+ ],
+ "lettuce": [
+  "can be donated to food pantries"
+ ],
+ "lime": [
+  "is used for food"
+ ],
+ "limousine": [
+  "can be equipped with seat belts",
+  "can be heated",
+  "can be involved in accident",
+  "can travel long distances",
+  "can vary in construction",
+  "has air conditioning",
+  "has leather seats"
+ ],
+ "lion": [
+  "can be outside a body of water",
+  "can drink water",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "lizard": [
+  "can be used in research",
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "llama": [
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "lorry": [
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can collided with one other vehicle",
+  "can comprise a container body",
+  "can end up in ditch",
+  "can store many different items",
+  "can travel long distances",
+  "can vary in construction"
+ ],
+ "magpie": [
+  "can be perched on rock",
+  "can climb tree",
+  "can eat small animals",
+  "can find food",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is found in tree"
+ ],
+ "mango": [
+  "can be donated to food pantries"
+ ],
+ "marigold": [
+  "can absorb water",
+  "can attract butterfly",
+  "is found in outside"
+ ],
+ "melon": [
+  "is used for food"
+ ],
+ "millipede": [
+  "has animal tissue"
+ ],
+ "minnow": [
+  "can be used in research",
+  "can eat algae",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "is aquatic"
+ ],
+ "monkey": [
+  "can climb tree",
+  "can feel pain",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has hand",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "moose": [
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood",
+  "is found in water"
+ ],
+ "moped": [
+  "can be driven by person",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can comprise a steering system",
+  "can end up in ditch",
+  "can stop in dry conditions"
+ ],
+ "mosquito": [
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "moth": [
+  "can be sensitive to smell",
+  "has animal tissue"
+ ],
+ "motorcycle": [
+  "can be driven by person",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can comprise a steering system",
+  "can end up in ditch",
+  "can travel long distances"
+ ],
+ "mouse": [
+  "can detect movement",
+  "can get warm"
+ ],
+ "mug": [
+  "is used for containing"
+ ],
+ "nectarine": [
+  "is used for food"
+ ],
+ "oak": [
+  "can absorb water",
+  "can grow tall",
+  "is found in outside"
+ ],
+ "octopus": [
+  "can eat fish",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "oil_tanker": [
+  "can be involved in accident",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "olive": [
+  "is used for food"
+ ],
+ "onion": [
+  "can be donated to food pantries"
+ ],
+ "orange": [
+  "can be donated to food pantries"
+ ],
+ "otter": [
+  "can come up for air",
+  "can eat fish",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "owl": [
+  "can be perched on rock",
+  "can be used in research",
+  "can eat fish",
+  "can eat small animals",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "has sharp teeth",
+  "is airborne",
+  "is found in tree"
+ ],
+ "ox": [
+  "can feel pain",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "oyster": [
+  "can be preyed on by fish",
+  "has animal tissue",
+  "has shell",
+  "is aquatic"
+ ],
+ "panther": [
+  "can drink water",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has warm blood"
+ ],
+ "parakeet": [
+  "can be perched on rock",
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make a lot of noise",
+  "can make noise",
+  "has animal tissue",
+  "has beak"
+ ],
+ "parsley": [
+  "can be consumed for nutrition"
+ ],
+ "pea": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "peach": [
+  "can be donated to food pantries"
+ ],
+ "peacock": [
+  "can fly",
+  "has animal tissue"
+ ],
+ "peanut": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "pear": [
+  "is deciduous",
+  "is used for food"
+ ],
+ "pelican": [
+  "can be used in research",
+  "can eat fish",
+  "can find food",
+  "can fly",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak",
+  "is aquatic"
+ ],
+ "penguin": [
+  "can eat fish",
+  "can find food",
+  "can maintain their body temperature",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak",
+  "is aquatic"
+ ],
+ "persian cat": [
+  "can drink water",
+  "can feel pain",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "is used for provide companionship"
+ ],
+ "piano": [
+  "can be of high quality",
+  "can be used in orchestra",
+  "has keyboard"
+ ],
+ "pigeon": [
+  "can be used in research",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make noise",
+  "has animal tissue",
+  "has beak"
+ ],
+ "pineapple": [
+  "can be donated to food pantries"
+ ],
+ "pistol": [
+  "can be of high quality",
+  "can end up in the hands of criminals"
+ ],
+ "plate": [
+  "can be available in white"
+ ],
+ "platypus": [
+  "can be used in research",
+  "can eat fish",
+  "can find food",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "plum": [
+  "can be considered healthy food",
+  "can be donated to food pantries"
+ ],
+ "polar bear": [
+  "can be found near water",
+  "can come up for air",
+  "can feel pain",
+  "can find food",
+  "can grow big",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood",
+  "is found in water"
+ ],
+ "pony": [
+  "can be outside a body of water",
+  "can eat plant",
+  "can feel pain",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "poppy": [
+  "can be used in traditional medicine"
+ ],
+ "porcupine": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has fur",
+  "has warm blood"
+ ],
+ "potato": [
+  "can be donated to food pantries",
+  "can be roasted"
+ ],
+ "prune": [
+  "can be donated to food pantries"
+ ],
+ "pumpkin": [
+  "is used for food"
+ ],
+ "rabbit": [
+  "can feel pain",
+  "can find food",
+  "can give birth to live young",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "raccoon": [
+  "can be used in research",
+  "can chase people",
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can give birth to live young",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "radish": [
+  "can absorb water",
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "raisin": [
+  "can be donated to food pantries"
+ ],
+ "raspberry": [
+  "can be considered healthy food",
+  "can be donated to food pantries"
+ ],
+ "rat": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "rattlesnake": [
+  "can be used in research",
+  "has animal tissue"
+ ],
+ "raven": [
+  "can be perched on rock",
+  "can be used in research",
+  "can eat small animals",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is found in tree"
+ ],
+ "rhino": [
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "rhinoceros": [
+  "can be outside a body of water",
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "rhubarb": [
+  "can be used in cooking",
+  "is used for food"
+ ],
+ "rifle": [
+  "can be of high quality",
+  "can end up in the hands of criminals"
+ ],
+ "robe": [
+  "can be pulled over the head"
+ ],
+ "robin": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make nest",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is found in tree"
+ ],
+ "salmon": [
+  "can be packed with protein",
+  "can be used in research",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "is aquatic"
+ ],
+ "satsuma": [
+  "is used for food"
+ ],
+ "saw": [
+  "can be of high quality"
+ ],
+ "saxophone": [
+  "can be of high quality",
+  "is found in high school bandroom"
+ ],
+ "scalpel": [
+  "can be of high quality"
+ ],
+ "scarf": [
+  "can be pulled over the head",
+  "can make statement"
+ ],
+ "scorpion": [
+  "has animal tissue",
+  "has head"
+ ],
+ "screw": [
+  "can be of high quality"
+ ],
+ "seagull": [
+  "can be perched on rock",
+  "can be used in research",
+  "can eat fish",
+  "can find food",
+  "can fly",
+  "can make a lot of noise",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak"
+ ],
+ "seahorse": [
+  "can be found in ocean",
+  "can be used in research",
+  "can eat fish",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "shark": [
+  "can be found in ocean",
+  "can be used in research",
+  "can eat fish",
+  "can grow big",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has sharp teeth",
+  "is aquatic"
+ ],
+ "shawl": [
+  "can be pulled over the head"
+ ],
+ "ship": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can be sold",
+  "can set sail",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "shirt": [
+  "can be washed in cold water",
+  "has sleeve"
+ ],
+ "shotgun": [
+  "can end up in the hands of criminals"
+ ],
+ "shrimp": [
+  "can be preyed on by fish",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "siamese cat": [
+  "can drink water",
+  "can feel pain",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs"
+ ],
+ "skateboard": [
+  "can be involved in accident"
+ ],
+ "skunk": [
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has fur",
+  "has warm blood"
+ ],
+ "snail": [
+  "can be preyed on by fish",
+  "can eat plant",
+  "has animal tissue",
+  "has shell"
+ ],
+ "sofa": [
+  "can be exposed to sunlight"
+ ],
+ "sparrow": [
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make nest",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is found in tree"
+ ],
+ "speedboat": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can be made fast",
+  "has engine",
+  "is fast",
+  "is found in sea"
+ ],
+ "spider": [
+  "has animal tissue",
+  "has head"
+ ],
+ "spider monkey": [
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has long arms",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "spinach": [
+  "can be donated to food pantries"
+ ],
+ "spoon": [
+  "is used for containing"
+ ],
+ "squid": [
+  "can eat fish",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "is aquatic"
+ ],
+ "squirrel": [
+  "can climb tree",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood",
+  "is found in tree"
+ ],
+ "starling": [
+  "can be perched on rock",
+  "can be used in research",
+  "can find food",
+  "can fly",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is airborne",
+  "is found in tree"
+ ],
+ "stick_insect": [
+  "has animal tissue"
+ ],
+ "strainer": [
+  "can be available in white",
+  "can be of high quality"
+ ],
+ "strawberry": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "submarine": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "sugar": [
+  "can be consumed for nutrition",
+  "is sweet"
+ ],
+ "suit": [
+  "can be paid by credit card",
+  "has sleeve"
+ ],
+ "sunflower": [
+  "can produce protein",
+  "is found in outside"
+ ],
+ "swan": [
+  "can eat fish",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can swim in the water",
+  "has animal tissue",
+  "has beak",
+  "is aquatic"
+ ],
+ "sweater": [
+  "can be pulled over the head"
+ ],
+ "sweet_potato": [
+  "is used for food"
+ ],
+ "sycamore": [
+  "can absorb water",
+  "can grow tall",
+  "is deciduous"
+ ],
+ "table": [
+  "can be exposed to sunlight"
+ ],
+ "tambourine": [
+  "can be of high quality"
+ ],
+ "tangerine": [
+  "is used for food"
+ ],
+ "tank": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can end up in ditch",
+  "can store many different items"
+ ],
+ "tarantula": [
+  "can feel pain",
+  "can run after prey",
+  "has animal tissue"
+ ],
+ "taxi": [
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can comprise a steering system",
+  "can end up being full",
+  "can end up in ditch",
+  "can travel long distances",
+  "can vary in construction"
+ ],
+ "tea": [
+  "can be used in traditional medicine"
+ ],
+ "termite": [
+  "has animal tissue"
+ ],
+ "throne": [
+  "is used for people"
+ ],
+ "tiger": [
+  "can drink water",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "can swim in the water",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "toad": [
+  "can be used in research",
+  "has animal tissue"
+ ],
+ "tomato": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "tortoise": [
+  "can be used in research",
+  "has animal tissue",
+  "has leg",
+  "has shell"
+ ],
+ "tractor": [
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can end up in ditch",
+  "can vary in construction"
+ ],
+ "tray": [
+  "can end up being full",
+  "can vary in construction"
+ ],
+ "tricycle": [
+  "can be driven by person",
+  "can be involved in accident",
+  "can end up in ditch"
+ ],
+ "trolley": [
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can store many different items"
+ ],
+ "trombone": [
+  "can be used in jazz music",
+  "is used for make sounds"
+ ],
+ "trout": [
+  "can be used in research",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has sharp teeth",
+  "is aquatic"
+ ],
+ "truck": [
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be involved in accident",
+  "can comprise a container body",
+  "can comprise a steering system",
+  "can end up in ditch",
+  "can travel long distances"
+ ],
+ "trumpet": [
+  "can be of high quality",
+  "can be used in jazz music",
+  "is used for make sounds"
+ ],
+ "tuba": [
+  "is used for make sounds"
+ ],
+ "tugboat": [
+  "can be involved in accident",
+  "has engine",
+  "is found in sea"
+ ],
+ "turnip": [
+  "can be used in cooking",
+  "is edible",
+  "is used for food"
+ ],
+ "turtle": [
+  "can be used in research",
+  "can eat fish",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has leg",
+  "has shell",
+  "is aquatic"
+ ],
+ "unicycle": [
+  "can be driven by person"
+ ],
+ "van": [
+  "can be driven by person",
+  "can be equipped with air brakes",
+  "can be equipped with seat belts",
+  "can be exposed to the sun",
+  "can be heated",
+  "can be involved in accident",
+  "can comprise a container body",
+  "can end up being full",
+  "can end up in ditch",
+  "can store many different items",
+  "can travel long distances",
+  "can vary in construction"
+ ],
+ "violin": [
+  "can be of high quality",
+  "can be used in orchestra"
+ ],
+ "wallet": [
+  "can end up being full",
+  "can store many different items"
+ ],
+ "walrus": [
+  "can come up for air",
+  "can feel pain",
+  "can find food",
+  "can swim in the water",
+  "has animal tissue",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "wasp": [
+  "can be sensitive to smell",
+  "can fly",
+  "can prey on pest",
+  "can run after prey",
+  "can sting",
+  "has animal tissue"
+ ],
+ "watermelon": [
+  "can be donated to food pantries",
+  "is sweet"
+ ],
+ "weasel": [
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has warm blood"
+ ],
+ "whale": [
+  "can be used in research",
+  "can come up for air",
+  "can eat fish",
+  "can find food",
+  "can grow big",
+  "can make noise",
+  "can swim in the water",
+  "has animal tissue",
+  "has fin",
+  "has warm blood",
+  "is aquatic",
+  "is found in water"
+ ],
+ "wheelbarrow": [
+  "can be exposed to the sun",
+  "can end up being full",
+  "is used for containing"
+ ],
+ "wheelchair": [
+  "has rounded edges",
+  "is used for people"
+ ],
+ "whiskey": [
+  "can affect the body",
+  "can be served in mug"
+ ],
+ "willow": [
+  "is deciduous",
+  "is found in outside"
+ ],
+ "wine": [
+  "can affect the body",
+  "can be full of flavour"
+ ],
+ "wolf": [
+  "can be outside a body of water",
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can make noise",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur",
+  "has sharp teeth",
+  "has warm blood"
+ ],
+ "woodpecker": [
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can fly",
+  "can maintain their body temperature",
+  "can make a lot of noise",
+  "can make noise",
+  "has animal tissue",
+  "has beak",
+  "is found in tree"
+ ],
+ "wren": [
+  "can be perched on rock",
+  "can climb tree",
+  "can find food",
+  "can fly",
+  "can make nest",
+  "can make noise",
+  "has animal tissue",
+  "has beak"
+ ],
+ "yacht": [
+  "can be equipped with seat belts",
+  "can be involved in accident",
+  "can be sold",
+  "can set sail",
+  "can travel long distances",
+  "is found in sea"
+ ],
+ "yoghurt": [
+  "has bacteria"
+ ],
+ "zebra": [
+  "can be outside a body of water",
+  "can be used in research",
+  "can feel pain",
+  "can find food",
+  "can run after prey",
+  "has animal tissue",
+  "has four legs",
+  "has fur"
+ ],
+ "zucchini": [
+  "is used for food"
+ ]
+}

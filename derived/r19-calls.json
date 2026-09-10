@@ -1,0 +1,3875 @@
+{
+  "calls": [
+    {
+      "ancestor": "animal.n.01",
+      "term": "used",
+      "hits": 96,
+      "bearing": 14,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "make",
+      "hits": 90,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "water",
+      "hits": 67,
+      "bearing": 11,
+      "kinds": 52
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "board",
+      "hits": 40,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "water",
+      "hits": 24,
+      "bearing": 3,
+      "kinds": 39
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "used",
+      "hits": 24,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "save",
+      "hits": 22,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "found",
+      "hits": 17,
+      "bearing": 36,
+      "kinds": 65
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "support",
+      "hits": 16,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "food",
+      "hits": 15,
+      "bearing": 2,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "made",
+      "hits": 14,
+      "bearing": 15,
+      "kinds": 143
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "involved",
+      "hits": 14,
+      "bearing": 1,
+      "kinds": 37
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "kill",
+      "hits": 13,
+      "bearing": 9,
+      "kinds": 143
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "get",
+      "hits": 13,
+      "bearing": 0,
+      "kinds": 10
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "food",
+      "hits": 12,
+      "bearing": 4,
+      "kinds": 27
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "old",
+      "hits": 12,
+      "bearing": 3,
+      "kinds": 17
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "food",
+      "hits": 10,
+      "bearing": 9,
+      "kinds": 52
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "cover",
+      "hits": 10,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "time",
+      "hits": 9,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "time",
+      "hits": 9,
+      "bearing": 4,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "noise",
+      "hits": 8,
+      "bearing": 17,
+      "kinds": 143
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "kept",
+      "hits": 8,
+      "bearing": 9,
+      "kinds": 52
+    },
+    {
+      "ancestor": "boat.n.01",
+      "term": "hard",
+      "hits": 8,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "surface",
+      "hits": 8,
+      "bearing": 4,
+      "kinds": 37
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "measure",
+      "hits": 8,
+      "bearing": 2,
+      "kinds": 59
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "credit",
+      "hits": 8,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "attracted",
+      "hits": 7,
+      "bearing": 9,
+      "kinds": 52
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "board",
+      "hits": 7,
+      "bearing": 0,
+      "kinds": 7
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "involved",
+      "hits": 7,
+      "bearing": 0,
+      "kinds": 14
+    },
+    {
+      "ancestor": "boat.n.01",
+      "term": "surface",
+      "hits": 7,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "produced",
+      "hits": 7,
+      "bearing": 2,
+      "kinds": 27
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "leaves",
+      "hits": 7,
+      "bearing": 11,
+      "kinds": 143
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "get",
+      "hits": 7,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "full",
+      "hits": 7,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "person",
+      "hits": 7,
+      "bearing": 7,
+      "kinds": 37
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "fishes",
+      "hits": 6,
+      "bearing": 4,
+      "kinds": 31
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "made",
+      "hits": 6,
+      "bearing": 3,
+      "kinds": 15
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "body",
+      "hits": 6,
+      "bearing": 5,
+      "kinds": 59
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "found",
+      "hits": 6,
+      "bearing": 23,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "animal",
+      "hits": 6,
+      "bearing": 41,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "served",
+      "hits": 6,
+      "bearing": 1,
+      "kinds": 39
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "sold",
+      "hits": 6,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "smell",
+      "hits": 6,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "time",
+      "hits": 6,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "produce",
+      "hits": 6,
+      "bearing": 2,
+      "kinds": 27
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "air",
+      "hits": 6,
+      "bearing": 9,
+      "kinds": 37
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "blooded",
+      "hits": 6,
+      "bearing": 4,
+      "kinds": 65
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "end",
+      "hits": 5,
+      "bearing": 2,
+      "kinds": 39
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "mane",
+      "hits": 5,
+      "bearing": 4,
+      "kinds": 143
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "water",
+      "hits": 5,
+      "bearing": 3,
+      "kinds": 18
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "play",
+      "hits": 5,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "large",
+      "hits": 5,
+      "bearing": 1,
+      "kinds": 52
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "used",
+      "hits": 5,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "eat",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 18
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "heat",
+      "hits": 4,
+      "bearing": 2,
+      "kinds": 39
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "used",
+      "hits": 4,
+      "bearing": 2,
+      "kinds": 31
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "fire",
+      "hits": 4,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "grow",
+      "hits": 4,
+      "bearing": 2,
+      "kinds": 65
+    },
+    {
+      "ancestor": "vertebrate.n.01",
+      "term": "used",
+      "hits": 4,
+      "bearing": 12,
+      "kinds": 110
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "live",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 52
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "made",
+      "hits": 4,
+      "bearing": 2,
+      "kinds": 17
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "noise",
+      "hits": 4,
+      "bearing": 5,
+      "kinds": 29
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "long",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 27
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "used",
+      "hits": 4,
+      "bearing": 10,
+      "kinds": 65
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "food",
+      "hits": 4,
+      "bearing": 4,
+      "kinds": 65
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "made",
+      "hits": 4,
+      "bearing": 4,
+      "kinds": 52
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "transmit",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "found",
+      "hits": 4,
+      "bearing": 2,
+      "kinds": 15
+    },
+    {
+      "ancestor": "vine.n.01",
+      "term": "cover",
+      "hits": 4,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "cover",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 52
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "four",
+      "hits": 4,
+      "bearing": 15,
+      "kinds": 143
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "bad",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "bullets",
+      "hits": 4,
+      "bearing": 6,
+      "kinds": 15
+    },
+    {
+      "ancestor": "chair.n.01",
+      "term": "people",
+      "hits": 4,
+      "bearing": 3,
+      "kinds": 5
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "cream",
+      "hits": 4,
+      "bearing": 1,
+      "kinds": 10
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "full",
+      "hits": 4,
+      "bearing": 0,
+      "kinds": 10
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "cold",
+      "hits": 4,
+      "bearing": 14,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "sense",
+      "hits": 4,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "air",
+      "hits": 4,
+      "bearing": 7,
+      "kinds": 39
+    },
+    {
+      "ancestor": "motor vehicle.n.01",
+      "term": "cover",
+      "hits": 4,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "large",
+      "hits": 4,
+      "bearing": 3,
+      "kinds": 29
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "worn",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "conceal",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "catch",
+      "hits": 3,
+      "bearing": 3,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "dry",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "car.n.01",
+      "term": "made",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "car.n.01",
+      "term": "real",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "car.n.01",
+      "term": "leather",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "animals",
+      "hits": 3,
+      "bearing": 41,
+      "kinds": 143
+    },
+    {
+      "ancestor": "whale.n.02",
+      "term": "board",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 4
+    },
+    {
+      "ancestor": "dog.n.01",
+      "term": "board",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "fingerprint",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "come",
+      "hits": 3,
+      "bearing": 9,
+      "kinds": 52
+    },
+    {
+      "ancestor": "dog.n.01",
+      "term": "contain",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "save",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "body",
+      "hits": 3,
+      "bearing": 41,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "produce",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "rocks",
+      "hits": 3,
+      "bearing": 8,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "feeling",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "common",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "cold",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "messages",
+      "hits": 3,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "fine",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "shaped",
+      "hits": 3,
+      "bearing": 2,
+      "kinds": 18
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "allow",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "require",
+      "hits": 3,
+      "bearing": 7,
+      "kinds": 36
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "prey",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "prey",
+      "hits": 3,
+      "bearing": 18,
+      "kinds": 143
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "much",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "beak",
+      "hits": 3,
+      "bearing": 27,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "switch",
+      "hits": 3,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "bacteria",
+      "hits": 3,
+      "bearing": 1,
+      "kinds": 27
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "webbed",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "dog.n.01",
+      "term": "transport",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "long",
+      "hits": 3,
+      "bearing": 12,
+      "kinds": 59
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "filled",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "trees",
+      "hits": 3,
+      "bearing": 25,
+      "kinds": 143
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "ears",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "fly",
+      "hits": 3,
+      "bearing": 30,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "add",
+      "hits": 3,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "people",
+      "hits": 3,
+      "bearing": 4,
+      "kinds": 143
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "kept",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "food",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 18
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "thin",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 59
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "conceal",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "yellow",
+      "hits": 2,
+      "bearing": 4,
+      "kinds": 18
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "fishes",
+      "hits": 2,
+      "bearing": 38,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "sun",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "play",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 28
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "high",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 59
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "make",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 28
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "transport",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "sharp",
+      "hits": 2,
+      "bearing": 22,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "construction",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "end",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 37
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "made",
+      "hits": 2,
+      "bearing": 21,
+      "kinds": 39
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "warm",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 65
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "water",
+      "hits": 2,
+      "bearing": 14,
+      "kinds": 65
+    },
+    {
+      "ancestor": "whale.n.02",
+      "term": "found",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 4
+    },
+    {
+      "ancestor": "rodent.n.01",
+      "term": "found",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 8
+    },
+    {
+      "ancestor": "bear.n.01",
+      "term": "board",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "bear.n.01",
+      "term": "found",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "found",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "dairy product.n.01",
+      "term": "served",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 4
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "different",
+      "hits": 2,
+      "bearing": 9,
+      "kinds": 59
+    },
+    {
+      "ancestor": "seafood.n.01",
+      "term": "body",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 10
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "slots",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "cold",
+      "hits": 2,
+      "bearing": 4,
+      "kinds": 52
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "strong",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 59
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "body",
+      "hits": 2,
+      "bearing": 22,
+      "kinds": 65
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "movement",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 59
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "make",
+      "hits": 2,
+      "bearing": 14,
+      "kinds": 29
+    },
+    {
+      "ancestor": "boat.n.01",
+      "term": "involved",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "avoid",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "body",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 29
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "fast",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "different",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "cold",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 28
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "fine",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "reptile.n.01",
+      "term": "two",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 7
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "hands",
+      "hits": 2,
+      "bearing": 11,
+      "kinds": 143
+    },
+    {
+      "ancestor": "vine.n.01",
+      "term": "white",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "petals",
+      "hits": 2,
+      "bearing": 14,
+      "kinds": 52
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "inedible",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "made",
+      "hits": 2,
+      "bearing": 5,
+      "kinds": 65
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "teeth",
+      "hits": 2,
+      "bearing": 24,
+      "kinds": 143
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "white",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "repairing",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 28
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "eggs",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "cold",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "deciduous",
+      "hits": 2,
+      "bearing": 6,
+      "kinds": 52
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "cut",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "cold",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 29
+    },
+    {
+      "ancestor": "ship.n.01",
+      "term": "real",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "large",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "come",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "rounded",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "swimming",
+      "hits": 2,
+      "bearing": 17,
+      "kinds": 143
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "prey",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 31
+    },
+    {
+      "ancestor": "alcohol.n.01",
+      "term": "large",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 6
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "follow",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "warm",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "blooded",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 59
+    },
+    {
+      "ancestor": "vegetable.n.02",
+      "term": "juicy",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "drink",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 52
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "a beak",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "legs",
+      "hits": 2,
+      "bearing": 15,
+      "kinds": 65
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "time",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "live",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "breathe",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "as",
+      "hits": 2,
+      "bearing": 6,
+      "kinds": 65
+    },
+    {
+      "ancestor": "boat.n.01",
+      "term": "engine",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 8
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "meat",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 27
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "provide",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "food.n.02",
+      "term": "part",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 51
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "humans",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 27
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "stealthy",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "played",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 39
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "fur",
+      "hits": 2,
+      "bearing": 13,
+      "kinds": 65
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "sense",
+      "hits": 2,
+      "bearing": 9,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "smell",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "fins",
+      "hits": 2,
+      "bearing": 5,
+      "kinds": 143
+    },
+    {
+      "ancestor": "amphibian.n.03",
+      "term": "gills",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "shell",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 28
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "rigid",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 28
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "contain",
+      "hits": 2,
+      "bearing": 11,
+      "kinds": 36
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "pot",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "red",
+      "hits": 2,
+      "bearing": 2,
+      "kinds": 16
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "used",
+      "hits": 2,
+      "bearing": 6,
+      "kinds": 10
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "make",
+      "hits": 2,
+      "bearing": 8,
+      "kinds": 10
+    },
+    {
+      "ancestor": "motor vehicle.n.01",
+      "term": "steering",
+      "hits": 2,
+      "bearing": 3,
+      "kinds": 8
+    },
+    {
+      "ancestor": "wheeled vehicle.n.01",
+      "term": "conditioning",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 20
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "air conditioning",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "wipers",
+      "hits": 2,
+      "bearing": 8,
+      "kinds": 37
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "cover",
+      "hits": 2,
+      "bearing": 1,
+      "kinds": 37
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "body",
+      "hits": 2,
+      "bearing": 5,
+      "kinds": 39
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "formation",
+      "hits": 2,
+      "bearing": 8,
+      "kinds": 29
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "eggs",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "rodent.n.01",
+      "term": "blooded",
+      "hits": 2,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "seat",
+      "hits": 2,
+      "bearing": 7,
+      "kinds": 37
+    },
+    {
+      "ancestor": "reptile.n.01",
+      "term": "study",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 7
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "make",
+      "hits": 1,
+      "bearing": 8,
+      "kinds": 17
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "eat",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 27
+    },
+    {
+      "ancestor": "location.n.01",
+      "term": "live",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 4
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "when",
+      "hits": 1,
+      "bearing": 14,
+      "kinds": 52
+    },
+    {
+      "ancestor": "vegetable.n.02",
+      "term": "cold",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "four",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "heat",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "region.n.03",
+      "term": "fruit",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 4
+    },
+    {
+      "ancestor": "region.n.03",
+      "term": "sugar",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 4
+    },
+    {
+      "ancestor": "rodent.n.01",
+      "term": "many",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "many",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "served",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "developing",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "keep",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 24,
+      "kinds": 59
+    },
+    {
+      "ancestor": "bottle.n.01",
+      "term": "charge",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "cold",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 39
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "make",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "sound",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "long",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 39
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "long",
+      "hits": 1,
+      "bearing": 15,
+      "kinds": 37
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "boards",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "store",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 143
+    },
+    {
+      "ancestor": "musician.n.01",
+      "term": "spread",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "gun.n.01",
+      "term": "wrapped",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "body",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "construction",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "pink.n.02",
+      "term": "sweet",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "live",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 7
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "round",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 39
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "flat",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 59
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "skin",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "bullets",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "transport",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "wine.n.01",
+      "term": "wood",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "center",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "feline.n.01",
+      "term": "water",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 9
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "found",
+      "hits": 1,
+      "bearing": 16,
+      "kinds": 52
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "fire",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "chicken.n.02",
+      "term": "chopping",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "dolphin.n.02",
+      "term": "board",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "dolphin.n.02",
+      "term": "found",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "found",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 7
+    },
+    {
+      "ancestor": "horse.n.01",
+      "term": "board",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "play",
+      "hits": 1,
+      "bearing": 24,
+      "kinds": 59
+    },
+    {
+      "ancestor": "woodwind.n.01",
+      "term": "high",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 3
+    },
+    {
+      "ancestor": "musical instrument.n.01",
+      "term": "content",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 22
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "thick",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "team.n.01",
+      "term": "found",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "chicken.n.02",
+      "term": "follow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "filter.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "writing.n.02",
+      "term": "rooms",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "gramineous plant.n.01",
+      "term": "parts",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "rowed",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "year.n.01",
+      "term": "live",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "contain",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 17
+    },
+    {
+      "ancestor": "boat.n.01",
+      "term": "bridge",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "bridge",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "pollinated",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 29
+    },
+    {
+      "ancestor": "dress.n.01",
+      "term": "follow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "sensitive",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "wood.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 3
+    },
+    {
+      "ancestor": "plaything.n.01",
+      "term": "attached",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 5
+    },
+    {
+      "ancestor": "relish.n.02",
+      "term": "made",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "ingredient.n.03",
+      "term": "skin",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "aircraft.n.01",
+      "term": "cover",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "craft.n.02",
+      "term": "much",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "much",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "come",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "great ape.n.01",
+      "term": "part",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "dress.n.01",
+      "term": "strong",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "loose",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "stringed instrument.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 7
+    },
+    {
+      "ancestor": "hair.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "allow",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 59
+    },
+    {
+      "ancestor": "stringed instrument.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 7
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "make a bleating noise",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "found",
+      "hits": 1,
+      "bearing": 13,
+      "kinds": 36
+    },
+    {
+      "ancestor": "horse.n.01",
+      "term": "bent",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "craft.n.02",
+      "term": "movement",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "movement",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "strong",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "jaws",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "avoid",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "vegetables",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "bottle.n.01",
+      "term": "heating",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "contain",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 14
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "animal",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 29
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "play",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "cold",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 18
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "cloth",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "lizard.n.01",
+      "term": "hands",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "follow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "truck.n.01",
+      "term": "police",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "ingredient.n.03",
+      "term": "consumed",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "sauce.n.01",
+      "term": "ice",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "white",
+      "hits": 1,
+      "bearing": 8,
+      "kinds": 52
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "yellow",
+      "hits": 1,
+      "bearing": 10,
+      "kinds": 143
+    },
+    {
+      "ancestor": "monkey.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "monkey.n.01",
+      "term": "stone",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "stone",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "deer.n.01",
+      "term": "come",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "motorcycle.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "big",
+      "hits": 1,
+      "bearing": 68,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "many",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "nurse.n.01",
+      "term": "fire",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 16
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "require",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 16
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "cut",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "appliance.n.02",
+      "term": "wood",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "rocks",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "touching",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "feeling",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 31
+    },
+    {
+      "ancestor": "jacket.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "repairing",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "ingredient.n.03",
+      "term": "lab",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "kept",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "sensitive",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "developing",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "knife.n.01",
+      "term": "fishes",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "metal",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "contain",
+      "hits": 1,
+      "bearing": 28,
+      "kinds": 39
+    },
+    {
+      "ancestor": "electrode.n.01",
+      "term": "charge",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "eat",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "rodent.n.01",
+      "term": "butter",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "berry.n.01",
+      "term": "served",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "reptile.n.01",
+      "term": "legs",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 7
+    },
+    {
+      "ancestor": "chemical.n.01",
+      "term": "drain",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "water",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 59
+    },
+    {
+      "ancestor": "symbol.n.01",
+      "term": "play",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "large",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "play",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "make",
+      "hits": 1,
+      "bearing": 48,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "fine",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "driven",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "driven",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "roads",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "roads",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "sunlight",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "home appliance.n.01",
+      "term": "water",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 8
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "used",
+      "hits": 1,
+      "bearing": 34,
+      "kinds": 52
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "yellow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 28
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "sweet",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 27
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "sweet",
+      "hits": 1,
+      "bearing": 9,
+      "kinds": 27
+    },
+    {
+      "ancestor": "table.n.02",
+      "term": "rounded",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "drum.n.01",
+      "term": "holes",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "car.n.01",
+      "term": "big",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "numbers",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "rivers",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "make",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 7
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "make a clucking noise",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "brass.n.02",
+      "term": "used",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 4
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "eating",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 52
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "make",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "reptile.n.01",
+      "term": "make",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 7
+    },
+    {
+      "ancestor": "machine.n.01",
+      "term": "long",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "grow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "wasp.n.02",
+      "term": "drag",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "drag",
+      "hits": 1,
+      "bearing": 13,
+      "kinds": 143
+    },
+    {
+      "ancestor": "wasp.n.02",
+      "term": "prey",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "canine.n.02",
+      "term": "live",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 7
+    },
+    {
+      "ancestor": "program.n.07",
+      "term": "board",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "made",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 14
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "birds",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "vine.n.01",
+      "term": "much",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "aircraft.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 3
+    },
+    {
+      "ancestor": "aircraft.n.01",
+      "term": "food",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "hands",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 15
+    },
+    {
+      "ancestor": "weapon.n.01",
+      "term": "blooded",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 15
+    },
+    {
+      "ancestor": "vegetable.n.02",
+      "term": "consumed",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "fast",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 14
+    },
+    {
+      "ancestor": "craft.n.02",
+      "term": "fast",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 17
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "sail",
+      "hits": 1,
+      "bearing": 10,
+      "kinds": 14
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "seas",
+      "hits": 1,
+      "bearing": 9,
+      "kinds": 14
+    },
+    {
+      "ancestor": "plaything.n.01",
+      "term": "cut",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "keyboard",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 59
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "a keyboard",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "four",
+      "hits": 1,
+      "bearing": 8,
+      "kinds": 65
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "legs",
+      "hits": 1,
+      "bearing": 57,
+      "kinds": 143
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "four legs",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "aquatic",
+      "hits": 1,
+      "bearing": 15,
+      "kinds": 143
+    },
+    {
+      "ancestor": "alcohol.n.01",
+      "term": "body",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 6
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "beak",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 17
+    },
+    {
+      "ancestor": "canoe.n.01",
+      "term": "surface",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bomb.n.01",
+      "term": "cut",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bomb.n.01",
+      "term": "heating",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "heating",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 59
+    },
+    {
+      "ancestor": "tissue.n.01",
+      "term": "face",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bow.n.04",
+      "term": "time",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "outdoors",
+      "hits": 1,
+      "bearing": 9,
+      "kinds": 28
+    },
+    {
+      "ancestor": "parrot.n.01",
+      "term": "nectar",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "projectile.n.01",
+      "term": "ground",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "eaten",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 65
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "live",
+      "hits": 1,
+      "bearing": 26,
+      "kinds": 65
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "popular",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 7
+    },
+    {
+      "ancestor": "produce.n.01",
+      "term": "plastic",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 27
+    },
+    {
+      "ancestor": "percussion instrument.n.01",
+      "term": "part",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 6
+    },
+    {
+      "ancestor": "percussion instrument.n.01",
+      "term": "drum",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 6
+    },
+    {
+      "ancestor": "larva.n.01",
+      "term": "leaves",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "planting",
+      "hits": 1,
+      "bearing": 15,
+      "kinds": 143
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "living",
+      "hits": 1,
+      "bearing": 26,
+      "kinds": 65
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "groups",
+      "hits": 1,
+      "bearing": 27,
+      "kinds": 65
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "trunk",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 16
+    },
+    {
+      "ancestor": "chicken.n.02",
+      "term": "provide",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "provide",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "eat",
+      "hits": 1,
+      "bearing": 75,
+      "kinds": 143
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "arms",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 143
+    },
+    {
+      "ancestor": "musical instrument.n.01",
+      "term": "strings",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 22
+    },
+    {
+      "ancestor": "woodwind.n.01",
+      "term": "tuning",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "food.n.01",
+      "term": "roast",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 27
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "humans",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 10
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "produce",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 10
+    },
+    {
+      "ancestor": "text.n.01",
+      "term": "filling",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "cattle.n.01",
+      "term": "walls",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "cattle.n.01",
+      "term": "contain",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "berry.n.01",
+      "term": "grown",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "symbol.n.01",
+      "term": "as",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "symbol.n.01",
+      "term": "old",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "made",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 18
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 12,
+      "kinds": 18
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "cooking",
+      "hits": 1,
+      "bearing": 9,
+      "kinds": 18
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "cushions",
+      "hits": 1,
+      "bearing": 8,
+      "kinds": 17
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "transport",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 143
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "bones",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 65
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "edible",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 18
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "seeds",
+      "hits": 1,
+      "bearing": 22,
+      "kinds": 52
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "airborne",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 29
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "grow",
+      "hits": 1,
+      "bearing": 8,
+      "kinds": 16
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "deciduous",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 16
+    },
+    {
+      "ancestor": "vessel.n.02",
+      "term": "wood",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 14
+    },
+    {
+      "ancestor": "material.n.01",
+      "term": "long",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 7
+    },
+    {
+      "ancestor": "ball.n.01",
+      "term": "windows",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "outside",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 52
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "seed",
+      "hits": 1,
+      "bearing": 22,
+      "kinds": 52
+    },
+    {
+      "ancestor": "grape.n.01",
+      "term": "leaves",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "device.n.01",
+      "term": "shape",
+      "hits": 1,
+      "bearing": 24,
+      "kinds": 59
+    },
+    {
+      "ancestor": "aircraft.n.01",
+      "term": "carry",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 3
+    },
+    {
+      "ancestor": "aircraft.n.01",
+      "term": "one",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 3
+    },
+    {
+      "ancestor": "craft.n.02",
+      "term": "person",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 17
+    },
+    {
+      "ancestor": "seafood.n.01",
+      "term": "eaten",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 10
+    },
+    {
+      "ancestor": "seafood.n.01",
+      "term": "as",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 10
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "filled",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "cards",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "fabric.n.01",
+      "term": "used",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "climb",
+      "hits": 1,
+      "bearing": 17,
+      "kinds": 143
+    },
+    {
+      "ancestor": "bottle.n.01",
+      "term": "kept",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "plaything.n.01",
+      "term": "worn",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "plaything.n.01",
+      "term": "flat",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 5
+    },
+    {
+      "ancestor": "plaything.n.01",
+      "term": "surface",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 5
+    },
+    {
+      "ancestor": "furniture.n.01",
+      "term": "hold",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 17
+    },
+    {
+      "ancestor": "tree.n.01",
+      "term": "stripes",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 16
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "sleeves",
+      "hits": 1,
+      "bearing": 11,
+      "kinds": 28
+    },
+    {
+      "ancestor": "truck.n.01",
+      "term": "fit",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "truck.n.01",
+      "term": "one",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "motor vehicle.n.01",
+      "term": "hand",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "vehicle.n.01",
+      "term": "hand",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 37
+    },
+    {
+      "ancestor": "rock.n.02",
+      "term": "hole",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "rock.n.02",
+      "term": "air",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "grown",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 31
+    },
+    {
+      "ancestor": "monkey.n.01",
+      "term": "games",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "games",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "motorcycle.n.01",
+      "term": "saddle",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "motorcycle.n.01",
+      "term": "a saddle",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "dark",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 39
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "blue",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 39
+    },
+    {
+      "ancestor": "motorcycle.n.01",
+      "term": "conditioning",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "beverage.n.01",
+      "term": "mug",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 10
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "bitter",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 52
+    },
+    {
+      "ancestor": "nurse.n.01",
+      "term": "strong",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "body part.n.01",
+      "term": "food",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 12
+    },
+    {
+      "ancestor": "butterfly.n.01",
+      "term": "grow",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "vine.n.01",
+      "term": "large",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "herb.n.01",
+      "term": "muscles",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 18
+    },
+    {
+      "ancestor": "worker.n.01",
+      "term": "hold",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "worker.n.01",
+      "term": "together",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "worker.n.01",
+      "term": "hands",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "worker.n.01",
+      "term": "require",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "worker.n.01",
+      "term": "skill",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "lay",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "vertebrate.n.01",
+      "term": "eggs",
+      "hits": 1,
+      "bearing": 7,
+      "kinds": 110
+    },
+    {
+      "ancestor": "mammal.n.01",
+      "term": "lay eggs",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 65
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "juicy",
+      "hits": 1,
+      "bearing": 5,
+      "kinds": 18
+    },
+    {
+      "ancestor": "fruit.n.01",
+      "term": "peeled",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 18
+    },
+    {
+      "ancestor": "firearm.n.01",
+      "term": "end",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 4
+    },
+    {
+      "ancestor": "grain.n.02",
+      "term": "found",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "living",
+      "hits": 1,
+      "bearing": 12,
+      "kinds": 29
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "groups",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 29
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "zip",
+      "hits": 1,
+      "bearing": 6,
+      "kinds": 18
+    },
+    {
+      "ancestor": "mechanism.n.05",
+      "term": "handle",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "eat",
+      "hits": 1,
+      "bearing": 1,
+      "kinds": 7
+    },
+    {
+      "ancestor": "fish.n.01",
+      "term": "packs",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 7
+    },
+    {
+      "ancestor": "firearm.n.01",
+      "term": "as",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 4
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "explode",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 39
+    },
+    {
+      "ancestor": "chicken.n.02",
+      "term": "soup",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "bird.n.01",
+      "term": "soup",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 29
+    },
+    {
+      "ancestor": "spider.n.01",
+      "term": "head",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "arachnid.n.01",
+      "term": "head",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 3
+    },
+    {
+      "ancestor": "spider.n.01",
+      "term": "shell",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "shell",
+      "hits": 1,
+      "bearing": 9,
+      "kinds": 31
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "shell",
+      "hits": 1,
+      "bearing": 11,
+      "kinds": 143
+    },
+    {
+      "ancestor": "invertebrate.n.01",
+      "term": "a shell",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 31
+    },
+    {
+      "ancestor": "squirrel.n.01",
+      "term": "cold",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "sting",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 17
+    },
+    {
+      "ancestor": "insect.n.01",
+      "term": "four wings",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 17
+    },
+    {
+      "ancestor": "appliance.n.02",
+      "term": "live",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 8
+    },
+    {
+      "ancestor": "garment.n.01",
+      "term": "head",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 18
+    },
+    {
+      "ancestor": "clothing.n.01",
+      "term": "head",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 28
+    },
+    {
+      "ancestor": "drum.n.01",
+      "term": "stick",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "gun.n.01",
+      "term": "tank",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "plant.n.02",
+      "term": "protein",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 52
+    },
+    {
+      "ancestor": "appliance.n.02",
+      "term": "make",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 8
+    },
+    {
+      "ancestor": "commodity.n.01",
+      "term": "display",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 36
+    },
+    {
+      "ancestor": "home appliance.n.01",
+      "term": "moving",
+      "hits": 1,
+      "bearing": 4,
+      "kinds": 8
+    },
+    {
+      "ancestor": "body part.n.01",
+      "term": "eyes",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 12
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "lay",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "eggs",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "beach",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "gun.n.01",
+      "term": "train",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 5
+    },
+    {
+      "ancestor": "truck.n.01",
+      "term": "salt",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "container.n.01",
+      "term": "salt",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 39
+    },
+    {
+      "ancestor": "brass.n.02",
+      "term": "sound",
+      "hits": 1,
+      "bearing": 3,
+      "kinds": 4
+    },
+    {
+      "ancestor": "seafood.n.01",
+      "term": "friendly",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 10
+    },
+    {
+      "ancestor": "turtle.n.02",
+      "term": "kill",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "reptile.n.01",
+      "term": "kill",
+      "hits": 1,
+      "bearing": 2,
+      "kinds": 7
+    },
+    {
+      "ancestor": "animal.n.01",
+      "term": "kill people",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 143
+    },
+    {
+      "ancestor": "camper.n.02",
+      "term": "board",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 2
+    },
+    {
+      "ancestor": "wine.n.01",
+      "term": "water",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "alcohol.n.01",
+      "term": "water",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 6
+    },
+    {
+      "ancestor": "software.n.01",
+      "term": "face",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "program.n.07",
+      "term": "skill",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "program.n.07",
+      "term": "play",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    },
+    {
+      "ancestor": "chicken.n.02",
+      "term": "yoghurt",
+      "hits": 1,
+      "bearing": 0,
+      "kinds": 1
+    }
+  ]
+}
