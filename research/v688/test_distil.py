@@ -446,7 +446,8 @@ class TheDistilledKinds(unittest.TestCase):
         return Profiles.witnesses(self.stub(kinds, lineage), "bird.n.01", term)
 
     def test_a_witness_asked_and_affirming_counts_both_ways(self):
-        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+        kinds = {"a.n.01": {"asked_at": frozenset(),
+                            "asked": frozenset({"can fly"}),
                             "predicates": frozenset({"can fly"})}}
         self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
                          (1, 1))
@@ -454,7 +455,8 @@ class TheDistilledKinds(unittest.TestCase):
     def test_a_witness_asked_and_denying_counts_against(self):
         """It is in the denominator and not the numerator, which is the whole
         value of having asked it."""
-        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+        kinds = {"a.n.01": {"asked_at": frozenset(),
+                            "asked": frozenset({"can fly"}),
                             "predicates": frozenset()}}
         self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
                          (1, 0))
@@ -462,13 +464,15 @@ class TheDistilledKinds(unittest.TestCase):
     def test_a_witness_never_asked_about_the_term_does_not_count_at_all(self):
         """The design: padding the denominator with silence would bias R19
         toward refusal, which is §17's trap self-inflicted."""
-        kinds = {"a.n.01": {"asked": frozenset({"can swim"}),
+        kinds = {"a.n.01": {"asked_at": frozenset(),
+                            "asked": frozenset({"can swim"}),
                             "predicates": frozenset({"can swim"})}}
         self.assertEqual(self.witnesses(kinds, {"a.n.01": {"bird.n.01"}}),
                          (0, 0))
 
     def test_a_witness_under_a_different_ancestor_is_not_counted(self):
-        kinds = {"a.n.01": {"asked": frozenset({"can fly"}),
+        kinds = {"a.n.01": {"asked_at": frozenset(),
+                            "asked": frozenset({"can fly"}),
                             "predicates": frozenset({"can fly"})}}
         self.assertEqual(self.witnesses(kinds, {"a.n.01": {"fish.n.01"}}),
                          (0, 0))
@@ -518,3 +522,60 @@ class TheDistilledKinds(unittest.TestCase):
 
         self.assertNotIn("the norms cover bear that out",
                          inspect_source(server))
+
+
+class TheDenseWitnessForm(unittest.TestCase):
+    """`asked_at` names ancestors, not claims, and that is not a shortcut.
+
+    R19 only consults `(ancestor, term)` when the term matched a fact on that
+    ancestor. A witness asked about *every* inheritable fact there was
+    therefore asked about that one, so naming the ancestor carries the same
+    information as listing 640,000 claims -- and fits in a few kilobytes.
+    """
+
+    def witnesses(self, kinds, term="anything at all"):
+        from research.v687.identify import Identifier
+        from research.v687.profile import Profiles
+
+        class Stub:
+            pass
+
+        one = Stub()
+        one.identifier = Identifier
+        one.distilled_kinds = kinds
+        one._kind_lineage = {c: {"bird.n.01"} for c in kinds}
+        return Profiles.witnesses(one, "bird.n.01", term)
+
+    def test_asked_at_lets_a_witness_speak_to_any_term_there(self):
+        kinds = {"a.n.01": {"asked_at": frozenset({"bird.n.01"}),
+                            "asked": frozenset(),
+                            "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, "nobody asked this"), (1, 0))
+        self.assertEqual(self.witnesses(kinds, "fly"), (1, 1))
+
+    def test_asked_at_elsewhere_does_not_carry(self):
+        kinds = {"a.n.01": {"asked_at": frozenset({"fish.n.01"}),
+                            "asked": frozenset(),
+                            "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, "fly"), (0, 0))
+
+    def test_the_loader_reads_both_shapes(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from research.v687 import corpora
+
+        with tempfile.TemporaryDirectory() as where:
+            path = Path(where) / "k.json"
+            path.write_text(json.dumps({
+                "dense.n.01": {"name": "dense", "asked_at": ["bird.n.01"],
+                               "predicates": ["can fly"]},
+                "cheap.n.01": {"name": "cheap", "asked": ["can fly"],
+                               "predicates": []},
+                "empty.n.01": {"name": "empty"}}), encoding="utf-8")
+            loaded = corpora.load_distilled_kinds(path)
+        self.assertEqual(sorted(loaded), ["cheap.n.01", "dense.n.01"])
+        self.assertEqual(loaded["dense.n.01"]["asked_at"],
+                         frozenset({"bird.n.01"}))
+        self.assertEqual(loaded["cheap.n.01"]["asked_at"], frozenset())

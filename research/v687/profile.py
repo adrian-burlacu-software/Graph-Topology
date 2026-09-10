@@ -689,7 +689,12 @@ class Profiles:
             if ancestor not in above:
                 continue
             one = self.distilled_kinds[concept]
-            if not self.identifier._hit(term, one["asked"]):
+            # Two ways to have testimony here. `asked_at` means the witness
+            # was put to every inheritable fact on this ancestor, so it can
+            # speak to whatever term R19 matched there; `asked` names
+            # individual claims, for witnesses built the cheaper way.
+            if not (ancestor in one["asked_at"]
+                    or self.identifier._hit(term, one["asked"])):
                 continue
             kinds += 1
             borne += bool(self.identifier._hit(term, one["predicates"]))

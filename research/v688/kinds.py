@@ -16,6 +16,27 @@ coverage, and it turned `does a beagle bark` into UNKNOWN -- not because
 beagles are quiet, but because three dogs is not a sample and nobody had
 asked any of them.
 
+## Dense mode: witnesses that can testify together
+
+`--build` asks each witness only about the terms the recording saw, which is
+cheap and leaves most witnesses unable to speak about most terms. That is
+safe (see below) and nearly useless for a **precondition** rule, because
+`CORROBORATION_MIN_KINDS` needs *eight witnesses able to speak about the same
+term at once*. Witnesses each covering a random half of an ancestor's facts
+give an expected 4 speakers out of 8, and R19 stays silent.
+
+So `--dense` organises the work **per ancestor rather than per witness**: up
+to `WITNESSES` concepts under each consulted ancestor, each asked about
+**every** inheritable fact on that ancestor. They then share an identical
+`asked` set by construction and can always testify together.
+
+That also collapses the artifact. R19 is only ever consulted at `(A, term)`
+when `term` matched a fact on `A` -- that is why it was consulted -- so a
+witness asked about all of `A`'s facts can speak to *any* term R19 raises
+there. The artifact therefore records **which ancestors a witness was asked
+at**, not the thousands of claims it was asked; `asked_at` is a list of
+synsets and stays a few kilobytes.
+
 ## A kind counts only where it has testimony
 
 Adding kinds is more dangerous than adding properties. A new kind would enter
@@ -86,6 +107,17 @@ DEPTH = 4
 #: Same floor as `densify.FLOOR`, and for the same measured reason: at 0.90
 #: the extra predicates are the crawl's noise rather than typicality.
 FLOOR = 0.99
+
+#: Witnesses per ancestor in `--dense`. Eight is `CORROBORATION_MIN_KINDS`
+#: exactly and leaves no margin: one unphrasable question and the ancestor
+#: drops below the floor and goes silent again. Ten costs 11% more and 94 of
+#: the 118 consulted ancestors can still be fed at least eight.
+WITNESSES = 10
+
+#: Cells between artifact writes. `--dense` is a nine-hour run and the
+#: judgement cache alone is not enough to recover it: the cache makes a
+#: re-run fast, but only a written artifact is usable.
+SAVE_EVERY = 40000
 
 
 def context(engine) -> tuple:
@@ -200,6 +232,144 @@ def cells(engine, chosen: list) -> list:
     return out
 
 
+def dense_plan(engine, witnesses: int = WITNESSES) -> tuple:
+    """(ancestor -> its witnesses, ancestor -> its inheritable facts).
+
+    Per ancestor, so every witness under one shares an identical `asked` set
+    and they can testify together. Concepts already in `distilled_kinds` are
+    preferred, so a dense run extends the cheap one rather than replacing it.
+    """
+    from research.v687.profile import CORROBORATION_MIN_KINDS as MIN
+
+    profiles = engine.profiles
+    conn = engine.reasoner.connection
+    _kinds_of, _terms, weight = context(engine)
+    have_facts = {row[0] for row in
+                  conn.execute("SELECT DISTINCT concept FROM facts")}
+    normed = {profiles.synset[name] for name in profiles.stated
+              if name in profiles.synset}
+    already = set(profiles.distilled_kinds)
+
+    chosen, facts = {}, {}
+    for ancestor in sorted(weight, key=lambda node: -weight[node]):
+        pool = [c for c in descendants(engine, ancestor)
+                if c in have_facts and c not in normed]
+        if len(pool) < MIN:
+            continue
+        pool.sort(key=lambda c: (c not in already, c))
+        on = [fact for fact in engine.reasoner.facts_of(ancestor)
+              if rules.inheritable(fact.relation)
+              and fact.relation in teacher.READS]
+        if not on:
+            continue
+        chosen[ancestor] = pool[:witnesses]
+        facts[ancestor] = on
+    return chosen, facts
+
+
+def dense_cells(chosen: dict, facts: dict) -> list:
+    """(witness, ancestor, relation, object), busiest ancestor first.
+
+    Order matters for a run that may be interrupted: finishing the ancestors
+    R19 is consulted at most often first means a partial run is still worth
+    something.
+    """
+    out = []
+    for ancestor, members in chosen.items():
+        for fact in facts[ancestor]:
+            for member in members:
+                out.append((member, ancestor, fact.relation, str(fact.object)))
+    return out
+
+
+def build_dense(engine=None, floor: float = FLOOR, witnesses: int = WITNESSES,
+                limit: int = 0, judge=None) -> dict:
+    """Ask every witness about every fact on the ancestor it witnesses for."""
+    from research.v687.reasoning import ReasoningEngine
+
+    engine = engine or ReasoningEngine(audit.STORE)
+    chosen, facts = dense_plan(engine, witnesses)
+    grid = dense_cells(chosen, facts)
+    if limit:
+        grid = grid[:limit]
+    judge = judge or teacher.Teacher()
+    if not getattr(judge, "available", False):
+        return {"error": getattr(judge, "error", "") or "no teacher"}
+
+    # Seeded from whatever is already there, so a dense run *extends* the
+    # cheap one. Without this an interrupted nine-hour run would leave the
+    # artifact holding only the ancestors it happened to finish, which is
+    # strictly worse than the 312 witnesses it started with.
+    from research.v687 import corpora
+
+    affirmed: dict = collections.defaultdict(set)
+    asked_at: dict = collections.defaultdict(set)
+    asked: dict = collections.defaultdict(set)
+    for concept, one in corpora.load_distilled_kinds().items():
+        affirmed[concept] |= set(one["predicates"])
+        asked_at[concept] |= set(one["asked_at"])
+        asked[concept] |= set(one["asked"])
+    counts: dict = collections.Counter()
+    started, fresh = time.time(), 0
+
+    def save() -> None:
+        rows = {concept: {"name": name_of(engine, concept),
+                          "asked_at": sorted(asked_at[concept]),
+                          "asked": sorted(asked[concept]),
+                          "predicates": sorted(affirmed.get(concept, ()))}
+                for concept in sorted(set(asked_at) | set(asked))}
+        KINDS.write_text(json.dumps(rows, indent=1, sort_keys=True),
+                         encoding="utf-8")
+
+    # An ancestor is usable only once *all* its witnesses have been asked, so
+    # `asked_at` is credited when its block finishes rather than per cell. A
+    # half-asked ancestor would claim witnesses that cannot actually testify
+    # together, which is the failure this mode exists to fix.
+    done: dict = collections.Counter()
+    want = {node: len(facts[node]) * len(chosen[node]) for node in chosen}
+    with judge.batch():
+        for index, (member, ancestor, relation, obj) in enumerate(grid):
+            text = densify.question(name_of(engine, member), relation, obj)
+            if text:
+                holds, weight, cached = judge.judge("", "", text)
+                fresh += not cached
+                counts["asked"] += 1
+                if holds and weight >= floor:
+                    affirmed[member].add(
+                        teacher.stated(relation, densify.plain(obj)))
+                    counts["written"] += 1
+                elif holds:
+                    counts["under_floor"] += 1
+                else:
+                    counts["denied"] += 1
+            else:
+                counts["unphrasable"] += 1
+            done[ancestor] += 1
+            if done[ancestor] == want[ancestor]:
+                for one in chosen[ancestor]:
+                    asked_at[one].add(ancestor)
+                counts["ancestors_done"] += 1
+            if fresh and not fresh % 2000:
+                judge._save()                       # noqa: SLF001
+            if index and not index % SAVE_EVERY:
+                save()
+            if index and not index % 5000:
+                rate = fresh / max(time.time() - started, 1e-9)
+                left = (len(grid) - index) / max(rate, 1e-9) / 3600
+                print(f"[kinds] {index}/{len(grid)} ({index / len(grid):.1%}),"
+                      f" {fresh} fresh at {rate:.1f}/s, "
+                      f"{counts['ancestors_done']} ancestors done, "
+                      f"~{left:.1f}h left", flush=True)
+    save()
+    return {"mode": "dense", "ancestors": len(chosen),
+            "ancestors_complete": counts["ancestors_done"],
+            "witnesses": len(asked_at), "cells": len(grid), "floor": floor,
+            "counts": dict(counts),
+            "predicates": sum(len(one) for one in affirmed.values()),
+            "hours": round((time.time() - started) / 3600, 2),
+            "written_to": str(KINDS)}
+
+
 def name_of(engine, concept: str) -> str:
     return densify.plain(concept.rsplit(".", 2)[0])
 
@@ -270,12 +440,32 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Distil new kinds for the ancestors R19 cannot speak at.")
     parser.add_argument("--build", action="store_true")
+    parser.add_argument("--dense", action="store_true",
+                        help="ask every witness about every fact on the "
+                             "ancestor it witnesses for, so eight of them can "
+                             "testify about the same term at once")
+    parser.add_argument("--witnesses", type=int, default=WITNESSES)
     parser.add_argument("--plan", action="store_true",
                         help="size the cover and stop; no model")
     parser.add_argument("--floor", type=float, default=FLOOR)
     parser.add_argument("--limit", type=int, default=0)
     options = parser.parse_args(argv)
 
+    if options.plan and options.dense:
+        from research.v687.reasoning import ReasoningEngine
+
+        engine = ReasoningEngine(audit.STORE)
+        chosen, facts = dense_plan(engine, options.witnesses)
+        grid = dense_cells(chosen, facts)
+        witnesses = {one for members in chosen.values() for one in members}
+        print(f"ancestors with >= 8 witnesses: {len(chosen)}")
+        print(f"distinct witnesses: {len(witnesses)}")
+        print(f"cells: {len(grid):,}   {len(grid) / 20 / 3600:.1f} GPU-hours")
+        busiest = list(chosen)[:6]
+        for node in busiest:
+            print(f"   {node:<26}{len(chosen[node]):>3} witnesses x "
+                  f"{len(facts[node]):>5} facts")
+        return 0
     if options.plan:
         from research.v687.reasoning import ReasoningEngine
 
@@ -294,6 +484,11 @@ def main(argv=None) -> int:
                   f"max {counts[-1]}")
         for concept in chosen[:8]:
             print(f"   {concept:<28}{per.get(concept, 0):>4} questions")
+        return 0
+    if options.dense:
+        print(json.dumps(build_dense(floor=options.floor,
+                                     witnesses=options.witnesses,
+                                     limit=options.limit), indent=2))
         return 0
     if options.build:
         print(json.dumps(build(floor=options.floor, limit=options.limit),

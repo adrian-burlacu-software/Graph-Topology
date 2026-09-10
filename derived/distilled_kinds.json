@@ -5,6 +5,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "aa",
   "predicates": []
  },
@@ -90,6 +91,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "affenpinscher",
   "predicates": [
    "can be boarded",
@@ -132,6 +134,7 @@
    "is first one",
    "is much fun"
   ],
+  "asked_at": [],
   "name": "airliner",
   "predicates": [
    "can be involved in accident",
@@ -209,6 +212,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "alligator snapping turtle",
   "predicates": [
    "can eat fish",
@@ -304,6 +308,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "amazon",
   "predicates": []
  },
@@ -390,6 +395,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "american flying squirrel",
   "predicates": [
    "can climb tree",
@@ -483,6 +489,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "american staffordshire terrier",
   "predicates": [
    "can be boarded",
@@ -524,6 +531,7 @@
    "is first one",
    "is much fun"
   ],
+  "asked_at": [],
   "name": "amphibian",
   "predicates": [
    "can end up in ditch"
@@ -565,6 +573,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "anode",
   "predicates": []
  },
@@ -573,6 +582,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "antistrophe",
   "predicates": []
  },
@@ -581,6 +591,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "arachnoid",
   "predicates": []
  },
@@ -643,9 +654,11 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "army cutworm",
   "predicates": [
-   "has animal tissue"
+   "has animal tissue",
+   "has head"
   ]
  },
  "asiatic flying squirrel.n.01": {
@@ -731,6 +744,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "asiatic flying squirrel",
   "predicates": [
    "can climb tree",
@@ -778,6 +792,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "aspirator",
   "predicates": []
  },
@@ -830,6 +845,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "assault rifle",
   "predicates": [
    "can fall into wrong hands"
@@ -840,6 +856,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "atropine",
   "predicates": []
  },
@@ -892,6 +909,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "automatic firearm",
   "predicates": [
    "can fall into wrong hands"
@@ -901,6 +919,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "bach",
   "predicates": []
  },
@@ -977,6 +996,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "banded purple",
   "predicates": []
  },
@@ -999,6 +1019,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "barbecue sauce",
   "predicates": []
  },
@@ -1007,6 +1028,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "barium sulphate",
   "predicates": []
  },
@@ -1073,6 +1095,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "barn spider",
   "predicates": [
    "has animal tissue",
@@ -1115,6 +1138,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "base",
   "predicates": []
  },
@@ -1122,6 +1146,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "baseball team",
   "predicates": []
  },
@@ -1190,6 +1215,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "basilisk",
   "predicates": [
    "has animal tissue"
@@ -1199,6 +1225,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "basketball team",
   "predicates": []
  },
@@ -1240,6 +1267,7 @@
    "is thin",
    "is used for playing tune"
   ],
+  "asked_at": [],
   "name": "bass clarinet",
   "predicates": []
  },
@@ -1247,12 +1275,8 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "beach towel",
-  "predicates": []
- },
- "beard.n.04": {
-  "asked": [],
-  "name": "beard",
   "predicates": []
  },
  "bermuda cedar.n.01": {
@@ -1260,6 +1284,7 @@
    "can be used as fuel",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "bermuda cedar",
   "predicates": []
  },
@@ -1281,6 +1306,7 @@
    "is very healthy to eat",
    "is yellow"
   ],
+  "asked_at": [],
   "name": "bilberry",
   "predicates": []
  },
@@ -1288,6 +1314,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "billiard ball",
   "predicates": []
  },
@@ -1354,6 +1381,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "black and gold garden spider",
   "predicates": [
    "can climb tree",
@@ -1379,6 +1407,7 @@
    "is very healthy to eat",
    "is yellow"
   ],
+  "asked_at": [],
   "name": "black currant",
   "predicates": [
    "can be considered healthy food",
@@ -1468,6 +1497,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "black squirrel",
   "predicates": [
    "can climb tree",
@@ -1497,6 +1527,7 @@
    "is very healthy to eat",
    "is yellow"
   ],
+  "asked_at": [],
   "name": "blackberry",
   "predicates": [
    "can be donated to food pantries"
@@ -1508,6 +1539,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "bluestone",
   "predicates": []
  },
@@ -1560,6 +1592,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "blunderbuss",
   "predicates": []
  },
@@ -1599,15 +1632,11 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "bobbin",
   "predicates": [
    "can be of high quality"
   ]
- },
- "body hair.n.01": {
-  "asked": [],
-  "name": "body hair",
-  "predicates": []
  },
  "bottlenose dolphin.n.01": {
   "asked": [
@@ -1692,6 +1721,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "bottlenose dolphin",
   "predicates": [
    "can be used in research",
@@ -1716,6 +1746,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "bottom line",
   "predicates": []
  },
@@ -1723,6 +1754,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "bowl",
   "predicates": []
  },
@@ -1730,6 +1762,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "bowling ball",
   "predicates": []
  },
@@ -1737,6 +1770,7 @@
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "bread knife",
   "predicates": []
  },
@@ -1756,6 +1790,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "buckwheat",
   "predicates": []
  },
@@ -1797,6 +1832,7 @@
    "is thin",
    "is used for make sounds"
   ],
+  "asked_at": [],
   "name": "bugle",
   "predicates": [
    "can be of high quality",
@@ -1839,6 +1875,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "bulletin board system",
   "predicates": [
    "can be connected to the web"
@@ -1871,6 +1908,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "burgundy",
   "predicates": []
  },
@@ -1878,6 +1916,7 @@
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "butter knife",
   "predicates": []
  },
@@ -1886,6 +1925,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "by-line",
   "predicates": []
  },
@@ -1896,6 +1936,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "c compiler",
   "predicates": []
  },
@@ -1935,6 +1976,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "calculator",
   "predicates": [
    "can be concealed",
@@ -1947,6 +1989,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "calvaria",
   "predicates": []
  },
@@ -1995,6 +2038,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "cannonball",
   "predicates": []
  },
@@ -2079,6 +2123,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "capuchin",
   "predicates": [
    "can climb tree",
@@ -2128,6 +2173,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "cathode",
   "predicates": []
  },
@@ -2167,6 +2213,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "chain printer",
   "predicates": []
  },
@@ -2174,6 +2221,7 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "chino",
   "predicates": []
  },
@@ -2200,6 +2248,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "chocolate milk",
   "predicates": []
  },
@@ -2241,6 +2290,7 @@
    "is thin",
    "is used for make sounds"
   ],
+  "asked_at": [],
   "name": "clarion",
   "predicates": []
  },
@@ -2248,6 +2298,7 @@
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "cleaver",
   "predicates": []
  },
@@ -2288,6 +2339,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "cluster bomb",
   "predicates": []
  },
@@ -2299,6 +2351,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "coastguardsman",
   "predicates": [
    "can wash their hands"
@@ -2387,6 +2440,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "cockateel",
   "predicates": [
    "can feel pain",
@@ -2477,6 +2531,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "cockatoo",
   "predicates": [
    "can climb tree",
@@ -2572,6 +2627,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "colobus",
   "predicates": [
    "can climb tree",
@@ -2645,6 +2701,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "comb-footed spider",
   "predicates": [
    "has animal tissue"
@@ -2657,6 +2714,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "command line interface",
   "predicates": []
  },
@@ -2743,6 +2801,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "common dolphin",
   "predicates": [
    "can be used in research",
@@ -2838,6 +2897,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "common wasp",
   "predicates": [
    "can fly",
@@ -2904,8 +2964,11 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "corn borer",
-  "predicates": []
+  "predicates": [
+   "can deal damage"
+  ]
  },
  "corn.n.03": {
   "asked": [
@@ -2923,6 +2986,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "corn",
   "predicates": []
  },
@@ -2987,6 +3051,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "cruise missile",
   "predicates": [
    "can travel long distances",
@@ -3030,6 +3095,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "cultivated rice",
   "predicates": [
    "can be used in cooking",
@@ -3096,9 +3162,12 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "cutworm",
   "predicates": [
-   "has animal tissue"
+   "can deal damage",
+   "has animal tissue",
+   "has head"
   ]
  },
  "daisywheel printer.n.01": {
@@ -3137,6 +3206,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "daisywheel printer",
   "predicates": []
  },
@@ -3185,6 +3255,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "dart",
   "predicates": []
  },
@@ -3258,6 +3329,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "desert tortoise",
   "predicates": [
    "has animal tissue",
@@ -3347,6 +3419,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "doberman",
   "predicates": [
    "can be boarded",
@@ -3399,6 +3472,7 @@
    "is thin",
    "is used for playing tune"
   ],
+  "asked_at": [],
   "name": "double-reed instrument",
   "predicates": []
  },
@@ -3483,6 +3557,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "douroucouli",
   "predicates": [
    "can climb tree",
@@ -3570,6 +3645,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "draft horse",
   "predicates": [
    "can feel pain",
@@ -3616,6 +3692,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "drain basket",
   "predicates": []
  },
@@ -3637,6 +3714,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "drop-leaf table",
   "predicates": []
  },
@@ -3644,6 +3722,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "drummer",
   "predicates": []
  },
@@ -3698,6 +3777,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "dump truck",
   "predicates": [
    "can be involved in accident",
@@ -3710,6 +3790,7 @@
    "can be used as fuel",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "east african cedar",
   "predicates": []
  },
@@ -3796,6 +3877,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "eastern grey squirrel",
   "predicates": [
    "can climb tree",
@@ -3889,6 +3971,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "eastern lowland gorilla",
   "predicates": [
    "can feel pain",
@@ -3935,6 +4018,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "electric motor",
   "predicates": [
    "can be concealed",
@@ -3993,6 +4077,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "electric",
   "predicates": []
  },
@@ -4004,6 +4089,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "electrician",
   "predicates": [
    "can wash their hands",
@@ -4046,6 +4132,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "electron gun",
   "predicates": []
  },
@@ -4085,6 +4172,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "emitter",
   "predicates": []
  },
@@ -4093,6 +4181,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "epithelium",
   "predicates": []
  },
@@ -4159,16 +4248,12 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "european wolf spider",
   "predicates": [
    "can run after prey",
    "has animal tissue"
   ]
- },
- "eyelash.n.01": {
-  "asked": [],
-  "name": "eyelash",
-  "predicates": []
  },
  "fall webworm.n.01": {
   "asked": [
@@ -4229,6 +4314,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "fall webworm",
   "predicates": [
    "has animal tissue",
@@ -4240,6 +4326,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "fan letter",
   "predicates": [
    "can be included in single microsoft word file"
@@ -4282,6 +4369,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "fescue",
   "predicates": [
    "can absorb water",
@@ -4293,6 +4381,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "fetal membrane",
   "predicates": []
  },
@@ -4324,6 +4413,7 @@
    "is first one",
    "is much fun"
   ],
+  "asked_at": [],
   "name": "fighter",
   "predicates": [
    "can be equipped with seat belts",
@@ -4367,6 +4457,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "filter tip",
   "predicates": []
  },
@@ -4421,6 +4512,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "fire engine",
   "predicates": [
    "can be involved in accident"
@@ -4434,6 +4526,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "fire warden",
   "predicates": [
    "can wash their hands"
@@ -4500,6 +4593,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "fire-bellied toad",
   "predicates": [
    "has animal tissue"
@@ -4554,6 +4648,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "flintlock",
   "predicates": []
  },
@@ -4561,6 +4656,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "football team",
   "predicates": []
  },
@@ -4568,6 +4664,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "football",
   "predicates": []
  },
@@ -4654,6 +4751,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "fox squirrel",
   "predicates": [
    "can feel pain",
@@ -4700,6 +4798,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "fragmentation bomb",
   "predicates": []
  },
@@ -4741,6 +4840,7 @@
    "is thin",
    "is used for playing tune"
   ],
+  "asked_at": [],
   "name": "free-reed",
   "predicates": []
  },
@@ -4763,6 +4863,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "french dressing",
   "predicates": []
  },
@@ -4802,6 +4903,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "fuel filter",
   "predicates": [
    "can be of high quality"
@@ -4811,6 +4913,7 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "gaffsail",
   "predicates": []
  },
@@ -4888,6 +4991,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "gall wasp",
   "predicates": []
  },
@@ -4942,6 +5046,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "garbage truck",
   "predicates": [
    "can be involved in accident",
@@ -5014,6 +5119,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "garden spider",
   "predicates": [
    "has animal tissue",
@@ -5050,6 +5156,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "gas-turbine ship",
   "predicates": [
    "can be involved in accident"
@@ -5059,6 +5166,7 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "gauze",
   "predicates": []
  },
@@ -5143,11 +5251,13 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "gelding",
   "predicates": [
    "can be outside a body of water",
    "can feel pain",
    "can find food",
+   "can move along the ground",
    "has animal tissue"
   ]
  },
@@ -5156,6 +5266,7 @@
    "can be used as fuel",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "giant sequoia",
   "predicates": []
  },
@@ -5196,6 +5307,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "giant star grass",
   "predicates": []
  },
@@ -5264,6 +5376,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "gila monster",
   "predicates": [
    "can be used in research",
@@ -5309,18 +5422,15 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "glass wool",
-  "predicates": []
- },
- "goatee.n.01": {
-  "asked": [],
-  "name": "goatee",
   "predicates": []
  },
  "golf ball.n.01": {
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "golf ball",
   "predicates": []
  },
@@ -5331,6 +5441,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "google",
   "predicates": [
    "can recognize face"
@@ -5354,6 +5465,7 @@
    "is very healthy to eat",
    "is yellow"
   ],
+  "asked_at": [],
   "name": "gooseberry",
   "predicates": []
  },
@@ -5440,6 +5552,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "grampus",
   "predicates": [
    "can eat fish",
@@ -5454,6 +5567,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "granite",
   "predicates": []
  },
@@ -5527,6 +5641,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "green turtle",
   "predicates": [
    "can eat fish",
@@ -5572,6 +5687,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "grid",
   "predicates": []
  },
@@ -5581,6 +5697,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "grit",
   "predicates": []
  },
@@ -5590,6 +5707,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "groundmass",
   "predicates": []
  },
@@ -5674,6 +5792,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "guenon",
   "predicates": [
    "can climb tree",
@@ -5715,6 +5834,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "guided missile cruiser",
   "predicates": [
    "is fast",
@@ -5725,12 +5845,8 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "guimpe",
-  "predicates": []
- },
- "hairdo.n.01": {
-  "asked": [],
-  "name": "hairdo",
   "predicates": []
  },
  "hairstreak.n.01": {
@@ -5806,6 +5922,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "hairstreak",
   "predicates": [
    "has animal tissue"
@@ -5815,6 +5932,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "harpist",
   "predicates": []
  },
@@ -5856,6 +5974,7 @@
    "is thin",
    "is used for make sounds"
   ],
+  "asked_at": [],
   "name": "helicon",
   "predicates": []
  },
@@ -5926,6 +6045,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "herring",
   "predicates": [
    "can be found in ocean",
@@ -5941,6 +6061,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "ilium",
   "predicates": []
  },
@@ -5951,6 +6072,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "internet explorer",
   "predicates": []
  },
@@ -6036,6 +6158,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "irish wolfhound",
   "predicates": [
    "can be outside a body of water",
@@ -6068,6 +6191,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "italian dressing",
   "predicates": []
  },
@@ -6151,6 +6275,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "japanese deer",
   "predicates": [
    "can feel pain",
@@ -6198,6 +6323,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "kettle",
   "predicates": [
    "can be available in white",
@@ -6222,6 +6348,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "kitchen table",
   "predicates": []
  },
@@ -6243,6 +6370,7 @@
    "is old",
    "is used for people"
   ],
+  "asked_at": [],
   "name": "ladder-back",
   "predicates": []
  },
@@ -6316,6 +6444,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "leatherback turtle",
   "predicates": [
    "can eat fish",
@@ -6346,6 +6475,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "lectern",
   "predicates": []
  },
@@ -6357,6 +6487,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "legionnaire",
   "predicates": [
    "can wash their hands"
@@ -6366,6 +6497,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "lennon",
   "predicates": []
  },
@@ -6428,13 +6560,17 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "leptocephalus",
-  "predicates": []
+  "predicates": [
+   "is found in the sea"
+  ]
  },
  "letter opener.n.01": {
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "letter opener",
   "predicates": []
  },
@@ -6443,6 +6579,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "line of poetry",
   "predicates": [
    "can be included in single microsoft word file"
@@ -6478,6 +6615,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "liner",
   "predicates": []
  },
@@ -6486,6 +6624,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "liquefied petroleum gas",
   "predicates": []
  },
@@ -6493,6 +6632,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "little-league team",
   "predicates": []
  },
@@ -6566,6 +6706,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "loggerhead",
   "predicates": [
    "can be used in research",
@@ -6583,6 +6724,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "logic bomb",
   "predicates": []
  },
@@ -6669,6 +6811,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "lory",
   "predicates": [
    "can climb tree",
@@ -6718,6 +6861,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "love grass",
   "predicates": []
  },
@@ -6726,6 +6870,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "lymphatic tissue",
   "predicates": []
  },
@@ -6812,6 +6957,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "macaw",
   "predicates": [
    "can climb tree",
@@ -6831,6 +6977,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "major-league team",
   "predicates": []
  },
@@ -6850,6 +6997,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "malt",
   "predicates": []
  },
@@ -6934,6 +7082,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mandrill",
   "predicates": [
    "can feel pain",
@@ -6941,11 +7090,6 @@
    "has animal tissue",
    "has warm blood"
   ]
- },
- "mane.n.02": {
-  "asked": [],
-  "name": "mane",
-  "predicates": []
  },
  "mare.n.01": {
   "asked": [
@@ -7028,6 +7172,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mare",
   "predicates": [
    "can eat plant",
@@ -7113,6 +7258,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mason wasp",
   "predicates": [
    "can fly",
@@ -7125,6 +7271,7 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "master of arts in library science",
   "predicates": []
  },
@@ -7155,6 +7302,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "medoc",
   "predicates": []
  },
@@ -7212,6 +7360,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "minivan",
   "predicates": [
    "can be equipped with seat belts",
@@ -7229,6 +7378,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "minor-league team",
   "predicates": []
  },
@@ -7238,6 +7388,7 @@
    "can produce sugar cane",
    "can provide the worst living conditions"
   ],
+  "asked_at": [],
   "name": "monaco",
   "predicates": []
  },
@@ -7320,6 +7471,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mountain gorilla",
   "predicates": [
    "can eat plant",
@@ -7406,6 +7558,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mud dauber",
   "predicates": []
  },
@@ -7489,6 +7642,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mule deer",
   "predicates": [
    "can eat plant",
@@ -7546,6 +7700,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "musket ball",
   "predicates": []
  },
@@ -7567,6 +7722,7 @@
    "is old",
    "is used for people"
   ],
+  "asked_at": [],
   "name": "musnud",
   "predicates": []
  },
@@ -7651,6 +7807,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "mustang",
   "predicates": [
    "can be outside a body of water",
@@ -7663,6 +7820,7 @@
    "can be used as food",
    "can face ventricular lumen"
   ],
+  "asked_at": [],
   "name": "nervous tissue",
   "predicates": []
  },
@@ -7712,6 +7870,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "neutron bomb",
   "predicates": []
  },
@@ -7721,6 +7880,7 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "o",
   "predicates": []
  },
@@ -7761,6 +7921,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "oat",
   "predicates": [
    "can be used in cooking",
@@ -7784,6 +7945,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "oat",
   "predicates": []
  },
@@ -7825,6 +7987,7 @@
    "is thin",
    "is used for playing tune"
   ],
+  "asked_at": [],
   "name": "oboe",
   "predicates": []
  },
@@ -7834,6 +7997,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "obsidian",
   "predicates": []
  },
@@ -7845,6 +8009,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "official",
   "predicates": [
    "can wash their hands"
@@ -7886,6 +8051,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "oil filter",
   "predicates": [
    "can be of high quality"
@@ -7952,6 +8118,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "olympic salamander",
   "predicates": []
  },
@@ -7960,6 +8127,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "opening line",
   "predicates": []
  },
@@ -7968,6 +8136,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "operon",
   "predicates": []
  },
@@ -8050,6 +8219,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "orangutan",
   "predicates": [
    "can climb tree",
@@ -8139,6 +8309,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "painted beauty",
   "predicates": []
  },
@@ -8179,6 +8350,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "pampas grass",
   "predicates": []
  },
@@ -8256,6 +8428,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "paper wasp",
   "predicates": [
    "can fly",
@@ -8266,6 +8439,7 @@
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "parer",
   "predicates": []
  },
@@ -8292,6 +8466,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "pasteurized milk",
   "predicates": []
  },
@@ -8301,6 +8476,7 @@
    "can last long time",
    "has hole"
   ],
+  "asked_at": [],
   "name": "pegmatite",
   "predicates": []
  },
@@ -8309,6 +8485,7 @@
    "can be used as fuel",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "pencil cedar",
   "predicates": []
  },
@@ -8317,6 +8494,7 @@
    "can be used as fuel",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "pencil cedar",
   "predicates": []
  },
@@ -8400,6 +8578,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "pere david's deer",
   "predicates": [
    "can feel pain",
@@ -8428,6 +8607,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "pesto",
   "predicates": [
    "can be consumed for nutrition"
@@ -8469,6 +8649,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "photocathode",
   "predicates": []
  },
@@ -8510,6 +8691,7 @@
    "is thin",
    "is used for playing tune"
   ],
+  "asked_at": [],
   "name": "piccolo",
   "predicates": []
  },
@@ -8564,6 +8746,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "pickup",
   "predicates": [
    "can be equipped with seat belts",
@@ -8656,6 +8839,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "pilot whale",
   "predicates": [
    "can eat fish",
@@ -8697,6 +8881,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "pinot noir",
   "predicates": []
  },
@@ -8737,6 +8922,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "pipe bomb",
   "predicates": []
  },
@@ -8744,6 +8930,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "piper",
   "predicates": []
  },
@@ -8784,6 +8971,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "plastic bomb",
   "predicates": []
  },
@@ -8870,6 +9058,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "porpoise",
   "predicates": [
    "can come up for air",
@@ -8957,6 +9146,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "potter wasp",
   "predicates": [
    "can fly"
@@ -9043,6 +9233,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "proboscis monkey",
   "predicates": [
    "can climb tree",
@@ -9078,6 +9269,7 @@
    "is first one",
    "is much fun"
   ],
+  "asked_at": [],
   "name": "propeller plane",
   "predicates": [
    "can be involved in accident"
@@ -9088,6 +9280,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "propionic acid",
   "predicates": []
  },
@@ -9172,6 +9365,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "protohippus",
   "predicates": [
    "has animal tissue",
@@ -9214,6 +9408,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "pulley",
   "predicates": []
  },
@@ -9223,6 +9418,7 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "punctuation",
   "predicates": []
  },
@@ -9305,6 +9501,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "pygmy chimpanzee",
   "predicates": [
    "can climb tree",
@@ -9340,6 +9537,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "raw milk",
   "predicates": []
  },
@@ -9361,6 +9559,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "reception desk",
   "predicates": []
  },
@@ -9437,6 +9636,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "red admiral",
   "predicates": [
    "can be outside a body of water",
@@ -9513,6 +9713,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "red-bellied terrapin",
   "predicates": [
    "can eat fish",
@@ -9560,6 +9761,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "remote-control bomb",
   "predicates": []
  },
@@ -9590,6 +9792,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "riesling",
   "predicates": [
    "can be produced",
@@ -9679,6 +9882,7 @@
    "is used for provide companionship",
    "is used for turkey soup"
   ],
+  "asked_at": [],
   "name": "ring-necked parakeet",
   "predicates": [
    "can be perched on rock",
@@ -9779,6 +9983,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "river dolphin",
   "predicates": [
    "can be used in research",
@@ -9795,6 +10000,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "rock star",
   "predicates": []
  },
@@ -9802,6 +10008,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "rugby ball",
   "predicates": []
  },
@@ -9811,6 +10018,7 @@
    "can produce sugar cane",
    "can provide the worst living conditions"
   ],
+  "asked_at": [],
   "name": "russia",
   "predicates": []
  },
@@ -9819,6 +10027,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "salicylic acid",
   "predicates": []
  },
@@ -9902,6 +10111,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "sambar",
   "predicates": [
    "can find food",
@@ -9928,6 +10138,7 @@
    "is very healthy to eat",
    "is yellow"
   ],
+  "asked_at": [],
   "name": "saskatoon",
   "predicates": [
    "can be donated to food pantries",
@@ -9961,6 +10172,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "sauvignon blanc",
   "predicates": [
    "can be produced"
@@ -10004,6 +10216,7 @@
    "is thin",
    "is used for make sounds"
   ],
+  "asked_at": [],
   "name": "saxhorn",
   "predicates": [
    "can be used in jazz music",
@@ -10017,6 +10230,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "search engine",
   "predicates": []
  },
@@ -10028,6 +10242,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "section hand",
   "predicates": []
  },
@@ -10035,6 +10250,7 @@
   "asked": [
    "can be founded"
   ],
+  "asked_at": [],
   "name": "section",
   "predicates": []
  },
@@ -10088,6 +10304,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "sedan",
   "predicates": [
    "can be driven by person",
@@ -10146,6 +10363,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "seeker",
   "predicates": []
  },
@@ -10157,6 +10375,7 @@
    "is cute",
    "is flat"
   ],
+  "asked_at": [],
   "name": "seesaw",
   "predicates": []
  },
@@ -10164,6 +10383,7 @@
   "asked": [
    "can spread the word"
   ],
+  "asked_at": [],
   "name": "segovia",
   "predicates": []
  },
@@ -10175,6 +10395,7 @@
    "can wash their hands",
    "has skill"
   ],
+  "asked_at": [],
   "name": "servant",
   "predicates": []
  },
@@ -10182,6 +10403,7 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "shirttail",
   "predicates": []
  },
@@ -10230,6 +10452,7 @@
    "is thin",
    "is used for destroy living thing"
   ],
+  "asked_at": [],
   "name": "shot",
   "predicates": []
  },
@@ -10239,6 +10462,7 @@
    "can produce sugar cane",
    "can provide the worst living conditions"
   ],
+  "asked_at": [],
   "name": "sikkim",
   "predicates": []
  },
@@ -10279,6 +10503,7 @@
    "is used for clothing",
    "is used for food"
   ],
+  "asked_at": [],
   "name": "silver grass",
   "predicates": []
  },
@@ -10361,6 +10586,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "silverback",
   "predicates": [
    "can find food",
@@ -10444,6 +10670,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "silverspot",
   "predicates": []
  },
@@ -10477,6 +10704,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "sister ship",
   "predicates": []
  },
@@ -10498,6 +10726,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "snack bar",
   "predicates": []
  },
@@ -10517,6 +10746,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "sour cream",
   "predicates": []
  },
@@ -10602,6 +10832,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "spaniel",
   "predicates": [
    "can be boarded",
@@ -10681,6 +10912,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "spiny lizard",
   "predicates": [
    "can feel pain",
@@ -10757,6 +10989,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "spiny softshell",
   "predicates": [
    "has animal tissue"
@@ -10812,6 +11045,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "sports car",
   "predicates": [
    "can be driven by person",
@@ -10824,6 +11058,7 @@
   "asked": [
    "can be used in clothing"
   ],
+  "asked_at": [],
   "name": "spritsail",
   "predicates": []
  },
@@ -10857,6 +11092,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "steamer",
   "predicates": [
    "is found in sea"
@@ -10912,6 +11148,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "stock car",
   "predicates": [
    "can be driven by person",
@@ -10940,6 +11177,7 @@
    "is old",
    "is used for people"
   ],
+  "asked_at": [],
   "name": "straight chair",
   "predicates": []
  },
@@ -10948,6 +11186,7 @@
    "can appeared in grey room",
    "can be included in single microsoft word file"
   ],
+  "asked_at": [],
   "name": "strophe",
   "predicates": []
  },
@@ -11024,6 +11263,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "strymon melinus",
   "predicates": []
  },
@@ -11043,6 +11283,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "sweet corn",
   "predicates": []
  },
@@ -11085,6 +11326,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "swing",
   "predicates": [
    "can be available in white",
@@ -11095,6 +11337,7 @@
   "asked": [
    "is found in fishing boat"
   ],
+  "asked_at": [],
   "name": "switchblade",
   "predicates": []
  },
@@ -11181,6 +11424,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "taguan",
   "predicates": []
  },
@@ -11189,6 +11433,7 @@
    "can be washed down the drain",
    "can last long time"
   ],
+  "asked_at": [],
   "name": "tartaric acid",
   "predicates": []
  },
@@ -11198,6 +11443,7 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "taw",
   "predicates": []
  },
@@ -11209,6 +11455,7 @@
    "is cute",
    "is flat"
   ],
+  "asked_at": [],
   "name": "teddy",
   "predicates": [
    "can be placed on seamless hard surface"
@@ -11279,6 +11526,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "teju",
   "predicates": [
    "has animal tissue"
@@ -11288,6 +11536,7 @@
   "asked": [
    "can break window"
   ],
+  "asked_at": [],
   "name": "tennis ball",
   "predicates": []
  },
@@ -11350,9 +11599,11 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "tent caterpillar",
   "predicates": [
-   "has animal tissue"
+   "has animal tissue",
+   "has animalia"
   ]
  },
  "teth.n.01": {
@@ -11361,12 +11612,8 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "teth",
-  "predicates": []
- },
- "thatch.n.01": {
-  "asked": [],
-  "name": "thatch",
   "predicates": []
  },
  "thousand island dressing.n.01": {
@@ -11388,6 +11635,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "thousand island dressing",
   "predicates": []
  },
@@ -11472,6 +11720,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "titi",
   "predicates": [
    "can feel pain",
@@ -11509,6 +11758,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "tokay",
   "predicates": []
  },
@@ -11548,6 +11798,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "token",
   "predicates": []
  },
@@ -11557,6 +11808,7 @@
    "can produce sugar cane",
    "can provide the worst living conditions"
   ],
+  "asked_at": [],
   "name": "toll plaza",
   "predicates": []
  },
@@ -11579,6 +11831,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "tomato sauce",
   "predicates": [
    "can be produced",
@@ -11646,6 +11899,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "tongueless frog",
   "predicates": []
  },
@@ -11700,6 +11954,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "tow truck",
   "predicates": [
    "can be involved in accident",
@@ -11758,6 +12013,7 @@
    "is round",
    "is used for containing"
   ],
+  "asked_at": [],
   "name": "trailer truck",
   "predicates": [
    "can be equipped with seat belts",
@@ -11831,6 +12087,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "trap-door spider",
   "predicates": [
    "has animal tissue"
@@ -11901,6 +12158,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "tree lizard",
   "predicates": [
    "has animal tissue"
@@ -11924,6 +12182,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "trestle table",
   "predicates": []
  },
@@ -11934,6 +12193,7 @@
    "can recognize face",
    "can teach figure skating skills"
   ],
+  "asked_at": [],
   "name": "trojan",
   "predicates": []
  },
@@ -11998,6 +12258,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "true frog",
   "predicates": [
    "can swim in the water",
@@ -12065,6 +12326,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "true toad",
   "predicates": [
    "has animal tissue"
@@ -12076,6 +12338,7 @@
    "can play card",
    "is old"
   ],
+  "asked_at": [],
   "name": "u",
   "predicates": []
  },
@@ -12117,6 +12380,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "upright",
   "predicates": []
  },
@@ -12194,6 +12458,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "velvet ant",
   "predicates": [
    "can sting",
@@ -12227,6 +12492,7 @@
    "is full",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "vermouth",
   "predicates": []
  },
@@ -12310,6 +12576,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "virginia deer",
   "predicates": [
    "can feel pain",
@@ -12400,6 +12667,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "wapiti",
   "predicates": [
    "can be outside a body of water",
@@ -12446,6 +12714,7 @@
    "is real",
    "is used for contain liquid"
   ],
+  "asked_at": [],
   "name": "warship",
   "predicates": [
    "can be equipped with seat belts",
@@ -12491,6 +12760,7 @@
    "is thick",
    "is thin"
   ],
+  "asked_at": [],
   "name": "water filter",
   "predicates": [
    "can be available in white",
@@ -12581,6 +12851,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "western grey squirrel",
   "predicates": [
    "can climb tree",
@@ -12675,6 +12946,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "western lowland gorilla",
   "predicates": [
    "can eat plant",
@@ -12748,6 +13020,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "western narrow-mouthed toad",
   "predicates": [
    "can swim in the water",
@@ -12819,6 +13092,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "western skink",
   "predicates": [
    "can run after prey",
@@ -12841,6 +13115,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "wheat",
   "predicates": []
  },
@@ -12909,6 +13184,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "whiptail",
   "predicates": []
  },
@@ -12985,6 +13261,7 @@
    "is strong",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "white admiral",
   "predicates": [
    "can swim in the water"
@@ -13073,6 +13350,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "white whale",
   "predicates": [
    "has animal tissue"
@@ -13159,6 +13437,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "wild horse",
   "predicates": [
    "can be outside a body of water",
@@ -13189,6 +13468,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "wild rice",
   "predicates": []
  },
@@ -13210,6 +13490,7 @@
    "is dry",
    "is old"
   ],
+  "asked_at": [],
   "name": "wine bar",
   "predicates": []
  },
@@ -13272,6 +13553,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "wireworm",
   "predicates": []
  },
@@ -13338,6 +13620,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "wolf spider",
   "predicates": [
    "can feel pain",
@@ -13428,6 +13711,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "woodland caribou",
   "predicates": [
    "can eat plant",
@@ -13458,6 +13742,7 @@
    "has meat",
    "is sweet"
   ],
+  "asked_at": [],
   "name": "worcester sauce",
   "predicates": []
  },
@@ -13542,6 +13827,7 @@
    "is stealthy",
    "is used for provide companionship"
   ],
+  "asked_at": [],
   "name": "yearling",
   "predicates": [
    "can feel pain",

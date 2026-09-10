@@ -306,17 +306,25 @@ def load_distilled_kinds(path: Path | None = None) -> dict[str, dict]:
     leaves R19 unable to speak -- 83 of the 118 ancestors it is actually
     consulted at. `dog.n.01` has three. These are extra kinds for those.
 
-    Two lists per concept, and the distinction is the whole design:
+    A distilled kind counts in R19's **denominator only where it has
+    testimony**, and in the numerator only for what it affirmed. Counting it
+    everywhere would put warm bodies in the denominator for terms it cannot
+    speak to and bias R19 toward refusal -- the sparsity trap of `AUDIT.md`
+    §17, self-inflicted.
 
-        asked        the claims this witness was put to, whatever it said
-        predicates   the ones it affirmed
+    Two shapes of testimony, and both are read:
 
-    A distilled kind counts in R19's **denominator only for terms it was
-    asked about**, and in the numerator only for those it affirmed. Counting
-    it everywhere would put warm bodies in the denominator for terms it
-    cannot speak to and bias R19 toward refusal -- the sparsity trap of
-    `AUDIT.md` §17, self-inflicted. So it witnesses where it has testimony
-    and is absent where it does not.
+        asked_at     ancestors this witness was asked **every** inheritable
+                     fact of, so it can speak to any term R19 raises there.
+                     R19 only consults `(ancestor, term)` when the term
+                     matched a fact on that ancestor, so "asked about all of
+                     them" implies "asked about this one". Written by
+                     `kinds.py --dense`, and it is why the artifact is
+                     kilobytes rather than the 640,000 claims behind it.
+        asked        individual claims, for the cheaper `kinds.py --build`,
+                     which asks only the terms the recording saw.
+
+    A witness with neither is dropped: it could only pad a denominator.
 
     Kept out of `identify.stated` for the same reason as `load_distilled`.
     """
@@ -325,8 +333,13 @@ def load_distilled_kinds(path: Path | None = None) -> dict[str, dict]:
         rows = json.loads(target.read_text(encoding="utf-8"))
     except Exception:                               # noqa: BLE001
         return {}
-    return {concept: {"name": one.get("name") or concept,
-                      "asked": frozenset(one.get("asked") or ()),
-                      "predicates": frozenset(one.get("predicates") or ())}
-            for concept, one in rows.items()
-            if one.get("asked")}
+    out = {}
+    for concept, one in rows.items():
+        asked_at = frozenset(one.get("asked_at") or ())
+        asked = frozenset(one.get("asked") or ())
+        if not (asked_at or asked):
+            continue
+        out[concept] = {"name": one.get("name") or concept,
+                        "asked_at": asked_at, "asked": asked,
+                        "predicates": frozenset(one.get("predicates") or ())}
+    return out
