@@ -206,3 +206,154 @@ class TheTally(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThePlainForm(unittest.TestCase):
+    """A sense-tagged object is not something to put to a model."""
+
+    def test_it_strips_a_synset_suffix(self):
+        from research.v688 import densify
+
+        self.assertEqual(densify.plain("animal tissue.n.01"), "animal tissue")
+        self.assertEqual(densify.plain("fly.v.01"), "fly")
+
+    def test_it_leaves_free_text_alone(self):
+        from research.v688 import densify
+
+        self.assertEqual(densify.plain("hunt at night"), "hunt at night")
+        self.assertEqual(densify.plain("3.5 inches"), "3.5 inches")
+        self.assertEqual(densify.plain(""), "")
+
+    def test_the_question_reads_as_english(self):
+        from research.v688 import densify
+
+        self.assertEqual(densify.question("leopard", "capable_of", "hunt"),
+                         "can a leopard hunt")
+        self.assertEqual(densify.question("bat", "has_a",
+                                          "animal tissue.n.01"),
+                         "does a bat have animal tissue")
+        self.assertEqual(densify.question("owl", "has_property", "nocturnal"),
+                         "is an owl nocturnal")
+
+
+class WhatIsStoredIsFoundAgain(unittest.TestCase):
+    """§17's condition 3: `_hit` has to reach a distilled norm."""
+
+    def test_the_stored_predicate_contains_the_term(self):
+        from research.v687.identify import Identifier
+        from research.v688 import densify, teacher
+
+        for relation, obj, term in (("has_a", "wing", "wings"),
+                                    ("capable_of", "hunt at night", "hunt"),
+                                    ("has_property", "nocturnal", "nocturnal"),
+                                    ("has_a", "animal tissue.n.01", "tissue")):
+            with self.subTest(obj):
+                predicate = teacher.stated(relation, densify.plain(obj))
+                self.assertIsNotNone(
+                    Identifier._hit(term, frozenset({predicate})),
+                    f"{term!r} did not reach {predicate!r}")
+
+    def test_a_bare_term_would_have_worked_too_but_reads_badly(self):
+        """Recorded because it is the tempting shortcut: `_hit` matches any
+        word, so the term alone matches -- and then the profile display and
+        the trie carry `wing` as if somebody had said it."""
+        from research.v687.identify import Identifier
+
+        self.assertIsNotNone(Identifier._hit("wings", frozenset({"wing"})))
+
+
+class TheCorroborationChange(unittest.TestCase):
+    """R19 with a second evidence base. The denominator must not move."""
+
+    class Stub:
+        """Enough of `Profiles` to run `corroboration` without a store."""
+
+        def __init__(self, stated, distilled):
+            from research.v687.identify import Identifier
+
+            self.stated = stated
+            self.distilled = distilled
+            self.identifier = Identifier
+            self._ancestors = {name: {"bird.n.01"} for name in stated}
+
+        def _lineage(self):
+            return self._ancestors
+
+    def run_it(self, stated, distilled, term="fly"):
+        from research.v687.profile import Profiles
+
+        stub = self.Stub(stated, distilled)
+        return Profiles.corroboration(stub, "bird.n.01", term)
+
+    #: A kind must carry *something* -- `corroboration` skips a concept
+    #: whose norms are empty, because `stated.get(name)` is falsy for an
+    #: empty frozenset. So the fixtures give every kind one filler property.
+    FILLER = frozenset({"exists"})
+
+    def test_distilled_evidence_adds_bearing(self):
+        stated = {f"b{i}": self.FILLER for i in range(9)}
+        stated["b0"] = frozenset({"can fly"})
+        bare, _ = self.run_it(stated, {})
+        dense, _ = self.run_it(
+            stated, {f"b{i}": frozenset({"can fly"}) for i in range(1, 6)})
+        self.assertEqual(bare, 1)
+        self.assertEqual(dense, 6)
+
+    def test_the_denominator_is_untouched(self):
+        """Distillation adds properties to kinds the norms already cover; it
+        must not invent kinds, or the ratio moves for two reasons at once."""
+        stated = {f"b{i}": self.FILLER for i in range(9)}
+        _, without = self.run_it(stated, {})
+        _, with_extra = self.run_it(
+            stated, {"stranger": frozenset({"can fly"}),
+                     "b1": frozenset({"can fly"})})
+        self.assertEqual(without, 9)
+        self.assertEqual(with_extra, 9)
+
+    def test_a_concept_the_norms_do_not_cover_is_not_a_kind(self):
+        stated = {f"b{i}": frozenset({"x"}) for i in range(4)}
+        stated["empty"] = frozenset()
+        _, kinds = self.run_it(stated, {})
+        self.assertEqual(kinds, 4)
+
+    def test_sparsity_refuses_where_density_believes(self):
+        """§17 as arithmetic, through the real method."""
+        stated = {f"b{i}": self.FILLER for i in range(9)}
+        stated["b0"] = frozenset({"can fly"})
+        bearing, kinds = self.run_it(stated, {})
+        self.assertLess(bearing / kinds, 1 / 3)          # refused
+        dense = {f"b{i}": frozenset({"can fly"}) for i in range(7)}
+        bearing, kinds = self.run_it(stated, dense)
+        self.assertGreaterEqual(bearing / kinds, 1 / 3)  # believed
+
+
+class TheProvenanceStaysSeparable(unittest.TestCase):
+    """Condition 1 of §17, asserted rather than trusted."""
+
+    def test_identify_does_not_merge_distilled_norms(self):
+        """If it ever does, the trie, the profile display and the audit's
+        `shipped` control all silently change meaning."""
+        import inspect
+
+        from research.v687 import identify
+
+        source = inspect.getsource(identify)
+        self.assertNotIn("load_distilled", source)
+
+    def test_a_missing_file_is_not_an_error(self):
+        from research.v687 import corpora
+
+        self.assertEqual(corpora.load_distilled(
+            norms.ROOT / "data" / "no-such-file.json"), {})
+
+    def test_the_ablation_switch_exists(self):
+        from research.v687 import profile
+
+        self.assertIn("V687_NO_DISTILLED_NORMS",
+                      inspect_source(profile))
+
+
+def inspect_source(module):
+    import inspect
+
+    return inspect.getsource(module)

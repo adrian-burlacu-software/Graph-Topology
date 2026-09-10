@@ -67,6 +67,7 @@ And the measuring apparatus, which answers nothing and is not on the page:
 | `audit.py` | the ablation sweep against COMPS/XCSLB, with the norms path off. `AUDIT.md` is what it found. |
 | `screen.py` | puts COMPS' foils to a calibrated judge and keeps the ones that are actually false — because XCSLB's zeros are silence, and scoring them as denial punished the store for knowing things. |
 | `norms.py` | distils a dense property matrix with the model and checks it against AwA2's closed one, to answer whether R19's evidence base should be free listing. It should not. |
+| `densify.py` | fills the cells R19 actually reads, for the concepts it already consults, so its silences stop counting as "no". Writes `data/distilled_norms.json`; `V687_NO_DISTILLED_NORMS=1` ablates it. |
 
 ## Where a question comes from
 

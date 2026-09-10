@@ -1109,6 +1109,128 @@ Three conditions on doing it:
 
 ---
 
+## 18. Acted on: R19's evidence is dense now, and it barely matters
+
+2026-09-10. `research/v688/densify.py`, `corpora.load_distilled`,
+`Profiles.corroboration`.
+
+§17 said distil norms and gave three conditions. All three are met, the
+mechanism works exactly as predicted, and **the end-to-end result is much
+smaller than §17 implied.** Recording that gap is the point of this section.
+
+### Condition 3 first: what R19 is actually asked
+
+§17 simulated R19's arithmetic with AwA2 attribute names on both sides, so it
+never tested `_hit`. Recording a live engine over 1,468 audit questions --
+**1,503 consultations, 553 distinct (ancestor, term), 118 ancestors** --
+changed the plan before it was built:
+
+```
+animal.n.01      317 calls   143 norm-covered kinds
+plant.n.02       142          52
+furniture.n.01   131          17
+device.n.01       87          59
+bird.n.01         85          29
+```
+
+The ancestors R19 reaches are **basic level**, chosen by where the crawl put
+the fact rather than by how narrow the class is, and **not one has more than
+150 norm-covered kinds**. So §17's greedy set cover over narrow classes was
+the wrong target and no new concepts were needed: the 477 concepts XCSLB and
+AwA2 already cover *are* the kinds R19 consults, and they are simply empty.
+Of the 17,607 cells in the 8-to-150-kind band, the existing norms bear out
+**10.1%**.
+
+`_hit` matches a query word against any word of a predicate, so storing
+`teacher.stated(relation, object)` -- `has_a` + `wing` becomes `has a wing`
+-- makes the term reachable **by construction**. Condition 3 answered.
+
+### The distillation
+
+17,607 cells, **14.5 GPU-minutes at 19.8/s**, asked as the bare claim
+`audit.phrase` builds. 4,137 predicates written at 0.90 and **1,408 at 0.99**
+over 328 concepts. Relations `teacher.READS` cannot frame are dropped (100
+cells): `has_prerequisite` + `cold or warm water` asks `does a gown cold or
+warm water`, and the model answers such a question rather than refusing it.
+
+### The mechanism works. 34.3% of R19's verdicts flip.
+
+At 0.90, of the 391 recorded calls R19 could speak on, **134 flip — all
+refused → believed**, and the named ones are precisely what free listing
+misses:
+
+```
+mammal   blooded     4 -> 55 of 65        mammal   four      8 -> 59 of 65
+mammal   warm        3 -> 55              mammal   legs     15 -> 59
+mammal   fur        13 -> 50              bird     food      2 -> 27 of 29
+```
+
+`does a robin fly` goes from *21 of 29 kinds bear it out* to **28 of 29**.
+§17's prediction is confirmed at scale on the real store.
+
+### And it buys almost nothing
+
+`corroborated`, screened gold, on the sample the fill was recorded from:
+
+| distilled norms | coverage | confirmed | accuracy | denials | taxonomic | corrupted |
+| --- | --- | --- | --- | --- | --- | --- |
+| off | 20.3% | 18.2% | 88.9% | 3.8% | 5.8% | 0.4% |
+| **on, floor 0.99** | **20.5%** | **18.4%** | **89.0%** | 3.8% | 5.8% | 0.4% |
+| on, floor 0.90 | 20.5% | 18.4% | 88.0% | 4.0% | 5.8% | 0.4% |
+
+**+0.2 coverage and +0.1 accuracy.** Not the transfer §17 was reaching for.
+A larger sample (`--limit 600`, partly outside the recorded fill) reads
++0.6 coverage and −0.8 accuracy at 0.90; the matched sample above is the
+honest one, and dilution was not the explanation — the effect is simply
+small.
+
+**Why §17 over-promised.** §17 measured R19's verdict over **AwA2's
+attributes** — curated typicality claims like `has four legs`, `is furry`,
+`can walk`, which are exactly what free listing omits. Real R19 is asked
+about **the crawl's fact objects**, and those are mostly not typicality
+claims at all: the recorded terms include `used`, `body`, `filled`,
+`touching`, `conceal`, `riddled with bullet`. Densifying the evidence about
+noise lets more noise through. At 0.90 `animal capable_of used` goes from 14
+of 143 to 129, which is the whole of the accuracy loss.
+
+So §17's limitation was not the one it declared. It said "50 classes of one
+domain is a narrow base"; the real gap was the **property distribution**, and
+that is the more useful lesson: *validating a mechanism on curated properties
+says little about a workload made of crawled ones.*
+
+### Where it leaves things
+
+**Shipped at 0.99, on by default**, because it is a strict small improvement
+with over-affirmation flat on both the screened foils and §14's model-free
+corrupted claims. `V687_NO_DISTILLED_NORMS=1` ablates it in one run.
+
+The three conditions held:
+
+1. **Provenance is separable.** `identify.stated` does not merge distilled
+   norms — a test asserts it — so the predicate trie, `_from_below`, the
+   profile display and the `shipped` control are untouched. Only
+   `Profiles.corroboration` reads them, and only the numerator: `kinds` still
+   comes from `stated`, so the change is one term of one ratio.
+2. **Over-affirmation was the number watched**, and the floor is where it
+   lives. 0.90 costs a point of accuracy for the same coverage; 0.99 does
+   not.
+3. **`_hit` is answered by construction**, above.
+
+**And pigs still do not fly.** `do pigs fly` and `does a pig have wings` are
+UNKNOWN before and after, for the same reason as before — `only 1 of the 65
+kinds of mammal` and `20 of the 143 kinds of animal` bear it out. The
+distillation was asked about those cells and correctly declined to add
+bearing, which is the negative control this whole change most needed to pass.
+
+**The real conclusion is about the crawl, not about R19.** R19's evidence was
+genuinely broken and is now genuinely fixed, and the store barely moved,
+because R19 spends most of its time adjudicating claims like `an animal can
+be riddled with bullet`. **Fact quality is upstream of everything measured
+here**, and it is the first thing this file has pointed at that no amount of
+better evidence or better rules can reach.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1148,14 +1270,22 @@ Ranked by evidence, not by appeal:
    thing that made the trade look bad no longer exists. The argument against
    scaling teaching is now only §15's — no transfer, ~36 GPU-hours for the
    remaining 45,219 concepts — which is a cost argument, not a safety one.
-8. **Spend the hours on norms rather than facts** (§17). Distilled norms are
-   90% accurate where humans agree, and they take R19's agreement with a
-   closed matrix from 46.1% to 81.6% on the same comparisons. ~2 GPU-hours
-   over 2,000 set-cover-chosen concepts takes the share of the store with a
-   corroborating ancestor narrow enough to mean anything from 3.8% to 31.2%.
-   Three conditions before shipping any of it: keep the provenance separable,
-   watch over-affirmation rather than accuracy, and answer the `_hit`
-   matching question, which §17 deliberately did not.
+8. ~~**Spend the hours on norms rather than facts**~~ Done, §18. Built in 15
+   GPU-minutes rather than two hours, because recording what R19 is asked
+   showed no new concepts were needed. It flips 34.3% of R19's verdicts and
+   buys **+0.2 coverage and +0.1 accuracy**. Shipped at floor 0.99 because it
+   costs nothing, not because it achieved much.
+9. **Fact quality is the next thing, and nothing else measured here can
+   reach it** (§18). R19's evidence was broken and is now fixed, and the
+   store barely moved, because R19 spends its time adjudicating claims like
+   `an animal can be riddled with bullet`. Every lever this file has pulled —
+   rules, corroboration, evidence density, teaching — sits downstream of what
+   the crawl put in the store. The 19% coverage ceiling and the noise are the
+   same problem seen from two sides.
+10. **Validate a mechanism on the distribution it will face.** §17 measured
+   R19 over AwA2's curated typicality attributes and predicted a large win;
+   R19's real workload is crawled free text and the win was 0.2 points. The
+   limitation §17 declared — one domain — was not the one that mattered.
 
 ## Reproducing
 

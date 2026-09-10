@@ -229,3 +229,35 @@ def denied_xcslb() -> dict[str, frozenset[str]]:
             denied.setdefault(row["unacceptable_concept"], set()).add(row["property"])
     return {concept: frozenset(properties)
             for concept, properties in sorted(denied.items())}
+
+
+#: Written by `research/v688/densify.py`, and absent from a fresh clone --
+#: it is a build product like `comps_screened.jsonl`, not a corpus anyone
+#: shipped. Every caller treats a missing file as "no distilled norms".
+DISTILLED = REPOSITORY_ROOT / "data" / "distilled_norms.json"
+
+
+def load_distilled(path: Path | None = None) -> dict[str, frozenset[str]]:
+    """concept -> properties a model asserted, for R19's evidence only.
+
+    **Kept apart from `load_xcslb` and `load_awa2` on purpose.** Those are
+    elicited from people; this is distilled from SmolLM3, and `AUDIT.md` §17
+    only has evidence for using it in one place -- `Profiles.corroboration`,
+    where a wrong property is one vote of eight or more in a ratio that has
+    to clear a third. `identify.stated` therefore does not merge it, so the
+    predicate trie, the profile display and `_from_below` are unaffected and
+    the `shipped` control in the audit still means what it says.
+
+    The reason it exists: `corroboration` counts a kind as not bearing a term
+    out when the norms never asked, and XCSLB averages 23.7 properties per
+    concept out of a 3,592-feature lexicon -- 0.66% dense. On the 30 concepts
+    XCSLB and AwA2 share, every probe measured flips to REFUSED on sparsity
+    alone: 26 of 30 animals have four legs and 4 free-listers said so.
+    """
+    target = Path(path) if path else DISTILLED
+    try:
+        rows = json.loads(target.read_text(encoding="utf-8"))
+    except Exception:                               # noqa: BLE001
+        return {}
+    return {concept: frozenset(properties)
+            for concept, properties in rows.items() if properties}
