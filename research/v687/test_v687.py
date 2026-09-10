@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import unittest
 
-from research.v687 import build, corpora, logic
+from research.v687 import build, corpora, logic, profile
 from research.v687.analogy import Analogies
 from research.v687.contrast import Contrast
 from research.v687.causal import Causal
@@ -154,21 +154,21 @@ class CorroborationTests(unittest.TestCase):
 
     def test_a_fact_its_kinds_bear_out_is_inherited(self):
         bearing, kinds = self.profiles.corroboration("bird.n.01", "fly")
-        self.assertGreater(bearing / kinds, 1 / 3)
+        self.assertGreater(bearing / kinds, profile.CORROBORATION_FLOOR)
         self.assertEqual(self.profiles.verify_one("robin", "fly").verdict,
                          "INHERITED")
 
     def test_a_fact_its_kinds_refute_is_not(self):
         """`animal.n.01 has a wing` made every dog winged."""
         bearing, kinds = self.profiles.corroboration("animal.n.01", "wings")
-        self.assertLess(bearing / kinds, 1 / 3)
+        self.assertLess(bearing / kinds, profile.CORROBORATION_FLOOR)
         self.assertEqual(self.profiles.verify_one("dog", "wings").verdict,
                          "UNRECORDED")
 
     def test_a_thin_sample_cannot_refute(self):
         """Four whales are not evidence about whales in general."""
         _, kinds = self.profiles.corroboration("whale.n.02", "sing")
-        self.assertLess(kinds, 8)
+        self.assertLess(kinds, profile.CORROBORATION_MIN_KINDS)
 
     def test_votes_from_below_must_be_independent(self):
         """Three breeds re-inheriting one sentence are one witness, not

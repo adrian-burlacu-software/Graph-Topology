@@ -39,7 +39,7 @@ from .bridged import BridgedEngine
 from . import logic, profile
 from .identify import Identifier
 from .profile import (Profiles, CORROBORATION_FLOOR,
-                      CORROBORATION_MIN_KINDS)
+                      CORROBORATION_MIN_KINDS, corroborated)
 
 #: Rule text for the identification half, listed on the page beside the rest.
 V686_RULES: dict[str, str] = {
@@ -104,7 +104,7 @@ class IdentifyingEngine(BridgedEngine):
         if not getattr(fact, "distance", 0):
             return answer
         bearing, kinds = self.profiles.corroboration(fact.concept, target)
-        if kinds < CORROBORATION_MIN_KINDS or bearing / kinds >= CORROBORATION_FLOOR:
+        if corroborated(bearing, kinds, getattr(fact, "source", None)):
             return answer
         name = fact.concept.rsplit(".", 2)[0]
         answer.verdict = "UNKNOWN"

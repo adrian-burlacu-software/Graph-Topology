@@ -261,3 +261,31 @@ def load_distilled(path: Path | None = None) -> dict[str, frozenset[str]]:
         return {}
     return {concept: frozenset(properties)
             for concept, properties in rows.items() if properties}
+
+
+#: Written by `research/v688/prune.py`, and a build product like
+#: `distilled_norms.json`. Absent from a fresh clone, and every caller treats
+#: that as "demote nothing".
+DEMOTED = REPOSITORY_ROOT / "data" / "demoted_facts.json"
+
+
+def load_demoted(path: Path | None = None) -> frozenset[tuple[str, str, str]]:
+    """(concept, relation, object) a model says is not a claim about the class.
+
+    `AUDIT.md` §19: a fact stated of a concept answers about that concept at
+    87.6% precision, and the same fact carried down to a member answers at
+    72.2%. The gap is not the crawl being wrong -- `an animal can be used in
+    research` is true -- it is the crawl attaching a sentence-level
+    observation to a class node, from which R1 hands it to all 4,016
+    descendants.
+
+    So this is a demotion and not a deletion. The fact stays, answers about
+    the concept it was recorded of, and is skipped only when `distance` is
+    non-zero. The store is not modified and the file can be thrown away.
+    """
+    target = Path(path) if path else DEMOTED
+    try:
+        rows = json.loads(target.read_text(encoding="utf-8"))
+    except Exception:                               # noqa: BLE001
+        return frozenset()
+    return frozenset((row[0], row[1], row[2]) for row in rows)

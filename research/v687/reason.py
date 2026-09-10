@@ -10,13 +10,19 @@ the derivation rather than presenting a conclusion and asking to be trusted.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-from . import rules
+from . import corpora, rules
 from .rules import Step
+
+#: Set `V687_NO_DEMOTION=1` to inherit every class-node fact again, the way
+#: the store did before R30. The ablation `AUDIT.md` §19 is measured with,
+#: and the first switch to try when an inherited answer has gone missing.
+DEMOTION_OFF = bool(os.environ.get("V687_NO_DEMOTION"))
 
 
 @dataclass
@@ -89,6 +95,12 @@ class Reasoner:
                                           check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._broad: set[str] | None = None      # R12, loaded on first use
+        #: R30. Facts a judge says are not claims about the class, skipped
+        #: when they would be *inherited* and kept when they are stated. Empty
+        #: unless `research/v688/prune.py` has been run; see
+        #: `corpora.load_demoted`.
+        self.demoted = (frozenset() if DEMOTION_OFF
+                        else corpora.load_demoted())
 
     # -- lookup -----------------------------------------------------------
     def senses_of(self, lemma: str, pos: str | None = None
@@ -744,6 +756,19 @@ class Reasoner:
             for fact in self.facts_of(node, relation):
                 if distance and not rules.inheritable_from(
                         fact.relation, breadth, fact.sense_assumed):
+                    continue
+                # R30: the relation descends but this particular sentence
+                # does not. `animal capable_of "be riddled with bullet"` is
+                # true of animals and is not a claim about them, and R1 would
+                # hand it to all 4,016 descendants.
+                if distance and (fact.concept, fact.relation,
+                                 fact.object) in self.demoted:
+                    steps.append(Step(len(steps), "stop", node, distance,
+                                      "R30",
+                                      f"“{fact.object}” is recorded of "
+                                      f"{node.rsplit('.', 2)[0]} but is not a "
+                                      f"claim about the class, so it does not "
+                                      f"descend."))
                     continue
                 key = (fact.relation, fact.object.lower())
                 if key in seen:            # R4: the nearest statement wins

@@ -66,11 +66,19 @@ AWA2 = ROOT / "data" / "awa2" / "Animals_with_Attributes2"
 STORE = ROOT / "data" / "v684_reasoning.sqlite"
 OUT = ROOT / "research" / "v688" / "audit-out"
 
-#: R19's constants, copied rather than imported so this file can run without
-#: building a reasoner. If they drift in `profile.py` this is wrong, which
-#: `test_distil.py` asserts against.
-FLOOR = 1 / 3
-MIN_KINDS = 8
+#: R19's constants, imported so the simulation cannot drift from the rule it
+#: simulates. They were copied at first, `test_distil.py` asserted the copies
+#: matched, and §19 moved the floor from 1/3 to 0.5 and the assertion caught
+#: it -- which is the argument for importing. `profile` pulls in no store, so
+#: this file still runs without building a reasoner.
+#:
+#: **§17's tables were measured at a floor of 1/3.** Re-running `--corroborate`
+#: now uses 0.5 and will not reproduce them exactly; the comparison between
+#: the three evidence bases is what that section rests on, and it is scored
+#: under whatever floor is current, the same one for all three.
+from research.v687.profile import (                      # noqa: E402
+    CORROBORATION_FLOOR as FLOOR,
+    CORROBORATION_MIN_KINDS as MIN_KINDS)
 
 #: How far up from a class to look for ancestors. `profile._lineage` uses
 #: `reasoner.ascend`, which is the same walk.

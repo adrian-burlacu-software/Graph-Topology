@@ -76,10 +76,18 @@ ROOT = Path(__file__).resolve().parents[2]
 NORMS = ROOT / "data" / "distilled_norms.json"
 CALLS = ROOT / "research" / "v688" / "audit-out" / "r19-calls.json"
 
-#: R19 declines below 8 kinds, and nothing above 150 was ever consulted in
-#: 1,503 recorded calls. Outside this band a cell is either unreadable or
-#: never read.
-FEWEST_KINDS = 8
+#: Nothing above 150 norm-covered kinds was ever consulted in 1,503 recorded
+#: calls, so above that a cell is never read.
+#:
+#: The floor was 8 -- R19's own refusal threshold -- on the reasoning that
+#: below it R19 cannot speak, so filling those cells buys nothing. That was
+#: right for R19 as a veto and wrong for R19 as a precondition
+#: (`profile.CORROBORATION_REQUIRED`), where an ancestor with three covered
+#: kinds and nothing borne out is a *refusal*. `dog.n.01` has three, none of
+#: them was ever asked whether it barks, and `does a beagle bark` became
+#: UNKNOWN. The 83 ancestors below 8 kinds are 411 cells -- twenty seconds --
+#: so there is no reason to leave them empty.
+FEWEST_KINDS = 1
 MOST_KINDS = 150
 
 #: What a distilled norm must be worth before it is written, and the whole

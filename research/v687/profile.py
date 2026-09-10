@@ -85,10 +85,30 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
 #: put to the ancestor's other kinds, which the norms *did* elicit: at least
 #: this share of them must bear it out.
 #:
-#:     bird.n.01     "fly"      21 of 29 kinds   72%   believed
+#:     bird.n.01     "fly"      28 of 29 kinds   97%   believed
 #:     animal.n.01   "wings"    20 of 143        14%   refused
 #:     carnivore.n.01 "wings"    0 of 24          0%   refused
-CORROBORATION_FLOOR = 1 / 3
+#:
+#: **A half, not a third, since §19.** A third was a guess and it let
+#: `clothing has_a sleeve` (11 of 28) and `tree has_property deciduous` (7 of
+#: 16) through to concepts that have neither. Swept against screened gold:
+#:
+#:     floor   coverage   accuracy   over-affirmed   taxonomic rung
+#:     0.333      19.8%      90.1%            2.8%             4.8%
+#:     0.500      18.7%      91.6%            2.2%             3.7%
+#:     0.600      18.4%      91.7%            2.1%             3.7%
+#:
+#: 0.5 is the knee -- 0.6 buys a tenth of a point for another third of a
+#: point of coverage -- and no page example changes at any of them.
+#:
+#: Overridable with `V687_CORROBORATION_FLOOR` so the audit can sweep it.
+#: §19 traced every wrong inherited answer in a 1,468-question sample back to
+#: 29 facts, all from Ascent++, and the ones R19 still lets through sit just
+#: above this line: `clothing has_a sleeve` at 11 of 28 and `tree has_property
+#: deciduous` at 7 of 16. A third of a class bearing a property is not the
+#: class bearing it.
+CORROBORATION_FLOOR = float(
+    os.environ.get("V687_CORROBORATION_FLOOR") or 0.5)
 
 #: ...and refusal needs a sample worth refusing on. `whale.n.02` has four
 #: kinds in the norms; one of them singing is not evidence that whales do not
@@ -101,6 +121,23 @@ CORROBORATION_MIN_KINDS = 8
 #: is bad" in one run, without moving a file.
 DISTILLED_OFF = bool(os.environ.get("V687_NO_DISTILLED_NORMS"))
 
+#: Set `V687_CORROBORATION_REQUIRED=1` to make R19 a **precondition** for
+#: believing an inherited fact rather than a veto on one.
+#:
+#: As shipped, an inherited fact is believed unless corroboration refutes it,
+#: and corroboration cannot speak at all when the ancestor has fewer than
+#: `CORROBORATION_MIN_KINDS` norm-covered kinds -- 162 of 553 recorded calls,
+#: **29%**, where inheritance then proceeds unchecked. `AUDIT.md` §18's
+#: follow-up measured what inheritance is worth: 343 true affirmations
+#: against 132 false, **72.2% precise**, against 87.6% for a fact stated of
+#: the concept itself. So inheritance is both where the errors are and where
+#: two thirds of the correct coverage is, and flipping this default trades
+#: one against the other.
+#:
+#: Off by default until that trade is measured; see §19.
+CORROBORATION_REQUIRED = bool(
+    os.environ.get("V687_CORROBORATION_REQUIRED"))
+
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
 what which is are was were be been does do did has have had can could would
@@ -112,6 +149,58 @@ thing things kind kinds sort sorts type types really actually also too and or
 with into onto out off up down over under through across around at in on to
 from for by
 """.split())
+
+
+#: Sources whose facts are scraped sentences rather than curated structure,
+#: and the only ones `CORROBORATION_REQUIRED` applies to.
+#:
+#: `AUDIT.md` §19 split inherited affirmations by where the evidence came
+#: from, on screened gold:
+#:
+#:     wordnet       144 right    6 wrong    96.0%
+#:     conceptnet      9 right    2 wrong    81.8%
+#:     ascentpp      190 right  124 wrong    60.5%
+#:
+#: WordNet's hypernymy is curated and descends reliably; Ascent++ is web
+#: sentences and supplies 94% of the errors while carrying a third of the
+#: correct coverage. Demanding corroboration of everything punishes the
+#: reliable half for the unreliable half's mistakes, which is what a
+#: source-blind rule does and why `confidence.py` already prices by source.
+CRAWLED = frozenset({"ascentpp", "conceptnet", "quasimodo", "webchild"})
+
+
+def corroborated(bearing: int, kinds: int, source: str | None = None) -> bool:
+    """Does R19 let this inherited fact through?
+
+    One place, because the rule had been written twice -- here in `verify`
+    and again in `server.corroborate` -- with the same asymmetry expressed
+    two different ways, and `CORROBORATION_REQUIRED` has to change both or
+    it changes neither.
+
+    Shipped: a fact is believed unless the ancestor's kinds refute it, and a
+    sample too small to refute on lets it through.
+
+    Under `CORROBORATION_REQUIRED` the burden moves, but **only where there
+    was evidence to have**. Requiring `kinds >= MIN` outright was tried and
+    is wrong: `dog.n.01` has three norm-covered kinds, all three swim, and
+    demanding a sample of eight turns `does a beagle swim` -- the example
+    v688 was built around -- into UNKNOWN on the strength of three
+    corroborations out of three. A rule that refuses *because the evidence
+    supporting it is thin* is not the rule anybody wanted.
+
+    So below the minimum the test is whether anything bears it out at all.
+    Nobody in a covered sample doing this is evidence; nobody having been
+    asked is not.
+
+    And the stricter burden falls only on `CRAWLED` sources. A caller that
+    does not know the source passes None and gets the shipped behaviour,
+    which keeps the rule safe where the evidence is unattributed.
+    """
+    if kinds < CORROBORATION_MIN_KINDS:
+        strict = (CORROBORATION_REQUIRED and kinds
+                  and (source or "").lower() in CRAWLED)
+        return bearing > 0 if strict else True
+    return bearing / kinds >= CORROBORATION_FLOOR
 
 
 def _clone(node: logic.Node) -> logic.Node:
@@ -741,8 +830,7 @@ class Profiles:
                                f"up — {text}.")
                 # R19: put the borrowed fact to the ancestor's other kinds.
                 bearing, kinds = self.corroboration(level.concept, term)
-                if (kinds >= CORROBORATION_MIN_KINDS
-                        and bearing / kinds < CORROBORATION_FLOOR):
+                if not corroborated(bearing, kinds, fact.get("source")):
                     refused.append((level, text, bearing, kinds))
                     continue
                 # Only report corroboration where it was actually consulted.

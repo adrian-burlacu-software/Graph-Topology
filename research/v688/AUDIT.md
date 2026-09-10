@@ -1231,6 +1231,133 @@ better evidence or better rules can reach.
 
 ---
 
+## 19. Three attacks on the crawl, two of which failed
+
+2026-09-10. §18 said fact quality is upstream of everything and named no fix.
+Three were tried. **One shipped, and the two failures are the more useful
+half of the section**, because each failed for a reason worth not repeating.
+
+### First, where the errors actually are
+
+Screened gold, `crawl`, split by whether the leading evidence was stated of
+the concept asked about or borrowed from an ancestor:
+
+| affirmation | true | false | precision |
+| --- | --- | --- | --- |
+| stated (d=0) | 163 | 23 | **87.6%** |
+| inherited (d≥1) | 343 | 132 | **72.2%** |
+
+**The crawl is not wrong where it speaks.** Inheritance carries 68% of the
+correct affirmations and 85% of the errors. And it is not evenly to blame:
+
+| source of inherited evidence | right | wrong | precision |
+| --- | --- | --- | --- |
+| wordnet | 144 | 6 | 96.0% |
+| conceptnet | 9 | 2 | 81.8% |
+| **ascentpp** | 190 | 124 | **60.5%** |
+
+`record_inherited.py` then narrowed it further. Over 1,468 questions,
+inheritance supplies only **116 answers using 93 distinct facts**, and
+**29 facts — every one of them Ascent++ — account for all the errors**. The
+problem is not 1.9 million facts. It is dozens.
+
+### Attack 1: a better dataset. Rejected, and the old verdict stands.
+
+§13 scored GenericsKB at −2.1 accuracy on base gold, and §16 raised the
+possibility that the foils had done that. Re-measured on screened gold:
+
+| store | coverage | accuracy | over-affirmed | **corrupted** |
+| --- | --- | --- | --- | --- |
+| baseline | 25.8% | 87.1% | 6.7% | 1.0% |
+| + GenericsKB | 31.2% | 85.0% | 9.7% | **3.3%** |
+
++5.4 coverage for −2.1 accuracy — **the same trade as on base gold**, so the
+confound was never the explanation and my reason for re-opening it was
+wrong. The model-free corrupted column **triples**, and nothing about a
+benchmark can explain that. A second crawl of the same character adds
+coverage and adds proportionally more falsehood.
+
+### Attack 2: prune the class-level facts. No effect, for three reasons.
+
+`prune.py` asked SmolLM3 whether each fact on a wide node is a claim about
+the class, and demoted the ones it confidently denied: 21,235 candidates, 18
+GPU-minutes, **2,985 demoted** — `animal at_location "black lagoon"`,
+`"heaven"`, `"judas iscariot"`. `reason.py` gained R30, which skips a demoted
+fact when `distance` is non-zero and keeps it where it was stated.
+
+**The audit did not move by a single decimal.** Not one demoted fact was ever
+the evidence for an answer. Three separate causes, all worth recording:
+
+1. **Blast radius is not the same as being read.** The band was "1,000+
+   descendants" on the reasoning that a wrong fact there reaches the most
+   concepts. The facts that actually supply errors sit on `clothing.n.01`
+   (28 kinds), `tree.n.01` (16), `boat.n.01` (8) — mid-sized nodes.
+2. **The judge is unreliable about superordinates.** §17 validated it on
+   concrete classes — leopards, beavers. Asked about abstractions it comes
+   apart: `does a mammal have four legs` → **no**, 0.518; `is a tree
+   deciduous` → **no**, 0.718; `can an animal kill people` → **yes**, 0.996.
+   The same model, asked about *members* rather than the class, gets `mammal
+   four legs` right at 56 of 65. **This is §18's lesson a second time, on a
+   different axis**: a mechanism validated on one distribution says nothing
+   about another, and abstraction level is a distribution.
+3. **R19 already catches most of it.** `animal beak` is 31 of 143, `animal
+   stealthy` 5 of 143, `animal kill` 10 of 143 — all refused before any
+   pruning.
+
+The machinery and `V687_NO_DEMOTION` are kept, and the artifact it built is
+inert. Re-aiming it at `record_inherited.py`'s output is the version that
+might work; asking a model about `animal.n.01` is not.
+
+### Attack 3: R19 as a precondition. Measured, not shipped.
+
+R19 is silent when the ancestor has fewer than 8 norm-covered kinds — 162 of
+553 recorded calls, 29% — and inheritance then proceeds unchecked.
+`V687_CORROBORATION_REQUIRED=1` inverts that.
+
+It reads well: **18.1% coverage, 92.2% accuracy, 1.9% over-affirmed** against
+19.8/90.1/2.8. And it is not shippable, for a reason the benchmark cannot
+see: it turns **every gap in norm coverage into a refusal**. `does a beagle
+bark` becomes UNKNOWN because none of the three dogs XCSLB covers was ever
+asked whether it barks. Two attempts to rescue it — believing on any positive
+support below the minimum, then applying the burden only to `CRAWLED`
+sources — fixed `does a beagle swim` (3 of 3 kinds, refused for having too
+small a sample, which is absurd) but not `bark`, because `bark` was never a
+recorded term and so was never distilled. **The blocker is norm coverage, not
+the rule.** Kept as a flag, off.
+
+### Attack 4, which fell out of the diagnosis and did ship
+
+The 29 culprits are not exotic. The ones R19 lets through sit just above its
+floor: `clothing has_a sleeve` at **11 of 28** and `tree has_property
+deciduous` at **7 of 16**. A third of a class bearing a property is not the
+class bearing it, and a third was a guess. Swept:
+
+| R19 floor | coverage | accuracy | over-affirmed | taxonomic rung |
+| --- | --- | --- | --- | --- |
+| 0.333 (was) | 19.8% | 90.1% | 2.8% | 4.8% |
+| 0.400 | 19.2% | 90.8% | 2.4% | 4.0% |
+| **0.500** | **18.7%** | **91.6%** | **2.2%** | **3.7%** |
+| 0.600 | 18.4% | 91.7% | 2.1% | 3.7% |
+
+**`CORROBORATION_FLOOR` is now 0.5.** −1.1 coverage for +1.5 accuracy and a
+quarter off over-affirmation, and **no page example changes at any floor in
+the sweep**. 0.6 buys a tenth of a point for another third of a point of
+coverage, so 0.5 is the knee. `V687_CORROBORATION_FLOOR` overrides it.
+
+That is the whole of what four attacks on the crawl produced: one constant.
+It is also the first change in this file that improves accuracy *and*
+over-affirmation together, rather than trading one for the other.
+
+### What the three failures have in common
+
+Each one assumed the problem was where the *volume* was — 1.9M facts, 1,000+
+descendant nodes, 29% of R19 calls — and the measurements kept saying the
+damage is somewhere small and specific instead. `record_inherited.py` exists
+because of that and is the tool to reach for first next time: **find the
+facts that were read before proposing to fix the ones that were written.**
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1275,14 +1402,24 @@ Ranked by evidence, not by appeal:
    showed no new concepts were needed. It flips 34.3% of R19's verdicts and
    buys **+0.2 coverage and +0.1 accuracy**. Shipped at floor 0.99 because it
    costs nothing, not because it achieved much.
-9. **Fact quality is the next thing, and nothing else measured here can
-   reach it** (§18). R19's evidence was broken and is now fixed, and the
+9. ~~**Fact quality is the next thing**~~ Attacked four ways in §19. A
+   better dataset makes it worse (GenericsKB triples the model-free
+   over-affirmation). Pruning class-node facts changed nothing, because the
+   facts that get *read* are not the ones with the widest reach. Making R19 a
+   precondition reads well on the benchmark and turns every gap in norm
+   coverage into a refusal. What worked was one constant: the corroboration
+   floor, a third to a half. **29 Ascent++ facts account for every wrong
+   inherited answer in a 1,468-question sample** — the remaining problem is
+   small and specific, and `record_inherited.py` is how to find it.
+10. **Find the facts that were read before fixing the ones that were
+   written** (§19). All three failed attacks aimed at where the volume was.
+11. **Fact quality is still upstream of everything** (§18). R19's evidence was broken and is now fixed, and the
    store barely moved, because R19 spends its time adjudicating claims like
    `an animal can be riddled with bullet`. Every lever this file has pulled —
    rules, corroboration, evidence density, teaching — sits downstream of what
    the crawl put in the store. The 19% coverage ceiling and the noise are the
    same problem seen from two sides.
-10. **Validate a mechanism on the distribution it will face.** §17 measured
+12. **Validate a mechanism on the distribution it will face.** §17 measured
    R19 over AwA2's curated typicality attributes and predicted a large win;
    R19's real workload is crawled free text and the win was 0.2 points. The
    limitation §17 declared — one domain — was not the one that mattered.

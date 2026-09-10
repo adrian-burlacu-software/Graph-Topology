@@ -149,15 +149,19 @@ class TheR19Simulation(unittest.TestCase):
         source = self.source(**{name: True for name in members})
         self.assertIsNone(norms.verdict(members, "furry", source))
 
-    def test_a_third_is_enough(self):
-        members = [f"c{i}" for i in range(9)]
-        source = self.source(**{name: index < 3
+    def test_the_floor_is_enough(self):
+        """Written against the constant, not against a third. §19 moved the
+        floor and a test that spells the number out tests the number."""
+        members = [f"c{i}" for i in range(10)]
+        enough = int(norms.FLOOR * 10) + 1
+        source = self.source(**{name: index < enough
                                 for index, name in enumerate(members)})
         self.assertEqual(norms.verdict(members, "furry", source), "believed")
 
-    def test_below_a_third_is_refused(self):
-        members = [f"c{i}" for i in range(9)]
-        source = self.source(**{name: index < 2
+    def test_below_the_floor_is_refused(self):
+        members = [f"c{i}" for i in range(10)]
+        under = max(int(norms.FLOOR * 10) - 1, 0)
+        source = self.source(**{name: index < under
                                 for index, name in enumerate(members)})
         self.assertEqual(norms.verdict(members, "furry", source), "refused")
 
