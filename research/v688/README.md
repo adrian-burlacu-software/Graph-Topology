@@ -57,6 +57,16 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `server.py` + `app.html` | the page: step or play cycle by cycle, click any question for its v687 derivation. |
 | `test_v688.py` | 65 tests, including every page example against the claim its card makes. |
 
+And the measuring apparatus, which answers nothing and is not on the page:
+
+| file | what it does |
+| --- | --- |
+| `confidence.py` | one answer, and one whole run, as a number and a band. |
+| `teacher.py` | SmolLM3 on one GPU, adjudicating R28 refusals and nothing else. |
+| `holdout.py` | the three domains reserved from teaching, so there is something to measure against afterwards. |
+| `audit.py` | the ablation sweep against COMPS/XCSLB, with the norms path off. `AUDIT.md` is what it found. |
+| `screen.py` | puts COMPS' foils to a calibrated judge and keeps the ones that are actually false — because XCSLB's zeros are silence, and scoring them as denial punished the store for knowing things. |
+
 ## Where a question comes from
 
 The executive never invents one. Five sources, each a mechanical transform of

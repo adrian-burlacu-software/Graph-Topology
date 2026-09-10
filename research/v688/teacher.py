@@ -52,6 +52,7 @@ premise of the page, and a warm cache costs nothing.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -169,6 +170,8 @@ class Teacher:
         self.tokenizer = None
         self.error = ""
         self.cache: dict = {}
+        self._holding = 0
+        self._dirty = False
         self.load_seconds = 0.0
         self._read_cache()
         if load:
@@ -212,12 +215,38 @@ class Teacher:
             self.cache = {}
 
     def _write_cache(self) -> None:
+        """Save, unless a `batch` is holding the file open."""
+        if self._holding:
+            self._dirty = True
+            return
+        self._save()
+
+    def _save(self) -> None:
         try:
             CACHE.parent.mkdir(parents=True, exist_ok=True)
             CACHE.write_text(json.dumps(self.cache, indent=1, sort_keys=True),
                              encoding="utf-8")
         except Exception:                           # noqa: BLE001
             pass
+
+    @contextlib.contextmanager
+    def batch(self):
+        """Hold the cache open across many judgements, then write once.
+
+        `judge` saves after every answer, which is right for the loop -- a
+        run interrupted mid-cycle keeps what it learned. `screen.py` asks
+        49,036 questions in one pass, and saving a 2.5 MB file that many
+        times costs more than the model does. Nesting is allowed and only
+        the outermost writer writes.
+        """
+        self._holding += 1
+        try:
+            yield self
+        finally:
+            self._holding -= 1
+            if not self._holding and self._dirty:
+                self._dirty = False
+                self._save()
 
     @staticmethod
     def key(subject: str, fact: str, claim: str) -> str:
