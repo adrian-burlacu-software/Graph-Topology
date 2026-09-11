@@ -407,7 +407,7 @@ class Session:
             parent = self.memory.kind_node(obj, self.asker.sense(obj))
             self.memory.relate(node, parent, reading.said)
             text = (f"taught: {kind} is a kind of {obj} — {name_of(node)} "
-                    f"now sits under {parent} in episodic memory")
+                    f"now sits under {parent}, {self._kept()}")
             if walk.verdict == "CONTRADICTED":
                 text += (", though the store puts them in branches that "
                          "share nothing (R27); here, what you taught holds")
@@ -422,7 +422,8 @@ class Session:
                          f"reads “{question}” as no relation it keeps")}
             return
         self.memory.tell(node, relation, obj, reading.said, mode)
-        stored = f"taught: {relation} “{obj}” on {name_of(node)}"
+        stored = (f"taught: {relation} “{obj}” on {name_of(node)}, "
+                  f"{self._kept()}")
         if new_kind:
             text = (f"{stored} — {word} is a kind taught here, so nothing "
                     f"in the store bears on it")
@@ -439,6 +440,11 @@ class Session:
             else:
                 text = f"{stored} — new: the store settles nothing about it"
         turn.answer = {"outcome": "noted", "source": "taught", "text": text}
+
+    def _kept(self) -> str:
+        """Where taught knowledge goes, as the reply says it."""
+        return ("kept in this example only" if self.example
+                else "kept in long-term memory")
 
     # -- telling individuals -----------------------------------------------
     def _remember(self, referent: Referent, aux, rest, holds: bool,
