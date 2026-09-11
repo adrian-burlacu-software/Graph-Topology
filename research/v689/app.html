@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V689 — who is who</title>
+<style>
+  :root {
+    --bg: #0f1216; --panel: #161b22; --line: #262d36; --text: #d6dde6;
+    --muted: #8591a0; --accent: #b98bff; --rule: #7cc4ff;
+    --verified: #3fb27f; --denied: #e5534b; --unknown: #768390;
+    --noted: #4c9be8; --which: #d9a33a; --retrieved: #a0a8b3;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               sans-serif; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+           padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+  header .sub { color: var(--muted); }
+  header a { margin-left: auto; color: var(--accent); text-decoration: none; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+         min-height: calc(100vh - 52px); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  #talk { padding: 18px 22px; border-right: 1px solid var(--line);
+          min-width: 0; }
+  aside { padding: 18px 20px; background: var(--panel); min-width: 0; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--muted); margin: 0 0 10px; }
+  .examples { margin-bottom: 16px; }
+  .examples .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .examples button { background: var(--panel); color: var(--text);
+          border: 1px solid var(--line); border-radius: 6px;
+          padding: 6px 10px; cursor: pointer; font: inherit; }
+  .examples button:hover { border-color: var(--accent); }
+  .examples .shows { color: var(--muted); margin-top: 8px; min-height: 1.5em; }
+  #transcript { display: flex; flex-direction: column; gap: 12px;
+          margin-bottom: 16px; }
+  .turn { border: 1px solid var(--line); border-radius: 8px;
+          padding: 10px 12px; background: #12161c; min-width: 0; }
+  .said { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .said .text { font-size: 15px; font-weight: 600; }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 10px;
+          border: 1px solid var(--line); color: var(--muted);
+          white-space: nowrap; }
+  .line { margin-top: 6px; color: var(--muted); overflow-wrap: anywhere; }
+  .line b { color: var(--accent); font-weight: 600; }
+  .line.unresolved b { color: var(--which); }
+  .line code, .steps code { font-family: ui-monospace, Consolas, monospace;
+          font-size: 12px; color: var(--text); }
+  .answer { margin-top: 6px; display: flex; gap: 8px; align-items: baseline;
+          flex-wrap: wrap; }
+  .answer .body { flex: 1 1 300px; min-width: 0; overflow-wrap: anywhere; }
+  .outcome { font-size: 11px; font-weight: 700; text-transform: uppercase;
+          padding: 1px 7px; border-radius: 4px; color: #0f1216;
+          white-space: nowrap; }
+  .o-verified { background: var(--verified); }
+  .o-denied { background: var(--denied); }
+  .o-unknown { background: var(--unknown); }
+  .o-noted { background: var(--noted); }
+  .o-which { background: var(--which); }
+  .o-retrieved { background: var(--retrieved); }
+  .source { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .growth { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .growth b { color: var(--text); font-weight: 600; }
+  details { margin-top: 6px; color: var(--muted); }
+  details summary { cursor: pointer; font-size: 12px; }
+  .steps { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; }
+  .steps li { display: grid; grid-template-columns: 34px 22px minmax(0, 1fr);
+          gap: 6px; padding: 2px 0; border-top: 1px solid #1c222a; }
+  .steps .rule { color: var(--rule); font-weight: 700; }
+  .steps .dist { color: var(--muted); text-align: right; }
+  .steps .at0 .dist { color: var(--accent); }
+  details ul.plain { margin: 6px 0 0; padding-left: 18px; }
+  .pending { color: var(--muted); font-style: italic; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; min-width: 0; background: var(--panel); color: var(--text);
+          border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px;
+          font: inherit; }
+  input:focus { outline: none; border-color: var(--accent); }
+  form button { background: var(--accent); color: #0f1216; border: 0;
+          border-radius: 6px; padding: 0 14px; font: inherit; font-weight: 600;
+          cursor: pointer; }
+  form button.quiet { background: transparent; color: var(--muted);
+          border: 1px solid var(--line); font-weight: 400; }
+  .stats { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .stats b { color: var(--text); }
+  .referent { border: 1px solid var(--line); border-radius: 8px;
+          padding: 9px 11px; margin-bottom: 10px; background: #12161c; }
+  .referent.focus { border-color: var(--accent); }
+  .referent .head { display: flex; gap: 8px; align-items: baseline; }
+  .referent .id { font-family: ui-monospace, Consolas, monospace;
+          color: var(--muted); font-size: 12px; margin-left: auto; }
+  .referent .name { font-weight: 600; }
+  .bar { height: 4px; background: var(--line); border-radius: 2px;
+          margin: 7px 0 5px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .meta { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .told { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; }
+  .told li { padding: 1px 0; overflow-wrap: anywhere; }
+  .told code { font-family: ui-monospace, Consolas, monospace; color: var(--rule); }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>V689</h1>
+  <span class="sub">who is who — the individuals of a conversation, held in
+    episodic memory and reasoned over by v687's own rules</span>
+  <a href="/v688">v688 →</a>
+</header>
+<main>
+  <section id="talk">
+    <div class="examples">
+      <h2>conversations</h2>
+      <div class="row" id="examples"></div>
+      <div class="shows" id="shows"></div>
+    </div>
+    <div id="transcript"></div>
+    <form id="say">
+      <input id="line" autocomplete="off"
+             placeholder="there is a beagle · can it swim · my name is …">
+      <button type="submit">say</button>
+      <button type="button" class="quiet" id="forget">start over</button>
+    </form>
+  </section>
+  <aside>
+    <h2>episodic memory</h2>
+    <div class="stats" id="stats">empty</div>
+    <div id="referents"><p class="empty">Nothing has come up yet.</p></div>
+  </aside>
+</main>
+<script>
+function makeId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+let SID = makeId();
+try {
+  const kept = localStorage.getItem("v689-sid");
+  if (kept) SID = kept; else localStorage.setItem("v689-sid", SID);
+} catch (_) { /* no storage: a fresh conversation per load */ }
+
+const SOURCE = {
+  told: "you told me", kind: "from its kind",
+  tendency: "its kind, as a tendency", conversation: "from the conversation"
+};
+let busy = false;
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+}
+
+function describe(discourse, id) {
+  const found = ((discourse && discourse.referents) || []).find(r => r.id === id);
+  return found ? found.description : id;
+}
+
+function renderTurn(box, turn) {
+  box.textContent = "";
+  const said = el("div", "said");
+  said.appendChild(el("span", "text", turn.said));
+  said.appendChild(el("span", "chip", turn.act));
+  box.appendChild(said);
+
+  const res = turn.resolution;
+  if (res) {
+    const line = el("div", "line" + (res.referent ? "" : " unresolved"));
+    line.appendChild(el("span", null, `“${res.expression}” → `));
+    line.appendChild(el("b", null,
+      res.referent ? describe(turn.discourse, res.referent)
+                   : (res.ambiguous ? "which one?" : "nothing")));
+    line.appendChild(el("span", null, " · " + res.how));
+    box.appendChild(line);
+    const found = res.identification;
+    if (found) {
+      const walk = el("div", "line");
+      walk.appendChild(el("span", null, "identified by walking the trie for "));
+      walk.appendChild(el("code", null, found.wanted.join(" + ") || "anything"));
+      walk.appendChild(el("span", null,
+        ` → ${found.candidates.length ? found.candidates.map(
+          id => describe(turn.discourse, id)).join(", ") : "no one"}` +
+        ` (${found.visited} node${found.visited === 1 ? "" : "s"} visited)`));
+      box.appendChild(walk);
+    }
+  }
+
+  const answer = el("div", "answer");
+  const outcome = (turn.answer && turn.answer.outcome) || "unknown";
+  answer.appendChild(el("span", "outcome o-" + outcome, outcome));
+  answer.appendChild(el("span", "body", (turn.answer && turn.answer.text) || ""));
+  if (turn.answer && SOURCE[turn.answer.source]) {
+    answer.appendChild(el("span", "source", "· " + SOURCE[turn.answer.source]));
+  }
+  box.appendChild(answer);
+
+  (turn.growth || []).forEach(g => {
+    const line = el("div", "growth");
+    line.appendChild(el("span", null, "trie "));
+    line.appendChild(el("b", null,
+      (g.allocated > 0 ? "+" : "") + g.allocated + " node" +
+      (Math.abs(g.allocated) === 1 ? "" : "s")));
+    line.appendChild(el("span", null,
+      ` — ${g.nodes} nodes for ${g.cells} predicates across ` +
+      `${g.individuals} individual${g.individuals === 1 ? "" : "s"}, ` +
+      `${Math.round(g.shared * 100)}% shared · ${g.reason}`));
+    box.appendChild(line);
+  });
+
+  if (turn.walk) {
+    const more = el("details");
+    // When the walk passed the individual, its verdict is raw inheritance
+    // from the store -- before v688's corroboration -- and it can disagree
+    // with the answer above. Saying so keeps the two from reading as a
+    // contradiction.
+    const raw = turn.answer && turn.answer.source === "kind" && turn.run;
+    more.appendChild(el("summary", null,
+      `v687's walk from ${turn.resolution && turn.resolution.referent
+        ? describe(turn.discourse, turn.resolution.referent) : "it"}` +
+      ` — ${turn.walk.verdict}` +
+      (raw ? " (raw inheritance, before v688 corroborates the kind)" : "")));
+    const list = el("ul", "steps");
+    turn.walk.steps.forEach(step => {
+      const item = el("li", step.distance === 0 ? "at0" : "");
+      item.appendChild(el("span", "rule", step.rule));
+      item.appendChild(el("span", "dist", String(step.distance)));
+      item.appendChild(el("span", null, step.detail));
+      list.appendChild(item);
+    });
+    more.appendChild(list);
+    if (turn.walk.note) more.appendChild(el("div", "line", turn.walk.note));
+    box.appendChild(more);
+  }
+
+  if (turn.run && turn.asked) {
+    const more = el("details");
+    const bits = [turn.run.trust, turn.run.confidence != null
+      ? `${Math.round(turn.run.confidence * 100)}%` : ""].filter(Boolean);
+    more.appendChild(el("summary", null,
+      `v688 on “${turn.asked}”` + (bits.length ? ` — ${bits.join(", ")}` : "")));
+    const list = el("ul", "plain");
+    (turn.run.lines || []).forEach(text => list.appendChild(el("li", null, text)));
+    more.appendChild(list);
+    box.appendChild(more);
+  }
+}
+
+function renderMemory(turn) {
+  const stats = document.getElementById("stats");
+  const box = document.getElementById("referents");
+  box.textContent = "";
+  stats.textContent = "";
+  const discourse = turn && turn.discourse;
+  const all = (discourse && discourse.referents) || [];
+  if (!all.length) {
+    stats.textContent = "empty";
+    box.appendChild(el("p", "empty", "Nothing has come up yet."));
+    return;
+  }
+  const memory = turn.memory || {};
+  stats.appendChild(el("b", null, String(all.length)));
+  stats.appendChild(el("span", null,
+    ` individual${all.length === 1 ? "" : "s"} · `));
+  stats.appendChild(el("b", null, String(memory.nodes || 0)));
+  stats.appendChild(el("span", null, ` trie nodes for `));
+  stats.appendChild(el("b", null, String(memory.cells || 0)));
+  stats.appendChild(el("span", null, ` predicates, planned by adaptive_coverage`));
+
+  all.forEach(one => {
+    const card = el("div", "referent" + (one.id === discourse.focus ? " focus" : ""));
+    const head = el("div", "head");
+    head.appendChild(el("span", "name", one.description));
+    head.appendChild(el("span", "id", one.id));
+    card.appendChild(head);
+    const bar = el("div", "bar");
+    const fill = el("i");
+    fill.style.width = Math.min(100, Math.round(one.salience * 100)) + "%";
+    bar.appendChild(fill);
+    card.appendChild(bar);
+    card.appendChild(el("div", "meta",
+      `under ${one.sense || one.kind} · salience ${one.salience.toFixed(2)}` +
+      ` · trie depth ${one.path.length}` +
+      (one.name ? ` · called ${one.name}` : "") +
+      (one.owner ? " · yours" : "") +
+      (one.accommodated ? " · introduced by a definite" : "") +
+      (one.id === discourse.focus ? " · in focus" : "")));
+    if (one.told.length) {
+      const list = el("ul", "told");
+      one.told.forEach(fact => {
+        const item = el("li");
+        item.appendChild(el("code", null, `${fact.relation} ${fact.object}`));
+        if (fact.said) item.appendChild(el("span", null, ` — “${fact.said}”`));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    box.appendChild(card);
+  });
+}
+
+async function say(text) {
+  const box = el("div", "turn");
+  box.appendChild(el("div", "pending", `${text} …`));
+  document.getElementById("transcript").appendChild(box);
+  box.scrollIntoView({ block: "nearest" });
+  try {
+    const response = await fetch(`/api/say?sid=${encodeURIComponent(SID)}` +
+                                 `&q=${encodeURIComponent(text)}`);
+    const turn = await response.json();
+    if (turn.error) throw new Error(turn.error);
+    renderTurn(box, turn);
+    renderMemory(turn);
+  } catch (bad) {
+    box.textContent = "";
+    box.appendChild(el("div", "said", text));
+    box.appendChild(el("div", "line unresolved", String(bad.message || bad)));
+  }
+  box.scrollIntoView({ block: "nearest" });
+}
+
+async function forget() {
+  await fetch(`/api/forget?sid=${encodeURIComponent(SID)}`);
+  document.getElementById("transcript").textContent = "";
+  renderMemory(null);
+}
+
+async function play(example) {
+  if (busy) return;
+  busy = true;
+  document.getElementById("shows").textContent = example.shows;
+  await forget();
+  for (const line of example.lines) await say(line);
+  busy = false;
+}
+
+document.getElementById("say").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = document.getElementById("line");
+  const text = input.value.trim();
+  if (!text || busy) return;
+  input.value = "";
+  busy = true;
+  await say(text);
+  busy = false;
+  input.focus();
+});
+document.getElementById("forget").addEventListener("click", () => {
+  if (!busy) forget();
+});
+
+(async () => {
+  const { examples } = await (await fetch("/api/examples")).json();
+  const row = document.getElementById("examples");
+  examples.forEach(example => {
+    const button = el("button", null, example.title);
+    button.title = example.lines.join(" / ");
+    button.addEventListener("click", () => play(example));
+    row.appendChild(button);
+  });
+  // A kept id may belong to a conversation the server no longer holds, and
+  // the page shows none of it, so start the table empty and say so.
+  await forget();
+})();
+</script>
+</body>
+</html>

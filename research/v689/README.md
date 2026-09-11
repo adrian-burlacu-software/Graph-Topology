@@ -1,0 +1,106 @@
+# V689 — who is who
+
+v688 answers questions about kinds: *does a beagle swim*. A conversation is
+about individuals — *the* beagle, *that* one, *the second* one, *it*, *me* —
+and nothing in the words names which. v689 keeps an **episodic memory** of
+them, reasons over it with **v687's own rules**, and stores it in **the paper's
+trie**, grown live as the conversation goes.
+
+```
+python -m research.v689 --workers 19 --port 8689 --teacher
+```
+
+Then open http://127.0.0.1:8689. One process serves both layers: the
+conversation at `/` and v688's page, unchanged, at `/v688`. Two processes
+cannot hold the store at once, so v689 runs *as* v688 rather than beside it.
+
+## Semantic memory and episodic memory, one set of rules
+
+v687's store is semantic memory: what is true of kinds. An individual is one
+more node at the bottom of that taxonomy — the pig you mentioned sits under
+`hog.n.03` — and what you told me about it is one more fact of the same shape,
+with `told` as its source. `EpisodicReasoner` is v687's `Reasoner` with its two
+lookups extended, so every rule runs on an individual unchanged:
+
+| you said | stored | answered by |
+| --- | --- | --- |
+| `it can't swim` | `not_capable_of swim` | **R3** — a negation at this level blocks what beagles do |
+| `he was flying` | `capable_of fly` | **R4** at distance 0 — doing a thing shows it can |
+| `it has no tail` | `has_a "no tail"` | **R3**'s denial-in-the-object, as the crawl writes them |
+| *(nothing)* | — | **R1** up to the kind, **R2**, **R4**, **R5**; then v688 on the kind |
+| `is it a dog` | — | **R1** walking up from the individual |
+
+One rule is added, and it is R2's question asked one level lower:
+
+**E1 — a quality does not descend from a kind to an individual.** `is a beagle
+black` is recorded; `is the second beagle black` is about one dog. So a
+quality is answered from what was said about that individual, or not at all,
+with the kind's tendency shown beside it.
+
+One relation is added, and no rule reads it: **`did_not`**. `it wasn't flying`
+says nothing about whether it can, so it is not `not_capable_of` — stored as
+that, R3 would deny a grounded pig the ability to fly. It answers `does it
+fly`, and nothing else.
+
+## The trie, live
+
+Appendix 3 stores individuals as goal nodes under ordered predicate paths. The
+episodic trie is that structure over the conversation: an individual's
+predicates are its kind and **every kind above it**, what it was told, what it
+is called and whose it is. Every change re-plans it with `adaptive_coverage`
+and reports what it allocated — *"the topographical growth of tries is driven
+by allocation"*, measured per turn instead of per corpus. A second beagle
+allocates nothing: it shares every predicate with the first until one of them
+is told something.
+
+Resolving a description is **identification, the trie read downwards**, as
+`identify.py` reads it: walk down until the description is exhausted, and
+everyone stored beneath fits. Because a beagle is stored with `is_a dog`,
+`the dog` finds it by R1's closure rather than by a special case.
+
+| phrase | resolved by |
+| --- | --- |
+| `a beagle`, `another beagle` | placing a new individual under `beagle.n.01` |
+| `the beagle`, `the dog`, `the black one`, `my beagle` | identification on `is_a …`, `has_property …`, `owner you` — then salience, or *which one?* |
+| `rex` | identification on `name rex`; two Rexes are a question, because a name is told, not an identity |
+| `it`, `that one` | the most salient individual |
+| `the second one`, `the other one` | order of introduction; the one not in focus |
+| `i`, `me`, `my` | you — a person, kept apart from `it` |
+
+**Salience** is v688's `Activation` over individuals rather than concepts,
+decaying every turn, with one change: a mention *refreshes* rather than adds,
+so `it` follows the conversation, not a tally.
+
+## Where an answer comes from
+
+- **The walk decides at the individual** (R3 or R4 at distance 0): what you
+  told me, and when the kind says otherwise, that it is an exception.
+- **The walk stops there by E1**: not known of this one; the kind's tendency
+  beside it.
+- **The walk passes the individual**: nothing was told, so it is a question
+  about the kind, and v688 — corroboration, R19, the teacher — answers it.
+
+The store is never written. Everything told lives in the conversation.
+
+## What it does not do
+
+- **Only the subject is read.** `does the cat chase the dog` resolves the cat.
+- **No plurals**, and names of one word only for mentioning.
+- **A lower-case `i am adrian` is not a name** — capitalisation is the only
+  evidence; `my name is adrian` works in any case.
+- **Context is not reasoned about.** `it was in an airplane` might explain the
+  flying away; that inference is ambiguous and left alone.
+- **The v688 loop does not run over individuals.** It answers the kind; the
+  individual is v687's rules over episodic memory.
+
+## Files
+
+| file | what it does |
+| --- | --- |
+| `reading.py` | which words pick out an individual, and what the utterance does |
+| `episodic.py` | episodic memory, `EpisodicReasoner` and E1, the live trie and identification |
+| `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
+| `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
+| `asker.py` | what a session needs from v687 |
+| `server.py` + `app.html` | the page, over v688's `Service` |
+| `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |

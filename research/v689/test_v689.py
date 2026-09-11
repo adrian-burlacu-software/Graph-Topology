@@ -1,0 +1,440 @@
+"""Regression suite for v689: discourse referents over episodic memory.
+
+Run: python -m unittest research.v689.test_v689 -v
+
+Two kinds of test. Reading is tested against a fake lexicon, because what it
+decides is which words pick out an individual. Everything after that runs on
+v687 itself -- the real `Reasoner`, the real `Parser`, the real rules -- over a
+nine-concept store built here, so what R3 and R4 do to an individual is tested
+as v687 does it rather than as a stub imagines it. Only v688's loop is a
+stand-in: it is asked about kinds, and the tests say what it answers.
+"""
+from __future__ import annotations
+
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
+
+from research.v687.language import Parser
+from research.v687.reason import Reasoner
+from research.v689 import reading
+from research.v689.asker import Asker
+from research.v689.session import Session
+
+# -- a store small enough to read ------------------------------------------
+
+SCHEMA = """
+CREATE TABLE concepts (id TEXT PRIMARY KEY, lemma TEXT NOT NULL,
+    pos TEXT NOT NULL, sense INTEGER NOT NULL, definition TEXT,
+    descendants INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE taxonomy (child TEXT NOT NULL, parent TEXT NOT NULL,
+    PRIMARY KEY (child, parent));
+CREATE TABLE facts (concept TEXT NOT NULL, relation TEXT NOT NULL,
+    object TEXT NOT NULL, source TEXT NOT NULL, confidence REAL NOT NULL,
+    sense_assumed INTEGER NOT NULL,
+    PRIMARY KEY (concept, relation, object, source));
+CREATE TABLE lemmas (lemma TEXT NOT NULL, concept TEXT NOT NULL,
+    primary_sense INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (lemma, concept));
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
+
+#: (id, lemma, parent)
+CONCEPTS = (("entity.n.01", "entity", None),
+            ("organism.n.01", "organism", "entity.n.01"),
+            ("animal.n.01", "animal", "organism.n.01"),
+            ("person.n.01", "person", "organism.n.01"),
+            ("doctor.n.01", "doctor", "person.n.01"),
+            ("dog.n.01", "dog", "animal.n.01"),
+            ("beagle.n.01", "beagle", "dog.n.01"),
+            ("cat.n.01", "cat", "animal.n.01"),
+            ("hog.n.03", "hog", "animal.n.01"),
+            # A colour is a noun too, and that is what made v687's parser
+            # read `is a beagle black` as a hedged `is_a`. The real store has
+            # it; a test store without it passed while the page failed.
+            ("black.n.01", "black", "entity.n.01"))
+
+LEMMAS = tuple((lemma, concept) for concept, lemma, _ in CONCEPTS) + (
+    ("pig", "hog.n.03"),)
+
+FACTS = (("dog.n.01", "capable_of", "swim", "ascentpp", 0.6, 1),
+         ("dog.n.01", "capable_of", "bark", "ascentpp", 0.7, 1),
+         ("dog.n.01", "has_a", "tail", "ascentpp", 0.6, 1),
+         ("beagle.n.01", "has_property", "black", "ascentpp", 0.5, 1),
+         ("animal.n.01", "capable_of", "breathe", "conceptnet", 0.35, 0))
+
+STORE: dict = {}
+
+
+def setUpModule() -> None:                      # noqa: N802
+    folder = tempfile.TemporaryDirectory()
+    path = Path(folder.name) / "tiny.sqlite"
+    connection = sqlite3.connect(path)
+    connection.executescript(SCHEMA)
+    connection.executemany(
+        "INSERT INTO concepts VALUES (?, ?, 'n', 1, ?, 1)",
+        [(concept, lemma, f"a {lemma}") for concept, lemma, _ in CONCEPTS])
+    connection.executemany(
+        "INSERT INTO taxonomy VALUES (?, ?)",
+        [(concept, parent) for concept, _, parent in CONCEPTS if parent])
+    connection.executemany("INSERT INTO lemmas VALUES (?, ?, 1)", LEMMAS)
+    connection.executemany("INSERT INTO facts VALUES (?, ?, ?, ?, ?, ?)",
+                           FACTS)
+    connection.commit()
+    connection.close()
+    reasoner = Reasoner(path)
+    parser = Parser(vocabulary=reasoner.vocabulary(),
+                    nouns=reasoner.noun_vocabulary())
+    STORE.update(folder=folder, reasoner=reasoner, parser=parser)
+
+
+def tearDownModule() -> None:                   # noqa: N802
+    if STORE:
+        STORE["reasoner"].connection.close()
+        STORE["folder"].cleanup()
+
+
+class TinyAsker(Asker):
+    """v687 over the tiny store; v688 answers what the test says it does."""
+
+    def __init__(self, outcomes: dict | None = None) -> None:
+        super().__init__(STORE["reasoner"], STORE["parser"])
+        self.outcomes = outcomes or {}
+        self.asked: list[str] = []
+
+    def run(self, question: str) -> dict:
+        self.asked.append(question)
+        outcome = self.outcomes.get(question, "unknown")
+        return {"summary": {"outcome": outcome, "trust": "",
+                            "lines": [f"{outcome} — {question}"]}}
+
+
+def talk(*lines: str, outcomes: dict | None = None):
+    asker = TinyAsker(outcomes)
+    session = Session(asker)
+    return session, [session.say(line) for line in lines], asker
+
+
+def who(turn) -> str | None:
+    referent = turn.resolution.referent if turn.resolution else None
+    return referent.id if referent else None
+
+
+def rules_at(turn, distance: int = 0) -> set:
+    return {step["rule"] for step in (turn.walk or {}).get("steps", [])
+            if step.get("distance") == distance}
+
+
+# -- reading ---------------------------------------------------------------
+
+class FakeLexicon:
+    KINDS = {"beagle", "dog", "cat", "animal", "pig", "person"}
+
+    def subject(self, question: str):
+        tokens = question.lower().split()
+        for index, token in enumerate(tokens):
+            pair = " ".join(tokens[index:index + 2])
+            if pair in self.KINDS:
+                return pair
+            if token in self.KINDS:
+                return token
+        return None
+
+    def lemma(self, word: str) -> str:
+        if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+            return word[:-1]
+        return word
+
+    def known(self, phrase: str) -> bool:
+        return phrase in self.KINDS
+
+
+class ReadingTests(unittest.TestCase):
+    lexicon = FakeLexicon()
+
+    def test_contractions_give_negation_one_spelling(self):
+        self.assertEqual(reading.words("It can't swim."),
+                         ["it", "can", "not", "swim"])
+        self.assertEqual(reading.words("There" + chr(8217) + "s a beagle"),
+                         ["there", "is", "a", "beagle"])
+
+    def test_the_second_one_has_no_kind_and_a_place(self):
+        found = reading.read("does the second one swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.form, found.mention.ordinal,
+                          found.mention.kind), ("ask", "ordinal", 2, ""))
+
+    def test_a_modifier_describes_rather_than_names(self):
+        found = reading.read("is the black beagle fast", self.lexicon)
+        self.assertEqual((found.mention.kind, found.mention.modifiers),
+                         ("beagle", ["black"]))
+
+    def test_an_indefinite_question_is_about_the_kind(self):
+        self.assertEqual(reading.read("does a beagle swim",
+                                      self.lexicon).act, "generic")
+
+    def test_an_introduction_can_carry_a_clause(self):
+        found = reading.read("there's a beagle that can't swim",
+                             self.lexicon)
+        self.assertEqual(found.act, "introduce")
+        self.assertFalse(found.relative.holds)
+
+    def test_that_alone_is_the_thing_when_nothing_else_is_left(self):
+        found = reading.read("is that black", self.lexicon)
+        self.assertEqual((found.mention.form, found.rest),
+                         ("pronoun", ["black"]))
+
+    def test_my_name_is_a_naming_not_a_claim_about_a_kind(self):
+        found = reading.read("my name is Adrian", self.lexicon)
+        self.assertEqual((found.act, found.name), ("name", "Adrian"))
+
+    def test_only_a_capitalised_word_after_i_am_is_a_name(self):
+        self.assertEqual(reading.read("I am Adrian", self.lexicon).act,
+                         "name")
+        self.assertEqual(reading.read("i am tired", self.lexicon).act,
+                         "tell")
+
+
+# -- v687's rules, on individuals ------------------------------------------
+
+class RulesOnIndividualsTests(unittest.TestCase):
+
+    def test_r3_a_told_negation_blocks_what_the_kind_does(self):
+        _, turns, _ = talk("there is a beagle", "can it swim",
+                           "it can't swim", "can it swim",
+                           outcomes={"can a beagle swim": "verified"})
+        self.assertEqual(turns[1].walk["verdict"], "VERIFIED")
+        self.assertEqual(turns[1].answer["source"], "kind")
+        self.assertEqual((turns[3].answer["outcome"],
+                          turns[3].answer["source"]), ("denied", "told"))
+        self.assertIn("R3", rules_at(turns[3]))
+
+    def test_r4_doing_a_thing_shows_it_can(self):
+        """Reported from the page: `he was flying` never met `can the pig
+        fly`, and the answer came from pigs."""
+        _, turns, _ = talk("there was a pig", "he was flying",
+                           "can the pig fly",
+                           outcomes={"does a pig fly": "denied"})
+        self.assertIn("exception", turns[1].answer["text"])
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("verified", "told"))
+        self.assertIn("R4", rules_at(turns[2]))
+
+    def test_not_doing_a_thing_is_not_being_unable_to(self):
+        _, turns, _ = talk("there is a pig", "it wasn't flying",
+                           "can it fly")
+        self.assertEqual(turns[2].answer["source"], "kind")
+
+    def test_not_doing_still_answers_does_it(self):
+        _, turns, _ = talk("there is a pig", "it wasn't flying",
+                           "does it fly")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "told"))
+
+    def test_what_cannot_does_not(self):
+        _, turns, _ = talk("there is a pig", "it can't fly", "does it fly")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "told"))
+
+    def test_r3_reads_a_denial_written_into_the_object(self):
+        _, turns, _ = talk("there is a dog", "it has no tail",
+                           "does it have a tail")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "told"))
+
+    def test_e1_a_quality_does_not_descend_to_one_of_them(self):
+        """`beagle has_property black` is in the store; this beagle is not
+        thereby black."""
+        _, turns, _ = talk("there is a beagle", "is it black")
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]),
+                         ("unknown", "tendency"))
+        self.assertIn("E1", rules_at(turns[1]))
+
+    def test_a_quality_that_is_also_a_noun_is_still_a_quality(self):
+        """Reported from the page: `black` is a colour as well as a quality,
+        so v687's parser reads `is a beagle black` as a hedged `is_a`. It was
+        refused as a taxonomy claim, never stored, and `the black one` found
+        nobody."""
+        _, turns, _ = talk("there is a beagle", "it is black",
+                           "is it black", "there is another beagle",
+                           "is the black one fast")
+        self.assertEqual(turns[1].answer["source"], "told")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("verified", "told"))
+        self.assertEqual(who(turns[4]), "r1")
+
+    def test_a_quality_that_is_also_a_noun_is_not_a_taxonomy_denial(self):
+        """Asked, a hedged `is_a` gets the taxonomy first and the property
+        reading when the taxonomy does not verify -- v687's engine's order --
+        so E1 answers it rather than an exclusion."""
+        _, turns, _ = talk("there is a beagle", "is it black")
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]),
+                         ("unknown", "tendency"))
+
+    def test_a_told_quality_is_answered_at_the_individual(self):
+        _, turns, _ = talk("there is a black beagle", "is it black")
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("verified", "told"))
+
+    def test_r1_is_it_a_dog_walks_up_from_the_individual(self):
+        _, turns, asker = talk("there is a beagle", "is it a dog")
+        self.assertEqual(turns[1].answer["outcome"], "verified")
+        self.assertIn("dog.n.01", turns[1].walk["chain"])
+        self.assertEqual(asker.asked, [])
+
+    def test_a_correction_replaces_rather_than_contradicts(self):
+        _, turns, _ = talk("there is a beagle", "it can't swim",
+                           "it can swim", "can it swim")
+        self.assertEqual((turns[3].answer["outcome"],
+                          turns[3].answer["source"]), ("verified", "told"))
+
+    def test_a_narrower_kind_moves_it_down_the_taxonomy(self):
+        session, turns, _ = talk("there is a dog", "it is a beagle",
+                                 "does it bark")
+        self.assertEqual(session.memory.parent["r1"], "beagle.n.01")
+        self.assertEqual(turns[2].asked, "does a beagle bark")
+
+
+# -- the trie ---------------------------------------------------------------
+
+class EpisodicTrieTests(unittest.TestCase):
+
+    def test_growth_is_driven_by_allocation(self):
+        """A second beagle shares every predicate with the first, so it
+        allocates nothing until one of them is told something."""
+        _, turns, _ = talk("there is a beagle", "there is another beagle",
+                           "the first beagle is black")
+        self.assertGreater(turns[0].growth[-1]["allocated"], 0)
+        self.assertEqual(turns[1].growth[-1]["allocated"], 0)
+        self.assertEqual(turns[2].growth[-1]["allocated"], 1)
+
+    def test_the_dog_is_identified_through_the_kinds_above_a_beagle(self):
+        _, turns, _ = talk("there is a beagle", "does the dog bark")
+        self.assertEqual(who(turns[1]), "r1")
+        self.assertEqual(turns[1].resolution.identification["wanted"],
+                         ["is_a dog"])
+
+    def test_the_black_one_is_identified_by_what_it_was_told(self):
+        _, turns, _ = talk("there is a black beagle",
+                           "there is a brown beagle",
+                           "is the black one fast")
+        self.assertEqual(who(turns[2]), "r1")
+
+    def test_a_description_that_fits_nothing_is_not_guessed(self):
+        _, turns, _ = talk("there is a black beagle",
+                           "is the white one fast")
+        self.assertIsNone(who(turns[1]))
+
+
+# -- attention ---------------------------------------------------------------
+
+class ResolutionTests(unittest.TestCase):
+
+    def test_it_is_the_most_recent(self):
+        _, turns, _ = talk("there is a beagle", "there is a cat",
+                           "does it purr")
+        self.assertEqual(who(turns[2]), "r2")
+        self.assertEqual(turns[2].asked, "does a cat purr")
+
+    def test_it_follows_the_conversation_not_the_count(self):
+        _, turns, _ = talk("there is a beagle", "it can't swim",
+                           "can it swim", "i have another beagle",
+                           "can it swim")
+        self.assertEqual(who(turns[4]), "r2")
+
+    def test_the_first_and_the_second(self):
+        _, turns, _ = talk("there is a beagle", "there is another beagle",
+                           "does the first beagle swim",
+                           "is the second one fast")
+        self.assertEqual((who(turns[2]), who(turns[3])), ("r1", "r2"))
+
+    def test_the_beagle_between_two_beagles_is_a_question(self):
+        _, turns, asker = talk("there is a beagle",
+                               "there is another beagle",
+                               "does the beagle bark")
+        self.assertIsNone(who(turns[2]))
+        self.assertTrue(turns[2].resolution.ambiguous)
+        self.assertNotIn("does a beagle bark", asker.asked)
+
+    def test_the_other_one(self):
+        _, turns, _ = talk("there is a beagle", "there is another beagle",
+                           "the first beagle is black",
+                           "is the other one black")
+        self.assertEqual(who(turns[3]), "r2")
+
+    def test_the_cat_said_first_introduces_a_cat(self):
+        session, turns, _ = talk("the cat is black")
+        self.assertTrue(turns[0].resolution.introduced)
+        self.assertTrue(session.discourse.referents[0].accommodated)
+
+    def test_it_with_nothing_before_is_refused(self):
+        _, turns, asker = talk("can it swim")
+        self.assertIsNone(who(turns[0]))
+        self.assertEqual(asker.asked, [])
+
+    def test_there_is_no_third(self):
+        _, turns, _ = talk("there is a beagle", "there is another beagle",
+                           "is the third one fast")
+        self.assertIsNone(who(turns[2]))
+
+    def test_what_is_it(self):
+        _, turns, _ = talk("there is a beagle", "it can't swim",
+                           "what is it")
+        self.assertIn("a beagle", turns[2].answer["text"])
+        self.assertIn("it can't swim", turns[2].answer["text"])
+
+
+class YouAndNamesTests(unittest.TestCase):
+
+    def test_my_name_is(self):
+        """Reported from the page: it went to v688 as a claim about a kind
+        and came back `is a my name Adrian`."""
+        _, turns, asker = talk("my name is Adrian", "what is my name")
+        self.assertIn("Adrian", turns[1].answer["text"])
+        self.assertEqual(asker.asked, [])
+
+    def test_who_am_i(self):
+        _, turns, _ = talk("I am Adrian", "who am i")
+        self.assertIn("Adrian", turns[1].answer["text"])
+
+    def test_what_you_say_of_yourself_is_about_a_person(self):
+        _, turns, _ = talk("i can't swim", "can i swim")
+        self.assertEqual(turns[1].asked, "can a person swim")
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("denied", "told"))
+
+    def test_it_never_means_you(self):
+        _, turns, _ = talk("i have a beagle", "i can swim", "can it swim")
+        self.assertEqual(who(turns[2]), "r1")
+
+    def test_a_name_is_told_not_an_identity(self):
+        _, turns, _ = talk("there is a beagle", "its name is Rex",
+                           "there is another beagle", "its name is Rex",
+                           "does Rex bark")
+        self.assertIsNone(who(turns[4]))
+        self.assertTrue(turns[4].resolution.ambiguous)
+
+    def test_my_beagle_is_the_one_you_have(self):
+        _, turns, _ = talk("there is a beagle", "i have another beagle",
+                           "does my beagle bark")
+        self.assertEqual(who(turns[2]), "r2")
+
+    def test_a_capitalised_name_said_to_be_a_kind_introduces_one(self):
+        _, turns, _ = talk("Rex is a beagle", "can Rex swim")
+        self.assertEqual(turns[0].act, "introduce")
+        self.assertEqual(who(turns[1]), "r1")
+        self.assertEqual(turns[1].asked, "can a beagle swim")
+
+    def test_the_dogs_name(self):
+        _, turns, _ = talk("there is a dog", "the dog's name is Rex",
+                           "what is its name")
+        self.assertIn("Rex", turns[2].answer["text"])
+
+    def test_you_can_be_narrowed_too(self):
+        session, _, _ = talk("i am a doctor")
+        self.assertEqual(session.memory.parent["you"], "doctor.n.01")
+
+
+if __name__ == "__main__":
+    unittest.main()
