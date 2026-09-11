@@ -23,9 +23,12 @@ memories:
 - **What you told me of this one decides it**: R3 or R4 at distance 0.
 - **What you taught me decides it**: a norm on its kind, a taught edge, or a
   kind the store never had, met further up the same walk.
-- **A taught kind the walk cannot settle** is asked of the nearest kind above
-  it that the store has: v688 has never heard of a wemble, but it has heard
-  of animals, and `can a wemble breathe` is `can an animal breathe`.
+- **A store row reached through anything taught is judged by v688**, never
+  trusted raw. `animal capable_of fly` is a crawled row about bats, and a
+  wemble walked into it and answered yes. The row is put to v688 on the kind
+  it was found on -- `can an animal fly` -- and with no row at all, to the
+  nearest kind above that the store has. Only what was told or taught is
+  answered from the walk alone.
 - **The walk stops at the individual by E1**: a quality, not known of it.
 - **Nothing episodic bears on it**: the walk passed into the store, and v688
   -- corroboration, R19, the teacher -- answers the kind.
@@ -78,7 +81,9 @@ def summary_of(run: dict | None) -> tuple[str, str, str]:
 
 
 def be(referent: Referent) -> str:
-    return "are" if referent.speaker else "is"
+    if referent.speaker:
+        return "are"
+    return "am" if referent.addressee else "is"
 
 
 def reading_of(parse) -> tuple[str | None, str]:
@@ -506,6 +511,7 @@ class Session:
         before = referent.name
         self.discourse.rename(referent, reading.name)
         who = ("you are" if referent.speaker else
+               "I am called" if referent.addressee else
                f"{self.discourse.describe(referent, named=False)} is called")
         text = f"noted: {who} {reading.name}"
         if before and before != reading.name:
@@ -584,7 +590,9 @@ class Session:
                     return
 
         e1 = any(step.rule == "E1" for step in walk.steps)
-        if (taught_kind and walk.verdict not in OUTCOME and not e1
+        if ((taught_kind or (walk.verdict in OUTCOME
+                             and self._taught_through(walk)))
+                and not e1
                 and self._ask_above(reading, walk, described, turn)):
             return
         if taught_kind or (walk.verdict in OUTCOME
@@ -633,8 +641,12 @@ class Session:
         inherits that answer as it inherits the store's facts, from the
         nearest place the store has anything to say.
         """
-        above = next((node for node in walk.chain
-                      if not self.memory.episodic_only(node)), None)
+        row = next((fact for fact in walk.evidence
+                    if fact.source != TOLD
+                    and not self.memory.episodic_only(fact.concept)), None)
+        above = row.concept if row is not None else next(
+            (node for node in walk.chain
+             if not self.memory.episodic_only(node)), None)
         if above is None:
             return False
         word = name_of(above)
@@ -642,10 +654,12 @@ class Session:
                                            True)
         turn.run = self.asker.run(question)
         outcome, _, trust = summary_of(turn.run)
-        text = (f"{WORD.get(outcome, 'not settled')} — nothing taught settles "
-                f"it for {subject}, so it is asked of {word}, the nearest kind "
-                f"above it that the store has: v688 answers “{question}” "
-                f"{outcome}")
+        where = (f"the store's row “{row.relation} {row.object}” is on "
+                 f"{word}, so v688 judges it there" if row is not None else
+                 f"nothing taught settles it, so it is asked of {word}, the "
+                 f"nearest kind above that the store has")
+        text = (f"{WORD.get(outcome, 'not settled')} — for {subject}, {where}: "
+                f"v688 answers “{question}” {outcome}")
         if trust:
             text += f" ({trust})"
         turn.answer = {"outcome": outcome, "source": "kind", "text": text}
@@ -656,10 +670,14 @@ class Session:
         if referent is None:
             return
         whose = ("your" if referent.speaker else
+                 "my" if referent.addressee else
                  f"{self.discourse.describe(referent, named=False)}'s")
         if referent.name:
             turn.answer = {"outcome": "retrieved", "source": "told",
                            "text": f"{whose} name is {referent.name}"}
+        elif referent.addressee:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": "nobody has given me a name"}
         else:
             turn.answer = {"outcome": "unknown", "source": "conversation",
                            "text": f"nobody has told me {whose} name"}
@@ -716,9 +734,8 @@ class Session:
         turn.walk = walk_of(walk)
         if self._from_walk(walk, f"{article(word)} {word}", turn):
             return True
-        if (new_kind and walk.verdict not in OUTCOME
-                and self._ask_above(reading, walk, f"{article(word)} {word}",
-                                    turn)):
+        if relation != "is_a" and self._ask_above(
+                reading, walk, f"{article(word)} {word}", turn):
             return True
         outcome = OUTCOME.get(walk.verdict, "unknown")
         evidence = walk.evidence[0] if walk.evidence else None

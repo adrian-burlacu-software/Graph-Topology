@@ -45,6 +45,9 @@ AUX = frozenset({"am", "is", "are", "was", "were", "can", "could", "does",
 COPULA = frozenset({"am", "is", "are", "was", "were"})
 
 FIRST_PERSON = frozenset({"i", "me", "myself"})
+#: The one being talked to: this program. Reported from the page -- `what is
+#: your name` answered with the speaker's, because `your` was read as `my`.
+SECOND_PERSON = frozenset({"you", "yourself"})
 PRONOUNS = frozenset({"it", "he", "she", "him", "her"})
 DEMONSTRATIVES = frozenset({"this", "that"})
 ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
@@ -54,9 +57,10 @@ ARTICLES = frozenset({"a", "an", "the"})
 
 #: Words that open a sentence and are never a name, however capitalised:
 #: `The cat is black` and `There was a pig` are not about someone called The.
-NOT_NAMES = (FIRST_PERSON | PRONOUNS | DEMONSTRATIVES | ARTICLES
-             | frozenset({"another", "there", "here", "my", "what", "who",
-                          "which", "its", "his", "her"}))
+NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | DEMONSTRATIVES
+             | ARTICLES
+             | frozenset({"another", "there", "here", "my", "your", "what",
+                          "who", "which", "its", "his", "her"}))
 
 #: Ways of putting a new individual on the table: the words before the
 #: indefinite article in `there is a beagle` and `i have another beagle`.
@@ -80,7 +84,7 @@ CONTRACTIONS = {"can't": ["can", "not"], "cannot": ["can", "not"],
                 "that's": ["that", "is"], "i've": ["i", "have"],
                 "i'm": ["i", "am"], "he's": ["he", "is"],
                 "she's": ["she", "is"], "what's": ["what", "is"],
-                "who's": ["who", "is"]}
+                "who's": ["who", "is"], "you're": ["you", "are"]}
 
 #: The typographic apostrophe, spelled without an escape sequence.
 CURLY_APOSTROPHE = chr(8217)
@@ -130,7 +134,7 @@ class Mention:
     """A phrase that picks out an individual, or puts a new one down."""
 
     #: pronoun | demonstrative | definite | ordinal | other | another |
-    #: indefinite | speaker | name | possessive | kind
+    #: indefinite | speaker | addressee | name | possessive | kind
     form: str
     kind: str = ""                # "beagle"; empty for `it`, `the second one`
     ordinal: int | None = None    # 2 for `the second`, -1 for `the last`
@@ -234,6 +238,8 @@ def read_mention(tokens: list[str], at: int, lexicon, opener: str = "does",
 
     if word in FIRST_PERSON:
         return Mention("speaker", text=word, end=at + 1)
+    if word in SECOND_PERSON:
+        return Mention("addressee", text=word, end=at + 1)
     if word in names:
         return Mention("name", text=word, end=at + 1, name=word)
     if word in PRONOUNS:
@@ -281,8 +287,10 @@ def clause(tokens: list[str]) -> Reading | None:
 
 def _whose(phrase: list[str], lexicon, names: frozenset) -> Mention | None:
     """Whose name: `my`, `its`, `the dog's`, `the second beagle's`."""
-    if phrase == ["my"] or phrase == ["your"]:
-        return Mention("speaker", text=phrase[0], end=1)
+    if phrase == ["my"]:
+        return Mention("speaker", text="my", end=1)
+    if phrase == ["your"]:
+        return Mention("addressee", text="your", end=1)
     if len(phrase) == 1 and phrase[0] in ("its", "his", "her"):
         return Mention("pronoun", text=phrase[0], end=1)
     if phrase and phrase[-1].endswith("'s"):
@@ -434,7 +442,7 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
         return named
 
     if (tokens[0] in ("what", "who") and len(tokens) > 2
-            and tokens[1] in ("is", "was", "am")):
+            and tokens[1] in ("is", "was", "am", "are")):
         found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
                              names=names)
         if (found and found.form not in ("indefinite", "another")

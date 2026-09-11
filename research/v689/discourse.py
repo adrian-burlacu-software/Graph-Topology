@@ -53,6 +53,9 @@ ORDINAL_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth",
 #: What the one talking is, until told something narrower.
 SPEAKER_KIND = "person"
 
+#: What the one being talked to is.
+ADDRESSEE_KIND = "computer program"
+
 
 @dataclass
 class Referent:
@@ -66,7 +69,14 @@ class Referent:
     accommodated: bool = False
     name: str = ""
     speaker: bool = False
+    #: this program, the one being talked to
+    addressee: bool = False
     owner: str | None = None
+
+    @property
+    def apart(self) -> bool:
+        """You and this program: never `it`, never `the other one`."""
+        return self.speaker or self.addressee
 
 
 @dataclass
@@ -98,6 +108,8 @@ class Discourse:
         #: everyone but you, in the order they came up
         self.referents: list[Referent] = []
         self.you: Referent | None = None
+        #: the one being talked to, once addressed
+        self.program: Referent | None = None
         self.activation = Activation()
         self.turn = 0
         #: the individual most recently talked about -- never you
@@ -109,7 +121,8 @@ class Discourse:
         self.activation.decay()
 
     def everyone(self) -> list[Referent]:
-        return ([self.you] if self.you else []) + self.referents
+        return ([one for one in (self.you, self.program) if one]
+                + self.referents)
 
     def by_id(self, individual: str) -> Referent | None:
         return next((one for one in self.everyone() if one.id == individual),
@@ -122,6 +135,16 @@ class Discourse:
             self.memory.place("you", SPEAKER_KIND, self.memory.kind_node(
                 SPEAKER_KIND, self.sense_of(SPEAKER_KIND)))
         return self.you
+
+    def addressed(self) -> Referent:
+        if self.program is None:
+            self.program = Referent("program", ADDRESSEE_KIND, 0, self.turn,
+                                    addressee=True)
+            self.memory.place("program", ADDRESSEE_KIND,
+                              self.memory.kind_node(
+                                  ADDRESSEE_KIND,
+                                  self.sense_of(ADDRESSEE_KIND)))
+        return self.program
 
     def names(self) -> frozenset:
         """Every one-word name told so far, lowercased, for `reading.read`."""
@@ -158,7 +181,7 @@ class Discourse:
         """A mention refreshes; see the module notes on why it does not add."""
         self.activation.table[referent.id] = 1.0
         self.activation.history.append((self.turn, referent.id, 1.0))
-        if not referent.speaker:
+        if not referent.apart:
             self.focus = referent.id
 
     def salience(self, referent: Referent) -> float:
@@ -169,6 +192,8 @@ class Discourse:
         two."""
         if referent.speaker:
             return "you"
+        if referent.addressee:
+            return "I"
         if named and referent.name:
             return referent.name
         kin = [one for one in self.referents if one.kind == referent.kind]
@@ -187,6 +212,13 @@ class Discourse:
             self.attend(you)
             return Resolution(said, you, f"“{said}”: you, the one talking",
                               [you.id])
+
+        if mention.form == "addressee":
+            program = self.addressed()
+            self.attend(program)
+            return Resolution(said, program,
+                              f"“{said}”: me, the one being talked to",
+                              [program.id])
 
         if mention.form == "name":
             found = self.memory.identify({f"name {mention.name.lower()}"})
@@ -226,7 +258,7 @@ class Discourse:
         found = self.memory.identify(wanted) if wanted else None
         pool = ([self.by_id(one) for one in found.candidates] if found
                 else list(self.referents))
-        pool = [one for one in pool if one is not None and not one.speaker]
+        pool = [one for one in pool if one is not None and not one.apart]
         seen = found.as_dict() if found else None
         noun = kind or "thing"
 
@@ -325,6 +357,7 @@ class Discourse:
                     {"id": one.id, "kind": one.kind, "order": one.order,
                      "turn": one.turn, "accommodated": one.accommodated,
                      "name": one.name, "speaker": one.speaker,
+                     "addressee": one.addressee,
                      "owner": one.owner,
                      "sense": self.memory.parent.get(one.id),
                      "description": self.describe(one),

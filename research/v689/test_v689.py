@@ -204,6 +204,11 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual((found.act, found.mention.kind, found.rest),
                          ("generic", "wemble", ["fly"]))
 
+    def test_your_is_the_one_being_talked_to(self):
+        found = reading.read("what is your name", self.lexicon)
+        self.assertEqual((found.act, found.mention.form),
+                         ("ask_name", "addressee"))
+
     def test_only_a_capitalised_word_after_i_am_is_a_name(self):
         self.assertEqual(reading.read("I am Adrian", self.lexicon).act,
                          "name")
@@ -411,6 +416,24 @@ class YouAndNamesTests(unittest.TestCase):
         self.assertIn("Adrian", turns[1].answer["text"])
         self.assertEqual(asker.asked, [])
 
+    def test_your_name_is_not_mine(self):
+        """Reported from the page: `what is your name` answered `your name
+        is Adrian`, because `your` was read as `my`."""
+        _, turns, _ = talk("my name is Adrian", "what is your name")
+        self.assertEqual(turns[1].resolution.referent.id, "program")
+        self.assertNotIn("Adrian", turns[1].answer["text"])
+
+    def test_this_program_can_be_named_apart_from_you(self):
+        _, turns, _ = talk("your name is Vee", "what is your name",
+                           "what is my name")
+        self.assertIn("Vee", turns[1].answer["text"])
+        self.assertNotIn("Vee", turns[2].answer["text"])
+
+    def test_it_never_means_this_program(self):
+        _, turns, _ = talk("there is a beagle", "what is your name",
+                           "can it swim")
+        self.assertEqual(who(turns[2]), "r1")
+
     def test_who_am_i(self):
         _, turns, _ = talk("I am Adrian", "who am i")
         self.assertIn("Adrian", turns[1].answer["text"])
@@ -457,15 +480,18 @@ class TeachingTests(unittest.TestCase):
     """Taxonomy and norms, into episodic memory only."""
 
     def test_a_new_kind_joins_the_taxonomy(self):
-        session, turns, asker = talk("a wemble is a kind of animal",
-                                     "can a wemble breathe",
-                                     "there is a wemble", "can it breathe")
+        session, turns, asker = talk(
+            "a wemble is a kind of animal", "can a wemble breathe",
+            "there is a wemble", "can it breathe",
+            outcomes={"can an animal breathe": "verified"})
         self.assertEqual(turns[0].act, "teach")
         self.assertEqual(session.memory.edges["wemble"], ["animal.n.01"])
         self.assertEqual(turns[1].answer["outcome"], "verified")
         self.assertEqual(who(turns[2]), "r1")
         self.assertEqual(turns[3].answer["outcome"], "verified")
-        self.assertEqual(asker.asked, [])
+        # v688 is asked about animals, never about a word it does not have.
+        self.assertTrue(asker.asked)
+        self.assertFalse([one for one in asker.asked if "wemble" in one])
 
     def test_a_taught_kind_answers_is_a(self):
         _, turns, _ = talk("a wemble is a kind of animal",
@@ -511,6 +537,16 @@ class TeachingTests(unittest.TestCase):
                            outcomes={"can an animal swim": "verified"})
         self.assertEqual((turns[2].answer["outcome"],
                           turns[2].answer["source"]), ("verified", "kind"))
+
+    def test_a_store_row_reached_through_a_taught_kind_is_judged(self):
+        """Reported from the page: a wemble could fly before anyone said
+        so, on `animal capable_of fly` -- a crawled row about bats, trusted
+        raw because the walk came through a taught kind."""
+        _, turns, _ = talk("a wemble is a kind of animal",
+                           "there is a wemble", "can it breathe",
+                           outcomes={"can an animal breathe": "denied"})
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "kind"))
 
     def test_the_store_is_never_written(self):
         before = STORE["reasoner"].fact_count("beagle.n.01")
