@@ -1026,5 +1026,66 @@ class ReadingTests(unittest.TestCase):
                 self.assertLessEqual(row["confidence"], 1.0)
 
 
+class ServiceTests(unittest.TestCase):
+    """The page is served a thread per request, over engines that are not."""
+
+    def test_runs_do_not_overlap(self):
+        """Two runs at once share `engines[0]` outside the pool's queue, and
+        that is one sqlite connection: `does a beagle swim` came back
+        `InterfaceError` while the page was asking something else."""
+        import threading
+        import time
+        from types import SimpleNamespace
+
+        service = server.Service.__new__(server.Service)
+        service._lock = threading.Lock()
+        service._engines = threading.Lock()
+        service._cache = {}
+        inside, most = [0], [0]
+
+        class Slow:
+            def run(self, utterance, pinned=None):
+                inside[0] += 1
+                most[0] = max(most[0], inside[0])
+                time.sleep(0.05)
+                inside[0] -= 1
+                return SimpleNamespace(as_dict=lambda: {"said": utterance})
+
+        service.loop = Slow()
+        threads = [threading.Thread(target=service.run, args=(f"q{n}",))
+                   for n in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(most[0], 1)
+
+    def test_a_reader_who_waited_gets_the_run_it_waited_for(self):
+        import threading
+        import time
+        from types import SimpleNamespace
+
+        service = server.Service.__new__(server.Service)
+        service._lock = threading.Lock()
+        service._engines = threading.Lock()
+        service._cache = {}
+        calls = []
+
+        class Slow:
+            def run(self, utterance, pinned=None):
+                calls.append(utterance)
+                time.sleep(0.05)
+                return SimpleNamespace(as_dict=lambda: {"said": utterance})
+
+        service.loop = Slow()
+        threads = [threading.Thread(target=service.run, args=("same",))
+                   for _ in range(3)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(calls, ["same"])
+
+
 if __name__ == "__main__":
     unittest.main()

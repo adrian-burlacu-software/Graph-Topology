@@ -208,12 +208,25 @@ class Service:
             self.teacher = Teacher()
         self.loop = Loop(self.pool, self.curiosity, max_cycles=max_cycles,
                          teacher=self.teacher)
-        self.startup = time.time() - started
-        self.ready = True
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
         self._senses: dict[tuple[str, str], list] = {}
         self._senses_lock = threading.Lock()
+        #: Held by every use of the engines outside the pool's queue.
+        #: `ask_one` checks an engine out, so a fan-out never shares one; but
+        #: the loop reads `engines[0]` directly -- the lemmatiser, the
+        #: generator, the sense ranking -- and so does `senses`. Two runs at
+        #: once put two threads on that one sqlite connection, and the page
+        #: showed `InterfaceError: bad parameter or other API misuse`. So one
+        #: run at a time: the teacher is one GPU anyway, and a second reader
+        #: waits seconds rather than getting an error.
+        self._engines = threading.Lock()
+        # Counted once. It is two scans of 1.9M rows and the answer does not
+        # change while the server is up, but `settings` is asked on every
+        # page load and used to count them again each time.
+        self._graph = self.graph_size()
+        self.startup = time.time() - started
+        self.ready = True
 
     def run(self, utterance: str, pinned: dict | None = None) -> dict:
         key = utterance.strip().lower() + "|" + repr(sorted(
@@ -221,9 +234,15 @@ class Service:
         with self._lock:
             if key in self._cache:
                 return self._cache[key]
-        answer = self.loop.run(utterance, pinned).as_dict()
-        with self._lock:
-            self._cache[key] = answer
+        with self._engines:
+            # Whoever held the engines may have been running this very
+            # question, and a reader who waited for it should get it.
+            with self._lock:
+                if key in self._cache:
+                    return self._cache[key]
+            answer = self.loop.run(utterance, pinned).as_dict()
+            with self._lock:
+                self._cache[key] = answer
         return answer
 
     def graph_size(self) -> dict:
@@ -255,11 +274,15 @@ class Service:
         """
         key = (word, used_as)
         with self._senses_lock:
-            if key not in self._senses:
-                reasoner = self.pool.engines[0].reasoner
-                self._senses[key] = (
-                    reasoner.senses_of(word, used_as or None) or [])[:12]
-            return self._senses[key]
+            if key in self._senses:
+                return self._senses[key]
+        # The lock above only kept sense lookups off each other. A run reads
+        # the same connection, so an uncached lookup waits for the engines.
+        with self._engines:
+            found = (self.pool.engines[0].reasoner.senses_of(
+                word, used_as or None) or [])[:12]
+        with self._senses_lock:
+            return self._senses.setdefault(key, found)
 
     def settings(self) -> dict:
         return {
@@ -270,7 +293,7 @@ class Service:
             "max_cycles": self.max_cycles,
             "trie": {"individuals": len(self.curiosity.universe),
                      "predicates": len(self.curiosity.holders)},
-            "graph": self.graph_size(),
+            "graph": self._graph,
             "weights": WEIGHTS, "urgency": URGENCY,
             "decay": DECAY, "floor": FLOOR,
             "weak_below": WEAK_BELOW,
