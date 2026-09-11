@@ -63,7 +63,8 @@ from dataclasses import dataclass, field
 from research.v687 import rules
 
 from .discourse import OBJECT_WEIGHT, Discourse, Referent, Resolution
-from .episodic import CARRIED, DID_NOT, TOLD, EpisodicMemory, name_of
+from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
+                       name_of)
 from .reading import (CARRYING, COPULA, RELATIVE, Reading, article,
                       kind_question, mode_of, progressive, read)
 
@@ -218,11 +219,38 @@ class Turn:
 class Session:
     """One conversation: attention in `discourse`, what it knows in `memory`."""
 
-    def __init__(self, asker) -> None:
+    def __init__(self, asker, knowledge: Knowledge | None = None,
+                 conversation: str = "", example: bool = False) -> None:
         self.asker = asker
-        self.memory = EpisodicMemory(asker.reasoner)
+        self.conversation = conversation
+        #: an example keeps what it teaches to itself (`longterm.py`)
+        self.example = example
+        self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation)
         self.discourse = Discourse(self.memory, asker.sense)
         self.turns: list[Turn] = []
+
+    def snapshot(self) -> dict:
+        """Everything needed to carry on after a restart, as plain values."""
+        return {"conversation": self.conversation, "example": self.example,
+                "memory": self.memory.snapshot(),
+                "discourse": self.discourse.snapshot(),
+                "knowledge": (self.memory.knowledge.as_state()
+                              if self.example else None)}
+
+    @classmethod
+    def resume(cls, asker, state: dict,
+               knowledge: Knowledge | None = None) -> "Session":
+        """A conversation from its snapshot. An example brings its own
+        knowledge back with it; any other reads the one it is given."""
+        example = bool(state.get("example"))
+        if example:
+            knowledge = Knowledge.from_state(state.get("knowledge") or {})
+        session = cls(asker, knowledge, state.get("conversation") or "",
+                      example)
+        session.memory.load(state.get("memory") or {})
+        session.discourse.load(state.get("discourse") or {})
+        session.memory.store("resumed")
+        return session
 
     # -- one utterance -----------------------------------------------------
     def say(self, text: str) -> Turn:
@@ -364,6 +392,12 @@ class Session:
                 return
             walk = self.memory.reasoner.classify(node, obj)
             turn.walk = walk_of(walk)
+            if walk.verdict == "VERIFIED" and self._taught_through(walk):
+                turn.answer = {
+                    "outcome": "verified", "source": "taught",
+                    "text": (f"yes — you already taught me that {kind} is "
+                             f"{article(obj)} {obj}")}
+                return
             if walk.verdict == "VERIFIED":
                 turn.answer = {
                     "outcome": "verified", "source": "kind",
@@ -648,11 +682,15 @@ class Session:
             turn.answer = {"outcome": outcome, "source": "told",
                            "text": text}
         else:
-            text = (f"{WORD[outcome]} — you taught me: “{said}”, recorded of "
-                    f"{name_of(fact.concept)}")
+            earlier = self.memory.learned_earlier(
+                (fact.concept, fact.relation, fact.object))
+            when = " in an earlier conversation" if earlier else ""
+            text = (f"{WORD[outcome]} — you taught me{when}: “{said}”, "
+                    f"recorded of {name_of(fact.concept)}")
             if where:
                 text += f" ({where})"
-            turn.answer = {"outcome": outcome, "source": "taught",
+            turn.answer = {"outcome": outcome,
+                           "source": "learned" if earlier else "taught",
                            "text": text}
         return True
 

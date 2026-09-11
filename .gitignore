@@ -32,3 +32,6 @@ llm/
 data/
 data/v684_genericskb.sqlite
 data/genericskb/*.parquet
+
+# What the v689 page was told and taught, kept between runs
+state/

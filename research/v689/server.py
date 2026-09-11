@@ -2,6 +2,9 @@
 
     python -m research.v689 --workers 19 --port 8689 --teacher
 
+Conversations and what they taught are kept in `state/v689-memory.sqlite`
+(`longterm.py`); `--no-memory` keeps nothing between runs.
+
 One process serves both layers: the conversation at `/`, and v688's page,
 unchanged, at `/v688`. v689 does not run beside v688, it runs *as* it, with
 v688's `Service` underneath -- two processes cannot hold the store at once.
@@ -9,9 +12,7 @@ v688's `Service` underneath -- two processes cannot hold the store at once.
 from __future__ import annotations
 
 import argparse
-import threading
 import urllib.parse
-from collections import OrderedDict
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -20,12 +21,9 @@ from research.v688 import server as v688
 from research.v688.pool import DEFAULT_WORKERS
 
 from .asker import Asker
-from .session import Session
+from .longterm import DEFAULT_PATH, Archive, Keeper
 
 HERE = Path(__file__).resolve().parent
-
-#: Conversations held at once; the least recently used is dropped first.
-KEPT = 64
 
 #: What a v689 turn carries of v688's run. The whole run is every cycle's
 #: every answer, hundreds of kilobytes, and the page shows the summary; the
@@ -135,39 +133,43 @@ class StoreAsker(Asker):
         return found
 
 
+def trimmed(turn: dict) -> dict:
+    """A turn as the page gets it and the archive keeps it: v688's run cut
+    down to its summary."""
+    summary = (turn.get("run") or {}).get("summary") or {}
+    turn["run"] = ({key: summary.get(key) for key in SUMMARY_KEYS}
+                   if turn.get("run") else None)
+    return turn
+
+
 class Conversations:
-    """One `Session` per page, by the id the page keeps."""
+    """The page's conversations, kept by `longterm.Keeper`.
 
-    def __init__(self, service) -> None:
+    Every call takes `Service._engines`: a turn reasons over the store's one
+    sqlite connection, and so does building a conversation back from disk.
+    """
+
+    def __init__(self, service, archive: Archive | None = None) -> None:
         self.service = service
-        self.asker = StoreAsker(service)
-        self._held: OrderedDict = OrderedDict()
-        self._lock = threading.Lock()
+        with service._engines:
+            self.keeper = Keeper(StoreAsker(service), archive)
 
-    def session(self, sid: str) -> Session:
-        with self._lock:
-            found = self._held.pop(sid, None)
-        if found is None:
-            with self.service._engines:
-                found = Session(self.asker)
-        with self._lock:
-            self._held[sid] = found
-            while len(self._held) > KEPT:
-                self._held.popitem(last=False)
-        return found
-
-    def say(self, sid: str, text: str) -> dict:
-        session = self.session(sid)
+    def say(self, sid: str, text: str, example: bool = False) -> dict:
         with self.service._engines:
-            turn = session.say(text).as_dict()
-        summary = (turn.get("run") or {}).get("summary") or {}
-        turn["run"] = ({key: summary.get(key) for key in SUMMARY_KEYS}
-                       if turn.get("run") else None)
-        return turn
+            return self.keeper.say(sid, text, example, trim=trimmed)
+
+    def history(self, sid: str) -> dict:
+        with self.service._engines:
+            return self.keeper.history(sid)
 
     def forget(self, sid: str) -> None:
-        with self._lock:
-            self._held.pop(sid, None)
+        with self.service._engines:
+            self.keeper.forget(sid)
+
+    def unlearn(self) -> dict:
+        with self.service._engines:
+            self.keeper.unlearn()
+            return self.keeper.summary()
 
 
 class Handler(v688.Handler):
@@ -197,12 +199,25 @@ class Handler(v688.Handler):
                 self._json({"error": "too long"}, 400)
                 return
             try:
-                self._json(self.conversations.say(sid, text))
+                example = (query.get("example") or [""])[0] == "1"
+                self._json(self.conversations.say(sid, text, example))
             except Exception as bad:            # noqa: BLE001
                 self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
         elif parsed.path == "/api/forget":
             self.conversations.forget(sid)
             self._json({"forgotten": True})
+        elif parsed.path == "/api/history":
+            if not sid:
+                self._json({"error": "a conversation id"}, 400)
+                return
+            self._json(self.conversations.history(sid))
+        elif parsed.path == "/api/unlearn":
+            # A GET, like the rest of this API, so it asks to be meant: a
+            # link preview or a prefetch must not empty long-term memory.
+            if (query.get("confirm") or [""])[0] != "yes":
+                self._json({"error": "unlearn needs confirm=yes"}, 400)
+                return
+            self._json({"knowledge": self.conversations.unlearn()})
         else:
             super().do_GET()
 
@@ -215,6 +230,11 @@ def main() -> None:
     parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
     parser.add_argument("--teacher", action="store_true",
                         help="load v688's teacher; about 6.2 GB of VRAM")
+    parser.add_argument("--memory", type=Path, default=DEFAULT_PATH,
+                        help="where conversations and what they taught are "
+                             "kept between runs")
+    parser.add_argument("--no-memory", action="store_true",
+                        help="keep nothing between runs")
     options = parser.parse_args()
 
     print(f"building {options.workers} engines from {options.store.name} ...")
@@ -223,7 +243,12 @@ def main() -> None:
     print(f"  {service.pool.workers} engines up in "
           f"{service.pool.build_seconds:.1f}s")
     Handler.service = service
-    Handler.conversations = Conversations(service)
+    archive = None if options.no_memory else Archive(options.memory)
+    Handler.conversations = Conversations(service, archive)
+    if archive is not None:
+        known = Handler.conversations.keeper.summary()
+        print(f"  long-term memory {archive.path}: {known['kinds']} taught "
+              f"kind(s), {known['edges']} edge(s), {known['norms']} norm(s)")
     httpd = ThreadingHTTPServer(("127.0.0.1", options.port), Handler)
     print(f"v689 conversation on http://127.0.0.1:{options.port} "
           f"(v688 at /v688)")

@@ -63,6 +63,8 @@ everyone stored beneath fits.
 """
 from __future__ import annotations
 
+import time
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
 from research.v687 import rules
@@ -161,31 +163,151 @@ class Withdrawal:
                 "said": self.said, "carrier_id": self.carrier_id}
 
 
+class Knowledge:
+    """What was taught about kinds: taught kinds, taxonomy and norms.
+
+    Kept apart from any one conversation's individuals because it is about no
+    one in particular: `longterm.py` shares one between every conversation and
+    keeps it on disk. Its tables are episodic memory's, keyed the same way, so
+    `Layered` can put the two together without either one knowing.
+    """
+
+    def __init__(self) -> None:
+        self.kinds: dict[str, str] = {}
+        self.edges: dict[str, list[str]] = {}
+        self.facts: dict[str, list[Fact]] = {}
+        self.said: dict[tuple, str] = {}
+        self.mode: dict[tuple, str] = {}
+        self.against: dict[tuple, str] = {}
+        self.bound: dict[tuple, set] = {}
+        #: (node, relation, object) -> (conversation, when) it was taught in
+        self.origin: dict[tuple, tuple] = {}
+
+    def clear(self) -> None:
+        for table in (self.kinds, self.edges, self.facts, self.said,
+                      self.mode, self.against, self.bound, self.origin):
+            table.clear()
+
+    def as_state(self) -> dict:
+        """Rows of plain values: what `longterm.Archive` writes."""
+        edges, norms = [], []
+        for node, parents in self.edges.items():
+            for parent in parents:
+                key = (node, "is_a", parent)
+                edges.append([node, parent, self.said.get(key, ""),
+                              *self.origin.get(key, ("", 0.0))])
+        for node, facts in self.facts.items():
+            for fact in facts:
+                key = (node, fact.relation, fact.object)
+                norms.append([node, fact.relation, fact.object,
+                              self.said.get(key, ""),
+                              self.mode.get(key, "can"),
+                              self.against.get(key),
+                              *self.origin.get(key, ("", 0.0))])
+        return {"kinds": list(self.kinds), "edges": edges, "norms": norms}
+
+    @classmethod
+    def from_state(cls, state: dict) -> "Knowledge":
+        knowledge = cls()
+        for word in state.get("kinds") or ():
+            knowledge.kinds[word] = word
+            knowledge.edges.setdefault(word, [])
+            knowledge.facts.setdefault(word, [])
+        for node, parent, said, conversation, when in (state.get("edges")
+                                                       or ()):
+            knowledge.edges.setdefault(node, []).append(parent)
+            knowledge.facts.setdefault(node, [])
+            key = (node, "is_a", parent)
+            knowledge.said[key] = said
+            knowledge.origin[key] = (conversation, when)
+        for (node, relation, obj, said, mode, against, conversation,
+             when) in state.get("norms") or ():
+            knowledge.facts.setdefault(node, []).append(
+                Fact(node, relation, obj, TOLD, 1.0, False))
+            key = (node, relation, obj)
+            knowledge.said[key] = said
+            knowledge.mode[key] = mode
+            if against:
+                knowledge.against[key] = against
+            knowledge.origin[key] = (conversation, when)
+        return knowledge
+
+
+class Layered(MutableMapping):
+    """One table over two: a conversation's own rows and the shared ones.
+
+    A key is the conversation's own when `mine` says so -- an individual, or
+    a fact about one -- and the knowledge's otherwise. Reading, writing and
+    deleting go to whichever side owns the key, so episodic memory goes on
+    using `edges`, `facts` and `said` as the single tables they were, and
+    what is taught about kinds lands in the knowledge without any call site
+    deciding it.
+    """
+
+    def __init__(self, own: dict, shared: dict, mine) -> None:
+        self.own = own
+        self.shared = shared
+        self.mine = mine
+
+    def _side(self, key) -> dict:
+        return self.own if self.mine(key) else self.shared
+
+    def __getitem__(self, key):
+        return self._side(key)[key]
+
+    def __setitem__(self, key, value) -> None:
+        self._side(key)[key] = value
+
+    def __delitem__(self, key) -> None:
+        del self._side(key)[key]
+
+    def __iter__(self):
+        yield from self.own
+        yield from (key for key in self.shared if key not in self.own)
+
+    def __len__(self) -> int:
+        return len(self.own) + sum(1 for key in self.shared
+                                   if key not in self.own)
+
+
 class EpisodicMemory:
     """Everything one conversation added to what the store knows."""
 
-    def __init__(self, reasoner: Reasoner) -> None:
+    def __init__(self, reasoner: Reasoner, knowledge: Knowledge | None = None,
+                 conversation: str = "") -> None:
         self.base = reasoner
-        #: node -> its parents in episodic memory: an individual's kind, a
-        #: taught kind's parent, or an edge taught between two store kinds
-        self.edges: dict[str, list[str]] = {}
+        #: what was taught about kinds: shared with every other conversation
+        #: when `longterm.py` hands one in, a fresh one of its own otherwise
+        self.knowledge = knowledge if knowledge is not None else Knowledge()
+        #: the id the page keeps, so knowledge can say where it was taught
+        self.conversation = conversation
         #: the nodes that are individuals, in the order they came up
         self.individuals: list[str] = []
+
+        def own(node) -> bool:
+            return node in self.individuals
+
+        def own_key(key) -> bool:
+            return key[0] in self.individuals
+
+        #: node -> its parents in episodic memory: an individual's kind, a
+        #: taught kind's parent, or an edge taught between two store kinds
+        self.edges = Layered({}, self.knowledge.edges, own)
         #: word -> node, for kinds the store has no sense for
-        self.kinds: dict[str, str] = {}
+        self.kinds = self.knowledge.kinds
         #: facts on any node: an individual, a taught kind, a store synset
-        self.facts: dict[str, list[Fact]] = {}
+        self.facts = Layered({}, self.knowledge.facts, own)
         #: (node, relation, object) -> the utterance that told it
-        self.said: dict[tuple, str] = {}
+        self.said = Layered({}, self.knowledge.said, own_key)
         #: (node, relation, object) -> `can` for a claim of ability, `does`
         #: for something seen done. E2 withdraws only the second.
-        self.mode: dict[tuple, str] = {}
+        self.mode = Layered({}, self.knowledge.mode, own_key)
         #: (node, relation, object) -> v688's answer for the kind, when told
-        self.against: dict[tuple, str] = {}
+        self.against = Layered({}, self.knowledge.against, own_key)
         #: (node, relation, object) -> the individuals the object named. `it
         #: chased the cat` stores `capable_of "chase a cat"`, which is what
         #: the rules can read, and keeps which cat here
-        self.bound: dict[tuple, set] = {}
+        self.bound = Layered({}, self.knowledge.bound, own_key)
         #: individual -> `name rex`, `owner you`
         self.labels: dict[str, set[str]] = {}
         #: individual -> the word it was introduced by
@@ -245,6 +367,7 @@ class EpisodicMemory:
             parents.append(parent)
         self.facts.setdefault(node, [])
         self.said[(node, "is_a", parent)] = _quoted(said)
+        self._taught((node, "is_a", parent))
         return self.store(f"{name_of(node)} is a kind of {name_of(parent)}")
 
     def tell(self, node: str, relation: str, obj: str, said: str,
@@ -280,6 +403,7 @@ class EpisodicMemory:
         self.facts[node] = kept
         self.said[key] = _quoted(said)
         self.mode[key] = mode
+        self._taught(key)
         if bound:
             self.bound[key] = (set(self.bound.get(key, ())) if again
                                else set()) | {bound}
@@ -328,6 +452,58 @@ class EpisodicMemory:
         self.labels[individual] = {one for one in self.labels[individual]
                                    if not one.startswith(head)} | {predicate}
         return self.store(f"{individual} {predicate}")
+
+    def _taught(self, key: tuple) -> None:
+        """Where knowledge came from, so a later conversation can say so."""
+        if key[0] not in self.individuals:
+            self.knowledge.origin[key] = (self.conversation, time.time())
+
+    def learned_earlier(self, key: tuple) -> bool:
+        """Knowledge taught in a conversation other than this one."""
+        origin = self.knowledge.origin.get(key)
+        return (key[0] not in self.individuals and origin is not None
+                and origin[0] != self.conversation)
+
+    def snapshot(self) -> dict:
+        """This conversation's own part, as plain values. The knowledge it
+        reads is kept on its own (`longterm.Archive.keep`)."""
+        def keyed(layer) -> list:
+            return [[*key, value] for key, value in layer.own.items()]
+
+        return {
+            "individuals": list(self.individuals),
+            "edges": {node: list(parents)
+                      for node, parents in self.edges.own.items()},
+            "words": dict(self.words),
+            "facts": {node: [[fact.relation, fact.object] for fact in facts]
+                      for node, facts in self.facts.own.items()},
+            "said": keyed(self.said), "mode": keyed(self.mode),
+            "against": keyed(self.against),
+            "bound": [[*key, sorted(value)]
+                      for key, value in self.bound.own.items()],
+            "labels": {node: sorted(labels)
+                       for node, labels in self.labels.items()},
+            "withdrawn": [one.as_dict() for one in self.withdrawn]}
+
+    def load(self, state: dict) -> None:
+        """Put a snapshot back. The caller re-plans the trie with `store`."""
+        self.individuals[:] = list(state.get("individuals") or ())
+        for node, parents in (state.get("edges") or {}).items():
+            self.edges[node] = list(parents)
+        self.words.update(state.get("words") or {})
+        for node, facts in (state.get("facts") or {}).items():
+            self.facts[node] = [Fact(node, relation, obj, TOLD, 1.0, False)
+                                for relation, obj in facts]
+        for name in ("said", "mode", "against"):
+            table = getattr(self, name)
+            for *key, value in state.get(name) or ():
+                table[tuple(key)] = value
+        for *key, value in state.get("bound") or ():
+            self.bound[tuple(key)] = set(value)
+        for node, labels in (state.get("labels") or {}).items():
+            self.labels[node] = set(labels)
+        self.withdrawn[:] = [Withdrawal(**one)
+                             for one in state.get("withdrawn") or ()]
 
     def predicates_of(self, individual: str) -> frozenset:
         return frozenset(
@@ -400,7 +576,9 @@ class EpisodicMemory:
                      "said": self.said.get((node, fact.relation,
                                             fact.object), ""),
                      "bound": sorted(self.bound.get(
-                         (node, fact.relation, fact.object), ()))}
+                         (node, fact.relation, fact.object), ())),
+                     "earlier": self.learned_earlier(
+                         (node, fact.relation, fact.object))}
                     for fact in self.facts.get(node, [])]
 
         taught = [node for node in dict.fromkeys(list(self.edges)

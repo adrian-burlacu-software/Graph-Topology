@@ -101,6 +101,15 @@
   .told li { padding: 1px 0; overflow-wrap: anywhere; }
   .told code { font-family: ui-monospace, Consolas, monospace; color: var(--rule); }
   .empty { color: var(--muted); }
+  .mode { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+          margin-bottom: 12px; color: var(--muted); font-size: 12px; }
+  .mode b { color: var(--text); font-weight: 600; }
+  .mode button, aside button.quiet { background: transparent;
+          color: var(--accent); border: 1px solid var(--line);
+          border-radius: 6px; padding: 2px 8px; font: inherit;
+          cursor: pointer; }
+  aside h2.later { margin-top: 18px; }
+  .earlier { color: var(--which); }
 </style>
 </head>
 <body>
@@ -117,6 +126,7 @@
       <div class="row" id="examples"></div>
       <div class="shows" id="shows"></div>
     </div>
+    <div class="mode" id="mode"></div>
     <div id="transcript"></div>
     <form id="say">
       <input id="line" autocomplete="off"
@@ -129,6 +139,10 @@
     <h2>episodic memory</h2>
     <div class="stats" id="stats">empty</div>
     <div id="referents"><p class="empty">Nothing has come up yet.</p></div>
+    <h2 class="later">long-term memory</h2>
+    <div class="stats" id="learned">nothing taught yet</div>
+    <button type="button" class="quiet" id="unlearn">unlearn everything
+      taught</button>
   </aside>
 </main>
 <script>
@@ -140,10 +154,15 @@ try {
   const kept = localStorage.getItem("v689-sid");
   if (kept) SID = kept; else localStorage.setItem("v689-sid", SID);
 } catch (_) { /* no storage: a fresh conversation per load */ }
+// Examples run in a conversation of their own, so playing one never touches
+// yours, and nothing an example teaches is kept for any other conversation.
+const EXAMPLE_SID = SID + "-example";
+let current = { sid: SID, example: false, title: "" };
 
 const SOURCE = {
   told: "you told me", taught: "you taught me", kind: "from its kind",
-  tendency: "its kind, as a tendency", conversation: "from the conversation"
+  tendency: "its kind, as a tendency", conversation: "from the conversation",
+  learned: "you taught me, in an earlier conversation"
 };
 let busy = false;
 
@@ -259,7 +278,41 @@ function renderTurn(box, turn) {
   }
 }
 
+function renderMode() {
+  const box = document.getElementById("mode");
+  box.textContent = "";
+  if (current.example) {
+    box.appendChild(el("span", null, "example: "));
+    box.appendChild(el("b", null, current.title));
+    box.appendChild(el("span", null,
+      " · a conversation of its own; nothing it teaches is kept for others"));
+    const back = el("button", null, "back to your conversation");
+    back.addEventListener("click", () => { if (!busy) open(SID, false); });
+    box.appendChild(back);
+  } else {
+    box.appendChild(el("b", null, "your conversation"));
+    box.appendChild(el("span", null,
+      " · kept across restarts; what you teach about kinds is kept for " +
+      "every conversation"));
+  }
+}
+
+function renderLearned(memory) {
+  const taught = (memory && memory.taught) || [];
+  const earlier = taught.filter(kind => kind.facts.some(fact => fact.earlier));
+  document.getElementById("learned").textContent = current.example
+    ? (taught.length ? `${taught.length} kind(s) taught in this example, ` +
+                       "kept only with it"
+                     : "an example starts from nothing taught")
+    : (taught.length ? `${taught.length} kind(s) with taught taxonomy or ` +
+                       `norms, kept on disk` +
+                       (earlier.length ? `, ${earlier.length} from earlier ` +
+                                         "conversations" : "")
+                     : "nothing taught yet");
+}
+
 function renderMemory(turn) {
+  renderLearned(turn && turn.memory);
   const stats = document.getElementById("stats");
   const box = document.getElementById("referents");
   box.textContent = "";
@@ -285,6 +338,9 @@ function renderMemory(turn) {
         const item = el("li");
         item.appendChild(el("code", null, `${fact.relation} ${fact.object}`));
         if (fact.said) item.appendChild(el("span", null, ` — “${fact.said}”`));
+        if (fact.earlier) {
+          item.appendChild(el("span", "earlier", " · taught earlier"));
+        }
         list.appendChild(item);
       });
       card.appendChild(list);
@@ -348,8 +404,9 @@ async function say(text) {
   document.getElementById("transcript").appendChild(box);
   box.scrollIntoView({ block: "nearest" });
   try {
-    const response = await fetch(`/api/say?sid=${encodeURIComponent(SID)}` +
-                                 `&q=${encodeURIComponent(text)}`);
+    const response = await fetch(
+      `/api/say?sid=${encodeURIComponent(current.sid)}` +
+      `&q=${encodeURIComponent(text)}&example=${current.example ? 1 : 0}`);
     const turn = await response.json();
     if (turn.error) throw new Error(turn.error);
     renderTurn(box, turn);
@@ -363,15 +420,39 @@ async function say(text) {
 }
 
 async function forget() {
-  await fetch(`/api/forget?sid=${encodeURIComponent(SID)}`);
+  await fetch(`/api/forget?sid=${encodeURIComponent(current.sid)}`);
   document.getElementById("transcript").textContent = "";
   renderMemory(null);
+}
+
+// Show a conversation the page did not just have: every turn as it was
+// shown, and memory as it is now.
+async function open(sid, example, title) {
+  current = { sid, example, title: title || "" };
+  renderMode();
+  const transcript = document.getElementById("transcript");
+  transcript.textContent = "";
+  if (!example) document.getElementById("shows").textContent = "";
+  try {
+    const history = await (await fetch(
+      `/api/history?sid=${encodeURIComponent(sid)}`)).json();
+    (history.turns || []).forEach(turn => {
+      const box = el("div", "turn");
+      renderTurn(box, turn);
+      transcript.appendChild(box);
+    });
+    renderMemory(history.memory ? history : null);
+  } catch (_) {
+    renderMemory(null);
+  }
 }
 
 async function play(example) {
   if (busy) return;
   busy = true;
   document.getElementById("shows").textContent = example.shows;
+  current = { sid: EXAMPLE_SID, example: true, title: example.title };
+  renderMode();
   await forget();
   for (const line of example.lines) await say(line);
   busy = false;
@@ -391,6 +472,14 @@ document.getElementById("say").addEventListener("submit", async event => {
 document.getElementById("forget").addEventListener("click", () => {
   if (!busy) forget();
 });
+document.getElementById("unlearn").addEventListener("click", async () => {
+  if (busy || !confirm("Forget every kind, taxonomy edge and norm taught " +
+                       "in any conversation? Individuals are kept.")) return;
+  busy = true;
+  await fetch("/api/unlearn?confirm=yes");
+  await open(current.sid, current.example, current.title);
+  busy = false;
+});
 
 (async () => {
   const { examples } = await (await fetch("/api/examples")).json();
@@ -401,9 +490,9 @@ document.getElementById("forget").addEventListener("click", () => {
     button.addEventListener("click", () => play(example));
     row.appendChild(button);
   });
-  // A kept id may belong to a conversation the server no longer holds, and
-  // the page shows none of it, so start the table empty and say so.
-  await forget();
+  // The kept id is a conversation on disk, whether or not the server was
+  // restarted since, so it is shown rather than started over.
+  await open(SID, false);
 })();
 </script>
 </body>

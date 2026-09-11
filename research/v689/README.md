@@ -13,6 +13,9 @@ python -m research.v689 --workers 19 --port 8689 --teacher
 Then open http://127.0.0.1:8689. One process serves both layers: the
 conversation at `/` and v688's page, unchanged, at `/v688`. Two processes
 cannot hold the store at once, so v689 runs *as* v688 rather than beside it.
+What conversations were told and taught is kept in
+`state/v689-memory.sqlite`; `--memory PATH` moves it and `--no-memory` keeps
+nothing.
 
 ## Semantic memory and episodic memory, one set of rules
 
@@ -147,6 +150,35 @@ airplane comes before what airplanes do.
 
 The store is never written. Everything told lives in the conversation.
 
+## Long-term memory
+
+A conversation is how this layer learns anything, so it is kept on disk
+(`longterm.py`), and it is kept as two memories, because they are two kinds:
+
+| said | belongs to | survives |
+| --- | --- | --- |
+| `a wemble is a kind of animal`, `beagles can't swim` | every conversation | a restart, `start over` |
+| `there is a beagle`, `its name is Rex` | this conversation | a restart |
+
+**Knowledge** -- taught kinds, taxonomy and norms -- is about no one in
+particular, so it is no one conversation's. One copy is shared by every
+conversation (`Knowledge`, read through `Layered` beside each conversation's
+own individuals), rewritten to disk after every turn, and an answer drawn
+from it says when it was taught in an earlier conversation. It is still never
+written into the store. `unlearn` empties it.
+
+**A conversation** -- individuals, what was told of them, names, bindings,
+what E2 withdrew, salience -- is snapshotted after every turn with the turn as
+the page showed it. A page that comes back after a restart finds its
+conversation where it left it. `start over` forgets the conversation and
+keeps the knowledge.
+
+**Examples teach nothing that is kept.** They teach on purpose -- `beagles
+can't swim` is there to show R3 -- and a demonstration that wrote a false norm
+into what every later conversation starts from would be a bug with a
+permanent address. An example runs in a conversation of its own, with
+knowledge of its own, and leaves yours alone.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat
@@ -162,6 +194,8 @@ The store is never written. Everything told lives in the conversation.
 - **An unknown kind must be one word**, and a bare unknown singular (`Adrian can swim`) is read as someone, not a kind.
 - **The v688 loop does not run over individuals.** It answers the kind; the
   individual is v687's rules over episodic memory.
+- **Knowledge is one for the whole server.** It records which conversation
+  taught each thing, not who; there is no notion of two people disagreeing.
 
 ## Files
 
@@ -172,5 +206,6 @@ The store is never written. Everything told lives in the conversation.
 | `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
+| `longterm.py` | the knowledge every conversation shares, and every conversation, kept on disk |
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |

@@ -20,6 +20,7 @@ from research.v687.language import Parser
 from research.v687.reason import Reasoner
 from research.v689 import reading
 from research.v689.asker import Asker
+from research.v689.longterm import Archive, Keeper
 from research.v689.session import Session
 
 # -- a store small enough to read ------------------------------------------
@@ -680,6 +681,104 @@ class ObjectTests(unittest.TestCase):
     def test_the_plane_finds_an_airplane_through_its_sense(self):
         _, turns, _ = talk("there was an airplane", "is the plane fast")
         self.assertEqual(who(turns[1]), "r1")
+
+
+class LongTermTests(unittest.TestCase):
+    """What was taught, and each conversation, after the server restarts."""
+
+    def setUp(self) -> None:
+        self.folder = tempfile.TemporaryDirectory()
+        self.path = Path(self.folder.name) / "memory.sqlite"
+        self.archives: list = []
+
+    def tearDown(self) -> None:
+        for archive in self.archives:
+            archive.close()
+        self.folder.cleanup()
+
+    def restart(self, outcomes: dict | None = None) -> Keeper:
+        """A new keeper over the same file: what a restart leaves behind."""
+        archive = Archive(self.path)
+        self.archives.append(archive)
+        return Keeper(TinyAsker(outcomes), archive)
+
+    def test_what_was_taught_answers_in_a_later_conversation(self):
+        self.restart().say("a", "wembles can fly")
+        keeper = self.restart()
+        keeper.say("b", "there is a wemble")
+        turn = keeper.say("b", "can it fly")
+        self.assertEqual((turn["answer"]["outcome"],
+                          turn["answer"]["source"]), ("verified", "learned"))
+        self.assertIn("earlier conversation", turn["answer"]["text"])
+
+    def test_a_taught_edge_is_kept(self):
+        self.restart().say("a", "a wemble is a kind of animal")
+        turn = self.restart().say("b", "is a wemble an animal")
+        self.assertEqual(turn["answer"]["outcome"], "verified")
+
+    def test_a_conversation_carries_on_after_a_restart(self):
+        keeper = self.restart()
+        for line in ("there is a beagle", "its name is Rex", "it can't swim"):
+            keeper.say("a", line)
+        keeper = self.restart({"can a beagle swim": "verified"})
+        by_name = keeper.say("a", "can Rex swim")
+        self.assertEqual((by_name["answer"]["outcome"],
+                          by_name["answer"]["source"]), ("denied", "told"))
+        again = keeper.say("a", "can it swim")
+        self.assertEqual(again["resolution"]["referent"], "r1")
+        self.assertEqual([turn["said"] for turn in
+                          keeper.history("a")["turns"]][:3],
+                         ["there is a beagle", "its name is Rex",
+                          "it can't swim"])
+
+    def test_e2_is_recomputed_after_a_restart(self):
+        pigs = {"can a pig fly": "denied", "does a pig fly": "denied"}
+        keeper = self.restart(pigs)
+        for line in ("there was a pig", "he was flying",
+                     "it was in an airplane"):
+            keeper.say("a", line)
+        keeper = self.restart(pigs)
+        undone = keeper.say("a", "the airplane couldn't fly")
+        self.assertIn("E2 undone", undone["answer"]["text"])
+        flying = keeper.say("a", "can the pig fly")
+        self.assertEqual((flying["answer"]["outcome"],
+                          flying["answer"]["source"]), ("verified", "told"))
+
+    def test_start_over_forgets_the_conversation_not_the_knowledge(self):
+        keeper = self.restart()
+        keeper.say("a", "wembles can fly")
+        keeper.say("a", "there is a wemble")
+        keeper.forget("a")
+        keeper = self.restart()
+        self.assertEqual(keeper.history("a")["turns"], [])
+        keeper.say("a", "there is a wemble")
+        self.assertEqual(keeper.say("a", "can it fly")["answer"]["outcome"],
+                         "verified")
+
+    def test_unlearn_forgets_the_knowledge(self):
+        keeper = self.restart()
+        keeper.say("a", "wembles can fly")
+        keeper.unlearn()
+        keeper = self.restart()
+        keeper.say("b", "there is a wemble")
+        self.assertNotEqual(
+            keeper.say("b", "can it fly")["answer"]["outcome"], "verified")
+
+    def test_an_example_keeps_what_it_teaches_to_itself(self):
+        outcomes = {"can a beagle swim": "verified"}
+        keeper = self.restart(outcomes)
+        keeper.say("x", "beagles can't swim", example=True)
+        keeper.say("y", "there is a beagle")
+        self.assertEqual(keeper.say("y", "can it swim")["answer"]["source"],
+                         "kind")
+        keeper = self.restart(outcomes)
+        keeper.say("x", "there is a beagle")
+        own = keeper.say("x", "can it swim")
+        self.assertEqual((own["answer"]["outcome"], own["answer"]["source"]),
+                         ("denied", "taught"))
+        keeper.say("z", "there is a beagle")
+        self.assertEqual(keeper.say("z", "can it swim")["answer"]["source"],
+                         "kind")
 
 
 if __name__ == "__main__":

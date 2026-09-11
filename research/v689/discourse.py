@@ -36,7 +36,7 @@ it swim?` asked about the first beagle.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from research.v688.attention import Activation
 
@@ -378,6 +378,25 @@ class Discourse:
         choices = " or ".join(self.describe(one) for one in ranked)
         return Resolution(said, None, f"which one — {choices}?", ids,
                           ambiguous=True, identification=seen)
+
+    def snapshot(self) -> dict:
+        """Attention as plain values: who has come up, in what order, and
+        how salient each one still is."""
+        return {"referents": [asdict(one) for one in self.referents],
+                "you": asdict(self.you) if self.you else None,
+                "program": asdict(self.program) if self.program else None,
+                "turn": self.turn, "focus": self.focus,
+                "salience": dict(self.activation.table)}
+
+    def load(self, state: dict) -> None:
+        self.referents = [Referent(**one)
+                          for one in state.get("referents") or ()]
+        self.you = Referent(**state["you"]) if state.get("you") else None
+        self.program = (Referent(**state["program"])
+                        if state.get("program") else None)
+        self.turn = int(state.get("turn") or 0)
+        self.focus = state.get("focus")
+        self.activation.table = dict(state.get("salience") or {})
 
     def as_dict(self) -> dict:
         paths = dict(self.memory.plan)
