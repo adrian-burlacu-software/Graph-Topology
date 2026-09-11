@@ -358,6 +358,63 @@ class LoopTests(unittest.TestCase):
                          {one[0] for one in alone.factors})
         self.assertLess(denied.value, alone.value)
 
+    def test_a_dispute_unsettles_a_yes_and_does_not_deny_it(self):
+        """`AUDIT.md` §27: the teacher's no against a crawled yes nothing bore
+        out leaves the claim unknown -- not a no, because a model does not
+        outrank a record either."""
+        from types import SimpleNamespace
+
+        from . import confidence
+
+        class Fake:
+            question = "can a fish walk on land"
+            verdict = "VERIFIED"
+            payload: dict = {}
+
+        said_no = SimpleNamespace(question=Fake.question, supports=False,
+                                  confidence=0.996, settles=True)
+        alone = confidence.of_run(Fake(), _QuietBuffer(), [],
+                                  overturned=False)
+        disputed = confidence.of_run(Fake(), _QuietBuffer(), [],
+                                     overturned=False, challenged=said_no)
+        self.assertEqual(alone.outcome, "verified")
+        self.assertEqual(disputed.outcome, "unknown")
+        self.assertIn("the teacher disputes it",
+                      {one[0] for one in disputed.factors})
+
+    @requires_store
+    def test_a_yes_nothing_bore_out_is_put_to_the_teacher(self):
+        """`can a fish walk on land` is VERIFIED on one Ascent++ row about
+        mudskippers, and the run finds nothing for or against it. The teacher
+        used to be asked only what the store left open, so nobody asked."""
+        from .teacher import Teacher
+
+        class Sure:
+            available = True
+
+            def __init__(self, supports):
+                self.supports, self.asked = supports, []
+
+            def judge(self, subject, fact, claim, style=""):
+                self.asked.append(claim)
+                return self.supports, 0.999, False
+
+            review = Teacher.review
+            challenge = Teacher.challenge
+
+        for supports, trust, opens, outcome in (
+                (False, "disputed by the teacher", "DISPUTED", "unknown"),
+                (True, "unchallenged; the teacher agrees", "VERIFIED",
+                 "verified")):
+            with self.subTest(supports=supports):
+                teacher = Sure(supports)
+                found = Loop(POOL, CURIOSITY, max_cycles=6,
+                             teacher=teacher).run("can a fish walk on land")
+                self.assertIn("can a fish walk on land", teacher.asked)
+                self.assertEqual(found.summary["trust"], trust)
+                self.assertEqual(found.summary["outcome"], outcome)
+                self.assertTrue(found.summary["lines"][0].startswith(opens))
+
     @requires_store
     def test_no_family_disagreement_in_the_store_is_currently_sound(self):
         """The finding, kept as a test so it is noticed if it stops being true.

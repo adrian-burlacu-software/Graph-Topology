@@ -1950,6 +1950,88 @@ measurements, not used.
 
 ---
 
+## 27. Challenging a yes that nothing bore out
+
+2026-09-11. `research/v688/challenge.py`.
+
+The teacher was asked only what the store left open (§26), so the store's own
+over-affirmation never reached it. `can a fish walk on land` is VERIFIED on
+one Ascent++ row, `fish capable_of "walk on land"`, which is about
+mudskippers. The run finds nothing for or against it, and the page read
+`unchallenged`.
+
+`Teacher.challenge` now puts that headline to the model bare, after the last
+cycle, when three things hold: it is a polar yes; its evidence is a crawled
+row (Ascent++ or ConceptNet, not WordNet, the norms or a row the teacher wrote
+itself); and the run's trust would otherwise read `unchallenged`.
+
+What a confident no may do was measured first. Every polar yes on a crawled
+row in the most recent audit run (`audit-out/dense-now`, screened gold) was
+joined to the model's bare answer, 139 of them newly asked. That is a
+superset of what the loop challenges -- the loop skips a yes its run bore out
+-- so the cost below is an upper bound. Floor 0.99.
+
+| set | n | disputed | agreed | below the floor |
+| --- | --- | --- | --- | --- |
+| listed features (true) | 181 | **2.2%** | 46.4% | 51.4% |
+| COMPS foils (truth open) | 31 | 51.6% | 0.0% | 48.4% |
+| corrupted (false) | 0 | | | |
+
+### The cost is small, and every one of it is an error
+
+The four true claims disputed are `can a flamingo build nests`, `can a bottle
+store milk`, `is a rose sharp` and `does a flamingo eat algae`. All are true
+and all are stated at distance 0. On gold, every dispute is wrong, at 2.2% of
+the yes answers the store gives on crawled rows. Half the time the model is
+below the floor and does nothing.
+
+### The gain is where the gold cannot look
+
+No corrupted claim is verified on a crawled row, so the one model-free set
+has nothing to say. The foils do: 16 of 31 disputed, and they read like
+over-affirmation caught -- `can an emu fly`, `can a dolphin lay eggs`, `does
+an apple grow on palm trees`, `is a pine tree deciduous`, `does a canoe have
+sails`. But screened gold is the set this same model denied at 0.95 (§16), so
+half of it clearing 0.99 is partly built in. It is described, not scored.
+
+The class-level questions are where the motivation lives, and XCSLB is almost
+all leaves, so they are read one at a time:
+
+| question | truth | teacher | reading |
+| --- | --- | --- | --- |
+| can a fish walk on land | false | no, 0.996 | disputed |
+| can a fish walk | false | no, 0.998 | disputed |
+| does a cat lay eggs | false | no, 0.999 | disputed |
+| can a rock swim | false | no, 0.998 | disputed |
+| can a person fly | false | no, 0.977 | below |
+| can a mammal fly | false | no, 0.931 | below |
+| does an animal have wings | false | no, 0.898 | below |
+| can an animal fly | false | **yes**, 0.962 | below |
+| can a bird fly, does an animal breathe, can a fish swim, can a person walk, does a dog have a tail, can a horse run | true | yes, 0.992 to 0.998 | agreed |
+| does a dog bark, does a mammal have fur | true | yes, 0.989 | below |
+
+Four of eight false class-level claims disputed, and none of eight true ones.
+`can an animal fly` is not caught and cannot be: the model believes it.
+
+### What a dispute does
+
+A confident no against an unchallenged yes **unsettles** it. The outcome reads
+`unknown`, the trust `disputed by the teacher`, and the lines name the row and
+what the model said. It is not turned into a no: a crawled row and a model
+disagree, nothing corroborates either, and neither outranks the other the way
+the store's own argument outranks a model over an overturned headline (§26).
+The cost is paid in abstention rather than falsehood -- at most 2.2% of
+correct yes answers become `unknown`, and nothing false is asserted.
+
+A confident yes changes the trust phrase to `unchallenged; the teacher
+agrees` and nothing else. A model agreeing is not a family bearing a claim
+out, and pricing it as one would be counting the teacher twice.
+
+`audit.py` does not see any of this: its loop configuration runs without a
+teacher, so no benchmark number above moves.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

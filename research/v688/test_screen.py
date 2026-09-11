@@ -302,6 +302,53 @@ class TheTeacherIsAskedWhatWasAsked(unittest.TestCase):
                          [True, False, True, False])
 
 
+class AYesNothingBoreOutIsChallenged(unittest.TestCase):
+    """`Teacher.challenge`: the one settled answer put to the model."""
+
+    @staticmethod
+    def answer(question, verdict="VERIFIED", source="ascentpp", polar=True):
+        from types import SimpleNamespace
+
+        evidence = [{"source": source}] if source else []
+        return SimpleNamespace(question=question, verdict=verdict,
+                               payload={"parse": {"polar": polar},
+                                        "evidence": evidence})
+
+    teacher = staticmethod(TheTeacherIsAskedWhatWasAsked.teacher)
+
+    def test_only_a_yes_on_a_crawled_row(self):
+        from research.v688.teacher import challengeable
+
+        self.assertTrue(challengeable(self.answer("can a fish walk on land")))
+        self.assertTrue(challengeable(
+            self.answer("can a dog swim", "HELD", "conceptnet")))
+        self.assertFalse(challengeable(
+            self.answer("does a car have an accelerator", source="wordnet")))
+        self.assertFalse(challengeable(
+            self.answer("do fish run", "CONTRADICTED")))
+        self.assertFalse(challengeable(
+            self.answer("does a pig have wings", "UNKNOWN", source="")))
+        self.assertFalse(challengeable(
+            self.answer("what is a fish", polar=False)))
+
+    def test_the_question_is_put_bare_and_once(self):
+        teacher = self.teacher({"can a fish walk on land": (False, 0.996)})
+        done: set = set()
+        judged = teacher.challenge(self.answer("can a fish walk on land"),
+                                   done=done)
+        again = teacher.challenge(self.answer("can a fish walk on land"),
+                                  done=done)
+        self.assertEqual((judged.kind, judged.supports, judged.settles),
+                         ("challenge", False, True))
+        self.assertIsNone(again)
+        self.assertEqual(teacher.asked, [("", "", "can a fish walk on land")])
+
+    def test_review_still_never_sees_a_yes(self):
+        teacher = self.teacher()
+        self.assertEqual(
+            teacher.review([self.answer("can a fish walk on land")]), [])
+
+
 class TheNegationIsTheClaimDenied(unittest.TestCase):
     """`negation.negate`, whose one trap is `can`."""
 

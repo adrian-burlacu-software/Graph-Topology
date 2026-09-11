@@ -184,6 +184,9 @@ class Judgement:
     started: float
     elapsed: float
     cached: bool = False
+    #: `unsettled`: the store left the question open. `challenge`: the store
+    #: said yes on one crawled row and nothing in the run bore it out.
+    kind: str = "unsettled"
 
     @property
     def settles(self) -> bool:
@@ -196,7 +199,7 @@ class Judgement:
                 "confidence": round(self.confidence, 4),
                 "settles": self.settles,
                 "started": self.started, "elapsed": round(self.elapsed, 3),
-                "cached": self.cached,
+                "cached": self.cached, "kind": self.kind,
                 "worker": "llm", "origin": "teacher"}
 
 
@@ -386,6 +389,28 @@ class Teacher:
                 elapsed=time.time() - started, cached=cached))
         return out
 
+    def challenge(self, answer, done: set | None = None):
+        """Put a yes the run could not bear out to the model, as asked.
+
+        `review` only ever sees what the store left open, so a crawled row
+        that answers yes by itself -- `fish capable_of "walk on land"`, which
+        is mudskippers -- is never put to anyone. This asks the same bare
+        question of that one headline. What the answer may do is the loop's
+        to decide (`Loop.summarise`), and `AUDIT.md` §27 is why it does what
+        it does.
+        """
+        done = set() if done is None else done
+        if not challengeable(answer) or answer.question in done:
+            return None
+        done.add(answer.question)
+        started = time.time()
+        supports, confidence, cached = self.judge(
+            "", "", answer.question.strip().rstrip("?"))
+        return Judgement(question=answer.question, supports=supports,
+                         confidence=confidence, started=started,
+                         elapsed=time.time() - started, cached=cached,
+                         kind="challenge")
+
     def as_dict(self) -> dict:
         return {"available": self.available, "model": self.path.name,
                 "device": getattr(self, "device", ""),
@@ -406,6 +431,30 @@ def unsettled(answer) -> bool:
     parse = (getattr(answer, "payload", None) or {}).get("parse") or {}
     return (answer.verdict in ABOUT_COVERAGE and bool(parse.get("polar"))
             and bool((answer.question or "").strip()))
+
+
+#: What a yes has to rest on before a model's word is set against it: a
+#: crawled row. WordNet's rows are curated, the norms were elicited from
+#: people, and a row the teacher wrote itself would only be asked back to it.
+CRAWLED = frozenset({"ascentpp", "conceptnet"})
+
+#: v687's verdicts that say yes.
+YES = frozenset({"VERIFIED", "HELD", "INHERITED"})
+
+
+def challengeable(answer) -> bool:
+    """Is this a polar yes resting on a crawled row?
+
+    Whether anything bore it out is the run's to say (`Loop.unchallenged`);
+    this only says the ground is the kind a model can fairly be asked about.
+    """
+    payload = getattr(answer, "payload", None) or {}
+    parse = payload.get("parse") or {}
+    evidence = payload.get("evidence") or []
+    lead = evidence[0] if evidence else {}
+    return (answer.verdict in YES and bool(parse.get("polar"))
+            and bool((answer.question or "").strip())
+            and (lead.get("source") or "").lower() in CRAWLED)
 
 
 #: A relation as the verb a claim would use -- **for the reader, not for the

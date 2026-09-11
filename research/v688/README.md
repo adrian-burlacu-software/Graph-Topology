@@ -62,9 +62,10 @@ And the measuring apparatus, which answers nothing and is not on the page:
 | file | what it does |
 | --- | --- |
 | `confidence.py` | one answer, and one whole run, as a number and a band. |
-| `teacher.py` | SmolLM3 on one GPU, adjudicating R28 refusals and nothing else. |
+| `teacher.py` | SmolLM3 on one GPU: asks the questions the store left open (§26), and challenges a yes nothing bore out (§27). |
 | `holdout.py` | the three domains reserved from teaching, so there is something to measure against afterwards. |
 | `audit.py` | the ablation sweep against COMPS/XCSLB, with the norms path off. `AUDIT.md` is what it found. |
+| `challenge.py` | what the teacher says of the store's crawled yes answers, measured from audit rows and the judgement cache before it was allowed to dispute one (§27). |
 | `screen.py` | puts COMPS' foils to a calibrated judge and keeps the ones that are actually false — because XCSLB's zeros are silence, and scoring them as denial punished the store for knowing things. |
 | `norms.py` | distils a dense property matrix with the model and checks it against AwA2's closed one, to answer whether R19's evidence base should be free listing. It should not. |
 | `prune.py` + `record_inherited.py` | ask whether a class-node fact is a claim about the class, and record which facts inheritance actually reads. §19: the prune found 2,985 junk facts and moved nothing, because none was ever read. |
@@ -343,6 +344,15 @@ case is found; they no longer decide the verdict on the verdict.
 **Corroborated now means something bore it out.** `is a dog wild` rests on one
 fact and its family returns two shrugs and a yes. Nothing contradicted it,
 which is not the same thing, and it reads `unchallenged`.
+
+**Unchallenged is where the teacher is asked.** A yes on one crawled row that
+the run neither bore out nor spoke against is put to the model bare, once,
+after the last cycle. A confident no unsettles it -- `can a fish walk on
+land`, resting on a row about mudskippers, reads `unknown` and `disputed by
+the teacher` -- and never turns it into a no, because a model does not
+outrank a record. A confident yes reads `unchallenged; the teacher agrees`
+and changes nothing else. `AUDIT.md` §27 measured the cost at 2.2% of correct
+crawled yes answers, paid as abstention.
 
 **A no can be reached by scoring the words one at a time.** `does a cow eat
 grass` is CONTRADICTED because `eat` and `grass` are scored apart and one of

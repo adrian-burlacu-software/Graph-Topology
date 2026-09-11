@@ -236,7 +236,7 @@ RATIFIED = 0.70
 
 
 def of_run(headline, buffer, conflicts, overturned: bool,
-           corrected=None, ratified=None) -> Weight:
+           corrected=None, ratified=None, challenged=None) -> Weight:
     """What the run is worth once the loop has had its say.
 
     The answer's own payload is the ground; everything the loop went and
@@ -288,4 +288,17 @@ def of_run(headline, buffer, conflicts, overturned: bool,
         value *= BORNE_OUT
         factors.append(("corroborated", BORNE_OUT,
                         "the family was asked and most of it agreed"))
+    if (challenged is not None and challenged.settles
+            and not challenged.supports):
+        # `AUDIT.md` §27. A crawled row and a model disagree and nothing
+        # corroborates either, so the yes is unsettled rather than priced
+        # down -- and not turned into a no, because a model does not outrank
+        # a record. Unknown carries no number, for the reason `of_answer`
+        # gives.
+        factors.append((
+            "the teacher disputes it", 0.0,
+            f"asked “{challenged.question}” directly, a model said no at "
+            f"{challenged.confidence:.0%}, against one crawled row nothing "
+            f"else bore out"))
+        return Weight(0.0, "unknown", factors)
     return Weight(max(min(value, 1.0), 0.0), weight.outcome, factors)
