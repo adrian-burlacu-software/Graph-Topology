@@ -293,6 +293,11 @@ class TheCorroborationChange(unittest.TestCase):
 
             return Profiles.witnesses(self, ancestor, term)
 
+        def bears(self, term, predicates):
+            from research.v687.profile import Profiles
+
+            return Profiles.bears(self, term, predicates)
+
     def run_it(self, stated, distilled, term="fly"):
         from research.v687.profile import Profiles
 
@@ -425,6 +430,7 @@ class TheDistilledKinds(unittest.TestCase):
     """A witness counts only where it has testimony."""
 
     def stub(self, distilled_kinds, lineage):
+        from research.v687 import profile
         from research.v687.identify import Identifier
 
         class Stub:
@@ -436,6 +442,8 @@ class TheDistilledKinds(unittest.TestCase):
         one.distilled = {}
         one.distilled_kinds = distilled_kinds
         one._kind_lineage = lineage
+        one.bears = lambda term, predicates: profile.Profiles.bears(
+            one, term, predicates)
         one._ancestors = {}
         one._lineage = lambda: {}
         return one
@@ -546,6 +554,8 @@ class TheDenseWitnessForm(unittest.TestCase):
         one.identifier = Identifier
         one.distilled_kinds = kinds
         one._kind_lineage = {c: {"bird.n.01"} for c in kinds}
+        one.bears = lambda term, predicates: profile.Profiles.bears(
+            one, term, predicates)
         with unittest.mock.patch.object(profile, "DENSE_WITNESSES", dense):
             return profile.Profiles.witnesses(one, "bird.n.01", term)
 
@@ -594,3 +604,56 @@ class TheDenseWitnessForm(unittest.TestCase):
         self.assertEqual(loaded["dense.n.01"]["asked_at"],
                          frozenset({"bird.n.01"}))
         self.assertEqual(loaded["cheap.n.01"]["asked_at"], frozenset())
+
+
+class TheTermMatchingBug(unittest.TestCase):
+    """`_hit` matches one word; `server.corroborate` passes whole targets.
+
+    R19 has two callers. `profile.verify` passes a term `route` has already
+    reduced to a content word; `server.corroborate` passes the parsed target
+    as it stands -- `a blowhole` for `does a dolphin have a blowhole`. `_hit`
+    stems the term as a whole and compares it to each *word* of a predicate,
+    so a multi-word target matched nothing, bearing came out zero, and R19
+    refused: `0 of the 14 kinds of whale on record bear that out`.
+
+    Invisible while the norms were sparse enough that a low count looked
+    ordinary. §21's witnesses made the denominator big enough to notice.
+    """
+
+    def bears(self, term, predicates):
+        from research.v687 import profile
+        from research.v687.identify import Identifier
+
+        class Stub:
+            pass
+
+        one = Stub()
+        one.identifier = Identifier
+        return profile.Profiles.bears(one, term, frozenset(predicates))
+
+    def test_the_bug_a_determiner_used_to_defeat_the_match(self):
+        from research.v687.identify import Identifier
+
+        self.assertIsNone(Identifier._hit("a blowhole", {"has blowhole"}))
+        self.assertTrue(self.bears("a blowhole", {"has blowhole"}))
+
+    def test_a_multi_word_target_matches_on_a_content_word(self):
+        self.assertTrue(self.bears("four wheels", {"has four wheels"}))
+        self.assertTrue(self.bears("a hard shell", {"has a hard shell"}))
+
+    def test_a_single_word_term_is_unchanged(self):
+        self.assertTrue(self.bears("blowhole", {"has blowhole"}))
+        self.assertFalse(self.bears("blowhole", {"has a tail"}))
+
+    def test_function_words_alone_never_match(self):
+        """`does a` must not bear out every predicate containing `a`."""
+        self.assertFalse(self.bears("the a an", {"has a tail"}))
+
+    def test_it_can_only_raise_bearing_never_lower_it(self):
+        """The fallback runs only after `_hit` has already failed, so a
+        refusal can become an acceptance and never the reverse."""
+        self.assertTrue(self.bears("fly", {"can fly"}))
+        self.assertFalse(self.bears("swim", {"can fly"}))
+
+    def test_nothing_bears_out_an_empty_set(self):
+        self.assertFalse(self.bears("blowhole", set()))

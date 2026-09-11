@@ -89,24 +89,33 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
 #:     animal.n.01   "wings"    20 of 143        14%   refused
 #:     carnivore.n.01 "wings"    0 of 24          0%   refused
 #:
-#: **A half, not a third, since §19.** A third was a guess and it let
-#: `clothing has_a sleeve` (11 of 28) and `tree has_property deciduous` (7 of
-#: 16) through to concepts that have neither. Swept against screened gold:
+#: **0.7 since §22, and the history matters.** A third was a guess; §19 swept
+#: it to a half because `clothing has_a sleeve` (11 of 28) and `tree
+#: has_property deciduous` (7 of 16) were getting through to concepts that
+#: have neither. **Both sweeps ran against a broken matcher** (§22): a
+#: multi-word target matched nothing, bearing came out 0, and R19 refused for
+#: the wrong reason. Re-swept with it fixed:
 #:
 #:     floor   coverage   accuracy   over-affirmed   taxonomic rung
-#:     0.333      19.8%      90.1%            2.8%             4.8%
-#:     0.500      18.7%      91.6%            2.2%             3.7%
-#:     0.600      18.4%      91.7%            2.1%             3.7%
+#:     0.500      20.7%      90.3%            3.1%             5.3%
+#:     0.700      19.0%      91.0%            2.5%             4.6%
+#:     0.800      18.4%      92.2%            2.2%             4.0%
 #:
-#: 0.5 is the knee -- 0.6 buys a tenth of a point for another third of a
-#: point of coverage -- and no page example changes at any of them.
+#: The benchmark wants 0.8. **An answer caps it at about 0.64**, and the
+#: answer wins: `does a dog have legs` is corroborated at `animal.n.01`,
+#: where `leg` is borne out by **156 of 244 kinds -- 64%**, which is simply
+#: true. Fish and snakes have none. At 0.7 the dog loses its legs.
 #:
-#: Overridable with `V687_CORROBORATION_FLOOR` so the audit can sweep it.
-#: §19 traced every wrong inherited answer in a 1,468-question sample back to
-#: 29 facts, all from Ascent++, and the ones R19 still lets through sit just
-#: above this line: `clothing has_a sleeve` at 11 of 28 and `tree has_property
-#: deciduous` at 7 of 16. A third of a class bearing a property is not the
-#: class bearing it.
+#: That is the altitude problem in one number. R19 checks the level the crawl
+#: attached the sentence to, not the nearest ancestor that could speak:
+#: `canine.n.02` is 12 of 12 and would clear any floor. Until R19 corroborates
+#: where the evidence is sharpest rather than where the fact happens to sit,
+#: the floor is bounded by the vaguest level a true property can be stated at.
+#:
+#: So 0.5 stands, now for a reason rather than a knee in a curve. 0.7 and 0.8
+#: are a flag away for anyone measuring the benchmark rather than the answers.
+#:
+#: Overridable with `V687_CORROBORATION_FLOOR`.
 CORROBORATION_FLOOR = float(
     os.environ.get("V687_CORROBORATION_FLOOR") or 0.5)
 
@@ -684,11 +693,43 @@ class Profiles:
         kinds = [name for name, above in self._lineage().items()
                  if ancestor in above and self.stated.get(name)]
         bearing = sum(1 for name in kinds
-                      if self.identifier._hit(term, self.stated[name])
-                      or self.identifier._hit(
-                          term, self.distilled.get(name, frozenset())))
+                      if self.bears(term, self.stated[name])
+                      or self.bears(term, self.distilled.get(name,
+                                                             frozenset())))
         extra, borne = self.witnesses(ancestor, term)
         return bearing + borne, len(kinds) + extra
+
+    def bears(self, term: str, predicates) -> bool:
+        """Does one kind bear a term out? `_hit`, but for terms of any length.
+
+        `_hit` stems the term **as a whole** and compares it to each word of
+        each predicate, so it can only ever match a single word. R19's other
+        caller passes one, because `route` has already reduced the question to
+        content words; `server.corroborate` passes the parsed target
+        untouched, which is `a blowhole` for `does a dolphin have a blowhole`.
+
+        Nothing matched, bearing came out 0, and R19 refused -- reporting
+        `0 of the 14 kinds of whale on record bear that out` about whales and
+        blowholes. The bug is as old as that call site and was invisible while
+        the norms were sparse enough that a low count looked ordinary;
+        `AUDIT.md` §21's witnesses made the denominator big enough to notice.
+
+        So the term is also tried word by word, function words dropped. It can
+        only ever raise bearing, which means it can only turn a refusal into
+        an acceptance -- never the reverse.
+        """
+        if not predicates:
+            return False
+        if self.identifier._hit(term, predicates):
+            return True
+        words = [word for word in re.split(r"\W+", term.lower())
+                 if word and word not in ASIDE]
+        # Only worth retrying when stripping changed something. `a blowhole`
+        # reduces to one word and is exactly the case this is for, so the
+        # test is against the original term rather than against a word count.
+        if not words or words == [term.strip().lower()]:
+            return False
+        return any(self.identifier._hit(word, predicates) for word in words)
 
     def witnesses(self, ancestor: str, term: str) -> tuple[int, int]:
         """(kinds, bearing) the distilled witnesses add for one term.
@@ -716,10 +757,10 @@ class Profiles:
             # speak to whatever term R19 matched there; `asked` names
             # individual claims, for witnesses built the cheaper way.
             dense = DENSE_WITNESSES and ancestor in one["asked_at"]
-            if not (dense or self.identifier._hit(term, one["asked"])):
+            if not (dense or self.bears(term, one["asked"])):
                 continue
             kinds += 1
-            borne += bool(self.identifier._hit(term, one["predicates"]))
+            borne += bool(self.bears(term, one["predicates"]))
         return kinds, borne
 
     # -- above the leaf ----------------------------------------------------

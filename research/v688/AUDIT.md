@@ -1524,6 +1524,109 @@ and rebuilds free from cache. Nothing about it has to be run again.
 
 ---
 
+## 22. Going after §21's gate found a bug under three sections of tuning
+
+2026-09-11. §21 named two things to settle before dense witnesses could ship,
+the first being that R19 tests typicality while a `capable_of` question asks
+capability. Measuring **what dense witnesses actually lose** was meant to size
+that. It found something else.
+
+### The losses were not capability questions
+
+The 23 true answers dense witnesses cost, listed:
+
+```
+does a dolphin have a blowhole     does a tortoise have a hard shell
+does an airplane have an engine    does an ambulance have four wheels
+is a bone porous                   does a violin make a screeching sound
+```
+
+Properties, not capabilities, and plainly true. R19's reason for refusing
+them was `0 of the 14 kinds of whale on record bear that out` — about whales
+and blowholes. The model had in fact affirmed them: `does a baleen whale have
+blowhole`, yes at 0.996.
+
+### The bug
+
+`_hit` stems a term **as a whole** and compares it to each *word* of a
+predicate, so it can only match a single word. R19 has two callers:
+
+- `profile.verify` passes a term `route` has already reduced to content words.
+- **`server.corroborate` passes the parsed target untouched** — `a blowhole`.
+
+```
+corroboration("whale.n.02", "blowhole")    ->  (6, 14)
+corroboration("whale.n.02", "a blowhole")  ->  (0, 14)
+```
+
+Nothing matched, bearing was 0, and R19 refused. **As old as that call site**,
+and invisible while the norms were sparse enough that a low count looked
+ordinary. §21's witnesses made the denominator big enough for `0 of 14` to
+read as absurd rather than unremarkable.
+
+`Profiles.bears` now retries a multi-word term word by word with function
+words dropped. It can only ever *raise* bearing, so it can only turn a
+refusal into an acceptance.
+
+### It made the benchmark worse, and it ships anyway
+
+| | coverage | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- |
+| before the fix | 18.4% | 92.2% | 2.0% | 3.5% |
+| after the fix | 20.7% | 90.3% | 3.1% | 5.3% |
+
+**The bug had been acting as a filter** — failing to match is indistinguishable
+from demanding more evidence — and it was filtering well. Removing it costs
+1.9 accuracy points and raises over-affirmation by half.
+
+It ships because the mechanism was lying in its own notes. A page whose whole
+claim is that you can read why it answered cannot tell you that no whale on
+record has a blowhole. **A benchmark gain bought by a broken mechanism is not
+a gain**, and the numbers it produced were never measuring what they said.
+
+### Which means §19's floor was tuned against it
+
+`CORROBORATION_FLOOR` went 1/3 → 0.5 in §19 and that sweep, and §20's and
+§21's, all ran with the matcher broken. Re-swept:
+
+| floor | coverage | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- |
+| 0.5 | 20.7% | 90.3% | 3.1% | 5.3% |
+| 0.7 | 19.0% | 91.0% | 2.5% | 4.6% |
+| 0.8 | 18.4% | 92.2% | 2.2% | 4.0% |
+
+0.8 recovers the pre-fix numbers exactly, which confirms what the bug was
+doing. No page example changes anywhere in the range — **but 0.7 breaks an
+answer the benchmark cannot see**: `does a dog have legs`. It is corroborated
+at `animal.n.01`, where `leg` is borne out by **156 of 244 kinds — 64%**,
+which is true, because fish and snakes have none.
+
+So the floor stays at 0.5, now for a reason instead of a knee in a curve, and
+the reason is **altitude again**. R19 checks the level the crawl attached the
+sentence to, not the nearest ancestor that could speak: `canine.n.02` is 12 of
+12 for legs and would clear any floor. **Until R19 corroborates where the
+evidence is sharpest, the floor is bounded by the vaguest level at which a
+true property can be stated.** That is the sharpest statement of the altitude
+problem this file has reached, and it is now a concrete piece of work rather
+than an observation.
+
+### Where §21's gates stand
+
+Gate 1 is **not** what §21 said it was. The capability/typicality mismatch is
+real and explains `can a dog fall into a hole`, but it explained none of the
+23 losses, which were this bug. Dense witnesses are still off and still break
+that one example.
+
+Gate 2 — a replacement example for the ranking test — is untouched and stays
+untouched while dense is off.
+
+**The lesson is the one §16 taught about the benchmark, applied to a rule:**
+three sections of constant-tuning sat on a mechanism nobody had checked. The
+constants were fitted to the bug. Measuring what a change *loses*, one
+example at a time, is what found it — the aggregate never would have.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1585,12 +1688,17 @@ Ranked by evidence, not by appeal:
    rules, corroboration, evidence density, teaching — sits downstream of what
    the crawl put in the store. The 19% coverage ceiling and the noise are the
    same problem seen from two sides.
-12. **Answer the typicality-versus-capability question** (§21). It is the
+12. **Make R19 corroborate at the sharpest level, not the attached one**
+   (§22). `does a dog have legs` is checked at `animal.n.01` (156 of 244)
+   when `canine.n.02` is 12 of 12. This bounds the corroboration floor, and
+   it is the third section in a row where altitude turned out to be the
+   binding constraint.
+13. **Answer the typicality-versus-capability question** (§21). It is the
    one thing standing between the audit and its largest measured gain: +2.0
    accuracy and 27% less over-affirmation, sitting behind
    `V687_DENSE_WITNESSES` because R19 tests typicality and `can a dog fall
    into a hole` asks capability.
-13. **Validate a mechanism on the distribution it will face.** §17 measured
+14. **Validate a mechanism on the distribution it will face.** §17 measured
    R19 over AwA2's curated typicality attributes and predicted a large win;
    R19's real workload is crawled free text and the win was 0.2 points. The
    limitation §17 declared — one domain — was not the one that mattered.
