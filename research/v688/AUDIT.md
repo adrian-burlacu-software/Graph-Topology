@@ -1438,6 +1438,92 @@ quotes what it counted.
 
 ---
 
+## 21. The overnight run: the largest gain in the audit, shipped off
+
+2026-09-11. `research/v688/kinds.py --dense`, 8.42 GPU-hours.
+
+§20 built witnesses cheaply — each asked only the terms the recording saw —
+and noted the limit: `CORROBORATION_MIN_KINDS` needs **eight witnesses able
+to speak to the same term at once**, and witnesses each covering a random
+half of an ancestor's facts give an expected four. Density per witness is not
+density they share.
+
+So `--dense` organised the work per ancestor: ten concepts under each
+consulted ancestor, each asked **every** inheritable fact on it.
+**643,440 claims, 8.42 hours, 94 of 118 ancestors, 691 witnesses, 25,701
+affirmed.** It ran to completion with no intervention.
+
+### It works, and it is the biggest single gain measured
+
+`corroborated`, screened gold:
+
+| | coverage | confirmed | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- | --- |
+| no witnesses | 18.7% | 16.8% | 91.6% | 2.2% | 3.7% |
+| sparse witnesses (312) | 18.4% | 16.6% | 92.2% | 2.0% | 3.5% |
+| **dense witnesses (691)** | 17.6% | 15.8% | **93.6%** | **1.6%** | **2.8%** |
+| dense + precondition | 17.5% | 15.6% | 94.0% | 1.4% | 2.4% |
+
+**−1.1 coverage for +2.0 accuracy, with over-affirmation down 27% and the
+taxonomic rung down 24%.** Nothing else in this file bought that much.
+
+R19's arithmetic moved exactly where it was supposed to:
+
+```
+dog.n.01   bark         0 of 3   ->  10 of 13   silent -> believes
+clothing   sleeve      11 of 28  ->  12 of 38   believes -> refuses
+tree       deciduous    7 of 16  ->   7 of 26   believes -> refuses
+mammal     fly          1 of 65  ->   1 of 119
+```
+
+**And it settled the §20 question in the negative.** The precondition rule
+was supposed to be what witnesses unlocked; with dense witnesses it adds
+**+0.4 accuracy for −0.1 coverage** and is now nearly redundant. Dense
+witnesses subsume it, because letting R19 *speak* where it was silent is what
+the precondition was trying to force by fiat. The rule stays off, and now for
+a better reason than "it breaks an example".
+
+### And it ships off
+
+`V687_DENSE_WITNESSES=1` opts in. Default is §20's behaviour.
+
+Dense witnesses take **`can a dog fall into a hole` from VERIFIED to
+UNKNOWN**: 0 of 17 canines on record bear the claim out. The judge is asked
+whether a property is **typical**, and falling into a hole is something a dog
+can do without being characteristic of dogs. **R19 tests typicality; a
+`capable_of` question asks capability.** That mismatch was always there —
+dense witnesses surface it at scale precisely because they let R19 speak
+where it used to decline.
+
+That example is not incidental. It is a card on **both** the v687 and v688
+pages and it is load-bearing in four tests, one of which —
+`test_an_ancestor_fact_is_ranked_by_what_it_accounts_for` — stops exercising
+fact ranking at all once the fact it ranks is refused. Turning this on means
+weakening a mechanism test with no replacement to hand.
+
+**The benchmark and the example disagree, and both are right.** Screened
+gold's claims are mostly property-shaped, so it rewards testing typicality;
+`can a dog fall into a hole` is capability-shaped, where typicality is the
+wrong test. §16's lesson applies to itself here: when a measurement and an
+example disagree, ask what the measurement is made of.
+
+Two things to settle before flipping it, in order:
+
+1. **Separate capability from typicality.** The `careful` prompt drives this
+   — "say yes only if the property is typical" — so it is a second prompt and
+   a second calibration, not a phrasing tweak. §13's table is the template.
+2. **Find a replacement ranking example**, or the test goes from asserting
+   ranking to asserting a refusal.
+
+### The cost of finding out
+
+Eight and a half GPU-hours to learn that the mechanism works, is worth two
+accuracy points, makes a rule we spent two sections on redundant, and cannot
+ship until a prompt question is answered. The artifact is 1.1 MB, tracked,
+and rebuilds free from cache. Nothing about it has to be run again.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1499,7 +1585,12 @@ Ranked by evidence, not by appeal:
    rules, corroboration, evidence density, teaching — sits downstream of what
    the crawl put in the store. The 19% coverage ceiling and the noise are the
    same problem seen from two sides.
-12. **Validate a mechanism on the distribution it will face.** §17 measured
+12. **Answer the typicality-versus-capability question** (§21). It is the
+   one thing standing between the audit and its largest measured gain: +2.0
+   accuracy and 27% less over-affirmation, sitting behind
+   `V687_DENSE_WITNESSES` because R19 tests typicality and `can a dog fall
+   into a hole` asks capability.
+13. **Validate a mechanism on the distribution it will face.** §17 measured
    R19 over AwA2's curated typicality attributes and predicted a large win;
    R19's real workload is crawled free text and the win was 0.2 points. The
    limitation §17 declared — one domain — was not the one that mattered.

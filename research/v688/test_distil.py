@@ -533,9 +533,11 @@ class TheDenseWitnessForm(unittest.TestCase):
     information as listing 640,000 claims -- and fits in a few kilobytes.
     """
 
-    def witnesses(self, kinds, term="anything at all"):
+    def witnesses(self, kinds, term="anything at all", dense=True):
+        import unittest.mock
+
+        from research.v687 import profile
         from research.v687.identify import Identifier
-        from research.v687.profile import Profiles
 
         class Stub:
             pass
@@ -544,7 +546,20 @@ class TheDenseWitnessForm(unittest.TestCase):
         one.identifier = Identifier
         one.distilled_kinds = kinds
         one._kind_lineage = {c: {"bird.n.01"} for c in kinds}
-        return Profiles.witnesses(one, "bird.n.01", term)
+        with unittest.mock.patch.object(profile, "DENSE_WITNESSES", dense):
+            return profile.Profiles.witnesses(one, "bird.n.01", term)
+
+    def test_dense_testimony_is_opt_in(self):
+        """§21: worth +2.0 accuracy and off anyway, because it takes `can a
+        dog fall into a hole` from VERIFIED to UNKNOWN. The default must not
+        honour `asked_at`."""
+        from research.v687 import profile
+
+        self.assertFalse(profile.DENSE_WITNESSES)
+        kinds = {"a.n.01": {"asked_at": frozenset({"bird.n.01"}),
+                            "asked": frozenset(),
+                            "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, "fly", dense=False), (0, 0))
 
     def test_asked_at_lets_a_witness_speak_to_any_term_there(self):
         kinds = {"a.n.01": {"asked_at": frozenset({"bird.n.01"}),

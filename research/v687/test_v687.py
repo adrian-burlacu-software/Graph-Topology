@@ -166,9 +166,27 @@ class CorroborationTests(unittest.TestCase):
                          "UNRECORDED")
 
     def test_a_thin_sample_cannot_refute(self):
-        """Four whales are not evidence about whales in general."""
-        _, kinds = self.profiles.corroboration("whale.n.02", "sing")
-        self.assertLess(kinds, profile.CORROBORATION_MIN_KINDS)
+        """R19 declines rather than refusing when there are too few kinds.
+
+        The example used to be `whale.n.02`, which had four kinds in the
+        norms -- "four whales are not evidence about whales in general". It
+        has fourteen now: `research/v688/kinds.py` distilled witnesses under
+        it, which is the whole point of that file. The *rule* is unchanged and
+        is what this asserts; the ancestor that happens to illustrate it is
+        read from the data rather than named, because any name here is a
+        hostage to how much has been distilled.
+        """
+        thin = [node for node in ("nurse.n.01", "cattle.n.01", "bear.n.01",
+                                 "woodwind.n.01", "brass.n.02")
+                if 0 < self.profiles.corroboration(node, "live")[1]
+                < profile.CORROBORATION_MIN_KINDS]
+        self.assertTrue(thin, "no thin ancestor left to test the rule on")
+        for node in thin:
+            bearing, kinds = self.profiles.corroboration(node, "live")
+            self.assertLess(kinds, profile.CORROBORATION_MIN_KINDS)
+            # Below the minimum the fact is taken as it was: declining is not
+            # refusing, which is the distinction the constant exists for.
+            self.assertTrue(profile.corroborated(bearing, kinds, "ascentpp"))
 
     def test_votes_from_below_must_be_independent(self):
         """Three breeds re-inheriting one sentence are one witness, not

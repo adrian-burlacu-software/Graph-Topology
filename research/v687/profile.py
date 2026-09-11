@@ -142,6 +142,28 @@ CORROBORATION_REQUIRED = bool(
 #: norm-covered concepts alone, the way it did before `research/v688/kinds.py`.
 KINDS_OFF = bool(os.environ.get("V687_NO_DISTILLED_KINDS"))
 
+#: Set `V687_DENSE_WITNESSES=1` to honour `asked_at` -- a witness asked every
+#: inheritable fact on an ancestor, so it can speak to any term raised there.
+#:
+#: **Off by default, against the benchmark.** `AUDIT.md` §21 measured dense
+#: witnesses at **+2.0 accuracy and 27% less over-affirmation** on screened
+#: gold, which is the largest single gain in the audit. It is off because it
+#: takes `can a dog fall into a hole` from VERIFIED to UNKNOWN: none of the
+#: seventeen canines on record bears the claim out, because the judge is
+#: asked whether a property is **typical** and falling into a hole is
+#: something a dog can do without being characteristic of dogs.
+#:
+#: R19 tests typicality. A `capable_of` question asks capability. That
+#: mismatch was always there and dense witnesses surface it at scale, because
+#: they let R19 speak where it used to decline. Two things have to be settled
+#: before this goes on: the mismatch itself, and a replacement example for
+#: `test_an_ancestor_fact_is_ranked_by_what_it_accounts_for`, which stops
+#: exercising fact ranking once the fact it ranks is refused.
+#:
+#: The per-claim `asked` sets are honoured either way, so the default is
+#: exactly §20's behaviour: +0.6 accuracy, no example changed.
+DENSE_WITNESSES = bool(os.environ.get("V687_DENSE_WITNESSES"))
+
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
 what which is are was were be been does do did has have had can could would
@@ -693,8 +715,8 @@ class Profiles:
             # was put to every inheritable fact on this ancestor, so it can
             # speak to whatever term R19 matched there; `asked` names
             # individual claims, for witnesses built the cheaper way.
-            if not (ancestor in one["asked_at"]
-                    or self.identifier._hit(term, one["asked"])):
+            dense = DENSE_WITNESSES and ancestor in one["asked_at"]
+            if not (dense or self.identifier._hit(term, one["asked"])):
                 continue
             kinds += 1
             borne += bool(self.identifier._hit(term, one["predicates"]))

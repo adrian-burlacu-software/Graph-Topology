@@ -36,6 +36,12 @@ python -m research.v688.prune --build
 #    unable to speak at all
 python -m research.v688.kinds --build
 
+# 4b. the dense form: ten witnesses per ancestor, each asked every
+#     inheritable fact on it.  8.4 GPU-HOURS, and it extends rather than
+#     replaces step 4, so an interruption costs minutes not the run.
+#     Off by default -- see AUDIT.md §21 and V687_DENSE_WITNESSES.
+python -m research.v688.kinds --dense
+
 # 5. what inheritance actually uses      ~13 min, one engine, no GPU
 python -m research.v688.record_inherited 120 crawl
 ```
