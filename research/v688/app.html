@@ -390,7 +390,7 @@ async function boot() {
   document.getElementById("knobs").textContent =
     (t.available
       ? `teacher ${t.model} on ${t.device}, ${t.cached} judgements cached · `
-      : "no teacher (R28 refusals go unadjudicated) · ") +
+      : "no teacher (unsettled questions are not put to a model) · ") +
     `decay ${SETTINGS.decay} · floor ${SETTINGS.floor} · ` +
     `weak below ${JSON.stringify(SETTINGS.weak_below)} · ` +
     `max ${SETTINGS.max_cycles} cycles`;
@@ -787,7 +787,7 @@ function lanes(cycle) {
   // The teacher is one process because it is one GPU, so it gets one lane
   // and it sits below the pool rather than inside it. Its work starts when
   // the fan-out has finished: that gap is the point of drawing it here.
-  const judged = cycle.adjudications || [];
+  const judged = cycle.judgements || [];
   const teacher = SETTINGS.teacher || {};
   // Drawn on every cycle once a teacher is loaded, idle where it did no work
   // -- exactly as the nineteen worker lanes are. A lane that appears only on
@@ -832,12 +832,16 @@ function lanes(cycle) {
       slot.style.width = timed
         ? Math.max(6, one.elapsed / llmSpan * 100) + "%"
         : (share - 1) + "%";
-      slot.title = `${one.fact} → ${one.claim} — ` +
-        `${one.supports ? "supports" : "does not support"}, ` +
-        `${(one.confidence * 100).toFixed(0)}% confident` +
-        (one.cached ? " (cached)" : `, ${one.elapsed}s`);
+      // The question as asked, what the model said, and whether it is sure
+      // enough to count: at the floor it settles an open headline either
+      // way, and below it the answer is shown and settles nothing.
+      slot.title = `${one.question}? — ${one.supports ? "yes" : "no"}, ` +
+        `${(one.confidence * 100).toFixed(1)}% confident` +
+        (one.cached ? " (cached)" : `, ${one.elapsed}s`) +
+        (one.settles ? " · sure enough to count"
+                     : " · below the floor, not counted");
       slot.textContent = (!timed || one.elapsed >= llmSpan * 0.17)
-        ? one.fact : "";
+        ? `${one.question}? ${one.supports ? "yes" : "no"}` : "";
       track.appendChild(slot);
     });
     lane.appendChild(track);
@@ -854,11 +858,12 @@ function lanes(cycle) {
     const item = el("span");
     item.innerHTML = '<b style="color:#b98bff;font-style:normal">■</b> ' +
       (judged.length
-        ? `adjudicate (${judged.filter(o => o.supports).length}/` +
-          `${judged.length} support, ` +
+        ? `teacher (${judged.filter(o => o.supports).length}/` +
+          `${judged.length} yes, ${judged.filter(o => o.settles).length} ` +
+          `settled, ` +
           (judged.every(o => o.cached) ? "cached, shown in order)"
                                        : "own time axis)")
-        : "adjudicate (idle this cycle)");
+        : "teacher (nothing unsettled this cycle)");
     legend.appendChild(item);
   }
   legend.appendChild(el("span", null,

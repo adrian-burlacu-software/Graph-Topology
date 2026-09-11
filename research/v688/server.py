@@ -364,8 +364,9 @@ def main() -> None:
                         help="most internal cycles one utterance may run")
     parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
     parser.add_argument("--teacher", action="store_true",
-                        help="load the local model that adjudicates R28 "
-                             "refusals; one process, about 6.2 GB of VRAM. "
+                        help="load the local model that is asked the "
+                             "questions the store leaves unsettled; one "
+                             "process, about 6.2 GB of VRAM. "
                              "Without it the loop runs exactly as before.")
     parser.add_argument("--warm", action="store_true",
                         help="run every example once at startup so the page "

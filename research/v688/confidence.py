@@ -221,15 +221,17 @@ def of_answer(payload: dict, verdict: str = "") -> Weight:
     return Weight(max(min(value, 1.0), 0.0), outcome, factors)
 
 
-#: What a claim is worth when the only thing that settled it is the teacher
-#: ratifying a fact R28 held back. It is the crawled fact's own standing,
-#: discounted: the store did record the thing, and what the model supplied is
-#: the judgement that the surplus in the phrasing does not destroy it.
+#: What a claim is worth when the only thing that settled it is the teacher,
+#: asked the question directly, answering at `teacher.SETTLING_FLOOR` -- yes
+#: or no, priced the same, because `AUDIT.md` §26 found the two equally sound.
 #:
 #: Below the norms (0.85) and well below a walk over WordNet (0.95), because
-#: it rests on a model rather than on anything anyone recorded, and because
-#: `AUDIT.md` §14 measures that model asserting 1.0% of claims built to be
-#: false. Deliberately not 1.0 however sure the model is.
+#: nothing anyone recorded stands behind it. `AUDIT.md` §14 measures the model
+#: at that floor asserting 1.0% of claims built to be false, and §16 found
+#: that kind of claim understates near-miss over-affirmation about sixfold,
+#: so this is a price, not a measurement. It was set when a crawled fact
+#: stood behind the model's yes and has not been re-measured since one
+#: stopped. Deliberately not 1.0 however sure the model is.
 RATIFIED = 0.70
 
 
@@ -251,17 +253,18 @@ def of_run(headline, buffer, conflicts, overturned: bool,
         # badge saying so over lines saying otherwise is the wrong page. The
         # number is the teacher's own confidence, discounted for being a
         # model's word rather than a record.
-        best = max(float(getattr(one, "confidence", 0.0)) for one in ratified)
+        one = max(ratified, key=lambda judged: float(judged.confidence))
+        best = float(one.confidence)
+        said = "yes" if one.supports else "no"
         return Weight(
-            max(min(best * RATIFIED, 1.0), 0.0), "verified",
-            [("the store had it", RATIFIED,
-              f"R28 held back “{ratified[0].fact}” for saying more than you "
-              f"asked; the fact was recorded and only the phrasing kept it "
-              f"out"),
-             ("the teacher ratified it", best,
-              f"a model judged that it supports “{ratified[0].claim}”, at "
-              f"{best:.0%} — not a walk over the taxonomy, and priced below "
-              f"one")])
+            max(min(best * RATIFIED, 1.0), 0.0),
+            "verified" if one.supports else "denied",
+            [("nothing recorded settles it", RATIFIED,
+              "the store holds no row either way, so what settles it is not "
+              "a record, and it is priced below one for that"),
+             (f"the teacher says {said}", best,
+              f"asked “{one.question}” directly, a model said {said} at "
+              f"{best:.0%} — not a walk over the taxonomy")])
     if weight.outcome == "unknown":
         return weight
     value, factors = weight.value, list(weight.factors)

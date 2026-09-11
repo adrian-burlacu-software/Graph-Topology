@@ -232,5 +232,100 @@ class TheCacheHoldsOpen(unittest.TestCase):
         self.assertEqual(len(written), 1)
 
 
+class TheTeacherIsAskedWhatWasAsked(unittest.TestCase):
+    """An unsettled question goes to the model as asked, and nothing else does.
+
+    It used to be put the facts R28 held back instead. For `does a pig have
+    wings` those were crawled sentences filed under `animal` -- "leathery
+    bat-like wings" -- and the model was asked whether a sentence about bats
+    supports pig wings, while the reader's own question was never put.
+    """
+
+    @staticmethod
+    def answer(question, verdict="UNKNOWN", polar=True):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(question=question, verdict=verdict,
+                               payload={"parse": {"polar": polar}})
+
+    @staticmethod
+    def teacher(says=None):
+        from unittest import mock
+
+        from research.v688.teacher import Teacher
+
+        # The cache is tens of megabytes and `judge` is replaced anyway.
+        with mock.patch.object(Teacher, "_read_cache", lambda self: None):
+            teacher = Teacher(load=False)
+        teacher.asked = []
+
+        def judge(subject, fact, claim, style=""):
+            teacher.asked.append((subject, fact, claim))
+            return (says or {}).get(claim, (False, 0.5)) + (False,)
+
+        teacher.judge = judge
+        return teacher
+
+    def test_the_question_is_put_bare(self):
+        teacher = self.teacher()
+        teacher.review([self.answer("does a pig have wings")])
+        self.assertEqual(teacher.asked, [("", "", "does a pig have wings")])
+
+    def test_only_what_the_store_left_open(self):
+        teacher = self.teacher()
+        judged = teacher.review([
+            self.answer("does a dog have legs", "VERIFIED"),
+            self.answer("do fish run", "CONTRADICTED"),
+            self.answer("what is a fish", polar=False),
+            self.answer("does a pig have wings", "UNRECORDED")])
+        self.assertEqual([one.question for one in judged],
+                         ["does a pig have wings"])
+
+    def test_a_question_is_put_once_per_run(self):
+        teacher = self.teacher()
+        done: set = set()
+        teacher.review([self.answer("does a pig have wings")], done=done)
+        again = teacher.review([self.answer("does a pig have wings")],
+                               done=done)
+        self.assertEqual(again, [])
+        self.assertEqual(len(teacher.asked), 1)
+
+    def test_an_answer_at_the_floor_settles_either_way(self):
+        teacher = self.teacher({"can a dog swim": (True, 0.995),
+                                "can a dog fall into a hole": (True, 0.9),
+                                "do pigs fly": (False, 0.999),
+                                "can a leopard hunt at night": (False, 0.9)})
+        judged = teacher.review([self.answer(text) for text in (
+            "can a dog swim", "can a dog fall into a hole", "do pigs fly",
+            "can a leopard hunt at night")])
+        self.assertEqual([one.settles for one in judged],
+                         [True, False, True, False])
+
+
+class TheNegationIsTheClaimDenied(unittest.TestCase):
+    """`negation.negate`, whose one trap is `can`."""
+
+    def test_can_is_ability_not_refraining(self):
+        from research.v688.negation import negate
+
+        # `can a dog not swim` asks whether it is able to refrain.
+        self.assertEqual(negate("can a dog swim", "dog"),
+                         "is a dog unable to swim")
+
+    def test_the_rest_take_a_plain_not(self):
+        from research.v688.negation import negate
+
+        self.assertEqual(negate("does a lion have flippers", "lion"),
+                         "does a lion not have flippers")
+        self.assertEqual(negate("is a killer whale white", "killer whale"),
+                         "is a killer whale not white")
+
+    def test_it_declines_a_subject_it_cannot_find(self):
+        from research.v688.negation import negate
+
+        self.assertEqual(negate("can a coffee maker heat", "coffee_maker"),
+                         "")
+
+
 if __name__ == "__main__":
     unittest.main()

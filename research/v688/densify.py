@@ -179,7 +179,6 @@ def cells(engine, terms: dict) -> list:
 #: `animal tissue`. Relations that point at a concept rather than at free
 #: text carry the synset id, and asking the model `does a bat have animal
 #: tissue.n.01` measures the model's patience rather than its knowledge.
-#: `teacher.about` does the same `rsplit` for the same reason.
 SENSED = re.compile(r"^(.*)\.[nvasr]\.\d{2}$")
 
 

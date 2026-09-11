@@ -1888,6 +1888,68 @@ including one of mine from §23 that asserted the floor was above 64%.
 
 ---
 
+## 26. Counting the teacher's no: negation fails, and the no was sound
+
+2026-09-11. `research/v688/negation.py`, and a read-back of the judgement
+cache.
+
+The loop now puts an unsettled question to the model bare (`teacher.py`), and
+at first counted only a yes at 0.99. The no was left out for fear of
+`CAREFUL`'s lean — it tells the model most claims are false — so the proposal
+was to ask each question negated too, and trust a no only when the negation
+came back yes. A second way was measured beside it: the same question under
+`CREDULOUS`, a prompt leaning the other way.
+
+400 claims from each of `screen.truth_sets`, each asked three ways, floor
+0.99. Cells are right / wrong, in percent; *right* is yes on a true set and
+no on a false one.
+
+| rule | AwA2 false | AwA2 true | XCSLB true | corrupted |
+| --- | --- | --- | --- | --- |
+| yes only (as shipped) | 0.0 / 1.2 | 49.8 / 0.0 | 29.5 / 0.0 | 0.0 / 0.8 |
+| `careful`, counting its no | **56.0** / 1.2 | 49.8 / **4.5** | 29.5 / **1.3** | **53.3** / 0.8 |
+| negation | 1.5 / 1.2 | 49.8 / 0.5 | 29.5 / 0.0 | 0.0 / 0.8 |
+| mirror | 14.5 / 1.2 | 49.8 / 1.0 | 29.5 / 0.5 | 19.1 / 0.8 |
+
+### Negation does not work under this prompt
+
+The negated question is answered no as well: **55.0%** of AwA2's false claims
+and **68.3%** of the corrupted ones get no to both. `CAREFUL` says yes only to
+what is typical, and *not having flippers* is not a typical property of
+anything, so the rule abstains on nearly everything and counts almost no no.
+The phrasing was not the problem — `is a dog unable to swim`, not `can a dog
+not swim`, which asks whether it can refrain.
+
+### The mirror adds nothing at the floor
+
+Every one of `careful`'s confident no's, on all four sets, is one `CREDULOUS`
+also leans no on. The lean only moves answers below 0.99. A second GPU call
+per question, for no change.
+
+### And the no was sound all along
+
+With equal numbers of true and false claims, a confident no is wrong 7.4% of
+the time on AwA2 and 2.4% on XCSLB against corrupted, where the confident yes
+is wrong 2.4% and 2.6%. The wrong no's on AwA2 are mostly colour asked of a
+partly coloured animal — `is a zebra black`, `is a dalmatian white`, `is a
+killer whale white` — and XCSLB's include `is a hyena a large cat`, which is
+the gold being wrong. The genuine misses are few, `is a lion furry` and `can
+an elephant squirt out water` among them, and the yes has noise of the same
+shape: `does a deer have paw pads`.
+
+The fear came from §25, where `careful` witnesses doubted that 5 of 13 kinds
+of dog breathe. Those doubts were never confident. Of the 63 cached bare
+questions about breathing, swimming and legs that it denies at 0.99, none
+denies breathing to an animal (unless `can kiwi breathe` meant the bird), and
+the clear errors are `can a giant panda swim` and `can an eagle swim`. `does a
+dog breathe`, asked directly, is yes at 0.999.
+
+**Shipped:** an answer at 0.99 settles an unsettled headline either way,
+priced the same by `confidence.RATIFIED`. Negation and the mirror are kept as
+measurements, not used.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

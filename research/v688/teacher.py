@@ -1,40 +1,48 @@
-"""A local model that adjudicates R28 refusals, and nothing else.
+"""A local model, asked the questions the store could not settle.
 
-R28 holds that a qualified fact does not affirm the bare claim. It is right
-often enough to keep -- `fish capable_of "walk on land"` is the mudskippers,
-and `rock capable_of "go for swim"` is a place people swim near -- and wrong
-often enough to cost, because `leopard capable_of "hunt at night"` is a
-leopard that hunts.
+v687 answers by walking over what was recorded, and mostly nothing was:
+`does a pig have wings` comes back UNKNOWN because no row settles it either
+way. `AUDIT.md` §14 measured SmolLM3-3B on exactly that shape -- the question,
+bare, no graph behind it -- and under `CAREFUL` at 0.99 it asserts 1.0% of
+claims built to be false, the store's own rate, while reaching 41.5% of true
+claims against the crawl's 17.2%. So when an answer comes back unsettled, the
+question as asked is put to it.
 
-`AUDIT.md` §12 measured both halves of that. R28 costs a third of the store's
-reachable coverage and buys three accuracy points, and no rule available here
-separates the two cases: corroboration cannot clear a leaf, grammar reads
-`hunt at night` and `walk on land` identically, and the only thing that does
-distinguish them -- whether the class is homogeneous -- needs norms that cover
-1.2% of concepts.
+## Why not adjudicate R28's facts, as this first did
 
-So this asks something that has read a great deal of English. Not to supply
-facts: to judge a fact the store already holds.
+The first version put each qualified fact R28 held back to the model and
+asked whether it supports the claim. That suits `leopard capable_of "hunt at
+night"`, and it is the wrong question nearly everywhere else, because R28's
+facts are mostly crawled sentences filed several levels up. `does a pig have
+wings` put `animal has_a "leathery bat-like wings"` -- a sentence about bats
+-- and asked whether it supports pig wings. The answer is always no, it says
+nothing about pigs, and the question the reader asked was never put at all.
+Adjudication had also been measured on five examples and found unstable to
+surface phrasing; the bare question is what §14 measured on hundreds.
 
-    a leopard   "hunt at night"    -> a leopard hunts              yes
-    a fish      "walk on land"     -> a fish walks                 no
-    a rock      "go for swim"      -> a rock swims                 no
-    a hose      "washing car"      -> a hose is used to wash       yes
-    a person    "fly helicoptor"   -> a person flies               yes   <- wrong
+## What a judgement may do
 
-Four of five, including both cases the over-affirmation audit was built from.
-The fifth is the one this project's backlog already names as the hard one.
+Adjudication was safe because the worst case was believing a row the store
+already held. A direct answer has no row behind it, so the bound it lost is
+put back as `SETTLING_FLOOR`:
 
-## Why this is adjudication and not teaching
+* an answer **at the floor settles** an unsettled headline, yes or no,
+  priced by `confidence.RATIFIED` as a model's word rather than a record;
+* an answer **below it** is reported and settles nothing.
 
-It never writes a fact. Every claim it rules on is one the crawl already
-made; the model decides only whether the surplus in the phrasing destroys it.
-That bounds the damage a confident wrong answer can do -- the worst case is
-believing a row the store already contains -- and it bounds the cost, because
-the work is proportional to R28 refusals rather than to the concept space.
+The no was not counted at first, for fear of `CAREFUL`'s lean: it tells the
+model most claims are false. `AUDIT.md` §26 measured that fear, and it does
+not survive the floor. At 0.99 the confident no is about as sound as the
+confident yes; a prompt leaning the other way (`CREDULOUS`) agrees with every
+one of them; and asking the question negated does not work at all, because
+the model answers the negation no as well -- for 55% of AwA2's false claims.
+The lean lives below the floor.
 
-It also **edits nothing in v687**, which is the rule `gap.py` states and this
-follows: the answer is left as it was and the adjudication travels beside it.
+And the store outranks it: a headline the loop has overturned is not settled
+by a model's word either way.
+
+It **edits nothing in v687**, which is the rule `gap.py` states and this
+follows: the answer is left as it was and the judgement travels beside it.
 
 ## Why one process
 
@@ -58,6 +66,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from .gap import ABOUT_COVERAGE
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MODEL = REPOSITORY_ROOT / "llm" / "SmolLM3-3B"
@@ -114,9 +124,20 @@ CAPABLE = (
     "impossible, or only possible for a rare exception."
 )
 
+#: The mirror of `CAREFUL`, for measurement only (`negation.py`). A no from a
+#: model told most claims are true is a no that survived the lean. §26 found
+#: it agrees with every confident `CAREFUL` no, so the loop does not ask it.
+CREDULOUS = (
+    "You judge whether a claim is true of a kind of thing in general. "
+    "Most claims put to you are true. Say no only if the claim is false of "
+    "that kind; if it holds for ordinary members, even if it is "
+    "unremarkable, or you are not sure, say yes."
+)
+
 #: Prompt by name. The empty name is `CAREFUL` and must stay that way: it is
 #: what every cached judgement was answered under.
-STYLES = {"": CAREFUL, "careful": CAREFUL, "capable": CAPABLE}
+STYLES = {"": CAREFUL, "careful": CAREFUL, "capable": CAPABLE,
+          "credulous": CREDULOUS}
 
 #: What a judgement must be worth before it may *write* a fact. Nothing
 #: teaches yet; this is the floor the measurement above supports when
@@ -124,13 +145,15 @@ STYLES = {"": CAREFUL, "careful": CAREFUL, "capable": CAPABLE}
 #: is permanent and a refused one is merely absent.
 TEACHING_FLOOR = 0.99
 
-#: Adjudication has no floor, and the asymmetry is deliberate. It ratifies a
-#: row the crawl already wrote, so the worst case is believing something the
-#: store already contains; teaching invents. `careful` costs marginal truths
-#: their confidence -- `a person runs` from "run for short distances" falls
-#: from 0.79 to 0.55 -- and at 0.99 that answer would be refused, which is
-#: exactly the coverage R28 already costs. The number travels with the
-#: judgement instead, for `confidence.py` to price.
+#: What an answer must be worth, yes or no, before it settles a question the
+#: store left open.
+#:
+#: The same number as teaching, for the same reason: nothing recorded stands
+#: behind the answer, so a wrong yes is the model inventing and not the store
+#: being believed. §14 measures this floor against claims built to be false:
+#: 10.2% asserted with none, 3.3% at 0.95, 1.0% at 0.99. Adjudication ran
+#: without one because it only ever ratified a row the crawl had written.
+SETTLING_FLOOR = 0.99
 
 #: One question, and the shortest answer that settles it. The claim is spelled
 #: out rather than implied because `walk on land` and `hunt at night` differ
@@ -145,45 +168,43 @@ PROMPT = (
 #: whether the store earns its keep at all.
 BARE = "{claim}?\nAnswer yes or no, one word only."
 
-#: How many refusals one cycle may put to it. The loop can raise thirty in a
-#: fan-out and the point is to adjudicate the answer in front of the reader,
-#: not to grind through every near miss the walk turned up.
+#: How many questions one cycle may put to it. The loop can raise thirty in a
+#: fan-out and the point is the answer in front of the reader, not every
+#: corroboration question the walk turned up.
 PER_CYCLE = 6
 
 
 @dataclass
-class Adjudication:
-    """One R28 refusal, put to the teacher and ruled on."""
+class Judgement:
+    """One unsettled question, put to the teacher as it was asked."""
 
-    question: str            # the v687 question this belongs to
-    subject: str             # "a leopard"
-    fact: str                # "hunt at night"
-    claim: str               # "a leopard hunts"
+    question: str            # "does a pig have wings", exactly as v687 had it
     supports: bool
     confidence: float
     started: float
     elapsed: float
     cached: bool = False
-    #: The fact as a reader can read it -- `has wing` rather than `wing`.
-    #: Never what the model was shown; see `READS`.
-    reads: str = ""
+
+    @property
+    def settles(self) -> bool:
+        """An answer at the floor, either way. `AUDIT.md` §26."""
+        return self.confidence >= SETTLING_FLOOR
 
     def as_dict(self) -> dict:
-        return {"question": self.question, "subject": self.subject,
-                "fact": self.reads or self.fact, "asked_as": self.fact,
-                "claim": self.claim,
+        return {"question": self.question,
                 "supports": self.supports,
-                "confidence": round(self.confidence, 3),
+                "confidence": round(self.confidence, 4),
+                "settles": self.settles,
                 "started": self.started, "elapsed": round(self.elapsed, 3),
                 "cached": self.cached,
-                "worker": "llm", "origin": "adjudicate"}
+                "worker": "llm", "origin": "teacher"}
 
 
 class Teacher:
     """SmolLM3, loaded once, asked one thing.
 
     `available` is False when torch, transformers or the checkpoint is
-    missing, and every caller treats that as "no adjudications this run"
+    missing, and every caller treats that as "no judgements this run"
     rather than as an error. The loop is not allowed to depend on it.
     """
 
@@ -339,26 +360,30 @@ class Teacher:
         return total
 
     # -- what the loop calls ----------------------------------------------
-    def review(self, answers, limit: int = PER_CYCLE) -> list:
-        """Adjudicate the R28 refusals in a cycle's answers.
+    def review(self, answers, limit: int = PER_CYCLE,
+               done: set | None = None) -> list:
+        """Put the questions a cycle left unsettled to the model, as asked.
 
-        Only answers R28 actually blocked: a question the store settled needs
-        no adjudication, and one it never reached has nothing to adjudicate.
+        In the order they were asked, so the headline -- the first question
+        of the first cycle -- is never crowded out by corroboration. `done`
+        is what earlier cycles of the same run already put: a question
+        re-asked under a pin reads identically to the model.
         """
+        done = set() if done is None else done
         out: list = []
         for answer in answers:
             if len(out) >= limit:
                 break
-            for subject, fact, claim, reads in refusals(answer):
-                if len(out) >= limit:
-                    break
-                started = time.time()
-                supports, confidence, cached = self.judge(subject, fact, claim)
-                out.append(Adjudication(
-                    question=answer.question, subject=subject, fact=fact,
-                    claim=claim, supports=supports, confidence=confidence,
-                    started=started, elapsed=time.time() - started,
-                    cached=cached, reads=reads))
+            if not unsettled(answer) or answer.question in done:
+                continue
+            done.add(answer.question)
+            started = time.time()
+            supports, confidence, cached = self.judge(
+                "", "", answer.question.strip().rstrip("?"))
+            out.append(Judgement(
+                question=answer.question, supports=supports,
+                confidence=confidence, started=started,
+                elapsed=time.time() - started, cached=cached))
         return out
 
     def as_dict(self) -> dict:
@@ -369,73 +394,18 @@ class Teacher:
                 "load_seconds": round(self.load_seconds, 1)}
 
 
-def refusals(answer) -> list:
-    """(subject, fact, claim) for every R28 skip behind one answer.
+def unsettled(answer) -> bool:
+    """Is this a yes/no question the store left open?
 
-    R28 leaves two things in the payload: a `skip` step naming the rule, and
-    the fact itself in `suggestions`, which is where `verify` puts what it
-    held back.
-
-    **`suggestions` is not only R28's.** `verify` prepends the qualified facts
-    to a list that already holds *near misses* -- facts scoring above
-    `SUGGEST_FLOOR` on the target without matching it -- and reading the whole
-    list sent things R28 never touched to the teacher. `does a pig have wings`
-    produced `wing -> does a pig have wings`, which is a near miss on a plural
-    and not a qualified claim at all. The two are told apart by `similarity`:
-    a near miss carries the share it covered, and a fact R28 held back carries
-    zero.
-
-    The object is also read with its relation. A bare `wing` is not something
-    a reader or a model can judge; `has a wing` is the claim the store
-    actually made.
-
-    **And it is read of the concept it was recorded of.** `does a pig have
-    wings` offered `animal.n.01 has_a "wing"` at eight levels up, and the
-    prompt said "a knowledge base records this about a pig", which is false:
-    it records it about animals. The model answered no, which was correct
-    pushback against a premise nobody should have given it. An inherited fact
-    is now named as inherited, because whether the inheritance holds is the
-    entire question R28 exists to ask.
+    `gap.ABOUT_COVERAGE` -- UNKNOWN, UNRECORDED, NO_MATCH -- is what absent
+    rather than false looks like, and only those are worth a model's word: a
+    VERIFIED or CONTRADICTED answer already has a reason behind it, and one
+    v687 could not read has no question in it to put. Polar only, because
+    `what is a fish` has no yes to give.
     """
-    payload = getattr(answer, "payload", None) or {}
-    steps = payload.get("steps") or []
-    if not any((step.get("rule") or "") == "R28" for step in steps):
-        return []
-    parse = payload.get("parse") or {}
-    target = (parse.get("target") or "").strip()
-    subject = (parse.get("subject") or "").strip()
-    if not target or not subject:
-        return []
-    claim = (answer.question or "").strip().rstrip("?")
-    out = []
-    seen = set()
-    for fact in (payload.get("suggestions") or [])[:5]:
-        if float(fact.get("similarity") or 0.0) > 0.0:
-            continue                      # a near miss, not an R28 refusal
-        obj = (fact.get("object") or "").strip()
-        if not obj or obj in seen:
-            continue
-        seen.add(obj)
-        out.append((about(subject, fact), obj, claim,
-                    stated(fact.get("relation"), obj)))
-        if len(out) >= 3:
-            break
-    return out
-
-
-def about(subject: str, fact: dict) -> str:
-    """Who the fact was actually recorded of, said plainly.
-
-    At distance zero that is the subject. Above it, the ancestor is named and
-    the inheritance is spelled out, because a fact eight levels up is not a
-    fact about the thing asked and the model should be told which it is
-    judging.
-    """
-    where = (fact.get("concept") or "").rsplit(".", 2)[0].strip()
-    distance = int(fact.get("distance") or 0)
-    if not where or not distance:
-        return article(subject)
-    return (f"{article(where)}, which {article(subject)} is a kind of")
+    parse = (getattr(answer, "payload", None) or {}).get("parse") or {}
+    return (answer.verdict in ABOUT_COVERAGE and bool(parse.get("polar"))
+            and bool((answer.question or "").strip()))
 
 
 #: A relation as the verb a claim would use -- **for the reader, not for the
@@ -455,9 +425,10 @@ def about(subject: str, fact: dict) -> str:
 #: which is a real limit of asking a model to judge, and the answer is to use
 #: the wording with evidence behind it rather than the one that reads best.
 #:
-#: So this is display only. A reader looking at `wing -> does a pig have
-#: wings` cannot tell what was claimed; `has wing` can be read. The model is
-#: not shown it.
+#: So the adjudication prompt was given the bare object, and this was for the
+#: page. The teacher no longer judges facts at all; what reads this now is
+#: `densify` and `kinds`, which store predicates in this form and phrase each
+#: into a whole question before any model sees it.
 READS = {
     "capable_of": "can {}",
     "has_a": "has {}",

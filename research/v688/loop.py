@@ -22,6 +22,7 @@ from .buffer import Buffer
 from .gap import UNDERMINING
 from .pool import Answer, EnginePool
 from .question import Generator, Question, article, plural
+from .teacher import SETTLING_FLOOR
 
 #: An utterance that opens with one of these is a question already.
 ASKING = re.compile(
@@ -57,9 +58,9 @@ class Cycle:
     answers: list[Answer]
     gaps_found: list = field(default_factory=list)
     doubts_found: list = field(default_factory=list)
-    #: R28 refusals this cycle put to the teacher. Not answers: nothing here
-    #: was asked of v687, and nothing here edits what v687 said.
-    adjudications: list = field(default_factory=list)
+    #: Unsettled questions this cycle put to the teacher as asked. Not
+    #: answers: v687 said what it said, and nothing here edits it.
+    judgements: list = field(default_factory=list)
     activation: dict = field(default_factory=dict)
     elapsed: float = 0.0
 
@@ -70,7 +71,7 @@ class Cycle:
             "answers": [a.as_dict() for a in self.answers],
             "gaps_found": [g.as_dict() for g in self.gaps_found],
             "doubts_found": [d.as_dict() for d in self.doubts_found],
-            "adjudications": [a.as_dict() for a in self.adjudications],
+            "judgements": [one.as_dict() for one in self.judgements],
             "activation": self.activation,
             "elapsed": round(self.elapsed, 3),
             "workers_used": sorted({a.worker for a in self.answers}),
@@ -214,6 +215,7 @@ class Loop:
         generator = Generator(engine, self.curiosity)
         started = time.time()
         cycles: list[Cycle] = []
+        put: set = set()                # questions already put to the teacher
 
         # -- cycle 0: what was actually said ------------------------------
         buffer.attend(utterance)
@@ -238,12 +240,13 @@ class Loop:
             for answer in answers:
                 answer.cycle = number
             # The teacher runs after the fan-out and before the reading,
-            # because what it rules on is what the fan-out just refused. It
+            # because what it is asked is what the fan-out just left open. It
             # is serial by construction: nineteen workers finish, one GPU
-            # starts.
+            # starts. `put` spans the run, so a question re-asked under a pin
+            # is not drawn twice.
             judged = []
             if self.teacher is not None and self.teacher.available:
-                judged = self.teacher.review(answers)
+                judged = self.teacher.review(answers, done=put)
             gaps, doubts = buffer.record(answers)
             # Whatever an answer turned out to be about is now live. This is
             # how attention follows the reasoning instead of only the words:
@@ -262,7 +265,7 @@ class Loop:
                     buffer.take_topic(concept)
             cycles.append(Cycle(
                 number=number, questions=pending, answers=answers,
-                gaps_found=gaps, doubts_found=doubts, adjudications=judged,
+                gaps_found=gaps, doubts_found=doubts, judgements=judged,
                 activation=buffer.activation.as_dict(),
                 elapsed=time.time() - clock))
 
@@ -334,36 +337,39 @@ class Loop:
                      if headline is not None and bad.question == headline.question
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
-        # What the teacher made of the refusals. R28 is right about
-        # `fish walk on land` and wrong about `leopard hunt at night`, and
-        # nothing in the store tells them apart -- so when a judgement is
-        # available it is reported *beside* v687's answer and never in place
-        # of it. The reader is told a model said so, because that is a
-        # different kind of evidence from a walk over the taxonomy.
-        judged = [one for cycle in cycles for one in cycle.adjudications]
-        # An adjudication that supports the headline settles it. Reporting
-        # `unknown` on the badge over three lines saying the fact does hold
-        # is incoherent, and `unknown` is the wrong word once something has
-        # answered. v687's own verdict is untouched and `as_asked` still
-        # carries it -- the same arrangement a pinned re-ask already uses.
-        ratified = [one for one in judged
-                    if one.supports and headline is not None
-                    and one.question == headline.question]
+        # What the teacher said when asked the question directly. It is
+        # reported *beside* v687's answer and never in place of it, and the
+        # reader is told a model said so, because that is a different kind of
+        # evidence from a walk over the taxonomy.
+        judged = [one for cycle in cycles for one in cycle.judgements]
+        # An answer at the floor settles an unsettled headline, either way:
+        # `unknown` on the badge over a line saying the model is sure is the
+        # wrong page. A no counts as much as a yes -- `AUDIT.md` §26 measured
+        # the confident no as sound as the confident yes. v687's own verdict
+        # is untouched and `as_asked` still carries it, the same arrangement
+        # a pinned re-ask already uses. Never over an overturned headline:
+        # the store's own argument outranks a model's word.
+        ratified = [] if overturned else [
+            one for one in judged
+            if one.settles and headline is not None
+            and one.question == headline.question]
         for one in judged:
             if headline is None or one.question != headline.question:
                 continue
-            if one.supports:
-                lines.append(
-                    f"R28 held back “{one.fact}” as a narrower claim than "
-                    f"you asked. Put to the teacher, that fact does support "
-                    f"“{one.claim}” ({one.confidence:.0%} confident) — so "
-                    f"this may be absent from the phrasing rather than from "
-                    f"the store.")
+            said = (f"asked directly, the teacher says "
+                    f"{'yes' if one.supports else 'no'} "
+                    f"({one.confidence:.0%} confident)")
+            if not one.settles:
+                lines.append(f"{said}, short of the {SETTLING_FLOOR:.0%} it "
+                             f"takes to settle anything")
+            elif overturned:
+                lines.append(f"{said}; the store's own argument stands "
+                             f"either way, and a model's word does not "
+                             f"replace it")
             else:
-                lines.append(
-                    f"R28 held back “{one.fact}”, and the teacher agrees it "
-                    f"does not support “{one.claim}” "
-                    f"({one.confidence:.0%} confident).")
+                lines.append(f"{said}. Nothing recorded settles it either "
+                             f"way, so this rests on a model's word rather "
+                             f"than a record")
 
         for doubt in buffer.seen_doubts:
             if doubt.reason == "negated_evidence":
@@ -495,7 +501,7 @@ class Loop:
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer, overturned,
                                 ratified),
-            "adjudications": [one.as_dict() for one in judged],
+            "judgements": [one.as_dict() for one in judged],
             # The badge. `trust` says in a phrase what went wrong and the
             # verdict says which of seventeen things v687 concluded; this
             # says which of four readings it comes to and how far it should
@@ -583,11 +589,13 @@ class Loop:
             return "none"
         if headline.verdict in ("UNKNOWN_WORD", "UNPARSED", "UNSUPPORTED"):
             return "unreadable"
-        # Said before anything else about an absence, because it is no longer
-        # one: the store held the fact and only the phrasing kept it back.
+        # Said before anything else about an absence, because something has
+        # answered it. `ratified` is empty over an overturned headline, so
+        # the store's own argument is never outranked by this.
         if ratified and headline.verdict in ("UNKNOWN", "UNRECORDED",
                                              "NO_MATCH"):
-            return "held on a fact R28 set aside"
+            return ("not recorded; the teacher says "
+                    + ("yes" if ratified[0].supports else "no"))
         # Whatever overturned the headline in the summary overturns it here.
         # `do fish run` read NOT SUPPORTED in the lines and `weakly held` on
         # the badge, because the conflict is filed under `does a fish have
