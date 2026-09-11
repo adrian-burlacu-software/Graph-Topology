@@ -1226,14 +1226,22 @@ class AnswerRoutingTests(unittest.TestCase):
         cls.engine.reasoner.close()
 
     def test_the_norms_hand_back_what_they_did_not_answer(self):
-        """`can a dog fall into a hole` is on the R1-R9 card and was answered
-        as `verify` over feature norms, which had nothing of their own to say:
-        the answer came from one crawled sentence at an ancestor the norms
-        describe seven kinds of."""
+        """`can a dog fall into a hole` is answered as `verify` over feature
+        norms, which have nothing of their own to say, so it is handed to the
+        crawl.
+
+        **What the crawl then says changed in §25.** The answer used to be
+        VERIFIED on one sentence at `canine.n.02`, which the norms described
+        seven kinds of -- too few for R19 to speak. With distilled witnesses
+        there are thirteen, four bear it out, and R19 refuses. The hand-back
+        is what this test is for and it still happens; the fact is still
+        found and still cited as the suggestion behind the refusal."""
         payload = self.engine.ask("can a dog fall into a hole")
         self.assertEqual(payload["parse"]["relation"], "capable_of")
-        self.assertEqual(payload["verdict"], "VERIFIED")
-        self.assertEqual(payload["evidence"][0]["object"], "fall into hole")
+        self.assertEqual(payload["verdict"], "UNKNOWN")
+        self.assertIn("R19", payload["note"])
+        cited = [fact["object"] for fact in payload["suggestions"]]
+        self.assertIn("fall into hole", cited)
 
     def test_a_corroborated_inheritance_stays_with_the_norms(self):
         """The hand-back must not take `does a robin fly` with it: there the
@@ -1258,10 +1266,19 @@ class AnswerRoutingTests(unittest.TestCase):
 
     def test_an_ancestor_fact_is_ranked_by_what_it_accounts_for(self):
         """Shortest-first picked `capable of fall victim` over `capable of
-        fall into hole`. Coverage first, shortness among equals."""
-        answer = self.engine.profiles.verify_one("dog", "fall",
-                                                 asked=["fall", "hole"])
-        self.assertEqual(answer.predicate, "capable of fall into hole")
+        fall into hole`. Coverage first, shortness among equals.
+
+        Asserted on the detail rather than the predicate, because the ranking
+        is a sort over the candidates and survives whatever R19 then does
+        with the winner -- which since §25 is refuse it. Reading it off
+        `predicate` tested the sort *and* the corroboration; this tests the
+        sort, which is what the docstring is about."""
+        for asked, wanted in ((["fall", "hole"], "fall into hole"),
+                              (["fall"], "fall victim")):
+            with self.subTest(asked=asked):
+                answer = self.engine.profiles.verify_one("dog", "fall",
+                                                         asked=asked)
+                self.assertIn(wanted, answer.detail)
 
     def test_a_preposition_is_not_a_property(self):
         _, _, terms = self.engine.profiles.route("can a dog fall into a hole")

@@ -101,21 +101,34 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
 #:     0.700      19.0%      91.0%            2.5%             4.6%
 #:     0.800      18.4%      92.2%            2.2%             4.0%
 #:
-#: **0.8 since §23**, and it took removing the thing that bounded it.
+#: **0.6 since §25**, and the number is set by what a witness will deny.
 #:
-#: The benchmark wanted 0.8 all along. An *answer* capped it at about 0.64:
-#: `does a dog have legs` was corroborated at `animal.n.01`, where `leg` is
-#: borne out by 156 of 244 kinds -- 64%, and true, because fish and snakes
-#: have none. At 0.7 the dog lost its legs.
+#: §23 put it at 0.8, which `Profiles.sharpest` had made safe: the binding
+#: case was `does a dog have legs`, corroborated at `animal.n.01` where `leg`
+#: is borne out by 64% of kinds, and sharpest moved it to `dog.n.01` at 8 of
+#: 8. Turning dense witnesses on (§25) changed what binds.
 #:
-#: That was altitude, not the floor. `Profiles.sharpest` now checks the
-#: narrowest level that can speak -- `dog.n.01`, 8 of 8 -- so the floor is no
-#: longer hostage to the vaguest level a true property can be stated at, and
-#: 0.8 costs nothing: **535 tests and every page example unchanged.**
+#: A `careful` witness is asked whether a property is **typical**, and for a
+#: property every member has but none is known for it says no:
+#:
+#:     dog.n.01   swim       9 of 13   69%
+#:     dog.n.01   breathe    8 of 13   62%
+#:
+#: Every dog breathes. Refusing at 62% would also print `8 of the 13 kinds of
+#: dog on record bear that out` and then call the claim absent, which reads as
+#: the system arguing with itself -- the incoherence this project has been
+#: caught by twice. So the floor sits under the majorities it means to
+#: believe. 0.65 loses the beagle its breath; 0.6 is the ceiling.
+#:
+#: The benchmark prefers 0.8 by about a point of accuracy. It is measured on
+#: property claims, where a low ratio means the class does not bear it; the
+#: cases above are ones where the *witnesses* are answering a question about
+#: distinctiveness that nobody asked. §24 is why that is not fixed with a
+#: different prompt.
 #:
 #: Overridable with `V687_CORROBORATION_FLOOR`.
 CORROBORATION_FLOOR = float(
-    os.environ.get("V687_CORROBORATION_FLOOR") or 0.8)
+    os.environ.get("V687_CORROBORATION_FLOOR") or 0.6)
 
 #: ...and refusal needs a sample worth refusing on. `whale.n.02` has four
 #: kinds in the norms; one of them singing is not evidence that whales do not
@@ -156,27 +169,21 @@ KINDS_OFF = bool(os.environ.get("V687_NO_DISTILLED_KINDS"))
 #: about 0.64 starts refusing true properties stated at vague levels.
 SHARPEST = not os.environ.get("V687_ATTACHED_CORROBORATION")
 
-#: Set `V687_DENSE_WITNESSES=1` to honour `asked_at` -- a witness asked every
-#: inheritable fact on an ancestor, so it can speak to any term raised there.
+#: Set `V687_SPARSE_WITNESSES=1` to ignore `asked_at` and count a witness
+#: only for the individual claims it was asked, the way §20 did.
 #:
-#: **Off by default, against the benchmark.** `AUDIT.md` §21 measured dense
-#: witnesses at **+2.0 accuracy and 27% less over-affirmation** on screened
-#: gold, which is the largest single gain in the audit. It is off because it
-#: takes `can a dog fall into a hole` from VERIFIED to UNKNOWN: none of the
-#: seventeen canines on record bears the claim out, because the judge is
-#: asked whether a property is **typical** and falling into a hole is
-#: something a dog can do without being characteristic of dogs.
+#: **On since §25.** A witness with `asked_at` was put to *every* inheritable
+#: fact on that ancestor, so it can speak to any term R19 raises there --
+#: which is what lets eight of them testify about the same term at once.
+#: §21 measured it at +2.0 accuracy and 27% less over-affirmation and left it
+#: off, because it takes `can a dog fall into a hole` from VERIFIED to
+#: UNKNOWN.
 #:
-#: R19 tests typicality. A `capable_of` question asks capability. That
-#: mismatch was always there and dense witnesses surface it at scale, because
-#: they let R19 speak where it used to decline. Two things have to be settled
-#: before this goes on: the mismatch itself, and a replacement example for
-#: `test_an_ancestor_fact_is_ranked_by_what_it_accounts_for`, which stops
-#: exercising fact ranking once the fact it ranks is refused.
-#:
-#: The per-claim `asked` sets are honoured either way, so the default is
-#: exactly §20's behaviour: +0.6 accuracy, no example changed.
-DENSE_WITNESSES = bool(os.environ.get("V687_DENSE_WITNESSES"))
+#: §24 retired that objection. R19 asks whether an inherited fact is a claim
+#: *about the class*, and `can fall into a hole` is not a property of canines
+#: however true it is of each of them. The refusal is the rule working, not
+#: the rule failing, and the page cards now say so.
+DENSE_WITNESSES = not os.environ.get("V687_SPARSE_WITNESSES")
 
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""

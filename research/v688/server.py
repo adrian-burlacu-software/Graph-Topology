@@ -121,8 +121,13 @@ EXAMPLES = [
     {"text": "can a dog fall into a hole",
      "shows": "The question that broke v687's page sweep. Almost nothing "
               "about the answer is stated of dogs themselves, so eighteen "
-              "questions go looking for whose claim it actually is.",
-     "expect": "corroborated"},
+              "questions go looking for whose claim it actually is — and "
+              "four of the thirteen canines on record bear it out, so the "
+              "claim is set aside. Every dog can fall into a hole, and that "
+              "is not what R19 is asking: it asks whether a crawled sentence "
+              "is a claim about the class, and falling into holes is no more "
+              "a property of canines than of chairs. AUDIT.md §24.",
+     "expect": "absent, not false"},
     {"text": "is a dog wild",
      "shows": "One Ascent++ fact says yes. That fact is not weak — 0.54 is "
               "around that source's 90th percentile — but nothing bears it "

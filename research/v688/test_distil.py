@@ -559,17 +559,25 @@ class TheDenseWitnessForm(unittest.TestCase):
         with unittest.mock.patch.object(profile, "DENSE_WITNESSES", dense):
             return profile.Profiles.witnesses(one, "bird.n.01", term)
 
-    def test_dense_testimony_is_opt_in(self):
-        """§21: worth +2.0 accuracy and off anyway, because it takes `can a
-        dog fall into a hole` from VERIFIED to UNKNOWN. The default must not
-        honour `asked_at`."""
+    def test_dense_testimony_is_on_and_can_be_turned_off(self):
+        """§21 measured it and left it off; §24 retired the objection and §25
+        turned it on. `V687_SPARSE_WITNESSES=1` still ignores `asked_at`."""
         from research.v687 import profile
 
-        self.assertFalse(profile.DENSE_WITNESSES)
+        self.assertTrue(profile.DENSE_WITNESSES)
         kinds = {"a.n.01": {"asked_at": frozenset({"bird.n.01"}),
                             "asked": frozenset(),
                             "predicates": frozenset({"can fly"})}}
+        self.assertEqual(self.witnesses(kinds, "fly", dense=True), (1, 1))
         self.assertEqual(self.witnesses(kinds, "fly", dense=False), (0, 0))
+
+    def test_the_floor_leaves_a_majority_believable(self):
+        """§25: `dog swim` is 9 of 13 -- 69% -- and a note that reports a
+        majority and then refuses reads as the system arguing with itself.
+        The floor has to sit below the majorities it means to believe."""
+        from research.v687 import profile
+
+        self.assertLess(profile.CORROBORATION_FLOOR, 9 / 13)
 
     def test_asked_at_lets_a_witness_speak_to_any_term_there(self):
         kinds = {"a.n.01": {"asked_at": frozenset({"bird.n.01"}),
@@ -734,13 +742,21 @@ class TheSharpestLevel(unittest.TestCase):
             where, bearing, kinds = self.sharpest(self.COUNTS, self.CHAIN)
         self.assertEqual((where, bearing, kinds), ("animal.n.01", 156, 244))
 
-    def test_the_floor_is_only_safe_at_08_because_of_this(self):
-        """§23: 156/244 is 64%, so the attached level refuses at any floor
-        above that. The narrowest level is 100% and clears 0.8."""
+    def test_the_attached_level_is_no_longer_what_bounds_the_floor(self):
+        """§23's point, asserted as the claim rather than as a number.
+
+        It used to read `CORROBORATION_FLOOR > 156/244`, because the binding
+        case was `does a dog have legs` corroborated at `animal.n.01`. §25
+        moved the floor to 0.6 for an unrelated reason and that assertion
+        failed while the behaviour it was guarding was fine -- the fourth
+        test this week to pin a reading instead of a claim. What matters is
+        that the walk happens at all."""
         from research.v687 import profile
 
-        self.assertGreater(profile.CORROBORATION_FLOOR, 156 / 244)
         self.assertTrue(profile.SHARPEST)
+        where, bearing, kinds = self.sharpest(self.COUNTS, self.CHAIN)
+        self.assertEqual(where, "dog.n.01")
+        self.assertGreater(bearing / kinds, profile.CORROBORATION_FLOOR)
 
 
 class TheCapabilityPrompt(unittest.TestCase):

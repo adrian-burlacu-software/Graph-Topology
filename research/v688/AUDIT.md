@@ -1796,6 +1796,98 @@ still carries more than 500 dense witnesses.
 
 ---
 
+## 25. Dense witnesses on, and the floor goes down to pay for it
+
+2026-09-11. Asked for directly: turn dense witnesses on and accept losing
+`can a dog fall into a hole`. §24 had already retired the objection to that
+answer — R19 asks whether a fact is a claim about the class, and falling into
+holes is no more a property of canines than of chairs.
+
+Turning it on found a second casualty nobody had sanctioned, and it is the
+more instructive one.
+
+### `does a beagle swim` broke, and not for the reason §21 gave
+
+That is the example v688 was built around, with a test named after it
+(`test_an_awa2_zero_is_not_a_denial`) and a finding behind it: AwA2 scores
+collie, dalmatian and german shepherd 0 for `swims`, and a 0 there means *not
+characteristic*, not *false*. Beagles swim.
+
+The cause was **not** dense witnesses denying it. Nine of the thirteen dogs on
+record bear it out. The cause was the **0.8 floor refusing a 69% majority.**
+
+```
+dog.n.01   swim       9 of 13   69%
+dog.n.01   breathe    8 of 13   62%
+```
+
+Every dog breathes. A `careful` witness is asked whether a property is
+*typical*, and for a property every member has but none is known for, it says
+no — so the ratio lands in the sixties. §24 already established that a
+capability prompt makes the aggregate worse, so this is not fixable by asking
+differently.
+
+And refusing at 62% would print `8 of the 13 kinds of dog on record bear that
+out` and then call the claim absent, which reads as the system arguing with
+itself. That is the incoherence this project has been caught by twice before.
+
+**So the floor sits under the majorities it means to believe: 0.6.** 0.65
+costs the beagle its breath.
+
+### What that costs
+
+| | coverage | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- |
+| start of the day | 20.7% | 90.3% | 3.1% | 5.3% |
+| sparse witnesses, floor 0.8 | 18.6% | **92.1%** | **2.2%** | 3.9% |
+| **shipped: dense, floor 0.6** | **19.0%** | 91.5% | 2.4% | 4.2% |
+| dense, floor 0.8 | 17.7% | 93.5% | 1.6% | 2.9% |
+
+**Turning dense witnesses on is, on the benchmark, a wash or slightly
+negative** — it forces the floor down by more than the extra evidence buys
+back. The best-scoring row is dense at 0.8, and it refuses two true
+majorities and explains itself incoherently while doing so.
+
+What is shipped is better *epistemically* and not on the scoreboard: R19 can
+now speak at 94 ancestors it was silent at, and every page example holds.
+`sparse + 0.8` scores marginally better and is one flag away
+(`V687_SPARSE_WITNESSES=1 V687_CORROBORATION_FLOOR=0.8`); the two are close
+enough that the choice is a judgement about what the store is for.
+
+### The pattern, stated plainly
+
+Three sections running, a mechanism improved and the aggregate did not:
+
+- §18 dense norms: mechanism flips 34.3% of verdicts, +0.2 points.
+- §24 capability prompt: twice the judge, −1.2 accuracy.
+- §25 dense witnesses: R19 speaks in 94 more places, a wash.
+
+Each time the improvement was real and each time something downstream — a
+constant, a prompt's question, a floor — had been fitted to the defect. **The
+system's numbers are not a sum of its parts' quality**, and a component
+measured alone predicts almost nothing about it.
+
+### Cards and tests that moved
+
+`can a dog fall into a hole` now answers UNKNOWN on both pages, with cards
+saying why. It was swapped off v687's `Taxonomy & facts` card, which promises
+a settled verdict, and `does a beagle swim` took its place.
+
+Two v687 tests changed what they assert without changing what they protect.
+`test_the_norms_hand_back_what_they_did_not_answer` checks the hand-back, not
+the verdict after it, and now checks the fact is still found and cited behind
+the refusal. `test_an_ancestor_fact_is_ranked_by_what_it_accounts_for` read
+the ranking off `predicate`, which tested the sort **and** the corroboration;
+it reads the detail now, which is where the ranking is visible whether or not
+R19 then refuses the winner. Both assert on `asked=["fall","hole"]` giving
+`fall into hole` and `asked=["fall"]` giving `fall victim` — the sort key,
+which is what the docstring was ever about.
+
+That is the **fourth** test this week to pin a reading rather than a claim,
+including one of mine from §23 that asserted the floor was above 64%.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
