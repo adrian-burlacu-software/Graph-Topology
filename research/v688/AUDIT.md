@@ -1715,6 +1715,87 @@ for an unrelated reason.
 
 ---
 
+## 24. R19 does not want a capability judge
+
+2026-09-11. `research/v688/capability.py`, `teacher.CAPABLE`.
+
+§21's remaining gate. `teacher.CAREFUL` says *say yes only if the property is
+typical of that kind*, which is right for `has_a` and looked wrong for
+`capable_of`: falling into a hole is not characteristic of beagles though
+every one of them can.
+
+### Gold nobody had to build
+
+§16's screened benchmark is labelled on both sides and **4,766 of its 20,925
+pairs are capability-shaped** — the property begins with `can`. That gives
+**2,775 true and 4,008 false capability claims** for free.
+
+AwA2 was the obvious alternative and is unusable here: its capability
+attributes are scored for typicality too — `swims` is 0 for collie and
+dalmatian, and dogs swim — so it would measure the prompt against the belief
+the prompt is meant to correct.
+
+### The prompt is much better at its job
+
+400 true and 400 false claims, both prompts:
+
+| prompt | floor | yes to true | yes to false | separation |
+| --- | --- | --- | --- | --- |
+| careful | 0.99 | 33.8% | 0.0% | 33.8% |
+| **capable** | 0.99 | **73.0%** | **0.0%** | **73.0%** |
+
+At the floor these cells are written at, the capability prompt affirms more
+than twice as many true capabilities with **zero** false positives. Both
+answer all eight of R19's guard claims correctly — `a fish walks`, `a rock
+swims` and `a pig flies` stay no under both.
+
+### And it makes the system worse
+
+Re-distilled with it, every artifact grew about threefold — 1,454 predicates
+to 4,789 — and `corroborated` on screened gold went:
+
+| prompt | floor | coverage | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- | --- |
+| careful | 0.80 | 18.6% | **92.1%** | **2.2%** | 3.9% |
+| capable | 0.80 | 18.9% | 90.9% | 2.5% | 4.0% |
+| capable | 0.85 | 18.8% | 91.1% | 2.4% | 3.9% |
+| capable | 0.90 | 18.5% | 91.4% | 2.3% | 3.9% |
+
+It loses at every floor. Sweeping to 0.9 recovers most of the coverage
+difference and none of the accuracy.
+
+### Why, and it is not a subtlety
+
+**R19's question is not "can this thing do that".** It is *is this inherited
+fact a claim about the class* — and `can fall into a hole` is not a property
+of canines in any useful sense, however true it is of every canine. A judge
+that affirms every true capability affirms every vacuous one too, and R19
+then has nothing to discriminate with.
+
+So **typicality is the right test even for `capable_of`**, and `careful` was
+answering the right question all along. §21 predicted the opposite and §21
+was wrong.
+
+That also retires §21's reading of `can a dog fall into a hole`. Dense
+witnesses refusing it is not a prompt defect to be fixed; it is R19 declining
+to treat a vacuous capability as a class generalisation. Whether that is the
+*right* answer for a reader is a separate question from whether the mechanism
+is behaving as designed, and the mechanism is.
+
+**Reverted to `careful`.** The prompt, the namespaced cache and
+`capability.py` are kept, because §21 predicted the opposite and somebody
+will want to try it again — the table above is so they do not have to.
+
+### One thing nearly lost
+
+`kinds --build` covers 319 concepts and writes what it touched; `--dense`
+covers 691 and gives each an `asked_at`. Running the first after the second
+**silently discarded the overnight run**, and only a backup taken for an
+unrelated reason saved it. It merges now, and a test asserts the artifact
+still carries more than 500 dense witnesses.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1780,7 +1861,10 @@ Ranked by evidence, not by appeal:
    the floor go to 0.8: +1.8 accuracy and 29% less over-affirmation against
    this morning, no example changed. Altitude still bites where no level
    between the concept and the fact has eight covered kinds.
-13. **Answer the typicality-versus-capability question** (§21). It is the
+13. ~~**Answer the typicality-versus-capability question**~~ Done, §24, and
+   the answer is that R19 wants typicality. The capability prompt is twice
+   the judge on capability claims and a worse one for R19, whose question is
+   whether a fact is a claim about the class. It is the
    one thing standing between the audit and its largest measured gain: +2.0
    accuracy and 27% less over-affirmation, sitting behind
    `V687_DENSE_WITNESSES` because R19 tests typicality and `can a dog fall

@@ -331,7 +331,8 @@ def build_dense(engine=None, floor: float = FLOOR, witnesses: int = WITNESSES,
         for index, (member, ancestor, relation, obj) in enumerate(grid):
             text = densify.question(name_of(engine, member), relation, obj)
             if text:
-                holds, weight, cached = judge.judge("", "", text)
+                holds, weight, cached = judge.judge(
+                    "", "", text, densify.style_for(relation))
                 fresh += not cached
                 counts["asked"] += 1
                 if holds and weight >= floor:
@@ -397,7 +398,8 @@ def build(engine=None, floor: float = FLOOR, limit: int = 0,
             if not text:
                 counts["unphrasable"] += 1
                 continue
-            holds, weight, cached = judge.judge("", "", text)
+            holds, weight, cached = judge.judge(
+                "", "", text, densify.style_for(relation))
             fresh += not cached
             if fresh and not fresh % 2000:
                 judge._save()                       # noqa: SLF001
@@ -421,10 +423,25 @@ def build(engine=None, floor: float = FLOOR, limit: int = 0,
     # kind that answered "no" to everything is still a witness and still
     # counts against, which is the whole point; one that was never asked
     # about a term does not appear in that term's arithmetic at all.
-    rows = {concept: {"name": name_of(engine, concept),
-                      "asked": sorted(asked.get(concept, ())),
-                      "predicates": sorted(written.get(concept, ()))}
-            for concept in chosen}
+    #
+    # Merged into whatever is already on disk, never written over it. This
+    # mode covers 319 concepts and `--dense` covers 691 with an `asked_at`
+    # each; writing only what this run touched would silently throw away
+    # eight and a half GPU-hours, and did once before it was caught.
+    from research.v687 import corpora
+
+    rows = {concept: {"name": one["name"],
+                      "asked_at": sorted(one["asked_at"]),
+                      "asked": sorted(one["asked"]),
+                      "predicates": sorted(one["predicates"])}
+            for concept, one in corpora.load_distilled_kinds().items()}
+    for concept in chosen:
+        one = rows.setdefault(concept, {"name": name_of(engine, concept),
+                                        "asked_at": [], "asked": [],
+                                        "predicates": []})
+        one["asked"] = sorted(set(one["asked"]) | asked.get(concept, set()))
+        one["predicates"] = sorted(set(one["predicates"])
+                                   | written.get(concept, set()))
     KINDS.write_text(json.dumps(rows, indent=1, sort_keys=True),
                      encoding="utf-8")
     return {"ancestors_fed": len(short) - len(still),

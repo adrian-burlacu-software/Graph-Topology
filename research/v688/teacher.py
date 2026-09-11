@@ -94,6 +94,30 @@ CAREFUL = (
     "not sure, say no."
 )
 
+#: The second system prompt, for claims about what a thing **can do** rather
+#: than what it is like.
+#:
+#: `CAREFUL` says *say yes only if the property is typical*, and that is what
+#: `AUDIT.md` §21 ran into: all seventeen canine witnesses denied `can a
+#: beagle fall into a hole`, because falling into holes is not characteristic
+#: of beagles even though every one of them can. R19 then refused `can a dog
+#: fall into a hole`, which is true.
+#:
+#: The scepticism has to survive the change or this is just a looser prompt:
+#: `a fish walks`, `a rock swims` and `a pig flies` must still be no. So the
+#: test offered is possibility **for a typical member**, which keeps
+#: mudskippers from making fish walkers, rather than typicality of the act.
+CAPABLE = (
+    "You judge whether a kind of thing is able to do something, or can have "
+    "something done to it. Say yes if it is possible for an ordinary member "
+    "of that kind, even where it is unusual or incidental. Say no if it is "
+    "impossible, or only possible for a rare exception."
+)
+
+#: Prompt by name. The empty name is `CAREFUL` and must stay that way: it is
+#: what every cached judgement was answered under.
+STYLES = {"": CAREFUL, "careful": CAREFUL, "capable": CAPABLE}
+
 #: What a judgement must be worth before it may *write* a fact. Nothing
 #: teaches yet; this is the floor the measurement above supports when
 #: something does, and it is high because a wrong fact written into the store
@@ -249,11 +273,19 @@ class Teacher:
                 self._save()
 
     @staticmethod
-    def key(subject: str, fact: str, claim: str) -> str:
-        return f"{subject}|{fact}|{claim}".lower()
+    def key(subject: str, fact: str, claim: str, style: str = "") -> str:
+        """The cache key, namespaced by system prompt.
+
+        `careful` gets the bare key it has always had, so the 99,000
+        judgements already on disk stay valid; any other prompt is answering
+        a different question and is filed under its own name.
+        """
+        stem = f"{subject}|{fact}|{claim}".lower()
+        return f"{style}::{stem}" if style else stem
 
     # -- the judgement -----------------------------------------------------
-    def judge(self, subject: str, fact: str, claim: str) -> tuple:
+    def judge(self, subject: str, fact: str, claim: str,
+              style: str = "") -> tuple:
         """(supports, confidence, cached). Greedy, so it is reproducible.
 
         The confidence is the model's own: the probability it puts on `yes`
@@ -262,7 +294,7 @@ class Teacher:
         `confidence.py` prices Ascent++ by percentile and ConceptNet by fiat --
         one of them carries information and the other does not.
         """
-        cached = self.cache.get(self.key(subject, fact, claim))
+        cached = self.cache.get(self.key(subject, fact, claim, style))
         if cached is not None:
             return bool(cached["supports"]), float(cached["confidence"]), True
         if not self.available:
@@ -276,7 +308,7 @@ class Teacher:
                 else PROMPT.format(subject=subject, fact=fact, claim=claim))
         with self.lock:
             enc = self.tokenizer.apply_chat_template(
-                [{"role": "system", "content": CAREFUL},
+                [{"role": "system", "content": STYLES.get(style, CAREFUL)},
                  {"role": "user", "content": text}],
                 add_generation_prompt=True, return_tensors="pt",
                 return_dict=True, enable_thinking=False)
@@ -289,7 +321,7 @@ class Teacher:
         total = yes + no
         supports = yes >= no
         confidence = float(max(yes, no) / total) if total else 0.0
-        self.cache[self.key(subject, fact, claim)] = {
+        self.cache[self.key(subject, fact, claim, style)] = {
             "supports": supports, "confidence": confidence}
         self._write_cache()
         return supports, confidence, False

@@ -194,6 +194,35 @@ def question(member: str, relation: str, obj: str) -> str:
                         teacher.stated(relation, plain(obj)))
 
 
+#: Relations that would be put to `teacher.CAPABLE` instead of `CAREFUL`.
+#: **Empty, and that is the finding** -- `AUDIT.md` §24.
+#:
+#: The capability prompt is the better *capability judge* by a wide margin.
+#: Against 400 true and 400 false capability claims from the screened
+#: benchmark, at the 0.99 floor these cells are written at, `careful` affirms
+#: 33.8% of the true ones and `capable` 73.0%, both with **zero** false
+#: positives. Both answer all eight of R19's guard claims correctly.
+#:
+#: Distilled with it, every artifact grew about threefold -- 1,454 predicates
+#: to 4,789 -- and the system got worse: 92.1% accuracy to 90.9%, and
+#: over-affirmation 2.2% to 2.5%. Sweeping the corroboration floor to 0.9 did
+#: not recover it.
+#:
+#: **R19 does not want a capability judge.** Its question is whether an
+#: inherited fact is a claim *about the class*, and `can fall into a hole` is
+#: not a property of canines in any useful sense however true it is of every
+#: one of them. Typicality is the right test even for `capable_of`, and
+#: `careful` was answering the right question all along.
+#:
+#: Kept as a name rather than deleted because §21 predicted the opposite and
+#: someone will want to try it again.
+CAPABILITY: frozenset = frozenset()
+
+
+def style_for(relation: str) -> str:
+    return "capable" if relation in CAPABILITY else ""
+
+
 def build(engine=None, floor: float = FLOOR, limit: int = 0,
           judge=None) -> dict:
     """Ask every cell and write the norms that clear the floor."""
@@ -219,11 +248,13 @@ def build(engine=None, floor: float = FLOOR, limit: int = 0,
             if not text:
                 counts["unphrasable"] += 1
                 continue
-            holds, weight, cached = judge.judge("", "", text)
+            holds, weight, cached = judge.judge("", "", text,
+                                                style_for(relation))
             fresh += not cached
             if fresh and not fresh % 2000:
                 judge._save()                       # noqa: SLF001
             counts["asked"] += 1
+            counts[f"asked_{style_for(relation) or 'careful'}"] += 1
             if holds and weight >= floor:
                 written[member].add(teacher.stated(relation, plain(obj)))
                 counts["written"] += 1

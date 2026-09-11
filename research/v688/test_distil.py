@@ -741,3 +741,71 @@ class TheSharpestLevel(unittest.TestCase):
 
         self.assertGreater(profile.CORROBORATION_FLOOR, 156 / 244)
         self.assertTrue(profile.SHARPEST)
+
+
+class TheCapabilityPrompt(unittest.TestCase):
+    """§24: a better capability judge, and the wrong judge for R19."""
+
+    def test_the_cache_is_namespaced_by_prompt(self):
+        """99,000 judgements were answered under `careful`. A second prompt
+        answering a different question must not read them, and `careful`
+        must keep the bare key so none of them is orphaned."""
+        from research.v688.teacher import Teacher
+
+        bare = Teacher.key("", "", "can a dog fall into a hole")
+        self.assertEqual(bare, "||can a dog fall into a hole")
+        self.assertEqual(Teacher.key("", "", "x", "careful"),
+                         "careful::||x")
+        self.assertNotEqual(Teacher.key("", "", "x", "capable"),
+                            Teacher.key("", "", "x"))
+
+    def test_the_default_style_is_careful(self):
+        from research.v688.teacher import CAREFUL, STYLES
+
+        self.assertIs(STYLES[""], CAREFUL)
+
+    def test_nothing_is_routed_to_the_capability_prompt(self):
+        """It was measured and it lost: every artifact grew threefold and
+        accuracy fell 92.1% to 90.9%. R19 asks whether a fact is a claim
+        about the class, and typicality is the right test for that even when
+        the fact is a capability."""
+        from research.v688 import densify
+
+        self.assertEqual(densify.CAPABILITY, frozenset())
+        for relation in ("capable_of", "receives_action", "has_a"):
+            self.assertEqual(densify.style_for(relation), "")
+
+    def test_the_prompt_is_kept_so_it_is_not_rediscovered(self):
+        from research.v688 import teacher
+
+        self.assertIn("capable", teacher.STYLES)
+        self.assertIn("ordinary member", teacher.CAPABLE)
+
+
+class TheSparseBuildDoesNotDestroyTheDenseOne(unittest.TestCase):
+    """`--build` covers 319 concepts and `--dense` covers 691.
+
+    Writing only what a run touched threw away eight and a half GPU-hours
+    once. It merges now.
+    """
+
+    def test_it_merges_into_what_is_already_there(self):
+        import inspect
+
+        from research.v688 import kinds
+
+        source = inspect.getsource(kinds.build)
+        self.assertIn("load_distilled_kinds", source)
+        self.assertIn("setdefault", source)
+
+    def test_the_artifact_still_carries_its_dense_testimony(self):
+        """A guard on the artifact itself: the overnight run's `asked_at`
+        sets are what §21 cost, and nothing since should have dropped them."""
+        from research.v687 import corpora
+
+        loaded = corpora.load_distilled_kinds()
+        if not loaded:
+            self.skipTest("no distilled kinds built")
+        dense = [one for one in loaded.values() if one["asked_at"]]
+        self.assertGreater(len(dense), 500,
+                           "dense witnesses look truncated")
