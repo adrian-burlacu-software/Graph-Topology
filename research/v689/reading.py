@@ -130,7 +130,7 @@ class Mention:
     """A phrase that picks out an individual, or puts a new one down."""
 
     #: pronoun | demonstrative | definite | ordinal | other | another |
-    #: indefinite | speaker | name | possessive
+    #: indefinite | speaker | name | possessive | kind
     form: str
     kind: str = ""                # "beagle"; empty for `it`, `the second one`
     ordinal: int | None = None    # 2 for `the second`, -1 for `the last`
@@ -150,7 +150,7 @@ class Mention:
 class Reading:
     """What an utterance does, and to whom."""
 
-    #: introduce | tell | ask | what | name | ask_name | generic
+    #: introduce | tell | ask | what | name | ask_name | teach | generic
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -356,6 +356,66 @@ def naming(tokens: list[str], typed: list[str], lexicon,
     return None
 
 
+def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
+    """A kind named with nothing v687 can place: `can a wemble fly`, `do
+    wembles fly`.
+
+    v687's parser reads `can a wemble fly` as being about `fly`, because
+    `wemble` is not a word it has. One word after an article, or a plural
+    with none, is taken as the kind, and the rest is what is asked of it.
+    """
+    if at >= len(tokens) - 1:
+        return None
+    word = tokens[at]
+    if word in ("a", "an"):
+        if at + 2 >= len(tokens):
+            return None
+        return Mention("kind", tokens[at + 1],
+                       text=" ".join(tokens[at:at + 2]), end=at + 2)
+    if word in NOT_NAMES or word in AUX or word in ORDINALS:
+        return None
+    lemma = lexicon.lemma(word)
+    if lemma == word and not lexicon.known(word):
+        return None
+    return Mention("kind", lemma, text=word, end=at + 1)
+
+
+def generic_claim(tokens: list[str], lexicon,
+                  names: frozenset = frozenset()) -> Reading | None:
+    """`a wemble is a kind of animal`, `beagles can't swim`: a claim about a
+    kind, for episodic memory, rather than a question for v688.
+
+    The subject is a kind rather than an individual: an indefinite article,
+    or a plural or a kind the ontology has with no determiner at all. A bare
+    singular word the ontology does not have is refused -- `Adrian can swim`
+    is about someone, not a kind of thing -- and so is a told name.
+    """
+    at = next((index for index, word in enumerate(tokens)
+               if index and word in AUX), None)
+    if at is None:
+        return None
+    head = tokens[:at]
+    led = head[0] in ("a", "an")
+    if led:
+        head = head[1:]
+    if (not head or len(head) > 3 or head[0] in NOT_NAMES
+            or head[0] in ORDINALS or head[0] in names
+            or any(word.endswith("'s") for word in head)):
+        return None
+    kind = " ".join(head)
+    if not led:
+        lemma = lexicon.lemma(head[-1])
+        kind = " ".join(head[:-1] + [lemma])
+        if lemma == head[-1] and not lexicon.known(kind):
+            return None
+    body = clause(tokens[at:])
+    if body is None:
+        return None
+    body.act = "teach"
+    body.mention = Mention("kind", kind, text=" ".join(tokens[:at]), end=at)
+    return body
+
+
 def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     """Read one utterance.
 
@@ -387,6 +447,14 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
             continue
         found = read_mention(tokens, len(opener), lexicon, "is",
                              final_ok=True, names=names)
+        start = len(opener)
+        if (found is None and len(tokens) > start + 1
+                and tokens[start] in ("a", "an", "another")):
+            # A kind v687 has no word for: `there is a wemble`.
+            found = Mention("another" if tokens[start] == "another"
+                            else "indefinite", tokens[start + 1],
+                            text=" ".join(tokens[start:start + 2]),
+                            end=start + 2)
         if found and found.form in ("indefinite", "another"):
             tail = tokens[found.end:]
             relative = (clause(tail[1:]) if tail and tail[0] in RELATIVE
@@ -397,10 +465,22 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
 
     if tokens[0] in AUX:
         found = read_mention(tokens, 1, lexicon, tokens[0], names=names)
-        if found is None or found.form in ("indefinite", "another"):
+        if found is None:
+            found = bare_kind(tokens, 1, lexicon)
+        if found is None:
             return Reading("generic", said=said)
+        if found.form in ("indefinite", "another", "kind"):
+            # About a kind. The kind travels with it now, so a kind this
+            # conversation taught can be answered from episodic memory.
+            return Reading("generic", found, tokens[0], tokens[found.end:],
+                           said=said)
         return Reading("ask", found, tokens[0], tokens[found.end:],
                        said=said)
+
+    taught = generic_claim(tokens, lexicon, names)
+    if taught is not None:
+        taught.said = said
+        return taught
 
     found = read_mention(tokens, 0, lexicon, names=names)
     if found is None or found.form == "indefinite":

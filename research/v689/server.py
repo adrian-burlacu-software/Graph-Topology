@@ -45,11 +45,23 @@ EXAMPLES = [
               "swims."},
     {"title": "a flying pig",
      "lines": ["there was a pig", "he was flying", "can the pig fly",
+               "it was in an airplane", "can the pig fly",
                "there is another pig", "it wasn't flying", "can it fly"],
      "shows": "Doing shows ability: `was flying` is stored as `capable_of "
-              "fly` and R4 answers from it. Not doing does not show "
-              "inability: `wasn't flying` is `did_not`, which no rule reads, "
-              "so the second pig's answer is the kind's."},
+              "fly`, and R4 answers from it. Then E2: an airplane flies, so "
+              "the flying was the airplane's, and the pig's exception is "
+              "withdrawn. Not doing is not inability: `wasn't flying` is "
+              "`did_not`, which no rule reads."},
+    {"title": "teaching",
+     "lines": ["a wemble is a kind of animal", "wembles can fly",
+               "can a wemble breathe", "there is a wemble", "can it fly",
+               "beagles can't swim", "there is a beagle", "can it swim"],
+     "shows": "Taxonomy and norms go into episodic memory, never the store. "
+              "`wemble` is a kind the store never had, placed under animal, "
+              "so R1 walks from a wemble into what the store knows of "
+              "animals. `beagles can't swim` sits on beagle.n.01 itself, and "
+              "R3 finds it one level up from every beagle, before dog's "
+              "row."},
     {"title": "which one?",
      "lines": ["there is a beagle", "there is another beagle",
                "does the beagle bark", "the first beagle is black",

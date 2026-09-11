@@ -142,7 +142,7 @@ try {
 } catch (_) { /* no storage: a fresh conversation per load */ }
 
 const SOURCE = {
-  told: "you told me", kind: "from its kind",
+  told: "you told me", taught: "you taught me", kind: "from its kind",
   tendency: "its kind, as a tendency", conversation: "from the conversation"
 };
 let busy = false;
@@ -255,12 +255,38 @@ function renderMemory(turn) {
   stats.textContent = "";
   const discourse = turn && turn.discourse;
   const all = (discourse && discourse.referents) || [];
+  const memory = (turn && turn.memory) || {};
+  // Taught kinds and norms first: they are what every individual below
+  // inherits from, and a conversation can hold them with no individuals.
+  const taught = memory.taught || [];
+  taught.forEach(kind => {
+    const card = el("div", "referent");
+    const head = el("div", "head");
+    head.appendChild(el("span", "name", kind.node));
+    head.appendChild(el("span", "id", kind.episodic ? "taught kind" : "taught norms"));
+    card.appendChild(head);
+    if (kind.parents.length) {
+      card.appendChild(el("div", "meta", "under " + kind.parents.join(", ")));
+    }
+    if (kind.facts.length) {
+      const list = el("ul", "told");
+      kind.facts.forEach(fact => {
+        const item = el("li");
+        item.appendChild(el("code", null, `${fact.relation} ${fact.object}`));
+        if (fact.said) item.appendChild(el("span", null, ` — “${fact.said}”`));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    box.appendChild(card);
+  });
   if (!all.length) {
-    stats.textContent = "empty";
-    box.appendChild(el("p", "empty", "Nothing has come up yet."));
+    stats.textContent = taught.length ? "taught, no individuals yet" : "empty";
+    if (!taught.length) {
+      box.appendChild(el("p", "empty", "Nothing has come up yet."));
+    }
     return;
   }
-  const memory = turn.memory || {};
   stats.appendChild(el("b", null, String(all.length)));
   stats.appendChild(el("span", null,
     ` individual${all.length === 1 ? "" : "s"} · `));

@@ -119,8 +119,8 @@ class Discourse:
         if self.you is None:
             self.you = Referent("you", SPEAKER_KIND, 0, self.turn,
                                 speaker=True)
-            self.memory.place("you", SPEAKER_KIND,
-                              self.sense_of(SPEAKER_KIND))
+            self.memory.place("you", SPEAKER_KIND, self.memory.kind_node(
+                SPEAKER_KIND, self.sense_of(SPEAKER_KIND)))
         return self.you
 
     def names(self) -> frozenset:
@@ -134,7 +134,8 @@ class Discourse:
                             len(self.referents) + 1, self.turn,
                             accommodated=accommodated)
         self.referents.append(referent)
-        self.memory.place(referent.id, kind, self.sense_of(kind))
+        self.memory.place(referent.id, kind, self.memory.kind_node(
+            kind, self.sense_of(kind)))
         if owner:
             self.own(referent)
         self.attend(referent)
@@ -150,7 +151,8 @@ class Discourse:
 
     def narrow(self, referent: Referent, kind: str) -> None:
         referent.kind = kind
-        self.memory.place(referent.id, kind, self.sense_of(kind))
+        self.memory.place(referent.id, kind, self.memory.kind_node(
+            kind, self.sense_of(kind)))
 
     def attend(self, referent: Referent) -> None:
         """A mention refreshes; see the module notes on why it does not add."""

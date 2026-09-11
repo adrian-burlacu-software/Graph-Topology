@@ -71,10 +71,47 @@ everyone stored beneath fits. Because a beagle is stored with `is_a dog`,
 decaying every turn, with one change: a mention *refreshes* rather than adds,
 so `it` follows the conversation, not a tally.
 
+## Teaching: taxonomy and norms, episodic only
+
+Episodic memory is an overlay on the whole store, not only a place for
+individuals. A conversation can teach kinds, taxonomy and norms, and all of
+it is held beside the store and never written into it:
+
+| you say | held as | and then |
+| --- | --- | --- |
+| `a wemble is a kind of animal` | a node `wemble`, under `animal.n.01` | `can a wemble breathe` is R1 walking from a wemble into what the store knows of animals |
+| `wembles can fly` | `capable_of fly` on `wemble` | every wemble inherits it (R4) |
+| `beagles can't swim` | `not_capable_of swim` on `beagle.n.01` itself | R3 finds it one level up from every beagle, before dog's row |
+| `dogs are animals` | nothing new | R1 already walks there |
+
+`EpisodicReasoner.parents_of` and `facts_of` read both memories, so a taught
+edge, a taught kind and a taught norm are the same to every rule as the
+store's own. A question about a kind is answered from episodic memory when
+anything taught bears on the walk, and by v688 otherwise.
+
+## E2: what carried it did it
+
+**E2. An action done while carried belongs to what carries it.** `he was
+flying` is `capable_of fly` on the pig, and R4 answers `can the pig fly` yes
+from it. `it was in an airplane` is `at_location airplane` -- v687's parser
+reads the phrase as a quality, so v689 reads `in`, `on`, `inside` and
+`aboard` itself -- and an airplane flies, so the flying was the airplane's:
+the pig's `capable_of fly` is withdrawn, kept as `carried fly`, which no rule
+reads, and `can the pig fly` is the kind's answer again.
+
+- **Either order.** The rule runs whenever either fact is told.
+- **Only a doing.** `it can fly`, said outright, is a claim about the pig and
+  is never withdrawn.
+- **Only a carrier that does it.** A pig on a cat was still flying. Whether
+  the carrier does it is v687's walk first, and v688 only if the store has
+  nothing.
+
 ## Where an answer comes from
 
 - **The walk decides at the individual** (R3 or R4 at distance 0): what you
   told me, and when the kind says otherwise, that it is an exception.
+- **The walk meets something taught** further up: a norm on its kind, a
+  taught edge, or a kind the store never had. What you taught answers.
 - **The walk stops there by E1**: not known of this one; the kind's tendency
   beside it.
 - **The walk passes the individual**: nothing was told, so it is a question
@@ -85,11 +122,15 @@ The store is never written. Everything told lives in the conversation.
 ## What it does not do
 
 - **Only the subject is read.** `does the cat chase the dog` resolves the cat.
-- **No plurals**, and names of one word only for mentioning.
+- **No plural references** (`the beagles`) -- plurals teach a kind
+  (`beagles can't swim`) but never pick out individuals -- and names of one
+  word only for mentioning.
 - **A lower-case `i am adrian` is not a name** — capitalisation is the only
   evidence; `my name is adrian` works in any case.
-- **Context is not reasoned about.** `it was in an airplane` might explain the
-  flying away; that inference is ambiguous and left alone.
+- **Only being carried explains a doing away (E2).** Nothing else about the
+  situation is reasoned over: `it was in a storm` withdraws nothing.
+- **Negated taxonomy is not stored** (`a whale is not a fish`): v687 keeps no such relation.
+- **An unknown kind must be one word**, and a bare unknown singular (`Adrian can swim`) is read as someone, not a kind.
 - **The v688 loop does not run over individuals.** It answers the kind; the
   individual is v687's rules over episodic memory.
 

@@ -52,16 +52,18 @@ CONCEPTS = (("entity.n.01", "entity", None),
             # A colour is a noun too, and that is what made v687's parser
             # read `is a beagle black` as a hedged `is_a`. The real store has
             # it; a test store without it passed while the page failed.
-            ("black.n.01", "black", "entity.n.01"))
+            ("black.n.01", "black", "entity.n.01"),
+            ("airplane.n.01", "airplane", "entity.n.01"))
 
 LEMMAS = tuple((lemma, concept) for concept, lemma, _ in CONCEPTS) + (
-    ("pig", "hog.n.03"),)
+    ("pig", "hog.n.03"), ("plane", "airplane.n.01"))
 
 FACTS = (("dog.n.01", "capable_of", "swim", "ascentpp", 0.6, 1),
          ("dog.n.01", "capable_of", "bark", "ascentpp", 0.7, 1),
          ("dog.n.01", "has_a", "tail", "ascentpp", 0.6, 1),
          ("beagle.n.01", "has_property", "black", "ascentpp", 0.5, 1),
-         ("animal.n.01", "capable_of", "breathe", "conceptnet", 0.35, 0))
+         ("animal.n.01", "capable_of", "breathe", "conceptnet", 0.35, 0),
+         ("airplane.n.01", "capable_of", "fly", "ascentpp", 0.6, 1))
 
 STORE: dict = {}
 
@@ -186,6 +188,21 @@ class ReadingTests(unittest.TestCase):
     def test_my_name_is_a_naming_not_a_claim_about_a_kind(self):
         found = reading.read("my name is Adrian", self.lexicon)
         self.assertEqual((found.act, found.name), ("name", "Adrian"))
+
+    def test_a_claim_about_a_kind_is_teaching(self):
+        found = reading.read("a wemble is a kind of animal", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind), ("teach", "wemble"))
+        found = reading.read("beagles can swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind), ("teach", "beagle"))
+
+    def test_a_bare_unknown_singular_is_someone_not_a_kind(self):
+        self.assertNotEqual(reading.read("Adrian can swim",
+                                         self.lexicon).act, "teach")
+
+    def test_a_question_about_a_word_v687_lacks_keeps_its_kind(self):
+        found = reading.read("can a wemble fly", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind, found.rest),
+                         ("generic", "wemble", ["fly"]))
 
     def test_only_a_capitalised_word_after_i_am_is_a_name(self):
         self.assertEqual(reading.read("I am Adrian", self.lexicon).act,
@@ -434,6 +451,106 @@ class YouAndNamesTests(unittest.TestCase):
     def test_you_can_be_narrowed_too(self):
         session, _, _ = talk("i am a doctor")
         self.assertEqual(session.memory.parent["you"], "doctor.n.01")
+
+
+class TeachingTests(unittest.TestCase):
+    """Taxonomy and norms, into episodic memory only."""
+
+    def test_a_new_kind_joins_the_taxonomy(self):
+        session, turns, asker = talk("a wemble is a kind of animal",
+                                     "can a wemble breathe",
+                                     "there is a wemble", "can it breathe")
+        self.assertEqual(turns[0].act, "teach")
+        self.assertEqual(session.memory.edges["wemble"], ["animal.n.01"])
+        self.assertEqual(turns[1].answer["outcome"], "verified")
+        self.assertEqual(who(turns[2]), "r1")
+        self.assertEqual(turns[3].answer["outcome"], "verified")
+        self.assertEqual(asker.asked, [])
+
+    def test_a_taught_kind_answers_is_a(self):
+        _, turns, _ = talk("a wemble is a kind of animal",
+                           "is a wemble an animal")
+        self.assertEqual(turns[1].answer["outcome"], "verified")
+
+    def test_a_norm_about_a_known_kind_reaches_its_individuals_by_r3(self):
+        _, turns, _ = talk("beagles can't swim", "there is a beagle",
+                           "can it swim",
+                           outcomes={"can a beagle swim": "verified"})
+        self.assertEqual(turns[0].act, "teach")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "taught"))
+        self.assertIn("R3", rules_at(turns[2], 1))
+
+    def test_a_norm_answers_the_kind_itself(self):
+        _, turns, _ = talk("beagles can't swim", "can a beagle swim",
+                           outcomes={"can a beagle swim": "verified"})
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("denied", "taught"))
+
+    def test_a_norm_on_a_taught_kind(self):
+        _, turns, asker = talk("wembles can fly", "there is a wemble",
+                               "can it fly")
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("verified", "taught"))
+        self.assertEqual(asker.asked, [])
+
+    def test_a_taught_kind_asks_the_nearest_kind_the_store_has(self):
+        """Reported from the page: `can a wemble breathe` was UNKNOWN,
+        because the walk into animal found nothing plain and v688 was never
+        asked."""
+        _, turns, asker = talk("a wemble is a kind of animal",
+                               "can a wemble swim",
+                               outcomes={"can an animal swim": "verified"})
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("verified", "kind"))
+        self.assertEqual(asker.asked, ["can an animal swim"])
+
+    def test_an_individual_of_a_taught_kind_asks_it_too(self):
+        _, turns, _ = talk("a wemble is a kind of animal",
+                           "there is a wemble", "can it swim",
+                           outcomes={"can an animal swim": "verified"})
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("verified", "kind"))
+
+    def test_the_store_is_never_written(self):
+        before = STORE["reasoner"].fact_count("beagle.n.01")
+        talk("beagles can't swim", "a wemble is a kind of animal")
+        self.assertEqual(STORE["reasoner"].fact_count("beagle.n.01"), before)
+
+
+class CarriedTests(unittest.TestCase):
+    """E2: an action done while carried belongs to what carries it."""
+
+    PIGS = {"can a pig fly": "denied", "does a pig fly": "denied"}
+
+    def test_the_airplane_was_doing_the_flying(self):
+        """Reported from the page: `it was in an airplane` left the pig's
+        flying standing as an exception."""
+        session, turns, _ = talk("there was a pig", "he was flying",
+                                 "it was in an airplane", "can the pig fly",
+                                 outcomes=self.PIGS)
+        self.assertIn("E2", turns[2].answer["text"])
+        self.assertEqual((turns[3].answer["outcome"],
+                          turns[3].answer["source"]), ("denied", "kind"))
+        self.assertIn("carried", [fact.relation for fact in
+                                  session.memory.facts["r1"]])
+
+    def test_either_order(self):
+        _, turns, _ = talk("there was a pig", "it was in an airplane",
+                           "it was flying", "can it fly", outcomes=self.PIGS)
+        self.assertEqual(turns[3].answer["source"], "kind")
+
+    def test_a_carrier_that_does_not_do_it_explains_nothing(self):
+        _, turns, _ = talk("there was a pig", "it was on a cat",
+                           "it was flying", "can it fly", outcomes=self.PIGS)
+        self.assertEqual((turns[3].answer["outcome"],
+                          turns[3].answer["source"]), ("verified", "told"))
+
+    def test_a_claim_is_not_explained_away(self):
+        _, turns, _ = talk("there was a pig", "it was in an airplane",
+                           "it can fly", "can it fly", outcomes=self.PIGS)
+        self.assertEqual((turns[3].answer["outcome"],
+                          turns[3].answer["source"]), ("verified", "told"))
 
 
 if __name__ == "__main__":
