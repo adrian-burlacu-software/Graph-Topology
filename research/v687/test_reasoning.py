@@ -1433,14 +1433,26 @@ class OverAffirmationTests(unittest.TestCase):
         ungulate or placental, then took `mammal capable_of fly` five levels
         up. That is a fact about bats. The norms are what tell an existential
         from a universal, because they asked a fixed question of every
-        concept they cover."""
-        for question, ancestor in (("do pigs fly", "mammal"),
-                                   ("does a cat lay eggs", "mammal")):
+        concept they cover.
+
+        **The class named in the note is not pinned.** It used to be `mammal`,
+        the level the crawl attached the sentence to; `Profiles.sharpest`
+        (§23) checks the narrowest level that can speak instead, so the note
+        now reads `0 of the 18 kinds of even-toed ungulate` -- the same
+        refusal on sharper evidence. What must hold is that R19 ran, that it
+        refused, and that whatever class it names is one the concept actually
+        belongs to."""
+        for question in ("do pigs fly", "does a cat lay eggs"):
             with self.subTest(question=question):
                 answer = self.engine.ask(question)
                 self.assertEqual(answer["verdict"], "UNKNOWN")
-                self.assertIn(ancestor, answer["note"])
                 self.assertIn("R19", answer["note"])
+                self.assertIn("kinds of", answer["note"])
+                named = answer["note"].split(" is recorded as")[0].strip()
+                above = {node.rsplit(".", 2)[0] for node, _distance, _parents
+                         in self.engine.reasoner.ascend(answer["concept"])}
+                self.assertIn(named, above,
+                              f"{named!r} is not a class {question} is about")
 
     def test_a_negation_written_into_the_object_is_read_as_one(self):
         """R3 only ever looked at the relation column. `fish has_a "no legs"`

@@ -657,3 +657,87 @@ class TheTermMatchingBug(unittest.TestCase):
 
     def test_nothing_bears_out_an_empty_set(self):
         self.assertFalse(self.bears("blowhole", set()))
+
+
+class TheSharpestLevel(unittest.TestCase):
+    """R19 checks where the evidence is, not where the crawl put the fact."""
+
+    class Stub:
+        """Enough of `Profiles` to run `sharpest` over a fixed taxonomy."""
+
+        def __init__(self, counts, chain):
+            self.counts = counts
+            self.chain = chain
+
+        def corroboration(self, node, term):
+            return self.counts.get(node, (0, 0))
+
+        @property
+        def reasoner(self):
+            chain = self.chain
+
+            class Walk:
+                @staticmethod
+                def ascend(concept):
+                    return [(node, index, [])
+                            for index, node in enumerate(chain)]
+            return Walk()
+
+    def sharpest(self, counts, chain, concept="dog.n.01",
+                 attached="animal.n.01", term="leg"):
+        from research.v687.profile import Profiles
+
+        return Profiles.sharpest(self.Stub(counts, chain), concept,
+                                 attached, term)
+
+    #: `dog have legs`: 156 of 244 animals, 8 of 8 dogs. The case that
+    #: bounded the corroboration floor at 0.64 until §23.
+    CHAIN = ["dog.n.01", "canine.n.02", "carnivore.n.01", "animal.n.01"]
+    COUNTS = {"dog.n.01": (8, 8), "canine.n.02": (12, 12),
+              "carnivore.n.01": (29, 29), "animal.n.01": (156, 244)}
+
+    def test_it_takes_the_narrowest_level_that_can_speak(self):
+        where, bearing, kinds = self.sharpest(self.COUNTS, self.CHAIN)
+        self.assertEqual((where, bearing, kinds), ("dog.n.01", 8, 8))
+
+    def test_a_level_too_thin_to_speak_is_passed_over(self):
+        counts = dict(self.COUNTS, **{"dog.n.01": (3, 3)})
+        where, _bearing, kinds = self.sharpest(counts, self.CHAIN)
+        self.assertEqual(where, "canine.n.02")
+        self.assertGreaterEqual(kinds, 8)
+
+    def test_it_never_climbs_above_where_the_fact_was_attached(self):
+        """A fact stated of animals stays a claim about animals. Otherwise
+        the walk could go looking for a level that agrees."""
+        chain = self.CHAIN + ["organism.n.01", "entity.n.01"]
+        counts = dict(self.COUNTS, **{"dog.n.01": (0, 0),
+                                      "canine.n.02": (0, 0),
+                                      "carnivore.n.01": (0, 0),
+                                      "entity.n.01": (900, 900)})
+        where, _bearing, _kinds = self.sharpest(counts, chain)
+        self.assertEqual(where, "animal.n.01")
+
+    def test_it_stops_at_the_first_level_that_speaks_not_the_best(self):
+        """Taking the *best* rung would be shopping for a verdict."""
+        counts = {"dog.n.01": (0, 9), "canine.n.02": (12, 12),
+                  "carnivore.n.01": (29, 29), "animal.n.01": (156, 244)}
+        where, bearing, _kinds = self.sharpest(counts, self.CHAIN)
+        self.assertEqual(where, "dog.n.01")
+        self.assertEqual(bearing, 0)
+
+    def test_with_the_flag_off_it_uses_the_attached_level(self):
+        import unittest.mock
+
+        from research.v687 import profile
+
+        with unittest.mock.patch.object(profile, "SHARPEST", False):
+            where, bearing, kinds = self.sharpest(self.COUNTS, self.CHAIN)
+        self.assertEqual((where, bearing, kinds), ("animal.n.01", 156, 244))
+
+    def test_the_floor_is_only_safe_at_08_because_of_this(self):
+        """§23: 156/244 is 64%, so the attached level refuses at any floor
+        above that. The narrowest level is 100% and clears 0.8."""
+        from research.v687 import profile
+
+        self.assertGreater(profile.CORROBORATION_FLOOR, 156 / 244)
+        self.assertTrue(profile.SHARPEST)

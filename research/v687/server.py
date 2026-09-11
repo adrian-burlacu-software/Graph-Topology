@@ -103,10 +103,11 @@ class IdentifyingEngine(BridgedEngine):
         fact = answer.evidence[0]
         if not getattr(fact, "distance", 0):
             return answer
-        bearing, kinds = self.profiles.corroboration(fact.concept, target)
+        where, bearing, kinds = self.profiles.sharpest(
+            answer.concept or "", fact.concept, target)
         if corroborated(bearing, kinds, getattr(fact, "source", None)):
             return answer
-        name = fact.concept.rsplit(".", 2)[0]
+        name = where.rsplit(".", 2)[0]
         answer.verdict = "UNKNOWN"
         answer.suggestions = [fact] + list(answer.suggestions)
         answer.evidence = []

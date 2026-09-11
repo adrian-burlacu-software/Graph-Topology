@@ -1627,6 +1627,94 @@ example at a time, is what found it — the aggregate never would have.
 
 ---
 
+## 23. Acted on: corroborate where the evidence is, not where the crawl put it
+
+2026-09-11. `Profiles.sharpest`.
+
+§22 ended on the sharpest statement of the altitude problem this file had
+reached: **the corroboration floor is bounded by the vaguest level at which a
+true property can be stated.** `does a dog have legs` is checked at
+`animal.n.01`, where `leg` is borne out by 156 of 244 kinds — 64%, and true,
+because fish and snakes have none. `canine.n.02` is 12 of 12. `dog.n.01` is 8
+of 8. The floor could not go past 0.64 without the dog losing its legs.
+
+R19 checked `animal.n.01` because that is where the crawl attached the
+sentence. That is not the level that knows most about the question.
+
+### The change
+
+Walk from the asked concept up to the attached level and take the **first**
+rung with enough kinds to speak. Two constraints keep it from becoming a way
+of shopping for a verdict: it stops at the first rung that can speak rather
+than the most agreeable one, and it **never climbs above where the fact was
+attached**, so a fact stated of animals is still judged as a claim about
+animals whenever nothing narrower can be asked.
+
+Checked by hand before implementing, which is what made it worth building:
+
+```
+                              attached            sharpest
+does a dog have legs          animal 156/244      dog 8 of 8
+do pigs fly                   mammal 1/111        even-toed ungulate 0/18
+does a pig have wings         animal 20/143       even-toed ungulate 0/11
+does a flamingo have talons   bird 15/29          aquatic bird 3 of 8
+```
+
+The refusals that should hold, hold — and hold on **sharper** evidence. `0 of
+18 even-toed ungulates fly` is a better reason than `1 of 111 mammals do`,
+and the note now says so.
+
+### It is not a benchmark win. It is what makes the floor movable.
+
+| level | floor | coverage | accuracy | over-affirmed | taxonomic |
+| --- | --- | --- | --- | --- | --- |
+| attached | 0.5 | 20.7% | 90.3% | 3.1% | 5.3% |
+| attached | 0.8 | 18.4% | 92.2% | 2.2% | 4.0% |
+| sharpest | 0.5 | 21.4% | 90.5% | 3.4% | 6.2% |
+| **sharpest** | **0.8** | **18.6%** | **92.1%** | **2.2%** | **3.9%** |
+
+At every floor, sharpest is worth about two tenths of a point. **Its value is
+that `attached + 0.8` breaks `does a dog have legs` and `sharpest + 0.8` does
+not.** The gain is not in the row; it is in which rows are reachable.
+
+**Shipped: `CORROBORATION_FLOOR` 0.5 → 0.8, sharpest on.** Against the
+mechanism as it stood at the start of today:
+
+```
+              coverage  accuracy  over-affirmed  taxonomic
+before          20.7%     90.3%          3.1%       5.3%
+after           18.6%     92.1%          2.2%       3.9%
+```
+
+−2.1 coverage for **+1.8 accuracy, 29% less over-affirmation and 26% less on
+the taxonomic rung**, with 535 tests and every page example unchanged. That
+recovers what §22's matcher fix cost, and recovers it honestly — the numbers
+before the fix came from a mechanism that reported `0 of the 14 kinds of
+whale` about blowholes.
+
+### Two tests stopped asserting things that had become incidental
+
+`test_a_class_fact_is_put_to_the_class_before_it_is_inherited` pinned the
+word `mammal` in the note. The note now says `even-toed ungulate` and
+`feline` — the same refusals, named at the level that produced them. It
+asserts instead that R19 ran, refused, and named **a class the concept
+actually belongs to**, which is what the test was for.
+
+That is the third test this week to pin a number or a name that a better
+mechanism moved. The pattern is worth naming: **a test over a derived
+quantity should assert the claim, not the reading.**
+
+### What this does not fix
+
+`sharpest` needs a level with eight norm-covered kinds between the concept
+and the fact. Where there is none it falls back to the attached level and
+altitude still bites — `does a dolphin have a blowhole` is checked at
+`whale.n.02`, 1 of 4, and only survives because four is too thin to refuse
+on. More witnesses would help there; §21's dense run is sitting behind a flag
+for an unrelated reason.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
@@ -1688,11 +1776,10 @@ Ranked by evidence, not by appeal:
    rules, corroboration, evidence density, teaching — sits downstream of what
    the crawl put in the store. The 19% coverage ceiling and the noise are the
    same problem seen from two sides.
-12. **Make R19 corroborate at the sharpest level, not the attached one**
-   (§22). `does a dog have legs` is checked at `animal.n.01` (156 of 244)
-   when `canine.n.02` is 12 of 12. This bounds the corroboration floor, and
-   it is the third section in a row where altitude turned out to be the
-   binding constraint.
+12. ~~**Make R19 corroborate at the sharpest level**~~ Done, §23. It let
+   the floor go to 0.8: +1.8 accuracy and 29% less over-affirmation against
+   this morning, no example changed. Altitude still bites where no level
+   between the concept and the fact has eight covered kinds.
 13. **Answer the typicality-versus-capability question** (§21). It is the
    one thing standing between the audit and its largest measured gain: +2.0
    accuracy and 27% less over-affirmation, sitting behind

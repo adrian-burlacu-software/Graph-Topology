@@ -101,23 +101,21 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
 #:     0.700      19.0%      91.0%            2.5%             4.6%
 #:     0.800      18.4%      92.2%            2.2%             4.0%
 #:
-#: The benchmark wants 0.8. **An answer caps it at about 0.64**, and the
-#: answer wins: `does a dog have legs` is corroborated at `animal.n.01`,
-#: where `leg` is borne out by **156 of 244 kinds -- 64%**, which is simply
-#: true. Fish and snakes have none. At 0.7 the dog loses its legs.
+#: **0.8 since §23**, and it took removing the thing that bounded it.
 #:
-#: That is the altitude problem in one number. R19 checks the level the crawl
-#: attached the sentence to, not the nearest ancestor that could speak:
-#: `canine.n.02` is 12 of 12 and would clear any floor. Until R19 corroborates
-#: where the evidence is sharpest rather than where the fact happens to sit,
-#: the floor is bounded by the vaguest level a true property can be stated at.
+#: The benchmark wanted 0.8 all along. An *answer* capped it at about 0.64:
+#: `does a dog have legs` was corroborated at `animal.n.01`, where `leg` is
+#: borne out by 156 of 244 kinds -- 64%, and true, because fish and snakes
+#: have none. At 0.7 the dog lost its legs.
 #:
-#: So 0.5 stands, now for a reason rather than a knee in a curve. 0.7 and 0.8
-#: are a flag away for anyone measuring the benchmark rather than the answers.
+#: That was altitude, not the floor. `Profiles.sharpest` now checks the
+#: narrowest level that can speak -- `dog.n.01`, 8 of 8 -- so the floor is no
+#: longer hostage to the vaguest level a true property can be stated at, and
+#: 0.8 costs nothing: **535 tests and every page example unchanged.**
 #:
 #: Overridable with `V687_CORROBORATION_FLOOR`.
 CORROBORATION_FLOOR = float(
-    os.environ.get("V687_CORROBORATION_FLOOR") or 0.5)
+    os.environ.get("V687_CORROBORATION_FLOOR") or 0.8)
 
 #: ...and refusal needs a sample worth refusing on. `whale.n.02` has four
 #: kinds in the norms; one of them singing is not evidence that whales do not
@@ -150,6 +148,13 @@ CORROBORATION_REQUIRED = bool(
 #: Set `V687_NO_DISTILLED_KINDS=1` to draw R19's denominator from the 571
 #: norm-covered concepts alone, the way it did before `research/v688/kinds.py`.
 KINDS_OFF = bool(os.environ.get("V687_NO_DISTILLED_KINDS"))
+
+#: Set `V687_ATTACHED_CORROBORATION=1` to corroborate at the level the crawl
+#: attached the fact to, the way R19 did before §23, instead of at the
+#: narrowest level that can speak. `Profiles.sharpest` carries the reasoning
+#: and `CORROBORATION_FLOOR` the consequence: with this set, a floor above
+#: about 0.64 starts refusing true properties stated at vague levels.
+SHARPEST = not os.environ.get("V687_ATTACHED_CORROBORATION")
 
 #: Set `V687_DENSE_WITNESSES=1` to honour `asked_at` -- a witness asked every
 #: inheritable fact on an ancestor, so it can speak to any term raised there.
@@ -731,6 +736,40 @@ class Profiles:
             return False
         return any(self.identifier._hit(word, predicates) for word in words)
 
+    def sharpest(self, concept: str, attached: str,
+                 term: str) -> tuple[str, int, int]:
+        """Where R19 should check, and what it found there.
+
+        R19 has always checked the level the **crawl attached the sentence
+        to**, which is not the level that knows most about the question.
+        `does a dog have legs` is corroborated at `animal.n.01`, where `leg`
+        is borne out by 156 of 244 kinds -- 64%, and true, because fish and
+        snakes have none. One rung down, `canine.n.02` is 12 of 12 and
+        `dog.n.01` is 8 of 8.
+
+        That is `AUDIT.md` §22's finding: the corroboration floor is bounded
+        by the vaguest level at which a true property can be stated. So walk
+        from the asked concept up to the attached level and take the first
+        rung that has enough kinds to speak.
+
+        It does not become a way of finding a level that agrees. The walk
+        stops at the **first** rung that can speak, not the best one, and it
+        never goes above where the fact was attached -- so a fact stated of
+        animals is still judged as a claim about animals whenever nothing
+        narrower can be asked.
+        """
+        if not SHARPEST or not concept:
+            bearing, kinds = self.corroboration(attached, term)
+            return attached, bearing, kinds
+        for node, _distance, _parents in self.reasoner.ascend(concept):
+            bearing, kinds = self.corroboration(node, term)
+            if kinds >= CORROBORATION_MIN_KINDS:
+                return node, bearing, kinds
+            if node == attached:
+                break
+        bearing, kinds = self.corroboration(attached, term)
+        return attached, bearing, kinds
+
     def witnesses(self, ancestor: str, term: str) -> tuple[int, int]:
         """(kinds, bearing) the distilled witnesses add for one term.
 
@@ -937,8 +976,11 @@ class Profiles:
                         detail=f"Not in the norms for {name}, and "
                                f"{level.concept} — {level.distance} level(s) "
                                f"up — {text}.")
-                # R19: put the borrowed fact to the ancestor's other kinds.
-                bearing, kinds = self.corroboration(level.concept, term)
+                # R19: put the borrowed fact to the other kinds -- at the
+                # narrowest level that can speak, not necessarily the one the
+                # crawl attached it to. See `sharpest`.
+                where, bearing, kinds = self.sharpest(
+                    self.synset.get(name, ""), level.concept, term)
                 if not corroborated(bearing, kinds, fact.get("source")):
                     refused.append((level, text, bearing, kinds))
                     continue
