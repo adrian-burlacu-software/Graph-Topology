@@ -23,6 +23,7 @@ taxonomy to every rule in `rules.py`:
     a wemble is an animal  wemble -> animal.n.01              R1 walks through it
     he was flying          capable_of fly on the pig          R4 at distance 0
     it has no tail         has_a "no tail"                    R3 in the object
+    it chased the cat      capable_of "chase a cat", and which cat, beside it
 
 Two rules are added.
 
@@ -151,11 +152,13 @@ class Withdrawal:
     object: str
     carrier: str
     said: str
+    #: the individual that carried it, when it was one
+    carrier_id: str | None = None
 
     def as_dict(self) -> dict:
         return {"node": self.node, "relation": self.relation,
                 "object": self.object, "carrier": self.carrier,
-                "said": self.said}
+                "said": self.said, "carrier_id": self.carrier_id}
 
 
 class EpisodicMemory:
@@ -179,6 +182,10 @@ class EpisodicMemory:
         self.mode: dict[tuple, str] = {}
         #: (node, relation, object) -> v688's answer for the kind, when told
         self.against: dict[tuple, str] = {}
+        #: (node, relation, object) -> the individuals the object named. `it
+        #: chased the cat` stores `capable_of "chase a cat"`, which is what
+        #: the rules can read, and keeps which cat here
+        self.bound: dict[tuple, set] = {}
         #: individual -> `name rex`, `owner you`
         self.labels: dict[str, set[str]] = {}
         #: individual -> the word it was introduced by
@@ -241,12 +248,16 @@ class EpisodicMemory:
         return self.store(f"{name_of(node)} is a kind of {name_of(parent)}")
 
     def tell(self, node: str, relation: str, obj: str, said: str,
-             mode: str = "does") -> Growth:
+             mode: str = "does", bound: str | None = None) -> Growth:
         """Record one fact about one node; what it contradicts is dropped.
 
         A fact replaces the same relation or its negation about the same
         object. `it can swim` after `it can't swim` is a correction, not two
         facts for R3 to adjudicate.
+
+        `bound` is the individual the object named. The same fact told of
+        another one adds it -- `it chased the first cat`, then `it chased the
+        second cat` -- and the fact told of no one in particular is about any.
         """
         opposed = {relation}
         if relation in rules.NEGATIONS:
@@ -254,17 +265,30 @@ class EpisodicMemory:
         if relation in rules.POSITIVES:
             opposed.add(rules.POSITIVES[relation])
         stem = _stem(obj)
-        kept = [fact for fact in self.facts.setdefault(node, [])
-                if not (fact.relation in opposed
-                        and _stem(fact.object) == stem)]
+        key = (node, relation, obj)
+        before = self.facts.setdefault(node, [])
+        again = any(fact.relation == relation and fact.object == obj
+                    for fact in before)
+        kept = []
+        for fact in before:
+            if fact.relation in opposed and _stem(fact.object) == stem:
+                if (fact.relation, fact.object) != (relation, obj):
+                    self.bound.pop((node, fact.relation, fact.object), None)
+                continue
+            kept.append(fact)
         kept.append(Fact(node, relation, obj, TOLD, 1.0, False))
         self.facts[node] = kept
-        self.said[(node, relation, obj)] = _quoted(said)
-        self.mode[(node, relation, obj)] = mode
+        self.said[key] = _quoted(said)
+        self.mode[key] = mode
+        if bound:
+            self.bound[key] = (set(self.bound.get(key, ())) if again
+                               else set()) | {bound}
+        else:
+            self.bound.pop(key, None)
         return self.store(f"{name_of(node)} {relation} {obj}")
 
     def withdraw(self, node: str, relation: str, obj: str,
-                 carrier: str) -> Withdrawal:
+                 carrier: str, carrier_id: str | None = None) -> Withdrawal:
         """E2: take a fact back and keep it as `carried`."""
         said = self.said.get((node, relation, obj), "")
         self.facts[node] = [fact for fact in self.facts.get(node, [])
@@ -272,9 +296,30 @@ class EpisodicMemory:
                                     and fact.object == obj)]
         self.facts[node].append(Fact(node, CARRIED, obj, TOLD, 1.0, False))
         self.said[(node, CARRIED, obj)] = said
-        withdrawal = Withdrawal(node, relation, obj, carrier, said)
+        withdrawal = Withdrawal(node, relation, obj, carrier, said,
+                                carrier_id)
         self.withdrawn.append(withdrawal)
         self.store(f"{node} {relation} {obj} withdrawn, carried by {carrier}")
+        return withdrawal
+
+    def restore(self, node: str, obj: str) -> Withdrawal | None:
+        """E2 undone: nothing carrying it does the thing, so the doing was
+        its own. The fact goes back as it was told."""
+        withdrawal = next((one for one in reversed(self.withdrawn)
+                           if one.node == node and one.object == obj), None)
+        if withdrawal is None:
+            return None
+        self.withdrawn.remove(withdrawal)
+        key = (node, withdrawal.relation, obj)
+        self.facts[node] = [fact for fact in self.facts.get(node, [])
+                            if not (fact.relation == CARRIED
+                                    and fact.object == obj)]
+        self.facts[node].append(Fact(node, withdrawal.relation, obj, TOLD,
+                                     1.0, False))
+        self.said[key] = withdrawal.said
+        self.mode[key] = "does"
+        self.store(f"{node} {withdrawal.relation} {obj} restored, "
+                   f"{withdrawal.carrier} does not do it")
         return withdrawal
 
     def label(self, individual: str, predicate: str) -> Growth:
@@ -353,7 +398,9 @@ class EpisodicMemory:
         def facts(node: str) -> list:
             return [{"relation": fact.relation, "object": fact.object,
                      "said": self.said.get((node, fact.relation,
-                                            fact.object), "")}
+                                            fact.object), ""),
+                     "bound": sorted(self.bound.get(
+                         (node, fact.relation, fact.object), ()))}
                     for fact in self.facts.get(node, [])]
 
         taught = [node for node in dict.fromkeys(list(self.edges)

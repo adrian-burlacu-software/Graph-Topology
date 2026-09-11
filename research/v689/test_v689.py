@@ -588,6 +588,99 @@ class CarriedTests(unittest.TestCase):
         self.assertEqual((turns[3].answer["outcome"],
                           turns[3].answer["source"]), ("verified", "told"))
 
+    def test_in_an_airplane_puts_one_airplane_on_the_table(self):
+        session, turns, _ = talk("there was a pig", "he was flying",
+                                 "it was in an airplane", outcomes=self.PIGS)
+        self.assertTrue(turns[2].binding.introduced)
+        self.assertEqual(session.memory.withdrawn[0].carrier_id, "r2")
+
+    def test_what_the_carrier_was_told_comes_before_its_kind(self):
+        """`the airplane couldn't fly`: then the pig was flying by itself,
+        and E2 gives it back."""
+        session, turns, _ = talk("there was a pig", "he was flying",
+                                 "it was in an airplane",
+                                 "the airplane couldn't fly",
+                                 "can the pig fly", outcomes=self.PIGS)
+        self.assertIn("E2 undone", turns[3].answer["text"])
+        self.assertFalse(session.memory.withdrawn)
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("verified", "told"))
+
+    def test_the_plane_that_came_up_before(self):
+        _, turns, _ = talk("there was a plane", "there was a pig",
+                           "it was flying", "it was in the plane",
+                           "can the pig fly", outcomes=self.PIGS)
+        self.assertEqual(turns[3].binding.referent.id, "r1")
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("denied", "kind"))
+
+
+class ObjectTests(unittest.TestCase):
+    """The individual after the verb, resolved as a subject is."""
+
+    lexicon = FakeLexicon()
+
+    def test_an_object_is_read_after_a_verb(self):
+        found = reading.read("the dog chased the cat", self.lexicon)
+        self.assertEqual((found.obj.form, found.obj.kind, found.obj_at),
+                         ("definite", "cat", 1))
+
+    def test_an_indefinite_object_stays_a_kind(self):
+        self.assertIsNone(reading.read("it chased a cat", self.lexicon).obj)
+        self.assertIsNone(reading.read("does it have a tail",
+                                       self.lexicon).obj)
+
+    def test_after_a_copula_only_what_carries_it_is_an_object(self):
+        self.assertIsNone(reading.read("is it a dog", self.lexicon).obj)
+        found = reading.read("it was on the cat", self.lexicon)
+        self.assertEqual((found.obj.form, found.obj_at), ("definite", 1))
+
+    def test_an_object_is_never_the_subject(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "the dog chased it")
+        self.assertEqual((who(turns[2]), turns[2].binding.referent.id),
+                         ("r1", "r2"))
+
+    def test_an_object_with_no_one_else_to_be_stores_nothing(self):
+        session, turns, _ = talk("there is a dog", "the dog chased it")
+        self.assertEqual(turns[1].answer["outcome"], "which")
+        self.assertEqual(session.memory.facts["r1"], [])
+
+    def test_it_after_an_object_is_still_the_subject(self):
+        _, turns, _ = talk("there was a pig", "it was in an airplane",
+                           "can it fly")
+        self.assertEqual(who(turns[2]), "r1")
+
+    def test_the_kind_is_stored_and_which_one_beside_it(self):
+        session, _, asker = talk("there is a dog", "there is a cat",
+                                 "the dog chased it")
+        self.assertIn("does a dog chase a cat", asker.asked)
+        self.assertEqual(
+            session.memory.bound[("r1", "capable_of", "chase a cat")],
+            {"r2"})
+
+    def test_a_fact_about_one_cat_is_not_an_answer_about_another(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "the dog chased it", "there is another cat",
+                           "did the dog chase the first cat",
+                           "did the dog chase the second cat")
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("verified", "told"))
+        self.assertEqual(turns[5].answer["outcome"], "unknown")
+        self.assertIn("the first cat", turns[5].answer["text"])
+
+    def test_told_of_both_cats_it_answers_for_both(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "there is another cat",
+                           "the dog chased the first cat",
+                           "the dog chased the second cat",
+                           "did the dog chase the first cat")
+        self.assertEqual(turns[5].answer["outcome"], "verified")
+
+    def test_the_plane_finds_an_airplane_through_its_sense(self):
+        _, turns, _ = talk("there was an airplane", "is the plane fast")
+        self.assertEqual(who(turns[1]), "r1")
+
 
 if __name__ == "__main__":
     unittest.main()

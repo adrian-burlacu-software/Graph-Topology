@@ -16,10 +16,14 @@ module reads the words that pick one out, and leaves the picking to
     who am i                   what         which kind it is
     does a beagle swim         generic      about beagles: v688's business
 
-It reads only the **subject** of a sentence. `does the cat chase the dog` is
-about the cat, and the dog stays a kind. One referring expression per
-utterance is a deliberate first limit: enough to show resolution working, and
-small enough to get right.
+It reads a subject and, after the verb, at most one **object**: `does the cat
+chase the dog` is about the cat and the dog, `it was in the plane` about it
+and the plane. An object is resolved like a subject but never to the subject
+itself -- `the pig is in it` does not put the pig inside the pig. An
+indefinite object stays a kind -- `it chased a cat` is about cats -- except
+after `in`, `on`, `inside` or `aboard`: `it was in an airplane` puts one
+particular airplane on the table, because what carried it is a thing E2 has
+to ask about.
 
 ## Names
 
@@ -55,6 +59,10 @@ ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
 RELATIVE = frozenset({"that", "who", "which"})
 ARTICLES = frozenset({"a", "an", "the"})
 
+#: Being inside or on something: what E2 reads as being carried, and the one
+#: place an indefinite object is a new individual rather than a kind.
+CARRYING = ("in", "on", "inside", "aboard")
+
 #: Words that open a sentence and are never a name, however capitalised:
 #: `The cat is black` and `There was a pig` are not about someone called The.
 NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | DEMONSTRATIVES
@@ -76,6 +84,8 @@ OWNING = frozenset({("i", "have"), ("i", "got"), ("we", "have")})
 #: spelling everywhere below.
 CONTRACTIONS = {"can't": ["can", "not"], "cannot": ["can", "not"],
                 "won't": ["will", "not"], "doesn't": ["does", "not"],
+                "couldn't": ["could", "not"], "wouldn't": ["would", "not"],
+                "weren't": ["were", "not"],
                 "don't": ["do", "not"], "didn't": ["did", "not"],
                 "isn't": ["is", "not"], "aren't": ["are", "not"],
                 "wasn't": ["was", "not"], "hasn't": ["has", "not"],
@@ -165,12 +175,17 @@ class Reading:
     said: str = ""
     name: str = ""                # what it is called, for `name` and `rex is a`
     owned: bool = False           # `i have a beagle`: the beagle is yours
+    #: `the dog` in `it chased the dog`: the other individual, and the index
+    #: in `rest` where its phrase starts
+    obj: Mention | None = None
+    obj_at: int = -1
 
     def as_dict(self) -> dict:
         return {"act": self.act,
                 "mention": self.mention.as_dict() if self.mention else None,
                 "aux": self.aux, "rest": " ".join(self.rest),
                 "holds": self.holds, "name": self.name, "owned": self.owned,
+                "object": self.obj.as_dict() if self.obj else None,
                 "relative": (self.relative.as_dict() if self.relative
                              else None)}
 
@@ -283,6 +298,42 @@ def clause(tokens: list[str]) -> Reading | None:
     if not rest:
         return None
     return Reading("tell", aux=aux, rest=rest, holds=holds)
+
+
+def object_of(aux: str | None, rest: list[str], lexicon,
+              names: frozenset = frozenset()):
+    """(mention, index) for the individual after the verb, or None.
+
+    The phrase has to close the utterance and follow something: a verb
+    (`chased the dog`), a preposition of carrying (`was in the plane`), or
+    `has` itself (`has my hat`). After a bare copula nothing is an object --
+    `it is a dog` says what it is. A bare `that` is not one either: `it can do
+    that` points at a doing, not a thing.
+    """
+    first = 0 if aux in ("has", "have") else 1
+    for at in range(first, len(rest)):
+        carried = at > 0 and rest[at - 1] in CARRYING
+        if aux in COPULA and not carried:
+            continue
+        if rest[at] in DEMONSTRATIVES and at + 1 == len(rest):
+            continue
+        found = read_mention(rest, at, lexicon, "does", final_ok=True,
+                             names=names)
+        if found is None or found.end != len(rest):
+            continue
+        if found.form in ("indefinite", "another") and not carried:
+            continue
+        return found, at
+    return None
+
+
+def _with_object(reading: Reading | None, lexicon, names: frozenset):
+    """The same reading, with its object found if it has one."""
+    if reading is not None and reading.rest:
+        found = object_of(reading.aux, reading.rest, lexicon, names)
+        if found is not None:
+            reading.obj, reading.obj_at = found
+    return reading
 
 
 def _whose(phrase: list[str], lexicon, names: frozenset) -> Mention | None:
@@ -465,8 +516,9 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
                             end=start + 2)
         if found and found.form in ("indefinite", "another"):
             tail = tokens[found.end:]
-            relative = (clause(tail[1:]) if tail and tail[0] in RELATIVE
-                        else None)
+            relative = _with_object(
+                clause(tail[1:]) if tail and tail[0] in RELATIVE else None,
+                lexicon, names)
             return Reading("introduce", found, relative=relative, said=said,
                            owned=opener in OWNING)
         break
@@ -482,8 +534,9 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
             # conversation taught can be answered from episodic memory.
             return Reading("generic", found, tokens[0], tokens[found.end:],
                            said=said)
-        return Reading("ask", found, tokens[0], tokens[found.end:],
-                       said=said)
+        return _with_object(Reading("ask", found, tokens[0],
+                                    tokens[found.end:], said=said),
+                            lexicon, names)
 
     taught = generic_claim(tokens, lexicon, names)
     if taught is not None:
@@ -493,7 +546,7 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     found = read_mention(tokens, 0, lexicon, names=names)
     if found is None or found.form == "indefinite":
         return Reading("generic", said=said)
-    body = clause(tokens[found.end:])
+    body = _with_object(clause(tokens[found.end:]), lexicon, names)
     if found.form == "another":
         return Reading("introduce", found, relative=body, said=said)
     if body is None:

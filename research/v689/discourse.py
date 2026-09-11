@@ -40,12 +40,20 @@ from dataclasses import dataclass, field
 
 from research.v688.attention import Activation
 
+from .episodic import name_of
+
 #: How far ahead the most salient candidate must be before a description
 #: with a kind in it -- `the beagle` -- picks it without asking. Two beagles
 #: introduced one turn apart sit at 0.6 and 0.36 when next mentioned, a ratio
 #: of 1.67, and `the beagle` really is ambiguous there, so the bar is above it.
 #: A pronoun needs only to lead: `it` is the most recent thing by default.
 CLEAR_LEAD = 2.0
+
+#: What mentioning something as an object refreshes it to. Below a subject's
+#: 1.0, so `it was in an airplane. can it fly?` asks about it and not the
+#: airplane: the subject of the last sentence is what a pronoun reaches for
+#: first. An object never moves the focus either.
+OBJECT_WEIGHT = 0.5
 
 ORDINAL_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth",
                  5: "fifth", 6: "sixth", 7: "seventh"}
@@ -152,7 +160,8 @@ class Discourse:
                          if one.name and " " not in one.name)
 
     def introduce(self, kind: str, accommodated: bool = False,
-                  owner: str | None = None) -> Referent:
+                  owner: str | None = None,
+                  weight: float = 1.0) -> Referent:
         referent = Referent(f"r{len(self.referents) + 1}", kind,
                             len(self.referents) + 1, self.turn,
                             accommodated=accommodated)
@@ -161,7 +170,7 @@ class Discourse:
             kind, self.sense_of(kind)))
         if owner:
             self.own(referent)
-        self.attend(referent)
+        self.attend(referent, weight)
         return referent
 
     def own(self, referent: Referent) -> None:
@@ -177,11 +186,16 @@ class Discourse:
         self.memory.place(referent.id, kind, self.memory.kind_node(
             kind, self.sense_of(kind)))
 
-    def attend(self, referent: Referent) -> None:
-        """A mention refreshes; see the module notes on why it does not add."""
-        self.activation.table[referent.id] = 1.0
-        self.activation.history.append((self.turn, referent.id, 1.0))
-        if not referent.apart:
+    def attend(self, referent: Referent, weight: float = 1.0) -> None:
+        """A mention refreshes; see the module notes on why it does not add.
+
+        An object refreshes only to `OBJECT_WEIGHT`, and leaves the focus
+        where the subject put it.
+        """
+        level = max(weight, self.activation.table.get(referent.id, 0.0))
+        self.activation.table[referent.id] = level
+        self.activation.history.append((self.turn, referent.id, level))
+        if weight >= 1.0 and not referent.apart:
             self.focus = referent.id
 
     def salience(self, referent: Referent) -> float:
@@ -203,28 +217,33 @@ class Discourse:
         return f"the {ORDINAL_WORDS.get(place, f'#{place}')} {referent.kind}"
 
     # -- resolution --------------------------------------------------------
-    def resolve(self, mention) -> Resolution:
+    def resolve(self, mention, exclude=frozenset(),
+                weight: float = 1.0) -> Resolution:
+        """What a phrase means. `exclude` is who it cannot mean -- the
+        subject, when the phrase is the object -- and `weight` is what the
+        mention refreshes salience to."""
         said = mention.text
         kind = mention.kind
 
         if mention.form == "speaker":
             you = self.me()
-            self.attend(you)
+            self.attend(you, weight)
             return Resolution(said, you, f"“{said}”: you, the one talking",
                               [you.id])
 
         if mention.form == "addressee":
             program = self.addressed()
-            self.attend(program)
+            self.attend(program, weight)
             return Resolution(said, program,
                               f"“{said}”: me, the one being talked to",
                               [program.id])
 
         if mention.form == "name":
             found = self.memory.identify({f"name {mention.name.lower()}"})
-            called = [self.by_id(one) for one in found.candidates]
+            called = [one for one in map(self.by_id, found.candidates)
+                      if one is not None and one.id not in exclude]
             if len(called) == 1:
-                self.attend(called[0])
+                self.attend(called[0], weight)
                 return Resolution(
                     said, called[0],
                     f"“{said}”: the one you said was called "
@@ -242,7 +261,7 @@ class Discourse:
 
         if mention.form in ("another", "indefinite"):
             before = len([one for one in self.referents if one.kind == kind])
-            referent = self.introduce(kind)
+            referent = self.introduce(kind, weight=weight)
             how = f"“{said}” puts a new {kind} on the table"
             if mention.form == "another" and before:
                 how += (f", distinct from the {before} already here"
@@ -256,9 +275,18 @@ class Discourse:
         if mention.form == "possessive":
             wanted.add(f"owner {self.me().id}")
         found = self.memory.identify(wanted) if wanted else None
+        if found is not None and not found.candidates and kind:
+            # `the plane`, for an individual introduced as `an airplane`: its
+            # lineage holds the word it came with and the names of the kinds
+            # above it, and `plane` is neither. The sense is.
+            alias = name_of(self.sense_of(kind))
+            if alias and alias != kind:
+                found = self.memory.identify(
+                    (wanted - {f"is_a {kind}"}) | {f"is_a {alias}"})
         pool = ([self.by_id(one) for one in found.candidates] if found
                 else list(self.referents))
-        pool = [one for one in pool if one is not None and not one.apart]
+        pool = [one for one in pool if one is not None
+                and not one.apart and one.id not in exclude]
         seen = found.as_dict() if found else None
         noun = kind or "thing"
 
@@ -274,7 +302,8 @@ class Discourse:
                 yours = mention.form == "possessive"
                 referent = self.introduce(kind, accommodated=True,
                                           owner=self.me().id if yours
-                                          else None)
+                                          else None,
+                                          weight=weight)
                 return Resolution(
                     said, referent,
                     f"no {kind}{' of yours' if yours else ''} had come up, "
@@ -302,7 +331,7 @@ class Discourse:
                     f"{'has' if many == 1 else 'have'} come up, so there is "
                     f"no {ORDINAL_WORDS.get(place, place)}", ids,
                     identification=seen)
-            self.attend(chosen)
+            self.attend(chosen, weight)
             place = ordered.index(chosen) + 1
             return Resolution(
                 said, chosen,
@@ -314,7 +343,7 @@ class Discourse:
             others = [one for one in pool if one.id != self.focus]
             if len(others) == 1 and len(pool) > 1:
                 chosen = others[0]
-                self.attend(chosen)
+                self.attend(chosen, weight)
                 return Resolution(
                     said, chosen,
                     f"“{said}”: of {len(pool)}, the one not just talked about",
@@ -327,7 +356,7 @@ class Discourse:
 
         if len(pool) == 1:
             chosen = pool[0]
-            self.attend(chosen)
+            self.attend(chosen, weight)
             how = (f"“{said}”: the only one stored under "
                    f"{', '.join(sorted(wanted))}" if wanted
                    else f"“{said}”: the only one that fits")
@@ -340,7 +369,7 @@ class Discourse:
         if top > 0 and ((pronoun_like and top > second)
                         or top >= CLEAR_LEAD * second):
             chosen = ranked[0]
-            self.attend(chosen)
+            self.attend(chosen, weight)
             return Resolution(
                 said, chosen,
                 f"“{said}”: the most salient of {len(pool)} "
@@ -366,6 +395,8 @@ class Discourse:
                      "told": [
                          {"relation": fact.relation, "object": fact.object,
                           "said": self.memory.said.get(
-                              (one.id, fact.relation, fact.object), "")}
+                              (one.id, fact.relation, fact.object), ""),
+                          "bound": sorted(self.memory.bound.get(
+                              (one.id, fact.relation, fact.object), ()))}
                          for fact in self.memory.facts.get(one.id, [])]}
                     for one in self.everyone()]}

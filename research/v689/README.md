@@ -105,6 +105,34 @@ reads, and `can the pig fly` is the kind's answer again.
 - **Only a carrier that does it.** A pig on a cat was still flying. Whether
   the carrier does it is v687's walk first, and v688 only if the store has
   nothing.
+- **Recomputed, not applied once.** Told `the airplane couldn't fly`, E2 runs
+  again for everyone in or on that airplane, and a doing no carrier does is
+  given back.
+
+## Objects: the other individual
+
+`the dog chased it` and `it was in the plane` name two individuals. The one
+after the verb is resolved by the same identification and salience as a
+subject, with two differences. It is never the subject: `it`, as the object
+of `the dog chased it`, cannot be the dog. And it refreshes salience only to
+half, without taking the focus, so `it` in the next sentence still means the
+dog.
+
+What is stored is still a fact about kinds, because that is what v687's rules
+and matcher read -- with **which one** kept beside it:
+
+| said | stored |
+| --- | --- |
+| `the dog chased it` | `capable_of "chase a cat"`, bound to that cat |
+| `it chased a cat` | `capable_of "chase a cat"`, about any cat |
+| `it was in an airplane` | a new airplane, and `at_location airplane` bound to it |
+
+So `did the dog chase the second cat` meets the fact, sees it was about the
+first cat, and says it was not told rather than yes. An indefinite object is
+a kind except after `in`, `on`, `inside` and `aboard`, where what carried it
+is one particular thing E2 has to ask about -- and E2 asks *it*: a carrier
+that is an individual is walked from itself, so what was told of that
+airplane comes before what airplanes do.
 
 ## Where an answer comes from
 
@@ -121,7 +149,8 @@ The store is never written. Everything told lives in the conversation.
 
 ## What it does not do
 
-- **Only the subject is read.** `does the cat chase the dog` resolves the cat.
+- **One object at most, and it ends the sentence.** `the dog chased the cat
+  in the garden` binds the garden and leaves the cat a kind.
 - **No plural references** (`the beagles`) -- plurals teach a kind
   (`beagles can't swim`) but never pick out individuals -- and names of one
   word only for mentioning.

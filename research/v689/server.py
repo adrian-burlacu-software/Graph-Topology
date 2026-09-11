@@ -46,12 +46,27 @@ EXAMPLES = [
     {"title": "a flying pig",
      "lines": ["there was a pig", "he was flying", "can the pig fly",
                "it was in an airplane", "can the pig fly",
-               "there is another pig", "it wasn't flying", "can it fly"],
+               "the airplane couldn't fly", "can the pig fly"],
      "shows": "Doing shows ability: `was flying` is stored as `capable_of "
-              "fly`, and R4 answers from it. Then E2: an airplane flies, so "
-              "the flying was the airplane's, and the pig's exception is "
-              "withdrawn. Not doing is not inability: `wasn't flying` is "
-              "`did_not`, which no rule reads."},
+              "fly`, and R4 answers from it. `in an airplane` puts one "
+              "airplane on the table, and E2 asks it: airplanes fly, so the "
+              "flying was the airplane's and the pig's is withdrawn. Told "
+              "`the airplane couldn't fly`, E2 is recomputed from that "
+              "airplane, and the pig was flying after all."},
+    {"title": "who did what",
+     "lines": ["there is a dog", "there is a cat", "the dog chased it",
+               "there is another cat", "did the dog chase the first cat",
+               "did the dog chase the second cat"],
+     "shows": "`it`, as the object of `the dog chased it`, cannot be the dog, "
+              "so it is the cat. What is stored is `capable_of “chase a "
+              "cat”`, which v687's rules can read, with which cat kept "
+              "beside it -- so nothing was said of the second cat."},
+    {"title": "not doing",
+     "lines": ["there is a pig", "it wasn't flying", "does it fly",
+               "can it fly"],
+     "shows": "Not doing is not inability: `wasn't flying` is `did_not`, "
+              "which answers `does it fly` and which no rule reads, so "
+              "`can it fly` is a question about pigs."},
     {"title": "teaching",
      "lines": ["a wemble is a kind of animal", "wembles can fly",
                "can a wemble breathe", "there is a wemble", "can it fly",

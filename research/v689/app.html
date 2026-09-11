@@ -188,6 +188,17 @@ function renderTurn(box, turn) {
     }
   }
 
+  const obj = turn.object;
+  if (obj) {
+    const line = el("div", "line" + (obj.referent ? "" : " unresolved"));
+    line.appendChild(el("span", null, `object “${obj.expression}” → `));
+    line.appendChild(el("b", null,
+      obj.referent ? describe(turn.discourse, obj.referent)
+                   : (obj.ambiguous ? "which one?" : "nothing")));
+    line.appendChild(el("span", null, " · " + obj.how));
+    box.appendChild(line);
+  }
+
   const answer = el("div", "answer");
   const outcome = (turn.answer && turn.answer.outcome) || "unknown";
   answer.appendChild(el("span", "outcome o-" + outcome, outcome));
@@ -318,6 +329,10 @@ function renderMemory(turn) {
       one.told.forEach(fact => {
         const item = el("li");
         item.appendChild(el("code", null, `${fact.relation} ${fact.object}`));
+        if (fact.bound && fact.bound.length) {
+          item.appendChild(el("span", null, " → " + fact.bound.map(
+            id => describe(discourse, id)).join(", ")));
+        }
         if (fact.said) item.appendChild(el("span", null, ` — “${fact.said}”`));
         list.appendChild(item);
       });
