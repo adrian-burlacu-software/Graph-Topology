@@ -20,6 +20,8 @@ from research.v687.language import Parser
 from research.v687.reason import Reasoner
 from research.v689 import reading
 from research.v689.asker import Asker
+from research.v689.definitions import (DefinitionMemory, GlossReader, pieces,
+                                       question_for)
 from research.v689.longterm import Archive, Keeper
 from research.v689.session import Session
 
@@ -54,10 +56,22 @@ CONCEPTS = (("entity.n.01", "entity", None),
             # read `is a beagle black` as a hedged `is_a`. The real store has
             # it; a test store without it passed while the page failed.
             ("black.n.01", "black", "entity.n.01"),
-            ("airplane.n.01", "airplane", "entity.n.01"))
+            ("airplane.n.01", "airplane", "entity.n.01"),
+            ("kitten.n.01", "kitten", "cat.n.01"),
+            ("gland.n.01", "gland", "entity.n.01"),
+            ("testis.n.01", "testicle", "gland.n.01"),
+            ("secrete.v.01", "secrete", None),
+            ("produce.v.01", "produce", None))
 
 LEMMAS = tuple((lemma, concept) for concept, lemma, _ in CONCEPTS) + (
     ("pig", "hog.n.03"), ("plane", "airplane.n.01"))
+
+#: Real WordNet glosses, for the definitions reader; everything else is
+#: glossed `a <lemma>`.
+DEFINITIONS = {
+    "kitten.n.01": "young domestic cat",
+    "testis.n.01": ("one of the two male reproductive glands that produce "
+                    "spermatozoa and secrete androgens")}
 
 FACTS = (("dog.n.01", "capable_of", "swim", "ascentpp", 0.6, 1),
          ("dog.n.01", "capable_of", "bark", "ascentpp", 0.7, 1),
@@ -75,8 +89,10 @@ def setUpModule() -> None:                      # noqa: N802
     connection = sqlite3.connect(path)
     connection.executescript(SCHEMA)
     connection.executemany(
-        "INSERT INTO concepts VALUES (?, ?, 'n', 1, ?, 1)",
-        [(concept, lemma, f"a {lemma}") for concept, lemma, _ in CONCEPTS])
+        "INSERT INTO concepts VALUES (?, ?, ?, 1, ?, 1)",
+        [(concept, lemma, concept.split(".")[-2],
+          DEFINITIONS.get(concept, f"a {lemma}"))
+         for concept, lemma, _ in CONCEPTS])
     connection.executemany(
         "INSERT INTO taxonomy VALUES (?, ?)",
         [(concept, parent) for concept, _, parent in CONCEPTS if parent])
@@ -108,6 +124,8 @@ class TinyAsker(Asker):
     def run(self, question: str) -> dict:
         self.asked.append(question)
         outcome = self.outcomes.get(question, "unknown")
+        if isinstance(outcome, dict):
+            return outcome
         return {"summary": {"outcome": outcome, "trust": "",
                             "lines": [f"{outcome} — {question}"]}}
 
@@ -624,7 +642,7 @@ class CompoundTests(unittest.TestCase):
             "do testicles expand in cold temperatures",
             "do testicles shrink")
         self.assertEqual(sorted(fact.object for fact in
-                                session.memory.facts["testicle"]),
+                                session.memory.facts["testis.n.01"]),
                          ["expand in warm temperatures",
                           "shrink in cold temperatures"])
         self.assertEqual((turns[1].answer["outcome"],
@@ -641,6 +659,107 @@ class CompoundTests(unittest.TestCase):
                            outcomes={"can a beagle swim": "verified"})
         self.assertEqual((turns[1].answer["outcome"],
                           turns[1].answer["source"]), ("denied", "told"))
+
+
+class DefinitionTests(unittest.TestCase):
+    """WordNet glosses read into definitions memory, as v688 retrieves them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.asker = TinyAsker()
+        cls.reader = GlossReader(cls.asker)
+
+    def facts(self, found) -> set:
+        return {(fact.relation, fact.object) for fact in found.facts}
+
+    def test_asides_and_examples_are_not_the_definition(self):
+        self.assertEqual(
+            pieces("a member of the genus Canis (probably descended from the "
+                   "wolf) that barks; occurs in many breeds: collies"),
+            ["a member of the genus Canis that barks",
+             "occurs in many breeds"])
+
+    def test_a_genus_and_its_adjectives(self):
+        found = self.reader.read("kitten.n.01", "young domestic cat")
+        self.assertEqual((found.genus, found.agrees), ("cat", True))
+        self.assertEqual(self.facts(found), {("has_property", "young"),
+                                             ("has_property", "domestic")})
+
+    def test_through_one_of_to_the_glands_and_what_they_do(self):
+        found = self.reader.read("testis.n.01", DEFINITIONS["testis.n.01"])
+        self.assertEqual((found.genus, found.agrees), ("gland", True))
+        self.assertLessEqual({("capable_of", "produce spermatozoa"),
+                              ("capable_of", "secrete androgens"),
+                              ("has_property", "male")}, self.facts(found))
+
+    def test_alternatives_are_not_properties(self):
+        found = self.reader.read("cat.n.01",
+                                 "fruit with red or yellow or green skin")
+        self.assertIn(("has_a", "skin"), self.facts(found))
+        self.assertFalse([fact for fact in found.facts
+                          if "red" in fact.object])
+
+    def test_the_fragments_after_semicolons(self):
+        found = self.reader.read(
+            "dog.n.01", "small and light boat; pointed at both ends; "
+                        "propelled with a paddle; used to stir or serve food")
+        facts = self.facts(found)
+        self.assertIn(("has_property", "pointed at both ends"), facts)
+        self.assertIn(("receives_action", "propelled with a paddle"), facts)
+        self.assertIn(("used_for", "stir food"), facts)
+
+    def test_a_fact_as_the_question_the_teacher_is_asked(self):
+        self.assertEqual(question_for("hammer", "used_for", "deliver force",
+                                      "used to"),
+                         "is a hammer used to deliver force")
+        self.assertEqual(question_for("oak", "has_a", "acorns"),
+                         "does an oak have acorns")
+
+    def test_a_retrieved_definition_is_learned_and_answers_from_memory(self):
+        run = {"summary": {"outcome": "retrieved", "trust": "",
+                           "lines": ["DEFINED — what is a kitten"]},
+               "cycles": [{"answers": [{"verdict": "DEFINED",
+                                        "concept": "kitten.n.01",
+                                        "question": "what is a kitten"}]}]}
+        asker = TinyAsker({"what is a kitten": run})
+        session = Session(asker, definitions=DefinitionMemory())
+        first = session.say("what is a kitten")
+        self.assertEqual((first.act, first.answer["source"]),
+                         ("define", "definition"))
+        self.assertIn("young domestic cat", first.answer["text"])
+        self.assertEqual([one["concept"] for one in first.learned],
+                         ["kitten.n.01"])
+        session.say("what is a kitten")
+        self.assertEqual(asker.asked, ["what is a kitten"])
+        young = session.say("is a kitten young")
+        self.assertEqual((young.answer["outcome"], young.answer["source"]),
+                         ("verified", "definition"))
+
+    def test_a_disputed_fact_is_kept_and_never_read(self):
+        memory = DefinitionMemory()
+        memory.keep(self.reader.read("kitten.n.01", "young domestic cat"),
+                    "retrieved",
+                    {("has_property", "domestic"): ("disputed", 0.995)})
+        self.assertEqual({fact.object for fact in
+                          memory.facts("kitten.n.01")}, {"young"})
+        self.assertEqual(len(memory.entry("kitten.n.01")["facts"]), 2)
+
+    def test_told_against_its_definition_is_said_out_loud(self):
+        memory = DefinitionMemory()
+        memory.keep(self.reader.read("kitten.n.01", "young domestic cat"),
+                    "offline")
+        session = Session(TinyAsker(), definitions=memory)
+        session.say("there is a kitten")
+        told = session.say("it is old")
+        self.assertIn("against the definition of kitten",
+                      told.answer["text"])
+
+    def test_an_offline_reading_survives_the_trip_to_disk(self):
+        from research.v689.learn_definitions import reading_of
+
+        found = self.reader.read("kitten.n.01", "young domestic cat")
+        self.assertEqual(reading_of(found.as_dict()).as_dict(),
+                         found.as_dict())
 
 
 class CarriedTests(unittest.TestCase):

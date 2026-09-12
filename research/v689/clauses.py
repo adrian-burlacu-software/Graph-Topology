@@ -57,6 +57,7 @@ class Word:
     dep: str
     head: int
     head_text: str = ""
+    lemma: str = ""
 
     @property
     def verbal(self) -> bool:

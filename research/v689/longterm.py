@@ -48,6 +48,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 #: running server, not something the repository builds.
 DEFAULT_PATH = REPOSITORY_ROOT / "state" / "v689-memory.sqlite"
 
+#: Definitions memory: glosses read into facts, as v688 retrieves them and in
+#: bulk by `learn_definitions.py`.
+DEFINITIONS_PATH = REPOSITORY_ROOT / "state" / "v689-definitions.sqlite"
+
 #: Conversations held in memory at once. Past this the least recently used
 #: leaves memory only; it is still on disk, and comes back when it is asked.
 KEPT = 64
@@ -173,9 +177,10 @@ class Keeper:
     """
 
     def __init__(self, asker, archive: Archive | None = None,
-                 kept: int = KEPT) -> None:
+                 kept: int = KEPT, definitions=None) -> None:
         self.asker = asker
         self.archive = archive
+        self.definitions = definitions
         self.kept = kept
         self.knowledge = (archive.knowledge() if archive is not None
                           else Knowledge())
@@ -196,10 +201,11 @@ class Keeper:
         if found is None and self.archive is not None:
             state = self.archive.state(conversation)
             if state is not None:
-                found = Session.resume(self.asker, state, self.knowledge)
+                found = Session.resume(self.asker, state, self.knowledge,
+                                       self.definitions)
         if found is None:
             found = Session(self.asker, None if example else self.knowledge,
-                            conversation, example)
+                            conversation, example, self.definitions)
         self.held[conversation] = found
         while len(self.held) > self.kept:
             self.held.popitem(last=False)
@@ -252,5 +258,8 @@ class Keeper:
 
     def summary(self) -> dict:
         state = self.knowledge.as_state()
-        return {"kinds": len(state["kinds"]), "edges": len(state["edges"]),
-                "norms": len(state["norms"])}
+        out = {"kinds": len(state["kinds"]), "edges": len(state["edges"]),
+               "norms": len(state["norms"])}
+        if self.definitions is not None:
+            out.update(self.definitions.summary())
+        return out

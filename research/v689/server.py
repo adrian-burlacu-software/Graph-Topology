@@ -21,7 +21,8 @@ from research.v688 import server as v688
 from research.v688.pool import DEFAULT_WORKERS
 
 from .asker import Asker
-from .longterm import DEFAULT_PATH, Archive, Keeper
+from .definitions import DefinitionMemory
+from .longterm import DEFAULT_PATH, DEFINITIONS_PATH, Archive, Keeper
 
 HERE = Path(__file__).resolve().parent
 
@@ -96,6 +97,17 @@ EXAMPLES = [
      "shows": "You are an individual too, placed under person, and never "
               "`it`. A name is told like anything else -- never looked up, so "
               "WordNet's physiologist called Adrian stays out of it."},
+    {"title": "definitions",
+     "lines": ["what is a kitten", "is a kitten young", "there is a kitten",
+               "it is old", "what is a testicle",
+               "can a testicle secrete androgens"],
+     "shows": "v688 retrieves WordNet's gloss, and it is read into "
+              "definitions memory: `young domestic cat` is a genus and two "
+              "properties, `glands that produce spermatozoa and secrete "
+              "androgens` two abilities. Asked again, the definition comes "
+              "from memory; asked a fact in it, the walk reads the "
+              "definition like any record. A kitten told it is old is kept as "
+              "said, and the answer says the definition rules it out."},
     {"title": "nothing to refer to",
      "lines": ["can it swim", "the cat is black", "does it purr"],
      "shows": "`it` with nothing before it is refused. `the cat`, said "
@@ -119,6 +131,14 @@ class StoreAsker(Asker):
 
     def lemma(self, word: str) -> str:
         return self.service.loop.lemma(word)
+
+    def judge(self, question: str):
+        teacher = getattr(self.service, "teacher", None)
+        if teacher is None or not teacher.available:
+            return None
+        supports, confidence, _ = teacher.judge(
+            "", "", question.strip().rstrip("?"))
+        return supports, confidence
 
     def run(self, question: str) -> dict:
         # The same cache key `Service.run` uses, so a question asked on
@@ -149,10 +169,12 @@ class Conversations:
     sqlite connection, and so does building a conversation back from disk.
     """
 
-    def __init__(self, service, archive: Archive | None = None) -> None:
+    def __init__(self, service, archive: Archive | None = None,
+                 definitions: DefinitionMemory | None = None) -> None:
         self.service = service
         with service._engines:
-            self.keeper = Keeper(StoreAsker(service), archive)
+            self.keeper = Keeper(StoreAsker(service), archive,
+                                 definitions=definitions)
 
     def say(self, sid: str, text: str, example: bool = False) -> dict:
         with self.service._engines:
@@ -235,6 +257,8 @@ def main() -> None:
                              "kept between runs")
     parser.add_argument("--no-memory", action="store_true",
                         help="keep nothing between runs")
+    parser.add_argument("--definitions", type=Path, default=DEFINITIONS_PATH,
+                        help="definitions memory: glosses read into facts")
     options = parser.parse_args()
 
     print(f"building {options.workers} engines from {options.store.name} ...")
@@ -244,7 +268,9 @@ def main() -> None:
           f"{service.pool.build_seconds:.1f}s")
     Handler.service = service
     archive = None if options.no_memory else Archive(options.memory)
-    Handler.conversations = Conversations(service, archive)
+    definitions = DefinitionMemory(None if options.no_memory
+                                   else options.definitions)
+    Handler.conversations = Conversations(service, archive, definitions)
     if archive is not None:
         known = Handler.conversations.keeper.summary()
         print(f"  long-term memory {archive.path}: {known['kinds']} taught "

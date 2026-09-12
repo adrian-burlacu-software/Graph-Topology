@@ -61,6 +61,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from research.v687 import rules
+from research.v688.teacher import SETTLING_FLOOR
+
+from .definitions import DEFINED, GlossReader, question_for, says
 
 from .discourse import OBJECT_WEIGHT, Discourse, Referent, Resolution
 from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
@@ -210,6 +213,8 @@ class Turn:
     growth: list = field(default_factory=list)
     discourse: dict = field(default_factory=dict)
     memory: dict = field(default_factory=dict)
+    #: definitions read into definitions memory during this turn
+    learned: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"number": self.number, "said": self.said, "act": self.act,
@@ -219,6 +224,7 @@ class Turn:
                 "object": self.binding.as_dict() if self.binding else None,
                 "asked": self.asked, "answer": self.answer, "run": self.run,
                 "walk": self.walk, "growth": self.growth,
+                "learned": self.learned,
                 "discourse": self.discourse, "memory": self.memory}
 
 
@@ -226,14 +232,21 @@ class Session:
     """One conversation: attention in `discourse`, what it knows in `memory`."""
 
     def __init__(self, asker, knowledge: Knowledge | None = None,
-                 conversation: str = "", example: bool = False) -> None:
+                 conversation: str = "", example: bool = False,
+                 definitions=None) -> None:
         self.asker = asker
         self.conversation = conversation
         #: an example keeps what it teaches to itself (`longterm.py`)
         self.example = example
-        self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation)
+        #: definitions memory, shared: what a WordNet gloss says is not
+        #: something an example made up, so examples read into it too
+        self.definitions = definitions
+        self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation,
+                                     definitions)
         self.discourse = Discourse(self.memory, asker.sense)
         self.turns: list[Turn] = []
+        self._turn: Turn | None = None
+        self._reader: GlossReader | None = None
 
     def snapshot(self) -> dict:
         """Everything needed to carry on after a restart, as plain values."""
@@ -244,15 +257,15 @@ class Session:
                               if self.example else None)}
 
     @classmethod
-    def resume(cls, asker, state: dict,
-               knowledge: Knowledge | None = None) -> "Session":
+    def resume(cls, asker, state: dict, knowledge: Knowledge | None = None,
+               definitions=None) -> "Session":
         """A conversation from its snapshot. An example brings its own
         knowledge back with it; any other reads the one it is given."""
         example = bool(state.get("example"))
         if example:
             knowledge = Knowledge.from_state(state.get("knowledge") or {})
         session = cls(asker, knowledge, state.get("conversation") or "",
-                      example)
+                      example, definitions)
         session.memory.load(state.get("memory") or {})
         session.discourse.load(state.get("discourse") or {})
         session.memory.store("resumed")
@@ -265,10 +278,11 @@ class Session:
         lexicon = Taught(self.asker, self.memory.kinds)
         reading = read(text, lexicon, self.discourse.names())
         turn = Turn(self.discourse.turn, reading.said, reading.act, reading)
+        self._turn = turn
         acts = {"introduce": self._introduce, "tell": self._tell,
                 "ask": self._ask, "what": self._what, "name": self._name,
                 "ask_name": self._ask_name, "teach": self._teach,
-                "compound": self._compound}
+                "compound": self._compound, "define": self._define}
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows.
@@ -398,6 +412,131 @@ class Session:
         return reasoner.verify(node, relation, target, self.asker.matcher)
 
     # -- teaching kinds ----------------------------------------------------
+    # -- definitions -------------------------------------------------------
+    def _run(self, question: str) -> dict:
+        """v688 on a question, and every definition it retrieved on the way
+        read into definitions memory."""
+        run = self.asker.run(question)
+        self._harvest(run)
+        return run
+
+    def _harvest(self, run) -> None:
+        if self.definitions is None or not isinstance(run, dict):
+            return
+        seen: list = []
+        for cycle in run.get("cycles") or []:
+            for answer in cycle.get("answers") or []:
+                concept = answer.get("concept")
+                if (answer.get("verdict") == "DEFINED" and concept
+                        and concept not in seen):
+                    seen.append(concept)
+                    self._learn_definition(concept)
+
+    def _learn_definition(self, concept: str) -> dict | None:
+        """Read one gloss into definitions memory, asking the teacher about
+        each fact where there is one. Once per concept, ever."""
+        if self.definitions is None or self.definitions.has(concept):
+            return None
+        gloss = self.asker.reasoner.gloss(concept)
+        if not gloss:
+            return None
+        if self._reader is None:
+            self._reader = GlossReader(self.asker)
+        reading = self._reader.read(concept, gloss)
+        checks = {}
+        for fact in reading.facts:
+            found = self.asker.judge(question_for(
+                name_of(concept), fact.relation, fact.object, fact.rule))
+            if found is None:
+                continue
+            supports, confidence = found
+            expected = not fact.relation.startswith("not_")
+            checks[(fact.relation, fact.object)] = (
+                "below" if confidence < SETTLING_FLOOR else
+                "agreed" if supports == expected else "disputed", confidence)
+        self.definitions.keep(reading, "retrieved", checks)
+        entry = self.definitions.entry(concept)
+        if self._turn is not None and entry is not None:
+            self._turn.learned.append(entry)
+        return entry
+
+    def _definition_text(self, entry: dict, word: str) -> str:
+        facts = [says(fact["relation"], fact["object"], fact["rule"] or "")
+                 for fact in entry["facts"] if fact["checked"] != "disputed"]
+        text = f"{article(word)} {word}: “{entry['gloss']}”"
+        if entry.get("genus"):
+            text += f" — a kind of {entry['genus']}"
+        if facts:
+            text += "; it " + "; ".join(facts)
+        disputed = [f"{fact['relation']} {fact['object']}"
+                    for fact in entry["facts"]
+                    if fact["checked"] == "disputed"]
+        if disputed:
+            text += (" (the teacher disputed, and nothing reads: "
+                     + "; ".join(disputed) + ")")
+        return text
+
+    def _define(self, reading: Reading, turn: Turn) -> None:
+        """`what is a testicle`: from definitions memory, retrieving the
+        definition through v688 the first time it is asked."""
+        word = reading.mention.kind
+        node = self.asker.sense(word)
+        if node is None or self.definitions is None:
+            self._generic(reading, turn)
+            return
+        known = self.definitions.has(node)
+        if not known:
+            turn.asked = reading.said
+            turn.run = self._run(reading.said)
+            self._learn_definition(node)
+        entry = self.definitions.entry(node)
+        if entry is None:
+            outcome, headline, trust = summary_of(turn.run)
+            turn.answer = {"outcome": outcome, "source": "kind",
+                           "text": headline + (f" ({trust})" if trust
+                                               else "")}
+            return
+        when = ("from what I read in its definition before" if known else
+                "read from its definition just now, and kept")
+        turn.answer = {"outcome": "retrieved", "source": "definition",
+                       "text": f"{self._definition_text(entry, word)} — "
+                               f"{when}"}
+
+    def _against_definition(self, referent: Referent, relation: str,
+                            obj: str) -> str:
+        """What was just told of one of them that its kind's definition
+        rules out: `it is old`, said of a kitten, a young domestic cat.
+
+        Told still wins -- R3 answers from what you said -- but a definition
+        is not a tendency, so it is said out loud rather than stored as one
+        more exception."""
+        if self.definitions is None:
+            return ""
+        opposite = rules.NEGATIONS.get(relation) or rules.POSITIVES.get(
+            relation)
+        wanted = self._predicate(obj[3:] if obj.startswith("no ") else obj)
+        for node, distance, _ in self.memory.reasoner.ascend(referent.id):
+            if not distance or self.memory.episodic_only(node):
+                continue
+            for fact in self.definitions.facts(node):
+                have = self._predicate(fact.object)
+                differ = [index for index, (one, other)
+                          in enumerate(zip(have, wanted)) if one != other]
+                clash = ((opposite and fact.relation == opposite
+                          and have == wanted)
+                         or (fact.relation == relation
+                             and len(have) == len(wanted) and len(differ) == 1
+                             and self._opposite(have[differ[0]],
+                                                wanted[differ[0]])))
+                if clash:
+                    entry = self.definitions.entry(node) or {}
+                    return (f"; that goes against the definition of "
+                            f"{name_of(node)}, “{entry.get('gloss', '')}”, "
+                            f"which says it {says(fact.relation, fact.object)}"
+                            f" — kept as you said it, and an exception to "
+                            f"what makes it one")
+        return ""
+
     def _compound(self, reading: Reading, turn: Turn) -> None:
         turn.answer = {
             "outcome": "unknown", "source": "conversation",
@@ -460,7 +599,7 @@ class Session:
             text = (f"{stored} — {word} is a kind taught here, so nothing "
                     f"in the store bears on it")
         else:
-            turn.run = self.asker.run(question)
+            turn.run = self._run(question)
             outcome, _, _ = summary_of(turn.run)
             self.memory.against[(node, relation, obj)] = outcome
             if outcome in WORD and (WORD[outcome] == "yes") != reading.holds:
@@ -564,7 +703,7 @@ class Session:
             kind_node)
         if relation in (None, "is_a"):
             if store_kind:
-                turn.run = self.asker.run(question)
+                turn.run = self._run(question)
             return (f"not something I can store about {described}: v687 "
                     f"reads “{question}” as no relation it keeps")
         self.memory.tell(referent.id, relation, obj, said, mode,
@@ -572,9 +711,10 @@ class Session:
         stored = f"stored {relation} “{obj}”"
         if other is not None:
             stored += f", about {self.discourse.describe(other)}"
+        stored += self._against_definition(referent, relation, obj)
         kind = self._kind(referent)
         if store_kind:
-            turn.run = self.asker.run(question)
+            turn.run = self._run(question)
             outcome, _, _ = summary_of(turn.run)
             self.memory.against[(referent.id, relation, obj)] = outcome
             if outcome in WORD and (WORD[outcome] == "yes") != holds:
@@ -675,7 +815,7 @@ class Session:
         if (walk.verdict != "UNKNOWN" or not kind
                 or self.memory.episodic_only(kind)):
             return walk.verdict == "VERIFIED"
-        run = self.asker.run(f"can {article(carrier)} {carrier} {action}")
+        run = self._run(f"can {article(carrier)} {carrier} {action}")
         return summary_of(run)[0] == "verified"
 
     def _introduce(self, reading: Reading, turn: Turn) -> None:
@@ -762,8 +902,10 @@ class Session:
                    other: Referent | None = None) -> bool:
         """Answer from a told or taught fact the walk used, if it used one."""
         told = [fact for fact in walk.evidence if fact.source == TOLD]
-        if walk.verdict not in OUTCOME or not told:
+        if walk.verdict not in OUTCOME:
             return False
+        if not told:
+            return self._from_definition(walk, turn)
         fact = told[0]
         outcome = OUTCOME[walk.verdict]
         said = self.memory.said.get((fact.concept, fact.relation,
@@ -803,6 +945,25 @@ class Session:
             turn.answer = {"outcome": outcome,
                            "source": "learned" if earlier else "taught",
                            "text": text}
+        return True
+
+    def _from_definition(self, walk, turn: Turn) -> bool:
+        """Answer from a fact the walk read out of a definition."""
+        defined = [fact for fact in walk.evidence if fact.source == DEFINED]
+        if not defined:
+            return False
+        fact = defined[0]
+        entry = (self.definitions.entry(fact.concept)
+                 if self.definitions is not None else None) or {}
+        outcome = OUTCOME[walk.verdict]
+        where = rule_of(walk, fact)
+        text = (f"{WORD[outcome]} — by the definition of "
+                f"{name_of(fact.concept)}, “{entry.get('gloss', '')}”: it "
+                f"{says(fact.relation, fact.object)}")
+        if where:
+            text += f" ({where})"
+        turn.answer = {"outcome": outcome, "source": "definition",
+                       "text": text}
         return True
 
     def _ask(self, reading: Reading, turn: Turn) -> None:
@@ -877,7 +1038,7 @@ class Session:
                            "text": text + note}
             return
 
-        turn.run = self.asker.run(question)
+        turn.run = self._run(question)
         outcome, _, trust = summary_of(turn.run)
         v688 = f"v688 answers “{question}” {outcome}" + (
             f" ({trust})" if trust else "")
@@ -917,7 +1078,7 @@ class Session:
         word = name_of(above)
         _, _, question, _ = self._relation(
             reading.aux, reading.rest if rest is None else rest, word, True)
-        turn.run = self.asker.run(question)
+        turn.run = self._run(question)
         outcome, _, trust = summary_of(turn.run)
         where = (f"the store's row “{row.relation} {row.object}” is on "
                  f"{word}, so v688 judges it there" if row is not None else
@@ -972,7 +1133,7 @@ class Session:
                 and reading.rest and self._about_kind(reading, turn)):
             return
         turn.asked = reading.said
-        turn.run = self.asker.run(reading.said)
+        turn.run = self._run(reading.said)
         outcome, headline, trust = summary_of(turn.run)
         turn.answer = {"outcome": outcome, "source": "kind",
                        "text": headline + (f" ({trust})" if trust else "")}
@@ -992,7 +1153,7 @@ class Session:
             return False
         walk = self._walk(node, relation, target)
         new_kind = self.memory.episodic_only(node)
-        told = any(fact.source == TOLD for fact in walk.evidence)
+        told = any(fact.source in (TOLD, DEFINED) for fact in walk.evidence)
         contrary, near = self._related(walk, relation, target)
         note = self._near_note(near)
         if contrary is not None and not told:
@@ -1004,7 +1165,7 @@ class Session:
             if not note:
                 return False        # nothing episodic bears on it
             turn.asked = question
-            turn.run = self.asker.run(question)
+            turn.run = self._run(question)
             outcome, headline, trust = summary_of(turn.run)
             turn.answer = {"outcome": outcome, "source": "kind",
                            "text": (headline + (f" ({trust})" if trust

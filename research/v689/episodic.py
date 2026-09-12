@@ -274,8 +274,11 @@ class EpisodicMemory:
     """Everything one conversation added to what the store knows."""
 
     def __init__(self, reasoner: Reasoner, knowledge: Knowledge | None = None,
-                 conversation: str = "") -> None:
+                 conversation: str = "", definitions=None) -> None:
         self.base = reasoner
+        #: what glosses were read into (`definitions.DefinitionMemory`),
+        #: shared by every conversation; None where nothing keeps them
+        self.definitions = definitions
         #: what was taught about kinds: shared with every other conversation
         #: when `longterm.py` hands one in, a fresh one of its own otherwise
         self.knowledge = knowledge if knowledge is not None else Knowledge()
@@ -630,7 +633,15 @@ class EpisodicReasoner(Reasoner):
                 if group is None or fact.relation in group]
         if self.memory.episodic_only(concept):
             return told
-        return told + super().facts_of(concept, relation)
+        # What its definition says comes after what was told and before the
+        # store's own rows, as a record the rules read like any other.
+        defined = [Fact(fact.concept, fact.relation, fact.object, fact.source,
+                        fact.confidence, False)
+                   for fact in (self.memory.definitions.facts(concept)
+                                if self.memory.definitions is not None
+                                else [])
+                   if group is None or fact.relation in group]
+        return told + defined + super().facts_of(concept, relation)
 
     def gloss(self, concept: str) -> str | None:
         if concept in self.memory.individuals:

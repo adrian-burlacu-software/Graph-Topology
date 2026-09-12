@@ -162,7 +162,8 @@ let current = { sid: SID, example: false, title: "" };
 const SOURCE = {
   told: "you told me", taught: "you taught me", kind: "from its kind",
   tendency: "its kind, as a tendency", conversation: "from the conversation",
-  learned: "you taught me, in an earlier conversation"
+  learned: "you taught me, in an earlier conversation",
+  definition: "from its definition"
 };
 let busy = false;
 
@@ -226,6 +227,19 @@ function renderTurn(box, turn) {
     answer.appendChild(el("span", "source", "· " + SOURCE[turn.answer.source]));
   }
   box.appendChild(answer);
+
+  (turn.learned || []).forEach(entry => {
+    const line = el("div", "growth");
+    line.appendChild(el("span", null, "definitions memory "));
+    line.appendChild(el("b", null, "+ " + entry.concept));
+    const read = (entry.facts || []).map(fact =>
+      `${fact.relation} ${fact.object}` +
+      (fact.checked ? ` [${fact.checked}]` : ""));
+    line.appendChild(el("span", null,
+      ` — “${entry.gloss}”` + (entry.genus ? `, a kind of ${entry.genus}` : "") +
+      (read.length ? ` · ${read.join("; ")}` : " · nothing read")));
+    box.appendChild(line);
+  });
 
   (turn.growth || []).forEach(g => {
     const line = el("div", "growth");

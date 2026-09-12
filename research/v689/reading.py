@@ -167,7 +167,7 @@ class Reading:
     """What an utterance does, and to whom."""
 
     #: introduce | tell | ask | what | name | ask_name | teach | generic |
-    #: compound, for several claims the parse could not tell apart
+    #: define | compound, for several claims the parse could not tell apart
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -614,6 +614,11 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
         if (found and found.form not in ("indefinite", "another")
                 and found.end == len(tokens)):
             return Reading("what", found, said=said)
+        if (found and found.form == "indefinite" and found.kind
+                and found.end == len(tokens)):
+            # `what is a testicle`: a definition, which is retrieved once
+            # and then answered from definitions memory.
+            return Reading("define", found, said=said)
         return Reading("generic", said=said)
 
     for opener in INTRODUCERS:

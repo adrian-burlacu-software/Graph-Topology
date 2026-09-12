@@ -72,6 +72,18 @@ class Asker:
         return ([(token.tag_, token.dep_, token.head.i) for token in doc]
                 if doc is not None else None)
 
+    def words_of(self, text: str) -> list | None:
+        """spaCy's own reading of a text, tokenized by spaCy: for glosses,
+        where `short-legged` has to come apart at the hyphen."""
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not (text or "").strip():
+            return None
+        from .clauses import Word
+
+        return [Word(token.i, token.text, token.tag_, token.dep_,
+                     token.head.i, token.head.text, token.lemma_.lower())
+                for token in nlp(text)]
+
     def antonyms(self, lemma: str) -> frozenset:
         """WordNet's antonyms of a word in any of its senses: `shrink` gives
         expand and stretch. Empty where WordNet is not installed."""
@@ -97,6 +109,11 @@ class Asker:
         reading, which is the one v687 itself would take."""
         senses = self.reasoner.senses_of(kind, "n") or []
         return senses[0]["id"] if senses else None
+
+    def judge(self, question: str):
+        """(supports, confidence) from v688's teacher, asked bare; None when
+        there is no teacher. The server supplies one."""
+        return None
 
     def run(self, question: str) -> dict:
         raise NotImplementedError("v688's loop is supplied by the caller")
