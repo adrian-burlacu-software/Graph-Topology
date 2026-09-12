@@ -263,9 +263,21 @@ measured and dropped apart from the others:
 - **Wikipedia lead paragraphs** (`articles.py`, `state/v689-articles.sqlite`):
   a sentence is read only when its subject is the kind itself, unquantified,
   unhedged and present tense, through the same claim reading a person's
-  sentence goes through. 485 articles gave 832 facts: 0.15 points of coverage
+  sentence goes through. 485 articles gave 803 facts: 0.15 points of coverage
   and about 0.25 of pair accuracy, no cost measured, though the gold reaches
   only four of the facts.
+- **Wiktionary** (`learn_wiktionary.py`, `state/v689-wiktionary.sqlite`): a
+  sense is written about a word, not a synset, so it is kept only when the
+  broader kind its gloss names sits above exactly one of the word's noun
+  synsets in the taxonomy, and no other sense of the word lands there too.
+  107,247 senses read, 21,941 synsets matched, 16,918 facts WordNet's glosses
+  did not give; 0.29 points of coverage and about 0.13 of pair accuracy, no
+  cost measured, with 13 gold answers resting on it and about one fact in five
+  wrong by hand.
+
+Neither Wikipedia nor Wiktionary is read by the page yet: v689 reads WordNet's
+definitions memory, and the other two are loaded into store copies for the
+audit.
 
 ## What it does not do
 

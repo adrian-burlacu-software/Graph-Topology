@@ -2096,6 +2096,29 @@ WordNet antonyms, says the definition rules it out.
   before the store rows. It is not built into the store: a rebuild is where a
   source goes once it has earned its place, and half a point has not yet.
 
+### Correction: a negation flip in the data measured here
+
+Found while grading Wiktionary's facts (§29). spaCy often parses `non-fat
+milk` as three modifiers of `milk`, none the head of another, and the
+adjective rule kept each: `non`, `-` and `fat`. The last is the opposite of
+the gloss. About fifty concepts in the definitions memory measured above had
+one -- `soft drink` alcoholic, `amyloid` nitrogenous -- and ninety facts were a
+bare hyphen. No gold item asks about any of them, so no number in this
+section could see it: "no measure moved" is true of the measures and was not
+true of the data. `_adjective` now joins a word across every neighbouring
+hyphen, an object with no letters is empty, and every definitions memory was
+re-read before §29 was measured.
+
+Re-reading found a second thing. A reader change made after this section's
+read -- modifiers taken through a taxon, for `a member of the genus Canis
+that ...` -- had never reached the bulk memory, and applied to a gloss that
+*is* a group it gave the group what its members are: `genus of tropical
+American woody vines` made the genus woody, `a family of warm-blooded
+egg-laying vertebrates` made the family warm-blooded. About 1,300 facts had
+that shape. When a gloss's first head is a taxon or a group, only its own
+modifiers are read now (`large diverse order`). §29's numbers are on memories
+read with both corrections.
+
 ---
 
 ## 29. More definitions: Open English WordNet, Wikipedia, Wiktionary
@@ -2104,15 +2127,24 @@ WordNet antonyms, says the definition rules it out.
 `research/v689/articles.py`; `research/v689/learn_wiktionary.py`. Each source
 is its own definitions memory, layered onto §28's store copy with
 `ingestion.load --extra` and audited as §28 was: screened gold, `--limit 600`.
+Wikipedia and Wiktionary are each layered on the first row, not on each other.
+
+Every memory was re-read with §28's two corrections before these numbers were
+taken. Each layer had also been audited before the corrections, and every
+number below is identical to its uncorrected run: the corrections, like the
+errors, touch nothing the gold asks.
 
 | store | config | coverage | confirmed | contradicted | pairs decided | pair accuracy | corrupted asserted | denials asserted |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| §28 definitions | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
-| + OEWN re-reads | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
+| §28 definitions + OEWN re-reads | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
 | + Wikipedia leads | corroborated | **19.73%** | 17.88% | 0.09% | 462 | **92.21%** | 0.58% | 55 |
-| §28 definitions | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
-| + OEWN re-reads | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
+| + Wiktionary senses | corroborated | **19.87%** | 18.02% | 0.09% | 466 | **92.06%** | 0.58% | 55 |
+| §28 definitions + OEWN re-reads | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
 | + Wikipedia leads | crawl | **26.40%** | 24.55% | 0.09% | 625 | **87.68%** | 0.96% | 155 |
+| + Wiktionary senses | crawl | **26.54%** | 24.69% | 0.09% | 629 | **87.60%** | 0.96% | 155 |
+
+The guards are 19 right, 3 wrong and 9 unknown over every one of these
+stores, as over §28's.
 
 ### Open English WordNet: nothing the gold can see
 
@@ -2120,23 +2152,62 @@ The store is Princeton WordNet 3.0. Its maintained successor's 2025 edition
 renumbers every synset, so the two were joined through sense keys: of 71,864
 noun synsets, 67,511 define in the same words, 2,803 are new and have nothing
 in the store to hang on, and 1,550 changed in substance. Those 1,550 were
-re-read into definitions memory, 1,117 facts becoming 1,418. Both
+re-read into definitions memory, where they now give 1,395 facts. Both
 configurations are identical to §28's to the last pair: no re-read synset is
 asked about. The re-reads stay as the more current text, not as a gain.
 
 ### Wikipedia leads: a little more, at no measured cost
 
 485 lead paragraphs, read one sentence at a time and only where the subject is
-the kind itself, unquantified, unhedged and in the present tense, gave 832
-facts, about six in ten good by hand. The gold reached four of them and all
-four were right; three more pairs were decided and accuracy rose with them.
-Every over-affirmation measure is unchanged, and the guards are 19 right and 3
-wrong, as §28's store was.
+the kind itself, unquantified, unhedged and in the present tense, gave 803
+facts, about six in ten good by hand. The gold reached them in four answers,
+all right; three more pairs were decided and accuracy rose with them. Every
+over-affirmation measure is unchanged.
 
-That is also the limit of what this audit says about it. Four facts in 832 are
-asked about, so a four-in-ten junk rate among the rest is invisible here. The
+That is also the limit of what this audit says about it. Four answers rest on
+803 facts, so a four-in-ten junk rate among the rest is invisible here. The
 measure shows the facts the gold reaches do no harm; it cannot show the rest
 are true.
+
+### Wiktionary senses: the most added, one synset at a time
+
+Wiktionary's senses are written about a word, not a synset, and a sense read
+onto the wrong synset is exactly the over-affirmation this audit counts. So
+`learn_wiktionary.py` keeps a sense only when the taxonomy chooses one synset
+for it: the broader kind its gloss names must be an ancestor, with at most
+12,000 descendants, of exactly one of the word's noun synsets, and no other
+sense of the same word may land on that synset.
+
+Of 510,391 English noun senses, 46,069 were marked figurative, slang,
+historical or offensive and left, and 285,788 belong to words with no noun in
+the store. Of the 107,247 read, 31,107 matched one synset, 65,159 matched none,
+4,401 matched more than one, and 6,532 were left for sharing a synset with
+another sense of their word (`homophobe`: someone prejudiced, someone who
+fears sameness, someone who fears men, and one WordNet synset). The 21,941
+synsets matched gave 16,918 facts WordNet's glosses had not; a random 60 read
+48 right by hand.
+
+Coverage rose 0.29 points in both configurations, the most of the three
+sources, and every answer that rested on a Wiktionary fact was right: 6 of 6
+under `corroborated`, 7 of 7 under `crawl`. Pair accuracy rose 0.12 and 0.14
+points, less than Wikipedia's. Every over-affirmation measure is unchanged.
+
+Wikipedia's caveat holds with more force. Thirteen answers rest on 16,918
+facts; at the sample's one in five wrong, thousands of wrong facts are in this
+memory where the audit cannot see them.
+
+### What the three sources decide
+
+- **All three measured sources are safe on every measure the audit has, and
+  none of those measures can see most of what they add.** The two reader
+  corrections above changed well over a thousand facts and not one number.
+- **Wikipedia and Wiktionary stay separate memories and are not read by the
+  page.** Each buys a fraction of a point; wiring them in trades that for
+  facts the audit cannot vouch for, and is a choice rather than a result.
+- **What would decide it is a measure of the facts themselves**, not of the
+  gold: a graded sample large enough to put an interval on the error rate per
+  source and per reading rule, or the teacher check §28 skipped, which this
+  section is the first real reason to run.
 
 ---
 
