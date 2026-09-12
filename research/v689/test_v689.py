@@ -822,6 +822,26 @@ class HyphenatedTests(unittest.TestCase):
             self.assertNotIn(("has_property", wrong), facts)
 
 
+class GroupGlossTests(unittest.TestCase):
+    """A genus is not woody because its vines are."""
+
+    def test_what_the_members_are_is_not_a_property_of_the_group(self):
+        from research.v689.definitions import GlossReader
+
+        reader = GlossReader(TinyAsker())
+        group = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "a genus of young cats").facts}
+        member = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "one of a group of young cats").facts}
+        self.assertNotIn(("has_property", "young"), group)
+        self.assertIn(("has_property", "young"), member)
+        # spaCy reads `woody` as a compound of `vines`, not an adjective.
+        vines = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "a genus of tropical woody vines").facts}
+        self.assertFalse({("has_property", "woody"),
+                          ("has_property", "tropical")} & vines)
+
+
 class ArticleTests(unittest.TestCase):
     """Wikipedia lead paragraphs: only what is said of the kind itself."""
 

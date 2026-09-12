@@ -460,10 +460,17 @@ class GlossReader:
         genus = head if head is not None and (
             head.noun or head.tag == "JJ") and head.text.lower() not in (
                 PARTITIVES | SEXES) else None
+        # `genus of tropical American woody vines`: the concept is the genus,
+        # and woody is what its members are. A taxon or a group is described
+        # by its own modifiers only -- `large diverse order` -- not theirs,
+        # though what they are still names its broader kind.
+        group = heads[0].text.lower() in TAXA | GROUPS
         if genus is not None:
-            facts.extend(self._genus(concept, words, genus, reading, piece,
-                                     check))
-        for one in heads:
+            kind_facts = self._genus(concept, words, genus, reading, piece,
+                                     check)
+            if not group:
+                facts.extend(kind_facts)
+        for one in heads[:1] if group else heads:
             facts.extend(self._modifiers(words, one, piece))
         # What the frame hung off `is` rather than off the noun: `having
         # webbed feet and wings`, after the regions the penguin lives in.
