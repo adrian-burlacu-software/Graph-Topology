@@ -806,6 +806,22 @@ class DefinitionTests(unittest.TestCase):
                          found.as_dict())
 
 
+class HyphenatedTests(unittest.TestCase):
+    """`non-fat milk` is not fat: a hyphenated adjective is read whole."""
+
+    def test_a_prefix_is_not_dropped_and_a_hyphen_is_not_a_property(self):
+        from research.v689.definitions import GlossReader
+
+        found = GlossReader(TinyAsker()).read(
+            "kitten.n.01", "a non-fat web-footed young cat")
+        facts = {(fact.relation, fact.object) for fact in found.facts}
+        self.assertIn(("has_property", "non-fat"), facts)
+        self.assertIn(("has_property", "web-footed"), facts)
+        self.assertIn(("has_property", "young"), facts)
+        for wrong in ("fat", "non", "web", "footed", "-"):
+            self.assertNotIn(("has_property", wrong), facts)
+
+
 class ArticleTests(unittest.TestCase):
     """Wikipedia lead paragraphs: only what is said of the kind itself."""
 

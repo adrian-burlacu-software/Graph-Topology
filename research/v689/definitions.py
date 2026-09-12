@@ -260,8 +260,9 @@ def _trim(text: str) -> str:
 def _empty(fact: "Defined") -> bool:
     """A fact that says nothing a question about the kind could ask."""
     words = fact.object.split()
-    if not words:
-        return True
+    if not words or not any(character.isalpha()
+                            for character in fact.object):
+        return True                                 # `-`, from `non-fat`
     if words[0] in REPORTED or any(word in SUBORDINATE for word in words):
         return True
     if fact.object.startswith(EMPTY_OPENINGS):
@@ -273,7 +274,12 @@ def _empty(fact: "Defined") -> bool:
 
 def _adjective(words, index) -> str:
     """An adjective with its hyphenated parts -- `short-legged` -- and not
-    the adjective beside it: `nocturnal mouselike` is two properties."""
+    the adjective beside it: `nocturnal mouselike` is two properties.
+
+    spaCy often parses `non-fat milk` as three modifiers of `milk`, none the
+    head of another, so the parts are joined across every neighbouring hyphen
+    whatever the parse made of them. `fat` on its own is the opposite of what
+    the gloss said."""
     kept = [words[index]]
     for child in _children(words, index):
         if child.dep == "punct" and child.text == "-":
@@ -283,7 +289,15 @@ def _adjective(words, index) -> str:
               and words[child.index + 1].text == "-"):
             kept.extend(_subtree(words, child.index,
                                  {"cc", "conj", "advmod"}))
-    return _join(sorted(kept, key=lambda word: word.index)).lower()
+    spread = {word.index for word in kept}
+    first = low = min(spread)
+    last = high = max(spread)
+    while low >= 2 and words[low - 1].text == "-":
+        low -= 2
+    while high + 2 < len(words) and words[high + 1].text == "-":
+        high += 2
+    spread |= set(range(low, first)) | set(range(last + 1, high + 1))
+    return _join([words[one] for one in sorted(spread)]).lower()
 
 
 def question_for(kind: str, relation: str, obj: str, rule: str = "") -> str:
