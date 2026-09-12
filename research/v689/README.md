@@ -13,6 +13,9 @@ python -m research.v689 --workers 19 --port 8689 --teacher
 Then open http://127.0.0.1:8689. One process serves both layers: the
 conversation at `/` and v688's page, unchanged, at `/v688`. Two processes
 cannot hold the store at once, so v689 runs *as* v688 rather than beside it.
+What conversations were told and taught is kept in
+`state/v689-memory.sqlite`; `--memory PATH` moves it and `--no-memory` keeps
+nothing.
 
 ## Semantic memory and episodic memory, one set of rules
 
@@ -105,6 +108,34 @@ reads, and `can the pig fly` is the kind's answer again.
 - **Only a carrier that does it.** A pig on a cat was still flying. Whether
   the carrier does it is v687's walk first, and v688 only if the store has
   nothing.
+- **Recomputed, not applied once.** Told `the airplane couldn't fly`, E2 runs
+  again for everyone in or on that airplane, and a doing no carrier does is
+  given back.
+
+## Objects: the other individual
+
+`the dog chased it` and `it was in the plane` name two individuals. The one
+after the verb is resolved by the same identification and salience as a
+subject, with two differences. It is never the subject: `it`, as the object
+of `the dog chased it`, cannot be the dog. And it refreshes salience only to
+half, without taking the focus, so `it` in the next sentence still means the
+dog.
+
+What is stored is still a fact about kinds, because that is what v687's rules
+and matcher read -- with **which one** kept beside it:
+
+| said | stored |
+| --- | --- |
+| `the dog chased it` | `capable_of "chase a cat"`, bound to that cat |
+| `it chased a cat` | `capable_of "chase a cat"`, about any cat |
+| `it was in an airplane` | a new airplane, and `at_location airplane` bound to it |
+
+So `did the dog chase the second cat` meets the fact, sees it was about the
+first cat, and says it was not told rather than yes. An indefinite object is
+a kind except after `in`, `on`, `inside` and `aboard`, where what carried it
+is one particular thing E2 has to ask about -- and E2 asks *it*: a carrier
+that is an individual is walked from itself, so what was told of that
+airplane comes before what airplanes do.
 
 ## Where an answer comes from
 
@@ -119,9 +150,139 @@ reads, and `can the pig fly` is the kind's answer again.
 
 The store is never written. Everything told lives in the conversation.
 
+## Long-term memory
+
+A conversation is how this layer learns anything, so it is kept on disk
+(`longterm.py`), and it is kept as two memories, because they are two kinds:
+
+| said | belongs to | survives |
+| --- | --- | --- |
+| `a wemble is a kind of animal`, `beagles can't swim` | every conversation | a restart, `start over` |
+| `there is a beagle`, `its name is Rex` | this conversation | a restart |
+
+**Knowledge** -- taught kinds, taxonomy and norms -- is about no one in
+particular, so it is no one conversation's. One copy is shared by every
+conversation (`Knowledge`, read through `Layered` beside each conversation's
+own individuals), rewritten to disk after every turn, and an answer drawn
+from it says when it was taught in an earlier conversation. It is still never
+written into the store. `unlearn` empties it.
+
+**A conversation** -- individuals, what was told of them, names, bindings,
+what E2 withdrew, salience -- is snapshotted after every turn with the turn as
+the page showed it. A page that comes back after a restart finds its
+conversation where it left it. `start over` forgets the conversation and
+keeps the knowledge.
+
+**Examples teach nothing that is kept.** They teach on purpose -- `beagles
+can't swim` is there to show R3 -- and a demonstration that wrote a false norm
+into what every later conversation starts from would be a bug with a
+permanent address. An example runs in a conversation of its own, with
+knowledge of its own, and leaves yours alone.
+
+## Several claims at once, and opposites
+
+A statement is split into its claims by spaCy's dependency parse
+(`clauses.py`), not by the word `and`: the parse says which verbs are
+coordinated and what each one's subject is. Each clause is filled in from the
+one before it and read as a sentence of its own:
+
+| said | read as |
+| --- | --- |
+| `testicles shrink in cold temperatures, and they expand in warm ones` | `testicles shrink in cold temperatures` · `testicles expand in warm temperatures` |
+| `beagles can't swim but they can run` | `beagles can not swim` · `beagles can run` |
+| `there is a beagle and it can't swim` | `there is a beagle` · `it can not swim` |
+| `dogs eat meat and bones` | one claim: `bones` hangs off `meat`, not off the verb |
+
+Where the parse has no verb at its root -- spaCy reads `dogs bark and cats
+purr` as a noun phrase -- nothing can be split, and if the words still look
+like more than one claim they are refused rather than stored as one.
+
+A question that no told or taught fact answers exactly is compared with the
+ones that come close. The same predicate with its head word replaced by a
+WordNet antonym answers **no**: taught `testicles shrink in cold
+temperatures`, `do testicles expand in cold temperatures` is denied, because
+doing one under the same condition is not doing the other. An antonym
+anywhere else is a different condition and answers nothing. Anything sharing
+a word is quoted beside the answer, so `do testicles shrink` says what was
+taught even though the qualification keeps it from being a yes.
+
+## Definitions memory
+
+WordNet has a gloss for every noun -- 82,115 of them in the store -- and a
+gloss is a definition: a broader kind and what sets this one apart.
+`definitions.py` reads each one into facts about the kind it defines, kept in
+`state/v689-definitions.sqlite` beside long-term memory and never written into
+the store:
+
+| gloss | read as |
+| --- | --- |
+| `young domestic cat` | a kind of cat; is young; is domestic |
+| `one of the two male reproductive glands that produce spermatozoa and secrete androgens` | a kind of gland; is male; is reproductive; can produce spermatozoa; can secrete androgens |
+| `a hand tool with a heavy rigid head and a handle; used to deliver an impulsive force by striking` | a kind of hand tool; has a heavy rigid head; has a handle; is used to deliver impulsive force by striking |
+| `feline mammal usually having thick soft fur and no ability to roar` | a kind of mammal; is feline; has thick soft fur; cannot roar |
+
+A gloss is a noun phrase with fragments after semicolons, not a sentence, and
+spaCy parses it badly whole. So each piece is parsed on its own inside a frame
+it handles -- `it is a <piece>`, `it has ...`, `it is used to ...` -- and the
+genus is checked against the store taxonomy: a sense of it among the concept
+ancestors means the parse found the head it should have. Instances are not
+kinds (WordNet says which), names are not properties, alternatives are not
+properties (`red or yellow skin` is skin), and verbs joined by `or` share the
+object only the last one carries.
+
+**How it is filled.** Every definition a v688 run retrieves -- `what is a
+testicle` retrieves five, walking up to organ -- is read as it arrives, and
+each fact is put to the teacher as a bare question. In bulk,
+`learn_definitions.py` reads every noun gloss (about six minutes on four
+processes), asks the teacher about every fact, and reports what it read. A
+fact the teacher disputes is kept, so it can be counted, and never read.
+
+**How it is used.** The rules read defined facts after what was told and
+before the store rows, so `is a kitten young` is answered from the definition
+and says so. `what is a kitten` is retrieved through v688 once and answered
+from memory after that. And a definition is not a tendency: told `it is old`
+of a kitten, the fact is kept as said and the answer says the definition of
+kitten rules it out.
+
+**Measured** (`research/v688/AUDIT.md` section 28). Loaded into a copy of the
+store as one more source, the 69,235 defined facts lift coverage by about half
+a point in both audit configurations and pair accuracy with it: every gold
+answer that rested on a definition was right, and every over-affirmation
+measure -- corrupted claims, screened denials, contradicted -- is unchanged.
+So the teacher check was not run: there was nothing on any measure for it to
+catch. Keeping only glosses whose genus agrees with the taxonomy is as safe and
+gains less, so every fact is read.
+
+**More sources** (section 29), each its own definitions memory so it can be
+measured and dropped apart from the others:
+
+- **Open English WordNet 2025**, joined to the store's WordNet 3.0 through
+  sense keys: the 1,550 noun definitions it rewrote are re-read into
+  `state/v689-definitions.sqlite`. No audit measure moves; no gold item is
+  about them.
+- **Wikipedia lead paragraphs** (`articles.py`, `state/v689-articles.sqlite`):
+  a sentence is read only when its subject is the kind itself, unquantified,
+  unhedged and present tense, through the same claim reading a person's
+  sentence goes through. 485 articles gave 803 facts: 0.15 points of coverage
+  and about 0.25 of pair accuracy, no cost measured, though the gold reaches
+  only four of the facts.
+- **Wiktionary** (`learn_wiktionary.py`, `state/v689-wiktionary.sqlite`): a
+  sense is written about a word, not a synset, so it is kept only when the
+  broader kind its gloss names sits above exactly one of the word's noun
+  synsets in the taxonomy, and no other sense of the word lands there too.
+  107,247 senses read, 21,941 synsets matched, 16,918 facts WordNet's glosses
+  did not give; 0.29 points of coverage and about 0.13 of pair accuracy, no
+  cost measured, with 13 gold answers resting on it and about one fact in five
+  wrong by hand.
+
+Neither Wikipedia nor Wiktionary is read by the page yet: v689 reads WordNet's
+definitions memory, and the other two are loaded into store copies for the
+audit.
+
 ## What it does not do
 
-- **Only the subject is read.** `does the cat chase the dog` resolves the cat.
+- **One object at most, and it ends the sentence.** `the dog chased the cat
+  in the garden` binds the garden and leaves the cat a kind.
 - **No plural references** (`the beagles`) -- plurals teach a kind
   (`beagles can't swim`) but never pick out individuals -- and names of one
   word only for mentioning.
@@ -133,6 +294,8 @@ The store is never written. Everything told lives in the conversation.
 - **An unknown kind must be one word**, and a bare unknown singular (`Adrian can swim`) is read as someone, not a kind.
 - **The v688 loop does not run over individuals.** It answers the kind; the
   individual is v687's rules over episodic memory.
+- **Knowledge is one for the whole server.** It records which conversation
+  taught each thing, not who; there is no notion of two people disagreeing.
 
 ## Files
 
@@ -143,5 +306,12 @@ The store is never written. Everything told lives in the conversation.
 | `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
+| `clauses.py` | a statement split into its claims by the dependency parse |
+| `definitions.py` | glosses read into facts, and definitions memory |
+| `learn_definitions.py` | every noun gloss read, checked by the teacher, and reported, offline |
+| `articles.py` | Wikipedia lead paragraphs read into facts about the kind, offline |
+| `learn_wiktionary.py` | Wiktionary's noun senses matched to one synset each and read, offline |
+| `definition_guards.py` | class-level questions v687 must not get wrong, asked of each store copy |
+| `longterm.py` | the knowledge every conversation shares, and every conversation, kept on disk |
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |

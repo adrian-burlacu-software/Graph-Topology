@@ -1950,6 +1950,267 @@ measurements, not used.
 
 ---
 
+## 27. Challenging a yes that nothing bore out
+
+2026-09-11. `research/v688/challenge.py`.
+
+The teacher was asked only what the store left open (§26), so the store's own
+over-affirmation never reached it. `can a fish walk on land` is VERIFIED on
+one Ascent++ row, `fish capable_of "walk on land"`, which is about
+mudskippers. The run finds nothing for or against it, and the page read
+`unchallenged`.
+
+`Teacher.challenge` now puts that headline to the model bare, after the last
+cycle, when three things hold: it is a polar yes; its evidence is a crawled
+row (Ascent++ or ConceptNet, not WordNet, the norms or a row the teacher wrote
+itself); and the run's trust would otherwise read `unchallenged`.
+
+What a confident no may do was measured first. Every polar yes on a crawled
+row in the most recent audit run (`audit-out/dense-now`, screened gold) was
+joined to the model's bare answer, 139 of them newly asked. That is a
+superset of what the loop challenges -- the loop skips a yes its run bore out
+-- so the cost below is an upper bound. Floor 0.99.
+
+| set | n | disputed | agreed | below the floor |
+| --- | --- | --- | --- | --- |
+| listed features (true) | 181 | **2.2%** | 46.4% | 51.4% |
+| COMPS foils (truth open) | 31 | 51.6% | 0.0% | 48.4% |
+| corrupted (false) | 0 | | | |
+
+### The cost is small, and every one of it is an error
+
+The four true claims disputed are `can a flamingo build nests`, `can a bottle
+store milk`, `is a rose sharp` and `does a flamingo eat algae`. All are true
+and all are stated at distance 0. On gold, every dispute is wrong, at 2.2% of
+the yes answers the store gives on crawled rows. Half the time the model is
+below the floor and does nothing.
+
+### The gain is where the gold cannot look
+
+No corrupted claim is verified on a crawled row, so the one model-free set
+has nothing to say. The foils do: 16 of 31 disputed, and they read like
+over-affirmation caught -- `can an emu fly`, `can a dolphin lay eggs`, `does
+an apple grow on palm trees`, `is a pine tree deciduous`, `does a canoe have
+sails`. But screened gold is the set this same model denied at 0.95 (§16), so
+half of it clearing 0.99 is partly built in. It is described, not scored.
+
+The class-level questions are where the motivation lives, and XCSLB is almost
+all leaves, so they are read one at a time:
+
+| question | truth | teacher | reading |
+| --- | --- | --- | --- |
+| can a fish walk on land | false | no, 0.996 | disputed |
+| can a fish walk | false | no, 0.998 | disputed |
+| does a cat lay eggs | false | no, 0.999 | disputed |
+| can a rock swim | false | no, 0.998 | disputed |
+| can a person fly | false | no, 0.977 | below |
+| can a mammal fly | false | no, 0.931 | below |
+| does an animal have wings | false | no, 0.898 | below |
+| can an animal fly | false | **yes**, 0.962 | below |
+| can a bird fly, does an animal breathe, can a fish swim, can a person walk, does a dog have a tail, can a horse run | true | yes, 0.992 to 0.998 | agreed |
+| does a dog bark, does a mammal have fur | true | yes, 0.989 | below |
+
+Four of eight false class-level claims disputed, and none of eight true ones.
+`can an animal fly` is not caught and cannot be: the model believes it.
+
+### What a dispute does
+
+A confident no against an unchallenged yes **unsettles** it. The outcome reads
+`unknown`, the trust `disputed by the teacher`, and the lines name the row and
+what the model said. It is not turned into a no: a crawled row and a model
+disagree, nothing corroborates either, and neither outranks the other the way
+the store's own argument outranks a model over an overturned headline (§26).
+The cost is paid in abstention rather than falsehood -- at most 2.2% of
+correct yes answers become `unknown`, and nothing false is asserted.
+
+A confident yes changes the trust phrase to `unchallenged; the teacher
+agrees` and nothing else. A model agreeing is not a family bearing a claim
+out, and pricing it as one would be counting the teacher twice.
+
+`audit.py` does not see any of this: its loop configuration runs without a
+teacher, so no benchmark number above moves.
+
+---
+
+## 28. Definitions memory against the audit
+
+2026-09-12. `research/v689/learn_definitions.py`, `ingestion.load --source
+definitions`, `research/v689/definition_guards.py`.
+
+All 82,115 noun glosses in the store were read into facts -- 69,235 of them,
+with a genus found in 87.3% of glosses and agreeing with the taxonomy in 64.5%
+-- and loaded into a copy of the store as one more source, `definition`, the
+way GenericsKB was in §13. A second copy took only the 51,492 facts from
+glosses whose genus agreed with the taxonomy.
+
+The teacher check was skipped by decision. The errors in this data are the
+parser misreading curated text, which a judge of truth and typicality only
+partly sees -- `can an african daisy have daisylike flowers` is true and
+misfiled -- so the audit was asked first whether there was anything to catch.
+Three shapes the check was meant for were settled by rule before loading.
+
+Screened gold, `--limit 600`, every store measured in the same session:
+
+| store | config | coverage | confirmed | contradicted | pairs decided | pair accuracy | corrupted asserted | denials asserted |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| store | corroborated | 19.02% | 17.17% | 0.09% | 446 | 91.48% | 0.58% | 55 |
+| + definitions | corroborated | **19.58%** | 17.74% | 0.09% | 459 | **91.94%** | 0.58% | 55 |
+| + genus agrees | corroborated | 19.54% | 17.69% | 0.09% | 457 | 91.90% | 0.58% | 55 |
+| store | crawl | 25.78% | 23.94% | 0.09% | 610 | 87.05% | 0.96% | 155 |
+| + definitions | crawl | **26.25%** | 24.41% | 0.09% | 622 | **87.46%** | 0.96% | 155 |
+| + genus agrees | crawl | 26.21% | 24.36% | 0.09% | 620 | 87.42% | 0.96% | 155 |
+
+### A small gain, and no cost anywhere it was measured
+
+About half a coverage point in both configurations, with accuracy up beside
+it, because every answer that rested on a definition fact was right: 17 of 17
+under `corroborated` and 23 of 23 under `crawl`. Every over-affirmation
+measure is identical to the row: corrupted claims asserted, screened denials
+asserted, contradicted. Nothing the definitions added made the store assert
+a false thing it did not already assert.
+
+The gain is small for a reason worth stating. XCSLB lists what people say
+about a concept -- `has four legs`, `is used for cutting` -- and a gloss says
+what distinguishes it from its genus. The two overlap in a sliver of the gold.
+
+### The class-level guards
+
+31 questions, v687 alone over each store. Right 17 -> 19, wrong 3 -> 3,
+unknown 11 -> 9. Both changes are right: `can a cat roar` is denied, from `no
+ability to roar`, and `can a testicle secrete androgens` is verified. The
+three wrong answers are the store's own and unchanged: `can a fish walk on
+land`, `can an animal fly`, `does an animal have wings` (§27). `is a kitten
+old` stays unknown, because v687 has no antonymy; the v689 page, which reads
+WordNet antonyms, says the definition rules it out.
+
+### What this decides
+
+- **The teacher check is not worth its GPU hour now.** Every measure it would
+  have protected shows nothing to protect. It would remove garbled facts the
+  gold never asks about, at §27's measured cost of disputing about 2% of true
+  facts that are unusual rather than typical.
+- **The genus filter buys nothing.** It drops a quarter of the facts and a
+  tenth of the gain and is exactly as safe. The mark stays in the data and
+  does not gate what is read.
+- **Definitions memory stays on**, read by v689 after what was told and
+  before the store rows. It is not built into the store: a rebuild is where a
+  source goes once it has earned its place, and half a point has not yet.
+
+### Correction: a negation flip in the data measured here
+
+Found while grading Wiktionary's facts (§29). spaCy often parses `non-fat
+milk` as three modifiers of `milk`, none the head of another, and the
+adjective rule kept each: `non`, `-` and `fat`. The last is the opposite of
+the gloss. About fifty concepts in the definitions memory measured above had
+one -- `soft drink` alcoholic, `amyloid` nitrogenous -- and ninety facts were a
+bare hyphen. No gold item asks about any of them, so no number in this
+section could see it: "no measure moved" is true of the measures and was not
+true of the data. `_adjective` now joins a word across every neighbouring
+hyphen, an object with no letters is empty, and every definitions memory was
+re-read before §29 was measured.
+
+Re-reading found a second thing. A reader change made after this section's
+read -- modifiers taken through a taxon, for `a member of the genus Canis
+that ...` -- had never reached the bulk memory, and applied to a gloss that
+*is* a group it gave the group what its members are: `genus of tropical
+American woody vines` made the genus woody, `a family of warm-blooded
+egg-laying vertebrates` made the family warm-blooded. About 1,300 facts had
+that shape. When a gloss's first head is a taxon or a group, only its own
+modifiers are read now (`large diverse order`). §29's numbers are on memories
+read with both corrections.
+
+---
+
+## 29. More definitions: Open English WordNet, Wikipedia, Wiktionary
+
+2026-09-12. `ingestion/oewn.py`; `ingestion/wikipedia.py` and
+`research/v689/articles.py`; `research/v689/learn_wiktionary.py`. Each source
+is its own definitions memory, layered onto §28's store copy with
+`ingestion.load --extra` and audited as §28 was: screened gold, `--limit 600`.
+Wikipedia and Wiktionary are each layered on the first row, not on each other.
+
+Every memory was re-read with §28's two corrections before these numbers were
+taken. Each layer had also been audited before the corrections, and every
+number below is identical to its uncorrected run: the corrections, like the
+errors, touch nothing the gold asks.
+
+| store | config | coverage | confirmed | contradicted | pairs decided | pair accuracy | corrupted asserted | denials asserted |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| §28 definitions + OEWN re-reads | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
+| + Wikipedia leads | corroborated | **19.73%** | 17.88% | 0.09% | 462 | **92.21%** | 0.58% | 55 |
+| + Wiktionary senses | corroborated | **19.87%** | 18.02% | 0.09% | 466 | **92.06%** | 0.58% | 55 |
+| §28 definitions + OEWN re-reads | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
+| + Wikipedia leads | crawl | **26.40%** | 24.55% | 0.09% | 625 | **87.68%** | 0.96% | 155 |
+| + Wiktionary senses | crawl | **26.54%** | 24.69% | 0.09% | 629 | **87.60%** | 0.96% | 155 |
+
+The guards are 19 right, 3 wrong and 9 unknown over every one of these
+stores, as over §28's.
+
+### Open English WordNet: nothing the gold can see
+
+The store is Princeton WordNet 3.0. Its maintained successor's 2025 edition
+renumbers every synset, so the two were joined through sense keys: of 71,864
+noun synsets, 67,511 define in the same words, 2,803 are new and have nothing
+in the store to hang on, and 1,550 changed in substance. Those 1,550 were
+re-read into definitions memory, where they now give 1,395 facts. Both
+configurations are identical to §28's to the last pair: no re-read synset is
+asked about. The re-reads stay as the more current text, not as a gain.
+
+### Wikipedia leads: a little more, at no measured cost
+
+485 lead paragraphs, read one sentence at a time and only where the subject is
+the kind itself, unquantified, unhedged and in the present tense, gave 803
+facts, about six in ten good by hand. The gold reached them in four answers,
+all right; three more pairs were decided and accuracy rose with them. Every
+over-affirmation measure is unchanged.
+
+That is also the limit of what this audit says about it. Four answers rest on
+803 facts, so a four-in-ten junk rate among the rest is invisible here. The
+measure shows the facts the gold reaches do no harm; it cannot show the rest
+are true.
+
+### Wiktionary senses: the most added, one synset at a time
+
+Wiktionary's senses are written about a word, not a synset, and a sense read
+onto the wrong synset is exactly the over-affirmation this audit counts. So
+`learn_wiktionary.py` keeps a sense only when the taxonomy chooses one synset
+for it: the broader kind its gloss names must be an ancestor, with at most
+12,000 descendants, of exactly one of the word's noun synsets, and no other
+sense of the same word may land on that synset.
+
+Of 510,391 English noun senses, 46,069 were marked figurative, slang,
+historical or offensive and left, and 285,788 belong to words with no noun in
+the store. Of the 107,247 read, 31,107 matched one synset, 65,159 matched none,
+4,401 matched more than one, and 6,532 were left for sharing a synset with
+another sense of their word (`homophobe`: someone prejudiced, someone who
+fears sameness, someone who fears men, and one WordNet synset). The 21,941
+synsets matched gave 16,918 facts WordNet's glosses had not; a random 60 read
+48 right by hand.
+
+Coverage rose 0.29 points in both configurations, the most of the three
+sources, and every answer that rested on a Wiktionary fact was right: 6 of 6
+under `corroborated`, 7 of 7 under `crawl`. Pair accuracy rose 0.12 and 0.14
+points, less than Wikipedia's. Every over-affirmation measure is unchanged.
+
+Wikipedia's caveat holds with more force. Thirteen answers rest on 16,918
+facts; at the sample's one in five wrong, thousands of wrong facts are in this
+memory where the audit cannot see them.
+
+### What the three sources decide
+
+- **All three measured sources are safe on every measure the audit has, and
+  none of those measures can see most of what they add.** The two reader
+  corrections above changed well over a thousand facts and not one number.
+- **Wikipedia and Wiktionary stay separate memories and are not read by the
+  page.** Each buys a fraction of a point; wiring them in trades that for
+  facts the audit cannot vouch for, and is a choice rather than a result.
+- **What would decide it is a measure of the facts themselves**, not of the
+  gold: a graded sample large enough to put an interval on the error rate per
+  source and per reading rule, or the teacher check §28 skipped, which this
+  section is the first real reason to run.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

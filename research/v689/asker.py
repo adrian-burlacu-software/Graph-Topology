@@ -44,6 +44,63 @@ class Asker:
         lemma = token.lemma_.lower()
         return lemma if token.pos_ == "VERB" and lemma != word else None
 
+    def _parsed(self, words: list[str]):
+        """spaCy over the words exactly as given, read as one sentence.
+
+        Handed over already split, so token `i` is word `i`: `reading.py`
+        expands contractions and strips punctuation first, and letting spaCy
+        tokenize again would misalign the two.
+        """
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not words:
+            return None
+        from spacy.tokens import Doc
+
+        doc = Doc(nlp.vocab, words=list(words))
+        for _, component in nlp.pipeline:
+            doc = component(doc)
+        return doc
+
+    def tags(self, words: list[str]) -> list[str] | None:
+        """Penn tags, in the context of the whole sentence."""
+        doc = self._parsed(words)
+        return [token.tag_ for token in doc] if doc is not None else None
+
+    def analyse(self, words: list[str]) -> list[tuple] | None:
+        """(tag, dependency, head index) per word: what `clauses.py` reads."""
+        doc = self._parsed(words)
+        return ([(token.tag_, token.dep_, token.head.i) for token in doc]
+                if doc is not None else None)
+
+    def words_of(self, text: str) -> list | None:
+        """spaCy's own reading of a text, tokenized by spaCy: for glosses,
+        where `short-legged` has to come apart at the hyphen."""
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not (text or "").strip():
+            return None
+        from .clauses import Word
+
+        return [Word(token.i, token.text, token.tag_, token.dep_,
+                     token.head.i, token.head.text, token.lemma_.lower())
+                for token in nlp(text)]
+
+    def antonyms(self, lemma: str) -> frozenset:
+        """WordNet's antonyms of a word in any of its senses: `shrink` gives
+        expand and stretch. Empty where WordNet is not installed."""
+        cache = self.__dict__.setdefault("_antonyms", {})
+        if lemma not in cache:
+            try:
+                from nltk.corpus import wordnet
+
+                cache[lemma] = frozenset(
+                    antonym.name().replace("_", " ")
+                    for synset in wordnet.synsets(lemma)
+                    for word in synset.lemmas()
+                    for antonym in word.antonyms())
+            except Exception:                   # noqa: BLE001
+                cache[lemma] = frozenset()
+        return cache[lemma]
+
     def known(self, phrase: str) -> bool:
         return phrase in (self.parser.nouns or self.parser.vocabulary or ())
 
@@ -52,6 +109,11 @@ class Asker:
         reading, which is the one v687 itself would take."""
         senses = self.reasoner.senses_of(kind, "n") or []
         return senses[0]["id"] if senses else None
+
+    def judge(self, question: str):
+        """(supports, confidence) from v688's teacher, asked bare; None when
+        there is no teacher. The server supplies one."""
+        return None
 
     def run(self, question: str) -> dict:
         raise NotImplementedError("v688's loop is supplied by the caller")

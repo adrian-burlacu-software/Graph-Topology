@@ -2,6 +2,9 @@
 
     python -m research.v689 --workers 19 --port 8689 --teacher
 
+Conversations and what they taught are kept in `state/v689-memory.sqlite`
+(`longterm.py`); `--no-memory` keeps nothing between runs.
+
 One process serves both layers: the conversation at `/`, and v688's page,
 unchanged, at `/v688`. v689 does not run beside v688, it runs *as* it, with
 v688's `Service` underneath -- two processes cannot hold the store at once.
@@ -9,9 +12,7 @@ v688's `Service` underneath -- two processes cannot hold the store at once.
 from __future__ import annotations
 
 import argparse
-import threading
 import urllib.parse
-from collections import OrderedDict
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -20,12 +21,10 @@ from research.v688 import server as v688
 from research.v688.pool import DEFAULT_WORKERS
 
 from .asker import Asker
-from .session import Session
+from .definitions import DefinitionMemory
+from .longterm import DEFAULT_PATH, DEFINITIONS_PATH, Archive, Keeper
 
 HERE = Path(__file__).resolve().parent
-
-#: Conversations held at once; the least recently used is dropped first.
-KEPT = 64
 
 #: What a v689 turn carries of v688's run. The whole run is every cycle's
 #: every answer, hundreds of kilobytes, and the page shows the summary; the
@@ -46,12 +45,27 @@ EXAMPLES = [
     {"title": "a flying pig",
      "lines": ["there was a pig", "he was flying", "can the pig fly",
                "it was in an airplane", "can the pig fly",
-               "there is another pig", "it wasn't flying", "can it fly"],
+               "the airplane couldn't fly", "can the pig fly"],
      "shows": "Doing shows ability: `was flying` is stored as `capable_of "
-              "fly`, and R4 answers from it. Then E2: an airplane flies, so "
-              "the flying was the airplane's, and the pig's exception is "
-              "withdrawn. Not doing is not inability: `wasn't flying` is "
-              "`did_not`, which no rule reads."},
+              "fly`, and R4 answers from it. `in an airplane` puts one "
+              "airplane on the table, and E2 asks it: airplanes fly, so the "
+              "flying was the airplane's and the pig's is withdrawn. Told "
+              "`the airplane couldn't fly`, E2 is recomputed from that "
+              "airplane, and the pig was flying after all."},
+    {"title": "who did what",
+     "lines": ["there is a dog", "there is a cat", "the dog chased it",
+               "there is another cat", "did the dog chase the first cat",
+               "did the dog chase the second cat"],
+     "shows": "`it`, as the object of `the dog chased it`, cannot be the dog, "
+              "so it is the cat. What is stored is `capable_of “chase a "
+              "cat”`, which v687's rules can read, with which cat kept "
+              "beside it -- so nothing was said of the second cat."},
+    {"title": "not doing",
+     "lines": ["there is a pig", "it wasn't flying", "does it fly",
+               "can it fly"],
+     "shows": "Not doing is not inability: `wasn't flying` is `did_not`, "
+              "which answers `does it fly` and which no rule reads, so "
+              "`can it fly` is a question about pigs."},
     {"title": "teaching",
      "lines": ["a wemble is a kind of animal", "wembles can fly",
                "can a wemble breathe", "there is a wemble", "can it fly",
@@ -83,6 +97,17 @@ EXAMPLES = [
      "shows": "You are an individual too, placed under person, and never "
               "`it`. A name is told like anything else -- never looked up, so "
               "WordNet's physiologist called Adrian stays out of it."},
+    {"title": "definitions",
+     "lines": ["what is a kitten", "is a kitten young", "there is a kitten",
+               "it is old", "what is a testicle",
+               "can a testicle secrete androgens"],
+     "shows": "v688 retrieves WordNet's gloss, and it is read into "
+              "definitions memory: `young domestic cat` is a genus and two "
+              "properties, `glands that produce spermatozoa and secrete "
+              "androgens` two abilities. Asked again, the definition comes "
+              "from memory; asked a fact in it, the walk reads the "
+              "definition like any record. A kitten told it is old is kept as "
+              "said, and the answer says the definition rules it out."},
     {"title": "nothing to refer to",
      "lines": ["can it swim", "the cat is black", "does it purr"],
      "shows": "`it` with nothing before it is refused. `the cat`, said "
@@ -107,6 +132,14 @@ class StoreAsker(Asker):
     def lemma(self, word: str) -> str:
         return self.service.loop.lemma(word)
 
+    def judge(self, question: str):
+        teacher = getattr(self.service, "teacher", None)
+        if teacher is None or not teacher.available:
+            return None
+        supports, confidence, _ = teacher.judge(
+            "", "", question.strip().rstrip("?"))
+        return supports, confidence
+
     def run(self, question: str) -> dict:
         # The same cache key `Service.run` uses, so a question asked on
         # either page is answered once.
@@ -120,39 +153,45 @@ class StoreAsker(Asker):
         return found
 
 
+def trimmed(turn: dict) -> dict:
+    """A turn as the page gets it and the archive keeps it: v688's run cut
+    down to its summary."""
+    summary = (turn.get("run") or {}).get("summary") or {}
+    turn["run"] = ({key: summary.get(key) for key in SUMMARY_KEYS}
+                   if turn.get("run") else None)
+    return turn
+
+
 class Conversations:
-    """One `Session` per page, by the id the page keeps."""
+    """The page's conversations, kept by `longterm.Keeper`.
 
-    def __init__(self, service) -> None:
+    Every call takes `Service._engines`: a turn reasons over the store's one
+    sqlite connection, and so does building a conversation back from disk.
+    """
+
+    def __init__(self, service, archive: Archive | None = None,
+                 definitions: DefinitionMemory | None = None) -> None:
         self.service = service
-        self.asker = StoreAsker(service)
-        self._held: OrderedDict = OrderedDict()
-        self._lock = threading.Lock()
+        with service._engines:
+            self.keeper = Keeper(StoreAsker(service), archive,
+                                 definitions=definitions)
 
-    def session(self, sid: str) -> Session:
-        with self._lock:
-            found = self._held.pop(sid, None)
-        if found is None:
-            with self.service._engines:
-                found = Session(self.asker)
-        with self._lock:
-            self._held[sid] = found
-            while len(self._held) > KEPT:
-                self._held.popitem(last=False)
-        return found
-
-    def say(self, sid: str, text: str) -> dict:
-        session = self.session(sid)
+    def say(self, sid: str, text: str, example: bool = False) -> dict:
         with self.service._engines:
-            turn = session.say(text).as_dict()
-        summary = (turn.get("run") or {}).get("summary") or {}
-        turn["run"] = ({key: summary.get(key) for key in SUMMARY_KEYS}
-                       if turn.get("run") else None)
-        return turn
+            return self.keeper.say(sid, text, example, trim=trimmed)
+
+    def history(self, sid: str) -> dict:
+        with self.service._engines:
+            return self.keeper.history(sid)
 
     def forget(self, sid: str) -> None:
-        with self._lock:
-            self._held.pop(sid, None)
+        with self.service._engines:
+            self.keeper.forget(sid)
+
+    def unlearn(self) -> dict:
+        with self.service._engines:
+            self.keeper.unlearn()
+            return self.keeper.summary()
 
 
 class Handler(v688.Handler):
@@ -182,12 +221,25 @@ class Handler(v688.Handler):
                 self._json({"error": "too long"}, 400)
                 return
             try:
-                self._json(self.conversations.say(sid, text))
+                example = (query.get("example") or [""])[0] == "1"
+                self._json(self.conversations.say(sid, text, example))
             except Exception as bad:            # noqa: BLE001
                 self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
         elif parsed.path == "/api/forget":
             self.conversations.forget(sid)
             self._json({"forgotten": True})
+        elif parsed.path == "/api/history":
+            if not sid:
+                self._json({"error": "a conversation id"}, 400)
+                return
+            self._json(self.conversations.history(sid))
+        elif parsed.path == "/api/unlearn":
+            # A GET, like the rest of this API, so it asks to be meant: a
+            # link preview or a prefetch must not empty long-term memory.
+            if (query.get("confirm") or [""])[0] != "yes":
+                self._json({"error": "unlearn needs confirm=yes"}, 400)
+                return
+            self._json({"knowledge": self.conversations.unlearn()})
         else:
             super().do_GET()
 
@@ -200,6 +252,13 @@ def main() -> None:
     parser.add_argument("--store", type=Path, default=build.DEFAULT_STORE)
     parser.add_argument("--teacher", action="store_true",
                         help="load v688's teacher; about 6.2 GB of VRAM")
+    parser.add_argument("--memory", type=Path, default=DEFAULT_PATH,
+                        help="where conversations and what they taught are "
+                             "kept between runs")
+    parser.add_argument("--no-memory", action="store_true",
+                        help="keep nothing between runs")
+    parser.add_argument("--definitions", type=Path, default=DEFINITIONS_PATH,
+                        help="definitions memory: glosses read into facts")
     options = parser.parse_args()
 
     print(f"building {options.workers} engines from {options.store.name} ...")
@@ -208,7 +267,14 @@ def main() -> None:
     print(f"  {service.pool.workers} engines up in "
           f"{service.pool.build_seconds:.1f}s")
     Handler.service = service
-    Handler.conversations = Conversations(service)
+    archive = None if options.no_memory else Archive(options.memory)
+    definitions = DefinitionMemory(None if options.no_memory
+                                   else options.definitions)
+    Handler.conversations = Conversations(service, archive, definitions)
+    if archive is not None:
+        known = Handler.conversations.keeper.summary()
+        print(f"  long-term memory {archive.path}: {known['kinds']} taught "
+              f"kind(s), {known['edges']} edge(s), {known['norms']} norm(s)")
     httpd = ThreadingHTTPServer(("127.0.0.1", options.port), Handler)
     print(f"v689 conversation on http://127.0.0.1:{options.port} "
           f"(v688 at /v688)")

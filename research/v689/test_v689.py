@@ -20,6 +20,9 @@ from research.v687.language import Parser
 from research.v687.reason import Reasoner
 from research.v689 import reading
 from research.v689.asker import Asker
+from research.v689.definitions import (DefinitionMemory, GlossReader, pieces,
+                                       question_for)
+from research.v689.longterm import Archive, Keeper
 from research.v689.session import Session
 
 # -- a store small enough to read ------------------------------------------
@@ -53,10 +56,22 @@ CONCEPTS = (("entity.n.01", "entity", None),
             # read `is a beagle black` as a hedged `is_a`. The real store has
             # it; a test store without it passed while the page failed.
             ("black.n.01", "black", "entity.n.01"),
-            ("airplane.n.01", "airplane", "entity.n.01"))
+            ("airplane.n.01", "airplane", "entity.n.01"),
+            ("kitten.n.01", "kitten", "cat.n.01"),
+            ("gland.n.01", "gland", "entity.n.01"),
+            ("testis.n.01", "testicle", "gland.n.01"),
+            ("secrete.v.01", "secrete", None),
+            ("produce.v.01", "produce", None))
 
 LEMMAS = tuple((lemma, concept) for concept, lemma, _ in CONCEPTS) + (
     ("pig", "hog.n.03"), ("plane", "airplane.n.01"))
+
+#: Real WordNet glosses, for the definitions reader; everything else is
+#: glossed `a <lemma>`.
+DEFINITIONS = {
+    "kitten.n.01": "young domestic cat",
+    "testis.n.01": ("one of the two male reproductive glands that produce "
+                    "spermatozoa and secrete androgens")}
 
 FACTS = (("dog.n.01", "capable_of", "swim", "ascentpp", 0.6, 1),
          ("dog.n.01", "capable_of", "bark", "ascentpp", 0.7, 1),
@@ -74,8 +89,10 @@ def setUpModule() -> None:                      # noqa: N802
     connection = sqlite3.connect(path)
     connection.executescript(SCHEMA)
     connection.executemany(
-        "INSERT INTO concepts VALUES (?, ?, 'n', 1, ?, 1)",
-        [(concept, lemma, f"a {lemma}") for concept, lemma, _ in CONCEPTS])
+        "INSERT INTO concepts VALUES (?, ?, ?, 1, ?, 1)",
+        [(concept, lemma, concept.split(".")[-2],
+          DEFINITIONS.get(concept, f"a {lemma}"))
+         for concept, lemma, _ in CONCEPTS])
     connection.executemany(
         "INSERT INTO taxonomy VALUES (?, ?)",
         [(concept, parent) for concept, _, parent in CONCEPTS if parent])
@@ -107,6 +124,8 @@ class TinyAsker(Asker):
     def run(self, question: str) -> dict:
         self.asked.append(question)
         outcome = self.outcomes.get(question, "unknown")
+        if isinstance(outcome, dict):
+            return outcome
         return {"summary": {"outcome": outcome, "trust": "",
                             "lines": [f"{outcome} — {question}"]}}
 
@@ -554,6 +573,401 @@ class TeachingTests(unittest.TestCase):
         self.assertEqual(STORE["reasoner"].fact_count("beagle.n.01"), before)
 
 
+class CompoundTests(unittest.TestCase):
+    """Several claims in one statement, split by the dependency parse.
+
+    Reported from the page twice. `testicles shrink in cold temperatures and
+    expand in warm ones` went to v688 as a question; with `, and they expand`
+    it was stored as one claim, `shrink in cold temperatures and they expand
+    in warm ones`, which no question could ever match.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lexicon = TinyAsker()
+
+    def parts(self, text):
+        found = reading.read(text, self.lexicon)
+        return [found] + list(found.more)
+
+    def test_they_is_the_kind_before_it(self):
+        parts = self.parts("testicles shrink in cold temperatures, and they "
+                           "expand in warm ones")
+        self.assertEqual(
+            [(one.act, one.mention.kind, one.rest) for one in parts],
+            [("teach", "testicle", ["shrink", "in", "cold", "temperatures"]),
+             ("teach", "testicle", ["expand", "in", "warm", "temperatures"])])
+
+    def test_a_shared_subject_keeps_its_auxiliary(self):
+        self.assertEqual(
+            [(one.aux, one.rest, one.holds)
+             for one in self.parts("beagles can swim and bark")],
+            [("can", ["swim"], True), ("can", ["bark"], True)])
+
+    def test_but_they_can(self):
+        self.assertEqual(
+            [(one.aux, one.rest, one.holds)
+             for one in self.parts("beagles can't swim but they can run")],
+            [("can", ["swim"], False), ("can", ["run"], True)])
+
+    def test_and_between_nouns_is_one_claim(self):
+        self.assertEqual([one.rest for one in
+                          self.parts("dogs eat meat and bones")],
+                         [["eat", "meat", "and", "bones"]])
+
+    def test_an_individual_and_then_it(self):
+        self.assertEqual(
+            [(one.act, one.mention.form) for one in
+             self.parts("there is a beagle and it can't swim")],
+            [("introduce", "indefinite"), ("tell", "pronoun")])
+
+    def test_several_claims_the_parse_cannot_split_are_refused(self):
+        self.assertEqual(reading.read("dogs bark and cats purr",
+                                      self.lexicon).act, "compound")
+
+    def test_without_a_parse_the_parser_still_finds_the_kind(self):
+        found = reading.read("dogs bark", FakeLexicon())
+        self.assertEqual((found.act, found.mention.kind, found.rest),
+                         ("teach", "dog", ["bark"]))
+
+    def test_what_happened_is_not_a_claim_about_a_kind(self):
+        self.assertNotEqual(reading.read("a dog chased me",
+                                         self.lexicon).act, "teach")
+
+    def test_both_are_taught_and_the_opposite_is_denied(self):
+        session, turns, _ = talk(
+            "testicles shrink in cold temperatures, and they expand in warm "
+            "ones",
+            "do testicles expand in warm temperatures",
+            "do testicles expand in cold temperatures",
+            "do testicles shrink")
+        self.assertEqual(sorted(fact.object for fact in
+                                session.memory.facts["testis.n.01"]),
+                         ["expand in warm temperatures",
+                          "shrink in cold temperatures"])
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("verified", "taught"))
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "taught"))
+        self.assertIn("opposite", turns[2].answer["text"])
+        self.assertNotEqual(turns[3].answer["outcome"], "verified")
+        self.assertIn("shrink in cold temperatures", turns[3].answer["text"])
+
+    def test_an_individual_told_in_the_same_breath(self):
+        _, turns, _ = talk("there is a beagle and it can't swim",
+                           "can it swim",
+                           outcomes={"can a beagle swim": "verified"})
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("denied", "told"))
+
+
+class DefinitionTests(unittest.TestCase):
+    """WordNet glosses read into definitions memory, as v688 retrieves them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.asker = TinyAsker()
+        cls.reader = GlossReader(cls.asker)
+
+    def facts(self, found) -> set:
+        return {(fact.relation, fact.object) for fact in found.facts}
+
+    def test_asides_and_examples_are_not_the_definition(self):
+        self.assertEqual(
+            pieces("a member of the genus Canis (probably descended from the "
+                   "wolf) that barks; occurs in many breeds: collies"),
+            ["a member of the genus Canis that barks",
+             "occurs in many breeds"])
+
+    def test_a_genus_and_its_adjectives(self):
+        found = self.reader.read("kitten.n.01", "young domestic cat")
+        self.assertEqual((found.genus, found.agrees), ("cat", True))
+        self.assertEqual(self.facts(found), {("has_property", "young"),
+                                             ("has_property", "domestic")})
+
+    def test_through_one_of_to_the_glands_and_what_they_do(self):
+        found = self.reader.read("testis.n.01", DEFINITIONS["testis.n.01"])
+        self.assertEqual((found.genus, found.agrees), ("gland", True))
+        self.assertLessEqual({("capable_of", "produce spermatozoa"),
+                              ("capable_of", "secrete androgens"),
+                              ("has_property", "male")}, self.facts(found))
+
+    def test_alternatives_are_not_properties(self):
+        found = self.reader.read("cat.n.01",
+                                 "fruit with red or yellow or green skin")
+        self.assertIn(("has_a", "skin"), self.facts(found))
+        self.assertFalse([fact for fact in found.facts
+                          if "red" in fact.object])
+
+    def test_the_fragments_after_semicolons(self):
+        found = self.reader.read(
+            "dog.n.01", "small and light boat; pointed at both ends; "
+                        "propelled with a paddle; used to stir or serve food")
+        facts = self.facts(found)
+        self.assertIn(("has_property", "pointed at both ends"), facts)
+        self.assertIn(("receives_action", "propelled with a paddle"), facts)
+        self.assertIn(("used_for", "stir food"), facts)
+
+    def test_what_a_split_leaves_dangling_is_trimmed(self):
+        found = self.reader.read("dog.n.01",
+                                 "an iron bucket used for hoisting in wells "
+                                 "or mining")
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.split()[-1] in ("or", "and")])
+
+    def test_verbs_joined_by_or_share_their_object(self):
+        found = self.reader.read("dog.n.01",
+                                 "a worker who produces or sells petroleum")
+        self.assertIn(("capable_of", "produce petroleum"), self.facts(found))
+
+    def test_a_list_is_not_something_it_does(self):
+        found = self.reader.read("dog.n.01",
+                                 "mosquitoes; fungus gnats; crane flies")
+        self.assertFalse([fact for fact in found.facts
+                          if fact.relation == "capable_of"])
+
+    def test_having_is_had_not_done(self):
+        found = self.reader.read(
+            "cat.n.01", "any of several plants of the genus Arctotis having "
+                        "daisylike flowers")
+        self.assertIn(("has_a", "daisylike flowers"), self.facts(found))
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.startswith("have")])
+
+    def test_two_clauses_run_together_are_not_one_fact(self):
+        found = self.reader.read("dog.n.01", "a document listing the "
+                                             "alternatives that is used in "
+                                             "voting")
+        self.assertFalse([fact for fact in found.facts
+                          if " is " in f" {fact.object} "])
+
+    def test_a_person_is_not_a_kind(self):
+        found = self.reader.read(
+            "disraeli.n.01", "British statesman who as Prime Minister bought "
+            "controlling interest in the Suez Canal (1804-1881)")
+        self.assertEqual(found.facts, [])
+
+    def test_a_name_is_not_a_property(self):
+        found = self.reader.read("dog.n.01", "United States photographer")
+        self.assertFalse([fact for fact in found.facts
+                          if "states" in fact.object])
+
+    def test_a_fact_as_the_question_the_teacher_is_asked(self):
+        self.assertEqual(question_for("hammer", "used_for", "deliver force",
+                                      "used to"),
+                         "is a hammer used to deliver force")
+        self.assertEqual(question_for("oak", "has_a", "acorns"),
+                         "does an oak have acorns")
+
+    def test_a_retrieved_definition_is_learned_and_answers_from_memory(self):
+        run = {"summary": {"outcome": "retrieved", "trust": "",
+                           "lines": ["DEFINED — what is a kitten"]},
+               "cycles": [{"answers": [{"verdict": "DEFINED",
+                                        "concept": "kitten.n.01",
+                                        "question": "what is a kitten"}]}]}
+        asker = TinyAsker({"what is a kitten": run})
+        session = Session(asker, definitions=DefinitionMemory())
+        first = session.say("what is a kitten")
+        self.assertEqual((first.act, first.answer["source"]),
+                         ("define", "definition"))
+        self.assertIn("young domestic cat", first.answer["text"])
+        self.assertEqual([one["concept"] for one in first.learned],
+                         ["kitten.n.01"])
+        session.say("what is a kitten")
+        self.assertEqual(asker.asked, ["what is a kitten"])
+        young = session.say("is a kitten young")
+        self.assertEqual((young.answer["outcome"], young.answer["source"]),
+                         ("verified", "definition"))
+
+    def test_a_disputed_fact_is_kept_and_never_read(self):
+        memory = DefinitionMemory()
+        memory.keep(self.reader.read("kitten.n.01", "young domestic cat"),
+                    "retrieved",
+                    {("has_property", "domestic"): ("disputed", 0.995)})
+        self.assertEqual({fact.object for fact in
+                          memory.facts("kitten.n.01")}, {"young"})
+        self.assertEqual(len(memory.entry("kitten.n.01")["facts"]), 2)
+
+    def test_told_against_its_definition_is_said_out_loud(self):
+        memory = DefinitionMemory()
+        memory.keep(self.reader.read("kitten.n.01", "young domestic cat"),
+                    "offline")
+        session = Session(TinyAsker(), definitions=memory)
+        session.say("there is a kitten")
+        told = session.say("it is old")
+        self.assertIn("against the definition of kitten",
+                      told.answer["text"])
+
+    def test_an_offline_reading_survives_the_trip_to_disk(self):
+        from research.v689.learn_definitions import reading_of
+
+        found = self.reader.read("kitten.n.01", "young domestic cat")
+        self.assertEqual(reading_of(found.as_dict()).as_dict(),
+                         found.as_dict())
+
+
+class HyphenatedTests(unittest.TestCase):
+    """`non-fat milk` is not fat: a hyphenated adjective is read whole."""
+
+    def test_a_prefix_is_not_dropped_and_a_hyphen_is_not_a_property(self):
+        from research.v689.definitions import GlossReader
+
+        found = GlossReader(TinyAsker()).read(
+            "kitten.n.01", "a non-fat web-footed young cat")
+        facts = {(fact.relation, fact.object) for fact in found.facts}
+        self.assertIn(("has_property", "non-fat"), facts)
+        self.assertIn(("has_property", "web-footed"), facts)
+        self.assertIn(("has_property", "young"), facts)
+        for wrong in ("fat", "non", "web", "footed", "-"):
+            self.assertNotIn(("has_property", wrong), facts)
+
+
+class GroupGlossTests(unittest.TestCase):
+    """A genus is not woody because its vines are."""
+
+    def test_what_the_members_are_is_not_a_property_of_the_group(self):
+        from research.v689.definitions import GlossReader
+
+        reader = GlossReader(TinyAsker())
+        group = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "a genus of young cats").facts}
+        member = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "one of a group of young cats").facts}
+        self.assertNotIn(("has_property", "young"), group)
+        self.assertIn(("has_property", "young"), member)
+        # spaCy reads `woody` as a compound of `vines`, not an adjective.
+        vines = {(fact.relation, fact.object) for fact in reader.read(
+            "kitten.n.01", "a genus of tropical woody vines").facts}
+        self.assertFalse({("has_property", "woody"),
+                          ("has_property", "tropical")} & vines)
+
+
+class ArticleTests(unittest.TestCase):
+    """Wikipedia lead paragraphs: only what is said of the kind itself."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v689.articles import ArticleReader
+
+        cls.reader = ArticleReader(TinyAsker())
+
+    def test_only_sentences_about_the_kind_in_the_present(self):
+        found = self.reader.read(
+            "beagle.n.01", "Beagle",
+            "The beagle is a small hound. Foxes are clever. It can secrete "
+            "oil. Some beagles can produce milk. It was bred for hunting.")
+        facts = {(fact.relation, fact.object) for fact in found.facts}
+        self.assertEqual(found.genus, "hound")
+        self.assertIn(("has_property", "small"), facts)
+        self.assertIn(("capable_of", "secrete oil"), facts)
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.split()[0] in ("clever", "produce",
+                                                        "bred")])
+
+    def test_a_noun_is_not_a_property(self):
+        from research.v689.definitions import Defined
+
+        self.assertFalse(self.reader.properly(
+            Defined("has_property", "gland", "sentence", "")))
+        self.assertFalse(self.reader.properly(
+            Defined("has_property", "often much larger than cats",
+                    "sentence", "")))
+        self.assertTrue(self.reader.properly(
+            Defined("has_property", "small", "sentence", "")))
+
+
+class WiktionaryTests(unittest.TestCase):
+    """Wiktionary senses: kept only where the taxonomy picks one synset."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v689.definitions import GlossReader
+
+        cls.reader = GlossReader(TinyAsker())
+
+    def test_a_sense_goes_to_the_one_synset_under_its_broader_kind(self):
+        from research.v689.learn_wiktionary import align, cleaned
+
+        found = align(self.reader, "kitten", cleaned("A young cat."),
+                      ["beagle.n.01", "kitten.n.01"])
+        self.assertEqual(found["status"], "aligned")
+        self.assertEqual(found["reading"]["concept"], "kitten.n.01")
+        self.assertIn(("has_property", "young"),
+                      {(fact["relation"], fact["object"])
+                       for fact in found["reading"]["facts"]})
+
+    def test_two_synsets_under_it_or_none_and_the_sense_is_left(self):
+        from research.v689.learn_wiktionary import align
+
+        self.assertEqual(align(self.reader, "pet", "an animal kept at home",
+                               ["dog.n.01", "cat.n.01"])["status"],
+                         "ambiguous")
+        self.assertEqual(align(self.reader, "kitten",
+                               "a coquettish young woman",
+                               ["kitten.n.01"])["status"], "no sense agrees")
+
+    def test_uses_of_the_word_and_pointers_are_left(self):
+        from research.v689.learn_wiktionary import cleaned, usable
+
+        self.assertEqual(cleaned("A dog (noun sense 1)."), "a dog")
+        self.assertEqual(cleaned("NATO member."), "NATO member")
+        self.assertIsNone(usable({"word": "dog", "tags": [],
+                                  "gloss": "A domestic animal."}))
+        self.assertTrue(usable({"word": "dog", "tags": ["figuratively"],
+                                "gloss": "A contemptible man."}))
+        self.assertTrue(usable({"word": "dog", "tags": [],
+                                "gloss": "Alternative form of dogge."}))
+        self.assertTrue(usable({"word": "Dog", "tags": [],
+                                "gloss": "A constellation."}))
+
+    def test_what_the_wordnet_gloss_gave_is_not_kept_twice(self):
+        from research.v689.definitions import Defined, Reading
+        from research.v689.learn_wiktionary import merge
+
+        young = Defined("has_property", "young", "adjective", "")
+        small = Defined("has_property", "small", "adjective", "")
+        merged = merge(
+            [("kitten", Reading("kitten.n.01", "a young cat", "cat", True,
+                                [young], [])),
+             ("kitty", Reading("kitten.n.01", "a small cat", "cat", True,
+                               [small, young], []))],
+            {("kitten.n.01", "has_property", "young")})
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].gloss, "a young cat | a small cat")
+        self.assertEqual([(fact.relation, fact.object)
+                          for fact in merged[0].facts],
+                         [("has_property", "small")])
+
+    def test_two_senses_of_a_word_on_one_synset_are_both_left(self):
+        from research.v689.definitions import Defined, Reading
+        from research.v689.learn_wiktionary import merge
+
+        fears = Defined("capable_of", "fear men", "clause", "")
+        prejudiced = Defined("has_property", "prejudiced", "participle", "")
+        self.assertEqual(merge(
+            [("homophobe", Reading("person.n.01", "a person who fears men",
+                                   "person", True, [fears], [])),
+             ("homophobe", Reading("person.n.01", "a prejudiced person",
+                                   "person", True, [prejudiced], []))],
+            set()), [])
+
+    def test_history_species_lists_and_naming_are_not_properties(self):
+        from research.v689.definitions import Defined
+        from research.v689.learn_wiktionary import kept
+
+        def fact(relation, obj):
+            return kept(self.reader, Defined(relation, obj, "clause", ""))
+
+        self.assertFalse(fact("receives_action",
+                              "proposed by clark kerr in the 1960s"))
+        self.assertFalse(fact("has_a", "p. dominica"))
+        self.assertFalse(fact("receives_action", "abbreviated as sebs"))
+        self.assertFalse(fact("has_property", "able"))
+        self.assertTrue(fact("has_property", "young"))
+        # A lead's filing verbs are what a defined thing does.
+        self.assertTrue(fact("used_for", "treat mental illness"))
+
+
 class CarriedTests(unittest.TestCase):
     """E2: an action done while carried belongs to what carries it."""
 
@@ -587,6 +1001,197 @@ class CarriedTests(unittest.TestCase):
                            "it can fly", "can it fly", outcomes=self.PIGS)
         self.assertEqual((turns[3].answer["outcome"],
                           turns[3].answer["source"]), ("verified", "told"))
+
+    def test_in_an_airplane_puts_one_airplane_on_the_table(self):
+        session, turns, _ = talk("there was a pig", "he was flying",
+                                 "it was in an airplane", outcomes=self.PIGS)
+        self.assertTrue(turns[2].binding.introduced)
+        self.assertEqual(session.memory.withdrawn[0].carrier_id, "r2")
+
+    def test_what_the_carrier_was_told_comes_before_its_kind(self):
+        """`the airplane couldn't fly`: then the pig was flying by itself,
+        and E2 gives it back."""
+        session, turns, _ = talk("there was a pig", "he was flying",
+                                 "it was in an airplane",
+                                 "the airplane couldn't fly",
+                                 "can the pig fly", outcomes=self.PIGS)
+        self.assertIn("E2 undone", turns[3].answer["text"])
+        self.assertFalse(session.memory.withdrawn)
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("verified", "told"))
+
+    def test_the_plane_that_came_up_before(self):
+        _, turns, _ = talk("there was a plane", "there was a pig",
+                           "it was flying", "it was in the plane",
+                           "can the pig fly", outcomes=self.PIGS)
+        self.assertEqual(turns[3].binding.referent.id, "r1")
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("denied", "kind"))
+
+
+class ObjectTests(unittest.TestCase):
+    """The individual after the verb, resolved as a subject is."""
+
+    lexicon = FakeLexicon()
+
+    def test_an_object_is_read_after_a_verb(self):
+        found = reading.read("the dog chased the cat", self.lexicon)
+        self.assertEqual((found.obj.form, found.obj.kind, found.obj_at),
+                         ("definite", "cat", 1))
+
+    def test_an_indefinite_object_stays_a_kind(self):
+        self.assertIsNone(reading.read("it chased a cat", self.lexicon).obj)
+        self.assertIsNone(reading.read("does it have a tail",
+                                       self.lexicon).obj)
+
+    def test_after_a_copula_only_what_carries_it_is_an_object(self):
+        self.assertIsNone(reading.read("is it a dog", self.lexicon).obj)
+        found = reading.read("it was on the cat", self.lexicon)
+        self.assertEqual((found.obj.form, found.obj_at), ("definite", 1))
+
+    def test_an_object_is_never_the_subject(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "the dog chased it")
+        self.assertEqual((who(turns[2]), turns[2].binding.referent.id),
+                         ("r1", "r2"))
+
+    def test_an_object_with_no_one_else_to_be_stores_nothing(self):
+        session, turns, _ = talk("there is a dog", "the dog chased it")
+        self.assertEqual(turns[1].answer["outcome"], "which")
+        self.assertEqual(session.memory.facts["r1"], [])
+
+    def test_it_after_an_object_is_still_the_subject(self):
+        _, turns, _ = talk("there was a pig", "it was in an airplane",
+                           "can it fly")
+        self.assertEqual(who(turns[2]), "r1")
+
+    def test_the_kind_is_stored_and_which_one_beside_it(self):
+        session, _, asker = talk("there is a dog", "there is a cat",
+                                 "the dog chased it")
+        self.assertIn("does a dog chase a cat", asker.asked)
+        self.assertEqual(
+            session.memory.bound[("r1", "capable_of", "chase a cat")],
+            {"r2"})
+
+    def test_a_fact_about_one_cat_is_not_an_answer_about_another(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "the dog chased it", "there is another cat",
+                           "did the dog chase the first cat",
+                           "did the dog chase the second cat")
+        self.assertEqual((turns[4].answer["outcome"],
+                          turns[4].answer["source"]), ("verified", "told"))
+        self.assertEqual(turns[5].answer["outcome"], "unknown")
+        self.assertIn("the first cat", turns[5].answer["text"])
+
+    def test_told_of_both_cats_it_answers_for_both(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "there is another cat",
+                           "the dog chased the first cat",
+                           "the dog chased the second cat",
+                           "did the dog chase the first cat")
+        self.assertEqual(turns[5].answer["outcome"], "verified")
+
+    def test_the_plane_finds_an_airplane_through_its_sense(self):
+        _, turns, _ = talk("there was an airplane", "is the plane fast")
+        self.assertEqual(who(turns[1]), "r1")
+
+
+class LongTermTests(unittest.TestCase):
+    """What was taught, and each conversation, after the server restarts."""
+
+    def setUp(self) -> None:
+        self.folder = tempfile.TemporaryDirectory()
+        self.path = Path(self.folder.name) / "memory.sqlite"
+        self.archives: list = []
+
+    def tearDown(self) -> None:
+        for archive in self.archives:
+            archive.close()
+        self.folder.cleanup()
+
+    def restart(self, outcomes: dict | None = None) -> Keeper:
+        """A new keeper over the same file: what a restart leaves behind."""
+        archive = Archive(self.path)
+        self.archives.append(archive)
+        return Keeper(TinyAsker(outcomes), archive)
+
+    def test_what_was_taught_answers_in_a_later_conversation(self):
+        self.restart().say("a", "wembles can fly")
+        keeper = self.restart()
+        keeper.say("b", "there is a wemble")
+        turn = keeper.say("b", "can it fly")
+        self.assertEqual((turn["answer"]["outcome"],
+                          turn["answer"]["source"]), ("verified", "learned"))
+        self.assertIn("earlier conversation", turn["answer"]["text"])
+
+    def test_a_taught_edge_is_kept(self):
+        self.restart().say("a", "a wemble is a kind of animal")
+        turn = self.restart().say("b", "is a wemble an animal")
+        self.assertEqual(turn["answer"]["outcome"], "verified")
+
+    def test_a_conversation_carries_on_after_a_restart(self):
+        keeper = self.restart()
+        for line in ("there is a beagle", "its name is Rex", "it can't swim"):
+            keeper.say("a", line)
+        keeper = self.restart({"can a beagle swim": "verified"})
+        by_name = keeper.say("a", "can Rex swim")
+        self.assertEqual((by_name["answer"]["outcome"],
+                          by_name["answer"]["source"]), ("denied", "told"))
+        again = keeper.say("a", "can it swim")
+        self.assertEqual(again["resolution"]["referent"], "r1")
+        self.assertEqual([turn["said"] for turn in
+                          keeper.history("a")["turns"]][:3],
+                         ["there is a beagle", "its name is Rex",
+                          "it can't swim"])
+
+    def test_e2_is_recomputed_after_a_restart(self):
+        pigs = {"can a pig fly": "denied", "does a pig fly": "denied"}
+        keeper = self.restart(pigs)
+        for line in ("there was a pig", "he was flying",
+                     "it was in an airplane"):
+            keeper.say("a", line)
+        keeper = self.restart(pigs)
+        undone = keeper.say("a", "the airplane couldn't fly")
+        self.assertIn("E2 undone", undone["answer"]["text"])
+        flying = keeper.say("a", "can the pig fly")
+        self.assertEqual((flying["answer"]["outcome"],
+                          flying["answer"]["source"]), ("verified", "told"))
+
+    def test_start_over_forgets_the_conversation_not_the_knowledge(self):
+        keeper = self.restart()
+        keeper.say("a", "wembles can fly")
+        keeper.say("a", "there is a wemble")
+        keeper.forget("a")
+        keeper = self.restart()
+        self.assertEqual(keeper.history("a")["turns"], [])
+        keeper.say("a", "there is a wemble")
+        self.assertEqual(keeper.say("a", "can it fly")["answer"]["outcome"],
+                         "verified")
+
+    def test_unlearn_forgets_the_knowledge(self):
+        keeper = self.restart()
+        keeper.say("a", "wembles can fly")
+        keeper.unlearn()
+        keeper = self.restart()
+        keeper.say("b", "there is a wemble")
+        self.assertNotEqual(
+            keeper.say("b", "can it fly")["answer"]["outcome"], "verified")
+
+    def test_an_example_keeps_what_it_teaches_to_itself(self):
+        outcomes = {"can a beagle swim": "verified"}
+        keeper = self.restart(outcomes)
+        keeper.say("x", "beagles can't swim", example=True)
+        keeper.say("y", "there is a beagle")
+        self.assertEqual(keeper.say("y", "can it swim")["answer"]["source"],
+                         "kind")
+        keeper = self.restart(outcomes)
+        keeper.say("x", "there is a beagle")
+        own = keeper.say("x", "can it swim")
+        self.assertEqual((own["answer"]["outcome"], own["answer"]["source"]),
+                         ("denied", "taught"))
+        keeper.say("z", "there is a beagle")
+        self.assertEqual(keeper.say("z", "can it swim")["answer"]["source"],
+                         "kind")
 
 
 if __name__ == "__main__":

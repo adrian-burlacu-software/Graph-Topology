@@ -22,7 +22,7 @@ from .buffer import Buffer
 from .gap import UNDERMINING
 from .pool import Answer, EnginePool
 from .question import Generator, Question, article, plural
-from .teacher import SETTLING_FLOOR
+from .teacher import SETTLING_FLOOR, challengeable
 
 #: An utterance that opens with one of these is a question already.
 ASKING = re.compile(
@@ -272,6 +272,17 @@ class Loop:
             buffer.activation.decay()
             pending = generator.queue(buffer, self.width)
 
+        # The one settled answer the teacher is asked about: a yes resting on
+        # a crawled row that nothing in the run bore out. It waits for the
+        # last cycle, because corroboration can arrive until then.
+        if (self.teacher is not None and self.teacher.available and cycles
+                and cycles[0].answers):
+            headline = cycles[0].answers[0]
+            if self.unchallenged(headline, buffer):
+                judged = self.teacher.challenge(headline, done=put)
+                if judged is not None:
+                    cycles[-1].judgements.append(judged)
+
         return Run(pinned=dict(buffer.pins), utterance=utterance,
                    cycles=cycles,
                    summary=self.summarise(buffer, cycles),
@@ -305,13 +316,16 @@ class Loop:
         # the claim, overturns the headline. Leading with `VERIFIED — do fish
         # run` and refuting it three lines down puts the loudest line on the
         # answer the run spent its cycles disproving.
-        overturned = headline is not None and (
-            bool(overreached)
-            or
-            any(bad.question == headline.question for bad in conflicts)
-            or any(one.origin == "require" and one.about
-                   and self.failed(one, buffer)
-                   for one in buffer.answers.values()))
+        overturned = self.overturned(headline, buffer, conflicts)
+
+        judged = [one for cycle in cycles for one in cycle.judgements]
+        # A yes on one crawled row that the run could not bear out, put to
+        # the teacher (`Teacher.challenge`). A confident no disputes it.
+        challenged = next((one for one in judged
+                           if one.kind == "challenge" and headline is not None
+                           and one.question == headline.question), None)
+        disputed = (challenged is not None and challenged.settles
+                    and not challenged.supports)
 
         lines: list[str] = []
         if headline is not None and corrected is not None:
@@ -329,6 +343,15 @@ class Loop:
                 f"NOT SUPPORTED — {headline.question}. v687 answers "
                 f"{headline.verdict}, and the rest of the store does not "
                 f"bear it out.")
+        elif headline is not None and disputed:
+            lead = ((headline.payload or {}).get("evidence") or [{}])[0]
+            row = (f"{(lead.get('concept') or '').split('.')[0]} "
+                   f"{lead.get('relation') or ''} "
+                   f"“{lead.get('object') or ''}”")
+            lines.append(
+                f"DISPUTED — {headline.question}. v687 answers "
+                f"{headline.verdict} on one {lead.get('source') or 'crawled'} "
+                f"row, {row}, and nothing else in the store bears it out")
         elif headline is not None:
             lines.append(f"{headline.verdict} — {headline.question}")
         for bad in conflicts:
@@ -341,7 +364,6 @@ class Loop:
         # reported *beside* v687's answer and never in place of it, and the
         # reader is told a model said so, because that is a different kind of
         # evidence from a walk over the taxonomy.
-        judged = [one for cycle in cycles for one in cycle.judgements]
         # An answer at the floor settles an unsettled headline, either way:
         # `unknown` on the badge over a line saying the model is sure is the
         # wrong page. A no counts as much as a yes -- `AUDIT.md` §26 measured
@@ -352,6 +374,7 @@ class Loop:
         ratified = [] if overturned else [
             one for one in judged
             if one.settles and headline is not None
+            and one.kind != "challenge"
             and one.question == headline.question]
         for one in judged:
             if headline is None or one.question != headline.question:
@@ -359,6 +382,18 @@ class Loop:
             said = (f"asked directly, the teacher says "
                     f"{'yes' if one.supports else 'no'} "
                     f"({one.confidence:.0%} confident)")
+            if one.kind == "challenge":
+                if disputed:
+                    lines.append(f"{said}. A crawled row and a model disagree "
+                                 f"and nothing corroborates either, so it is "
+                                 f"not settled either way")
+                elif one.settles:
+                    lines.append(f"{said}: nothing in the store bore the row "
+                                 f"out, and the model agrees with it")
+                else:
+                    lines.append(f"{said}, short of the {SETTLING_FLOOR:.0%} "
+                                 f"it takes to dispute a record")
+                continue
             if not one.settles:
                 lines.append(f"{said}, short of the {SETTLING_FLOOR:.0%} it "
                              f"takes to settle anything")
@@ -500,7 +535,7 @@ class Loop:
             "depth": max(buffer.depths.values(), default=0),
             "thread": self.thread(buffer),
             "trust": self.trust(headline, conflicts, buffer, overturned,
-                                ratified),
+                                ratified, challenged),
             "judgements": [one.as_dict() for one in judged],
             # The badge. `trust` says in a phrase what went wrong and the
             # verdict says which of seventeen things v687 concluded; this
@@ -508,8 +543,32 @@ class Loop:
             # be taken, with every factor that made the number.
             **confidence.of_run(headline, buffer, conflicts, overturned,
                                 corrected=corrected,
-                                ratified=ratified).as_dict(),
+                                ratified=ratified,
+                                challenged=challenged).as_dict(),
         }
+
+    def overturned(self, headline, buffer: Buffer, conflicts=None) -> bool:
+        """The run's own argument against the headline: a requirement the
+        subject does not meet, a family that denies it, or a fact hoisted to
+        the class."""
+        if headline is None:
+            return False
+        conflicts = buffer.conflicts() if conflicts is None else conflicts
+        return (bool(buffer.overreach())
+                or any(bad.question == headline.question for bad in conflicts)
+                or any(one.origin == "require" and one.about
+                       and self.failed(one, buffer)
+                       for one in buffer.answers.values()))
+
+    def unchallenged(self, headline, buffer: Buffer) -> bool:
+        """A yes on a crawled row that the run neither bore out nor spoke
+        against: what `Teacher.challenge` is for."""
+        if headline is None or not challengeable(headline):
+            return False
+        conflicts = buffer.conflicts()
+        overturned = self.overturned(headline, buffer, conflicts)
+        return self.trust(headline, conflicts, buffer,
+                          overturned) == "unchallenged"
 
     def rank_of(self, answer) -> int | None:
         """Where the reading v687 took sits in WordNet's order for the word."""
@@ -578,7 +637,8 @@ class Loop:
         return deepest
 
     def trust(self, headline, conflicts, buffer: Buffer,
-              overturned: bool = False, ratified=None) -> str:
+              overturned: bool = False, ratified=None,
+              challenged=None) -> str:
         """One word for how far the headline should be taken.
 
         The point of the whole loop, compressed: v687 answers questions, and
@@ -656,4 +716,9 @@ class Loop:
         if any(a.isdigit() and b.split()[0].isdigit()
                for a, b in _pairs(note)):
             return "corroborated"
+        # Asked directly (`Teacher.challenge`), the model can agree with an
+        # unchallenged yes or dispute it; below the floor it does neither.
+        if challenged is not None and challenged.settles:
+            return ("disputed by the teacher" if not challenged.supports
+                    else "unchallenged; the teacher agrees")
         return "unchallenged"

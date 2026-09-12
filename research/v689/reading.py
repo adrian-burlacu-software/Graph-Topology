@@ -16,10 +16,14 @@ module reads the words that pick one out, and leaves the picking to
     who am i                   what         which kind it is
     does a beagle swim         generic      about beagles: v688's business
 
-It reads only the **subject** of a sentence. `does the cat chase the dog` is
-about the cat, and the dog stays a kind. One referring expression per
-utterance is a deliberate first limit: enough to show resolution working, and
-small enough to get right.
+It reads a subject and, after the verb, at most one **object**: `does the cat
+chase the dog` is about the cat and the dog, `it was in the plane` about it
+and the plane. An object is resolved like a subject but never to the subject
+itself -- `the pig is in it` does not put the pig inside the pig. An
+indefinite object stays a kind -- `it chased a cat` is about cats -- except
+after `in`, `on`, `inside` or `aboard`: `it was in an airplane` puts one
+particular airplane on the table, because what carried it is a thing E2 has
+to ask about.
 
 ## Names
 
@@ -38,6 +42,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import clauses as coordination
+
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
 #: phrase can start with.
 AUX = frozenset({"am", "is", "are", "was", "were", "can", "could", "does",
@@ -54,6 +60,10 @@ ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
             "last": -1}
 RELATIVE = frozenset({"that", "who", "which"})
 ARTICLES = frozenset({"a", "an", "the"})
+
+#: Being inside or on something: what E2 reads as being carried, and the one
+#: place an indefinite object is a new individual rather than a kind.
+CARRYING = ("in", "on", "inside", "aboard")
 
 #: Words that open a sentence and are never a name, however capitalised:
 #: `The cat is black` and `There was a pig` are not about someone called The.
@@ -76,6 +86,8 @@ OWNING = frozenset({("i", "have"), ("i", "got"), ("we", "have")})
 #: spelling everywhere below.
 CONTRACTIONS = {"can't": ["can", "not"], "cannot": ["can", "not"],
                 "won't": ["will", "not"], "doesn't": ["does", "not"],
+                "couldn't": ["could", "not"], "wouldn't": ["would", "not"],
+                "weren't": ["were", "not"],
                 "don't": ["do", "not"], "didn't": ["did", "not"],
                 "isn't": ["is", "not"], "aren't": ["are", "not"],
                 "wasn't": ["was", "not"], "hasn't": ["has", "not"],
@@ -154,7 +166,8 @@ class Mention:
 class Reading:
     """What an utterance does, and to whom."""
 
-    #: introduce | tell | ask | what | name | ask_name | teach | generic
+    #: introduce | tell | ask | what | name | ask_name | teach | generic |
+    #: define | compound, for several claims the parse could not tell apart
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -165,12 +178,21 @@ class Reading:
     said: str = ""
     name: str = ""                # what it is called, for `name` and `rex is a`
     owned: bool = False           # `i have a beagle`: the beagle is yours
+    #: `the dog` in `it chased the dog`: the other individual, and the index
+    #: in `rest` where its phrase starts
+    obj: Mention | None = None
+    obj_at: int = -1
+    #: `and expand in warm ones`: the claims joined to this one, each read
+    #: as its own statement
+    more: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"act": self.act,
                 "mention": self.mention.as_dict() if self.mention else None,
                 "aux": self.aux, "rest": " ".join(self.rest),
                 "holds": self.holds, "name": self.name, "owned": self.owned,
+                "object": self.obj.as_dict() if self.obj else None,
+                "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
                              else None)}
 
@@ -285,6 +307,42 @@ def clause(tokens: list[str]) -> Reading | None:
     return Reading("tell", aux=aux, rest=rest, holds=holds)
 
 
+def object_of(aux: str | None, rest: list[str], lexicon,
+              names: frozenset = frozenset()):
+    """(mention, index) for the individual after the verb, or None.
+
+    The phrase has to close the utterance and follow something: a verb
+    (`chased the dog`), a preposition of carrying (`was in the plane`), or
+    `has` itself (`has my hat`). After a bare copula nothing is an object --
+    `it is a dog` says what it is. A bare `that` is not one either: `it can do
+    that` points at a doing, not a thing.
+    """
+    first = 0 if aux in ("has", "have") else 1
+    for at in range(first, len(rest)):
+        carried = at > 0 and rest[at - 1] in CARRYING
+        if aux in COPULA and not carried:
+            continue
+        if rest[at] in DEMONSTRATIVES and at + 1 == len(rest):
+            continue
+        found = read_mention(rest, at, lexicon, "does", final_ok=True,
+                             names=names)
+        if found is None or found.end != len(rest):
+            continue
+        if found.form in ("indefinite", "another") and not carried:
+            continue
+        return found, at
+    return None
+
+
+def _with_object(reading: Reading | None, lexicon, names: frozenset):
+    """The same reading, with its object found if it has one."""
+    if reading is not None and reading.rest:
+        found = object_of(reading.aux, reading.rest, lexicon, names)
+        if found is not None:
+            reading.obj, reading.obj_at = found
+    return reading
+
+
 def _whose(phrase: list[str], lexicon, names: frozenset) -> Mention | None:
     """Whose name: `my`, `its`, `the dog's`, `the second beagle's`."""
     if phrase == ["my"]:
@@ -388,6 +446,25 @@ def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
     return Mention("kind", lemma, text=word, end=at + 1)
 
 
+#: Penn tags for a verb said in the present tense: `dogs bark`, `a wemble
+#: glows`. A past tense is something that happened -- `a dog chased me` -- and
+#: not a claim about dogs.
+PRESENT = frozenset({"VB", "VBP", "VBZ"})
+
+
+def tags_of(tokens: list[str], lexicon) -> list[str] | None:
+    """The tagger's reading of every word, in the context of the whole
+    utterance, or None if the lexicon has no tagger.
+
+    In context, because a word alone tells nothing: in `they ___ it` spaCy
+    tags `bones`, `cold` and `temperatures` as verbs. In `dogs eat meat and
+    bones` it knows `bones` is a noun.
+    """
+    tag = getattr(lexicon, "tags", None)
+    found = tag(tokens) if tag is not None and tokens else None
+    return list(found) if found and len(found) == len(tokens) else None
+
+
 def generic_claim(tokens: list[str], lexicon,
                   names: frozenset = frozenset()) -> Reading | None:
     """`a wemble is a kind of animal`, `beagles can't swim`: a claim about a
@@ -398,10 +475,28 @@ def generic_claim(tokens: list[str], lexicon,
     singular word the ontology does not have is refused -- `Adrian can swim`
     is about someone, not a kind of thing -- and so is a told name.
     """
-    at = next((index for index, word in enumerate(tokens)
-               if index and word in AUX), None)
-    if at is None:
+    tags = tags_of(tokens, lexicon)
+    found = [next((index for index, word in enumerate(tokens)
+                   if index and word in AUX), None)]
+    if tags is not None:
+        # `testicles shrink in the cold`: no auxiliary, only a verb in the
+        # present after at most three words of kind.
+        found.append(next((index for index in range(1, min(4, len(tokens)))
+                           if tags[index] in PRESENT), None))
+    found = [index for index in found if index is not None]
+    if (not found and len(tokens) >= 2 and tokens[0] not in NOT_NAMES
+            and tokens[0] not in names and tokens[1] not in AUX
+            and tokens[1] not in frozenset({"and", "or"}) | ARTICLES):
+        # The tagger reads `dogs bark` as two proper nouns. v687's parser,
+        # asked `does a dog bark`, finds the dog, and that is enough.
+        lemma = lexicon.lemma(tokens[0])
+        probe = f"does a {lemma} {' '.join(tokens[1:])}"
+        if (lemma != tokens[0]
+                and (lexicon.subject(probe) or "").lower() == lemma):
+            found = [1]
+    if not found:
         return None
+    at = min(found)
     head = tokens[:at]
     led = head[0] in ("a", "an")
     if led:
@@ -424,6 +519,66 @@ def generic_claim(tokens: list[str], lexicon,
     return body
 
 
+def _analysis(tokens: list[str], lexicon):
+    """(tag, dependency, head) per word, from the lexicon's parser, or None."""
+    analyse = getattr(lexicon, "analyse", None)
+    found = analyse(tokens) if analyse is not None and tokens else None
+    return list(found) if found and len(found) == len(tokens) else None
+
+
+def _looks_compound(tokens: list[str], lexicon) -> bool:
+    """More than one claim, in words the parse could not split.
+
+    A coordinator followed by something that can open a claim: a pronoun, or
+    the plural of a kind the ontology has, with words after it. Only asked
+    when the parse had no verb at its root; where it did, the parse decides.
+    """
+    for at in range(1, len(tokens) - 2):
+        if tokens[at] not in ("and", "but", "or"):
+            continue
+        after = tokens[at + 1]
+        if after in coordination.PRONOUNS | {"i", "we", "you"}:
+            return True
+        lemma = lexicon.lemma(after)
+        if lemma != after and lexicon.known(lemma):
+            return True
+    return False
+
+
+def _several(parts: list, typed: list[str], said: str, lexicon,
+             names: frozenset) -> Reading:
+    """Read each clause as its own statement; the rest ride on the first.
+
+    A clause that goes on about the kind just taught -- `and expand in warm
+    ones`, `but they can run` -- is built straight onto that kind, because
+    `read` would have to find a kind in words that do not name it. Any other
+    clause is filled in (`clauses.standalone`) and read from the start.
+    """
+    first = read(" ".join(parts[0].words(typed)), lexicon, names)
+    readings = [first]
+    before, reading_before = parts[0], first
+    for part in parts[1:]:
+        kind = (reading_before.act == "teach"
+                and reading_before.mention is not None)
+        whole = coordination.standalone(part, before, kind)
+        if coordination.continues(part, kind):
+            tail = [word.text for word in whole.aux] + (
+                ["not"] if whole.negated else []) + [
+                typed[word.index].lower() for word in whole.rest]
+            one = clause(tail)
+            if one is None:
+                continue
+            one.act, one.mention = "teach", reading_before.mention
+        else:
+            one = read(" ".join(whole.words(typed)), lexicon, names)
+        readings.append(one)
+        before, reading_before = whole, one
+    for one in readings:
+        one.said = said
+    first.more = readings[1:]
+    return first
+
+
 def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     """Read one utterance.
 
@@ -435,6 +590,17 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     said = (text or "").strip()
     if not tokens:
         return Reading("generic", said=said)
+
+    # A statement of several claims is read one claim at a time. Questions
+    # are left whole: `can it swim and bark` asks one thing.
+    if tokens[0] not in AUX and tokens[0] not in ("what", "who"):
+        analysis = _analysis(tokens, lexicon)
+        if analysis is not None:
+            parts = coordination.split(tokens, analysis)
+            if parts is None and _looks_compound(tokens, lexicon):
+                return Reading("compound", said=said)
+            if parts is not None and len(parts) > 1:
+                return _several(parts, typed, said, lexicon, names)
 
     named = naming(tokens, typed, lexicon, names)
     if named is not None:
@@ -448,6 +614,11 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
         if (found and found.form not in ("indefinite", "another")
                 and found.end == len(tokens)):
             return Reading("what", found, said=said)
+        if (found and found.form == "indefinite" and found.kind
+                and found.end == len(tokens)):
+            # `what is a testicle`: a definition, which is retrieved once
+            # and then answered from definitions memory.
+            return Reading("define", found, said=said)
         return Reading("generic", said=said)
 
     for opener in INTRODUCERS:
@@ -465,8 +636,9 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
                             end=start + 2)
         if found and found.form in ("indefinite", "another"):
             tail = tokens[found.end:]
-            relative = (clause(tail[1:]) if tail and tail[0] in RELATIVE
-                        else None)
+            relative = _with_object(
+                clause(tail[1:]) if tail and tail[0] in RELATIVE else None,
+                lexicon, names)
             return Reading("introduce", found, relative=relative, said=said,
                            owned=opener in OWNING)
         break
@@ -482,8 +654,9 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
             # conversation taught can be answered from episodic memory.
             return Reading("generic", found, tokens[0], tokens[found.end:],
                            said=said)
-        return Reading("ask", found, tokens[0], tokens[found.end:],
-                       said=said)
+        return _with_object(Reading("ask", found, tokens[0],
+                                    tokens[found.end:], said=said),
+                            lexicon, names)
 
     taught = generic_claim(tokens, lexicon, names)
     if taught is not None:
@@ -493,7 +666,7 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     found = read_mention(tokens, 0, lexicon, names=names)
     if found is None or found.form == "indefinite":
         return Reading("generic", said=said)
-    body = clause(tokens[found.end:])
+    body = _with_object(clause(tokens[found.end:]), lexicon, names)
     if found.form == "another":
         return Reading("introduce", found, relative=body, said=said)
     if body is None:

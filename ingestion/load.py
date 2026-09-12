@@ -1,6 +1,7 @@
 """Put an ingested source into a copy of the store, so it can be measured.
 
     python -m ingestion.load --source genericskb --into data/v684_genericskb.sqlite
+    python -m ingestion.load --source definitions --into data/v684_definitions.sqlite
 
 This is deliberately *not* `research/v687/build.py`. That assembles the store
 from nothing and takes as long as it takes; this copies an existing store and
@@ -23,6 +24,7 @@ silently believed. A term with no lemma in the store is dropped.
 from __future__ import annotations
 
 import argparse
+import itertools
 import shutil
 import sqlite3
 import time
@@ -31,7 +33,32 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 STORE = REPOSITORY_ROOT / "data" / "v684_reasoning.sqlite"
 
-SOURCES = ("genericskb",)
+SOURCES = ("genericskb", "definitions")
+
+#: Where `research/v689/learn_definitions.py` keeps what it read.
+DEFINITIONS = REPOSITORY_ROOT / "state" / "v689-definitions.sqlite"
+
+
+def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False,
+                    genus_agrees: bool = False, name: str = "definition"):
+    """(concept, relation, object, source, confidence, sense_assumed) for
+    every fact read out of a gloss that the teacher did not dispute.
+
+    The concept is the synset whose gloss it is, so nothing is assumed about
+    its sense; the object is free text, like every crawled source's.
+    """
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    sql = ("SELECT d.concept, d.relation, d.object FROM defined d "
+           "JOIN glosses g USING (concept) WHERE ")
+    sql += ("d.checked = 'agreed'" if agreed_only else
+            "(d.checked IS NULL OR d.checked != 'disputed')")
+    if genus_agrees:
+        # Only glosses whose broader kind is one of the concept ancestors:
+        # the model-free mark that the parse found the head it should have.
+        sql += " AND g.agrees = 1"
+    for concept, relation, obj in connection.execute(sql):
+        yield concept, relation, obj, name, 0.9, 0
+    connection.close()
 
 
 def primary_senses(connection) -> dict:
@@ -51,11 +78,11 @@ def primary_senses(connection) -> dict:
 
 
 def load(source: str, into: Path, floor: float = 0.0,
-         report_every: int = 200_000) -> dict:
+         report_every: int = 200_000, agreed_only: bool = False,
+         genus_agrees: bool = False, extra=()) -> dict:
     """Copy the store, add one source's facts, and say what happened."""
     if source not in SOURCES:
         raise SystemExit(f"unknown source {source!r}; known: {SOURCES}")
-    from . import genericskb
 
     into = Path(into)
     if into.exists():
@@ -67,15 +94,30 @@ def load(source: str, into: Path, floor: float = 0.0,
     before = connection.execute("SELECT count(*) FROM facts").fetchone()[0]
     senses = primary_senses(connection)
 
+    if source == "definitions":
+        offered = definition_rows(agreed_only=agreed_only,
+                                  genus_agrees=genus_agrees)
+    else:
+        from . import genericskb
+
+        offered = ((senses.get(term), relation, obj, name, confidence, 1)
+                   for term, relation, obj, name, confidence
+                   in genericskb.facts(floor=floor))
+        source = "genericskb"
+
+    # More definitions memories on top of the first, each under its own
+    # source name: `state/v689-articles.sqlite` as `article`.
+    offered = itertools.chain(offered, *(
+        definition_rows(Path(where), name=name) for where, name in extra))
+
     added = unresolved = seen = 0
     batch = []
-    for term, relation, obj, name, confidence in genericskb.facts(floor=floor):
+    for concept, relation, obj, name, confidence, assumed in offered:
         seen += 1
-        concept = senses.get(term)
         if concept is None:
             unresolved += 1
             continue
-        batch.append((concept, relation, obj, name, confidence, 1))
+        batch.append((concept, relation, obj, name, confidence, assumed))
         if len(batch) >= 20_000:
             connection.executemany(
                 "INSERT OR IGNORE INTO facts (concept, relation, object, "
@@ -90,12 +132,13 @@ def load(source: str, into: Path, floor: float = 0.0,
         added += len(batch)
     connection.commit()
     after = connection.execute("SELECT count(*) FROM facts").fetchone()[0]
+    written = "definition" if source == "definitions" else source
     kinds = dict(connection.execute(
         "SELECT relation, count(*) FROM facts WHERE source = ? "
-        "GROUP BY relation ORDER BY 2 DESC", (source,)).fetchall())
+        "GROUP BY relation ORDER BY 2 DESC", (written,)).fetchall())
     concepts = connection.execute(
         "SELECT count(DISTINCT concept) FROM facts WHERE source = ?",
-        (source,)).fetchone()[0]
+        (written,)).fetchone()[0]
     connection.close()
     return {"store": str(into), "source": source,
             "facts_before": before, "facts_after": after,
@@ -115,10 +158,19 @@ def main(argv=None) -> int:
         REPOSITORY_ROOT / "data" / "v684_genericskb.sqlite"))
     parser.add_argument("--floor", type=float, default=0.0,
                         help="drop rows scoring below this")
+    parser.add_argument("--genus-agrees", action="store_true",
+                        help="definitions: only glosses whose genus is one "
+                             "of the concept ancestors")
+    parser.add_argument("--extra", action="append", default=[],
+                        metavar="PATH:NAME",
+                        help="another definitions memory to load on top, "
+                             "under its own source name")
     options = parser.parse_args(argv)
     import json
 
-    print(json.dumps(load(options.source, Path(options.into), options.floor),
+    extra = [tuple(one.rsplit(":", 1)) for one in options.extra]
+    print(json.dumps(load(options.source, Path(options.into), options.floor,
+                          genus_agrees=options.genus_agrees, extra=extra),
                      indent=2))
     return 0
 
