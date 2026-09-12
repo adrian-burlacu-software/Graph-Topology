@@ -244,6 +244,15 @@ from memory after that. And a definition is not a tendency: told `it is old`
 of a kitten, the fact is kept as said and the answer says the definition of
 kitten rules it out.
 
+**Measured** (`research/v688/AUDIT.md` section 28). Loaded into a copy of the
+store as one more source, the 69,235 defined facts lift coverage by about half
+a point in both audit configurations and pair accuracy with it: every gold
+answer that rested on a definition was right, and every over-affirmation
+measure -- corrupted claims, screened denials, contradicted -- is unchanged.
+So the teacher check was not run: there was nothing on any measure for it to
+catch. Keeping only glosses whose genus agrees with the taxonomy is as safe and
+gains less, so every fact is read.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat

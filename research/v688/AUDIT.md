@@ -2032,6 +2032,72 @@ teacher, so no benchmark number above moves.
 
 ---
 
+## 28. Definitions memory against the audit
+
+2026-09-12. `research/v689/learn_definitions.py`, `ingestion.load --source
+definitions`, `research/v689/definition_guards.py`.
+
+All 82,115 noun glosses in the store were read into facts -- 69,235 of them,
+with a genus found in 87.3% of glosses and agreeing with the taxonomy in 64.5%
+-- and loaded into a copy of the store as one more source, `definition`, the
+way GenericsKB was in §13. A second copy took only the 51,492 facts from
+glosses whose genus agreed with the taxonomy.
+
+The teacher check was skipped by decision. The errors in this data are the
+parser misreading curated text, which a judge of truth and typicality only
+partly sees -- `can an african daisy have daisylike flowers` is true and
+misfiled -- so the audit was asked first whether there was anything to catch.
+Three shapes the check was meant for were settled by rule before loading.
+
+Screened gold, `--limit 600`, every store measured in the same session:
+
+| store | config | coverage | confirmed | contradicted | pairs decided | pair accuracy | corrupted asserted | denials asserted |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| store | corroborated | 19.02% | 17.17% | 0.09% | 446 | 91.48% | 0.58% | 55 |
+| + definitions | corroborated | **19.58%** | 17.74% | 0.09% | 459 | **91.94%** | 0.58% | 55 |
+| + genus agrees | corroborated | 19.54% | 17.69% | 0.09% | 457 | 91.90% | 0.58% | 55 |
+| store | crawl | 25.78% | 23.94% | 0.09% | 610 | 87.05% | 0.96% | 155 |
+| + definitions | crawl | **26.25%** | 24.41% | 0.09% | 622 | **87.46%** | 0.96% | 155 |
+| + genus agrees | crawl | 26.21% | 24.36% | 0.09% | 620 | 87.42% | 0.96% | 155 |
+
+### A small gain, and no cost anywhere it was measured
+
+About half a coverage point in both configurations, with accuracy up beside
+it, because every answer that rested on a definition fact was right: 17 of 17
+under `corroborated` and 23 of 23 under `crawl`. Every over-affirmation
+measure is identical to the row: corrupted claims asserted, screened denials
+asserted, contradicted. Nothing the definitions added made the store assert
+a false thing it did not already assert.
+
+The gain is small for a reason worth stating. XCSLB lists what people say
+about a concept -- `has four legs`, `is used for cutting` -- and a gloss says
+what distinguishes it from its genus. The two overlap in a sliver of the gold.
+
+### The class-level guards
+
+31 questions, v687 alone over each store. Right 17 -> 19, wrong 3 -> 3,
+unknown 11 -> 9. Both changes are right: `can a cat roar` is denied, from `no
+ability to roar`, and `can a testicle secrete androgens` is verified. The
+three wrong answers are the store's own and unchanged: `can a fish walk on
+land`, `can an animal fly`, `does an animal have wings` (§27). `is a kitten
+old` stays unknown, because v687 has no antonymy; the v689 page, which reads
+WordNet antonyms, says the definition rules it out.
+
+### What this decides
+
+- **The teacher check is not worth its GPU hour now.** Every measure it would
+  have protected shows nothing to protect. It would remove garbled facts the
+  gold never asks about, at §27's measured cost of disputing about 2% of true
+  facts that are unusual rather than typical.
+- **The genus filter buys nothing.** It drops a quarter of the facts and a
+  tenth of the gain and is exactly as safe. The mark stays in the data and
+  does not gate what is read.
+- **Definitions memory stays on**, read by v689 after what was told and
+  before the store rows. It is not built into the store: a rebuild is where a
+  source goes once it has earned its place, and half a point has not yet.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:
