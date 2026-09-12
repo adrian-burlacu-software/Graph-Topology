@@ -206,6 +206,44 @@ anywhere else is a different condition and answers nothing. Anything sharing
 a word is quoted beside the answer, so `do testicles shrink` says what was
 taught even though the qualification keeps it from being a yes.
 
+## Definitions memory
+
+WordNet has a gloss for every noun -- 82,115 of them in the store -- and a
+gloss is a definition: a broader kind and what sets this one apart.
+`definitions.py` reads each one into facts about the kind it defines, kept in
+`state/v689-definitions.sqlite` beside long-term memory and never written into
+the store:
+
+| gloss | read as |
+| --- | --- |
+| `young domestic cat` | a kind of cat; is young; is domestic |
+| `one of the two male reproductive glands that produce spermatozoa and secrete androgens` | a kind of gland; is male; is reproductive; can produce spermatozoa; can secrete androgens |
+| `a hand tool with a heavy rigid head and a handle; used to deliver an impulsive force by striking` | a kind of hand tool; has a heavy rigid head; has a handle; is used to deliver impulsive force by striking |
+| `feline mammal usually having thick soft fur and no ability to roar` | a kind of mammal; is feline; has thick soft fur; cannot roar |
+
+A gloss is a noun phrase with fragments after semicolons, not a sentence, and
+spaCy parses it badly whole. So each piece is parsed on its own inside a frame
+it handles -- `it is a <piece>`, `it has ...`, `it is used to ...` -- and the
+genus is checked against the store taxonomy: a sense of it among the concept
+ancestors means the parse found the head it should have. Instances are not
+kinds (WordNet says which), names are not properties, alternatives are not
+properties (`red or yellow skin` is skin), and verbs joined by `or` share the
+object only the last one carries.
+
+**How it is filled.** Every definition a v688 run retrieves -- `what is a
+testicle` retrieves five, walking up to organ -- is read as it arrives, and
+each fact is put to the teacher as a bare question. In bulk,
+`learn_definitions.py` reads every noun gloss (about six minutes on four
+processes), asks the teacher about every fact, and reports what it read. A
+fact the teacher disputes is kept, so it can be counted, and never read.
+
+**How it is used.** The rules read defined facts after what was told and
+before the store rows, so `is a kitten young` is answered from the definition
+and says so. `what is a kitten` is retrieved through v688 once and answered
+from memory after that. And a definition is not a tendency: told `it is old`
+of a kitten, the fact is kept as said and the answer says the definition of
+kitten rules it out.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat
@@ -233,6 +271,9 @@ taught even though the qualification keeps it from being a yes.
 | `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
+| `clauses.py` | a statement split into its claims by the dependency parse |
+| `definitions.py` | glosses read into facts, and definitions memory |
+| `learn_definitions.py` | every noun gloss read, checked by the teacher, and reported, offline |
 | `longterm.py` | the knowledge every conversation shares, and every conversation, kept on disk |
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |
