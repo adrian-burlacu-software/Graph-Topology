@@ -71,6 +71,9 @@ SEXES = frozenset({"female", "male"})
 TAXA = frozenset({"genus", "family", "order", "class", "phylum", "subfamily",
                   "suborder", "tribe", "division", "subclass", "superfamily"})
 
+#: Heads that gather a kind: `a family of box-shaped musical instruments`.
+GROUPS = frozenset({"group", "set", "collection", "range"})
+
 #: Modifiers that say how many or how sure, not what it is like.
 QUANTIFIERS = frozenset({"various", "numerous", "several", "many", "any",
                          "other", "certain", "some", "different", "two",
@@ -421,13 +424,19 @@ class GlossReader:
             return []
         facts: list = []
         heads = [head]
-        while head is not None and head.text.lower() in PARTITIVES | SEXES:
+        while head is not None and head.text.lower() in (
+                PARTITIVES | SEXES | TAXA | GROUPS):
             of = next((child for child in _children(words, head.index)
                        if child.dep == "prep" and child.text.lower() == "of"),
                       None)
             target = (next((child for child in _children(words, of.index)
                             if child.dep == "pobj"), None) if of else None)
             if target is None:
+                break
+            if head.text.lower() in TAXA | GROUPS and (
+                    target.tag in ("NNP", "NNPS")
+                    or target.text[:1].isupper()):
+                head = None                 # `the genus Quercus`: a taxon
                 break
             if head.text.lower() in SEXES:
                 facts.append(Defined("has_property", head.text.lower(),

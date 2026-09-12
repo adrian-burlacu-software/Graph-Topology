@@ -806,6 +806,40 @@ class DefinitionTests(unittest.TestCase):
                          found.as_dict())
 
 
+class ArticleTests(unittest.TestCase):
+    """Wikipedia lead paragraphs: only what is said of the kind itself."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v689.articles import ArticleReader
+
+        cls.reader = ArticleReader(TinyAsker())
+
+    def test_only_sentences_about_the_kind_in_the_present(self):
+        found = self.reader.read(
+            "beagle.n.01", "Beagle",
+            "The beagle is a small hound. Foxes are clever. It can secrete "
+            "oil. Some beagles can produce milk. It was bred for hunting.")
+        facts = {(fact.relation, fact.object) for fact in found.facts}
+        self.assertEqual(found.genus, "hound")
+        self.assertIn(("has_property", "small"), facts)
+        self.assertIn(("capable_of", "secrete oil"), facts)
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.split()[0] in ("clever", "produce",
+                                                        "bred")])
+
+    def test_a_noun_is_not_a_property(self):
+        from research.v689.definitions import Defined
+
+        self.assertFalse(self.reader.properly(
+            Defined("has_property", "gland", "sentence", "")))
+        self.assertFalse(self.reader.properly(
+            Defined("has_property", "often much larger than cats",
+                    "sentence", "")))
+        self.assertTrue(self.reader.properly(
+            Defined("has_property", "small", "sentence", "")))
+
+
 class CarriedTests(unittest.TestCase):
     """E2: an action done while carried belongs to what carries it."""
 

@@ -24,6 +24,7 @@ silently believed. A term with no lemma in the store is dropped.
 from __future__ import annotations
 
 import argparse
+import itertools
 import shutil
 import sqlite3
 import time
@@ -39,7 +40,7 @@ DEFINITIONS = REPOSITORY_ROOT / "state" / "v689-definitions.sqlite"
 
 
 def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False,
-                    genus_agrees: bool = False):
+                    genus_agrees: bool = False, name: str = "definition"):
     """(concept, relation, object, source, confidence, sense_assumed) for
     every fact read out of a gloss that the teacher did not dispute.
 
@@ -56,7 +57,7 @@ def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False,
         # the model-free mark that the parse found the head it should have.
         sql += " AND g.agrees = 1"
     for concept, relation, obj in connection.execute(sql):
-        yield concept, relation, obj, "definition", 0.9, 0
+        yield concept, relation, obj, name, 0.9, 0
     connection.close()
 
 
@@ -78,7 +79,7 @@ def primary_senses(connection) -> dict:
 
 def load(source: str, into: Path, floor: float = 0.0,
          report_every: int = 200_000, agreed_only: bool = False,
-         genus_agrees: bool = False) -> dict:
+         genus_agrees: bool = False, extra=()) -> dict:
     """Copy the store, add one source's facts, and say what happened."""
     if source not in SOURCES:
         raise SystemExit(f"unknown source {source!r}; known: {SOURCES}")
@@ -103,6 +104,11 @@ def load(source: str, into: Path, floor: float = 0.0,
                    for term, relation, obj, name, confidence
                    in genericskb.facts(floor=floor))
         source = "genericskb"
+
+    # More definitions memories on top of the first, each under its own
+    # source name: `state/v689-articles.sqlite` as `article`.
+    offered = itertools.chain(offered, *(
+        definition_rows(Path(where), name=name) for where, name in extra))
 
     added = unresolved = seen = 0
     batch = []
@@ -155,11 +161,17 @@ def main(argv=None) -> int:
     parser.add_argument("--genus-agrees", action="store_true",
                         help="definitions: only glosses whose genus is one "
                              "of the concept ancestors")
+    parser.add_argument("--extra", action="append", default=[],
+                        metavar="PATH:NAME",
+                        help="another definitions memory to load on top, "
+                             "under its own source name")
     options = parser.parse_args(argv)
     import json
 
+    extra = [tuple(one.rsplit(":", 1)) for one in options.extra]
     print(json.dumps(load(options.source, Path(options.into), options.floor,
-                          genus_agrees=options.genus_agrees), indent=2))
+                          genus_agrees=options.genus_agrees, extra=extra),
+                     indent=2))
     return 0
 
 
