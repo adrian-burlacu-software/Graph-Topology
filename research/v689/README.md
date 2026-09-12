@@ -179,6 +179,33 @@ into what every later conversation starts from would be a bug with a
 permanent address. An example runs in a conversation of its own, with
 knowledge of its own, and leaves yours alone.
 
+## Several claims at once, and opposites
+
+A statement is split into its claims by spaCy's dependency parse
+(`clauses.py`), not by the word `and`: the parse says which verbs are
+coordinated and what each one's subject is. Each clause is filled in from the
+one before it and read as a sentence of its own:
+
+| said | read as |
+| --- | --- |
+| `testicles shrink in cold temperatures, and they expand in warm ones` | `testicles shrink in cold temperatures` · `testicles expand in warm temperatures` |
+| `beagles can't swim but they can run` | `beagles can not swim` · `beagles can run` |
+| `there is a beagle and it can't swim` | `there is a beagle` · `it can not swim` |
+| `dogs eat meat and bones` | one claim: `bones` hangs off `meat`, not off the verb |
+
+Where the parse has no verb at its root -- spaCy reads `dogs bark and cats
+purr` as a noun phrase -- nothing can be split, and if the words still look
+like more than one claim they are refused rather than stored as one.
+
+A question that no told or taught fact answers exactly is compared with the
+ones that come close. The same predicate with its head word replaced by a
+WordNet antonym answers **no**: taught `testicles shrink in cold
+temperatures`, `do testicles expand in cold temperatures` is denied, because
+doing one under the same condition is not doing the other. An antonym
+anywhere else is a different condition and answers nothing. Anything sharing
+a word is quoted beside the answer, so `do testicles shrink` says what was
+taught even though the qualification keeps it from being a yes.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat
@@ -190,10 +217,6 @@ knowledge of its own, and leaves yours alone.
   evidence; `my name is adrian` works in any case.
 - **Only being carried explains a doing away (E2).** Nothing else about the
   situation is reasoned over: `it was in a storm` withdraws nothing.
-- **A claim about a kind needs a verb the tagger or the parser can see.** `testicles shrink in cold
-  temperatures and expand in warm ones` is two norms on testis.n.01. An `and` splits only where
-  the tagger reads a verb after it, and spaCy tags `bark` in `beagles swim and bark` as a noun, so
-  that stays one claim.
 - **Negated taxonomy is not stored** (`a whale is not a fish`): v687 keeps no such relation.
 - **An unknown kind must be one word**, and a bare unknown singular (`Adrian can swim`) is read as someone, not a kind.
 - **The v688 loop does not run over individuals.** It answers the kind; the

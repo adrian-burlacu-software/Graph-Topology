@@ -555,39 +555,59 @@ class TeachingTests(unittest.TestCase):
         self.assertEqual(STORE["reasoner"].fact_count("beagle.n.01"), before)
 
 
-class TaggedLexicon(FakeLexicon):
-    """`FakeLexicon` with a tagger that knows a handful of verbs."""
+class CompoundTests(unittest.TestCase):
+    """Several claims in one statement, split by the dependency parse.
 
-    PRESENT = {"shrink", "expand", "eat", "swim", "bark", "purr"}
-    PAST = {"chased"}
-
-    def tags(self, words):
-        return ["MD" if word == "can" else
-                "VBP" if word in self.PRESENT else
-                "VBD" if word in self.PAST else
-                "NNS" if word.endswith("s") else "NN" for word in words]
-
-
-class PlainClaimTests(unittest.TestCase):
-    """A claim about a kind with no auxiliary, and claims joined by `and`.
-
-    Reported from the page: `testicles shrink in cold temperatures and expand
-    in warm ones` went to v688 as `what is a testicles ...` and nothing was
-    kept, because only `can`, `are` and the like opened a claim.
+    Reported from the page twice. `testicles shrink in cold temperatures and
+    expand in warm ones` went to v688 as a question; with `, and they expand`
+    it was stored as one claim, `shrink in cold temperatures and they expand
+    in warm ones`, which no question could ever match.
     """
 
-    lexicon = TaggedLexicon()
+    @classmethod
+    def setUpClass(cls):
+        cls.lexicon = TinyAsker()
 
-    def test_a_verb_in_the_present_is_enough(self):
-        found = reading.read("testicles shrink in cold temperatures and "
-                             "expand in warm ones", self.lexicon)
-        self.assertEqual((found.act, found.mention.kind, found.rest),
-                         ("teach", "testicle",
-                          ["shrink", "in", "cold", "temperatures"]))
-        self.assertEqual([one.rest for one in found.more],
-                         [["expand", "in", "warm", "temperatures"]])
+    def parts(self, text):
+        found = reading.read(text, self.lexicon)
+        return [found] + list(found.more)
 
-    def test_without_the_tagger_the_parser_finds_the_kind(self):
+    def test_they_is_the_kind_before_it(self):
+        parts = self.parts("testicles shrink in cold temperatures, and they "
+                           "expand in warm ones")
+        self.assertEqual(
+            [(one.act, one.mention.kind, one.rest) for one in parts],
+            [("teach", "testicle", ["shrink", "in", "cold", "temperatures"]),
+             ("teach", "testicle", ["expand", "in", "warm", "temperatures"])])
+
+    def test_a_shared_subject_keeps_its_auxiliary(self):
+        self.assertEqual(
+            [(one.aux, one.rest, one.holds)
+             for one in self.parts("beagles can swim and bark")],
+            [("can", ["swim"], True), ("can", ["bark"], True)])
+
+    def test_but_they_can(self):
+        self.assertEqual(
+            [(one.aux, one.rest, one.holds)
+             for one in self.parts("beagles can't swim but they can run")],
+            [("can", ["swim"], False), ("can", ["run"], True)])
+
+    def test_and_between_nouns_is_one_claim(self):
+        self.assertEqual([one.rest for one in
+                          self.parts("dogs eat meat and bones")],
+                         [["eat", "meat", "and", "bones"]])
+
+    def test_an_individual_and_then_it(self):
+        self.assertEqual(
+            [(one.act, one.mention.form) for one in
+             self.parts("there is a beagle and it can't swim")],
+            [("introduce", "indefinite"), ("tell", "pronoun")])
+
+    def test_several_claims_the_parse_cannot_split_are_refused(self):
+        self.assertEqual(reading.read("dogs bark and cats purr",
+                                      self.lexicon).act, "compound")
+
+    def test_without_a_parse_the_parser_still_finds_the_kind(self):
         found = reading.read("dogs bark", FakeLexicon())
         self.assertEqual((found.act, found.mention.kind, found.rest),
                          ("teach", "dog", ["bark"]))
@@ -596,32 +616,31 @@ class PlainClaimTests(unittest.TestCase):
         self.assertNotEqual(reading.read("a dog chased me",
                                          self.lexicon).act, "teach")
 
-    def test_and_between_nouns_is_one_claim(self):
-        found = reading.read("dogs eat meat and bones", self.lexicon)
-        self.assertEqual((found.rest, found.more),
-                         (["eat", "meat", "and", "bones"], []))
-
-    def test_a_second_verb_keeps_the_auxiliary(self):
-        found = reading.read("beagles can swim and bark", self.lexicon)
-        self.assertEqual([(one.aux, one.rest) for one in found.more],
-                         [("can", ["bark"])])
-
-    def test_a_second_kind_is_its_own_claim(self):
-        found = reading.read("dogs bark and cats purr", self.lexicon)
-        self.assertEqual([(one.mention.kind, one.rest) for one in found.more],
-                         [("cat", ["purr"])])
-
-    def test_both_halves_are_taught_and_each_answers(self):
+    def test_both_are_taught_and_the_opposite_is_denied(self):
         session, turns, _ = talk(
-            "testicles shrink in cold temperatures and expand in warm ones",
-            "do testicles expand in warm temperatures")
-        self.assertEqual(turns[0].act, "teach")
+            "testicles shrink in cold temperatures, and they expand in warm "
+            "ones",
+            "do testicles expand in warm temperatures",
+            "do testicles expand in cold temperatures",
+            "do testicles shrink")
         self.assertEqual(sorted(fact.object for fact in
                                 session.memory.facts["testicle"]),
                          ["expand in warm temperatures",
                           "shrink in cold temperatures"])
         self.assertEqual((turns[1].answer["outcome"],
                           turns[1].answer["source"]), ("verified", "taught"))
+        self.assertEqual((turns[2].answer["outcome"],
+                          turns[2].answer["source"]), ("denied", "taught"))
+        self.assertIn("opposite", turns[2].answer["text"])
+        self.assertNotEqual(turns[3].answer["outcome"], "verified")
+        self.assertIn("shrink in cold temperatures", turns[3].answer["text"])
+
+    def test_an_individual_told_in_the_same_breath(self):
+        _, turns, _ = talk("there is a beagle and it can't swim",
+                           "can it swim",
+                           outcomes={"can a beagle swim": "verified"})
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("denied", "told"))
 
 
 class CarriedTests(unittest.TestCase):

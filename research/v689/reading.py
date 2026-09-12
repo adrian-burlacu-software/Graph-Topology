@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from . import clauses as coordination
+
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
 #: phrase can start with.
 AUX = frozenset({"am", "is", "are", "was", "were", "can", "could", "does",
@@ -164,7 +166,8 @@ class Mention:
 class Reading:
     """What an utterance does, and to whom."""
 
-    #: introduce | tell | ask | what | name | ask_name | teach | generic
+    #: introduce | tell | ask | what | name | ask_name | teach | generic |
+    #: compound, for several claims the parse could not tell apart
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -462,53 +465,6 @@ def tags_of(tokens: list[str], lexicon) -> list[str] | None:
     return list(found) if found and len(found) == len(tokens) else None
 
 
-def _joined(body: Reading, tokens: list[str], tags, lexicon,
-            names: frozenset) -> list:
-    """Split `shrink in cold temperatures and expand in warm ones` into one
-    claim per verb phrase, and return the ones after the first.
-
-    An `and` splits only where what follows is a claim of its own: a verb in
-    the present or an auxiliary, which shares the subject -- and inherits the
-    first clause's `can` -- or a whole claim about another kind, `and cats
-    purr`. `and bones` is part of what dogs eat. `ones` is the noun the clause
-    before it ended on, so `warm ones` after `cold temperatures` is warm
-    temperatures.
-    """
-    if tags is None or "and" not in body.rest:
-        return []
-    start = len(tokens) - len(body.rest)
-    parts: list = [[]]
-    other: Reading | None = None
-    for offset, word in enumerate(body.rest):
-        after = start + offset + 1
-        if word == "and" and parts[-1] and after < len(tokens):
-            if tokens[after] in AUX or tags[after] in PRESENT:
-                parts.append([])
-                continue
-            other = generic_claim(tokens[after:], lexicon, names)
-            if other is not None:
-                break
-        parts[-1].append(word)
-    if not all(parts) or (len(parts) == 1 and other is None):
-        return []
-    body.rest = parts[0]
-    more: list = []
-    for before, part in zip(parts, parts[1:]):
-        part = [before[-1] if word == "ones" and before[-1] != "ones"
-                else word for word in part]
-        one = clause(part)
-        if one is None:
-            continue
-        if one.aux is None and body.aux is not None:
-            one.aux = body.aux
-        one.act, one.mention = "teach", body.mention
-        more.append(one)
-    if other is not None:
-        more += [other] + list(other.more)
-        other.more = []
-    return more
-
-
 def generic_claim(tokens: list[str], lexicon,
                   names: frozenset = frozenset()) -> Reading | None:
     """`a wemble is a kind of animal`, `beagles can't swim`: a claim about a
@@ -560,8 +516,67 @@ def generic_claim(tokens: list[str], lexicon,
         return None
     body.act = "teach"
     body.mention = Mention("kind", kind, text=" ".join(tokens[:at]), end=at)
-    body.more = _joined(body, tokens, tags, lexicon, names)
     return body
+
+
+def _analysis(tokens: list[str], lexicon):
+    """(tag, dependency, head) per word, from the lexicon's parser, or None."""
+    analyse = getattr(lexicon, "analyse", None)
+    found = analyse(tokens) if analyse is not None and tokens else None
+    return list(found) if found and len(found) == len(tokens) else None
+
+
+def _looks_compound(tokens: list[str], lexicon) -> bool:
+    """More than one claim, in words the parse could not split.
+
+    A coordinator followed by something that can open a claim: a pronoun, or
+    the plural of a kind the ontology has, with words after it. Only asked
+    when the parse had no verb at its root; where it did, the parse decides.
+    """
+    for at in range(1, len(tokens) - 2):
+        if tokens[at] not in ("and", "but", "or"):
+            continue
+        after = tokens[at + 1]
+        if after in coordination.PRONOUNS | {"i", "we", "you"}:
+            return True
+        lemma = lexicon.lemma(after)
+        if lemma != after and lexicon.known(lemma):
+            return True
+    return False
+
+
+def _several(parts: list, typed: list[str], said: str, lexicon,
+             names: frozenset) -> Reading:
+    """Read each clause as its own statement; the rest ride on the first.
+
+    A clause that goes on about the kind just taught -- `and expand in warm
+    ones`, `but they can run` -- is built straight onto that kind, because
+    `read` would have to find a kind in words that do not name it. Any other
+    clause is filled in (`clauses.standalone`) and read from the start.
+    """
+    first = read(" ".join(parts[0].words(typed)), lexicon, names)
+    readings = [first]
+    before, reading_before = parts[0], first
+    for part in parts[1:]:
+        kind = (reading_before.act == "teach"
+                and reading_before.mention is not None)
+        whole = coordination.standalone(part, before, kind)
+        if coordination.continues(part, kind):
+            tail = [word.text for word in whole.aux] + (
+                ["not"] if whole.negated else []) + [
+                typed[word.index].lower() for word in whole.rest]
+            one = clause(tail)
+            if one is None:
+                continue
+            one.act, one.mention = "teach", reading_before.mention
+        else:
+            one = read(" ".join(whole.words(typed)), lexicon, names)
+        readings.append(one)
+        before, reading_before = whole, one
+    for one in readings:
+        one.said = said
+    first.more = readings[1:]
+    return first
 
 
 def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
@@ -575,6 +590,17 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     said = (text or "").strip()
     if not tokens:
         return Reading("generic", said=said)
+
+    # A statement of several claims is read one claim at a time. Questions
+    # are left whole: `can it swim and bark` asks one thing.
+    if tokens[0] not in AUX and tokens[0] not in ("what", "who"):
+        analysis = _analysis(tokens, lexicon)
+        if analysis is not None:
+            parts = coordination.split(tokens, analysis)
+            if parts is None and _looks_compound(tokens, lexicon):
+                return Reading("compound", said=said)
+            if parts is not None and len(parts) > 1:
+                return _several(parts, typed, said, lexicon, names)
 
     named = naming(tokens, typed, lexicon, names)
     if named is not None:
@@ -630,8 +656,6 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     taught = generic_claim(tokens, lexicon, names)
     if taught is not None:
         taught.said = said
-        for one in taught.more:
-            one.said = said
         return taught
 
     found = read_mention(tokens, 0, lexicon, names=names)
