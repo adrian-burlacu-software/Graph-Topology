@@ -720,6 +720,27 @@ class DefinitionTests(unittest.TestCase):
                                  "a worker who produces or sells petroleum")
         self.assertIn(("capable_of", "produce petroleum"), self.facts(found))
 
+    def test_a_list_is_not_something_it_does(self):
+        found = self.reader.read("dog.n.01",
+                                 "mosquitoes; fungus gnats; crane flies")
+        self.assertFalse([fact for fact in found.facts
+                          if fact.relation == "capable_of"])
+
+    def test_having_is_had_not_done(self):
+        found = self.reader.read(
+            "cat.n.01", "any of several plants of the genus Arctotis having "
+                        "daisylike flowers")
+        self.assertIn(("has_a", "daisylike flowers"), self.facts(found))
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.startswith("have")])
+
+    def test_two_clauses_run_together_are_not_one_fact(self):
+        found = self.reader.read("dog.n.01", "a document listing the "
+                                             "alternatives that is used in "
+                                             "voting")
+        self.assertFalse([fact for fact in found.facts
+                          if " is " in f" {fact.object} "])
+
     def test_a_person_is_not_a_kind(self):
         found = self.reader.read(
             "disraeli.n.01", "British statesman who as Prime Minister bought "

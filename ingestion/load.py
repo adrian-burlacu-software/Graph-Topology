@@ -38,7 +38,8 @@ SOURCES = ("genericskb", "definitions")
 DEFINITIONS = REPOSITORY_ROOT / "state" / "v689-definitions.sqlite"
 
 
-def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False):
+def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False,
+                    genus_agrees: bool = False):
     """(concept, relation, object, source, confidence, sense_assumed) for
     every fact read out of a gloss that the teacher did not dispute.
 
@@ -46,9 +47,14 @@ def definition_rows(path: Path = DEFINITIONS, agreed_only: bool = False):
     its sense; the object is free text, like every crawled source's.
     """
     connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    sql = "SELECT concept, relation, object FROM defined WHERE "
-    sql += ("checked = 'agreed'" if agreed_only else
-            "(checked IS NULL OR checked != 'disputed')")
+    sql = ("SELECT d.concept, d.relation, d.object FROM defined d "
+           "JOIN glosses g USING (concept) WHERE ")
+    sql += ("d.checked = 'agreed'" if agreed_only else
+            "(d.checked IS NULL OR d.checked != 'disputed')")
+    if genus_agrees:
+        # Only glosses whose broader kind is one of the concept ancestors:
+        # the model-free mark that the parse found the head it should have.
+        sql += " AND g.agrees = 1"
     for concept, relation, obj in connection.execute(sql):
         yield concept, relation, obj, "definition", 0.9, 0
     connection.close()
@@ -71,7 +77,8 @@ def primary_senses(connection) -> dict:
 
 
 def load(source: str, into: Path, floor: float = 0.0,
-         report_every: int = 200_000, agreed_only: bool = False) -> dict:
+         report_every: int = 200_000, agreed_only: bool = False,
+         genus_agrees: bool = False) -> dict:
     """Copy the store, add one source's facts, and say what happened."""
     if source not in SOURCES:
         raise SystemExit(f"unknown source {source!r}; known: {SOURCES}")
@@ -87,7 +94,8 @@ def load(source: str, into: Path, floor: float = 0.0,
     senses = primary_senses(connection)
 
     if source == "definitions":
-        offered = definition_rows(agreed_only=agreed_only)
+        offered = definition_rows(agreed_only=agreed_only,
+                                  genus_agrees=genus_agrees)
     else:
         from . import genericskb
 
@@ -144,11 +152,14 @@ def main(argv=None) -> int:
         REPOSITORY_ROOT / "data" / "v684_genericskb.sqlite"))
     parser.add_argument("--floor", type=float, default=0.0,
                         help="drop rows scoring below this")
+    parser.add_argument("--genus-agrees", action="store_true",
+                        help="definitions: only glosses whose genus is one "
+                             "of the concept ancestors")
     options = parser.parse_args(argv)
     import json
 
-    print(json.dumps(load(options.source, Path(options.into), options.floor),
-                     indent=2))
+    print(json.dumps(load(options.source, Path(options.into), options.floor,
+                          genus_agrees=options.genus_agrees), indent=2))
     return 0
 
 

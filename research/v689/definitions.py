@@ -330,10 +330,8 @@ class GlossReader:
                 found = self._genus_piece(concept, piece, reading, check)
             else:
                 found = self._fragment_piece(piece, piece)
-            for one in found:
-                one.object = _trim(one.object)
-            found = [one for one in found
-                     if _short(one.object) and not _empty(one)]
+            found = [kept for kept in map(self._normalise, found)
+                     if kept is not None]
             if found:
                 reading.facts.extend(found)
             elif not (number == 0 and reading.genus):
@@ -343,6 +341,31 @@ class GlossReader:
         if reading.genus and check:
             reading.agrees = self.agrees(concept, reading.genus)
         return reading
+
+    def _normalise(self, fact: Defined) -> Defined | None:
+        """A fact as it should be kept, or None.
+
+        Three shapes the teacher was going to be asked about, settled
+        without it. `can have daisylike flowers` is had, not done. A can-fact
+        whose first word WordNet has no verb for is a list read as a clause:
+        `can fungus gnats`, from `mosquitoes; fungus gnats; crane flies`. And
+        a fact with `is` inside it is two clauses the parse ran together:
+        `list the alternatives is used in voting`.
+        """
+        fact.object = _trim(fact.object)
+        words = fact.object.split()
+        if not _short(fact.object) or _empty(fact):
+            return None
+        if any(word in ("is", "are", "was", "were") for word in words[1:]):
+            return None
+        if fact.relation in ("capable_of", "not_capable_of"):
+            if (fact.relation == "capable_of" and len(words) > 1
+                    and words[0] in ("have", "has")):
+                return Defined("has_a", " ".join(words[1:]), fact.rule,
+                               fact.piece)
+            if not self._senses(self.asker.lemma(words[0]), "v"):
+                return None
+        return fact
 
     @staticmethod
     def _instance(concept: str) -> bool:
