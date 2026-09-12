@@ -179,6 +179,9 @@ class Reading:
     #: in `rest` where its phrase starts
     obj: Mention | None = None
     obj_at: int = -1
+    #: `and expand in warm ones`: the claims joined to this one, each read
+    #: as its own statement
+    more: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -186,6 +189,7 @@ class Reading:
                 "aux": self.aux, "rest": " ".join(self.rest),
                 "holds": self.holds, "name": self.name, "owned": self.owned,
                 "object": self.obj.as_dict() if self.obj else None,
+                "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
                              else None)}
 
@@ -439,6 +443,72 @@ def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
     return Mention("kind", lemma, text=word, end=at + 1)
 
 
+#: Penn tags for a verb said in the present tense: `dogs bark`, `a wemble
+#: glows`. A past tense is something that happened -- `a dog chased me` -- and
+#: not a claim about dogs.
+PRESENT = frozenset({"VB", "VBP", "VBZ"})
+
+
+def tags_of(tokens: list[str], lexicon) -> list[str] | None:
+    """The tagger's reading of every word, in the context of the whole
+    utterance, or None if the lexicon has no tagger.
+
+    In context, because a word alone tells nothing: in `they ___ it` spaCy
+    tags `bones`, `cold` and `temperatures` as verbs. In `dogs eat meat and
+    bones` it knows `bones` is a noun.
+    """
+    tag = getattr(lexicon, "tags", None)
+    found = tag(tokens) if tag is not None and tokens else None
+    return list(found) if found and len(found) == len(tokens) else None
+
+
+def _joined(body: Reading, tokens: list[str], tags, lexicon,
+            names: frozenset) -> list:
+    """Split `shrink in cold temperatures and expand in warm ones` into one
+    claim per verb phrase, and return the ones after the first.
+
+    An `and` splits only where what follows is a claim of its own: a verb in
+    the present or an auxiliary, which shares the subject -- and inherits the
+    first clause's `can` -- or a whole claim about another kind, `and cats
+    purr`. `and bones` is part of what dogs eat. `ones` is the noun the clause
+    before it ended on, so `warm ones` after `cold temperatures` is warm
+    temperatures.
+    """
+    if tags is None or "and" not in body.rest:
+        return []
+    start = len(tokens) - len(body.rest)
+    parts: list = [[]]
+    other: Reading | None = None
+    for offset, word in enumerate(body.rest):
+        after = start + offset + 1
+        if word == "and" and parts[-1] and after < len(tokens):
+            if tokens[after] in AUX or tags[after] in PRESENT:
+                parts.append([])
+                continue
+            other = generic_claim(tokens[after:], lexicon, names)
+            if other is not None:
+                break
+        parts[-1].append(word)
+    if not all(parts) or (len(parts) == 1 and other is None):
+        return []
+    body.rest = parts[0]
+    more: list = []
+    for before, part in zip(parts, parts[1:]):
+        part = [before[-1] if word == "ones" and before[-1] != "ones"
+                else word for word in part]
+        one = clause(part)
+        if one is None:
+            continue
+        if one.aux is None and body.aux is not None:
+            one.aux = body.aux
+        one.act, one.mention = "teach", body.mention
+        more.append(one)
+    if other is not None:
+        more += [other] + list(other.more)
+        other.more = []
+    return more
+
+
 def generic_claim(tokens: list[str], lexicon,
                   names: frozenset = frozenset()) -> Reading | None:
     """`a wemble is a kind of animal`, `beagles can't swim`: a claim about a
@@ -449,10 +519,28 @@ def generic_claim(tokens: list[str], lexicon,
     singular word the ontology does not have is refused -- `Adrian can swim`
     is about someone, not a kind of thing -- and so is a told name.
     """
-    at = next((index for index, word in enumerate(tokens)
-               if index and word in AUX), None)
-    if at is None:
+    tags = tags_of(tokens, lexicon)
+    found = [next((index for index, word in enumerate(tokens)
+                   if index and word in AUX), None)]
+    if tags is not None:
+        # `testicles shrink in the cold`: no auxiliary, only a verb in the
+        # present after at most three words of kind.
+        found.append(next((index for index in range(1, min(4, len(tokens)))
+                           if tags[index] in PRESENT), None))
+    found = [index for index in found if index is not None]
+    if (not found and len(tokens) >= 2 and tokens[0] not in NOT_NAMES
+            and tokens[0] not in names and tokens[1] not in AUX
+            and tokens[1] not in frozenset({"and", "or"}) | ARTICLES):
+        # The tagger reads `dogs bark` as two proper nouns. v687's parser,
+        # asked `does a dog bark`, finds the dog, and that is enough.
+        lemma = lexicon.lemma(tokens[0])
+        probe = f"does a {lemma} {' '.join(tokens[1:])}"
+        if (lemma != tokens[0]
+                and (lexicon.subject(probe) or "").lower() == lemma):
+            found = [1]
+    if not found:
         return None
+    at = min(found)
     head = tokens[:at]
     led = head[0] in ("a", "an")
     if led:
@@ -472,6 +560,7 @@ def generic_claim(tokens: list[str], lexicon,
         return None
     body.act = "teach"
     body.mention = Mention("kind", kind, text=" ".join(tokens[:at]), end=at)
+    body.more = _joined(body, tokens, tags, lexicon, names)
     return body
 
 
@@ -541,6 +630,8 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     taught = generic_claim(tokens, lexicon, names)
     if taught is not None:
         taught.said = said
+        for one in taught.more:
+            one.said = said
         return taught
 
     found = read_mention(tokens, 0, lexicon, names=names)

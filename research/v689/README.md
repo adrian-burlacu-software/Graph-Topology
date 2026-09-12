@@ -190,6 +190,10 @@ knowledge of its own, and leaves yours alone.
   evidence; `my name is adrian` works in any case.
 - **Only being carried explains a doing away (E2).** Nothing else about the
   situation is reasoned over: `it was in a storm` withdraws nothing.
+- **A claim about a kind needs a verb the tagger or the parser can see.** `testicles shrink in cold
+  temperatures and expand in warm ones` is two norms on testis.n.01. An `and` splits only where
+  the tagger reads a verb after it, and spaCy tags `bark` in `beagles swim and bark` as a noun, so
+  that stays one claim.
 - **Negated taxonomy is not stored** (`a whale is not a fish`): v687 keeps no such relation.
 - **An unknown kind must be one word**, and a bare unknown singular (`Adrian can swim`) is read as someone, not a kind.
 - **The v688 loop does not run over individuals.** It answers the kind; the

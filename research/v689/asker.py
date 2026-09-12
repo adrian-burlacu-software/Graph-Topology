@@ -44,6 +44,23 @@ class Asker:
         lemma = token.lemma_.lower()
         return lemma if token.pos_ == "VERB" and lemma != word else None
 
+    def tags(self, words: list[str]) -> list[str] | None:
+        """Penn tags for the words exactly as given, read as one sentence.
+
+        The words are handed to spaCy already split, so tag `i` is word `i`:
+        `reading.py` expands contractions and strips punctuation first, and
+        letting spaCy tokenize again would misalign the two.
+        """
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not words:
+            return None
+        from spacy.tokens import Doc
+
+        doc = Doc(nlp.vocab, words=list(words))
+        for _, component in nlp.pipeline:
+            doc = component(doc)
+        return [token.tag_ for token in doc]
+
     def known(self, phrase: str) -> bool:
         return phrase in (self.parser.nouns or self.parser.vocabulary or ())
 

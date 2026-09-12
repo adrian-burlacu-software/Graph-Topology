@@ -181,6 +181,9 @@ class Taught:
     def lemma(self, word: str) -> str:
         return self.asker.lemma(word)
 
+    def tags(self, words):
+        return self.asker.tags(words)
+
     def known(self, phrase: str) -> bool:
         return phrase in self.kinds or self.asker.known(phrase)
 
@@ -374,6 +377,21 @@ class Session:
 
     # -- teaching kinds ----------------------------------------------------
     def _teach(self, reading: Reading, turn: Turn) -> None:
+        """One or more claims about kinds -- `testicles shrink in cold
+        temperatures and expand in warm ones` is two -- each taught on its
+        own, and answered together."""
+        replies = []
+        for one in [reading] + list(reading.more):
+            self._teach_one(one, turn)
+            replies.append(dict(turn.answer))
+        if len(replies) > 1:
+            noted = [one for one in replies if one.get("outcome") == "noted"]
+            turn.answer = {
+                "outcome": "noted" if noted else replies[0].get("outcome"),
+                "source": "taught",
+                "text": "; ".join(one.get("text", "") for one in replies)}
+
+    def _teach_one(self, reading: Reading, turn: Turn) -> None:
         """A claim about a kind: taxonomy or a norm, into episodic memory."""
         word = reading.mention.kind
         node = self.memory.kind_node(word, self.asker.sense(word))

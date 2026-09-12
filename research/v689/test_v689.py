@@ -555,6 +555,75 @@ class TeachingTests(unittest.TestCase):
         self.assertEqual(STORE["reasoner"].fact_count("beagle.n.01"), before)
 
 
+class TaggedLexicon(FakeLexicon):
+    """`FakeLexicon` with a tagger that knows a handful of verbs."""
+
+    PRESENT = {"shrink", "expand", "eat", "swim", "bark", "purr"}
+    PAST = {"chased"}
+
+    def tags(self, words):
+        return ["MD" if word == "can" else
+                "VBP" if word in self.PRESENT else
+                "VBD" if word in self.PAST else
+                "NNS" if word.endswith("s") else "NN" for word in words]
+
+
+class PlainClaimTests(unittest.TestCase):
+    """A claim about a kind with no auxiliary, and claims joined by `and`.
+
+    Reported from the page: `testicles shrink in cold temperatures and expand
+    in warm ones` went to v688 as `what is a testicles ...` and nothing was
+    kept, because only `can`, `are` and the like opened a claim.
+    """
+
+    lexicon = TaggedLexicon()
+
+    def test_a_verb_in_the_present_is_enough(self):
+        found = reading.read("testicles shrink in cold temperatures and "
+                             "expand in warm ones", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind, found.rest),
+                         ("teach", "testicle",
+                          ["shrink", "in", "cold", "temperatures"]))
+        self.assertEqual([one.rest for one in found.more],
+                         [["expand", "in", "warm", "temperatures"]])
+
+    def test_without_the_tagger_the_parser_finds_the_kind(self):
+        found = reading.read("dogs bark", FakeLexicon())
+        self.assertEqual((found.act, found.mention.kind, found.rest),
+                         ("teach", "dog", ["bark"]))
+
+    def test_what_happened_is_not_a_claim_about_a_kind(self):
+        self.assertNotEqual(reading.read("a dog chased me",
+                                         self.lexicon).act, "teach")
+
+    def test_and_between_nouns_is_one_claim(self):
+        found = reading.read("dogs eat meat and bones", self.lexicon)
+        self.assertEqual((found.rest, found.more),
+                         (["eat", "meat", "and", "bones"], []))
+
+    def test_a_second_verb_keeps_the_auxiliary(self):
+        found = reading.read("beagles can swim and bark", self.lexicon)
+        self.assertEqual([(one.aux, one.rest) for one in found.more],
+                         [("can", ["bark"])])
+
+    def test_a_second_kind_is_its_own_claim(self):
+        found = reading.read("dogs bark and cats purr", self.lexicon)
+        self.assertEqual([(one.mention.kind, one.rest) for one in found.more],
+                         [("cat", ["purr"])])
+
+    def test_both_halves_are_taught_and_each_answers(self):
+        session, turns, _ = talk(
+            "testicles shrink in cold temperatures and expand in warm ones",
+            "do testicles expand in warm temperatures")
+        self.assertEqual(turns[0].act, "teach")
+        self.assertEqual(sorted(fact.object for fact in
+                                session.memory.facts["testicle"]),
+                         ["expand in warm temperatures",
+                          "shrink in cold temperatures"])
+        self.assertEqual((turns[1].answer["outcome"],
+                          turns[1].answer["source"]), ("verified", "taught"))
+
+
 class CarriedTests(unittest.TestCase):
     """E2: an action done while carried belongs to what carries it."""
 
