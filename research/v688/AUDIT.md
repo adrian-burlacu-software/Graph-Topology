@@ -2098,6 +2098,48 @@ WordNet antonyms, says the definition rules it out.
 
 ---
 
+## 29. More definitions: Open English WordNet, Wikipedia, Wiktionary
+
+2026-09-12. `ingestion/oewn.py`; `ingestion/wikipedia.py` and
+`research/v689/articles.py`; `research/v689/learn_wiktionary.py`. Each source
+is its own definitions memory, layered onto §28's store copy with
+`ingestion.load --extra` and audited as §28 was: screened gold, `--limit 600`.
+
+| store | config | coverage | confirmed | contradicted | pairs decided | pair accuracy | corrupted asserted | denials asserted |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| §28 definitions | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
+| + OEWN re-reads | corroborated | 19.58% | 17.74% | 0.09% | 459 | 91.94% | 0.58% | 55 |
+| + Wikipedia leads | corroborated | **19.73%** | 17.88% | 0.09% | 462 | **92.21%** | 0.58% | 55 |
+| §28 definitions | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
+| + OEWN re-reads | crawl | 26.25% | 24.41% | 0.09% | 622 | 87.46% | 0.96% | 155 |
+| + Wikipedia leads | crawl | **26.40%** | 24.55% | 0.09% | 625 | **87.68%** | 0.96% | 155 |
+
+### Open English WordNet: nothing the gold can see
+
+The store is Princeton WordNet 3.0. Its maintained successor's 2025 edition
+renumbers every synset, so the two were joined through sense keys: of 71,864
+noun synsets, 67,511 define in the same words, 2,803 are new and have nothing
+in the store to hang on, and 1,550 changed in substance. Those 1,550 were
+re-read into definitions memory, 1,117 facts becoming 1,418. Both
+configurations are identical to §28's to the last pair: no re-read synset is
+asked about. The re-reads stay as the more current text, not as a gain.
+
+### Wikipedia leads: a little more, at no measured cost
+
+485 lead paragraphs, read one sentence at a time and only where the subject is
+the kind itself, unquantified, unhedged and in the present tense, gave 832
+facts, about six in ten good by hand. The gold reached four of them and all
+four were right; three more pairs were decided and accuracy rose with them.
+Every over-affirmation measure is unchanged, and the guards are 19 right and 3
+wrong, as §28's store was.
+
+That is also the limit of what this audit says about it. Four facts in 832 are
+asked about, so a four-in-ten junk rate among the rest is invisible here. The
+measure shows the facts the gold reaches do no harm; it cannot show the rest
+are true.
+
+---
+
 ## What to do with this
 
 Ranked by evidence, not by appeal:

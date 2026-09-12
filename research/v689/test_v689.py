@@ -840,6 +840,98 @@ class ArticleTests(unittest.TestCase):
             Defined("has_property", "small", "sentence", "")))
 
 
+class WiktionaryTests(unittest.TestCase):
+    """Wiktionary senses: kept only where the taxonomy picks one synset."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v689.definitions import GlossReader
+
+        cls.reader = GlossReader(TinyAsker())
+
+    def test_a_sense_goes_to_the_one_synset_under_its_broader_kind(self):
+        from research.v689.learn_wiktionary import align, cleaned
+
+        found = align(self.reader, "kitten", cleaned("A young cat."),
+                      ["beagle.n.01", "kitten.n.01"])
+        self.assertEqual(found["status"], "aligned")
+        self.assertEqual(found["reading"]["concept"], "kitten.n.01")
+        self.assertIn(("has_property", "young"),
+                      {(fact["relation"], fact["object"])
+                       for fact in found["reading"]["facts"]})
+
+    def test_two_synsets_under_it_or_none_and_the_sense_is_left(self):
+        from research.v689.learn_wiktionary import align
+
+        self.assertEqual(align(self.reader, "pet", "an animal kept at home",
+                               ["dog.n.01", "cat.n.01"])["status"],
+                         "ambiguous")
+        self.assertEqual(align(self.reader, "kitten",
+                               "a coquettish young woman",
+                               ["kitten.n.01"])["status"], "no sense agrees")
+
+    def test_uses_of_the_word_and_pointers_are_left(self):
+        from research.v689.learn_wiktionary import cleaned, usable
+
+        self.assertEqual(cleaned("A dog (noun sense 1)."), "a dog")
+        self.assertEqual(cleaned("NATO member."), "NATO member")
+        self.assertIsNone(usable({"word": "dog", "tags": [],
+                                  "gloss": "A domestic animal."}))
+        self.assertTrue(usable({"word": "dog", "tags": ["figuratively"],
+                                "gloss": "A contemptible man."}))
+        self.assertTrue(usable({"word": "dog", "tags": [],
+                                "gloss": "Alternative form of dogge."}))
+        self.assertTrue(usable({"word": "Dog", "tags": [],
+                                "gloss": "A constellation."}))
+
+    def test_what_the_wordnet_gloss_gave_is_not_kept_twice(self):
+        from research.v689.definitions import Defined, Reading
+        from research.v689.learn_wiktionary import merge
+
+        young = Defined("has_property", "young", "adjective", "")
+        small = Defined("has_property", "small", "adjective", "")
+        merged = merge(
+            [("kitten", Reading("kitten.n.01", "a young cat", "cat", True,
+                                [young], [])),
+             ("kitty", Reading("kitten.n.01", "a small cat", "cat", True,
+                               [small, young], []))],
+            {("kitten.n.01", "has_property", "young")})
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].gloss, "a young cat | a small cat")
+        self.assertEqual([(fact.relation, fact.object)
+                          for fact in merged[0].facts],
+                         [("has_property", "small")])
+
+    def test_two_senses_of_a_word_on_one_synset_are_both_left(self):
+        from research.v689.definitions import Defined, Reading
+        from research.v689.learn_wiktionary import merge
+
+        fears = Defined("capable_of", "fear men", "clause", "")
+        prejudiced = Defined("has_property", "prejudiced", "participle", "")
+        self.assertEqual(merge(
+            [("homophobe", Reading("person.n.01", "a person who fears men",
+                                   "person", True, [fears], [])),
+             ("homophobe", Reading("person.n.01", "a prejudiced person",
+                                   "person", True, [prejudiced], []))],
+            set()), [])
+
+    def test_history_species_lists_and_naming_are_not_properties(self):
+        from research.v689.definitions import Defined
+        from research.v689.learn_wiktionary import kept
+
+        def fact(relation, obj):
+            return kept(self.reader, Defined(relation, obj, "clause", ""))
+
+        self.assertFalse(fact("receives_action",
+                              "proposed by clark kerr in the 1960s"))
+        self.assertFalse(fact("has_a", "p. dominica"))
+        self.assertFalse(fact("receives_action", "abbreviated as sebs"))
+        self.assertFalse(fact("has_property", "able"))
+        self.assertTrue(fact("has_property", "young"))
+        # A lead's filing verbs are what a defined thing does.
+        self.assertTrue(fact("used_for", "treat mental illness"))
+
+
 class CarriedTests(unittest.TestCase):
     """E2: an action done while carried belongs to what carries it."""
 

@@ -62,7 +62,8 @@ POSSIBLE = frozenset({"may", "might", "could"})
 #: like: how it is filed, what it is called, what it belongs to.
 FILING = frozenset({"classify", "place", "include", "belong", "know", "call",
                     "name", "list", "refer", "divide", "consider", "describe",
-                    "recognize", "recognise", "group", "assign", "treat"})
+                    "recognize", "recognise", "group", "assign", "treat",
+                    "abbreviate", "spell"})
 
 #: A fact that opens with one of these is history, a comparison or a
 #: relative clause the reader flattened, not a property.
@@ -179,21 +180,29 @@ class ArticleReader:
 
     def properly(self, fact: Defined) -> bool:
         """Is this a property of the kind, rather than prose about it?"""
-        words = fact.object.split()
-        if not words or words[0] in NOT_PROPERTIES or " than " in f" {fact.object} ":
+        return is_property(self.glosses, fact)
+
+
+def is_property(glosses: GlossReader, fact: Defined,
+                filing: frozenset = FILING) -> bool:
+    """Is this a property of the kind, rather than prose about it? Asked of
+    Wiktionary's senses too, which are written as loosely as a lead, with the
+    `filing` verbs a definition does not use for anything else."""
+    words = fact.object.split()
+    if not words or words[0] in NOT_PROPERTIES or " than " in f" {fact.object} ":
+        return False
+    if glosses.asker.lemma(words[0]) in filing:
+        return False
+    if fact.relation in ("has_property", "not_has_property") and len(
+            words) == 1:
+        if words[0] in EMPTY_PROPERTIES:
             return False
-        if self.glosses.asker.lemma(words[0]) in FILING:
+        # `mammal`, `buttercup`: a noun the parse took for a quality.
+        senses = glosses._senses
+        if senses(words[0], "n") and not (senses(words[0], "a")
+                                          or senses(words[0], "s")):
             return False
-        if fact.relation in ("has_property", "not_has_property") and len(
-                words) == 1:
-            if words[0] in EMPTY_PROPERTIES:
-                return False
-            # `mammal`, `buttercup`: a noun the parse took for a quality.
-            senses = self.glosses._senses
-            if senses(words[0], "n") and not (senses(words[0], "a")
-                                              or senses(words[0], "s")):
-                return False
-        return True
+    return True
 
 
 def _clean(tokens) -> str:

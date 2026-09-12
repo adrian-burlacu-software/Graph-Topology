@@ -253,6 +253,20 @@ So the teacher check was not run: there was nothing on any measure for it to
 catch. Keeping only glosses whose genus agrees with the taxonomy is as safe and
 gains less, so every fact is read.
 
+**More sources** (section 29), each its own definitions memory so it can be
+measured and dropped apart from the others:
+
+- **Open English WordNet 2025**, joined to the store's WordNet 3.0 through
+  sense keys: the 1,550 noun definitions it rewrote are re-read into
+  `state/v689-definitions.sqlite`. No audit measure moves; no gold item is
+  about them.
+- **Wikipedia lead paragraphs** (`articles.py`, `state/v689-articles.sqlite`):
+  a sentence is read only when its subject is the kind itself, unquantified,
+  unhedged and present tense, through the same claim reading a person's
+  sentence goes through. 485 articles gave 832 facts: 0.15 points of coverage
+  and about 0.25 of pair accuracy, no cost measured, though the gold reaches
+  only four of the facts.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat
@@ -283,6 +297,9 @@ gains less, so every fact is read.
 | `clauses.py` | a statement split into its claims by the dependency parse |
 | `definitions.py` | glosses read into facts, and definitions memory |
 | `learn_definitions.py` | every noun gloss read, checked by the teacher, and reported, offline |
+| `articles.py` | Wikipedia lead paragraphs read into facts about the kind, offline |
+| `learn_wiktionary.py` | Wiktionary's noun senses matched to one synset each and read, offline |
+| `definition_guards.py` | class-level questions v687 must not get wrong, asked of each store copy |
 | `longterm.py` | the knowledge every conversation shares, and every conversation, kept on disk |
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |
