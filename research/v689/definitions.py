@@ -98,6 +98,24 @@ LONGEST = 10
 EMPTY_VERBS = frozenset({"occur", "include", "exist", "belong", "comprise",
                          "resemble", "consist", "contain", "refer"})
 
+#: Participles that report what someone thinks of it, not what it is:
+#: `considered one of the great Spanish writers`.
+REPORTED = frozenset({"considered", "called", "known", "regarded", "named",
+                      "thought", "believed", "said", "reputed", "deemed"})
+
+#: A fact with one of these in it is a condition the reader flattened:
+#: `realized when the asset is sold`.
+SUBORDINATE = frozenset({"when", "if", "because", "whereas", "while",
+                         "although", "unless", "whenever"})
+
+#: Openings of a clause that is not about the thing: `takes place as ...`.
+EMPTY_OPENINGS = ("take place", "give rise")
+
+#: What can be left dangling at either end of a phrase once a coordinated
+#: part has been split off it: `hoisting in wells or`.
+DANGLING = frozenset({"and", "or", "but", "nor", ",", "as", "of", "to", "in",
+                      "for", "with", "by"})
+
 
 @dataclass
 class Defined:
@@ -226,6 +244,30 @@ def _short(text: str) -> bool:
     return bool(text) and len(text.split()) <= LONGEST
 
 
+def _trim(text: str) -> str:
+    """A phrase without what a split left hanging off either end."""
+    words = (text or "").split()
+    while words and words[-1] in DANGLING:
+        words = words[:-1]
+    while words and words[0] in ("and", "or", "but", "nor", ","):
+        words = words[1:]
+    return " ".join(words)
+
+
+def _empty(fact: "Defined") -> bool:
+    """A fact that says nothing a question about the kind could ask."""
+    words = fact.object.split()
+    if not words:
+        return True
+    if words[0] in REPORTED or any(word in SUBORDINATE for word in words):
+        return True
+    if fact.object.startswith(EMPTY_OPENINGS):
+        return True
+    # `giving`, from a gloss that is a gerund phrase and names no kind.
+    return (fact.relation == "has_property" and len(words) == 1
+            and words[0].endswith("ing") and "-" not in words[0])
+
+
 def _adjective(words, index) -> str:
     """An adjective with its hyphenated parts -- `short-legged` -- and not
     the adjective beside it: `nocturnal mouselike` is two properties."""
@@ -278,12 +320,20 @@ class GlossReader:
     # -- the whole gloss ----------------------------------------------------
     def read(self, concept: str, gloss: str, check: bool = True) -> Reading:
         reading = Reading(concept, gloss)
+        if self._instance(concept):
+            # `British statesman who bought controlling interest in the Suez
+            # Canal`: a gloss of one person, place or event, not of a kind.
+            reading.unread.append("an instance, not a kind")
+            return reading
         for number, piece in enumerate(pieces(gloss)):
             if number == 0 and not self._fragment(piece):
                 found = self._genus_piece(concept, piece, reading, check)
             else:
                 found = self._fragment_piece(piece, piece)
-            found = [one for one in found if _short(one.object)]
+            for one in found:
+                one.object = _trim(one.object)
+            found = [one for one in found
+                     if _short(one.object) and not _empty(one)]
             if found:
                 reading.facts.extend(found)
             elif not (number == 0 and reading.genus):
@@ -293,6 +343,18 @@ class GlossReader:
         if reading.genus and check:
             reading.agrees = self.agrees(concept, reading.genus)
         return reading
+
+    @staticmethod
+    def _instance(concept: str) -> bool:
+        """Is this synset an instance -- Disraeli, the Suez Canal -- rather
+        than a kind? WordNet says, through its instance hypernyms."""
+        try:
+            from nltk.corpus import wordnet
+
+            return bool(wordnet.synset(
+                concept.replace(" ", "_")).instance_hypernyms())
+        except Exception:                           # noqa: BLE001
+            return False
 
     def agrees(self, concept: str, genus: str) -> bool:
         """Is a noun sense of the genus one of the concept's ancestors?"""
@@ -382,7 +444,10 @@ class GlossReader:
         for word in compounds:
             # `flightless birds`, `pulpy fruit`: a compound that is not a
             # noun the ontology has is an adjective the tagger called one.
-            if not self.asker.known(word.text.lower()):
+            # A name is not: `United States photographer`.
+            if (not self.asker.known(word.text.lower())
+                    and word.tag not in ("NNP", "NNPS")
+                    and not word.text[:1].isupper()):
                 facts.append(Defined("has_property", word.text.lower(),
                                      "adjective", piece))
         return facts
@@ -394,6 +459,9 @@ class GlossReader:
                 if _alternatives(words, child.index):
                     continue
                 for index in _conjoined(words, child.index):
+                    if (words[index].tag in ("NNP", "NNPS")
+                            or words[index].text[:1].isupper()):
+                        continue            # `American`, `States`
                     text = _adjective(words, index)
                     if (text and text not in QUANTIFIERS
                             and words[index].tag != "JJS"):
@@ -457,8 +525,23 @@ class GlossReader:
         if not split:
             return []
         facts: list = []
+        joined: list = []
         for clause in split:
-            facts.extend(self._map(parsed, clause, piece))
+            found = self._map(parsed, clause, piece)
+            facts.extend(found)
+            joined.extend([clause.joined_by] * len(found))
+        # `produces or sells petroleum`: verbs joined by `or` share the object
+        # only the last one carries.
+        for index, fact in enumerate(facts):
+            if len(fact.object.split()) != 1:
+                continue
+            later = next((facts[at] for at in range(index + 1, len(facts))
+                          if facts[at].relation == fact.relation
+                          and joined[at] == "or"
+                          and len(facts[at].object.split()) > 1), None)
+            if later is not None:
+                fact.object = " ".join([fact.object]
+                                       + later.object.split()[1:])
         return facts
 
     def _has(self, text: str, piece: str) -> list:
@@ -489,7 +572,11 @@ class GlossReader:
                                      (verb + " " + rest).strip(), "clause",
                                      piece))
                 continue
-            noun = next((word for word in parsed[2:] if word.noun), None)
+            # The head of what is had, not its first noun: `skin eruption`.
+            noun = next((word for word in parsed[2:] if word.noun
+                         and word.dep in ("dobj", "attr", "pobj", "conj",
+                                          "ROOT")), None) or next(
+                (word for word in parsed[2:] if word.noun), None)
             if noun is not None:
                 phrase = noun_phrase(parsed, noun.index)
                 if phrase:

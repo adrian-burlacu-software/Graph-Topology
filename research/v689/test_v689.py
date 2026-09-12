@@ -708,6 +708,29 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn(("receives_action", "propelled with a paddle"), facts)
         self.assertIn(("used_for", "stir food"), facts)
 
+    def test_what_a_split_leaves_dangling_is_trimmed(self):
+        found = self.reader.read("dog.n.01",
+                                 "an iron bucket used for hoisting in wells "
+                                 "or mining")
+        self.assertFalse([fact for fact in found.facts
+                          if fact.object.split()[-1] in ("or", "and")])
+
+    def test_verbs_joined_by_or_share_their_object(self):
+        found = self.reader.read("dog.n.01",
+                                 "a worker who produces or sells petroleum")
+        self.assertIn(("capable_of", "produce petroleum"), self.facts(found))
+
+    def test_a_person_is_not_a_kind(self):
+        found = self.reader.read(
+            "disraeli.n.01", "British statesman who as Prime Minister bought "
+            "controlling interest in the Suez Canal (1804-1881)")
+        self.assertEqual(found.facts, [])
+
+    def test_a_name_is_not_a_property(self):
+        found = self.reader.read("dog.n.01", "United States photographer")
+        self.assertFalse([fact for fact in found.facts
+                          if "states" in fact.object])
+
     def test_a_fact_as_the_question_the_teacher_is_asked(self):
         self.assertEqual(question_for("hammer", "used_for", "deliver force",
                                       "used to"),
