@@ -199,6 +199,104 @@ def _why(stripped: str, lower: str) -> Rephrased | None:
     return None
 
 
+#: Who `you` is when a question is about what anyone can do with a thing.
+GENERIC = frozenset({"you", "i", "we", "one"})
+
+#: What a thing is used with: `with a knife`, `using a spoon`.
+TOOL = frozenset({"with", "using"})
+
+#: Where a thing is used, for the verbs a place or a vessel is for: `sit on a
+#: chair`, `drink from a cup`. `see in the dark` names no thing, and `see` is
+#: not here.
+PLACE = frozenset({"on", "in", "from", "into", "inside"})
+PLACED_VERBS = frozenset("""
+sit sleep lie stand drink eat cook bake boil fry write keep store carry pour
+wash hang ride swim sail live
+""".split())
+
+#: The participle a `can ... be` question needs, for the verbs asked that way.
+PARTICIPLE = {"eat": "eaten", "drink": "drunk"}
+
+ARTICLES = ("a", "an", "the")
+
+GENERIC_NOTE = ("asked of the thing: `you` here is anyone, not this program")
+
+
+def gerund(verb: str) -> str:
+    """`cut` as `cutting`, `write` as `writing`, `open` as `opening`."""
+    if verb.endswith("ie"):
+        return verb[:-2] + "ying"
+    if verb.endswith("e") and not verb.endswith("ee") and len(verb) > 2:
+        return verb[:-1] + "ing"
+    vowels = "aeiou"
+    if (len(verb) == 3 and verb[2] not in vowels + "wxy"
+            and verb[1] in vowels and verb[0] not in vowels):
+        return verb + verb[-1] + "ing"
+    return verb + "ing"
+
+
+def _anyone(words: list[str]) -> Rephrased | None:
+    """`can you cut bread with a knife`: asked of the knife.
+
+        can you cut bread with a knife    is a knife used for cutting bread
+        can you drink from a cup          is a cup used for drinking
+        can you eat an apple              can an apple be eaten
+        what do you use to cut paper      what is used to cut paper
+
+    `you` there is anyone, and the page answered about a computer program:
+    `can a computer program cut bread with a knife`. Only a question that
+    names the thing is taken this way, so `can you swim` and `can you see me`
+    are still asked of the program.
+    """
+    if (len(words) > 5 and words[0] == "what" and words[1] in AUX
+            and words[2] in GENERIC | {"people"} and words[3] == "use"
+            and words[4] in ("to", "for")):
+        return Rephrased(f"what is used {words[4]} {' '.join(words[5:])}",
+                         GENERIC_NOTE)
+    if (len(words) < 4 or words[0] not in ("can", "could")
+            or words[1] not in GENERIC):
+        return None
+    verb, rest = words[2], words[3:]
+    for index, word in enumerate(rest):
+        if not (word in TOOL or (word in PLACE and verb in PLACED_VERBS)):
+            continue
+        if index + 2 < len(rest) and rest[index + 1] in ARTICLES:
+            thing = " ".join(rest[index + 2:])
+            doing = " ".join([gerund(verb), *rest[:index]])
+            return Rephrased(f"is {with_article(thing)} used for {doing}",
+                             GENERIC_NOTE)
+        return None
+    if verb in PARTICIPLE:
+        if len(rest) > 1 and rest[0] in ARTICLES:
+            return Rephrased(f"can {' '.join(rest)} be {PARTICIPLE[verb]}",
+                             GENERIC_NOTE)
+        if (len(rest) == 1 and rest[0].endswith("s")
+                and rest[0] not in NOT_KINDS):
+            return Rephrased(f"can {rest[0]} be {PARTICIPLE[verb]}",
+                             GENERIC_NOTE)
+    return None
+
+
+def _placed(words: list[str]) -> Rephrased | None:
+    """`is a fridge in a kitchen`: where a kind is found, as a yes or no.
+
+    Read as a property it was `in a kitchen` asked of a fridge, and nothing
+    has that property. `found in` is the relation's own cue.
+    """
+    if len(words) < 5 or words[0] not in ("is", "are"):
+        return None
+    if not about_a_kind(words[1:]) or "found" in words:
+        return None
+    for index in range(2, min(len(words) - 2, 6)):
+        if words[index] in ("in", "on", "inside") and (
+                words[index + 1] in ARTICLES):
+            if index == 2 and words[1] in ("a", "an"):
+                return None                      # `is a in a ...`: no noun
+            return Rephrased(" ".join(words[:index] + ["found"]
+                                      + words[index:]))
+    return None
+
+
 def rephrase(text: str) -> Rephrased:
     said = " ".join((text or "").replace(chr(8217), "'").split())
     stripped = said.rstrip("?.! ")
@@ -282,6 +380,13 @@ def rephrase(text: str) -> Rephrased:
                                  f"{' '.join(body[at + 1:])}".strip())
         if body:
             return Rephrased(f"what kinds of {' '.join(body)} are there")
+
+    anyone = _anyone(words)
+    if anyone is not None:
+        return anyone
+    placed = _placed(words)
+    if placed is not None:
+        return placed
 
     padded = f" {lower} "
     if (" is to " in padded or " are to " in padded) and " as " in padded:

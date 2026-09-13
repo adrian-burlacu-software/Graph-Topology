@@ -1,4 +1,5 @@
-"""The rated norms (THINGSplus, NEWTON), R31 and R32."""
+"""The rated norms (THINGSplus, NEWTON), R31 and R32, and the common-sense
+questions they were built for."""
 from __future__ import annotations
 
 import unittest
@@ -157,6 +158,17 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(answer["folk"]["taxonomy"], "UNKNOWN")
         # The taxonomy answers what it can, and a category never overrules it.
         self.assertNotIn("folk", self.engine.ask("is a dog an animal"))
+
+    def test_being_found_somewhere_is_a_location(self):
+        """`found in a kitchen` was a property nothing has; the rows say
+        `electric refrigerator at_location kitchen`."""
+        answer = self.engine.ask("is a fridge found in a kitchen")
+        self.assertEqual((answer["verdict"], answer["parse"]["relation"],
+                          answer["parse"]["target"]),
+                         ("VERIFIED", "at_location", "kitchen"))
+        # One crawled row about fish in trees is still not a fish in a tree.
+        self.assertNotEqual(self.engine.ask("is a fish found in a tree")
+                            ["verdict"], "VERIFIED")
 
     def test_the_norms_denominators_are_untouched(self):
         """Merging 2,000 rated objects into `stated` would have put

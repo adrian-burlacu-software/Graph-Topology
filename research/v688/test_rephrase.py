@@ -48,6 +48,34 @@ class RephraseTests(unittest.TestCase):
         self.assertEqual(self.said("please describe a dog"),
                          "tell me about a dog")
 
+    def test_you_is_anyone_when_the_question_names_the_thing(self):
+        """`can you cut bread with a knife` was asked of a computer program."""
+        for said, asked in (
+                ("can you cut bread with a knife",
+                 "is a knife used for cutting bread"),
+                ("can you drink from a cup", "is a cup used for drinking"),
+                ("can you sit on a chair", "is a chair used for sitting"),
+                ("can you write with a pencil", "is a pencil used for writing"),
+                ("can you eat an apple", "can an apple be eaten"),
+                ("can you eat rocks", "can rocks be eaten"),
+                ("what do you use to cut paper", "what is used to cut paper"),
+                ("what do people use for writing", "what is used for writing")):
+            found = rephrase(said)
+            self.assertEqual(found.text, asked, said)
+            self.assertIn("anyone", found.note, said)
+        # Nothing named, or no thing for the doing: still the program.
+        for said in ("can you swim", "can you see me", "can you eat",
+                     "can you eat it", "can you see in the dark",
+                     "can you help me with my homework"):
+            self.assertEqual(self.said(said), said)
+
+    def test_being_in_a_place_is_where_it_is_found(self):
+        self.assertEqual(self.said("is a fridge in a kitchen"),
+                         "is a fridge found in a kitchen")
+        for said in ("is a dog in danger", "is it in a box",
+                     "is a fridge found in a kitchen"):
+            self.assertEqual(self.said(said), said)
+
     def test_purpose_existence_and_how(self):
         self.assertEqual(self.said("what is the purpose of a hammer"),
                          "what is a hammer used for")
