@@ -384,12 +384,23 @@ step of its own, once there is data to fit on.
 | P3 | `v690/activation` | `v688/retrieval.py`: discourse's cascade, story's latest-first, T3's latest holding and I1's last-told as one retrieval. 918 tests; both probes unchanged |
 | P4 | `v690/executive` | `v687/executive.py` -- in v687 because v687 cannot import v688 -- and v687's eleven layers, v689's 28 acts and v689's `_ask` (fifteen operators over one working memory) as operators. 931 tests |
 
-**What has not moved yet is what answers.** P1 to P4 put the control on one
-footing without changing a verdict, which is what the probes check. The
-generalisation the redesign is for arrives with P5: operators still propose
-on the acts `reading.py`'s patterns produce, so a new form of question still
-needs a pattern until reading produces goals the operators propose on by
-their structure.
+| P5, first | `v690/goals` | `v689/goals.py`: a question read into slots -- asked, relation, who, subject, object, verb, clause -- and three operators, `located`, `holding` and `occurrence`, that answer every cell their slots make by composing memory. They run before the act operators and decline when they find nothing. 945 tests; both probes unchanged |
+
+**What moved first is what answers.** P1 to P4 put the control on one
+footing without changing a verdict, which is what the probes check. P5 is
+where it starts to generalise, and the evidence is fifteen questions no
+pattern was written for, answered on the real store by composition:
+
+| relation | cells that answer now |
+| --- | --- |
+| located | who is in the kitchen; is anyone in it; how many people are in it; what is in it; when was Mary in it |
+| holding | who has the football; who is carrying it; is anyone carrying it; does Mary have it (yes, or no because it is with John: T3's one place at a time); what does Mary have; how many things does she have |
+| occurrence | where did Mary go (first); where did she drop the football; did anyone go to the garden; how many people went to the kitchen |
+
+Operators still propose on the acts `reading.py`'s patterns produce where a
+pattern exists. The next step is the other way round: the goal reader
+covering what the patterns read, so a pattern can be deleted once its goal
+answers the same.
 
 ## 9. Risks
 

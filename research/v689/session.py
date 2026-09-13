@@ -1689,8 +1689,10 @@ class Session:
                            "text": self._names(told) + (
                                f" — you told me {quotes}" if quotes else "")}
             return
+        # `who went to the kitchen`: said to go there, not to went.
+        said = [self.asker.lemma(rest[0])] + list(rest[1:]) if rest else rest
         turn.answer = {"outcome": "unknown", "source": "conversation",
-                       "text": f"nobody here was said to {' '.join(rest)}"}
+                       "text": f"nobody here was said to {' '.join(said)}"}
 
     def _where(self, reading: Reading, turn: Turn) -> None:
         referent = self._here(reading, turn)

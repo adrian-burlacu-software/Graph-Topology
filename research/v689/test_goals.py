@@ -105,6 +105,48 @@ class HoldingTests(unittest.TestCase):
         self.assertEqual(said(turns[3]), "Mary")
 
 
+class EveryCellTests(unittest.TestCase):
+    """Each relation answers every question its slots make."""
+
+    def test_when_someone_was_somewhere(self):
+        _, turns = talk("Mary went to the kitchen.", "Mary went to the garden.",
+                        "when was Mary in the kitchen")
+        self.assertEqual(turns[2].answer["outcome"], "retrieved")
+        self.assertIn("“Mary went to the kitchen”", turns[2].answer["text"])
+
+    def test_holding_any_whether_count(self):
+        _, turns = talk("Mary went to the kitchen.", "Mary got the football.",
+                        "Mary got the apple.",
+                        "is anyone carrying the football",
+                        "does anyone have the apple",
+                        "does Mary have the football",
+                        "is Mary carrying the apple",
+                        "how many things does Mary have")
+        self.assertEqual([said(one) for one in turns[3:]],
+                         ["yes", "yes", "yes", "yes", "two"])
+
+    def test_with_someone_else_is_not_with_her(self):
+        _, turns = talk("Mary got the football.",
+                        "Mary gave the football to John.",
+                        "does Mary have the football")
+        self.assertEqual(said(turns[2]), "no")
+        self.assertEqual(turns[2].answer["outcome"], "denied")
+        self.assertIn("with John", turns[2].answer["text"])
+
+    def test_occurrences_any_count_and_place_with_object(self):
+        _, turns = talk("Mary went to the kitchen.",
+                        "Mary dropped the football in the kitchen.",
+                        "John went to the kitchen.", "John went to the garden.",
+                        "did anyone go to the garden",
+                        "did anybody go to the office",
+                        "how many people went to the kitchen",
+                        "where did Mary drop the football")
+        self.assertEqual(said(turns[4]), "yes")
+        self.assertNotEqual(turns[5].answer.get("outcome"), "verified")
+        self.assertEqual(said(turns[6]), "two")
+        self.assertEqual(said(turns[7]), "the kitchen")
+
+
 class OccurrencePlaceTests(unittest.TestCase):
     def test_where_did_someone_go(self):
         _, turns = talk("Mary went to the kitchen.", "Mary went to the garden.",
