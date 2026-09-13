@@ -437,7 +437,13 @@ class Ratings:
         `automaton capable_of think` are in the store, so neither is denied.
         """
         words = (target or "").lower().split()
-        if not words or not chosen:
+        # The verb alone. VerbNet restricts who does a verb, and an object can
+        # choose a sense of it VerbNet does not list: `can a cup hold water`
+        # is holding as containing, and `hold` is in VerbNet's grasping class
+        # only. It also keeps R32 off a word the norms' conjunction split out
+        # of a question about something else -- `can dogs eat chocolate` was
+        # routed to chocolate and asked whether chocolate eats.
+        if len(words) != 1 or not chosen:
             return None
         verb, classes = self._verb(words[0])
         if not classes or self.living(chosen):

@@ -126,6 +126,22 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.engine.ask("does a rock breathe")["parse"]
                          ["relation"], "R32")
 
+    def test_r32_answers_the_verb_alone(self):
+        """An object can choose a sense VerbNet does not list -- a cup holds
+        water by containing it -- and the norms' conjunction splits a verb out
+        of a question about something else: `can dogs eat chocolate` is routed
+        to chocolate."""
+        for question in ("can a cup hold water", "can dogs eat chocolate"):
+            self.assertNotEqual(self.engine.ask(question)["verdict"],
+                                "CONTRADICTED", question)
+
+    def test_a_rated_answer_names_the_word_it_was_asked_about(self):
+        """v688 ranks a reading among the senses of the question's word, and
+        given `rock.n.01` for the word it headlined a sense mismatch."""
+        answer = self.engine.ask("does a rock breathe")
+        self.assertEqual(answer["parse"]["subject"], "rock")
+        self.assertTrue(answer["senses"])
+
     def test_r31_compares_size_and_weight(self):
         for question, verdict in (
                 ("is an elephant bigger than a mouse", "VERIFIED"),

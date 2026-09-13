@@ -151,13 +151,27 @@ class ReasoningEngine(IdentifyingEngine):
                    f" Read as {found.concept}: {chosen}, the sense carrying "
                    f"the most facts, was not rated, and {found.concept} is "
                    f"the rated reading of “{word}” on the same side of alive.")
-        return self._shell(
+        payload = self._shell(
             question, "VERIFIED" if yes else "CONTRADICTED", rule,
             concept=found.concept,
             note=f"{'Yes' if yes else 'No'}: {found.detail}.{reading}",
             steps=[self._step(0, rule, found.concept, found.predicate,
                               found.detail, kind="match" if yes else "stop")],
             extra={"rated": found.as_dict()})
+        return self._as_read(payload, word, parse.target)
+
+    def _as_read(self, payload: dict, word: str, target: str | None) -> dict:
+        """The word the question used, where `_shell` puts the concept.
+
+        v688 ranks the reading an answer took among the senses of the word
+        the question asked about. Given `tree.n.01` as the word it found no
+        rank at all, and headlined `is a tree alive` as being about a
+        different sense of the word.
+        """
+        payload["parse"].update({"subject": word, "target": target,
+                                 "polar": True})
+        payload["senses"] = self.reasoner.senses_of(word)
+        return payload
 
     def _folk(self, question: str, payload: dict) -> dict | None:
         """People's categories, where WordNet's taxonomy says nothing.
@@ -205,14 +219,15 @@ class ReasoningEngine(IdentifyingEngine):
                     f"file {concept} under “{target}”, so this is a folk "
                     f"category and not the taxonomy. "
                     f"{payload.get('note') or ''}").strip()
-            return self._shell(
+            return self._as_read(self._shell(
                 question, "VERIFIED", "R17", concept=concept, note=note,
                 steps=[*(payload.get("steps") or []),
                        self._step(len(payload.get("steps") or []), "R17",
                                   concept, category, detail, kind="match")],
                 extra={"folk": {"category": category, "others": others,
                                 "typicality": typical,
-                                "taxonomy": payload.get("verdict")}})
+                                "taxonomy": payload.get("verdict")}}),
+                word, parse.target)
         return None
 
     #: The tagger's labels in WordNet's alphabet, for comparing a pin against

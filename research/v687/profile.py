@@ -977,8 +977,13 @@ class Profiles:
         concept = self.synset.get(name)
         readings = [sense["id"] for sense in self.reasoner.senses_of(name)
                     if sense.get("pos") == "n"]
-        rated = (self.ratings.settle(concept, readings, term)
-                 or self.ratings.unable(concept, readings, term)
+        # R32 only on a question that is the verb alone: `asked` is every
+        # term, and `can a cup hold water` split into `hold` and `water`
+        # asked whether a cup waters.
+        alone = len(asked or [term]) == 1
+        rated = ((self.ratings.settle(concept, readings, term)
+                  or (self.ratings.unable(concept, readings, term)
+                      if alone else None))
                  if concept else None)
         if rated is not None:
             return Verdict(

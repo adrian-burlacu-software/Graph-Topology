@@ -120,6 +120,10 @@ def answer(engine, question: str) -> dict | None:
     comparison = {"dimension": dimension, "asked": word,
                   "first": {"word": a_word, "concept": a, "value": a_value},
                   "second": {"word": b_word, "concept": b, "value": b_value}}
+    def read_as(payload: dict) -> dict:
+        # The word the question used as its subject, for v688's sense rank.
+        return engine._as_read(payload, a_word, f"{word} than {b_word}")
+
     if abs(difference) < tie:
         steps.append(engine._step(2, "R31", a, "too close",
                                   f"{abs(difference):.1f} apart: too close "
@@ -127,9 +131,9 @@ def answer(engine, question: str) -> dict | None:
         note = (f"Too close to call. {source}, and a difference that small is "
                 f"inside what people disagree on.")
         comparison["winner"] = None
-        return engine._shell(question, "UNKNOWN", "R31", concept=a,
-                             note=note, steps=steps,
-                             extra={"comparison": comparison})
+        return read_as(engine._shell(question, "UNKNOWN", "R31", concept=a,
+                                     note=note, steps=steps,
+                                     extra={"comparison": comparison}))
     larger = a if difference > 0 else b
     larger_word = a_word if difference > 0 else b_word
     wanted = larger if direction > 0 else (b if larger == a else a)
@@ -142,10 +146,13 @@ def answer(engine, question: str) -> dict | None:
                               f"{wanted_word} is {word}", kind="match"))
     if shape == "choice":
         note = f"{with_article(wanted_word).capitalize()}. {source}, {clearly}."
-        return engine._shell(question, "LISTING", "R31", concept=wanted,
-                             note=note, steps=steps,
-                             extra={"comparison": comparison})
+        payload = read_as(engine._shell(question, "LISTING", "R31", concept=a,
+                                        note=note, steps=steps,
+                                        extra={"comparison": comparison}))
+        payload["parse"]["polar"] = False        # a choice, not a yes or no
+        return payload
     verdict = "VERIFIED" if wanted == a else "CONTRADICTED"
     note = (f"{'Yes' if verdict == 'VERIFIED' else 'No'}: {source}, {clearly}.")
-    return engine._shell(question, verdict, "R31", concept=a, note=note,
-                         steps=steps, extra={"comparison": comparison})
+    return read_as(engine._shell(question, verdict, "R31", concept=a,
+                                 note=note, steps=steps,
+                                 extra={"comparison": comparison}))
