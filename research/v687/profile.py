@@ -42,6 +42,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import truth
 from .ordering import adaptive_coverage
 from .substrate import Corpus
 from .trie import PredicateTrie
@@ -247,12 +248,17 @@ def corroborated(bearing: int, kinds: int, source: str | None = None) -> bool:
     And the stricter burden falls only on `CRAWLED` sources. A caller that
     does not know the source passes None and gets the shipped behaviour,
     which keeps the rule safe where the evidence is unattributed.
+
+    Said as evidence (`truth.py`): `bearing` of `kinds` is induction from a
+    kind's members, the minimum sample is the confidence eight of them reach,
+    and the floor is on the share of them for it.
     """
-    if kinds < CORROBORATION_MIN_KINDS:
+    evidence = truth.counted(bearing, kinds)
+    if evidence.confidence() < truth.speaks_at(CORROBORATION_MIN_KINDS):
         strict = (CORROBORATION_REQUIRED and kinds
                   and (source or "").lower() in CRAWLED)
         return bearing > 0 if strict else True
-    return bearing / kinds >= CORROBORATION_FLOOR
+    return truth.borne_out(evidence, CORROBORATION_FLOOR)
 
 
 def _clone(node: logic.Node) -> logic.Node:

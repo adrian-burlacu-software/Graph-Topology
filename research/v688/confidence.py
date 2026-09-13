@@ -58,6 +58,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from research.v687 import rules
+
 from . import gap
 
 #: The four readings. Seventeen verdicts collapse onto these, and nothing
@@ -100,7 +102,7 @@ EXACT = frozenset({"R1", "R27", "R29"})
 LOW, HIGH = 1 / 3, 2 / 3
 
 #: The judgement in this file, kept small and kept together.
-PER_LEVEL = 0.85          # R5's own decay, one level of borrowing
+PER_LEVEL = rules.DECAY   # R5's own decay, one level of borrowing
 DOUBT_COSTS = 0.80        # each undermining doubt, compounding
 BORNE_OUT = 1.25          # the family was asked and most of it agreed
 OVERTURNED = 0.55         # the loop had to correct what v687 answered

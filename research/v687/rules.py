@@ -143,8 +143,9 @@ def why_not_inheritable(relation: str) -> str:
 
 
 def confidence_at(base: float, distance: int) -> float:
-    """R5."""
-    return base * (DECAY ** distance)
+    """R5: deduction down the taxonomy spends confidence (`truth.py`)."""
+    from .truth import deduced
+    return deduced(base, distance, DECAY)
 
 
 #: R3: words that turn an object phrase into a denial of itself.
