@@ -61,6 +61,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
+from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
+                                     Operator)
 from research.v688 import retrieval
 from research.v688.teacher import SETTLING_FLOOR
 
@@ -377,6 +379,23 @@ class Session:
                 "related": self._related_to, "route": self._route,
                 "toward": self._toward, "attribute": self._attribute,
                 "where_going": self._where_going}
+
+        def acted(handler):
+            def apply(memory: dict) -> str:
+                handler(memory["reading"], memory["turn"])
+                return ANSWERED
+            return apply
+
+        # What the utterance does, as operators (`executive.py`): each act
+        # proposes on its own reading, and anything else is v688's.
+        acting = Executive(
+            [Operator(name, acted(handler),
+                      proposes=lambda memory, name=name:
+                      memory["reading"].act == name)
+             for name, handler in acts.items()]
+            + [Operator("generic", acted(self._generic),
+                        proposes=lambda memory:
+                        memory["reading"].act not in acts)])
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows. An anchor nothing was told of is told first,
@@ -392,7 +411,7 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            acts.get(one.act, self._generic)(one, turn)
+            acting.run({"reading": one, "turn": turn})
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
@@ -1905,129 +1924,213 @@ class Session:
             self._why_asked = False
 
     def _ask(self, reading: Reading, turn: Turn) -> None:
-        if (reading.mention is not None and reading.mention.form == "plural"
-                and not self.discourse.group):
+        """A yes or no about one individual, run by the executive
+        (`research/v687/executive.py`). Each step is an operator: its
+        condition is what it needs to have been found already, the order
+        written is its utility, and working memory `m` holds what the
+        steps before it found. An operator that settles the question -- or
+        cannot go on, having said why -- answers; the others write slots."""
+        m: dict = {"why": getattr(self, "_why_asked", False)}
+
+        def they(_) -> str:
             # `can they swim`, with no one talked about together: the kind.
             self._generic(replace(reading, act="generic", mention=None), turn)
-            return
-        referent = self._resolve(reading, turn)
-        if referent is None:
-            return
-        rest, other = self._object_here(reading, turn, exclude={referent.id})
-        if rest is None:
-            return
-        relation, target, question, mode = self._relation(
-            reading.aux, rest, referent.kind, True)
-        turn.asked = question
-        described = self.discourse.describe(referent)
-        kind = self._kind(referent)
-        taught_kind = self.memory.episodic_only(self._kind_node(referent))
-        if relation is None:
-            turn.answer = {
-                "outcome": "unknown", "source": "conversation",
-                "text": f"v687 reads “{question}” as no relation it keeps"}
-            return
-        # A relation to another individual here: S2 and S3, not the walk.
-        if self._compared(replace(reading, rest=rest), referent, other,
-                          turn):
-            return
-        if relation != "is_a" and self.story.ask(reading, referent, other,
-                                                 relation, target, turn):
-            return
-        self.memory.hidden = self.story.hidden(reading)
-        walk = self._walk(referent.id, relation, target)
-        turn.walk = walk_of(walk)
+            return ANSWERED
 
-        if relation == "is_a":
-            outcome = OUTCOME.get(walk.verdict, "unknown")
+        def resolve(_) -> str:
+            m["referent"] = self._resolve(reading, turn)
+            return ANSWERED if m["referent"] is None else CONTINUE
+
+        def bind(_) -> str:
+            rest, other = self._object_here(reading, turn,
+                                            exclude={m["referent"].id})
+            if rest is None:
+                return ANSWERED
+            m["rest"], m["other"] = rest, other
+            return CONTINUE
+
+        def relate(_) -> str:
+            referent = m["referent"]
+            relation, target, question, mode = self._relation(
+                reading.aux, m["rest"], referent.kind, True)
+            turn.asked = question
+            m.update(question=question, target=target, mode=mode,
+                     described=self.discourse.describe(referent),
+                     kind=self._kind(referent),
+                     taught_kind=self.memory.episodic_only(
+                         self._kind_node(referent)))
+            if relation is None:
+                turn.answer = {
+                    "outcome": "unknown", "source": "conversation",
+                    "text": f"v687 reads “{question}” as no relation it keeps"}
+                return ANSWERED
+            m["relation"] = relation
+            return CONTINUE
+
+        def compared(_) -> str:
+            # A relation to another individual here: S2 and S3, not the walk.
+            return (ANSWERED if self._compared(
+                replace(reading, rest=m["rest"]), m["referent"], m["other"],
+                turn) else DECLINED)
+
+        def in_story(_) -> str:
+            return (ANSWERED if self.story.ask(
+                reading, m["referent"], m["other"], m["relation"],
+                m["target"], turn) else DECLINED)
+
+        def walk(_) -> str:
+            self.memory.hidden = self.story.hidden(reading)
+            m["walk"] = self._walk(m["referent"].id, m["relation"],
+                                   m["target"])
+            turn.walk = walk_of(m["walk"])
+            return CONTINUE
+
+        def taxonomy(_) -> str:
+            outcome = OUTCOME.get(m["walk"].verdict, "unknown")
             turn.answer = {
                 "outcome": outcome, "source": "kind",
                 "text": (f"{WORD.get(outcome, 'not settled')} — walking up "
-                         f"from {described}, the taxonomy answers "
-                         f"{walk.verdict} (R1)")}
-            return
+                         f"from {m['described']}, the taxonomy answers "
+                         f"{m['walk'].verdict} (R1)")}
+            return ANSWERED
 
-        if self._from_walk(walk, described, turn, other):
-            return
+        def from_walk(_) -> str:
+            return (ANSWERED if self._from_walk(m["walk"], m["described"],
+                                                turn, m["other"])
+                    else DECLINED)
 
-        if relation == "capable_of" and mode == "does":
+        def did_not(_) -> str:
+            referent = m["referent"]
             for fact in self.memory.facts.get(referent.id, []):
                 if (fact.relation == DID_NOT
                         and (referent.id, fact.relation, fact.object)
                         not in self.memory.hidden
-                        and self.asker.matcher(fact.object, target)):
+                        and self.asker.matcher(fact.object, m["target"])):
                     said = self.memory.said.get(
                         (referent.id, fact.relation, fact.object), "")
                     turn.answer = {"outcome": "denied", "source": "told",
                                    "text": f"no — you told me so: “{said}”"}
-                    return
+                    return ANSWERED
+            return DECLINED
 
-        contrary, near = self._related(walk, relation, target)
-        if contrary is not None:
-            self._contrary(contrary, turn)
-            return
-        note = self._near_note(near)
+        def contrary(_) -> str:
+            found, near = self._related(m["walk"], m["relation"], m["target"])
+            if found is not None:
+                self._contrary(found, turn)
+                return ANSWERED
+            m["note"] = self._near_note(near)
+            m["e1"] = any(step.rule == "E1" for step in m["walk"].steps)
+            return CONTINUE
 
-        e1 = any(step.rule == "E1" for step in walk.steps)
-        if ((taught_kind or (walk.verdict in OUTCOME
-                             and self._taught_through(walk)))
-                and not e1
-                and self._ask_above(reading, walk, described, turn, rest)):
-            return
-        if taught_kind or (walk.verdict in OUTCOME
-                           and self._taught_through(walk)):
-            outcome = "unknown" if e1 else OUTCOME.get(walk.verdict,
+        def taught_through() -> bool:
+            return bool(m["taught_kind"] or (
+                m["walk"].verdict in OUTCOME
+                and self._taught_through(m["walk"])))
+
+        def above(_) -> str:
+            return (ANSWERED if self._ask_above(reading, m["walk"],
+                                                m["described"], turn,
+                                                m["rest"]) else DECLINED)
+
+        def taught(_) -> str:
+            found, e1, referent = m["walk"], m["e1"], m["referent"]
+            outcome = "unknown" if e1 else OUTCOME.get(found.verdict,
                                                        "unknown")
-            evidence = walk.evidence[0] if walk.evidence else None
-            text = (f"{WORD.get(outcome, 'not settled')} — {described} "
-                    f"{be(referent)} {kind}, and what was taught about it is "
-                    f"the whole answer: v687's walk says {walk.verdict}")
+            evidence = found.evidence[0] if found.evidence else None
+            text = (f"{WORD.get(outcome, 'not settled')} — {m['described']} "
+                    f"{be(referent)} {m['kind']}, and what was taught about "
+                    f"it is the whole answer: v687's walk says "
+                    f"{found.verdict}")
             if evidence is not None:
                 text += (f", from {name_of(evidence.concept)} "
                          f"{evidence.relation} “{evidence.object}”")
             if e1:
                 text += " — E1: a quality does not descend to one of them"
             turn.answer = {"outcome": outcome, "source": "taught",
-                           "text": text + note}
-            return
+                           "text": text + m["note"]}
+            return ANSWERED
 
-        why = getattr(self, "_why_asked", False)
-        # T6: nothing told says this one did it, and what the kind does is
-        # not what one of them did.
-        if (not why and relation == "capable_of"
-                and self.story.inherited(reading, referent, question, turn)):
-            return
-        if why and not reading.holds:
-            # `why can't it fly`: the premise is a denial, and the kind's why
-            # has to be asked as one, or the answer says it does not hold.
-            head, _, tail = question.partition(" ")
-            question_asked = f"why {DENIAL.get(head, head + ' not')} {tail}"
-        else:
-            question_asked = f"why {question}" if why else question
-        turn.run = self._run(question_asked)
-        outcome, headline, trust = summary_of(turn.run)
-        v688 = f"v688 answers “{question}” {outcome}" + (
-            f" ({trust})" if trust else "")
-        if why and not e1:
-            # Nothing was told of this one, so what its kind's answer rests on
-            # is what this one's does.
-            turn.answer = {
-                "outcome": outcome, "source": "kind",
-                "text": (f"nothing was told of {described}, so it is as "
-                         f"{kind}: {headline}") + note}
-            return
-        if e1:
-            turn.answer = {
-                "outcome": "unknown", "source": "tendency",
-                "text": (f"not known of {described} — E1: a quality does not "
-                         f"descend from {referent.kind} to one of them. For "
-                         f"{kind} in general, {v688}") + note}
-            return
-        turn.answer = {
-            "outcome": outcome, "source": "kind",
-            "text": (f"{WORD.get(outcome, 'not settled')} — nothing was told "
-                     f"of {described}, so v687's walk passes up to "
-                     f"{referent.kind}, and {v688}") + note}
+        def inherited(_) -> str:
+            # T6: nothing told says this one did it, and what the kind does
+            # is not what one of them did.
+            return (ANSWERED if self.story.inherited(
+                reading, m["referent"], m["question"], turn) else DECLINED)
+
+        def of_the_kind(_) -> str:
+            why, e1, question = m["why"], m["e1"], m["question"]
+            referent, described, kind = (m["referent"], m["described"],
+                                         m["kind"])
+            note = m["note"]
+            if why and not reading.holds:
+                # `why can't it fly`: the premise is a denial, and the kind's
+                # why has to be asked as one, or the answer says it does not
+                # hold.
+                head, _, tail = question.partition(" ")
+                question_asked = f"why {DENIAL.get(head, head + ' not')} {tail}"
+            else:
+                question_asked = f"why {question}" if why else question
+            turn.run = self._run(question_asked)
+            outcome, headline, trust = summary_of(turn.run)
+            v688 = f"v688 answers “{question}” {outcome}" + (
+                f" ({trust})" if trust else "")
+            if why and not e1:
+                # Nothing was told of this one, so what its kind's answer
+                # rests on is what this one's does.
+                turn.answer = {
+                    "outcome": outcome, "source": "kind",
+                    "text": (f"nothing was told of {described}, so it is as "
+                             f"{kind}: {headline}") + note}
+            elif e1:
+                turn.answer = {
+                    "outcome": "unknown", "source": "tendency",
+                    "text": (f"not known of {described} — E1: a quality does "
+                             f"not descend from {referent.kind} to one of "
+                             f"them. For {kind} in general, {v688}") + note}
+            else:
+                turn.answer = {
+                    "outcome": outcome, "source": "kind",
+                    "text": (f"{WORD.get(outcome, 'not settled')} — nothing "
+                             f"was told of {described}, so v687's walk passes "
+                             f"up to {referent.kind}, and {v688}") + note}
+            return ANSWERED
+
+        Executive([
+            Operator("they, of a kind", they,
+                     proposes=lambda _: (reading.mention is not None
+                                         and reading.mention.form == "plural"
+                                         and not self.discourse.group)),
+            Operator("resolve", resolve),
+            Operator("bind the object", bind,
+                     proposes=lambda _: "referent" in m),
+            Operator("read the relation", relate,
+                     proposes=lambda _: "rest" in m),
+            Operator("compared", compared, rule="S2",
+                     proposes=lambda _: "relation" in m),
+            Operator("in the story", in_story, rule="T3",
+                     proposes=lambda _: m.get("relation") not in (None,
+                                                                   "is_a")),
+            Operator("walk", walk, rule="R1",
+                     proposes=lambda _: "relation" in m),
+            Operator("taxonomy", taxonomy, rule="R1",
+                     proposes=lambda _: ("walk" in m
+                                         and m["relation"] == "is_a")),
+            Operator("from the walk", from_walk, rule="R3",
+                     proposes=lambda _: "walk" in m),
+            Operator("did not", did_not,
+                     proposes=lambda _: ("walk" in m
+                                         and m["relation"] == "capable_of"
+                                         and m["mode"] == "does")),
+            Operator("contrary", contrary, proposes=lambda _: "walk" in m),
+            Operator("taught, above", above,
+                     proposes=lambda _: ("note" in m and not m["e1"]
+                                         and taught_through())),
+            Operator("taught", taught,
+                     proposes=lambda _: "note" in m and taught_through()),
+            Operator("nothing by inheritance", inherited, rule="T6",
+                     proposes=lambda _: ("note" in m and not m["why"]
+                                         and m["relation"] == "capable_of")),
+            Operator("the kind", of_the_kind, proposes=lambda _: "note" in m),
+        ]).run(m)
 
     def _ask_above(self, reading: Reading, walk, subject: str,
                    turn: Turn, rest=None) -> bool:

@@ -371,6 +371,26 @@ Each phase is a branch, merged when its acceptance holds.
 | **held-out** | `v689` harnesses | ToMi, StepGame (and ProPara) harnesses in the shape of `babi.py`; `a70da1c`, the redesign and few-shot SmolLM3, each run once on the test splits | the redesign beats `a70da1c` at no higher wrong rate |
 | **v690** | `v690` | generation by the backward route, read back | its own evaluation |
 
+### Where it stands
+
+Each phase so far lands its structure with the parameters set to what the
+code did, so that the tests and the probes show nothing moved; fitting is a
+step of its own, once there is data to fit on.
+
+| phase | branch | what landed |
+| --- | --- | --- |
+| P1 | `v690/graph` | `v687/links.py`, one table of link types every rule's list is read off; `v687/walks.py`, one closure and one path for R1, T2, S2, S4. 913 tests; both probes unchanged |
+| P2 | `v690/evidence` | `v687/truth.py`: R19's sample and floor, R5's decay and logic's three values as evidence. 918 tests |
+| P3 | `v690/activation` | `v688/retrieval.py`: discourse's cascade, story's latest-first, T3's latest holding and I1's last-told as one retrieval. 918 tests; both probes unchanged |
+| P4 | `v690/executive` | `v687/executive.py` -- in v687 because v687 cannot import v688 -- and v687's eleven layers, v689's 28 acts and v689's `_ask` (fifteen operators over one working memory) as operators. 931 tests |
+
+**What has not moved yet is what answers.** P1 to P4 put the control on one
+footing without changing a verdict, which is what the probes check. The
+generalisation the redesign is for arrives with P5: operators still propose
+on the acts `reading.py`'s patterns produce, so a new form of question still
+needs a pattern until reading produces goals the operators propose on by
+their structure.
+
 ## 9. Risks
 
 - **Speed.** A graph over 1.96M facts in Python is slow if built eagerly. The
