@@ -228,6 +228,9 @@ class Reading:
     #: (asked, relation): the goal cell a question fills (`goals.py`), which
     #: the session answers by cell rather than by the act's name
     cell: tuple | None = None
+    #: the goal a question states (`goals.goal_from`), for the operators that
+    #: answer by its slots; None for anything else
+    goal: object | None = None
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -982,6 +985,9 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         when.main = " ".join(typed + list(when.again_words))
     found = _read(said, asked, tokens, typed, lexicon, names)
     _mark_fresh(found, fresh)
+    # What a question asks, as slots, from the same words (`goals.py`).
+    from .goals import goal_from
+    found.goal = goal_from(tokens, lexicon, names, said)
     found.when = when
     for one in found.more:
         if one.when is None or one.when.empty:

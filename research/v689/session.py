@@ -65,7 +65,7 @@ from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
                                      Operator)
 from research.v688 import retrieval
 
-from .goals import Answering, read_goal
+from .goals import Answering
 from research.v688.teacher import SETTLING_FLOOR
 
 from .definitions import DEFINED, GlossReader, question_for, says
@@ -427,8 +427,7 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            goal = (read_goal(one.said, lexicon, self.discourse.names())
-                    if index == 0 else None)
+            goal = one.goal if index == 0 else None
             acting.run({"reading": one, "turn": turn, "goal": goal})
             if index == 0:
                 first = (turn.resolution, turn.binding)

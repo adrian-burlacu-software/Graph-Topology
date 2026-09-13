@@ -413,9 +413,26 @@ session answers the cell, not the pattern's name:
 | times of occurrence | `story.how_many_times`, T5 |
 
 So the operator table is the coverage matrix: a question is answered by the
-cell it fills, whichever reader filled it. What is left of the patterns is
-their reading, and that is next -- one goal reader for every cell, and the
-patterns deleted once it reads what they read.
+cell it fills, whichever reader filled it.
+
+The third step deleted those seven patterns. `goals.cell_reading` is one
+grammar for them: the question word says what is asked (when a time, how
+many times a count of occurrences, where a place, who the subject, what the
+object, how many before a noun a count of things), and what follows says of
+which relation (AUX NP VERB-PHRASE an occurrence; COPULA NP, before or after
+something, or ending in a place, located; COPULA NP V-ing holding; a
+trailing to or from the recipient). The goal reader now runs inside
+`reading.read` on the same words, so a reading carries both its cell and its
+goal. Checked reading by reading on 1,206 questions -- every question in
+the tests and probes, and templates for every pattern family crossed with
+eleven noun phrases: none reads differently.
+
+Still patterns: `doing`, `related`, `route`, `toward`, `attribute`,
+`where_going`, `how_many`, `which`, `happened`, `about`, the questions about
+the conversation, and ellipsis. Most are cells of relations the grammar does
+not have yet -- S1-S4's relations, attributes, motives, the story's order --
+and each moves the same way: its cell in the operator table, then its shape
+in the grammar, checked against the saved readings.
 
 ## 9. Risks
 

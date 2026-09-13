@@ -244,8 +244,15 @@ def cell_reading(tokens: list[str], lexicon, names: frozenset,
 
 def read_goal(text: str, lexicon, names: frozenset = frozenset()
               ) -> Goal | None:
-    """The goal a question states, or None when it is not one of these."""
-    tokens, _ = tokens_of(text)
+    """The goal a question states, read from its text."""
+    return goal_from(tokens_of(text)[0], lexicon, names, text)
+
+
+def goal_from(tokens: list[str], lexicon, names: frozenset = frozenset(),
+              text: str = "") -> Goal | None:
+    """The goal a question states, or None when it is not one of these.
+    `reading.read` reads it from the words it read the question in, once
+    requests are rephrased and time words taken off."""
     if len(tokens) < 3:
         return None
     first = tokens[0]
