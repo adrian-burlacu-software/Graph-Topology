@@ -169,6 +169,16 @@ class DigestTests(unittest.TestCase):
         self.assertIn("nothing recorded settles",
                       because({"verdict": "UNKNOWN"})["text"])
 
+    def test_which_of_a_class(self):
+        found = digest({"verdict": "LISTING", "within": {
+            "class": "bird", "negative": True,
+            "norms": ["chicken", "emu", "penguin"], "store": []}})
+        self.assertEqual(found["text"], "chicken, emu, penguin")
+        found = digest({"verdict": "LISTING", "within": {
+            "norms": ["duck"], "store": ["otter"]}})
+        self.assertEqual(found["text"],
+                         "duck; and in the store beyond the norms: otter")
+
     def test_a_refusal_says_why(self):
         found = digest({"verdict": "UNSUPPORTED",
                         "note": "This asks for a comparative. No scale."})

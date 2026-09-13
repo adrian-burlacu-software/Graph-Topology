@@ -228,6 +228,19 @@ def rephrase(text: str) -> Rephrased:
     if lower.startswith("what is the meaning of ") and len(words) > 5:
         return Rephrased("what is " + with_article(stripped[23:].strip()))
 
+    if words[:2] == ["are", "there"] and len(words) > 3:
+        # `are there birds that cannot fly`: which ones, and there are some
+        # exactly when that list is not empty.
+        body = words[2:]
+        while body and body[0] in COUNTING:
+            body = body[1:]
+        for joiner in ("that", "which", "who"):
+            if joiner in body[1:]:
+                at = body.index(joiner, 1)
+                return Rephrased(f"which {' '.join(body[:at])} "
+                                 f"{' '.join(body[at + 1:])}".strip(),
+                                 "asked as which ones there are")
+
     if words[0] in ("name", "list") and len(words) > 1:
         body = words[1:]
         while body and body[0] in COUNTING:

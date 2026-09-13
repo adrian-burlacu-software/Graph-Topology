@@ -48,6 +48,12 @@ class RephraseTests(unittest.TestCase):
         self.assertEqual(self.said("please describe a dog"),
                          "tell me about a dog")
 
+    def test_are_there_asks_which_ones(self):
+        found = rephrase("are there any birds that cannot fly")
+        self.assertEqual(found.text, "which birds cannot fly")
+        self.assertTrue(found.note)
+        self.assertEqual(self.said("are there two dogs"), "are there two dogs")
+
     def test_analogies_and_conditionals_are_left_whole(self):
         for text in ("fins are to fish as what are to birds",
                      "if a dog had wings could it fly"):

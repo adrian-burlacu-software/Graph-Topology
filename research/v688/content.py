@@ -268,10 +268,27 @@ def _refused(payload: dict):
     return _found("refused", f"not answerable here: {note}", [])
 
 
+def _within(payload: dict):
+    """`which birds cannot fly`: the kinds of the class on each side."""
+    found = payload.get("within")
+    if not found:
+        return None
+    norms, store = found.get("norms") or [], found.get("store") or []
+    if not norms and not store:
+        return None
+    parts = []
+    if norms:
+        parts.append(f"{listed(norms)}")
+    if store:
+        parts.append(f"{'and ' if norms else ''}in the store beyond the "
+                     f"norms: {listed(store)}")
+    return _found("within", "; ".join(parts), norms + store)
+
+
 #: Most specific first: the payloads of contrast, causal, kinds and the rest
 #: all carry an identification tree too, drawn for the page.
-READERS = (_definition, _kinds, _contrast, _causal, _bridge, _backwards,
-           _members, _profile, _identified, _listing, _refused)
+READERS = (_within, _definition, _kinds, _contrast, _causal, _bridge,
+           _backwards, _members, _profile, _identified, _listing, _refused)
 
 
 def digest(payload: dict | None) -> dict | None:

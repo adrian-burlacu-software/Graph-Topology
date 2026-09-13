@@ -69,6 +69,13 @@ class ReasoningEngine(IdentifyingEngine):
                 answer = attempt(question or "")
                 if answer is not None:
                     return answer
+            # `which birds cannot fly`: the kinds beneath a class, asked one
+            # by one (`within.py`), before identification looks for a single
+            # unnamed thing and comes back AMBIGUOUS.
+            from .within import answer as within
+            answer = within(self, question or "")
+            if answer is not None:
+                return answer
         if not concept and self._is_backwards(question or ""):
             backwards = self._inverse(question or "")
             if backwards is not None:
