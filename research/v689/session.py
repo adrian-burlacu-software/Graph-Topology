@@ -58,7 +58,7 @@ first is not an answer.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
 from research.v688.teacher import SETTLING_FLOOR
@@ -70,9 +70,10 @@ from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
                        name_of)
 from .events import KNOWLEDGE
 from .reading import (ARTICLES, AUX, CARRYING, COPULA, HAVING,
-                      QUESTION_WORDS, RELATIVE, Reading, article,
+                      QUESTION_WORDS, RELATIVE, Mention, Reading, article,
                       kind_question, mode_of, perfect, progressive, read,
                       words)
+from .relations import DIMENSIONS, Relations, phrase as relation_phrase
 from .story import Story
 from .tense import When
 from .timeline import Timeline
@@ -154,7 +155,15 @@ def walk_of(answer) -> dict | None:
 
 def carrier_in(rest: list[str]) -> str:
     """`in an airplane` -> `airplane`; "" if it is not being in or on
-    something. v687's parser reads the phrase as a quality."""
+    something. v687's parser reads the phrase as a quality.
+
+    `either in the school or the park` -> `either school or park`: one place
+    of two, and which one not told (T3 answers `maybe`)."""
+    if rest[:1] == ["either"] and "or" in rest[2:]:
+        at = rest.index("or")
+        first = carrier_in(rest[1:at])
+        second = carrier_in(rest[1:2] + rest[at + 1:])
+        return f"either {first} or {second}" if first and second else ""
     if len(rest) < 2 or rest[0] not in CARRYING:
         return ""
     body = list(rest[1:])
@@ -277,11 +286,15 @@ class Session:
         self.definitions = definitions
         self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation,
                                      definitions)
-        self.discourse = Discourse(self.memory, asker.sense)
+        self.discourse = Discourse(self.memory, asker.sense,
+                                   getattr(asker, "gender", None))
         #: story time: a projection of the same stream (`timeline.py`), and
         #: what the conversation does with it (`story.py`)
         self.timeline = Timeline(self.memory.log)
         self.story = Story(self, self.timeline)
+        #: where things are against each other, and how big: a projection
+        #: of the same stream (`relations.py`)
+        self.relations = Relations(self.memory.log)
         #: what the part being acted on says about when
         self._when = When()
         self.turns: list[Turn] = []
@@ -357,7 +370,12 @@ class Session:
                 "meta": self._meta, "ellipsis": self._ellipsis,
                 "when": self.story.when_asked,
                 "how_many_times": self.story.how_many_times,
-                "doing": self.story.doing}
+                "doing": self.story.doing,
+                "carrying": self.story.carrying,
+                "to_whom": self.story.to_whom,
+                "related": self._related_to, "route": self._route,
+                "toward": self._toward, "attribute": self._attribute,
+                "where_going": self._where_going}
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows. An anchor nothing was told of is told first,
@@ -423,12 +441,332 @@ class Session:
         outcome, _, trust = summary_of(turn.run)
         return outcome, trust
 
-    def _resolve(self, reading: Reading, turn: Turn) -> Referent | None:
-        turn.resolution = self.discourse.resolve(reading.mention)
+    def _resolve(self, reading: Reading, turn: Turn,
+                 described: bool = False) -> Referent | None:
+        turn.resolution = self.discourse.resolve(reading.mention,
+                                                 described=described)
         if turn.resolution.referent is None:
             turn.answer = {"outcome": "which", "source": "conversation",
                            "text": turn.resolution.how}
         return turn.resolution.referent
+
+    # -- relations between individuals (`relations.py`) --------------------
+    def _compared(self, reading: Reading, referent: Referent, other,
+                  turn: Turn) -> bool:
+        """`is the box bigger than the chest`, `does the box fit in the
+        chest`, `is the rectangle to the right of the square`: S2 and S3 over
+        what was told. False when the question is not a relation to another
+        individual here."""
+        found = relation_phrase(list(reading.rest))
+        if found is None or other is None:
+            return False
+        answer = self.relations.compare(referent.id, other.id,
+                                        found.dimension, found.side)
+        described = self.discourse.describe(referent)
+        them = self.discourse.describe(other)
+        if answer.value is None:
+            turn.answer = {
+                "outcome": "unknown", "source": "told",
+                "text": (f"not told — nothing said puts {described} and "
+                         f"{them} in order, {found.dimension} (S2: absent, "
+                         f"not false)")}
+            return True
+        if answer.level:
+            why = (f"{described} and {them} are in line, so neither is "
+                   f"{' '.join(found.words)} the other (S3)")
+        else:
+            why = (" → ".join(f"“{one.said}”" for one in answer.path)
+                   + " (S2)")
+        turn.answer = {"outcome": "verified" if answer.value else "denied",
+                       "source": "told",
+                       "text": f"{'yes' if answer.value else 'no'} — {why}"}
+        return True
+
+    def _related_to(self, reading: Reading, turn: Turn) -> None:
+        """`what is north of the office`, `what is the kitchen north of`: the
+        other side of what was told, read both ways (S1)."""
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        asks_first = reading.rest[:1] == ["?"]
+        words = [word for word in reading.rest if word != "?"]
+        found = relation_phrase(words)
+        side = found.side if asks_first else -found.side
+        beside = self.relations.beside(referent.id, found.dimension, side)
+        described = self.discourse.describe(referent)
+        said = " ".join(words)
+        if not beside:
+            turn.answer = {
+                "outcome": "unknown", "source": "conversation",
+                "text": (f"not told — nothing was said to be {said} "
+                         f"{described}" if asks_first else
+                         f"not told — {described} was not said to be {said} "
+                         f"anything")}
+            return
+        people = list({one: self.discourse.by_id(one)
+                       for one, _ in beside}.values())
+        quotes = "; ".join(dict.fromkeys(f"“{relation.said}”"
+                                         for _, relation in beside))
+        turn.answer = {"outcome": "retrieved", "source": "told",
+                       "text": (f"{self._names([one for one in people if one])}"
+                                f" — {quotes} (S1)")}
+
+    # -- qualities toward something, attributes, motives --------------------
+    def _toward(self, reading: Reading, turn: Turn) -> None:
+        """`what is Gertrude afraid of`: what a quality toward something is
+        toward -- told of this one, or of the nearest kind above it that has
+        one, told before stored (R3; E1 is about what a thing is like)."""
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        head = " ".join(reading.rest) + " "
+        described = self.discourse.describe(referent)
+        reasoner = self.memory.reasoner
+        for node, distance, _ in reasoner.ascend(referent.id):
+            found = [fact for fact in reasoner.facts_of(node, "has_property")
+                     if fact.object.lower().startswith(head)]
+            if not found:
+                continue
+            fact = found[0]
+            said = self.memory.said.get((fact.concept, fact.relation,
+                                         fact.object), "")
+            if node == referent.id:
+                why, source = f"you told me “{said}”", "told"
+            elif fact.source == TOLD:
+                why = (f"{described} {be(referent)} {self._kind(referent)}, "
+                       f"and you taught me “{said}” (R3 at distance "
+                       f"{distance})")
+                source = "taught"
+            else:
+                why = (f"{described} {be(referent)} {self._kind(referent)}, "
+                       f"and the store records {name_of(node)} as "
+                       f"“{fact.object}” ({fact.source}, R3 at distance "
+                       f"{distance})")
+                source = "kind"
+            turn.answer = {"outcome": "retrieved", "source": source,
+                           "text": f"{fact.object[len(head):]} — {why}"}
+            return
+        self._generic(replace(reading, act="generic", mention=None), turn)
+
+    def _values(self, individual: str, attribute: str) -> list[tuple]:
+        """(value, said, seq) for each value of an attribute told of one
+        individual, in the order told. `green` is a colour because a sense
+        of `green` is a kind of a sense of `color`."""
+        wanted = {sense["id"] for sense in (self.asker.reasoner.senses_of(
+            self.asker.lemma(attribute), "n") or [])}
+        cache = self.__dict__.setdefault("_valued", {})
+        out = []
+        for event in self.memory.log.conversation.events:
+            data = event.data
+            if (event.type != "told" or data.get("node") != individual
+                    or data.get("relation") != "has_property"):
+                continue
+            value = (data.get("object") or "").lower()
+            key = (value, attribute)
+            if key not in cache:
+                senses = self.asker.reasoner.senses_of(value, "n") or []
+                cache[key] = any(
+                    node in wanted for sense in senses
+                    for node, _, _ in self.asker.reasoner.ascend(sense["id"]))
+            if cache[key]:
+                out.append((value, data.get("said", ""), event.seq))
+        return out
+
+    def _attribute(self, reading: Reading, turn: Turn) -> None:
+        """`what color is Greg`: the value told of this one; failing that,
+        I1 -- induction from the others of its kind told of here, all of them
+        where they agree and the last told where they do not; failing that,
+        its kind's, as v688 answers it."""
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        attribute = reading.rest[0]
+        described = self.discourse.describe(referent)
+        own = self._values(referent.id, attribute)
+        if own:
+            value, said, _ = own[-1]
+            turn.answer = {"outcome": "retrieved", "source": "told",
+                           "text": f"{value} — you told me “{said}”"}
+            return
+        kin = [one for one in self._individuals(referent.kind)
+               if one.id != referent.id]
+        told = sorted((seq, value, said, one) for one in kin
+                      for value, said, seq in self._values(one.id, attribute))
+        if told:
+            _, value, said, one = told[-1]
+            if len({each[1] for each in told}) == 1:
+                why = f"every {referent.kind} here that was told of is {value}"
+            else:
+                why = (f"the {referent.kind}s told of here differ, and the "
+                       f"last told, {self.discourse.describe(one)}, is "
+                       f"{value}")
+            turn.answer = {
+                "outcome": "retrieved", "source": "induced",
+                "text": (f"probably {value} — nothing was told of "
+                         f"{described}'s {attribute}, and {why}: “{said}” "
+                         f"(I1: induction from others of its kind)")}
+            return
+        question = (f"what {attribute} is {article(referent.kind)} "
+                    f"{referent.kind}")
+        turn.asked = question
+        turn.run = self._run(question)
+        outcome, headline, trust = summary_of(turn.run)
+        turn.answer = {"outcome": outcome, "source": "kind",
+                       "text": (f"nothing was told of {described}'s "
+                                f"{attribute} — as {self._kind(referent)}: "
+                                f"{headline}" + (f" ({trust})" if trust
+                                                 else ""))}
+
+    def _states(self, individual: str) -> list[tuple]:
+        """(state, said, seq) for every one-word quality told of someone, in
+        the order told: `Sumit is tired`."""
+        return [((event.data.get("object") or "").lower(),
+                 event.data.get("said", ""), event.seq)
+                for event in self.memory.log.conversation.events
+                if event.type == "told"
+                and event.data.get("node") == individual
+                and event.data.get("relation") == "has_property"
+                and len((event.data.get("object") or "").split()) == 1]
+
+    def _motives(self):
+        if getattr(self, "_motives_cache", None) is None:
+            from .motives import Motives
+
+            self._motives_cache = Motives(self.asker)
+        return self._motives_cache
+
+    def _where_going(self, reading: Reading, turn: Turn) -> None:
+        """`where will Sumit go`: nothing told says. What was told of Sumit
+        may -- a state the store says moves one to something that a place
+        this conversation has been to is for (`motives.py`)."""
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        described = self.discourse.describe(referent)
+        places = {change.place for change in self.timeline.changes
+                  if change.kind == "location" and change.place}
+        people = {one.id for one in self._individuals("person")}
+        here = [one for one in self.discourse.referents
+                if one.id in places and one.id not in people]
+        motives = self._motives()
+        states = self._states(referent.id)
+        for state, said, _ in reversed(states):
+            ranked = sorted(((len(motives.support(state, one.kind)), one)
+                             for one in here), key=lambda each: -each[0])
+            if ranked and ranked[0][0]:
+                one = ranked[0][1]
+                goal, row, purpose = motives.meeting(state, one.kind)
+                turn.answer = {
+                    "outcome": "retrieved", "source": "kind",
+                    "text": (f"probably {self.discourse.describe(one)} — you "
+                             f"told me “{said}”; the store has “{row}”, and "
+                             f"{article(one.kind)} {one.kind} is for "
+                             f"“{purpose}” (ConceptNet)")}
+                return
+        if states:
+            state, said, _ = states[-1]
+            goals = motives.goals(state)
+            turn.answer = {
+                "outcome": "unknown", "source": "conversation",
+                "text": (f"not told — you told me “{said}”"
+                         + (f", which the store says moves one to "
+                            f"“{goals[0][0]}”, and nowhere here was said to "
+                            f"be for that" if goals else ""))}
+            return
+        turn.answer = {"outcome": "unknown", "source": "conversation",
+                       "text": f"not told — nothing was said of where "
+                               f"{described} will go"}
+
+    def _by_change(self, reading: Reading):
+        """The told occurrence a question names by what it changed, when the
+        verb told is not a kind of the verb asked: `why did Yann go to the
+        kitchen`, told `Yann journeyed to the kitchen` (T4 put Yann there),
+        or `why did Yann get the apple`, told `Yann grabbed the apple` (it put
+        the apple with Yann). The last such, in story order."""
+        if reading.mention is None or reading.obj is None:
+            return None
+        who = self.story._resolved(reading.mention)
+        if who is None:
+            return None
+        other = self.story._resolved(reading.obj, exclude={who.id})
+        if other is None:
+            return None
+        order = {one.id: index
+                 for index, one in enumerate(self.timeline.story())}
+        found = []
+        for change in self.timeline.changes:
+            occurrence = self.timeline.occurrence(change.occurrence)
+            if (change.kind != "location" or not change.after
+                    or occurrence is None or occurrence.subject != who.id):
+                continue
+            if (change.individual, change.place) in ((who.id, other.id),
+                                                     (other.id, who.id)):
+                found.append((order.get(change.occurrence, -1), change.seq,
+                              occurrence))
+        return max(found, key=lambda one: one[:2])[2] if found else None
+
+    def _because(self, reading: Reading, turn: Turn) -> bool:
+        """`why did Sumit go to the bedroom`: a told occurrence, and a state
+        told of the one who did it before it that the store says moves one to
+        what it did, where, or with what (`motives.py`); failing that, the
+        last state told of them, said as only that."""
+        occurrence = self.story.find(reading) or self._by_change(reading)
+        if occurrence is None or not occurrence.subject:
+            return False
+        referent = self.discourse.by_id(occurrence.subject)
+        states = [one for one in self._states(occurrence.subject)
+                  if one[2] < occurrence.seq]
+        if referent is None or not states:
+            return False
+        described = self.discourse.describe(referent)
+        motives = self._motives()
+        kinds = [thing.kind for thing in map(self.discourse.by_id,
+                                             (occurrence.place,
+                                              occurrence.object)) if thing]
+        for state, said, _ in reversed(states):
+            for kind in kinds:
+                found = motives.meeting(state, kind)
+                if found is not None:
+                    goal, row, purpose = found
+                    turn.answer = {
+                        "outcome": "retrieved", "source": "kind",
+                        "text": (f"because {described} {be(referent)} "
+                                 f"{state} — you told me “{said}”; the store "
+                                 f"has “{row}”, and {article(kind)} {kind} is "
+                                 f"for “{purpose}” (ConceptNet)")}
+                    return True
+        state, said, _ = states[-1]
+        turn.answer = {
+            "outcome": "unknown", "source": "told",
+            "text": (f"perhaps because {described} {be(referent)} {state} — "
+                     f"the last thing told of {described} before "
+                     f"“{occurrence.said}”, though the store does not say how "
+                     f"it bears on it")}
+        return True
+
+    def _route(self, reading: Reading, turn: Turn) -> None:
+        """`how do you go from the kitchen to the garden`: S4, the shortest
+        way over the compass as told, a direction a step."""
+        start = self._here(reading, turn)
+        if start is None:
+            return
+        goal = self._here(replace(reading, mention=reading.obj), turn)
+        if goal is None:
+            return
+        steps = self.relations.route(start.id, goal.id)
+        there = self.discourse.describe(start)
+        where = self.discourse.describe(goal)
+        if not steps:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"not told — nothing said leads from "
+                                   f"{there} to {where} (S4)"}
+            return
+        directions = ", then ".join(direction for direction, _, _ in steps)
+        through = "; ".join(
+            f"{direction} to {self.discourse.describe(self.discourse.by_id(node))}"
+            f": “{relation.said}”" for direction, node, relation in steps)
+        turn.answer = {"outcome": "retrieved", "source": "told",
+                       "text": f"{directions} — {through} (S4)"}
 
     def _kind(self, referent: Referent) -> str:
         return f"{article(referent.kind)} {referent.kind}"
@@ -455,7 +793,8 @@ class Session:
         if reading.obj is None:
             return list(reading.rest), None
         turn.binding = self.discourse.resolve(
-            reading.obj, exclude={subject.id}, weight=OBJECT_WEIGHT)
+            reading.obj, exclude={subject.id}, weight=OBJECT_WEIGHT,
+            described=True)
         found = turn.binding.referent
         if found is None:
             turn.answer = {"outcome": "which", "source": "conversation",
@@ -473,6 +812,11 @@ class Session:
         aux, rest = perfect(aux, rest, self.asker)
         question = kind_question(aux, rest, word, self.asker.lemma)
         mode = mode_of(aux)
+        # `north of the office`, `fits inside the box`: a relation to another
+        # individual (`relations.py`), kept as said, beside which one it is.
+        if relation_phrase(rest) is not None:
+            return ("has_property" if holds else "not_has_property",
+                    " ".join(rest), question, mode)
         parent = taxonomy_parent(aux, rest) or self._plural_kind(aux, rest)
         if parent:
             return "is_a", parent, question, mode
@@ -996,8 +1340,50 @@ class Session:
         turn.answer = {"outcome": "noted", "source": "conversation",
                        "text": text}
 
+    def _tell_each(self, reading: Reading, turn: Turn) -> None:
+        """`Mary and Daniel went to the kitchen`, `then they went to the
+        hallway`: told of each of them, as happening together.
+
+        `they` with no one talked about together is not about individuals:
+        it is the kind named last, and v688's (`_they`).
+        """
+        found = self.discourse.resolve_all(reading.mention)
+        if not found:
+            self._generic(replace(reading, act="generic", mention=None), turn)
+            return
+        missing = next((one for one in found if one.referent is None), None)
+        if missing is not None:
+            turn.resolution = missing
+            turn.answer = {"outcome": "which", "source": "conversation",
+                           "text": missing.how}
+            return
+        when, replies = self._when, []
+        for index, resolution in enumerate(found):
+            referent = resolution.referent
+            one = replace(reading, mention=Mention(
+                "individual", text=reading.mention.text, name=referent.id))
+            # Together: each after the first happened during it (T1), not
+            # after it.
+            if index:
+                self._when = replace(when, link="during", anchor="",
+                                     relation="")
+            turn.answer = {}
+            self._tell(one, turn)
+            replies.append(f"{self.discourse.describe(referent)}: "
+                           f"{turn.answer.get('text', '')}")
+        self._when = when
+        turn.resolution = found[0]
+        turn.answer = {"outcome": "noted", "source": "told",
+                       "text": "; ".join(replies)}
+
     def _tell(self, reading: Reading, turn: Turn) -> None:
-        referent = self._resolve(reading, turn)
+        if reading.mention is not None and reading.mention.form in (
+                "group", "plural"):
+            self._tell_each(reading, turn)
+            return
+        # A statement: a description nothing here fits introduces what it
+        # describes (`the blue square is to the left of the triangle`).
+        referent = self._resolve(reading, turn, described=True)
         if referent is None:
             return
         narrowed = self._narrow(referent, reading)
@@ -1505,6 +1891,10 @@ class Session:
                                "text": headline + (f" ({trust})" if trust
                                                    else "")}
                 return
+        # `why did Sumit go to the bedroom`: it was told that he did, so what
+        # is asked is what moved him to it, not whether he did.
+        if reading.aux == "did" and self._because(reading, turn):
+            return
         self._why_asked = True
         try:
             self._ask(reading, turn)
@@ -1512,6 +1902,11 @@ class Session:
             self._why_asked = False
 
     def _ask(self, reading: Reading, turn: Turn) -> None:
+        if (reading.mention is not None and reading.mention.form == "plural"
+                and not self.discourse.group):
+            # `can they swim`, with no one talked about together: the kind.
+            self._generic(replace(reading, act="generic", mention=None), turn)
+            return
         referent = self._resolve(reading, turn)
         if referent is None:
             return
@@ -1528,6 +1923,10 @@ class Session:
             turn.answer = {
                 "outcome": "unknown", "source": "conversation",
                 "text": f"v687 reads “{question}” as no relation it keeps"}
+            return
+        # A relation to another individual here: S2 and S3, not the walk.
+        if self._compared(replace(reading, rest=rest), referent, other,
+                          turn):
             return
         if relation != "is_a" and self.story.ask(reading, referent, other,
                                                  relation, target, turn):

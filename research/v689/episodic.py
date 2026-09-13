@@ -80,6 +80,17 @@ TOLD = "told"
 #: E1: what a quality is.
 QUALITIES = frozenset({"has_property", "has_attribute", "not_has_property"})
 
+#: Prepositions a quality toward something else takes: afraid of, fond of,
+#: allergic to.
+TOWARD = frozenset({"of", "to", "about", "with", "for", "at", "by"})
+
+
+def toward(target: str) -> bool:
+    """`afraid of wolves`: a quality toward something else -- how a thing is
+    toward it, not what the thing is like -- which E1 is not about."""
+    words = (target or "").lower().split()
+    return len(words) >= 3 and words[1] in TOWARD
+
 #: Not doing a thing. Read by the session for `does it`, never by a rule.
 DID_NOT = "did_not"
 
@@ -891,8 +902,11 @@ class EpisodicReasoner(Reasoner):
         return answer
 
     def verify(self, concept: str, relation: str, target: str, matcher):
+        # E1 is about what a thing is like. `afraid of wolves` is how it is
+        # toward something else -- a disposition, which descends as what it
+        # does does (R3): mice are afraid of wolves, so Gertrude, a mouse, is.
         quality = (concept in self.memory.individuals
-                   and relation in QUALITIES)
+                   and relation in QUALITIES and not toward(target))
         self._individual_only = quality
         try:
             answer = super().verify(concept, relation, target, matcher)

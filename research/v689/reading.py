@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from research.v688.rephrase import rephrase
 
 from . import clauses as coordination
+from .relations import phrase as relation_phrase
 from .tense import When, subordinate, take
 
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
@@ -61,6 +62,9 @@ FIRST_PERSON = frozenset({"i", "me", "myself"})
 #: your name` answered with the speaker's, because `your` was read as `my`.
 SECOND_PERSON = frozenset({"you", "yourself"})
 PRONOUNS = frozenset({"it", "he", "she", "him", "her"})
+#: `they`: the individuals last talked about together (`discourse.py`), or,
+#: when there are none, the kind last named (`session._they`)
+PLURAL = frozenset({"they", "them"})
 DEMONSTRATIVES = frozenset({"this", "that"})
 ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
             "last": -1}
@@ -73,8 +77,8 @@ CARRYING = ("in", "on", "inside", "aboard")
 
 #: Words that open a sentence and are never a name, however capitalised:
 #: `The cat is black` and `There was a pig` are not about someone called The.
-NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | DEMONSTRATIVES
-             | ARTICLES
+NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | PLURAL
+             | DEMONSTRATIVES | ARTICLES
              | frozenset({"another", "there", "here", "my", "your", "what",
                           "who", "which", "its", "his", "her", "why", "how",
                           "where", "when", "whose", "whom", "if",
@@ -170,7 +174,9 @@ class Mention:
     """A phrase that picks out an individual, or puts a new one down."""
 
     #: pronoun | demonstrative | definite | ordinal | other | another |
-    #: indefinite | speaker | addressee | name | possessive | kind
+    #: indefinite | speaker | addressee | name | possessive | kind |
+    #: group (`mary and daniel`) | plural (`they`) | individual (one already
+    #: resolved, by id in `name`)
     form: str
     kind: str = ""                # "beagle"; empty for `it`, `the second one`
     ordinal: int | None = None    # 2 for `the second`, -1 for `the last`
@@ -179,11 +185,17 @@ class Mention:
     text: str = ""
     end: int = 0                  # index of the first word after it
     name: str = ""                # `rex`, for a mention by name
+    #: the mentions a group is made of: `mary` and `daniel`
+    members: list = field(default_factory=list)
+    #: a name nobody here has been called yet (`new_names`): someone new
+    fresh: bool = False
 
     def as_dict(self) -> dict:
         return {"form": self.form, "kind": self.kind,
                 "ordinal": self.ordinal, "modifiers": list(self.modifiers),
-                "text": self.text, "name": self.name}
+                "text": self.text, "name": self.name,
+                "members": [one.as_dict() for one in self.members],
+                "fresh": self.fresh}
 
 
 @dataclass
@@ -211,6 +223,8 @@ class Reading:
     more: list = field(default_factory=list)
     #: what it says about when (`tense.py`)
     when: When | None = None
+    #: `how many objects is Mary carrying`: a count, not a list
+    count: bool = False
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -265,6 +279,13 @@ def noun_phrase(tokens: list[str], start: int, lexicon, opener: str = "does",
             break
         if word == first or lexicon.lemma(word) == first:
             end = index + length
+            # `the box of chocolates`: a thing of its own, not a box. `of`
+            # and a plural, with nothing more of the phrase after it.
+            if (tokens[end:end + 1] == ["of"] and end + 1 < len(tokens)
+                    and tokens[end + 1] not in ARTICLES
+                    and lexicon.lemma(tokens[end + 1]) != tokens[end + 1]
+                    and tokens[end + 2:end + 3] != ["of"]):
+                subject, end = f"{subject} of {tokens[end + 1]}", end + 2
             if not final_ok and end >= len(tokens):
                 return None
             return tokens[start:index], subject, end
@@ -293,6 +314,8 @@ def read_mention(tokens: list[str], at: int, lexicon, opener: str = "does",
         return Mention("name", text=word, end=at + 1, name=word)
     if word in PRONOUNS:
         return Mention("pronoun", text=word, end=at + 1)
+    if word in PLURAL:
+        return Mention("plural", text=word, end=at + 1)
     if word == "my":
         found = noun_phrase(tokens, at + 1, lexicon, opener, final_ok)
         return mention("possessive", found, 1) if found and found[1] else None
@@ -326,9 +349,17 @@ def clause(tokens: list[str]) -> Reading | None:
     holds = True
     if at < len(tokens) and tokens[at] == "not":
         holds, at = False, at + 1
+    elif aux in COPULA and tokens[at:at + 2] == ["no", "longer"]:
+        # `it is no longer in the bedroom`: not there, as `not` says. That it
+        # was is what the story already holds, or nothing does.
+        holds, at = False, at + 2
     elif aux in HAVING and at < len(tokens) and tokens[at] == "no":
         holds, at = False, at + 1
     rest = tokens[at:]
+    # `got the football there`: `there` is where the subject already is, and
+    # the object is what closes the clause.
+    if len(rest) > 1 and rest[-1] == "there":
+        rest = rest[:-1]
     if not rest:
         return None
     return Reading("tell", aux=aux, rest=rest, holds=holds)
@@ -347,7 +378,11 @@ def object_of(aux: str | None, rest: list[str], lexicon,
     first = 0 if aux in HAVING else 1
     for at in range(first, len(rest)):
         carried = at > 0 and rest[at - 1] in CARRYING
-        if aux in COPULA and not carried:
+        # `the kitchen is north of the office`: the one a relation is to
+        # (`relations.py`), after a copula as after a verb.
+        opened = relation_phrase(rest[:at]) if at else None
+        related = opened is not None and opened.length == at
+        if aux in COPULA and not (carried or related):
             continue
         if rest[at] in DEMONSTRATIVES and at + 1 == len(rest):
             continue
@@ -614,6 +649,10 @@ COUNT_ENDS = (("are", "there"), ("is", "there"), ("there", "are"),
 KIND_WORDS = frozenset({"kind", "kinds", "type", "types", "sort", "sorts",
                         "breed", "breeds", "species"})
 
+#: What a question about a quality toward something ends with: `what is
+#: Gertrude afraid of`.
+TOWARD = frozenset({"of", "to", "about", "with", "for", "at", "by"})
+
 #: What a location question may end with: `what is the cat on`.
 PLACES = frozenset({"on", "in", "inside", "under", "at", "near", "beside",
                     "behind", "above", "below"})
@@ -627,7 +666,7 @@ def _individual(found) -> bool:
     """A phrase naming one of this conversation's individuals, rather than a
     kind or a new one."""
     return found is not None and found.form not in ("indefinite", "another",
-                                                    "kind")
+                                                    "kind", "plural", "group")
 
 
 def conversational(tokens: list[str], lexicon, names: frozenset,
@@ -680,6 +719,96 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
             return Reading("doing", found, tokens[1], ["doing"], said=said)
         return None
 
+    # `what is Mary carrying`, `how many objects is Mary carrying`: what is
+    # with someone -- if the verb means that, which the session asks VerbNet
+    # (`change.accompanies`).
+    counting = tokens[:2] == ["how", "many"]
+    at = 3 if counting else 1
+    if ((first == "what" or counting) and len(tokens) >= at + 3
+            and tokens[at] in COPULA and tokens[-1].endswith("ing")
+            and hasattr(lexicon, "progressive")):
+        found = read_mention(tokens[:-1], at + 1, lexicon, tokens[at],
+                             final_ok=True, names=names)
+        verb = lexicon.progressive(tokens[-1])
+        if _individual(found) and found.end == len(tokens) - 1 and verb:
+            return Reading("carrying", found, tokens[at], [verb], said=said,
+                           count=counting,
+                           obj=(Mention("kind", tokens[2], text=tokens[2])
+                                if counting else None))
+
+    # `what is north of the office`, `what is the kitchen north of`: one side
+    # of a relation asked, the other named (`relations.py`). `?` in `rest`
+    # marks the side asked.
+    if first == "what" and len(tokens) >= 4 and tokens[1] in COPULA:
+        opened = relation_phrase(tokens[2:])
+        if opened is not None:
+            found = read_mention(tokens, 2 + opened.length, lexicon, "is",
+                                 final_ok=True, names=names)
+            if _individual(found) and found.end == len(tokens):
+                return Reading("related", found, tokens[1],
+                               ["?"] + tokens[2:2 + opened.length],
+                               said=said)
+        found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
+                             names=names)
+        closed = relation_phrase(tokens[found.end:]) if found else None
+        if (_individual(found) and closed is not None
+                and found.end + closed.length == len(tokens)):
+            return Reading("related", found, tokens[1],
+                           tokens[found.end:] + ["?"], said=said)
+
+    # `how do you go from the kitchen to the garden`: a way over the compass.
+    if (first == "how" and tokens[1] in AUX and "from" in tokens
+            and "to" in tokens[tokens.index("from"):]):
+        start = tokens.index("from")
+        there = read_mention(tokens, start + 1, lexicon, "is", final_ok=True,
+                             names=names)
+        if (_individual(there) and there.end < len(tokens)
+                and tokens[there.end] == "to"):
+            goal = read_mention(tokens, there.end + 1, lexicon, "is",
+                                final_ok=True, names=names)
+            if _individual(goal) and goal.end == len(tokens):
+                asked = Reading("route", there, tokens[1],
+                                tokens[3:start], said=said)
+                asked.obj = goal
+                return asked
+
+    # `what is Gertrude afraid of`: what a quality toward something is toward.
+    if (first == "what" and len(tokens) >= 5 and tokens[1] in COPULA
+            and tokens[-1] in TOWARD):
+        found = read_mention(tokens[:-2], 2, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens) - 2:
+            return Reading("toward", found, tokens[1], tokens[-2:],
+                           said=said)
+
+    # `what color is Greg`: one of its attributes, the kind of value asked.
+    if (first == "what" and len(tokens) >= 4 and tokens[2] in COPULA
+            and tokens[1] not in AUX and tokens[1] not in QUESTION_WORDS):
+        found = read_mention(tokens, 3, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens):
+            return Reading("attribute", found, tokens[2], [tokens[1]],
+                           said=said)
+
+    # `where will Sumit go`: where someone is going, which nothing has told.
+    if (first == "where" and len(tokens) == 4 and tokens[1] == "will"):
+        found = read_mention(tokens, 2, lexicon, "will", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == 3:
+            return Reading("where_going", found, "will", tokens[3:],
+                           said=said)
+
+    # `who did Fred give the football to`: the one it went to.
+    if (first in ("who", "whom") and len(tokens) >= 5 and tokens[1] in AUX
+            and tokens[-1] in ("to", "from")):
+        found = read_mention(tokens, 2, lexicon, tokens[1], names=names)
+        if _individual(found) and found.end < len(tokens) - 1:
+            asked = _with_object(Reading("to_whom", found, tokens[1],
+                                         tokens[found.end:-1], said=said),
+                                 lexicon, names)
+            asked.rest = asked.rest + [tokens[-1]]
+            return asked
+
     if tokens[:2] == ["how", "many"]:
         end = next((len(one) for one in COUNT_ENDS
                     if tuple(tokens[-len(one):]) == one), 0)
@@ -722,6 +851,12 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
                              names=names)
         if _individual(found) and found.end == len(tokens):
             return Reading("where", found, said=said)
+        # `where was the football before the bathroom`: where it was just
+        # before it came to be there (`story.where_around`).
+        if (_individual(found) and len(tokens) > found.end + 1
+                and tokens[found.end] in ("before", "after")):
+            return Reading("where", found, tokens[1], tokens[found.end:],
+                           said=said)
         return None
 
     if first == "what" and tokens[1] in COPULA and tokens[-1] in PLACES:
@@ -816,6 +951,58 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
     return None
 
 
+#: Proper-noun tags: what a capitalised word is when it names someone.
+PROPER = frozenset({"NNP"})
+
+
+def new_names(tokens: list[str], typed: list[str], lexicon,
+              names: frozenset = frozenset()) -> frozenset:
+    """Names nobody here has been called yet, said as someone is talked about.
+
+    `Mary moved to the bathroom`, `Bill gave the apple to Fred`: a capitalised
+    word the tagger reads as a proper noun, or as a noun the ontology has no
+    word for (`Sumit is tired`), names someone. Before this, `John went to
+    the hallway` was about toilets, WordNet's first `john`. The words are
+    tagged as typed, because capitalisation is the evidence.
+
+    Only in a statement -- a question never puts anyone down -- and never in
+    `Rex is a beagle`, which `naming` reads as someone new of that kind.
+    """
+    if (not tokens or tokens[0] in AUX or tokens[0] in QUESTION_WORDS
+            or tokens[0] in MODALS):
+        return frozenset()
+    tags = tags_of(typed, lexicon)
+    if tags is None:
+        return frozenset()
+    found = set()
+    for at, (word, shown) in enumerate(zip(tokens, typed)):
+        if (not shown[:1].isupper() or word in names or word in NOT_NAMES
+                or word in AUX or word in QUESTION_WORDS):
+            continue
+        if (at == 0 and len(tokens) > 3 and tokens[1] in ("is", "was")
+                and tokens[2] in ("a", "an")):
+            continue
+        if tags[at] in PROPER or (tags[at] == "NN"
+                                  and not lexicon.known(word)):
+            found.add(word)
+    return frozenset(found)
+
+
+def _mark_fresh(reading: "Reading", fresh: frozenset) -> None:
+    """Say which of a reading's names are someone new."""
+    waiting = [reading]
+    while fresh and waiting:
+        one = waiting.pop()
+        if one is None:
+            continue
+        for mention in (one.mention, one.obj):
+            for each in ([mention] + list(mention.members) if mention
+                         else []):
+                if each.form == "name" and each.name in fresh:
+                    each.fresh = True
+        waiting.extend([one.relative] + list(one.more))
+
+
 def read(text: str, lexicon, names: frozenset = frozenset(),
          anchored: bool = True) -> Reading:
     """Read one utterance.
@@ -833,6 +1020,10 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
     # A request is read as the question inside it: `do you know if a dog can
     # swim` is `can a dog swim`, and `can't it swim` is `can it swim`.
     asked = rephrase(said)
+    # Someone new can be named anywhere in a statement, and before a link or
+    # a time word is taken off: `then Mary went to the kitchen`.
+    fresh = new_names(*tokens_of(asked.text), lexicon, names)
+    names = names | fresh
     split = subordinate(asked.text) if anchored else None
     if split is not None:
         anchor = read(split[2], lexicon, names, anchored=False)
@@ -847,6 +1038,7 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # which three barks read as one said three times.
         when.main = " ".join(typed + list(when.again_words))
     found = _read(said, asked, tokens, typed, lexicon, names)
+    _mark_fresh(found, fresh)
     found.when = when
     for one in found.more:
         if one.when is None or one.when.empty:
@@ -984,6 +1176,14 @@ def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
     found = read_mention(tokens, 0, lexicon, names=names)
     if found is None or found.form == "indefinite":
         return Reading("generic", said=said)
+    # `Mary and Daniel went to the kitchen`: two named at once, and the claim
+    # is told of each (`session._tell_each`).
+    if (found.form == "name" and found.end + 1 < len(tokens)
+            and tokens[found.end] == "and"):
+        other = read_mention(tokens, found.end + 1, lexicon, names=names)
+        if other is not None and other.form == "name":
+            found = Mention("group", text=" ".join(tokens[:other.end]),
+                            end=other.end, members=[found, other])
     body = _with_object(clause(tokens[found.end:]), lexicon, names)
     if found.form == "another":
         return Reading("introduce", found, relative=body, said=said)

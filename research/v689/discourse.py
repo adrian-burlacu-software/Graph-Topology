@@ -41,6 +41,7 @@ from dataclasses import asdict, dataclass, field
 from research.v688.attention import Activation
 
 from .episodic import name_of
+from .reading import Mention
 
 #: How far ahead the most salient candidate must be before a description
 #: with a kind in it -- `the beagle` -- picks it without asking. Two beagles
@@ -64,6 +65,9 @@ SPEAKER_KIND = "person"
 #: What the one being talked to is.
 ADDRESSEE_KIND = "computer program"
 
+#: Pronouns that say whose gender they refer to.
+GENDERED = {"he": "male", "him": "male", "she": "female", "her": "female"}
+
 
 @dataclass
 class Referent:
@@ -80,6 +84,9 @@ class Referent:
     #: this program, the one being talked to
     addressee: bool = False
     owner: str | None = None
+    #: male | female, from the name it was introduced by; empty when the
+    #: name does not say
+    gender: str = ""
 
     @property
     def apart(self) -> bool:
@@ -110,9 +117,11 @@ class Resolution:
 class Discourse:
     """Every individual so far, and how salient each one is."""
 
-    def __init__(self, memory, sense_of) -> None:
+    def __init__(self, memory, sense_of, gender_of=None) -> None:
         self.memory = memory
         self.sense_of = sense_of
+        #: male | female | "" for a name (`Asker.gender`)
+        self.gender_of = gender_of
         #: everyone but you, in the order they came up
         self.referents: list[Referent] = []
         self.you: Referent | None = None
@@ -122,6 +131,8 @@ class Discourse:
         self.turn = 0
         #: the individual most recently talked about -- never you
         self.focus: str | None = None
+        #: the individuals last talked about together: what `they` means
+        self.group: list[str] = []
         # Attention is a projection of the conversation's stream too: who came
         # up in what order, and every mention's refresh, so salience after a
         # restart is what it was rather than a saved number.
@@ -130,6 +141,7 @@ class Discourse:
                 ("referent_added", self._on_added),
                 ("attended", self._on_attended), ("named", self._on_named),
                 ("owned", self._on_owned), ("placed", self._on_placed),
+                ("grouped", self._on_grouped),
                 ("imported", self._on_imported)):
             memory.log.on(kind, handler)
 
@@ -175,11 +187,13 @@ class Discourse:
 
     def introduce(self, kind: str, accommodated: bool = False,
                   owner: str | None = None,
-                  weight: float = 1.0) -> Referent:
+                  weight: float = 1.0, gender: str = "") -> Referent:
         number = len(self.referents) + 1
-        self._record("referent_added", {
-            "id": f"r{number}", "kind": kind, "order": number,
-            "turn": self.turn, "accommodated": accommodated})
+        data = {"id": f"r{number}", "kind": kind, "order": number,
+                "turn": self.turn, "accommodated": accommodated}
+        if gender:
+            data["gender"] = gender
+        self._record("referent_added", data)
         referent = self.referents[-1]
         self.memory.place(referent.id, kind, self.memory.kind_node(
             kind, self.sense_of(kind)))
@@ -246,6 +260,39 @@ class Discourse:
         if found is not None:
             found.kind = event.data.get("word") or found.kind
 
+    def _on_grouped(self, event) -> None:
+        self.group = list(event.data.get("ids") or ())
+
+    def _named(self, mention, weight: float = 1.0) -> Resolution:
+        """Someone new, told their name as they are talked about: `Mary moved
+        to the bathroom`. A person, since a name is what people are given;
+        `Gertrude is a mouse` says otherwise, and is read as saying so."""
+        name = mention.name[:1].upper() + mention.name[1:]
+        gender = self.gender_of(name) if self.gender_of else ""
+        referent = self.introduce(SPEAKER_KIND, weight=weight, gender=gender)
+        self.rename(referent, name)
+        return Resolution(mention.text, referent,
+                          f"“{name}”: someone new, called {name}",
+                          [referent.id], introduced=True)
+
+    def resolve_all(self, mention, exclude=frozenset(),
+                    weight: float = 1.0) -> list[Resolution]:
+        """A phrase that may mean several: each of `Mary and Daniel`, and
+        remembered as what `they` will mean; `they` itself, as the last ones
+        talked about together, or none when there were none."""
+        if mention.form == "group":
+            found = [self.resolve(one, exclude, weight)
+                     for one in mention.members]
+            ids = [one.referent.id for one in found if one.referent]
+            if len(ids) > 1 and ids != self.group:
+                self._record("grouped", {"ids": ids})
+            return found
+        if mention.form == "plural":
+            return [self.resolve(Mention("individual", text=mention.text,
+                                         name=one), exclude, weight)
+                    for one in self.group]
+        return [self.resolve(mention, exclude, weight)]
+
     def _on_imported(self, event) -> None:
         self.load(event.data.get("discourse") or {})
 
@@ -269,10 +316,12 @@ class Discourse:
 
     # -- resolution --------------------------------------------------------
     def resolve(self, mention, exclude=frozenset(),
-                weight: float = 1.0) -> Resolution:
+                weight: float = 1.0, described: bool = False) -> Resolution:
         """What a phrase means. `exclude` is who it cannot mean -- the
         subject, when the phrase is the object -- and `weight` is what the
-        mention refreshes salience to."""
+        mention refreshes salience to. With `described`, said in a statement,
+        a description nothing here fits introduces what it describes as a
+        bare kind does: `the blue square is to the left of the triangle`."""
         said = mention.text
         kind = mention.kind
 
@@ -289,10 +338,21 @@ class Discourse:
                               f"“{said}”: me, the one being talked to",
                               [program.id])
 
+        if mention.form == "individual":
+            found = self.by_id(mention.name)
+            if found is None:
+                return Resolution(said, None, f"nothing here is “{said}”")
+            self.attend(found, weight)
+            return Resolution(said, found,
+                              f"“{said}”: {self.describe(found)}, one of "
+                              f"those just talked about", [found.id])
+
         if mention.form == "name":
             found = self.memory.identify({f"name {mention.name.lower()}"})
             called = [one for one in map(self.by_id, found.candidates)
                       if one is not None and one.id not in exclude]
+            if not called and mention.fresh:
+                return self._named(mention, weight)
             if len(called) == 1:
                 self.attend(called[0], weight)
                 return Resolution(
@@ -338,10 +398,32 @@ class Discourse:
                 else list(self.referents))
         pool = [one for one in pool if one is not None
                 and not one.apart and one.id not in exclude]
+        if mention.form == "pronoun" and mention.text in GENDERED:
+            # `she`: never someone whose name says otherwise, and a person
+            # before anything else -- `Mary went to the kitchen. then she` is
+            # not the kitchen. With no person at all it is whatever is there:
+            # `there was a pig. he was flying`.
+            wanted_gender = GENDERED[mention.text]
+            fitting = [one for one in pool
+                       if one.gender in ("", wanted_gender)]
+            people = set(self.memory.identify(
+                {f"is_a {SPEAKER_KIND}"}).candidates)
+            pool = [one for one in fitting if one.id in people] or fitting
         seen = found.as_dict() if found else None
         noun = kind or "thing"
 
         if not pool:
+            if (described and kind and mention.modifiers
+                    and mention.form in ("definite", "demonstrative")):
+                referent = self.introduce(kind, accommodated=True,
+                                          weight=weight)
+                for word in mention.modifiers:
+                    self.memory.tell(referent.id, "has_property", word, said)
+                return Resolution(
+                    said, referent,
+                    f"no {' '.join(mention.modifiers)} {kind} had come up, so "
+                    f"“{said}” is taken to introduce one", [referent.id],
+                    introduced=True, identification=seen)
             if mention.modifiers:
                 return Resolution(
                     said, None,
@@ -366,6 +448,13 @@ class Discourse:
                 f"nothing has come up yet for “{said}” to refer to",
                 identification=seen)
 
+        # Said the way one of them was introduced: `the container` is the one
+        # put down as a container, not the box that is a kind of container.
+        # Otherwise `the suitcase` said next finds its suitcase taken.
+        if kind and len(pool) > 1:
+            exact = [one for one in pool if one.kind == kind]
+            if exact and len(exact) < len(pool):
+                pool = exact
         ids = [one.id for one in pool]
         if mention.form == "ordinal":
             ordered = sorted(pool, key=lambda one: one.order)
@@ -437,6 +526,7 @@ class Discourse:
                 "you": asdict(self.you) if self.you else None,
                 "program": asdict(self.program) if self.program else None,
                 "turn": self.turn, "focus": self.focus,
+                "group": list(self.group),
                 "salience": dict(self.activation.table)}
 
     def load(self, state: dict) -> None:
@@ -447,6 +537,7 @@ class Discourse:
                         if state.get("program") else None)
         self.turn = int(state.get("turn") or 0)
         self.focus = state.get("focus")
+        self.group = list(state.get("group") or ())
         self.activation.table = dict(state.get("salience") or {})
 
     def as_dict(self) -> dict:

@@ -330,9 +330,11 @@ class EpisodeTests(unittest.TestCase):
                            "today the pig is in a field",
                            "is the pig in an airplane",
                            "where was the pig yesterday", "where is the pig")
+        # T3, one place at a time: in a field today is not in an airplane
+        # today. What it was yesterday answers nothing about now.
         outcome, text = answer(turns[3])
-        self.assertEqual(outcome, "unknown")
-        self.assertIn("yesterday", text)
+        self.assertEqual(outcome, "denied")
+        self.assertIn("field", text)
         self.assertIn("T3", text)
         self.assertIn("airplane", answer(turns[4])[1])
         self.assertIn("field", answer(turns[5])[1])

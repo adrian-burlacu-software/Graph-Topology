@@ -18,12 +18,32 @@ held before, what holds at the end or the result is what holds after.
                                  the dog is barking after
     it stopped barking           stop-55.4    end(E, Theme)
                                  it is not barking after
+    Mary got the football        get-13.5.1   path_rel(end(E), Goal, Theme,
+                                              ch_of_poss); equals(Agent, Goal)
+                                 the football is with Mary after
+    Bill gave the milk to Fred   give-13.1    path_rel(start(E), Theme,
+                                              Source, ch_of_poss); ...Recipient
+                                 the milk was with Bill, and is with Fred
+    Mary dropped the football    put_direction-9.4  path_rel(start(E), Theme,
+                                              ?Initial_Location, ch_of_loc)
+                                 the football is no longer where it was
+    John discarded the milk      throw-17.1   contact(end(E0), Agent, Theme);
+                                              !contact(during(E1), ...)
+                                 the milk is no longer with John
 
 **Roles are matched by position.** A frame's syntax says which role is the
 noun phrase before the verb, which the one after it, and which the one after a
 preposition. `the vase broke` meets break-45.1's `NP.Patient VERB` and changes
 its subject; `the cat broke the vase` meets `NP.Agent VERB NP.Patient` and
-changes its object. Only frames of the sentence's own shape are read.
+changes its object. Only frames of the sentence's own shape are read. A role
+the sentence leaves out is where VerbNet's `equals` puts it: the Goal of
+getting is the Agent, the Source of giving is the Agent.
+
+**Having is being with.** Possession (`ch_of_poss`) is kept as a place: the
+football Mary got is where Mary is, and goes where she goes (`timeline.py`).
+A Theme that leaves an unexpressed place (`drop`) or stops touching the Agent
+(`discard`) is no longer with whoever had it; the session puts it where they
+were.
 
 **A change of state is named by the verb.** A broken vase, a closed door: the
 state a change-of-state verb brings about is its participle, so it is keyed by
@@ -32,7 +52,9 @@ is kept only where WordNet has the participle, or the verb itself, as an
 adjective: snooze-40.4 changes a sleeper's state, and nothing is `slept`. A
 state VerbNet names with a word of its own -- `alive`, `free`, `visible` -- is
 keyed by that word, and taken only when WordNet has the word as an adjective,
-so `degradation_material_integrity` is never asked about.
+so `degradation_material_integrity` is never asked about. A class that moves
+something does not also make it its participle: Mary moved to the bathroom is
+not a moved Mary.
 
 **Only the classes of the sense meant.** `kill` is a member of murder-42.1,
 and of amuse-31.1 (`that joke killed me`) and pain-40.8.1 (`my back is killing
@@ -40,7 +62,12 @@ me`); merging every class a verb is in would make a killed mouse amused. Each
 VerbNet member carries WordNet 3.0 sense keys, and the store's verb senses are
 WordNet 3.0 synsets, so a class is read only when one of its member's senses
 is among the first three the store ranks for the verb -- the fallback the
-rated norms use. A member with no sense keys is not read.
+rated norms use. When none of those three has a frame of the sentence's shape,
+any sense of the verb that has one is read: `pass the football to Bill` is
+not passing by, legislating or elapsing, and is giving (pass.v.05, give-13.1).
+Levin's point, that the frames a verb takes pick out its meaning. What is
+left, the story chooses (`story.py`): a reading whose starting state the story
+contradicts is not the one meant. A member with no sense keys is not read.
 
 **A place comes from the sentence.** VerbNet says that a Theme ends up
 somewhere (`path_rel(end(E), Theme, ...)`); the preposition says where. `into`,
@@ -73,6 +100,9 @@ MACHINERY = frozenset({"path_rel", "cause", "motion", "contact", "utilize",
                        "exist", "has_possession", "transfer", "take_in",
                        "has_location", "location", "position"})
 
+#: The roles that are the thing changing hands or places.
+THEMES = frozenset({"Theme", "Patient"})
+
 
 @dataclass(frozen=True)
 class Effect:
@@ -91,11 +121,14 @@ class Effect:
     before: bool | None
     #: the VerbNet class it was read from
     source: str
+    #: for a location, where: the sentence's `place`, the `subject` or the
+    #: `object` (who has it), or "" where VerbNet leaves it unsaid
+    at: str = "place"
 
     def as_dict(self) -> dict:
         return {"kind": self.kind, "position": self.position,
                 "word": self.word, "after": self.after,
-                "before": self.before, "source": self.source}
+                "before": self.before, "source": self.source, "at": self.at}
 
 
 @dataclass(frozen=True)
@@ -107,6 +140,24 @@ class Frame:
     shape: frozenset
     #: (predicate, negated, phase, roles)
     semantics: tuple
+
+
+@dataclass(frozen=True)
+class Sense:
+    """One VerbNet class a verb was read through, and what it changes."""
+
+    klass: str
+    #: the WordNet synsets its member was joined by
+    synsets: tuple
+    effects: tuple
+    #: joined by one of the verb's first senses; False when only a later
+    #: sense had a frame of the sentence's shape
+    first: bool = True
+
+    def as_dict(self) -> dict:
+        return {"class": self.klass, "synsets": list(self.synsets),
+                "effects": [one.as_dict() for one in self.effects],
+                "first": self.first}
 
 
 def adjective(word: str) -> bool:
@@ -233,16 +284,7 @@ def synset_of(key: str) -> str | None:
     return _SYNSETS[key]
 
 
-def effects(verb: str, has_object: bool = False, preposition: str = "",
-            clause: str = "", senses=None) -> list[Effect]:
-    """What an occurrence of `verb` changes, in a sentence of this shape.
-
-    `has_object`: a noun phrase right after the verb. `preposition`: the one
-    before the last noun phrase, when there is one. `clause`: the verb of a
-    clause after this one, `bark` in `started barking`. `senses`: the store's
-    senses for the verb, best first; only classes whose member shares one of
-    the first `SENSES` are read, and with none given every class is.
-    """
+def _shape(has_object: bool, preposition: str, clause: str) -> frozenset:
     wanted = set()
     if has_object:
         wanted.add("object")
@@ -250,22 +292,125 @@ def effects(verb: str, has_object: bool = False, preposition: str = "",
         wanted.add("place")
     if clause:
         wanted.add("clause")
-    meant = set(list(senses)[:SENSES]) if senses else None
-    found: dict[tuple, Effect] = {}
-    for frame, keys in frames().get(verb, ()):
-        if frame.shape != frozenset(wanted):
-            continue
-        if meant is not None and not meant & {synset_of(key) for key in keys}:
-            continue
+    return frozenset(wanted)
+
+
+def _joined(verb: str, shape: frozenset, senses) -> tuple[list, bool]:
+    """([(frame, synsets)], first): the frames of this shape whose member
+    shares one of the verb's first `SENSES` senses, or, when none does, any
+    of its senses. With no senses given, every frame of the shape."""
+    # A key VerbNet marks `?` is a mapping it is unsure of, and still the
+    # only one it gives: `take` is in steal-10.5 by one.
+    shaped = [(frame, {synset_of(key.lstrip("?")) for key in keys} - {None})
+              for frame, keys in frames().get(verb, ())
+              if frame.shape == shape]
+    if not senses:
+        return shaped, True
+    listed = list(senses)
+    for pool, first in ((set(listed[:SENSES]), True), (set(listed), False)):
+        found = [(frame, synsets & pool) for frame, synsets in shaped
+                 if synsets & pool]
+        if found:
+            return found, first
+    return [], True
+
+
+def senses_of(verb: str, has_object: bool = False, preposition: str = "",
+              clause: str = "", senses=None) -> list[Sense]:
+    """Every VerbNet class `verb` is read through in a sentence of this
+    shape, and what each one changes (`Sense`), for the story to choose
+    among. `senses` are the store's senses for the verb, best first."""
+    joined, first = _joined(verb, _shape(has_object, preposition, clause),
+                            senses)
+    found: dict[str, dict] = {}
+    for frame, synsets in joined:
+        slot = found.setdefault(frame.klass, {"synsets": set(),
+                                              "effects": {}})
+        slot["synsets"] |= synsets
         for effect in _read(frame, verb, preposition, clause):
-            key = (effect.kind, effect.position, effect.word)
-            found.setdefault(key, effect)
+            slot["effects"].setdefault((effect.kind, effect.position,
+                                        effect.word, effect.at,
+                                        effect.after), effect)
+    out = []
+    for klass, slot in found.items():
+        effects = list(slot["effects"].values())
+        moved = {one.position for one in effects if one.kind == "location"}
+        effects = [one for one in effects
+                   if not (one.kind == "state" and one.word == verb
+                           and one.position in moved)]
+        out.append(Sense(klass, tuple(sorted(slot["synsets"])),
+                         tuple(effects), first))
+    return out
+
+
+def effects(verb: str, has_object: bool = False, preposition: str = "",
+            clause: str = "", senses=None) -> list[Effect]:
+    """What an occurrence of `verb` changes, in a sentence of this shape,
+    through every class it is read through (`senses_of`).
+
+    `has_object`: a noun phrase right after the verb. `preposition`: the one
+    before the last noun phrase, when there is one. `clause`: the verb of a
+    clause after this one, `bark` in `started barking`. `senses`: the store's
+    senses for the verb, best first.
+    """
+    found: dict[tuple, Effect] = {}
+    for sense in senses_of(verb, has_object, preposition, clause, senses):
+        for effect in sense.effects:
+            found.setdefault((effect.kind, effect.position, effect.word,
+                              effect.at, effect.after), effect)
     return list(found.values())
+
+
+def accompanies(verb: str, senses=None) -> bool:
+    """Is being in the middle of this doing having its object with you?
+
+    `carry` moves its Theme as its Agent moves (carry-11.4: `motion` of both,
+    one event), `hold` is in contact with it (hold-15.1), `keep` and `have`
+    possess it (keep-15.2, own-100.1). So `what is Mary carrying` asks what is
+    with Mary, and `what is Mary eating` does not.
+    """
+    joined, _ = _joined(verb, frozenset({"object"}), senses)
+    for frame, _ in joined:
+        positions = dict(frame.positions)
+        moving = set()
+        for predicate, negated, phase, roles in frame.semantics:
+            parties = [positions.get(role.lstrip("?")) for role in roles]
+            if negated:
+                continue
+            if (predicate in ("has_possession", "contact")
+                    and parties[:2] == ["subject", "object"]
+                    and phase in ("during", "")):
+                return True
+            if predicate == "motion" and parties[:1] in (["subject"],
+                                                         ["object"]):
+                moving.add(parties[0])
+        if moving == {"subject", "object"}:
+            return True
+    return False
 
 
 def _read(frame: Frame, verb: str, preposition: str,
           clause: str) -> list[Effect]:
     positions = dict(frame.positions)
+    # `equals(Agent, Goal)`: a role the sentence leaves out that is, all the
+    # same, one it says -- who gets a thing is who got it.
+    same: dict[str, str] = {}
+    for predicate, _, _, roles in frame.semantics:
+        if predicate == "equals" and len(roles) == 2:
+            one, other = (role.lstrip("?") for role in roles)
+            for said, unsaid in ((one, other), (other, one)):
+                if said in positions and unsaid not in positions:
+                    same[unsaid] = positions[said]
+
+    def where(role: str) -> str:
+        role = role.lstrip("?")
+        return positions.get(role) or same.get(role, "")
+
+    # `the dog chased the cat` moves the dog as well as the cat (chase-51.6):
+    # the cat was never with the dog to be let go of.
+    agent_moves = any(predicate == "motion" and roles
+                      and where(roles[0]) == "subject"
+                      for predicate, _, _, roles in frame.semantics)
     out: list[Effect] = []
     named: dict[tuple, dict] = {}
     for predicate, negated, phase, roles in frame.semantics:
@@ -278,16 +423,53 @@ def _read(frame: Frame, verb: str, preposition: str,
             if entity in ("subject", "object"):
                 out.append(Effect("state", entity, verb, True, False,
                                   frame.klass))
+        elif predicate == "path_rel" and "ch_of_poss" in roles:
+            parties = [role for role in roles
+                       if role not in ("ch_of_poss", "prep")]
+            theme = next((role for role in parties
+                          if role.lstrip("?") in THEMES), None)
+            holder = next((role for role in parties if role != theme), None)
+            if theme is None or holder is None:
+                continue
+            thing, holding = where(theme), where(holder)
+            if (thing not in ("subject", "object", "place") or not holding
+                    or holding == thing):
+                continue
+            if phase == "end":
+                out.append(Effect("location", thing, "", True, None,
+                                  frame.klass, at=holding))
+            elif phase == "start":
+                out.append(Effect("location", thing, "", False, True,
+                                  frame.klass, at=holding))
         elif predicate == "path_rel" and "ch_of_loc" in roles:
             entity = positions.get(roles[0].lstrip("?")) if roles else None
-            if entity not in ("subject", "object") or not preposition:
+            if entity not in ("subject", "object"):
                 continue
-            if phase == "end" and preposition in DESTINATION:
-                out.append(Effect("location", entity, "", True, False,
-                                  frame.klass))
-            elif phase == "start" and preposition in SOURCE:
+            if preposition:
+                if phase == "end" and preposition in DESTINATION:
+                    out.append(Effect("location", entity, "", True, False,
+                                      frame.klass))
+                elif phase == "start" and preposition in SOURCE:
+                    out.append(Effect("location", entity, "", False, True,
+                                      frame.klass))
+                continue
+            if phase != "start" or len(roles) < 2:
+                continue
+            # `John left the kitchen`: it was at the object. `Mary dropped
+            # the football`: it was somewhere the sentence does not say.
+            was = where(roles[1])
+            if was and was != entity:
                 out.append(Effect("location", entity, "", False, True,
-                                  frame.klass))
+                                  frame.klass, at=was))
+            elif not was and entity == "object" and not agent_moves:
+                out.append(Effect("location", entity, "", False, True,
+                                  frame.klass, at=""))
+        elif (predicate == "contact" and negated and len(roles) == 2
+              and phase in ("during", "end")):
+            # `John discarded the milk`: in contact with it, then not.
+            if (where(roles[0]), where(roles[1])) == ("subject", "object"):
+                out.append(Effect("location", "object", "", False, True,
+                                  frame.klass, at="subject"))
         elif predicate in ("begin", "end") and clause:
             if any(positions.get(role) == "clause" for role in roles):
                 began = predicate == "begin"
