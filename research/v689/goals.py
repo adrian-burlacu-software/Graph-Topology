@@ -53,8 +53,9 @@ from research.v687.links import link
 
 from . import change as changes
 from .discourse import SPEAKER_KIND
-from .reading import (AUX, COPULA, SEQUENCE, Mention, Reading, _with_object,
-                      read_mention, tags_of, tokens_of)
+from .reading import (AUX, COPULA, PLACES, SEQUENCE, Mention, Reading, _cell,
+                      _individual, _with_object, read_mention, tags_of,
+                      tokens_of)
 
 #: Being at a place: `in the kitchen`, `at school`.
 PLACING = frozenset({"in", "inside", "at", "on"})
@@ -98,6 +99,147 @@ class Goal:
                 "object": self.object.text if self.object else None,
                 "verb": self.verb, "sequence": self.sequence,
                 "clause": " ".join(self.clause.rest) if self.clause else None}
+
+
+# -- one grammar for the cells patterns used to read -----------------------------
+#: What a question word asks, before the rest says of which relation.
+OPENERS = ((("how", "many", "times"), "times"), (("how", "often"), "times"),
+           (("when",), "time"), (("where",), "place"), (("who",), "subject"),
+           (("whom",), "subject"), (("what",), "object"))
+
+#: The act each cell was a pattern for, kept as the reading's name: the page
+#: shows it, and nothing dispatches on it (`Session.say` answers the cell).
+ACTS = {("time", "occurrence"): "when",
+        ("times", "occurrence"): "how_many_times",
+        ("place", "located"): "where",
+        ("subject", "occurrence"): "who",
+        ("recipient", "occurrence"): "to_whom",
+        ("object", "occurrence"): "what_did",
+        ("object", "holding"): "carrying",
+        ("count", "holding"): "carrying"}
+
+
+def cell_reading(tokens: list[str], lexicon, names: frozenset,
+                 said: str) -> Reading | None:
+    """What a question asks, of which relation, read by one grammar.
+
+    The question word says what is asked -- `when` a time, `how many times`
+    and `how often` a count of occurrences, `where` a place, `who` the
+    subject, `what` the object, and `how many` before a noun a count of things
+    -- and what follows it says of which relation:
+
+        AUX  NP  VERB-PHRASE          an occurrence   when did the dog bark
+        COPULA  NP  [before|after X]  located         where is the key
+        COPULA  NP  PLACE             located         what is the cat on
+        COPULA  NP  V-ing             holding         what is Mary carrying
+        AUX  NP  ...  to|from         its recipient   who did Fred give it to
+        [AUX]  [not]  VERB-PHRASE     its subject     who chased the cat
+        AUX  NP  VERB-PHRASE          its object      what did the dog chase
+
+    Seven patterns in `reading.py` used to read these one shape each. The
+    reading given for each cell is the one its pattern gave, so the handlers
+    that fill the cell read it as they did; what it does not read is left
+    for the patterns that remain (`what did it do`, `what can it do`).
+    """
+    if len(tokens) < 2:
+        return None
+    opened = next(((len(words), slot) for words, slot in OPENERS
+                   if tuple(tokens[:len(words)]) == words), None)
+    if opened is None:
+        if tokens[:2] != ["how", "many"]:
+            return None
+        opened = (3, "count")           # `how many objects`: things counted
+    at, slot = opened
+    if at >= len(tokens):
+        return None
+    head = tokens[at]
+
+    def reading(cell: tuple, *args, **kwargs) -> Reading:
+        return _cell(Reading(ACTS[cell], *args, said=said, **kwargs), *cell)
+
+    # an occurrence, and its time or how many times: `when did the dog bark`
+    if slot in ("time", "times"):
+        if len(tokens) < at + 3 or head not in AUX:
+            return None
+        found = read_mention(tokens, at + 1, lexicon, head, names=names)
+        if _individual(found) and found.end < len(tokens):
+            return _with_object(reading((slot, "occurrence"), found, head,
+                                        tokens[found.end:]), lexicon, names)
+        return None
+
+    # holding: `what is Mary carrying`, `how many objects is Mary carrying` --
+    # if the verb means having it with you, which the handler asks VerbNet
+    if (slot in ("object", "count") and len(tokens) >= at + 3
+            and head in COPULA and tokens[-1].endswith("ing")
+            and hasattr(lexicon, "progressive")):
+        found = read_mention(tokens[:-1], at + 1, lexicon, head,
+                             final_ok=True, names=names)
+        verb = lexicon.progressive(tokens[-1])
+        if _individual(found) and found.end == len(tokens) - 1 and verb:
+            counting = slot == "count"
+            return reading((slot, "holding"), found, head, [verb],
+                           count=counting,
+                           obj=(Mention("kind", tokens[2], text=tokens[2])
+                                if counting else None))
+    if slot == "count":
+        return None
+
+    if slot == "subject":
+        # its recipient: `who did Fred give the football to`
+        if len(tokens) >= 5 and head in AUX and tokens[-1] in ("to", "from"):
+            found = read_mention(tokens, 2, lexicon, head, names=names)
+            if _individual(found) and found.end < len(tokens) - 1:
+                asked = _with_object(
+                    reading(("recipient", "occurrence"), found, head,
+                            tokens[found.end:-1]), lexicon, names)
+                asked.rest = asked.rest + [tokens[-1]]
+                return asked
+        # its subject: `who chased the cat`, `who did not bark`
+        if head in COPULA:
+            return None
+        aux = head if head in AUX else None
+        rest = tokens[2:] if aux else tokens[1:]
+        holds = rest[:1] != ["not"]
+        rest = rest if holds else rest[1:]
+        if not rest:
+            return None
+        return _with_object(reading(("subject", "occurrence"), None, aux,
+                                    rest, holds=holds), lexicon, names)
+
+    # located, a place asked: `where is the key`, `where was the football
+    # before the bathroom` (`story.where_around`)
+    if slot == "place":
+        if head not in COPULA:
+            return None
+        found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens):
+            return reading(("place", "located"), found)
+        if (_individual(found) and len(tokens) > found.end + 1
+                and tokens[found.end] in ("before", "after")):
+            return reading(("place", "located"), found, head,
+                           tokens[found.end:])
+        return None
+
+    # `what`: a place (`what is the cat on`) or an occurrence's object
+    if head in COPULA:
+        if tokens[-1] in PLACES:
+            found = read_mention(tokens[:-1], 2, lexicon, "is",
+                                 final_ok=True, names=names)
+            if _individual(found) and found.end == len(tokens) - 1:
+                return reading(("place", "located"), found)
+        return None
+    if head not in AUX:
+        return None
+    start, holds = (3, False) if tokens[2:3] == ["not"] else (2, True)
+    found = read_mention(tokens, start, lexicon, head, names=names)
+    if not _individual(found) or found.form in ("speaker", "addressee"):
+        return None
+    rest = tokens[found.end:]
+    if (not rest or rest in (["do"], ["have"])
+            or (rest[:1] == ["do"] and rest[1:2] and rest[1] in SEQUENCE)):
+        return None                     # what it did, can do, has: patterns
+    return reading(("object", "occurrence"), found, head, rest, holds=holds)
 
 
 def read_goal(text: str, lexicon, names: frozenset = frozenset()
