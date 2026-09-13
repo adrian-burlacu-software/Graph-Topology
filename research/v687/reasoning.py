@@ -69,6 +69,18 @@ class ReasoningEngine(IdentifyingEngine):
                 answer = attempt(question or "")
                 if answer is not None:
                     return answer
+            # `which birds cannot fly`: the kinds beneath a class, asked one
+            # by one (`within.py`), before identification looks for a single
+            # unnamed thing and comes back AMBIGUOUS.
+            # And the shapes the question-kinds audit found answered as
+            # something else: a value (`what color is a banana`), the kind
+            # above, the parts, a choice between kinds, and likeness.
+            from . import attributes, shapes
+            from .within import answer as within
+            for layer in (within, attributes.answer, shapes.answer):
+                answer = layer(self, question or "")
+                if answer is not None:
+                    return answer
         if not concept and self._is_backwards(question or ""):
             backwards = self._inverse(question or "")
             if backwards is not None:
@@ -519,6 +531,19 @@ class ReasoningEngine(IdentifyingEngine):
         word = match.group(1).strip()
         found = self.contrast.kinds_of(word)
         if found is None:
+            # `what kinds of dogs are there`: the kind is named in the
+            # plural, and the taxonomy files it in the singular.
+            nlp = getattr(self.parser, "nlp", None)
+            pieces = word.split()
+            last = (nlp(pieces[-1])[0].lemma_.lower() if nlp else
+                    pieces[-1][:-1] if pieces[-1].endswith("s")
+                    else pieces[-1])
+            singular = " ".join(pieces[:-1] + [last])
+            if singular != word:
+                found = self.contrast.kinds_of(singular)
+                if found is not None:
+                    word = singular
+        if found is None:
             return None
         return self._shell(
             question, "LISTING", "R25", concept=found["concept"],
@@ -557,7 +582,10 @@ class ReasoningEngine(IdentifyingEngine):
         left, right = pair
         found = self.contrast.compare(left, right)
         if found is None:
-            return None
+            # The same argument as above, for a pair the norms do not both
+            # describe: `is a dolphin like a fish` fell through to a lookup
+            # and came back VERIFIED on the word `fish` in a dolphin's norms.
+            return self._uncomparable(question, text)
         wants = "difference" if self.DIFFERENCE.search(text) else "common"
         # "walk 0 nodes together before parting at X" is a sentence arguing
         # with itself: sharing nothing and having a parting point are not both

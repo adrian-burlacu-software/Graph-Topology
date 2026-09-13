@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from research.v688.rephrase import rephrase
+
 from . import clauses as coordination
 
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
@@ -70,7 +72,24 @@ CARRYING = ("in", "on", "inside", "aboard")
 NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | DEMONSTRATIVES
              | ARTICLES
              | frozenset({"another", "there", "here", "my", "your", "what",
-                          "who", "which", "its", "his", "her"}))
+                          "who", "which", "its", "his", "her", "why", "how",
+                          "where", "when", "whose", "whom", "if",
+                          "whether"}))
+
+#: Question words. `why does a dog bark` taught a kind called `why` that it
+#: `does a dog bark` -- WordNet has a noun `why`, so it was not refused as an
+#: unknown word -- and `how many legs does a spider have` taught one called
+#: `how many leg`. An utterance opening with one is a question, read whole.
+QUESTION_WORDS = frozenset({"what", "who", "whom", "whose", "which", "why",
+                            "how", "where", "when"})
+
+#: Modal openers. `should a dog eat chocolate` is not a claim to store or a
+#: question about one individual: it goes to v688 as said, where R18 names it.
+MODALS = frozenset({"should", "must", "may", "might", "shall", "ought"})
+
+#: `is it safe to ...`, `is it likely that ...`: an `it` that refers to
+#: nothing, followed by one of these.
+EXPLETIVE = frozenset({"to", "that", "for"})
 
 #: Ways of putting a new individual on the table: the words before the
 #: indefinite article in `there is a beagle` and `i have another beagle`.
@@ -579,6 +598,164 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
     return first
 
 
+#: What a count of individuals ends with: `how many dogs are there`.
+COUNT_ENDS = (("are", "there"), ("is", "there"), ("there", "are"),
+              ("have", "come", "up"), ("has", "come", "up"))
+
+#: Words after `how many` that count kinds of a thing, which R25 answers.
+KIND_WORDS = frozenset({"kind", "kinds", "type", "types", "sort", "sorts",
+                        "breed", "breeds", "species"})
+
+#: What a location question may end with: `what is the cat on`.
+PLACES = frozenset({"on", "in", "inside", "under", "at", "near", "beside",
+                    "behind", "above", "below"})
+
+
+def _individual(found) -> bool:
+    """A phrase naming one of this conversation's individuals, rather than a
+    kind or a new one."""
+    return found is not None and found.form not in ("indefinite", "another",
+                                                    "kind")
+
+
+def conversational(tokens: list[str], lexicon, names: frozenset,
+                   said: str) -> Reading | None:
+    """A wh-question about this conversation's individuals, or None.
+
+        how many dogs are there        how_many   count them
+        which dog is black             which      identify one by description
+        who chased the cat             who        identify the doer
+        where is the dog               where      what it was told to be in
+        what is the cat on             where
+        what did the dog chase         what_did   the object of what it did
+        what can it do                 about      what was told, and its kind
+        what do you know about it      about
+        what happened                  happened   what was told, in order
+        what did it do first           happened
+
+    Each is answered from episodic memory, by the same identification that
+    finds `the black one`: a walk down the trie for what the question names.
+    A question about a kind -- `what can a dog do`, `how many legs does a
+    spider have` -- is left for v688.
+    """
+    if len(tokens) < 2:
+        return None
+    first = tokens[0]
+
+    if tokens[:2] == ["how", "many"]:
+        end = next((len(one) for one in COUNT_ENDS
+                    if tuple(tokens[-len(one):]) == one), 0)
+        middle = tokens[2:len(tokens) - end] if end else []
+        if not end or (middle and middle[0] in KIND_WORDS):
+            return None
+        kind = (" ".join(middle[:-1] + [lexicon.lemma(middle[-1])])
+                if middle else "")
+        return Reading("how_many", Mention("kind", kind, text=" ".join(middle),
+                                           end=2 + len(middle)), said=said)
+
+    if first == "which" and len(tokens) >= 3:
+        at, kind = 1, ""
+        if tokens[1] not in AUX:
+            kind = "" if tokens[1] == "one" else lexicon.lemma(tokens[1])
+            at = 2
+        aux = tokens[at] if tokens[at] in AUX else None
+        rest = tokens[at + 1:] if aux else tokens[at:]
+        holds = rest[:1] != ["not"]
+        rest = rest if holds else rest[1:]
+        if not rest:
+            return None
+        return _with_object(
+            Reading("which", Mention("kind", kind, text=" ".join(tokens[1:at]),
+                                     end=at), aux, rest, holds=holds,
+                    said=said), lexicon, names)
+
+    if first in ("who", "whom") and tokens[1] not in COPULA:
+        aux = tokens[1] if tokens[1] in AUX else None
+        rest = tokens[2:] if aux else tokens[1:]
+        holds = rest[:1] != ["not"]
+        rest = rest if holds else rest[1:]
+        if not rest:
+            return None
+        return _with_object(Reading("who", None, aux, rest, holds=holds,
+                                    said=said), lexicon, names)
+
+    if first == "where" and tokens[1] in COPULA:
+        found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens):
+            return Reading("where", found, said=said)
+        return None
+
+    if first == "what" and tokens[1] in COPULA and tokens[-1] in PLACES:
+        found = read_mention(tokens[:-1], 2, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens) - 1:
+            return Reading("where", found, said=said)
+        return None
+
+    if tokens[:2] == ["what", "happened"] or tokens[:3] == ["what", "has",
+                                                            "happened"]:
+        return Reading("happened", said=said)
+
+    # Before `what` + auxiliary, which would read `you` in `what do you
+    # know about it` as the individual asked about.
+    about = (5 if tokens[:5] == ["what", "do", "you", "know", "about"] else
+             3 if tokens[:3] == ["tell", "me", "about"] else None)
+    if about is not None:
+        found = read_mention(tokens, about, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens):
+            return Reading("about", found, said=said)
+        return None
+
+    # About the conversation itself: what was said, and how an answer was
+    # reached. `what did i tell you` asked whether you told yourself things,
+    # and `how do you know that` was refused as a question about method.
+    if tokens in (["what", "did", "i", "tell", "you"],
+                  ["what", "have", "i", "told", "you"],
+                  ["what", "did", "i", "say"], ["what", "have", "i", "said"]):
+        return Reading("happened", said=said)
+    if tokens in (["how", "do", "you", "know"],
+                  ["how", "do", "you", "know", "that"],
+                  ["how", "sure", "are", "you"], ["are", "you", "sure"],
+                  ["why", "do", "you", "think", "so"]):
+        return Reading("meta", said=said)
+    # `what about a cat`, `and a fish?`: the last question, of another kind.
+    for opener in (["what", "about"], ["how", "about"], ["and"]):
+        if tokens[:len(opener)] == opener and len(tokens) > len(opener):
+            found = read_mention(tokens, len(opener), lexicon, "is",
+                                 final_ok=True, names=names)
+            if (found is not None and found.end == len(tokens)
+                    and found.form in ("indefinite", "kind")):
+                return Reading("ellipsis", found, said=said)
+
+    if first == "what" and tokens[1] in AUX and tokens[1] not in COPULA:
+        at, holds = (3, False) if tokens[2:3] == ["not"] else (2, True)
+        found = read_mention(tokens, at, lexicon, tokens[1], names=names)
+        # `what do you need to bake a cake`: `you` is anyone, not me.
+        if not _individual(found) or found.form in ("speaker", "addressee"):
+            return None
+        rest = tokens[found.end:]
+        if rest[:1] == ["do"] and rest[1:2] in (["first"], ["last"],
+                                                ["next"]):
+            return Reading("happened", found, tokens[1], rest[1:], said=said)
+        if rest in (["do"], ["have"]):
+            return Reading("about", found, tokens[1], rest, holds=holds,
+                           said=said)
+        if rest:
+            return Reading("what_did", found, tokens[1], rest, holds=holds,
+                           said=said)
+        return None
+
+    if tokens[:3] == ["what", "kind", "of"] and "is" in tokens[3:]:
+        at = tokens.index("is", 3) + 1
+        found = read_mention(tokens, at, lexicon, "is", final_ok=True,
+                             names=names)
+        if _individual(found) and found.end == len(tokens):
+            return Reading("what", found, said=said)
+    return None
+
+
 def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     """Read one utterance.
 
@@ -586,14 +763,50 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     v687's parser supplies all three. `names` is every name the conversation
     has been told, lowercased, so a mention of one is read as a mention.
     """
-    tokens, typed = tokens_of(text)
     said = (text or "").strip()
+    # A request is read as the question inside it: `do you know if a dog can
+    # swim` is `can a dog swim`, and `can't it swim` is `can it swim`.
+    asked = rephrase(said)
+    tokens, typed = tokens_of(asked.text)
     if not tokens:
         return Reading("generic", said=said)
 
+    # An analogy, a condition, a modal question, or an `it` that refers to
+    # nothing (`is it safe to eat a mushroom`): none is a claim to keep or a
+    # question about an individual here. v688 reads it whole, and R18 names
+    # what it cannot answer.
+    if (asked.asking or tokens[0] in MODALS
+            or (len(tokens) > 3 and tokens[:2] == ["is", "it"]
+                and tokens[3] in EXPLETIVE)):
+        return Reading("generic", said=said)
+
+    # `why can't it fly`: the yes or no about one individual, asked so the
+    # answer can say what it rests on. A bare `why` asks it of the last
+    # answer. A why about a kind -- `why can't a penguin fly` -- was put as
+    # its yes or no by `rephrase`, and v688 answers what it rests on.
+    if tokens[0] == "why":
+        rest = tokens[1:]
+        if not rest or rest in (["not"], ["so"], ["is", "that"]):
+            return Reading("why", said=said)
+        if rest[0] in AUX:
+            at = 3 if len(rest) > 1 and rest[1] == "not" else 2
+            found = read_mention(tokens, at, lexicon, rest[0], names=names)
+            if (found is not None
+                    and found.form not in ("indefinite", "another", "kind")):
+                return _with_object(
+                    Reading("why", found, rest[0], tokens[found.end:],
+                            holds=at == 2, said=said), lexicon, names)
+        return Reading("generic", said=said)
+
+    # `who chased the cat`, `where is the dog`, `how many dogs are there`:
+    # about this conversation's individuals, answered from episodic memory.
+    asked_here = conversational(tokens, lexicon, names, said)
+    if asked_here is not None:
+        return asked_here
+
     # A statement of several claims is read one claim at a time. Questions
     # are left whole: `can it swim and bark` asks one thing.
-    if tokens[0] not in AUX and tokens[0] not in ("what", "who"):
+    if tokens[0] not in AUX and tokens[0] not in QUESTION_WORDS:
         analysis = _analysis(tokens, lexicon)
         if analysis is not None:
             parts = coordination.split(tokens, analysis)
@@ -609,6 +822,23 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
 
     if (tokens[0] in ("what", "who") and len(tokens) > 2
             and tokens[1] in ("is", "was", "am", "are")):
+        tail = tokens[2:]
+        if len(tail) > 1 and tail[0] == "the":
+            # `what is the largest animal`, `what is the capital of france`:
+            # a kind described, not an individual here. It was answered
+            # `nothing here was said to be largest`; v688 reads it, and R18
+            # names what it cannot answer.
+            tags = tags_of(tokens, lexicon) or []
+            after = tail[1:]
+            superlative = any(
+                word in ("most", "least")
+                or (tags[index + 3] == "JJS" if len(tags) == len(tokens)
+                    else word.endswith("est") and len(word) > 5)
+                for index, word in enumerate(after))
+            belongs = ("of" in after and after[-1] not in PRONOUNS
+                       and after[after.index("of") + 1:][:1] != ["the"])
+            if superlative or belongs:
+                return Reading("generic", said=said)
         found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
                              names=names)
         if (found and found.form not in ("indefinite", "another")

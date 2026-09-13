@@ -741,7 +741,39 @@ class Profiles:
         # test is against the original term rather than against a word count.
         if not words or words == [term.strip().lower()]:
             return False
+        # A count is never retried word by word: `eight` alone is borne out
+        # by `has eight eyes`.
+        if Profiles.counted(term):
+            return self.identifier._hit(" ".join(words), predicates) is not None
         return any(self.identifier._hit(word, predicates) for word in words)
+
+    @staticmethod
+    def counted(term: str) -> tuple[str, str] | None:
+        """(count, what it counts) for `eight legs`, or None."""
+        words = term.lower().split()
+        if len(words) == 2 and (words[0] in logic.COUNTS
+                                or words[0].isdigit()):
+            return words[0], words[1]
+        return None
+
+    def other_count(self, term: str, predicates) -> str | None:
+        """A predicate giving another count of the same thing, if one does:
+        `has eight legs` for `six legs`. A denial of a count is not one."""
+        counted = self.counted(term)
+        if counted is None:
+            return None
+        number, noun = counted
+        noun = self.identifier.stem(noun)
+        for predicate in sorted(predicates):
+            if self._denies(predicate):
+                continue
+            words = predicate.lower().split()
+            for first, second in zip(words, words[1:]):
+                if ((first in logic.COUNTS or first.isdigit())
+                        and first != number
+                        and self.identifier.stem(second) == noun):
+                    return predicate
+        return None
 
     def sharpest(self, concept: str, attached: str,
                  term: str) -> tuple[str, int, int]:
@@ -882,7 +914,14 @@ class Profiles:
             denials = [hit for hit in found
                        if self._denies(hit)
                        and self.identifier.denies_term(asked or terms, hit)]
-            plain = [hit for hit in found if not self._denies(hit)]
+            # The statement that accounts for most of the question: `do cats
+            # eat mice` is `eats rodents and mice`, not `eats meat`.
+            asked_stems = {self.identifier.stem(word)
+                           for one in (asked or terms) for word in one.split()}
+            plain = sorted((hit for hit in found if not self._denies(hit)),
+                           key=lambda hit: -len(asked_stems & {
+                               self.identifier.stem(word)
+                               for word in hit.split()}))
             hit = denials[0] if denials else (plain[0] if plain else None)
             if hit is not None and self._denies(hit):
                 return Verdict(
@@ -909,6 +948,15 @@ class Profiles:
                     detail=f"The norms state “{hit}” of {name}. It sits at "
                            f"depth {depths.get(hit, 0)} of its trie path, and "
                            f"{company}.")
+        # A count is one number. The norms stating `has eight legs` of a
+        # spider are a no to six legs, though no word of it is a denial.
+        clash = self.other_count(term, stated)
+        if clash is not None:
+            return Verdict(
+                term=term, verdict="DENIED", predicate=clash, source="stated",
+                depth=depths.get(clash, 0), shared=sharing.get(clash, 0),
+                detail=f"The norms state “{clash}” of {name}, and a count is "
+                       f"one number: not “{term}”.")
         # A denial answers this question only if the question covers what the
         # denial claims. `has small ears` being false of a beaver is not the
         # beaver having no ears, and reading it that way was the one place
@@ -931,6 +979,9 @@ class Profiles:
         # matches `capable of fly` and `capable of fly in the water` equally,
         # and the second is corpus noise that reads as an answer.
         matches = []
+        # Another count of the same thing, nearest first: `has a four legs`
+        # on animal, asked whether a dog has two.
+        clashes: list[tuple[Ancestry, str]] = []
         for level in self.ancestry(name):
             for fact in level.all_facts:
                 text = f"{fact['relation'].replace('_', ' ')} {fact['object']}"
@@ -945,9 +996,25 @@ class Profiles:
                         else text):
                     continue
                 for term in terms:
+                    # A count is of what a thing has: `capable of walk on two
+                    # legs` is not having two.
+                    if (self.counted(term)
+                            and not fact["relation"].startswith("has")):
+                        continue
                     if self.identifier._hit(term, frozenset({text})):
                         matches.append((level, fact, text, term))
                         break
+                    if not negated and self.other_count(term, [text]):
+                        clashes.append((level, text))
+        nearest = min((level.distance for level, *_ in matches), default=None)
+        if clashes and (nearest is None or clashes[0][0].distance < nearest):
+            level, text = clashes[0]
+            return Verdict(
+                term=terms[0], verdict="UNRECORDED", source=level.concept,
+                distance=level.distance,
+                detail=f"Not in the norms for {name}, and {level.concept} — "
+                       f"{level.distance} level(s) up — {text}, another count: "
+                       f"“{terms[0]}” is not inherited from it.")
         if matches:
             asked_stems = {self.identifier.stem(word)
                            for word in (asked or terms)}

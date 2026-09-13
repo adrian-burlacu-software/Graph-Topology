@@ -27,7 +27,8 @@ from .teacher import SETTLING_FLOOR, challengeable
 #: An utterance that opens with one of these is a question already.
 ASKING = re.compile(
     r"^\s*(is|are|was|were|do|does|did|can|could|will|would|has|have|had|"
-    r"what|which|who|whose|why|how|where|when|name|list|tell)\b", re.I)
+    r"should|must|may|might|shall|ought|"
+    r"what|which|who|whose|why|how|where|when|name|list|tell|if)\b", re.I)
 
 #: `X is a Y` -> `is X a Y`, and the same for the other copular openers. A
 #: statement is checked by asking it, which is what makes R27 an assertion
@@ -157,7 +158,12 @@ def seed_questions(text: str, lemmatise=None) -> list[str]:
             asked.append(
                 f"does {article(subject)} {subject} {head} {rest}".strip())
     if not asked:
-        asked = [f"what is {article(text)} {text}"]
+        # A word or two nothing could read is asked about as a thing:
+        # `wemble` is `what is a wemble`. Anything longer is asked as it
+        # stands -- `cna a dog swim` wrapped became `what is a cna a dog
+        # swim`, and that re-ask was headlined as the answer.
+        asked = ([f"what is {article(text)} {text}"]
+                 if len(text.split()) <= 2 else [text])
     return asked[:4]
 
 
@@ -219,10 +225,19 @@ class Loop:
 
         # -- cycle 0: what was actually said ------------------------------
         buffer.attend(utterance)
+        # A request is asked as the question inside it (`rephrase.py`):
+        # `do you know if a dog can swim` asked whether a program knows
+        # things. What changed the question is said in the summary.
+        from .rephrase import rephrase
+        asked = rephrase(utterance)
+        buffer.rephrased = asked.note
+        # A why is asked as its yes or no; the summary says what that rests on.
+        buffer.why, buffer.negative = asked.why, asked.negative
         seeds = [Question(text, "seed", why="what you said, asked as it stands"
-                          if text == utterance.strip().rstrip("?.")
+                          if text == asked.text.strip().rstrip("?.")
                           else "the claim you made, put as a question")
-                 for text in seed_questions(utterance, self.lemma)]
+                 for text in ([asked.text] if asked.asking
+                              else seed_questions(asked.text, self.lemma))]
         for seed in seeds:
             buffer.attend(seed.text)
 
@@ -356,8 +371,12 @@ class Loop:
             lines.append(f"{headline.verdict} — {headline.question}")
         for bad in conflicts:
             names = ", ".join(question for question, _ in bad.against)
-            about = ("but not corroborated"
-                     if headline is not None and bad.question == headline.question
+            mine = headline is not None and bad.question == headline.question
+            # A family that holds exceptions has not overturned the claim, and
+            # the line says which: `can a bird fly`, with a chicken that does
+            # not, is a generic with an exception.
+            about = ("but not corroborated" if mine and bad.overturns
+                     else "with exceptions" if mine
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
         # What the teacher said when asked the question directly. It is
@@ -513,14 +532,29 @@ class Loop:
                 f"“{hole.blocker}” is not something this ontology has a word "
                 f"for; nothing about it can be settled until it is told")
 
+        note = getattr(buffer, "rephrased", "")
+        if note and headline is not None:
+            lines.append(f"read as “{headline.question}”: {note}")
+
         learned = [answer for answer in buffer.answers.values()
                    if answer.origin == "curiosity"
                    and answer.verdict in ("VERIFIED", "CONTRADICTED",
                                           "DENIED", "HELD")]
+        from .content import because, digest
+        answered = corrected or headline
+        # What a listing, an identification or a script held: the first line
+        # says `LISTING — what can a dog do`, which is no answer. For a why,
+        # what the yes or no rests on -- its derivation, and what the things
+        # that do it have in common (`graph.Requirements`).
+        content = digest(answered.payload) if answered is not None else None
+        if answered is not None and getattr(buffer, "why", False):
+            content = because(answered.payload, buffer.negative,
+                              self.requirement_of(answered))
         return {
             "headline": headline.as_dict(False) if headline else None,
             "verdict": (corrected or headline).verdict if headline else "",
             "as_asked": headline.verdict if headline else "",
+            "content": content,
             "corrected": corrected.as_dict(False) if corrected else None,
             "lines": lines,
             "conflicts": [bad.as_dict() for bad in conflicts],
@@ -554,11 +588,48 @@ class Loop:
         if headline is None:
             return False
         conflicts = buffer.conflicts() if conflicts is None else conflicts
+        # A family that holds exceptions to the claim has not argued against
+        # it: `can a bird fly` is not overturned by a chicken (`Conflict`).
         return (bool(buffer.overreach())
-                or any(bad.question == headline.question for bad in conflicts)
+                or any(bad.question == headline.question and bad.overturns
+                       for bad in conflicts)
                 or any(one.origin == "require" and one.about
                        and self.failed(one, buffer)
                        for one in buffer.answers.values()))
+
+    def requirement_of(self, answer) -> dict | None:
+        """What the action a yes or no is about needs, and whether its
+        subject has it: `fly` needs a wing, which 31 of the 87 things recorded
+        as flying have.
+
+        The same `graph.Requirements` the generator puts to the subject, read
+        here to say what a why rests on. Anything it cannot work out is left
+        out rather than guessed -- and whether the subject has the part is
+        only said of a synset, because the norms answer about a name the
+        store cannot look the part up on."""
+        payload = answer.payload or {}
+        target = ((payload.get("parse") or {}).get("target") or "").split()
+        if not target:
+            return None
+        try:
+            from .graph import Requirements
+
+            requirements = getattr(self, "_requirements", None)
+            if requirements is None:
+                requirements = self._requirements = Requirements(
+                    self.pool.engines[0].reasoner)
+            action = self.lemma(target[0])
+            needs = requirements.of(action)
+            if needs is None:
+                return None
+            concept = payload.get("concept") or ""
+            has = (requirements.recorded_of(concept, needs.part)
+                   if ".n." in concept else None)
+        except Exception:                           # noqa: BLE001
+            return None
+        return {"part": needs.part, "action": action,
+                "holders": needs.holders, "doers": needs.doers,
+                "decisive": needs.decisive, "has": has}
 
     def unchallenged(self, headline, buffer: Buffer) -> bool:
         """A yes on a crawled row that the run neither bore out nor spoke
@@ -668,8 +739,14 @@ class Loop:
         # way past -- does not survive its own family. Reporting the second as
         # though it were the first says the shark is not a fish, which is both
         # wrong and not what any part of the system concluded.
-        if any(bad.question == headline.question for bad in conflicts):
+        about_this = [bad for bad in conflicts
+                      if bad.question == headline.question]
+        if any(bad.overturns for bad in about_this):
             return "contradicted by its own family"
+        if about_this:
+            # `can a bird fly`: a chicken does not, and the family still bears
+            # it out. An exception is not a contradiction.
+            return "holds, with exceptions in its family"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
         rank = self.rank_of(headline) if hasattr(self, "rank_of") else None

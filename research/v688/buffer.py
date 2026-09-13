@@ -72,13 +72,27 @@ class Conflict:
     verdict: str
     against: list[tuple[str, str]] = field(default_factory=list)
     detail: str = ""
+    #: How many of the family answered either way.
+    decided: int = 0
+
+    @property
+    def overturns(self) -> bool:
+        """Does the family deny it, rather than hold exceptions to it?
+
+        `can a bird fly` was put to five kinds of bird and a chicken said no,
+        and the headline read NOT SUPPORTED. A generic with an exception is
+        still a generic: R19 inherits `bird capable_of fly` because 21 of 29
+        birds bear it out. Only when at least half of those that decided deny
+        it has the family argued against the claim."""
+        return not self.decided or len(self.against) * 2 >= self.decided
 
     def as_dict(self) -> dict:
         return {"claim": self.claim, "question": self.question,
                 "verdict": self.verdict,
                 "against": [{"question": q, "verdict": v}
                             for q, v in self.against],
-                "detail": self.detail}
+                "detail": self.detail, "decided": self.decided,
+                "overturns": self.overturns}
 
 
 class Buffer:
@@ -357,7 +371,7 @@ class Buffer:
             claim = children[0].predicate or ""
             found.append(Conflict(
                 claim=claim, question=parent, verdict=original.verdict,
-                against=against,
+                against=against, decided=len(decided),
                 detail=f"{len(against)} of the {len(decided)} concepts this "
                        f"claim was put to deny it"))
         return found

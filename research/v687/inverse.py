@@ -131,6 +131,12 @@ class Inverse:
                 # things made *out of* hammers.
                 if relation == "capable_of":
                     words = self._content(text[match.start():])
+                elif before and self.HAS_SUBJECT.match(text):
+                    # "what does a *plant* need to grow" asks what a plant
+                    # needs: read from `grow` it answered with what a vote
+                    # needs. "what *animals* live in water" names a class,
+                    # not a subject, and stays here.
+                    return None
                 elif after:
                     words = after
                 else:

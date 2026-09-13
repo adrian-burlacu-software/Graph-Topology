@@ -54,6 +54,12 @@ class KleeneTests(unittest.TestCase):
         self.assertEqual(logic.parse("furry or purple", ASIDE).tree.op, "or")
         self.assertEqual(logic.parse("not furry", ASIDE).tree.op, "not")
 
+    def test_a_count_is_one_term_with_what_it_counts(self):
+        self.assertEqual(logic.parse("eight legs", ASIDE).tree.terms(),
+                         ["eight legs"])
+        self.assertEqual(sorted(logic.parse("4 legs and a tail", ASIDE)
+                                .tree.terms()), ["4 legs", "tail"])
+
     def test_a_quantifier_is_not_also_a_negation(self):
         """`no birds fly` is quantified, not negated, and reading `no` as
         both answers the opposite question."""
@@ -473,6 +479,15 @@ class RoutingTests(unittest.TestCase):
                          "what is found in a toolbox", "what has wings"):
             self.assertEqual(self.rule(question), "R22", question)
 
+    def test_a_subject_named_before_the_cue_is_asked_forwards(self):
+        """`what does a plant need to grow` is what a plant needs, not what
+        stands in front of `grow` -- which answered with a vote."""
+        reads = self.engine.inverse.reads
+        self.assertIsNone(reads("what does a plant need to grow"))
+        self.assertIsNone(reads("what is a hammer made of"))
+        self.assertEqual(reads("what animals live in water")[0],
+                         "at_location")
+
     def test_every_new_answer_can_be_drawn_and_replayed(self):
         """The page draws from `identification` and lights nodes by the
         `concept` of each step, so a step naming something that was never
@@ -570,10 +585,11 @@ class PinnedSenseTests(unittest.TestCase):
         self.assertEqual(counting, ["mouse"])
 
     def test_a_pin_changes_the_event_sense(self):
-        """R23 picks the sense carrying the most eventive facts, which for
-        `bark` is the covering of a tree."""
-        loose = self.engine.ask("why does a dog bark")
-        pinned = self.engine.ask("why does a dog bark", None,
+        """R23 reads the word across its senses carrying eventive facts,
+        which for `bark` is only the covering of a tree -- where ConceptNet
+        hung the dog's `produce sounds`. Pinned to the verb, there are none."""
+        loose = self.engine.ask("what happens when a dog barks")
+        pinned = self.engine.ask("what happens when a dog barks", None,
                                  {"bark": "bark.v.01"})
         self.assertTrue(loose["causal"]["steps"])
         self.assertFalse(pinned["causal"]["steps"])

@@ -68,8 +68,15 @@ from .definitions import DEFINED, GlossReader, question_for, says
 from .discourse import OBJECT_WEIGHT, Discourse, Referent, Resolution
 from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
                        name_of)
-from .reading import (ARTICLES, CARRYING, COPULA, RELATIVE, Reading,
-                      article, kind_question, mode_of, progressive, read)
+from .reading import (ARTICLES, AUX, CARRYING, COPULA, QUESTION_WORDS,
+                      RELATIVE, Reading, article, kind_question, mode_of,
+                      progressive, read, words)
+
+#: An auxiliary agreeing with `they`, as it agrees with one of a kind.
+SINGULAR = {"do": "does", "are": "is", "were": "was", "have": "has"}
+
+#: `they`, where nothing here is it, and what stands in its place.
+THEY = frozenset({"they", "them"})
 
 #: v688's readings, as a word a reply can start with.
 WORD = {"verified": "yes", "denied": "no"}
@@ -77,16 +84,34 @@ WORD = {"verified": "yes", "denied": "no"}
 #: v687's verdicts, as v688's readings.
 OUTCOME = {"VERIFIED": "verified", "CONTRADICTED": "denied"}
 
+#: A question's auxiliary, denied: what `why can't it fly` asks of its kind.
+DENIAL = {"can": "can't", "could": "couldn't", "does": "doesn't",
+          "do": "don't", "did": "didn't", "is": "isn't", "are": "aren't",
+          "was": "wasn't", "were": "weren't", "has": "hasn't",
+          "have": "haven't", "will": "won't", "would": "wouldn't"}
+
 #: `a kind of animal`, `a type of dog`.
 HEDGES = ("kind", "type", "sort")
 
 
 def summary_of(run: dict | None) -> tuple[str, str, str]:
-    """(outcome, headline, trust) from a v688 run."""
+    """(outcome, headline, trust) from a v688 run.
+
+    An answer that is not a yes or no -- a listing, an identification, a
+    comparison, a script -- is headlined by what it held: v688's first line
+    for it is the verdict word and the question back. What sits beside a yes
+    or no, like the kinds that do not fly, is added to it."""
     summary = (run or {}).get("summary") or {}
     lines = summary.get("lines") or []
-    return (summary.get("outcome") or "unknown", lines[0] if lines else "",
-            summary.get("trust") or "")
+    headline = lines[0] if lines else ""
+    trust = summary.get("trust") or ""
+    content = summary.get("content") or {}
+    if content.get("text") and content.get("answers"):
+        headline, trust = content["text"], ""
+    elif content.get("text"):
+        headline = (f"{headline} — {content['text']}" if headline
+                    else content["text"])
+    return summary.get("outcome") or "unknown", headline, trust
 
 
 def be(referent: Referent) -> str:
@@ -282,7 +307,12 @@ class Session:
         acts = {"introduce": self._introduce, "tell": self._tell,
                 "ask": self._ask, "what": self._what, "name": self._name,
                 "ask_name": self._ask_name, "teach": self._teach,
-                "compound": self._compound, "define": self._define}
+                "compound": self._compound, "define": self._define,
+                "why": self._why, "how_many": self._how_many,
+                "which": self._which, "who": self._who,
+                "where": self._where, "what_did": self._what_did,
+                "about": self._about, "happened": self._happened,
+                "meta": self._meta, "ellipsis": self._ellipsis}
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows.
@@ -294,6 +324,13 @@ class Session:
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
+            # What a bare `why` asks about: the last yes or no put.
+            if one.act in ("ask", "generic") and turn.asked:
+                self._last_question = (one, turn.asked)
+            # What `they` means when nothing here is: the last kind named.
+            if (one.mention is not None and one.mention.kind
+                    and one.act in ("generic", "teach", "define", "ellipsis")):
+                self._last_kind = one.mention.kind
         if len(parts) > 1:
             turn.resolution, turn.binding = first
             outcomes = [one.get("outcome") for one in replies]
@@ -481,6 +518,25 @@ class Session:
         definition through v688 the first time it is asked."""
         word = reading.mention.kind
         node = self.asker.sense(word)
+        taught = self.memory.kinds.get(word)
+        if node is None and taught is not None:
+            # `what is a wemble`: the store has no word for it, and v688 said
+            # so. What it is, is what it was taught to be.
+            parents = [name_of(one) for one in self.memory.edges.get(taught,
+                                                                      [])]
+            told = [self.memory.said.get((taught, fact.relation, fact.object),
+                                         "")
+                    for fact in self.memory.facts.get(taught, [])]
+            told = [one for one in dict.fromkeys(told) if one]
+            text = (f"{article(word)} {word}: a kind of "
+                    f"{', '.join(parents)}, as you taught me" if parents else
+                    f"{article(word)} {word}: a kind taught here")
+            if told:
+                text += "; and you taught me " + "; ".join(
+                    f"“{one}”" for one in told)
+            turn.answer = {"outcome": "retrieved", "source": "taught",
+                           "text": text}
+            return
         if node is None or self.definitions is None:
             self._generic(reading, turn)
             return
@@ -966,6 +1022,381 @@ class Session:
                        "text": text}
         return True
 
+    # -- wh-questions about this conversation's individuals ----------------
+    def _individuals(self, kind: str = "") -> list[Referent]:
+        """The individuals here of a kind, found as a description is: by
+        walking the episodic trie for `is_a kind`, which every kind above an
+        individual is stored as."""
+        people = [one for one in self.discourse.referents if not one.apart]
+        if not kind:
+            return people
+        found = set(self.memory.identify({f"is_a {kind}"}).candidates)
+        return [one for one in people if one.id in found]
+
+    def _names(self, people: list[Referent]) -> str:
+        names = [self.discourse.describe(one) for one in people]
+        return (", ".join(names[:-1]) + " and " + names[-1]
+                if len(names) > 1 else "".join(names))
+
+    def _here(self, reading: Reading, turn: Turn) -> Referent | None:
+        """The individual a question is about. A question never puts one
+        down: asked `where is the dog` with no dog, there is no dog."""
+        mention = reading.mention
+        if (mention.form in ("definite", "demonstrative", "possessive")
+                and mention.kind and not self._individuals(mention.kind)):
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"no {mention.kind} has come up"}
+            return None
+        return self._resolve(reading, turn)
+
+    def _object_here(self, reading: Reading, turn: Turn):
+        """(rest, object) for a question: the object resolved if it is one
+        of the individuals here, and left a kind otherwise."""
+        found = reading.obj
+        if found is None or found.form in ("indefinite", "another", "kind") \
+                or (found.kind and not self._individuals(found.kind)):
+            return list(reading.rest), None
+        turn.binding = self.discourse.resolve(found, weight=OBJECT_WEIGHT)
+        other = turn.binding.referent
+        if other is None:
+            turn.answer = {"outcome": "which", "source": "conversation",
+                           "text": turn.binding.how}
+            return None, None
+        return (list(reading.rest[:reading.obj_at])
+                + [article(other.kind), other.kind]), other
+
+    def _told_of(self, relation: str, obj: str, other=None,
+                 among=None) -> list[Referent]:
+        """Who was told this: the trie walked for `relation object`, and the
+        object's individual checked where the question named one."""
+        found = set(self.memory.identify({f"{relation} {obj.lower()}"})
+                    .candidates)
+        people = [one for one in self.discourse.everyone()
+                  if one.id in found and (among is None or one in among)]
+        if other is not None:
+            people = [one for one in people if other.id in self.memory.bound
+                      .get((one.id, relation, obj), ())]
+        return people
+
+    def _quotes(self, people, relation: str, obj: str) -> str:
+        said = dict.fromkeys(self.memory.said.get((one.id, relation, obj), "")
+                             for one in people)
+        return "; ".join(f"“{one}”" for one in said if one)
+
+    def _how_many(self, reading: Reading, turn: Turn) -> None:
+        kind = reading.mention.kind if reading.mention else ""
+        ones = self._individuals(kind)
+        if not ones:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"none — no {kind or 'one'} has come up"}
+            return
+        turn.answer = {"outcome": "retrieved", "source": "conversation",
+                       "text": f"{len(ones)} — {self._names(ones)}"}
+
+    def _which(self, reading: Reading, turn: Turn) -> None:
+        kind = reading.mention.kind if reading.mention else ""
+        ones = self._individuals(kind)
+        if not ones:
+            self._generic(reading, turn)        # `which birds cannot fly`
+            return
+        rest, other = self._object_here(reading, turn)
+        if rest is None:
+            return
+        relation, obj, question, _ = self._relation(
+            reading.aux, rest, kind or ones[0].kind, reading.holds)
+        if relation is None:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"v687 reads “{question}” as no relation "
+                                   f"it keeps"}
+            return
+        told = self._told_of(relation, obj, other, ones)
+        if told:
+            quotes = self._quotes(told, relation, obj)
+            turn.answer = {"outcome": "retrieved", "source": "told",
+                           "text": self._names(told) + (
+                               f" — you told me {quotes}" if quotes else "")}
+            return
+        # Nothing told picks one out; what each inherits may. A quality does
+        # not descend to one of them (E1), so that walk says nothing.
+        walked = [one for one in ones
+                  if self._walk(one.id, relation, obj).verdict == "VERIFIED"]
+        if walked:
+            turn.answer = {"outcome": "retrieved", "source": "kind",
+                           "text": f"nothing was told of any of them, but by "
+                                   f"what their kinds do: "
+                                   f"{self._names(walked)}"}
+            return
+        said = " ".join(reading.rest)
+        turn.answer = {"outcome": "unknown", "source": "conversation",
+                       "text": f"no {kind or 'one'} here was said to "
+                               f"{'be ' if reading.aux in COPULA else ''}"
+                               f"{said}"}
+
+    def _who(self, reading: Reading, turn: Turn) -> None:
+        if not any(self.memory.facts.get(one.id) or self.memory.labels.get(
+                one.id) for one in self.discourse.referents):
+            self._generic(reading, turn)    # `who invented the telephone`
+            return
+        if (reading.rest and self.asker.lemma(reading.rest[0]) == "own"
+                and reading.obj is not None):
+            _, owned = self._object_here(reading, turn)
+            if owned is None:
+                if not turn.answer:
+                    self._generic(reading, turn)
+                return
+            owner = next((label.split(" ", 1)[1] for label in
+                          self.memory.labels.get(owned.id, ())
+                          if label.startswith("owner ")), None)
+            found = self.discourse.by_id(owner) if owner else None
+            described = self.discourse.describe(owned)
+            turn.answer = (
+                {"outcome": "retrieved", "source": "told",
+                 "text": f"{self.discourse.describe(found)} — {described} is "
+                         f"{'yours' if found.speaker else 'theirs'}"}
+                if found is not None else
+                {"outcome": "unknown", "source": "conversation",
+                 "text": f"nobody was said to own {described}"})
+            return
+        rest, other = self._object_here(reading, turn)
+        if rest is None:
+            return
+        relation, obj, question, _ = self._relation(
+            reading.aux, rest, self.discourse.referents[0].kind, reading.holds)
+        if relation is None:
+            self._generic(reading, turn)
+            return
+        told = self._told_of(relation, obj, other)
+        if told:
+            quotes = self._quotes(told, relation, obj)
+            turn.answer = {"outcome": "retrieved", "source": "told",
+                           "text": self._names(told) + (
+                               f" — you told me {quotes}" if quotes else "")}
+            return
+        turn.answer = {"outcome": "unknown", "source": "conversation",
+                       "text": f"nobody here was said to {' '.join(rest)}"}
+
+    def _where(self, reading: Reading, turn: Turn) -> None:
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        described = self.discourse.describe(referent)
+        places = []
+        for fact in self.memory.facts.get(referent.id, []):
+            if fact.relation != "at_location":
+                continue
+            key = (referent.id, fact.relation, fact.object)
+            there = [self.discourse.by_id(one)
+                     for one in sorted(self.memory.bound.get(key, ()))]
+            where = self._names([one for one in there if one]) or fact.object
+            said = self.memory.said.get(key, "")
+            places.append(where + (f" — you told me “{said}”" if said else ""))
+        turn.answer = (
+            {"outcome": "retrieved", "source": "told",
+             "text": f"{described}: " + "; ".join(places)} if places else
+            {"outcome": "unknown", "source": "conversation",
+             "text": f"nothing was said about where {described} is"})
+
+    def _what_did(self, reading: Reading, turn: Turn) -> None:
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        described = self.discourse.describe(referent)
+        verb = self.asker.lemma(reading.rest[0])
+        found = []
+        for fact in self.memory.facts.get(referent.id, []):
+            words = fact.object.split()
+            if not words or self.asker.lemma(words[0]) != verb:
+                continue
+            key = (referent.id, fact.relation, fact.object)
+            bound = [self.discourse.by_id(one)
+                     for one in sorted(self.memory.bound.get(key, ()))]
+            what = (self._names([one for one in bound if one])
+                    or " ".join(words[1:]) or fact.object)
+            said = self.memory.said.get(key, "")
+            found.append(what + (f" — you told me “{said}”" if said else ""))
+        turn.answer = (
+            {"outcome": "retrieved", "source": "told",
+             "text": "; ".join(found)} if found else
+            {"outcome": "unknown", "source": "conversation",
+             "text": f"nothing was told of {described} that it would "
+                     f"{' '.join(reading.rest)}"})
+
+    def _about(self, reading: Reading, turn: Turn) -> None:
+        """Everything told of one individual, and for what it can do or has,
+        what its kind can do or has as well."""
+        referent = self._here(reading, turn)
+        if referent is None:
+            return
+        described = self.discourse.describe(referent)
+        wanted = {("do", True): ("capable_of",),
+                  ("do", False): ("not_capable_of",),
+                  ("have", True): ("has_a", "has_part")}.get(
+            (reading.rest[0] if reading.rest else "", reading.holds))
+        told = [self.memory.said.get((referent.id, fact.relation,
+                                      fact.object), "")
+                for fact in self.memory.facts.get(referent.id, [])
+                if wanted is None or fact.relation in wanted]
+        told = [one for one in dict.fromkeys(told) if one]
+        parts = [self._kind(referent)]
+        if referent.name:
+            parts.append(f"called {referent.name}")
+        if any(label == "owner you"
+               for label in self.memory.labels.get(referent.id, ())):
+            parts.append("yours")
+        text = f"{described}: " + ", ".join(parts)
+        if told:
+            text += "; you told me " + "; ".join(f"“{one}”" for one in told)
+        elif wanted is not None and not reading.holds:
+            # What one cannot do is only ever told: its kind being able to do
+            # a thing says nothing of what this one cannot.
+            text += (f"; nothing it cannot "
+                     f"{reading.rest[0] if reading.rest else 'do'} was told "
+                     f"of {described}")
+        node = self._kind_node(referent)
+        if (wanted is not None and reading.holds and node
+                and not self.memory.episodic_only(node)):
+            who = f"{article(referent.kind)} {referent.kind}"
+            turn.asked = (f"what can {who} do" if reading.rest == ["do"]
+                          else f"what does {who} have")
+            turn.run = self._run(turn.asked)
+            _, headline, _ = summary_of(turn.run)
+            if headline:
+                text += f"; and as {who}: {headline}"
+        turn.answer = {"outcome": "retrieved",
+                       "source": "told" if told else "kind", "text": text}
+
+    def _happened(self, reading: Reading, turn: Turn) -> None:
+        """What was told, in the order it was told: of one individual's doings,
+        or of everyone."""
+        referent = None
+        if reading.mention is not None:
+            referent = self._here(reading, turn)
+            if referent is None:
+                return
+        events = []
+        for (node, relation, _), said in self.memory.said.own.items():
+            if node not in self.memory.individuals:
+                continue
+            if referent is not None and (node != referent.id or relation not in
+                                         ("capable_of", "not_capable_of",
+                                          DID_NOT)):
+                continue
+            events.append(said)
+        events = list(dict.fromkeys(one for one in events if one))
+        if not events:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": "nothing has been told of anyone here yet"
+                                   if referent is None else
+                                   f"nothing was told of what "
+                                   f"{self.discourse.describe(referent)} did"}
+            return
+        which = reading.rest[:1]
+        if which == ["first"]:
+            events, lead = events[:1], "first: "
+        elif which in (["last"], ["next"]):
+            events, lead = events[-1:], "last: "
+        else:
+            lead = "in the order you told me: "
+        turn.answer = {"outcome": "retrieved", "source": "told",
+                       "text": lead + "; ".join(f"“{one}”" for one in events)}
+
+    #: Where an answer came from, said as the grounds for it.
+    GROUNDS = {"told": "from what you told me",
+               "taught": "from what you taught me",
+               "learned": "from what you taught me in an earlier conversation",
+               "kind": "from what its kind is recorded as, by v688",
+               "tendency": "from its kind, as a tendency",
+               "definition": "from its definition",
+               "conversation": "from this conversation"}
+
+    def _meta(self, reading: Reading, turn: Turn) -> None:
+        """`how do you know that`, `how sure are you`: the last answer's
+        grounds -- where it came from, and what v688 made of it."""
+        last = next((one for one in reversed(self.turns)
+                     if one.answer and one.act != "meta"), None)
+        if last is None:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": "nothing has been answered yet"}
+            return
+        grounds = self.GROUNDS.get(last.answer.get("source"),
+                                   last.answer.get("source") or "somewhere")
+        text = f"“{last.said}” was answered {grounds}"
+        summary = (last.run or {}).get("summary") or {}
+        rated = [summary.get("trust")] if summary.get("trust") else []
+        if summary.get("confidence") is not None:
+            rated.append(f"{round(summary['confidence'] * 100)}% confident")
+        if rated:
+            text += f"; v688 rates it {', '.join(rated)}"
+        reasons = (summary.get("lines") or [])[1:3]
+        if reasons:
+            text += "; " + "; ".join(reasons)
+        walk = last.walk or {}
+        steps = walk.get("steps") or []
+        if steps and not reasons:
+            text += f"; v687's walk: {steps[-1].get('rule')} — " \
+                    f"{steps[-1].get('detail')}"
+        turn.answer = {"outcome": "retrieved", "source": "conversation",
+                       "text": text}
+
+    def _ellipsis(self, reading: Reading, turn: Turn) -> None:
+        """`what about a cat`: the last question, asked of another kind."""
+        last = getattr(self, "_last_question", None)
+        kind = reading.mention.kind if reading.mention else ""
+        before = last[0] if last else None
+        old = before.mention.kind if before is not None and before.mention \
+            else ""
+        if last is None or not kind or not old:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"what about {article(kind)} {kind}? no "
+                                   f"question about a kind has been asked "
+                                   f"yet" if kind else "what about what?"}
+            return
+        asked = last[1]
+        phrase = f"{article(old)} {old}"
+        question = (asked.replace(phrase, f"{article(kind)} {kind}", 1)
+                    if phrase in asked else asked.replace(old, kind, 1))
+        again = read(question, Taught(self.asker, self.memory.kinds),
+                     self.discourse.names())
+        again.said = question
+        getattr(self, "_" + again.act, self._generic)(again, turn)
+        if turn.answer.get("text"):
+            turn.answer["text"] = (f"asked as “{question}”: "
+                                   f"{turn.answer['text']}")
+
+    def _why(self, reading: Reading, turn: Turn) -> None:
+        """What a yes or no about one individual rests on.
+
+        v687's walk already says it -- what you told me of this one, what you
+        taught me of its kind, or the kind it inherits from -- so a why about
+        an individual is its yes or no, answered the same way; where the walk
+        passes to the kind, v688 is asked the kind's why, which says what the
+        kind's answer rests on. A bare `why` asks it of the last question.
+        """
+        from research.v688.rephrase import AUX as ASKS
+
+        if reading.mention is None:
+            last = getattr(self, "_last_question", None)
+            if last is None or last[1].split()[:1] == [] or (
+                    last[1].split()[0] not in ASKS):
+                turn.answer = {"outcome": "unknown", "source": "conversation",
+                               "text": "why what? no yes-or-no question has "
+                                       "been asked yet"}
+                return
+            reading, asked = last
+            if reading.act != "ask":
+                turn.asked = asked
+                turn.run = self._run(f"why {asked}")
+                outcome, headline, trust = summary_of(turn.run)
+                turn.answer = {"outcome": outcome, "source": "kind",
+                               "text": headline + (f" ({trust})" if trust
+                                                   else "")}
+                return
+        self._why_asked = True
+        try:
+            self._ask(reading, turn)
+        finally:
+            self._why_asked = False
+
     def _ask(self, reading: Reading, turn: Turn) -> None:
         referent = self._resolve(reading, turn)
         if referent is None:
@@ -1038,10 +1469,26 @@ class Session:
                            "text": text + note}
             return
 
-        turn.run = self._run(question)
-        outcome, _, trust = summary_of(turn.run)
+        why = getattr(self, "_why_asked", False)
+        if why and not reading.holds:
+            # `why can't it fly`: the premise is a denial, and the kind's why
+            # has to be asked as one, or the answer says it does not hold.
+            head, _, tail = question.partition(" ")
+            question_asked = f"why {DENIAL.get(head, head + ' not')} {tail}"
+        else:
+            question_asked = f"why {question}" if why else question
+        turn.run = self._run(question_asked)
+        outcome, headline, trust = summary_of(turn.run)
         v688 = f"v688 answers “{question}” {outcome}" + (
             f" ({trust})" if trust else "")
+        if why and not e1:
+            # Nothing was told of this one, so what its kind's answer rests on
+            # is what this one's does.
+            turn.answer = {
+                "outcome": outcome, "source": "kind",
+                "text": (f"nothing was told of {described}, so it is as "
+                         f"{kind}: {headline}") + note}
+            return
         if e1:
             turn.answer = {
                 "outcome": "unknown", "source": "tendency",
@@ -1126,9 +1573,76 @@ class Session:
         turn.answer = {"outcome": "retrieved", "source": "conversation",
                        "text": text}
 
+    def _taught_can(self, word: str, node: str, wanted: str,
+                    turn: Turn) -> None:
+        """`what can a wemble do`, for a kind the store has no word for:
+        what was taught of it, and what its taught kind above can do."""
+        relations = ("capable_of",) if wanted == "do" else ("has_a",
+                                                            "has_part")
+        told = [self.memory.said.get((node, fact.relation, fact.object), "")
+                for fact in self.memory.facts.get(node, [])
+                if fact.relation in relations]
+        told = [one for one in dict.fromkeys(told) if one]
+        who = f"{article(word)} {word}"
+        text = (f"{who}: you taught me " + "; ".join(f"“{one}”" for one in told)
+                if told else
+                f"nothing was taught of what {who} "
+                f"{'can do' if wanted == 'do' else 'has'}")
+        above = next((one for one in self.memory.edges.get(node, [])
+                      if not self.memory.episodic_only(one)), None)
+        if above is not None:
+            kind = f"{article(name_of(above))} {name_of(above)}"
+            turn.asked = (f"what can {kind} do" if wanted == "do"
+                          else f"what does {kind} have")
+            turn.run = self._run(turn.asked)
+            _, headline, _ = summary_of(turn.run)
+            if headline:
+                text += f"; and as {kind}: {headline}"
+        turn.answer = {"outcome": "retrieved" if told else "unknown",
+                       "source": "taught", "text": text}
+
+    def _they(self, reading: Reading) -> str | None:
+        """`can they bark`, when nothing here is `they` and a kind was named
+        before it: the question, asked of one of that kind."""
+        kind = getattr(self, "_last_kind", None)
+        tokens = words(reading.said)
+        if (not kind or reading.mention is not None or not tokens
+                or not THEY & set(tokens)
+                or tokens[0] not in AUX | QUESTION_WORDS):
+            return None
+        said: list[str] = []
+        for token in tokens:
+            if token not in THEY:
+                said.append(token)
+                continue
+            # `can't they swim` asks what `can they swim` does.
+            if len(said) >= 2 and said[-1] == "not" and said[-2] in AUX:
+                said.pop()
+            if said and said[-1] in SINGULAR:
+                said[-1] = SINGULAR[said[-1]]
+            said += [article(kind), kind]
+        return " ".join(said)
+
     def _generic(self, reading: Reading, turn: Turn) -> None:
         """About a kind: from episodic memory if anything taught bears on
         it, otherwise v688's question, asked as said."""
+        they = self._they(reading)
+        if they is not None:
+            again = read(they, Taught(self.asker, self.memory.kinds),
+                         self.discourse.names())
+            if again.act == "generic":
+                self._generic(again, turn)
+                turn.answer["text"] = (f"asked as “{they}”: "
+                                       + (turn.answer.get("text") or ""))
+                return
+        words = reading.said.lower().rstrip("?").split()
+        if (len(words) == 5 and words[0] == "what"
+                and words[1] in ("can", "does", "do")
+                and words[2] in ("a", "an") and words[4] in ("do", "have")):
+            node = self.memory.kinds.get(words[3])
+            if node is not None and self.asker.sense(words[3]) is None:
+                self._taught_can(words[3], node, words[4], turn)
+                return
         if (reading.mention is not None and reading.mention.kind
                 and reading.rest and self._about_kind(reading, turn)):
             return

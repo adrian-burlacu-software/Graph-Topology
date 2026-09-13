@@ -133,6 +133,12 @@ class Engine:
                 for other in senses[1:8]:
                     if other["id"] == chosen:
                         continue
+                    # A verb sense is not a kind of anything. `is water wet`
+                    # came back VERIFIED as `water.v.01`, to supply with
+                    # water, under `wet.v.01` -- the retry answering about a
+                    # word's verb when the question named a thing.
+                    if other.get("pos") == "v":
+                        continue
                     attempt = self.reasoner.classify(other["id"], parse.target)
                     fits = bool(wanted) and (
                         self.reasoner.partition_of(other["id"]) in wanted)

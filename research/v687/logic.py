@@ -133,6 +133,15 @@ def evaluate(node: Node, test: Callable[[str], tuple[str, str]]) -> str:
 
 
 # -- reading a question into a tree ---------------------------------------
+#: A count and what it counts are one term. `eight legs` scored as `eight`
+#: and `legs` found the eight in `has eight eyes`, and `two legs` found a dog
+#: `capable of walk on two legs`.
+COUNTS = frozenset("""
+one two three four five six seven eight nine ten eleven twelve twenty
+hundred thousand
+""".split())
+
+
 def _atom(phrase: str, aside: frozenset[str]) -> Node | None:
     """One side of a connective: its content words, negated if it says so.
 
@@ -140,11 +149,17 @@ def _atom(phrase: str, aside: frozenset[str]) -> Node | None:
     is not two properties -- so the words are kept together and matching is
     left to the caller, which knows how a property is stored.
     """
-    words = [word for word in re.findall(r"[a-z]+", phrase.lower())]
+    words = [word for word in re.findall(r"[a-z0-9]+", phrase.lower())]
     denied = any(word in NEGATORS for word in words)
-    content = [word for word in words
-               if word not in aside and word not in NEGATORS
-               and word not in QUANTIFIERS]
+    found = [word for word in words
+             if word not in aside and word not in NEGATORS
+             and word not in QUANTIFIERS]
+    content: list[str] = []
+    for word in found:
+        if content and (content[-1] in COUNTS or content[-1].isdigit()):
+            content[-1] += f" {word}"
+        else:
+            content.append(word)
     if not content:
         return None
     claim = Node(op="and", children=[Node(op="term", term=word)
@@ -173,7 +188,9 @@ def parse(text: str, aside: frozenset[str]) -> Query:
     groups = re.split(r"\s+or\s+|\s*,\s*or\s+", lowered)
     disjuncts: list[Node] = []
     for group in groups:
-        parts = re.split(r"\s+and\s+|\s*,\s+", group)
+        # `but` joins two claims as `and` does: `fur but not feathers` scored
+        # `but` as a property and came back UNRECORDED.
+        parts = re.split(r"\s+and\s+|\s+but\s+|\s*,\s+", group)
         atoms = [node for node in (_atom(part, aside) for part in parts)
                  if node is not None]
         if not atoms:
@@ -235,6 +252,45 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
      "an antonym. WordNet records antonymy between word forms, and this "
      "store keeps only relations between senses, so the opposite of a thing "
      "is not something it can look up"),
+    # The shapes the question-kinds audit (research/v689/QUESTIONS.md) found
+    # answered from the part of them that was understandable.
+    (r"^\s*(?:should|ought|must|shall)\b|\bshould\s+(?:i|you|we|a|an|the)\b|"
+     r"\bis\s+it\s+(?:safe|ok|okay|wise|good|bad|dangerous|healthy|"
+     r"a\s+good\s+idea)\s+(?:to|for)\b",
+     "what ought to be, must be, or is safe to do. The store records what "
+     "kinds are and do, not advice or obligation -- and answering `can a dog "
+     "eat chocolate` for `should` is the easier question this rule refuses"),
+    (r"^\s*if\b|\bwould\s+happen\s+if\b|\bwhat\s+would\s+[a-z]+\s+if\b|"
+     r"\bif\s+(?:it|they|he|she|you|we|i)\s+(?:had|were|was|could|"
+     r"did|would)\b|\bif\s+(?:a|an|the)\s+[a-z]+\s+(?:had|were|was|could|"
+     r"did|would)\b",
+     "a counterfactual condition. Every rule here reasons about what is "
+     "recorded, and scoring the condition's words as claims answered about "
+     "something else"),
+    (r"\b(?:another|other)\s+words?\s+for\b|\bsynonyms?\s+(?:of|for)\b|"
+     r"\b(?:plural|singular)\s+(?:of|for)\b",
+     "a question about the word rather than the thing. This reasons over "
+     "senses, which are what words point at; it holds nothing about the "
+     "words themselves"),
+    (r"\b(?:plus|minus|divided\s+by|multiplied\s+by|squared)\b|"
+     r"\bprime\s+numbers?\b|\bsquare\s+root\b|\b\d+\s*[-+*/x]\s*\d+\b",
+     "arithmetic. Numbers here are words with senses, not quantities, and "
+     "nothing computes with them"),
+    (r"\bhow\s+(?:long|often|frequently)\s+(?:do|does|did|can|will|would)\b|"
+     r"\bhow\s+many\s+times\b|\bat\s+what\s+age\b",
+     "a duration or a frequency. Nothing here is in time, and no fact in it "
+     "carries a number"),
+    (r"^\s*how\s+(?:do|does|can|should|would)\s+(?:you|i|we|one|people)\b|"
+     r"\bhow\s+is\s+(?:an?\s+|the\s+)?[a-z]+\s+made\b|\bhow\s+to\b",
+     "a method or a procedure. The store records that things are done, not "
+     "how to do them"),
+    (r"\bhow\s+much\s+(?:does|do|is|are)\b(?!.*\bweigh)",
+     "a quantity or a price. There are no numbers in this data"),
+    (r"\bwhich\s+(?:one\s+)?(?:is|are)\s+(?:the\s+)?(?:bigger|smaller|larger|"
+     r"heavier|lighter|faster|slower|older|younger|stronger|taller|shorter|"
+     r"better|worse|more|less)\b",
+     "a comparative, put as a choice. Nothing in this data has a magnitude: "
+     "there is no scale to compare on"),
 )
 
 
