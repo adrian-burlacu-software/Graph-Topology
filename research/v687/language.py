@@ -32,6 +32,11 @@ RELATION_CUES: tuple[tuple[str, str], ...] = (
     (r"\bwhere\b.*\b(found|located|live|lives|living|be|is|are)\b",
      "at_location"),
     (r"^where\b", "at_location"),
+    # `is a fridge found in a kitchen` was a property, `found in a kitchen`,
+    # which nothing has; the rows say `electric refrigerator at_location
+    # kitchen`.
+    (r"\b(found|located|kept|stored)\s+(in|on|at|inside|near)\b",
+     "at_location"),
     (r"\bpart of\b", "part_of"),
     (r"\b(have|has|had|contain|contains|containing|include|includes)\b",
      "has_part"),
@@ -56,6 +61,10 @@ include includes want wants desire desires wish wishes like likes cause causes
 caused lead leads result results need needs needed require requires required
 prerequisite able capable
 """.split())
+
+#: What stands between a subject and the place it is asked to be found in.
+LOCATING = frozenset({"found", "located", "kept", "stored", "in", "on", "at",
+                      "inside", "near", "a", "an", "the"})
 
 #: Yes/no questions open with one of these.
 POLAR = ("can", "could", "is", "are", "was", "were", "does", "do", "did",
@@ -472,6 +481,14 @@ class Parser:
             tail = re.sub(r"^(be|is|are|was|were|to|have|has|had|get|gets|"
                           r"contain|contains|include|includes)\b", "", tail).strip()
             target = tail or None
+            # `is a fridge found in a kitchen` asks about the kitchen: the cue
+            # and its preposition name the relation, and a target of `found in
+            # a kitchen` matched no row. Words, not a pattern.
+            if relation == "at_location" and tail:
+                place = tail.split()
+                while place and place[0] in LOCATING:
+                    place = place[1:]
+                target = " ".join(place) or None
 
             # "is a dog an animal" is a taxonomy question, not a property one:
             # a determiner after the copula means a kind is being named.

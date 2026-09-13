@@ -80,7 +80,10 @@ FLAT = {"conceptnet": 0.50, "wordnet": 0.90}
 
 #: What the derivation stood on, before anything the loop found moved it.
 GROUND = {"R1": 0.95, "R27": 0.95, "R29": 0.95, "R26": 0.90,
-          "R17": 0.85, "R16": 0.85, "R21": 0.85, "R20": 0.80}
+          "R17": 0.85, "R16": 0.85, "R21": 0.85, "R20": 0.80,
+          # Rated norms: people's ratings, priced as the norms are. R32 is two
+          # sources joined, and a join is one more place to be wrong.
+          "R31": 0.85, "R32": 0.80}
 
 #: Rules whose walk *is* the proof, so distance from the concept costs them
 #: nothing. Subsumption is transitive and exact: `is a beagle a dog` is no

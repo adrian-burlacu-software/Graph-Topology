@@ -340,11 +340,39 @@ def _choice(payload: dict):
     return _found("choice", text, holds)
 
 
+def _compared(payload: dict):
+    """`which is heavier, a feather or a brick`: R31's two ratings, and which
+    one is the answer. Beside a yes or no when the question was one."""
+    found = payload.get("comparison")
+    if not found:
+        return None
+    size = found.get("dimension") == "size"
+
+    def rated(one: dict) -> str:
+        number = one.get("value")
+        if number is None:
+            return str(one.get("word"))
+        return (f"{one.get('word')} {number:.0f}" if size
+                else f"{one.get('word')} {number:.1f} of 7")
+
+    pair = (f"{rated(found.get('first') or {})}, "
+            f"{rated(found.get('second') or {})}")
+    scale = "size" if size else "heaviness"
+    winner = found.get("winner")
+    answers = payload.get("verdict") == "LISTING"
+    if not winner:
+        return _found("comparison", f"too close to call on {scale} as people "
+                                    f"rate it: {pair}", [], answers)
+    return _found("comparison", f"{winner} is {found.get('asked')}, on "
+                                f"{scale} as people rate it: {pair}",
+                  [winner], answers)
+
+
 #: Most specific first: the payloads of contrast, causal, kinds and the rest
 #: all carry an identification tree too, drawn for the page.
-READERS = (_within, _attribute, _above, _parts, _choice, _definition, _kinds,
-           _contrast, _causal, _bridge, _backwards, _members, _profile,
-           _identified, _listing, _refused)
+READERS = (_compared, _within, _attribute, _above, _parts, _choice,
+           _definition, _kinds, _contrast, _causal, _bridge, _backwards,
+           _members, _profile, _identified, _listing, _refused)
 
 
 def digest(payload: dict | None) -> dict | None:
