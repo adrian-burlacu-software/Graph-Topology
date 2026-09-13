@@ -328,9 +328,11 @@ than one source, and tested on one it was not fitted on.
 
 ## 7. How generalisation is measured
 
-**Before any refactor, a frozen baseline.** v689 as merged (`a70da1c`) is run
-once on test sets nothing here was developed on, and SmolLM3 beside it with a
-few examples from each training split:
+**The redesign comes first; the held-out measurement after it.** While the
+phases land, the guard is regression (below). When they have landed, v689 as
+merged (`a70da1c`, which stays checkable out) and the redesigned system are
+each run once on test sets nothing here was developed on, and SmolLM3 beside
+them with a few examples from each training split:
 
 | set | why | licence |
 | --- | --- | --- |
@@ -359,13 +361,13 @@ Each phase is a branch, merged when its acceptance holds.
 
 | phase | lands in | what | accepted when |
 | --- | --- | --- | --- |
-| **P0 baseline** | `v689` harnesses | ToMi, StepGame (and ProPara if its licence allows) harnesses in the shape of `babi.py`, one scorer each; frozen v689 and few-shot SmolLM3 runs; this document's inventory checked against the code | numbers written up and committed before any refactor |
 | **P1 graph and link types** | `v687` | the metagraph over the store (lazy, read-only), the link-type table, one table-driven walk serving R1, R9, R22, R27, T2, S1, S2, S4 | every test passes; audit and bAbI unchanged |
 | **P2 evidence** | `v687`, `v688` | truth as evidence; R2–R5, R19, R20, I1, the floors and bands as truth functions; per-source calibration | audit's over-affirmation measures no worse; qa16's recency guess gone |
 | **P3 activation** | `v688`, `v689` | one activation over the graph for retrieval, reference, latest-first and curiosity; parameters fitted | bAbI holds; ToMi and StepGame development splits improve; discourse's cascade deleted |
 | **P4 executive** | `v688`, `v689`, `v687` | operators, utilities, impasses and the goal stack; the three dispatch cascades replaced; v688's generators as operators | tests pass; `session.py` and `reasoning.py`'s dispatch gone; bAbI holds |
-| **P5 reading** | `v689` | fragments; the symbolic reader re-expressed; SmolLM3 as a constrained proposer; backward tracing; joint soft choices | frozen test sets beat P0 at no higher wrong rate |
+| **P5 reading** | `v689` | fragments; the symbolic reader re-expressed; SmolLM3 as a constrained proposer; backward tracing; joint soft choices | tests pass; bAbI holds |
 | **P6 rules as data** | `v687`, `v689` | rules compiled into the matcher; T4 from VerbNet and motives by spreading | rules are data; tests pass |
+| **held-out** | `v689` harnesses | ToMi, StepGame (and ProPara) harnesses in the shape of `babi.py`; `a70da1c`, the redesign and few-shot SmolLM3, each run once on the test splits | the redesign beats `a70da1c` at no higher wrong rate |
 | **v690** | `v690` | generation by the backward route, read back | its own evaluation |
 
 ## 9. Risks
