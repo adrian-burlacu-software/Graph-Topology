@@ -305,12 +305,25 @@ class Identifier:
         Sorted, because `predicates` is a frozenset and iteration order is not
         defined: with both `capable of fall victim` and `capable of fall into
         hole` matching `fall`, which one an answer cited varied between runs.
+
+        A term of several words -- `eight legs` -- names a predicate only
+        where its words stand together, in order: `has eight eyes` and `has
+        legs` are not `has eight legs` between them.
         """
-        wanted = cls.stem(term)
         for predicate in sorted(predicates):
-            if any(cls.stem(word) == wanted for word in predicate.split()):
+            if cls.covers(term, predicate):
                 return predicate
         return None
+
+    @classmethod
+    def covers(cls, term: str, predicate: str) -> bool:
+        """Does the predicate hold the term's words, together and in order?"""
+        wanted = [cls.stem(word) for word in term.split()]
+        if not wanted:
+            return False
+        stems = [cls.stem(word) for word in predicate.split()]
+        return any(stems[index:index + len(wanted)] == wanted
+                   for index in range(len(stems) - len(wanted) + 1))
 
     #: The frame of a norm, as opposed to what it claims. `has`, `is`, `can`
     #: and their articles say how a property is predicated; the words after
@@ -386,14 +399,18 @@ class Identifier:
             return False
         if not claim:
             return True                        # a bare negation, unscoped
-        return set(claim) <= {cls.stem(term) for term in terms}
+        return set(claim) <= cls.stems_of(terms)
+
+    @classmethod
+    def stems_of(cls, terms: list[str]) -> set[str]:
+        """Every word of every term, stemmed: `eight legs` is two words."""
+        return {cls.stem(word) for term in terms for word in term.split()}
 
     @classmethod
     def hits(cls, term: str, predicates: frozenset[str]) -> list[str]:
         """Every predicate the query word names, not merely the first."""
-        wanted = cls.stem(term)
         return [predicate for predicate in sorted(predicates)
-                if any(cls.stem(word) == wanted for word in predicate.split())]
+                if cls.covers(term, predicate)]
 
     @classmethod
     def denial_hit(cls, terms: list[str], predicates: frozenset[str]
@@ -417,7 +434,7 @@ class Identifier:
         complement and matching the word are the same test there. XCSLB, whose
         norms are elicited phrases, is where the distinction bites.
         """
-        wanted = {cls.stem(term) for term in terms}
+        wanted = cls.stems_of(terms)
         narrower: list[str] = []
         for predicate in predicates:
             claim = cls.complement(predicate)

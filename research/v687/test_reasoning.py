@@ -772,6 +772,26 @@ class AnswerAuditTests(unittest.TestCase):
         self.assertEqual(self.engine.profiles.verify(
             "dalmatian", ["spots"]).verdict, "HELD")
 
+    def test_a_count_is_matched_with_what_it_counts(self):
+        """`eight legs` is not `eight eyes` and `legs`, and a spider that has
+        eight legs does not have six."""
+        spider = self.engine.ask("does a spider have eight legs")
+        self.assertEqual(spider["verdict"], "VERIFIED")
+        self.assertIn("has eight legs", spider["note"])
+        self.assertNotIn("eyes", spider["note"])
+        self.assertNotEqual(self.verdict("does a spider have six legs"),
+                            "VERIFIED")
+        self.assertNotEqual(self.verdict("does a dog have two legs"),
+                            "VERIFIED")
+        self.assertEqual(self.verdict("does a dog have four legs"), "VERIFIED")
+        self.assertEqual(self.engine.identifier._hit(
+            "eight legs", frozenset({"has eight eyes", "has legs"})), None)
+
+    def test_the_statement_cited_is_the_one_that_covers_the_question(self):
+        cats = self.engine.ask("do cats eat mice")
+        self.assertEqual(cats["verdict"], "VERIFIED")
+        self.assertIn("mice", cats["note"])
+
     # -- F2: the subject is the thing asked about, or nothing --------------
     def test_a_subject_that_is_not_a_noun_is_still_the_subject(self):
         for question in ("is hello a greeting", "is red a color",

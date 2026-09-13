@@ -133,6 +133,15 @@ def evaluate(node: Node, test: Callable[[str], tuple[str, str]]) -> str:
 
 
 # -- reading a question into a tree ---------------------------------------
+#: A count and what it counts are one term. `eight legs` scored as `eight`
+#: and `legs` found the eight in `has eight eyes`, and `two legs` found a dog
+#: `capable of walk on two legs`.
+COUNTS = frozenset("""
+one two three four five six seven eight nine ten eleven twelve twenty
+hundred thousand
+""".split())
+
+
 def _atom(phrase: str, aside: frozenset[str]) -> Node | None:
     """One side of a connective: its content words, negated if it says so.
 
@@ -140,11 +149,17 @@ def _atom(phrase: str, aside: frozenset[str]) -> Node | None:
     is not two properties -- so the words are kept together and matching is
     left to the caller, which knows how a property is stored.
     """
-    words = [word for word in re.findall(r"[a-z]+", phrase.lower())]
+    words = [word for word in re.findall(r"[a-z0-9]+", phrase.lower())]
     denied = any(word in NEGATORS for word in words)
-    content = [word for word in words
-               if word not in aside and word not in NEGATORS
-               and word not in QUANTIFIERS]
+    found = [word for word in words
+             if word not in aside and word not in NEGATORS
+             and word not in QUANTIFIERS]
+    content: list[str] = []
+    for word in found:
+        if content and (content[-1] in COUNTS or content[-1].isdigit()):
+            content[-1] += f" {word}"
+        else:
+            content.append(word)
     if not content:
         return None
     claim = Node(op="and", children=[Node(op="term", term=word)
