@@ -792,6 +792,17 @@ class AnswerAuditTests(unittest.TestCase):
         self.assertEqual(cats["verdict"], "VERIFIED")
         self.assertIn("mice", cats["note"])
 
+    def test_a_thing_does_not_happen(self):
+        """ASCENT++ records of `bark.n.01`, the covering of a tree, that it
+        causes vomiting: that is not what happens when a dog barks."""
+        payload = self.engine.ask("what happens when a dog barks")
+        objects = [step["object"] for step in payload["causal"]["steps"]]
+        self.assertIn("produce sounds", objects)
+        self.assertNotIn("vomiting", objects)
+        self.assertIn("not something that happens", payload["note"])
+        self.assertTrue(self.engine.ask("what happens when it rains")
+                        ["causal"]["steps"])
+
     # -- F2: the subject is the thing asked about, or nothing --------------
     def test_a_subject_that_is_not_a_noun_is_still_the_subject(self):
         for question in ("is hello a greeting", "is red a color",

@@ -275,6 +275,16 @@ class Causal:
         # between two mistakes. R12 already draws this distinction for
         # inheritance; a script is word-level in the same way, and saying so
         # is more honest than picking a synset and putting a gloss on it.
+        # Only ConceptNet is word-level, though. ASCENT++ reads its subjects
+        # as senses, and what it records of a *thing* is about the thing: of
+        # `bark.n.01`, the covering of a tree, it records vomiting and canker,
+        # which is not what happens when a dog barks. A thing does not happen,
+        # so those rows leave the script; ConceptNet's `produce sounds`, hung
+        # on the same synset, is the dog's, and stays.
+        things = {sense for sense in senses
+                  if any(node == "object.n.01"
+                         for node, _, _ in self.reasoner.ascend(sense))}
+        left_out: set[tuple[str, str]] = set()
         steps: list[dict] = []
         seen: set[tuple[str, str]] = set()
         for relation in kinds:
@@ -285,6 +295,9 @@ class Causal:
                 f"ORDER BY confidence DESC", (relation, *senses)).fetchall()
             kept = 0
             for row in rows:
+                if row["source"] != "conceptnet" and row["concept"] in things:
+                    left_out.add((relation, row["object"]))
+                    continue
                 key = (relation, row["object"])
                 if key in seen:
                     continue
@@ -320,6 +333,12 @@ class Causal:
             note = (f"Word-level: read across {len(senses)} sense(s) of "
                     f"“{term}”. These relations come from ConceptNet, which "
                     f"records them of the word, so no one synset owns them.")
+        if left_out:
+            named = sorted(things)
+            note += (f" Left out {len(left_out)} row(s) ASCENT++ records of "
+                     f"{', '.join(named)}, which "
+                     f"{'is a thing' if len(named) == 1 else 'are things'}, "
+                     f"not something that happens.")
         # The doer, if the question named one. A script is recorded of the
         # event, so the doer cannot narrow it -- but it can be accounted for,
         # and a question that named one deserves to be told which of its two
@@ -435,12 +454,16 @@ class Causal:
         """
         words = self._event_words(phrase, question)
         for word in words:
-            chosen = pins.of(word)
-            if chosen:
-                # This is the one the reader most often has to correct:
-                # `bark` resolves to the covering of a tree, because that is
-                # the synset the crawl hung its facts on.
-                return word, [chosen]
+            # A pin is kept under the word as pinned, and `a dog barks` says
+            # `barks`: the forms are tried as the senses are below.
+            plain = word[:-1] if word.endswith("s") and len(word) > 3 else word
+            for form in dict.fromkeys((word, plain, Identifier.stem(word))):
+                chosen = pins.of(form)
+                if chosen:
+                    # This is the one the reader most often has to correct:
+                    # `bark` resolves to the covering of a tree, because that
+                    # is the synset the crawl hung its facts on.
+                    return form, [chosen]
         best_word, best_senses, best_count = None, [], 0
         for word in reversed(words):          # the event usually ends the phrase
             # `bites` -> `bite` before `bit`: the aggressive stem that makes

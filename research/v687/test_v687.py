@@ -585,10 +585,11 @@ class PinnedSenseTests(unittest.TestCase):
         self.assertEqual(counting, ["mouse"])
 
     def test_a_pin_changes_the_event_sense(self):
-        """R23 picks the sense carrying the most eventive facts, which for
-        `bark` is the covering of a tree."""
-        loose = self.engine.ask("why does a dog bark")
-        pinned = self.engine.ask("why does a dog bark", None,
+        """R23 reads the word across its senses carrying eventive facts,
+        which for `bark` is only the covering of a tree -- where ConceptNet
+        hung the dog's `produce sounds`. Pinned to the verb, there are none."""
+        loose = self.engine.ask("what happens when a dog barks")
+        pinned = self.engine.ask("what happens when a dog barks", None,
                                  {"bark": "bark.v.01"})
         self.assertTrue(loose["causal"]["steps"])
         self.assertFalse(pinned["causal"]["steps"])

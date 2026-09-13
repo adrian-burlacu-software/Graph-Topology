@@ -269,3 +269,45 @@ By how much of the catalogue each covers, cheapest first:
    data.
 7. **Magnitudes, time, events, named individuals** (sections 6, 7): data the
    store does not hold.
+
+## What changed
+
+2026-09-13, on `v689/question-audit`. Re-running the same probes after the
+first four commits changed 103 of the 154 main conversations and 31 of the 49
+supplementary ones, nearly all from a listing of the wrong thing to an answer or
+a refusal by name; the batch after changed 20, 11 and 11 of 126 single
+questions more.
+
+| ranked item | what was done | where |
+| --- | --- | --- |
+| 1. content to the page | each answer shape is read into one line (`content.digest`) and the page shows it | `be5cba8` |
+| 2. openers | requests, `should`/`must`, `n't`, expletive `it`, `do you know if`, purpose and `is there such a thing as` are rephrased before reading; question words cannot be kinds; a why is answered from the walk -- where the fact was stated, the requirement that decides it, and whether the premise holds | `be5cba8`, `48292e3` |
+| 3. episodic wh-questions | how many, which, who, where, what did it do, what do you know about it, what happened; `how do you know that`, `what did I tell you`, `what about a cat`, and `they` for the last kind named | `9b7a1a5`, `48292e3` |
+| 4. R18 | a value is read from what the thing carries (`what color is a banana`: yellow, `how big is an elephant`: big, with no measurement); durations, frequencies, methods, prices, arithmetic, synonyms, deontic and conditional questions are refused by name | `be5cba8`, `1e1211c`, `48292e3` |
+| 5. within a class | `which birds cannot fly`, `what mammals lay eggs`, from the quantifier path | `cc4e2f6` |
+| 6. structure | a count and its noun are one term, and another count stated of the thing is a no; the predicate cited is the one covering the question; `but`; the kind above, parts, a choice between kinds, likeness | `1e1211c`, `7030197`, `52a26f8` |
+
+The wrong answers: `can a bird fly` holds with exceptions in its family, since
+one relative in five denying it is not an overturn; `is water wet` is no
+longer answered through the verb; `do cats eat mice` rests on `eats rodents and
+mice` and `does a spider have eight legs` on `has eight legs`, and six legs is
+a no; `do you know if` asks the question; `could a pig fly if it had wings` is
+refused as a conditional. `what does a plant need to grow` is what a plant
+needs rather than what a vote does (R22 leaves a question that names its
+subject), and `what happens when a dog barks` no longer includes the vomiting
+ASCENT++ records of tree bark (R23 keeps a sense-level source's rows only for
+something that can happen).
+
+Still open, from this catalogue:
+
+- **Modifiers and tense**: `can a small dog swim` is answered about dogs and
+  does not say so; `did dinosaurs fly` is a yes.
+- **An activity's prerequisites**: `what do you need to bake a cake` reads
+  `cake.n.03` and finds nothing.
+- **Terse and misspelt input**: `dog swim?`, `cna a dog swim`.
+- **Noise the crawl carries into lists**: `a -4 penalty` while it rains, an
+  animal that can `enter the battlefield`.
+- **Not revisited**: `there are two dogs` answered as a question, `is it full`
+  after `it is empty now`.
+- **Section 7 and the data-bound half of section 6**: magnitudes, time, named
+  individuals.
