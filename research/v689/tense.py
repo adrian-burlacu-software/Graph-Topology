@@ -93,6 +93,7 @@ LABELS = {"now": "now", "then": "then", "later": "later"}
 LINKS = tuple(sorted((
     (("and", "then"), "after"), (("then",), "after"),
     (("after", "that"), "after"), (("afterwards",), "after"),
+    (("following", "that"), "after"),
     (("afterward",), "after"), (("later", "on"), "after"),
     (("later",), "after"), (("next",), "after"), (("soon", "after"), "after"),
     (("after", "a", "while"), "after"), (("eventually",), "after"),

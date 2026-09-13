@@ -32,8 +32,8 @@ from .discourse import OBJECT_WEIGHT
 from .episodic import DID_NOT
 from .reading import ARTICLES, SEQUENCE, article, read, words
 from .tense import When, occurs, tense_of
-from .timeline import (IN_TIME, LATER, NOW, THEN, Change, Episode, Holding,
-                       Occurrence, Record)
+from .timeline import (IN_TIME, LATER, MAYBE, NOW, THEN, Change, Episode,
+                       Holding, Occurrence, Record, somewhere)
 
 #: What ends a verb's object and begins where it happened.
 PREPOSITIONS = changes.DESTINATION | changes.SOURCE | {"with", "by", "of"}
@@ -119,15 +119,23 @@ class Story:
             return timeline.enter(frame.key, frame.label, frame.rank, kind)
         if tense == "future":
             return timeline.enter(LATER, "later", None, "future")
+        current = timeline.episode(timeline.current)
         if tense == "past":
-            current = timeline.episode(timeline.current)
-            # The past the story is in; and `today`, said outright, has
-            # a past of its own: `today there is a cat. it slept.`
+            # The past the story is in; and the present it is in, when no
+            # day was named for either -- `today there is a cat. it slept.`,
+            # and `Mary is in the garden. Daniel went to the kitchen.`, which
+            # is one story told in two tenses.
             if current is not None and (current.tense == "past"
-                                        or current.label == "today"):
+                                        or current.key == NOW):
                 return timeline.enter(current.key, current.label,
                                       current.rank, current.tense)
             return timeline.enter(THEN, "then", None, "past")
+        # A story told in the past with no day named, going on in the present
+        # tense: the story's present, not a time of its own. `Mary moved to
+        # the kitchen. Mary is in the garden.` is one place after another.
+        if current is not None and current.key == THEN:
+            return timeline.enter(current.key, current.label, current.rank,
+                                  current.tense)
         return timeline.enter(NOW, "now", 0.0, "present")
 
     def asked_episode(self, tense: str) -> tuple[Episode | None, str]:
@@ -190,33 +198,47 @@ class Story:
         if not verb:
             return ""
         parts = self._participants(reading, referent, other)
+        data = parts["data"]
+        who = {"subject": referent.id, "object": data["object"],
+               "place": data["place"]}
+        readings = self._choose(self._readings(verb, rest, parts), who)
+        # The sense the sentence chose, when it was not the verb's first --
+        # what `passed the football to Bill` is a kind of is giving -- and of
+        # those, the one the store ranks highest.
+        ranked = self.asker.verb_senses(verb)
+        later = [synset for one in readings if not one.first
+                 for synset in one.synsets if synset in ranked]
+        sense = min(later, key=ranked.index) if later else None
         when = self.when()
         anchor = self.find_clause(when.anchor) if when.anchor else None
         occurrence = self.timeline.narrate(
-            {"verb": verb, "kinds": self.asker.verb_kinds(verb),
+            {"verb": verb, "kinds": self.asker.verb_kinds(verb, sense),
              "subject": referent.id, "episode": episode.id, "tense": tense,
              "aspect": aspect, "said": _said(when.main or said),
              "predicate": obj,
-             "again": when.again, **parts["data"]},
+             "again": when.again, **data},
             when.link, anchor.id if anchor else None, when.relation)
         notes = [self.placed(occurrence)]
-        who = {"subject": referent.id, "object": parts["data"]["object"]}
-        for effect in changes.effects(verb, parts["has_object"],
-                                      parts["data"]["preposition"],
-                                      parts["clause"],
-                                      self.asker.verb_senses(verb)):
+        effects: dict[tuple, changes.Effect] = {}
+        for one in readings:
+            for effect in one.effects:
+                effects.setdefault((effect.kind, effect.position, effect.word,
+                                    effect.at, effect.after), effect)
+        # What a reading puts somewhere is not also left where it was: the
+        # milk Bill gave Fred was never put down in the office on the way.
+        placed = {effect.position for effect in effects.values()
+                  if effect.kind == "location" and effect.after}
+        for effect in effects.values():
             individual = who.get(effect.position)
             if not individual:
                 continue
-            data = parts["data"]
             if effect.kind == "location":
-                if not (data["place"] or data["place_word"]):
+                if effect.after is False and effect.position in placed:
                     continue
-                change = self.timeline.change(
-                    occurrence=occurrence.id, individual=individual,
-                    kind="location", word="", after=effect.after,
-                    before=effect.before, source=effect.source,
-                    place=data["place"], place_word=data["place_word"])
+                change = self._located(occurrence, individual, effect, who,
+                                       data)
+                if change is None:
+                    continue
             else:
                 if effect.kind == "state" and effect.word == verb and not (
                         changes.adjective(self.participle(
@@ -229,6 +251,112 @@ class Story:
                     before=effect.before, source=effect.source)
             notes.append(self.changed(change, occurrence, rest))
         return "; ".join(note for note in notes if note)
+
+    def _readings(self, verb: str, rest: list[str], parts: dict) -> list:
+        """VerbNet's readings of a told doing (`change.senses_of`). A particle
+        verb VerbNet has no frame for -- `put down`, `pick up` -- is read as
+        its head verb, by the head verb's senses."""
+        shape = (parts["has_object"], parts["data"]["preposition"],
+                 parts["clause"])
+        particle = self._particle(rest)
+        if particle:
+            phrasal = f"{verb} {particle}"
+            found = changes.senses_of(phrasal, *shape,
+                                      self.asker.verb_senses(phrasal))
+            if found:
+                return found
+        return changes.senses_of(verb, *shape, self.asker.verb_senses(verb))
+
+    def _particle(self, rest: list[str]) -> str:
+        """`up` in `picked up the football`, as the tagger reads it."""
+        if len(rest) < 3:
+            return ""
+        tags = self.asker.tags(["it"] + list(rest))
+        return rest[1] if tags and len(tags) > 2 and tags[2] == "RP" else ""
+
+    def _choose(self, readings: list, who: dict) -> list:
+        """The readings the story allows, T4 read as event calculus: what a
+        reading says held at the start has to be what the story holds.
+
+        `John left the apple`, of a John in the kitchen with the apple, is not
+        John leaving a place called the apple (escape-51.1: he was at it) and
+        is letting go of it (future_having-13.3: he had it). A reading the
+        story contradicts is dropped; of the rest, those it bears out most.
+        """
+        scored = []
+        for reading in readings:
+            score = 0
+            for effect in reading.effects:
+                if effect.kind != "location" or effect.before is not True:
+                    continue
+                was = self._was(effect, who)
+                if was is None:
+                    continue
+                if not was:
+                    score = None
+                    break
+                score += 1
+            if score is not None:
+                scored.append((score, reading))
+        best = max((score for score, _ in scored), default=0)
+        return [reading for score, reading in scored if score == best]
+
+    def _was(self, effect, who: dict) -> bool | None:
+        """Was this participant where the effect says, before? None where
+        the story does not say."""
+        thing, holder = who.get(effect.position), who.get(effect.at)
+        if not thing or not holder:
+            return None
+        where = self.timeline.whereabouts(thing, direct=True)
+        return where[-1][0] == holder if where else None
+
+    def _located(self, occurrence, individual: str, effect, who: dict,
+                 data: dict):
+        """Record where T4 puts one participant: at the sentence's place,
+        with whoever has it, or -- let go of -- where the one who had it is."""
+        if effect.at == "place":
+            if not (data["place"] or data["place_word"]):
+                return None
+            place, word = data["place"], data["place_word"]
+        elif effect.at in ("subject", "object"):
+            place = who.get(effect.at)
+            found = self.discourse.by_id(place) if place else None
+            if found is None:
+                return None
+            word = found.kind
+            if effect.after is False and effect.at == "subject":
+                return self._released(occurrence, individual, place, effect)
+        else:
+            # Somewhere the sentence does not say: only ever let go of by the
+            # one who had it.
+            where = self.timeline.whereabouts(individual, direct=True)
+            if not where or where[-1][0] != who.get("subject"):
+                return None
+            return self._released(occurrence, individual, where[-1][0],
+                                  effect)
+        return self.timeline.change(
+            occurrence=occurrence.id, individual=individual, kind="location",
+            word="", after=effect.after, before=effect.before,
+            source=effect.source, place=place, place_word=word)
+
+    def _released(self, occurrence, individual: str, holder: str, effect):
+        """`Mary dropped the football`: no longer with Mary, and where Mary
+        is -- decided now and recorded, so a replay asks nothing. Where Mary
+        is not known, only that it is no longer with her."""
+        where = self.timeline.whereabouts(holder, direct=True)
+        if where and where[-1][0] is not None:
+            key, word, _ = where[-1]
+            return self.timeline.change(
+                occurrence=occurrence.id, individual=individual,
+                kind="location", word="", after=True, before=False,
+                source=effect.source,
+                place=key if self.discourse.by_id(key) is not None else None,
+                place_word=word)
+        found = self.discourse.by_id(holder)
+        return self.timeline.change(
+            occurrence=occurrence.id, individual=individual, kind="location",
+            word="", after=False, before=True, source=effect.source,
+            place=holder, place_word=found.kind if found else "")
 
     def _participants(self, reading, referent, other) -> dict:
         """Who and what took part, by position: the object after the verb,
@@ -269,20 +397,119 @@ class Story:
                                     for tag in nouns):
                 data["object_word"] = " ".join(word for word in middle
                                                if word not in ARTICLES)
-                found = self._existing(middle, exclude={referent.id})
+                found = self._existing(middle, exclude={referent.id},
+                                       accommodate=True)
                 if found is not None:
                     data["object"], data["object_word"] = found.id, found.kind
         return {"data": data, "clause": clause,
                 "has_object": bool(data["object"] or data["object_word"])}
 
-    def _existing(self, phrase: list[str], exclude=frozenset()):
-        """The individual a phrase names among those here, never a new one."""
+    def _existing(self, phrase: list[str], exclude=frozenset(),
+                  accommodate: bool = False):
+        """The individual a phrase names among those here. Never a new one,
+        unless `accommodate`: told `Bill gave the football to Fred`, `the
+        football` is put down as the object after the verb would have been."""
         from .reading import read_mention
         mention = read_mention(list(phrase), 0, self.session.lexicon(),
                                final_ok=True, names=self.discourse.names())
         if mention is None or mention.end != len(phrase):
             return None
+        if accommodate and mention.form in ("definite", "indefinite",
+                                            "another"):
+            return self.discourse.resolve(mention, exclude=set(exclude),
+                                          weight=OBJECT_WEIGHT).referent
         return self._resolved(mention, exclude)
+
+    # -- with whom ---------------------------------------------------------
+    #: A count as the answer says it.
+    COUNTS = ("none", "one", "two", "three", "four", "five", "six", "seven",
+              "eight", "nine", "ten")
+
+    #: Words for anything at all: `how many objects`, `how many things`.
+    ANYTHING = frozenset({"object", "thing", "item", "one", "stuff"})
+
+    def held_by(self, holder: str) -> list[tuple]:
+        """(individual, basis) for everything directly with this one, as the
+        story stands: where T4 put it, and nothing since has moved it (T3)."""
+        out = []
+        for one in self.discourse.referents:
+            if one.id == holder:
+                continue
+            where = self.timeline.whereabouts(one.id, direct=True)
+            if where and where[-1][0] == holder:
+                out.append((one.id, where[-1][2]))
+        return out
+
+    def carrying(self, reading, turn) -> None:
+        """`what is Mary carrying`, `how many objects is Mary carrying`: what
+        is with her -- when VerbNet reads the verb as having something with
+        you (`change.accompanies`) -- counted, where the question counts."""
+        referent = self.session._here(reading, turn)
+        if referent is None:
+            return
+        described = self.discourse.describe(referent)
+        verb = reading.rest[0] if reading.rest else ""
+        if not changes.accompanies(verb, self.asker.verb_senses(verb)):
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"not told — VerbNet does not read "
+                                   f"“{verb}” as having something with you, "
+                                   f"and nothing was said of what "
+                                   f"{described} is {verb}ing"}
+            return
+        held = self.held_by(referent.id)
+        kind = (self.asker.lemma(reading.obj.kind)
+                if reading.obj is not None else "")
+        if kind and kind not in self.ANYTHING:
+            ones = {one.id for one in self.session._individuals(kind)}
+            held = [one for one in held if one[0] in ones]
+        names = [self.discourse.describe(self.discourse.by_id(one))
+                 for one, _ in held]
+        why = "; ".join(f"{name}: {self.quote(basis)}"
+                        for name, (_, basis) in zip(names, held))
+        if reading.count:
+            count = (self.COUNTS[len(held)] if len(held) < len(self.COUNTS)
+                     else str(len(held)))
+            text = (f"{count} — {why}" if held else
+                    f"none — nothing was said to be with {described} now")
+        elif held:
+            text = (", ".join(names[:-1]) + " and " + names[-1]
+                    if len(names) > 1 else names[0]) + f" — {why}"
+        else:
+            text = f"nothing — nothing was said to be with {described} now"
+        turn.answer = {"outcome": "retrieved", "source": "told",
+                       "text": text + " (T4, T3)"}
+
+    def to_whom(self, reading, turn) -> None:
+        """`who did Fred give the football to`: where what he did put it --
+        the last time, when there were several (T1)."""
+        referent = self.session._here(reading, turn)
+        if referent is None:
+            return
+        rest, other = self.session._object_here(reading, turn,
+                                                exclude={referent.id})
+        if rest is None:
+            return
+        wanted = {f"subject {referent.id}",
+                  f"is_a {self._verb_asked(reading)}"}
+        if other is not None:
+            wanted.add(f"object {other.id}")
+        found = [one for one in self.timeline.identify(wanted)
+                 if one.place or one.place_word]
+        described = self.discourse.describe(referent)
+        if not found:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"not told — nothing was said of "
+                                   f"{described} that it would "
+                                   f"{' '.join(reading.rest)}"}
+            return
+        last = found[-1]
+        thing = self.discourse.by_id(last.place) if last.place else None
+        name = (self.discourse.describe(thing) if thing is not None
+                else last.place_word)
+        text = f"{name} — you told me “{last.said}”"
+        if len(found) > 1:
+            text += f", the last of {len(found)} times (T1)"
+        turn.answer = {"outcome": "retrieved", "source": "told", "text": text}
 
     def _resolved(self, mention, exclude=frozenset()):
         if mention is None or mention.form in ("indefinite", "another",
@@ -668,7 +895,16 @@ class Story:
                 if told_base != base:
                     return 0
                 sign = -1 if told_denied != denied else 1
-                text = word[3:] if word.startswith("no ") else word
+                text = word
+                # `it is no longer in the bedroom`: a place, denied
+                if text.startswith("no "):
+                    text, sign = text[3:], -sign
+                # `either in the school or the park`: here maybe, anywhere
+                # else not (T3, one place at a time)
+                if base == "at_location" and text.startswith("either "):
+                    options = [self.session._predicate(one) for one in
+                               text[len("either "):].split(" or ")]
+                    return MAYBE if wanted in options else -sign
                 have = self.session._predicate(text)
                 if have == wanted:
                     return sign
@@ -692,6 +928,8 @@ class Story:
                         verb and self.session._opposite(word, verb)):
                     return -sign
             return 0
+        # T3: one place at a time.
+        judge.exclusive = base == "at_location"
         return judge
 
     def _ask_state(self, reading, referent, other, relation: str,
@@ -701,7 +939,15 @@ class Story:
         timeline, when = self.timeline, self.when()
         changed = any(change.individual == referent.id
                       for change in timeline.changes)
-        if not (when.frame or when.anchor or self._several() or changed):
+        # Told where it is: T3 decides that, one place at a time, rather than
+        # the walk, which reads `in the office` against `in the bathroom` as
+        # nothing either way.
+        placed = _base(relation)[0] == "at_location" and any(
+            record.individual == referent.id
+            and record.relation == "at_location"
+            for record in timeline.records)
+        if not (when.frame or when.anchor or self._several() or changed
+                or placed):
             return False
         at, side = None, "end"
         if when.anchor:
@@ -764,8 +1010,14 @@ class Story:
 
     def _held(self, turn, held: Holding, described: str, reading,
               target: str = "", at=None, side: str = "end") -> None:
-        word = "yes" if held.value else "no"
         basis = held.basis
+        if held.value == MAYBE:
+            turn.answer = {"outcome": "unknown", "source": "told",
+                           "text": f"maybe — you told me “{basis.said}”, and "
+                                   f"not which (T3: one place at a time, and "
+                                   f"this one of two)"}
+            return
+        word = "yes" if held.value else "no"
         if isinstance(basis, Change):
             occurrence = self.timeline.occurrence(basis.occurrence)
             said = occurrence.said if occurrence else ""
@@ -1004,6 +1256,9 @@ class Story:
                 return True
             wanted.add(f"episode {episode.id}")
         found = self.timeline.identify(wanted)
+        if not found and other is not None and self._received(
+                other, verb, turn):
+            return True
         doers, seen = [], set()
         for one in found:
             doer = self.discourse.by_id(one.subject or "")
@@ -1018,16 +1273,69 @@ class Story:
                                    f"{' '.join([verb] + list(reading.rest[1:]))}"
                                    f" {frame.label}"}
             return True
+        if other is not None and len(found) > 1:
+            # `who gave the football`, given three times: the last one gave
+            # it, and the others had given it before (T1).
+            last = found[-1]
+            doer = self.discourse.by_id(last.subject or "")
+            turn.answer = {
+                "outcome": "retrieved", "source": "told",
+                "text": (f"{self.discourse.describe(doer)} — the last of "
+                         f"{len(found)}, “{last.said}”; before that "
+                         + "; ".join(f"“{one.said}”" for one in found[:-1])
+                         + " (T1)")}
+            return True
         turn.answer = {"outcome": "retrieved", "source": "told",
                        "text": self.session._names(doers) + " — you told me "
                                + "; ".join(f"“{one.said}”" for one in found)}
         return True
 
+    def _received(self, other, verb: str, turn) -> bool:
+        """`who received the football`: nothing told was receiving, and
+        VerbNet reads receiving as its subject ending up with the object
+        (obtain-13.5.2, `equals(Agent, Recipient)`) -- so whoever T4 last put
+        it with, however it got there."""
+        from .discourse import SPEAKER_KIND
+
+        ends_with = any(
+            effect.kind == "location" and effect.position == "object"
+            and effect.at == "subject" and effect.after
+            for sense in changes.senses_of(verb, True, "", "",
+                                           self.asker.verb_senses(verb))
+            for effect in sense.effects)
+        if not ends_with:
+            return False
+        people = {one.id for one in self.session._individuals(SPEAKER_KIND)}
+        order = {one.id: index
+                 for index, one in enumerate(self.timeline.story())}
+        given = [change for change in self.timeline.changes
+                 if change.individual == other.id and change.after
+                 and change.kind == "location" and change.place in people]
+        if not given:
+            return False
+        last = max(given, key=lambda change: (order.get(change.occurrence, -1),
+                                              change.seq))
+        turn.answer = {
+            "outcome": "retrieved", "source": "told",
+            "text": (f"{self.discourse.describe(self.discourse.by_id(last.place))}"
+                     f" — {self.quote(last)}: the last it was put with, and "
+                     f"to {verb} is to end up with it (VerbNet)")}
+        return True
+
     def what_did(self, reading, referent, turn) -> bool:
         """`what did the dog chase yesterday`: the objects of the
         occurrences."""
-        found = [one for one in self.timeline.identify(
-            {f"subject {referent.id}", f"is_a {self._verb_asked(reading)}"})]
+        wanted = {f"subject {referent.id}",
+                  f"is_a {self._verb_asked(reading)}"}
+        # `what did Bill give to Fred`: who it went to is named, and what
+        # went is asked.
+        other = None
+        if reading.obj is not None:
+            _, other = self.session._object_here(reading, turn,
+                                                 exclude={referent.id})
+            if other is not None:
+                wanted.add(self._slot(reading, other))
+        found = list(self.timeline.identify(wanted))
         frame = self.when().frame
         if frame is not None:
             episode = self.timeline.by_key(frame.key)
@@ -1035,11 +1343,17 @@ class Story:
                      if episode is not None and one.episode == episode.id]
         if not found:
             return False
-        texts = []
-        for one in found:
-            thing = self.discourse.by_id(one.object or one.place or "")
+        texts, seen = [], set()
+        # The last first (T1): `what did Bill give to Fred`, twice, is what
+        # he gave him last.
+        for one in reversed(found):
+            asked = one.object or (one.place if other is None else None)
+            thing = self.discourse.by_id(asked or "")
             what = (self.discourse.describe(thing) if thing is not None
                     else one.object_word or one.place_word or one.predicate)
+            if what in seen:
+                continue
+            seen.add(what)
             texts.append(f"{what} — you told me “{one.said}”")
         turn.answer = {"outcome": "retrieved", "source": "told",
                        "text": "; ".join(texts)}
@@ -1049,10 +1363,13 @@ class Story:
         """T3 and T4 for a place: `where is the key`, `where was the pig
         yesterday`."""
         timeline = self.timeline
+        if reading.rest[:1] in (["before"], ["after"]):
+            return self.where_around(reading, referent, turn)
         places: dict[str, str] = {}
         for record in timeline.records:
             if (record.individual == referent.id
-                    and record.relation == "at_location"):
+                    and record.relation == "at_location"
+                    and somewhere(record)):
                 key = record.bound[0] if record.bound else record.object
                 places.setdefault(key, record.object)
         for change in timeline.changes:
@@ -1075,15 +1392,27 @@ class Story:
         for key, word in places.items():
             def judge(kind, relation, value, key=key, word=word):
                 if kind == "record" and relation == "at_location":
-                    return 1 if value == word else 0
+                    return (1 if value == word else
+                            -1 if value == f"no {word}" else 0)
                 if kind == "change" and relation == "location":
                     return 1 if value in (key, word) else 0
                 return 0
+            # T3: one place at a time -- going anywhere else ends it.
+            judge.exclusive = True
             held = timeline.holding(referent.id, judge, episode.id)
             thing = self.discourse.by_id(key)
             name = (self.discourse.describe(thing) if thing is not None
                     else f"{article(word)} {word}")
             if held.value:
+                # With someone who is somewhere: `the garden, with Mary`.
+                carried = (timeline.whereabouts(key) if thing is not None
+                           else [])
+                if carried and carried[-1][0] is not None:
+                    place, room, _ = carried[-1]
+                    there = self.discourse.by_id(place)
+                    name = (f"{self.discourse.describe(there)}" if there
+                            is not None else f"{article(room)} {room}") + \
+                        f", with {name}"
                 found.append(f"{name} — {self.quote(held.basis)}")
             elsewhere += [f"{name}, {self.phrase(one)} — {self.quote(basis)}"
                           for one, value, basis in held.elsewhere if value]
@@ -1102,6 +1431,48 @@ class Story:
                                      "it was told of"}
             return True
         return False
+
+    def where_around(self, reading, referent, turn) -> bool:
+        """`where was the football before the bathroom`: where it was just
+        before it last came to be there, or just after, in story order (T1,
+        T2) -- carried or not (`Timeline.whereabouts`)."""
+        side = reading.rest[0]
+        named = [word for word in reading.rest[1:] if word not in ARTICLES]
+        wanted = " ".join(named)
+        lemma = self.asker.lemma
+        # Only places: where it was let go of unsaid is no place to be before.
+        history = [one for one in self.timeline.whereabouts(referent.id)
+                   if one[0] is not None]
+        described = self.discourse.describe(referent)
+
+        def same(word: str) -> bool:
+            return word == wanted or (
+                [lemma(one) for one in word.split()]
+                == [lemma(one) for one in named])
+
+        at = max((index for index, (_, word, _) in enumerate(history)
+                  if same(word)), default=None)
+        if at is None:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"not told — nothing said put {described} "
+                                   f"in {article(wanted)} {wanted}"}
+            return True
+        other = at - 1 if side == "before" else at + 1
+        if not 0 <= other < len(history):
+            turn.answer = {"outcome": "unknown", "source": "told",
+                           "text": f"not told — nothing was said of where "
+                                   f"{described} was {side} "
+                                   f"{self.quote(history[at][2])}"}
+            return True
+        key, word, basis = history[other]
+        thing = self.discourse.by_id(key)
+        name = (self.discourse.describe(thing) if thing is not None
+                else f"the {word}")
+        turn.answer = {"outcome": "retrieved", "source": "told",
+                       "text": f"{name} — {self.quote(basis)}; {side} "
+                               f"that, {self.quote(history[at][2])} (T2: "
+                               f"in story order)"}
+        return True
 
 
 def _said(said: str) -> str:

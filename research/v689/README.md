@@ -391,6 +391,66 @@ Neither Wikipedia nor Wiktionary is read by the page yet: v689 reads WordNet's
 definitions memory, and the other two are loaded into store copies for the
 audit.
 
+## People, places and things
+
+bAbI's twenty tasks (`babi.py`, `BABI.md`) were why, and nothing of bAbI is in
+the code: its stories are told in the language below, and every row is a
+general rule those stories happen to need.
+
+| said | what it is now |
+|---|---|
+| `Mary moved to the bathroom` | someone new: a person called Mary, by a capitalised proper noun (or a noun the ontology lacks, `Sumit`); she is in the bathroom after it (T4) |
+| `Mary and Daniel went to the kitchen` | told of each, as happening together; `they` is the two of them |
+| `then she went to the garden` | the woman last talked about: NLTK's names say whose name is whose, and a person comes before a room |
+| `Mary is no longer in the bedroom`, `Fred is either in the school or the park` | a place denied; one place of two, and `maybe` |
+| `Mary got the football`, `dropped it`, `gave it to Fred` | VerbNet's `ch_of_poss`, kept as a place: what someone has is where they are, and goes where they go |
+| `the kitchen is north of the office`, `the box fits inside the chest` | a relation between two individuals along one dimension (`relations.py`) |
+| `mice are afraid of wolves`, `Gertrude is a mouse` | a quality toward something, which descends |
+| `Sumit is tired` | a state the store's motivations connect to what one does, and where (`motives.py`) |
+
+The rules added:
+
+- **T3: one place at a time.** Being told somewhere else, or going there,
+  ends being here. A story told in two tenses with no day named for either is
+  one story: `Mary is in the garden. Daniel went to the kitchen.`
+- **T4 reads possession.** VerbNet's `ch_of_poss`, with its `equals` for the
+  role a sentence leaves out: the Goal of getting is the Agent. A Theme that
+  leaves an unexpressed place (`drop`) or stops touching the Agent (`discard`)
+  is let go of, and is where its holder was. A particle verb VerbNet has no
+  frame for is read as its head (`put down`, `pick up`). When none of a verb's
+  first three senses has a frame of the sentence's shape, any sense that does
+  is read: `pass the football to Bill` is giving. What is left, the story
+  chooses: a reading whose starting state the story contradicts is dropped --
+  `John left the apple`, of a John who has it, is not leaving a place.
+- **E1 is about what a thing is like.** `afraid of wolves` is how a mouse is
+  toward something else, and descends as what it does does (R3).
+- **S1 to S4.** A relation and its converse are one fact; along a dimension,
+  a partial order walked like `before`; a direction puts the two in line; the
+  compass is a map (`relations.py`).
+- **I1: induction.** Nothing told of one individual's colour: the others of
+  its kind told of here, all of them where they agree and the last told where
+  they do not, said as `probably`.
+- **Motives.** A state moves one to what the store says it motivates, needs
+  or leads to; a place is for what its kind is `used_for`; the two meet on a
+  lemma. `why did Sumit go to the bedroom` is a state told before it that
+  meets the place, or `perhaps` the last one; `where will Sumit go` names only
+  a place the conversation has been to, and otherwise says not told.
+
+| asked | answered by |
+|---|---|
+| `where is the football` | where it is, and who has it: `the garden, with Mary` |
+| `where was Julie before the school` | the place before she last came to be there, in story order across days (T2) |
+| `what is Mary carrying`, `how many objects is Mary carrying` | what is with her -- where VerbNet reads the verb as having something with you (carry-11.4, hold-15.1, keep-15.2) -- listed or counted |
+| `who gave the football`, `who received the football`, `who did Fred give it to` | the last occurrence (T1); receiving is ending up with it (obtain-13.5.2), however it got there |
+| `what is north of the office`, `how do you go from the kitchen to the garden` | S1; S4 |
+| `is the box bigger than the chocolate`, `is the rectangle right of the square` | S2; S3 |
+| `what is Gertrude afraid of`, `what color is Greg`, `why did Sumit get the pajamas` | R3 through a taught kind; I1; motives |
+
+Descriptions changed with them: `the blue square`, said first, introduces a
+blue square; `the box of chocolates` is a thing of its own and not a box; and
+`the container` is the one introduced as a container, not the box that is a
+kind of one.
+
 ## What it does not do
 
 - **One object at most, and it ends the sentence.** `the dog chased the cat
@@ -429,8 +489,10 @@ audit.
 | `tense.py` | when: frames, links, anchors, tense and aspect, taken out before reading |
 | `timeline.py` | story time: episodes, occurrences and their trie, T1 to T3 and T5 |
 | `change.py` | T4: VerbNet's event structure, by frame and by sense |
-| `story.py` | what a conversation does with time: statements placed, questions about when answered, T6 |
-| `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
+| `story.py` | what a conversation does with time: statements placed, questions about when answered, T6; where things are and who has them |
+| `relations.py` | S1 to S4: relations between two individuals along a dimension, their order, and the compass as a map |
+| `motives.py` | the store's motivations: what a state moves one to, and what a place is for |
+| `discourse.py` | attention: salience, order, focus, names, groups, and resolving a phrase to one individual |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
 | `clauses.py` | a statement split into its claims by the dependency parse |
@@ -443,4 +505,9 @@ audit.
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |
 | `test_time.py` | episodes, occurrences and T1 to T6 over a store with verbs, and replaying the timeline |
+| `test_people.py` | names, groups and pronouns, one place at a time, and possession, over a store with WordNet's own verb senses |
+| `test_relations.py` | S1 to S4, fed events by hand and then in conversation |
+| `test_kinds.py` | deduction through a taught kind, induction (I1), and motives |
+| `babi.py` + `test_babi.py` | bAbI put to v689 and to SmolLM3 the same way, and the one scorer both are read by |
 | `TIME_AND_EVENTS.md` | the audit: what could not be said about when, the architecture built for it, and what changed |
+| `BABI.md` | the benchmark: the baseline, why v689 could read none of it, the rules built, and the scores beside SmolLM3's |

@@ -35,3 +35,6 @@ data/genericskb/*.parquet
 
 # What the v689 page was told and taught, kept between runs
 state/
+
+# bAbI replies, kept so the scorer can read them again
+research/v689/babi-out/

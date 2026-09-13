@@ -69,11 +69,13 @@ class Asker:
         return [sense["id"] for sense in
                 (self.reasoner.senses_of(lemma, "v") or [])]
 
-    def verb_kinds(self, lemma: str) -> list[str]:
+    def verb_kinds(self, lemma: str, sense: str | None = None) -> list[str]:
         """Every verb a verb is a kind of, nearest first, as words: `chase`
         -> chase, pursue, follow, travel, go, move, locomote. Troponymy,
-        walked up the store's taxonomy as R1 walks a noun."""
-        senses = self.verb_senses(lemma)
+        walked up the store's taxonomy as R1 walks a noun. From `sense` when
+        the sentence chose one (`change.senses_of`): passing a football to
+        someone is giving it, not travelling."""
+        senses = [sense] if sense else self.verb_senses(lemma)
         kinds = [lemma]
         if not senses:
             return kinds
@@ -148,6 +150,27 @@ class Asker:
             except Exception:                   # noqa: BLE001
                 cache[lemma] = frozenset()
         return cache[lemma]
+
+    def gender(self, name: str) -> str:
+        """`female` for Mary, `male` for John: NLTK's names corpus, and
+        nothing where it lists a name as both or as neither -- Bill, Daniel,
+        Sumit. A pronoun is matched against it (`discourse.py`), so a name
+        it cannot place is never ruled out."""
+        lists = self.__dict__.get("_names")
+        if lists is None:
+            try:
+                from nltk.corpus import names
+
+                lists = ({one.lower() for one in names.words("male.txt")},
+                         {one.lower() for one in names.words("female.txt")})
+            except Exception:                   # noqa: BLE001
+                lists = (set(), set())
+            self.__dict__["_names"] = lists
+        male, female = lists
+        word = (name or "").lower()
+        if (word in male) == (word in female):
+            return ""
+        return "male" if word in male else "female"
 
     def known(self, phrase: str) -> bool:
         return phrase in (self.parser.nouns or self.parser.vocabulary or ())

@@ -60,6 +60,7 @@ TYPES = {
     "attended": "a mention refreshed an individual's salience",
     "named": "an individual was told its name",
     "owned": "an individual was said to be yours",
+    "grouped": "several individuals were talked about together: `they`",
     # -- episodic memory (episodic.py) ----------------------------------
     "placed": "an individual was put under a kind, or moved under a narrower",
     "told": "a fact about one node, replacing what it contradicts",

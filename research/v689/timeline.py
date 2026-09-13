@@ -83,6 +83,18 @@ IN_TIME = frozenset({"has_property", "not_has_property", "has_attribute",
 #: The keys of the three episodes a story can be in without naming a day.
 NOW, THEN, LATER = "now", "then", "later"
 
+#: What a judge says of a state told as one of several: `it is either in the
+#: school or the park`, asked `is it in the park`.
+MAYBE = "maybe"
+
+
+def somewhere(record) -> bool:
+    """Does a told place put it somewhere in particular? `in the kitchen`
+    does; `no longer in the kitchen` and `either in the school or the park`
+    do not."""
+    return (record.relation == "at_location"
+            and not record.object.startswith(("no ", "either ")))
+
 
 @dataclass
 class Episode:
@@ -538,17 +550,23 @@ class Timeline:
         if at is not None and at in place:
             moment = place[at] + {"before": -0.1, "during": 0.05,
                                   "after": 0.3}.get(side, 0.3)
+        # T3: one place at a time. For a judge of where something is
+        # (`judge.exclusive`), being told it is somewhere else, or going
+        # somewhere else, ends its being here.
+        exclusive = getattr(judge, "exclusive", False)
         found = []      # (position, seq, value, basis, rule, value before)
         for record in self.records:
             if record.individual != individual or record.episode != episode_id:
                 continue
             matched = judge("record", record.relation, record.object)
+            if not matched and exclusive and somewhere(record):
+                matched = -1
             if not matched:
                 continue
             position = (place.get(record.after, -1.0) + 0.5 if record.after
                         else -0.5)
-            found.append((position, record.seq, matched > 0, record, "T3",
-                          None))
+            value = MAYBE if matched == MAYBE else matched > 0
+            found.append((position, record.seq, value, record, "T3", None))
         for change in self.changes:
             occurrence = self.occurrence(change.occurrence)
             if (change.individual != individual or occurrence is None
@@ -557,6 +575,11 @@ class Timeline:
             matched = judge("change", change.kind,
                             change.place or change.place_word
                             if change.kind == "location" else change.word)
+            if (not matched and exclusive and change.kind == "location"
+                    and change.after):
+                found.append((place.get(change.occurrence, 0.0) + 0.25,
+                              change.seq, False, change, "T3", None))
+                continue
             if not matched:
                 continue
 
@@ -601,6 +624,78 @@ class Timeline:
                 if held.basis is not None:
                     elsewhere.append((other, held.value, held.basis))
         return Holding(None, None, "T3", episode, elsewhere)
+
+    def whereabouts(self, individual: str,
+                    direct: bool = False) -> list[tuple]:
+        """(place, word, basis) for every place an individual came to be, in
+        story order: episodes on the line of days, and T1's order within each.
+
+        What is somewhere in or with something else is where that is: a
+        football got by Mary is in each room Mary goes to, one after another.
+        With `direct`, only what it is itself in or with: Mary. This is the
+        order of places (T2), across episodes; whether one still holds is
+        `holding`'s question, and T3's.
+        """
+        steps = []
+        places: dict[str, dict] = {}
+        episodes = {one.id: one for one in self.episodes}
+
+        def when(episode_id, position, seq):
+            episode = episodes.get(episode_id)
+            if episode_id not in places:
+                places[episode_id] = self.positions(episode_id)
+            return ((episode.sort_key, episode.turn) if episode else (0, 0),
+                    position, seq)
+
+        for change in self.changes:
+            occurrence = self.occurrence(change.occurrence)
+            if change.kind == "location" and occurrence is not None:
+                at = when(occurrence.episode, 0.0, change.seq)
+                at = (at[0], places[occurrence.episode].get(occurrence.id, 0.0)
+                      + 0.25, change.seq)
+                steps.append((at, change))
+        for record in self.records:
+            if record.relation != "at_location":
+                continue
+            at = when(record.episode, 0.0, record.seq)
+            position = (places[record.episode].get(record.after, -1.0) + 0.5
+                        if record.after else -0.5)
+            steps.append(((at[0], position, record.seq), record))
+        located: dict[str, tuple] = {}
+        history: list[tuple] = []
+
+        def resolved(node):
+            found, seen = located.get(node), {node}
+            while found and found[0] in located and found[0] not in seen:
+                seen.add(found[0])
+                found = located[found[0]]
+            return found
+
+        for _, step in sorted(steps, key=lambda one: one[0]):
+            if isinstance(step, Change):
+                key = step.place or step.place_word
+                if step.after:
+                    located[step.individual] = (key, step.place_word)
+                elif located.get(step.individual, (None,))[0] == key:
+                    located.pop(step.individual)
+            elif somewhere(step):
+                located[step.individual] = (
+                    step.bound[0] if step.bound else step.object, step.object)
+            elif (step.object.startswith("either ")
+                  or located.get(step.individual, (None, None))[1]
+                  == step.object[3:]):
+                located.pop(step.individual, None)
+            found = (located.get(individual) if direct
+                     else resolved(individual))
+            key = found[0] if found else None
+            if history and history[-1][0] == key:
+                continue
+            if found:
+                history.append((*found, step))
+            elif history:
+                # Let go of, somewhere the story does not say: nowhere known.
+                history.append((None, "", step))
+        return history
 
     def told_elsewhere(self, episode_id: str) -> set[tuple]:
         """(individual, relation, object) of every fact in time whose latest
