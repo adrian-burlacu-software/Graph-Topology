@@ -1203,6 +1203,10 @@ class PageExampleTests(unittest.TestCase):
         "Analogy": ({"R24"}, {"LISTING"}),
         "Exclusion": ({"is_a"}, {"CONTRADICTED", "UNKNOWN"}),
         "Definition": ({"R26"}, {"DEFINED", "UNKNOWN_WORD"}),
+        # A rated no reaches the page through the norms when they name the
+        # thing (`verify`) and through R17 or R32 when they do not.
+        "Ratings & magnitudes": ({"R31", "R17", "R32", "verify"},
+                                 {"VERIFIED", "CONTRADICTED", "LISTING"}),
         "Refused": ({"R18"}, {"UNSUPPORTED"}),
     }
 

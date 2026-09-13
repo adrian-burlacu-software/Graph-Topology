@@ -517,11 +517,21 @@ const REASONING = [
                 "what is a greeting", "what is a wemble"],
   },
   {
+    name: "Ratings & magnitudes", rule: "R31",
+    blurb: "What people rated every object on -- alive, heavy, soft, sharp, " +
+           "its size -- so a low rating is a no and not a silence, and two " +
+           "objects on one scale can be compared.",
+    questions: ["is an elephant bigger than a mouse",
+                "which is heavier, a feather or a brick",
+                "is a chair alive", "does a rock breathe",
+                "is a pillow sharp", "is a tomato a fruit"],
+  },
+  {
     name: "Refused", rule: "R18",
     blurb: "What this cannot do, declined by name instead of answered from " +
            "the part of the question it happens to understand. Every silent " +
            "wrong answer found in either audit had that shape.",
-    questions: ["is a whale bigger than a dolphin",
+    questions: ["is a cheetah faster than a turtle",
                 "how many legs does a dog have",
                 "what is the largest animal", "what if a dog had wings",
                 "when did the war end", "what does hello mean",

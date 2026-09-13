@@ -205,6 +205,61 @@ A word with no sense in the store is named as unknown rather than answered
 about something else. That matters for a dialogue that has to *ask*: a system
 that cannot say "I do not know what a wemble is" cannot be told.
 
+## Rated norms — a no that is not a silence
+
+The crawl cannot say a chair is not alive, and nothing else could either:
+XCSLB is a free listing and AwA2 covers 50 animals. `rated.py` reads two
+sources that put one fixed question to every object they cover:
+
+    THINGSplus   1,854 objects rated 1-7 on lives, manmade, natural, heavy;
+                 real-world size; 53 everyday categories
+    NEWTON       777 household objects voted Low or High on softness,
+                 sharpness, brittleness, elasticity, malleability, stiffness,
+                 surface smoothness and surface hardness
+
+    is a chair alive      no: people rated a chair 1.5 of 7 as something that lives
+    is a pillow sharp     no: NEWTON's annotators voted it Low, 100% agreement
+    is a tomato a fruit   yes, as people sort things -- WordNet files it elsewhere
+
+**They are a layer of their own, not more norms.** `identify.stated` is what
+R19 counts, and merging 2,000 rated objects would put THINGSplus's birds in
+`bird.n.01`'s denominator without anyone having asked them about flying: fly
+would fall from 28 of 29 to about 28 of 50, under the floor. So the ratings are
+keyed by synset and read only for the predicates they rated, in
+`Profiles.verify_one` beside AwA2's zeros and in `reasoning._rated` for
+subjects the norms do not name. Folk categories answer only after the taxonomy
+has found nothing, and only yes.
+
+The join and every threshold are measured in `rated.py`'s docstring and in
+`data/thingsplus.SOURCE.md` and `data/newton.SOURCE.md`. THINGS rates `mouse`
+twice, the animal and the device, so a word whose rated readings disagree gets
+no answer from them at all.
+
+## R31 — bigger and heavier
+
+    is an elephant bigger than a mouse       yes: 376 against 191
+    which is heavier, a feather or a brick   a brick: 5.5 of 7 against 1.1
+    is a cheetah faster than a turtle        refused by R18: no scale for speed
+
+R18 refused every comparative because nothing had a magnitude. THINGSplus has
+two: a size scale anchored from a grain of sand (109) to an aircraft carrier
+(421), and heaviness rated 1-7. Two objects rated within 20 units of size or a
+point of weight are called too close. Anything not two rated objects on one of
+those scales still reaches R18, whose note now says what R31 would have
+needed.
+
+## R32 — only the living
+
+    does a rock breathe    no: VerbNet gives `breathe` a living doer, and a
+                           rock is rated 1.5 of 7 as something that lives
+    can a computer think   left to the store, which says it can
+
+VerbNet restricts who can be a verb's subject, and for `breathe`, `eat`,
+`drink` and `think` every class the verb is in wants an animate doer. Joined to
+THINGSplus's "not alive" that is a no neither source states. It stands down
+when any reading of the word is alive, and when the store says the thing does
+exactly that -- the disagreement test AwA2's zeros already face.
+
 ## The answer audit
 
 Ninety-two questions across seventeen question shapes, plus five sweeps that
@@ -398,6 +453,9 @@ step of every new answer names a node that exists.
 | `causal.py` | scripts in script order, and abduction as a ranking |
 | `analogy.py` | role mapping over the closed norm vocabulary |
 | `reasoning.py` | the engine, and the order questions are tried in |
+| `rated.py` | THINGSplus and NEWTON joined to the store: a no that is not a silence, and R32 |
+| `magnitudes.py` | R31, comparatives on the scales THINGSplus rated |
+| `test_rated.py` | the rated norms, R31 and R32 |
 | `pins.py` | the reader's chosen sense, for one request |
 | `test_v687.py` | 58 tests for the above |
 | `test_trie/reasoning/bridging/norms.py` | v683–v686's 200 tests, unchanged |

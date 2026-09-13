@@ -64,8 +64,8 @@ class ReasoningEngine(IdentifyingEngine):
             clash = self._pin_fights_the_question(question or "", pinned)
             if clash is not None:
                 return clash
-            for attempt in (self._gated, self._define, self._contrast,
-                            self._causal, self._analogy):
+            for attempt in (self._compare, self._gated, self._define,
+                            self._contrast, self._causal, self._analogy):
                 answer = attempt(question or "")
                 if answer is not None:
                     return answer
@@ -85,10 +85,135 @@ class ReasoningEngine(IdentifyingEngine):
             backwards = self._inverse(question or "")
             if backwards is not None:
                 return backwards
+        if not concept:
+            rated = self._rated(question or "")
+            if rated is not None:
+                return rated
         payload = super().ask(question, concept or subject_sense)
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
+        if not concept:
+            payload = self._folk(question or "", payload) or payload
         self._report_unused_pins(payload, pinned)
         return payload
+
+    # -- R31, and the rated norms for what the norms do not name -------------
+    def _compare(self, question: str) -> dict | None:
+        """R31 before R18: a comparative on a scale people rated."""
+        from . import magnitudes
+        return magnitudes.answer(self, question)
+
+    def _noun_senses(self, word: str) -> list[str]:
+        return [sense["id"] for sense in self.reasoner.senses_of(word)
+                if sense.get("pos") == "n"]
+
+    def _rated(self, question: str) -> dict | None:
+        """R17 and R32 over the rated norms, for a subject the norms do not name.
+
+        `is a chair alive` names nothing XCSLB or AwA2 describe, so no norms
+        route takes it, and the fact graph has nothing either way. A subject
+        the norms do cover is answered through `Profiles.verify_one`, which
+        reads the ratings at the same point; `rated.py` says why they are a
+        layer of their own.
+        """
+        # Only a concept the norms describe is theirs to answer. `route` also
+        # takes a class with norm-covered kinds beneath it -- `rock`, over
+        # marble and granite -- and then hands a property of the class itself
+        # straight back.
+        routed = self.profiles.route(question)
+        if routed is not None and self.profiles.knows(routed[1]):
+            return None
+        parse = self.parser.parse(question)
+        if not parse.polar or not parse.subject or not parse.target:
+            return None
+        if parse.relation == "is_a" and not parse.hedged:
+            return None                  # the taxonomy first; `_folk` after
+        word = parse.subject.lower()
+        senses = self._noun_senses(word)
+        if not senses:
+            return None
+        # A pin is the reader choosing the reading, so no other one is
+        # borrowed from or held up against it.
+        pinned = pins.of(word)
+        chosen = pinned or senses[0]
+        if pinned:
+            senses = [pinned]
+        ratings = self.profiles.ratings
+        if parse.relation in ("has_property", "is_a"):
+            found, rule = ratings.settle(chosen, senses, parse.target), "R17"
+        elif parse.relation == "capable_of":
+            found, rule = ratings.unable(chosen, senses, parse.target), "R32"
+        else:
+            return None
+        if found is None:
+            return None
+        yes = found.verdict == "HELD"
+        reading = ("" if found.concept == chosen else
+                   f" Read as {found.concept}: {chosen}, the sense carrying "
+                   f"the most facts, was not rated, and {found.concept} is "
+                   f"the rated reading of “{word}” on the same side of alive.")
+        return self._shell(
+            question, "VERIFIED" if yes else "CONTRADICTED", rule,
+            concept=found.concept,
+            note=f"{'Yes' if yes else 'No'}: {found.detail}.{reading}",
+            steps=[self._step(0, rule, found.concept, found.predicate,
+                              found.detail, kind="match" if yes else "stop")],
+            extra={"rated": found.as_dict()})
+
+    def _folk(self, question: str, payload: dict) -> dict | None:
+        """People's categories, where WordNet's taxonomy says nothing.
+
+        `is a tomato a fruit` is UNKNOWN because WordNet files the tomato
+        under `solanaceous vegetable`; the people THINGSplus asked to sort it
+        put it under fruit, vegetable and food. Only a yes, and only after the
+        taxonomy has had its say and found nothing -- a folk category never
+        overrules a derivation, and membership was assigned rather than scored
+        against every category, so its absence is not a no.
+        """
+        if payload.get("verdict") != "UNKNOWN":
+            return None
+        parse = self.parser.parse(question)
+        if parse.relation != "is_a" or not parse.subject or not parse.target:
+            return None
+        words = parse.target.lower().split()
+        while words and words[0] in ("a", "an", "the"):
+            words = words[1:]
+        target = " ".join(words)
+        wanted = {target, target[:-1] if target.endswith("s") else target}
+        word = parse.subject.lower()
+        # A pinned reading is the only one asked about: `hammer.n.01` pinned
+        # is not a tool, and the hammer THINGSplus sorted under tools is
+        # another sense of the word.
+        pinned = pins.of(word)
+        order = ([pinned] if pinned else
+                 [payload.get("concept") or "", *self._noun_senses(word)[:3]])
+        ratings = self.profiles.ratings
+        for concept in dict.fromkeys(one for one in order if one):
+            held = ratings.categories.get(concept) or {}
+            matched = sorted(category for category in held
+                             if category in wanted)
+            if not matched:
+                continue
+            category = matched[0]
+            others = sorted(one for one in held if one != category)
+            typical = held[category]
+            detail = (f"THINGSplus asked people to sort “"
+                      f"{ratings.named.get(concept, word)}” and they put it "
+                      f"under “{category}”"
+                      + (f", and also {', '.join(others)}" if others else "")
+                      + (f" (typicality {typical:.2f})" if typical else ""))
+            note = (f"Yes, as people sort things: {detail}. WordNet does not "
+                    f"file {concept} under “{target}”, so this is a folk "
+                    f"category and not the taxonomy. "
+                    f"{payload.get('note') or ''}").strip()
+            return self._shell(
+                question, "VERIFIED", "R17", concept=concept, note=note,
+                steps=[*(payload.get("steps") or []),
+                       self._step(len(payload.get("steps") or []), "R17",
+                                  concept, category, detail, kind="match")],
+                extra={"folk": {"category": category, "others": others,
+                                "typicality": typical,
+                                "taxonomy": payload.get("verdict")}})
+        return None
 
     #: The tagger's labels in WordNet's alphabet, for comparing a pin against
     #: the way its word was actually used.

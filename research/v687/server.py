@@ -618,6 +618,18 @@ V687_RULES: dict[str, str] = {
            "wheel and a dog's tail, and not a fish's gills), so when the "
            "graph is silent the words still answer and the note says which "
            "of the two spoke.",
+    "R31": "Magnitudes: bigger, smaller, heavier and lighter are compared on "
+           "the scales THINGSplus had people rate for 1,854 objects -- "
+           "real-world size, anchored from a grain of sand to an aircraft "
+           "carrier, and heaviness from 1 to 7. Two objects rated too close "
+           "together are called too close, not ordered by the noise. Faster, "
+           "older and better have no scale, and R18 still refuses them.",
+    "R32": "Only the living: a thing rated not alive is not the doer of a "
+           "verb VerbNet gives an animate subject in every class it is in -- "
+           "breathe, eat, drink, think. Neither source says a rock does not "
+           "breathe; together they do. It stands down when the store states "
+           "that the thing does exactly that, which is the disagreement test "
+           "AwA2's zeros face, and when any reading of the word is alive.",
     "R26": "Definition: `what is a robin` is answered from the taxonomy "
            "itself -- which sense is meant, the gloss WordNet gives it, what "
            "it is a kind of, and what kinds it has. Before this it fell "

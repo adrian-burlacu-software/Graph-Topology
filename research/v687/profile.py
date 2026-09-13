@@ -46,6 +46,7 @@ from .ordering import adaptive_coverage
 from .substrate import Corpus
 from .trie import PredicateTrie
 from . import corpora, logic, pins, rules
+from .rated import Ratings
 
 #: Facts shown per ancestor. One ancestor can carry hundreds; six is enough to
 #: see what a level contributes without burying the level below it.
@@ -161,6 +162,10 @@ CORROBORATION_REQUIRED = bool(
 #: Set `V687_NO_DISTILLED_KINDS=1` to draw R19's denominator from the 571
 #: norm-covered concepts alone, the way it did before `research/v688/kinds.py`.
 KINDS_OFF = bool(os.environ.get("V687_NO_DISTILLED_KINDS"))
+
+#: Set `V687_NO_RATED_NORMS=1` to answer without THINGSplus and NEWTON --
+#: `rated.py` -- and without R32, which reads them.
+RATED_OFF = bool(os.environ.get("V687_NO_RATED_NORMS"))
 
 #: Set `V687_ATTACHED_CORROBORATION=1` to corroborate at the level the crawl
 #: attached the fact to, the way R19 did before §23, instead of at the
@@ -410,6 +415,11 @@ class Profiles:
         self.distilled_kinds: dict[str, dict] = (
             {} if KINDS_OFF else corpora.load_distilled_kinds())
         self._kind_lineage: dict[str, set[str]] | None = None
+
+        # Rated norms. Kept out of `stated` so R19's denominators, the trie and
+        # the quantifiers see only kinds that were asked what they are asked
+        # about -- `rated.py` measures what merging them would cost.
+        self.ratings = Ratings(self.reasoner, empty=RATED_OFF)
 
         corpus = Corpus("norms", tuple(sorted(
             (name, predicates) for name, predicates in self.stated.items()
@@ -957,6 +967,27 @@ class Profiles:
                 depth=depths.get(clash, 0), shared=sharing.get(clash, 0),
                 detail=f"The norms state “{clash}” of {name}, and a count is "
                        f"one number: not “{term}”.")
+        # The rated norms, before AwA2's zeros and the taxonomy. THINGSplus
+        # and NEWTON put one fixed question to every object they cover, so a
+        # low rating is a no with evidence, and R32 reads the one about being
+        # alive. The word's other readings are passed as well: `synset` comes
+        # from the lemma, not the sense key, and the norms' `mouse` is the
+        # device -- which THINGSplus rates as not alive and the animal as
+        # alive, so `settle` says nothing rather than deny it.
+        concept = self.synset.get(name)
+        readings = [sense["id"] for sense in self.reasoner.senses_of(name)
+                    if sense.get("pos") == "n"]
+        rated = (self.ratings.settle(concept, readings, term)
+                 or self.ratings.unable(concept, readings, term)
+                 if concept else None)
+        if rated is not None:
+            return Verdict(
+                term=term, verdict=rated.verdict, predicate=rated.predicate,
+                source=rated.source,
+                detail=f"{rated.detail}. Rated, not listed: every object "
+                       f"there was put the same question, so this is "
+                       f"{'a yes' if rated.verdict == 'HELD' else 'a no'} "
+                       f"with evidence rather than a silence.")
         # A denial answers this question only if the question covers what the
         # denial claims. `has small ears` being false of a beaver is not the
         # beaver having no ears, and reading it that way was the one place

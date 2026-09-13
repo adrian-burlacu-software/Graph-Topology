@@ -214,9 +214,11 @@ def parse(text: str, aside: frozenset[str]) -> Query:
 UNSUPPORTED: tuple[tuple[str, str], ...] = (
     (r"\b(bigger|smaller|larger|heavier|lighter|faster|slower|older|younger|"
      r"stronger|taller|shorter|better|worse|more|less)\s+than\b",
-     "a comparative. Nothing in this data has a magnitude: AwA2 records "
-     "`big` as a yes or no and XCSLB records `is the largest animal` as a "
-     "string. There is no scale to compare on"),
+     "a comparative. R31 compares size and heaviness, on THINGSplus's "
+     "ratings of 1,854 objects, and this is not two of them on one of those "
+     "scales. Nothing else here has a magnitude: AwA2 records `big` as a yes "
+     "or no and XCSLB records `is the largest animal` as a string. There is "
+     "no scale to compare on"),
     (r"\bhow\s+many\b(?!\s+kinds?\b)",
      "a count of parts or instances. The ontology holds no numbers -- it can "
      "count *kinds* over the taxonomy, so `how many kinds of dog` is "
@@ -289,8 +291,9 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
     (r"\bwhich\s+(?:one\s+)?(?:is|are)\s+(?:the\s+)?(?:bigger|smaller|larger|"
      r"heavier|lighter|faster|slower|older|younger|stronger|taller|shorter|"
      r"better|worse|more|less)\b",
-     "a comparative, put as a choice. Nothing in this data has a magnitude: "
-     "there is no scale to compare on"),
+     "a comparative, put as a choice. R31 compares size and heaviness, on "
+     "THINGSplus's ratings, and this is not two of its objects on one of "
+     "those scales: there is no scale to compare on"),
 )
 
 

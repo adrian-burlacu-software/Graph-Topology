@@ -343,3 +343,176 @@ def load_distilled_kinds(path: Path | None = None) -> dict[str, dict]:
                         "asked_at": asked_at, "asked": asked,
                         "predicates": frozenset(one.get("predicates") or ())}
     return out
+
+
+# -- rated norms ------------------------------------------------------------
+# Read by `rated.py`. Provenance, licences and the numbers quoted there are in
+# `data/thingsplus.SOURCE.md` and `data/newton.SOURCE.md`.
+THINGSPLUS_DIR = REPOSITORY_ROOT / "data" / "thingsplus"
+NEWTON_DIR = REPOSITORY_ROOT / "data" / "newton"
+VERBNET_DIR = REPOSITORY_ROOT / "data" / "verbnet3.3"
+
+
+def _number(text) -> float | None:
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_thingsplus() -> list[dict]:
+    """THINGSplus: 1,854 objects, every one rated on the same questions.
+
+    One row per object as THINGS distinguishes them -- `mouse1` the animal and
+    `mouse2` the device are two rows under one word, which is why the join to
+    the store goes through the gloss and never through the word. Empty when the
+    data is not downloaded, which every caller treats as "no ratings".
+    """
+    # The image-label cells in the ratings file run to megabytes.
+    csv.field_size_limit(10 ** 8)
+    try:
+        with (THINGSPLUS_DIR / "concepts-metadata_things.tsv").open(
+                encoding="utf-8") as handle:
+            meta = {row["uniqueID"]: row
+                    for row in csv.DictReader(handle, delimiter="\t")}
+        with (THINGSPLUS_DIR / "property-ratings.tsv").open(
+                encoding="utf-8") as handle:
+            ratings = {row["uniqueID"]: row
+                       for row in csv.DictReader(handle, delimiter="\t")}
+        categories: dict[str, dict[str, float | None]] = {}
+        with (THINGSPLUS_DIR / "category53_long-format.tsv").open(
+                encoding="utf-8") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                categories.setdefault(row["uniqueID"], {})[row["category"]] = None
+        with (THINGSPLUS_DIR / "typicality53_mean-ratings.tsv").open(
+                encoding="utf-8") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                held = categories.get(row["uniqueID"], {})
+                if row["category"] in held:
+                    held[row["category"]] = _number(row["typicality_score"])
+    except OSError:
+        return []
+    rows = []
+    for unique, one in sorted(ratings.items()):
+        about = meta.get(unique, {})
+        rows.append({
+            "word": one["Word"], "unique": unique,
+            "definition": (about.get("Definition (from WordNet, Google, or "
+                                     "Wikipedia)") or "").strip(),
+            "lives": _number(one.get("property_lives_mean")),
+            "manmade": _number(one.get("property_manmade_mean")),
+            "natural": _number(one.get("property_natural_mean")),
+            "heavy": _number(one.get("property_heavy_mean")),
+            "size": _number(one.get("size_mean")),
+            "size_start": _number(one.get("size_range-start_mean")),
+            "size_end": _number(one.get("size_range-end_mean")),
+            "categories": categories.get(unique, {}),
+        })
+    return rows
+
+
+def load_newton() -> dict[str, dict[str, tuple[int, float]]]:
+    """NEWTON's confident track: object -> attribute -> (1 low | 3 high, agreement).
+
+    Only the votes that came out Low or High are in this file; the moderate
+    middle was left out by NEWTON itself, so every row here is a judgement one
+    way or the other.
+    """
+    out: dict[str, dict[str, tuple[int, float]]] = {}
+    try:
+        with (NEWTON_DIR / "confident_questions.csv").open(
+                encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                majority = _number(row["result_majority"])
+                if majority not in (1.0, 3.0):
+                    continue
+                out.setdefault(row["category"].replace("_", " "), {})[
+                    row["attribute"].lower()] = (
+                        int(majority), _number(row["agreement"]) or 0.0)
+    except OSError:
+        return {}
+    return out
+
+
+def load_lvis_categories() -> dict[str, list[str]]:
+    """LVIS name or synonym -> the WordNet 3.0 glosses it is filed under.
+
+    NEWTON names its objects with LVIS's category names, and LVIS gives each
+    one a synset. The synset ids are WordNet 3.0's and the store's are not, so
+    it is the gloss that joins them.
+    """
+    try:
+        rows = json.loads((NEWTON_DIR / "lvis_v1_categories.json")
+                          .read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, list[str]] = {}
+    for row in rows:
+        for name in [row["name"], *row.get("synonyms", [])]:
+            out.setdefault(name.lower().replace("_", " "), []).append(row["def"])
+    return out
+
+
+#: A subject restriction that still leaves the doer a living thing. VerbNet
+#: lets an organization think and talk; it never lets a machine breathe.
+LIVING_DOERS = frozenset({"animate", "animal", "human", "organization"})
+
+
+def load_animate_only_verbs() -> dict[str, tuple[str, ...]]:
+    """verb -> its VerbNet classes, for verbs only something alive can do.
+
+    A verb qualifies when **every** class it is a member of restricts the role
+    in subject position to an animate doer, in every frame that has one.
+    `breathe` is in one class, breathe-40.1.2, whose Agent is +animate, so it
+    qualifies. `run` is in eight, and run-51.3.2 lets a machine run, so it
+    does not -- which is what keeps `can a car run` from being denied here.
+
+    Subclasses inherit their parent's roles and frames, as VerbNet specifies,
+    and may narrow a role's restriction.
+    """
+    import xml.etree.ElementTree as ElementTree
+
+    def living(restriction) -> bool:
+        if restriction is None:
+            return False
+        logic_of, values = restriction
+        wanted = {kind for sign, kind in values if sign == "+"}
+        if not wanted:
+            return False
+        if logic_of == "or":
+            return wanted <= LIVING_DOERS
+        return bool(wanted & (LIVING_DOERS - {"organization"}))
+
+    verdicts: dict[str, list[tuple[str, bool]]] = {}
+
+    def walk(klass, roles, frames) -> None:
+        roles = dict(roles)
+        for role in klass.findall("THEMROLES/THEMROLE"):
+            chosen = role.find("SELRESTRS")
+            roles[role.get("type")] = (
+                None if chosen is None else
+                (chosen.get("logic"),
+                 [(one.get("Value"), one.get("type"))
+                  for one in chosen.iter("SELRESTR")]))
+        frames = frames + [frame.find("SYNTAX")
+                           for frame in klass.findall("FRAMES/FRAME")]
+        subjects = {syntax[0].get("value") for syntax in frames
+                    if syntax is not None and len(syntax)
+                    and syntax[0].tag == "NP"}
+        animate = bool(subjects) and all(living(roles.get(role))
+                                         for role in subjects)
+        for member in klass.findall("MEMBERS/MEMBER"):
+            verdicts.setdefault(member.get("name").replace("_", " "), []).append(
+                (klass.get("ID"), animate))
+        for sub in klass.findall("SUBCLASSES/VNSUBCLASS"):
+            walk(sub, roles, frames)
+
+    try:
+        paths = sorted(VERBNET_DIR.glob("*.xml"))
+        for path in paths:
+            walk(ElementTree.parse(path).getroot(), {}, [])
+    except (OSError, ElementTree.ParseError):
+        return {}
+    return {verb: tuple(klass for klass, _ in classes)
+            for verb, classes in sorted(verdicts.items())
+            if all(animate for _, animate in classes)}
