@@ -1,10 +1,17 @@
-# V689 — who is who
+# V689 — who is who, and when
 
 v688 answers questions about kinds: *does a beagle swim*. A conversation is
 about individuals — *the* beagle, *that* one, *the second* one, *it*, *me* —
 and nothing in the words names which. v689 keeps an **episodic memory** of
 them, reasons over it with **v687's own rules**, and stores it in **the paper's
 trie**, grown live as the conversation goes.
+
+It is also about *when*: what happened yesterday, what came first, whether the
+vase was broken before the cat broke it. Memory is kept as **events** — every
+change appended to a stream, every table a fold of it — and story time is one
+more projection of that stream: **episodes**, **occurrences** stored in a trie
+of their own and identified the way individuals are, and six rules, T1 to T6
+(below).
 
 ```
 python -m research.v689 --workers 19 --port 8689 --teacher
@@ -150,6 +157,96 @@ airplane comes before what airplanes do.
 
 The store is never written. Everything told lives in the conversation.
 
+## Memory as events
+
+Nothing writes a table. A change is an **event** appended to a **stream** and
+never altered (`events.py`), and every table is a **projection** of the
+stream: the episodic tables, the attention table, the timeline and the tries
+planned over them. The model is domain-driven design's, made explicit:
+
+| bounded context | aggregate | stream | projections |
+| --- | --- | --- | --- |
+| conversation | `Session` | the conversation's own | episodic tables, salience, timeline, both tries |
+| knowledge | `Knowledge` | `knowledge`, shared (an example keeps its own) | kinds, edges, norms |
+
+**Commands decide; handlers apply.** `tell`, `introduce`, E2's `withdraw` may
+walk v687 or ask v688 before deciding, and what they decided is recorded as an
+event. A handler asks nothing of anyone, so replaying a stream is
+deterministic: E2's verdict on the airplane is in the log as `withdrawn`, not
+re-asked of a v688 that may answer differently after a restart. A conversation
+comes back by replaying its stream, and the test suite replays every page
+example and checks it rebuilds exactly what the live conversation held.
+
+An event about an individual goes to the conversation's stream; an event about
+a kind goes to knowledge's, by the same test `Layered` routes a table write by.
+
+**Two times.** A stream's order is *telling time* — what `what did I tell you
+first` asks — and it is not *story time*: `the dog slept; before that it had
+barked` was told sleep-first and happened bark-first. Story time is its own
+projection.
+
+## Time and events
+
+An **episode** is a stretch of the story at one time: `yesterday`, `this
+morning`, `now`, `tomorrow`, each on one line of days, and `then` — the past a
+story is told in when no day is named, known only to be before now. A
+statement lands in the episode it names, in the present if it is in the present
+tense, and in the past the story is already in if it is in the past. The same
+dog is in every episode; what happens to it, and what it is like at the time,
+is in one.
+
+An **occurrence** is something that happened, kept as an individual is. It is
+an individual of its verb, as Davidson's event is: stored under every verb it
+is a kind of (`is_a chase`, `is_a pursue`, `is_a travel`, WordNet's troponymy,
+walked up as R1 walks a beagle up to dog), under who took part, its episode
+and its aspect, planned by `adaptive_coverage` into a trie of its own, and
+found by walking that trie down — the same `walk_down` that finds `the black
+one`.
+
+Reading comes first (`tense.py`): a time word is taken out before the rest is
+read, so `yesterday there was a dog` is an introduction and not a question
+about a kind called yesterday. Frames (`yesterday`, `now`) come off either
+end; links (`then`, `before that`, `meanwhile`, `finally`) off the start;
+`again` off the end; and an anchor clause (`after the dog chased the cat, it
+slept`) is split off only when it reads as a statement about someone. Tense
+and aspect are Reichenbach's, from the auxiliary and the verb's form: a simple
+past, a progressive, a perfect or a future is an occurrence; a habit (`it
+barks`), an ability (`it can swim`) and a state (`it was hungry`) are not.
+
+| rule | says | so |
+| --- | --- | --- |
+| **T1** told in order, happened in order | a simple past moves the story on; a progressive is in progress at the time the story is at; a past perfect is before it; a link or an anchor says otherwise | `it slept. before that, it had barked` puts the bark first, and the `ordered` event says why |
+| **T2** before is a partial order, walked like the taxonomy | transitive and asymmetric: yes when one is reached from the other along `before`, no when the other way, and not told when neither — absent, not false. Episodes on the line of days are in order without being walked | `did the dog bark before it slept` |
+| **T3** a state holds within its episode until something ends it | what it is like, where it is and what it is doing were told of a time; the latest before the moment asked answers, and nothing told of one episode answers another. What it is, is called, owns and can do are in no episode | `yesterday the pig was in an airplane`: `is the pig in an airplane` today is not told, and the reply says when it was |
+| **T4** what an occurrence changes, from VerbNet | a frame's `result(E)`/`end(E)` is what holds after, `start(E)` what held before (`change.py`) | `the cat broke the vase`: broken after, not before; `killed the mouse`: not alive after, alive before; `put the key in the drawer`: in it after, not before; `started` and `stopped barking` |
+| **T5** an occurrence is an individual of its verb | who, when, what happened and how many times are identification on the occurrence trie with one slot read out | `did the dog move` finds a chase through `move`, a lemma of travel.v.01 |
+| **T6** nothing happens by inheritance | what a kind does is a tendency; that one of them did it is an occurrence — the E1 of events | `did the dog bark`, with nothing told: not told, and v688's answer for dogs beside it |
+
+**T4 is closed data.** VerbNet 3.3 writes each frame's meaning over the phases
+of an event, so its axioms are already written out. A frame is read only when
+its syntax has the sentence's shape — `the vase broke` meets `NP.Patient VERB`
+and changes its subject, `the cat broke the vase` meets `NP.Agent VERB
+NP.Patient` and changes its object — and only when its class is joined to the
+verb's sense: each VerbNet member carries WordNet 3.0 sense keys, the store's
+verb senses are WordNet 3.0 synsets, and a class is read only if they share one
+of the first three, which keeps `kill` out of amuse-31.1 (`that joke killed
+me`). A change of state is keyed by the verb, whose participle names it (a
+broken vase), and kept only where WordNet has that participle or the verb as an
+adjective; a state VerbNet names itself (`alive`) is keyed by its word. A
+change of state entails the state did not hold before, so T4 can say no.
+
+**E2 is within one episode.** Being in an airplane yesterday explains nothing
+about flying today.
+
+| asked | answered by |
+| --- | --- |
+| `what happened yesterday`, `what happened after the dog chased the cat`, `what happened to the vase`, `what did it do second` | story order, filtered by episode, by T2 against the anchor, by who took part, or by place in the order |
+| `when did the dog chase the cat` | the episode, and what came just before and after |
+| `how many times did the dog bark` | the occurrences under `is_a bark`, counted |
+| `what was the dog doing when the cat ate` | what was in progress during that occurrence |
+| `who chased the cat yesterday`, `what did the dog chase`, `where was the pig yesterday` | occurrences and states in that episode |
+| `was the door open before i closed it` | T4 and T3 at the moment just before the occurrence |
+
 ## Long-term memory
 
 A conversation is how this layer learns anything, so it is kept on disk
@@ -178,6 +275,21 @@ can't swim` is there to show R3 -- and a demonstration that wrote a false norm
 into what every later conversation starts from would be a bug with a
 permanent address. An example runs in a conversation of its own, with
 knowledge of its own, and leaves yours alone.
+
+**What is on disk is the events.** The `events` table is the record, one row
+per event, and a conversation and the knowledge are replayed from it. The
+knowledge rows, each conversation's snapshot and the turns as the page showed
+them are read models kept beside it. Rows kept before there were events are
+read once and recorded as the events that would have written them — a
+snapshot as one `imported` event at the head of its stream. `start over`
+deletes a conversation's stream, because it asks for the conversation to be
+gone; `unlearn` appends `unlearned`, and the stream keeps what was unlearned.
+
+On the page, **episodic memory** is this conversation's: its episodes in story
+order, each with its occurrences, where T1 put them, what T4 changed and the
+states told of that time; then who is who; then the event log. **Long-term
+memory** is what every conversation shares: the kinds, taxonomy and norms
+taught.
 
 ## Several claims at once, and opposites
 
@@ -296,13 +408,28 @@ audit.
   individual is v687's rules over episodic memory.
 - **Knowledge is one for the whole server.** It records which conversation
   taught each thing, not who; there is no notion of two people disagreeing.
+- **Time is episodes and order, not clocks.** No durations, dates or times of
+  day, and `when` is answered with an episode and its neighbours.
+- **Kinds have no tense.** `did dinosaurs fly` is still v688's present-tense
+  question about dinosaurs.
+- **Nothing told carries across an episode**, a colour included: told
+  `yesterday the dog was black`, `is the dog black` today says when it was
+  told rather than yes. Which qualities last is not in the data.
+- **What an occurrence changes is VerbNet's alone** (T4). `the dog ate` does
+  not end its hunger, and a verb VerbNet lacks changes nothing.
+- **An anchor clause names at most one occurrence**, the latest told that fits.
 
 ## Files
 
 | file | what it does |
 | --- | --- |
 | `reading.py` | which words pick out an individual, and what the utterance does |
-| `episodic.py` | episodic memory, `EpisodicReasoner` and E1, the live trie and identification |
+| `events.py` | events, streams and the log: memory as what happened to it |
+| `episodic.py` | episodic memory, `EpisodicReasoner` and E1, the live trie and identification, all applied from events |
+| `tense.py` | when: frames, links, anchors, tense and aspect, taken out before reading |
+| `timeline.py` | story time: episodes, occurrences and their trie, T1 to T3 and T5 |
+| `change.py` | T4: VerbNet's event structure, by frame and by sense |
+| `story.py` | what a conversation does with time: statements placed, questions about when answered, T6 |
 | `discourse.py` | attention: salience, order, focus, and resolving a phrase to one individual |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
@@ -315,3 +442,5 @@ audit.
 | `longterm.py` | the knowledge every conversation shares, and every conversation, kept on disk |
 | `server.py` + `app.html` | the page, over v688's `Service` |
 | `test_v689.py` | v687's real reasoner and parser over a nine-concept store built in the test |
+| `test_time.py` | episodes, occurrences and T1 to T6 over a store with verbs, and replaying the timeline |
+| `TIME_AND_EVENTS.md` | the audit: what could not be said about when, the architecture built for it, and what changed |
