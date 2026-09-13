@@ -519,6 +519,19 @@ class ReasoningEngine(IdentifyingEngine):
         word = match.group(1).strip()
         found = self.contrast.kinds_of(word)
         if found is None:
+            # `what kinds of dogs are there`: the kind is named in the
+            # plural, and the taxonomy files it in the singular.
+            nlp = getattr(self.parser, "nlp", None)
+            pieces = word.split()
+            last = (nlp(pieces[-1])[0].lemma_.lower() if nlp else
+                    pieces[-1][:-1] if pieces[-1].endswith("s")
+                    else pieces[-1])
+            singular = " ".join(pieces[:-1] + [last])
+            if singular != word:
+                found = self.contrast.kinds_of(singular)
+                if found is not None:
+                    word = singular
+        if found is None:
             return None
         return self._shell(
             question, "LISTING", "R25", concept=found["concept"],

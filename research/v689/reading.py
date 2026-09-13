@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from research.v688.rephrase import rephrase
+
 from . import clauses as coordination
 
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
@@ -70,7 +72,24 @@ CARRYING = ("in", "on", "inside", "aboard")
 NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | DEMONSTRATIVES
              | ARTICLES
              | frozenset({"another", "there", "here", "my", "your", "what",
-                          "who", "which", "its", "his", "her"}))
+                          "who", "which", "its", "his", "her", "why", "how",
+                          "where", "when", "whose", "whom", "if",
+                          "whether"}))
+
+#: Question words. `why does a dog bark` taught a kind called `why` that it
+#: `does a dog bark` -- WordNet has a noun `why`, so it was not refused as an
+#: unknown word -- and `how many legs does a spider have` taught one called
+#: `how many leg`. An utterance opening with one is a question, read whole.
+QUESTION_WORDS = frozenset({"what", "who", "whom", "whose", "which", "why",
+                            "how", "where", "when"})
+
+#: Modal openers. `should a dog eat chocolate` is not a claim to store or a
+#: question about one individual: it goes to v688 as said, where R18 names it.
+MODALS = frozenset({"should", "must", "may", "might", "shall", "ought"})
+
+#: `is it safe to ...`, `is it likely that ...`: an `it` that refers to
+#: nothing, followed by one of these.
+EXPLETIVE = frozenset({"to", "that", "for"})
 
 #: Ways of putting a new individual on the table: the words before the
 #: indefinite article in `there is a beagle` and `i have another beagle`.
@@ -586,14 +605,44 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
     v687's parser supplies all three. `names` is every name the conversation
     has been told, lowercased, so a mention of one is read as a mention.
     """
-    tokens, typed = tokens_of(text)
     said = (text or "").strip()
+    # A request is read as the question inside it: `do you know if a dog can
+    # swim` is `can a dog swim`, and `can't it swim` is `can it swim`.
+    asked = rephrase(said)
+    tokens, typed = tokens_of(asked.text)
     if not tokens:
+        return Reading("generic", said=said)
+
+    # An analogy, a condition, a modal question, or an `it` that refers to
+    # nothing (`is it safe to eat a mushroom`): none is a claim to keep or a
+    # question about an individual here. v688 reads it whole, and R18 names
+    # what it cannot answer.
+    if (asked.asking or tokens[0] in MODALS
+            or (len(tokens) > 3 and tokens[:2] == ["is", "it"]
+                and tokens[3] in EXPLETIVE)):
+        return Reading("generic", said=said)
+
+    # `why can't it fly`: the yes or no about one individual, asked so the
+    # answer can say what it rests on. A bare `why` asks it of the last
+    # answer. A why about a kind -- `why can't a penguin fly` -- was put as
+    # its yes or no by `rephrase`, and v688 answers what it rests on.
+    if tokens[0] == "why":
+        rest = tokens[1:]
+        if not rest or rest in (["not"], ["so"], ["is", "that"]):
+            return Reading("why", said=said)
+        if rest[0] in AUX:
+            at = 3 if len(rest) > 1 and rest[1] == "not" else 2
+            found = read_mention(tokens, at, lexicon, rest[0], names=names)
+            if (found is not None
+                    and found.form not in ("indefinite", "another", "kind")):
+                return _with_object(
+                    Reading("why", found, rest[0], tokens[found.end:],
+                            holds=at == 2, said=said), lexicon, names)
         return Reading("generic", said=said)
 
     # A statement of several claims is read one claim at a time. Questions
     # are left whole: `can it swim and bark` asks one thing.
-    if tokens[0] not in AUX and tokens[0] not in ("what", "who"):
+    if tokens[0] not in AUX and tokens[0] not in QUESTION_WORDS:
         analysis = _analysis(tokens, lexicon)
         if analysis is not None:
             parts = coordination.split(tokens, analysis)
@@ -609,6 +658,23 @@ def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
 
     if (tokens[0] in ("what", "who") and len(tokens) > 2
             and tokens[1] in ("is", "was", "am", "are")):
+        tail = tokens[2:]
+        if len(tail) > 1 and tail[0] == "the":
+            # `what is the largest animal`, `what is the capital of france`:
+            # a kind described, not an individual here. It was answered
+            # `nothing here was said to be largest`; v688 reads it, and R18
+            # names what it cannot answer.
+            tags = tags_of(tokens, lexicon) or []
+            after = tail[1:]
+            superlative = any(
+                word in ("most", "least")
+                or (tags[index + 3] == "JJS" if len(tags) == len(tokens)
+                    else word.endswith("est") and len(word) > 5)
+                for index, word in enumerate(after))
+            belongs = ("of" in after and after[-1] not in PRONOUNS
+                       and after[after.index("of") + 1:][:1] != ["the"])
+            if superlative or belongs:
+                return Reading("generic", said=said)
         found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
                              names=names)
         if (found and found.form not in ("indefinite", "another")

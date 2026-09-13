@@ -235,6 +235,34 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
      "an antonym. WordNet records antonymy between word forms, and this "
      "store keeps only relations between senses, so the opposite of a thing "
      "is not something it can look up"),
+    # The shapes the question-kinds audit (research/v689/QUESTIONS.md) found
+    # answered from the part of them that was understandable.
+    (r"^\s*(?:should|ought|must|shall)\b|\bshould\s+(?:i|you|we|a|an|the)\b|"
+     r"\bis\s+it\s+(?:safe|ok|okay|wise|good|bad|dangerous|healthy|"
+     r"a\s+good\s+idea)\s+(?:to|for)\b",
+     "what ought to be, must be, or is safe to do. The store records what "
+     "kinds are and do, not advice or obligation -- and answering `can a dog "
+     "eat chocolate` for `should` is the easier question this rule refuses"),
+    (r"^\s*if\b|\bif\s+(?:it|they|he|she|you|we|i)\s+(?:had|were|was|could|"
+     r"did|would)\b|\bif\s+(?:a|an|the)\s+[a-z]+\s+(?:had|were|was|could|"
+     r"did|would)\b",
+     "a counterfactual condition. Every rule here reasons about what is "
+     "recorded, and scoring the condition's words as claims answered about "
+     "something else"),
+    (r"\b(?:another|other)\s+words?\s+for\b|\bsynonyms?\s+(?:of|for)\b|"
+     r"\b(?:plural|singular)\s+(?:of|for)\b",
+     "a question about the word rather than the thing. This reasons over "
+     "senses, which are what words point at; it holds nothing about the "
+     "words themselves"),
+    (r"\b(?:plus|minus|divided\s+by|multiplied\s+by|squared)\b|"
+     r"\bprime\s+numbers?\b|\bsquare\s+root\b|\b\d+\s*[-+*/x]\s*\d+\b",
+     "arithmetic. Numbers here are words with senses, not quantities, and "
+     "nothing computes with them"),
+    (r"\bwhich\s+(?:one\s+)?(?:is|are)\s+(?:the\s+)?(?:bigger|smaller|larger|"
+     r"heavier|lighter|faster|slower|older|younger|stronger|taller|shorter|"
+     r"better|worse|more|less)\b",
+     "a comparative, put as a choice. Nothing in this data has a magnitude: "
+     "there is no scale to compare on"),
 )
 
 

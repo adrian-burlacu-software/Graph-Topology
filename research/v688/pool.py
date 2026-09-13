@@ -77,6 +77,7 @@ class Answer:
         # verdict stays: it is what chooses the repair. This is what a person
         # reads.
         from .confidence import of_answer
+        from .content import digest
         weighed = of_answer(self.payload, self.verdict)
         record = {"question": self.question, "pins": dict(self.pins),
                   "verdict": self.verdict,

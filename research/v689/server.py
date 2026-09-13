@@ -28,9 +28,11 @@ HERE = Path(__file__).resolve().parent
 
 #: What a v689 turn carries of v688's run. The whole run is every cycle's
 #: every answer, hundreds of kilobytes, and the page shows the summary; the
-#: full derivation is one click away on v688's own page.
+#: full derivation is one click away on v688's own page. `content` is what a
+#: listing, an identification or a script held, without which the page said
+#: `LISTING — what can a dog do` and nothing else.
 SUMMARY_KEYS = ("verdict", "as_asked", "outcome", "confidence", "band",
-                "trust", "lines", "asked")
+                "trust", "lines", "asked", "content")
 
 EXAMPLES = [
     {"title": "an exception",

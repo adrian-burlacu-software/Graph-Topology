@@ -173,6 +173,42 @@ class FakeLexicon:
 class ReadingTests(unittest.TestCase):
     lexicon = FakeLexicon()
 
+    def test_a_question_word_is_never_a_kind(self):
+        for text in ("why does a dog bark", "why can't a beagle swim",
+                     "how many legs does a dog have",
+                     "where does a dog live"):
+            found = reading.read(text, self.lexicon)
+            self.assertNotEqual(found.act, "teach", text)
+
+    def test_modal_questions_analogies_and_expletive_it_go_whole(self):
+        for text in ("should a dog eat chocolate", "must a beagle swim",
+                     "wing is to bird as fin is to what",
+                     "is it safe to eat a mushroom",
+                     "what is the largest animal"):
+            self.assertEqual(reading.read(text, self.lexicon).act, "generic",
+                             text)
+
+    def test_why_about_one_individual_and_a_bare_why(self):
+        found = reading.read("why can't it swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.form, found.rest,
+                          found.holds), ("why", "pronoun", ["swim"], False))
+        found = reading.read("why does the beagle bark", self.lexicon)
+        self.assertEqual((found.act, found.mention.form), ("why", "definite"))
+        for text in ("why", "why not"):
+            found = reading.read(text, self.lexicon)
+            self.assertEqual((found.act, found.mention), ("why", None), text)
+        found = reading.read("why can't a beagle swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind), ("generic", "beagle"))
+
+    def test_a_request_is_read_as_the_question_inside_it(self):
+        found = reading.read("do you know if a beagle can swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind), ("generic", "beagle"))
+        found = reading.read("is it likely that a dog can swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.kind), ("generic", "dog"))
+        found = reading.read("can't it swim", self.lexicon)
+        self.assertEqual((found.act, found.mention.form, found.rest),
+                         ("ask", "pronoun", ["swim"]))
+
     def test_contractions_give_negation_one_spelling(self):
         self.assertEqual(reading.words("It can't swim."),
                          ["it", "can", "not", "swim"])
@@ -804,6 +840,82 @@ class DefinitionTests(unittest.TestCase):
         found = self.reader.read("kitten.n.01", "young domestic cat")
         self.assertEqual(reading_of(found.as_dict()).as_dict(),
                          found.as_dict())
+
+
+class ContentTests(unittest.TestCase):
+    """What v688 found is the answer, not the verdict word it came under."""
+
+    def test_a_listing_is_answered_with_what_it_listed(self):
+        run = {"summary": {"outcome": "retrieved",
+                           "trust": "content, not a verdict",
+                           "lines": ["LISTING — what can a dog do"],
+                           "content": {"kind": "listing",
+                                       "text": "dog can bark, swim",
+                                       "items": ["bark", "swim"],
+                                       "answers": True}}}
+        _, turns, _ = talk("what can a dog do",
+                           outcomes={"what can a dog do": run})
+        self.assertEqual(turns[0].answer["text"], "dog can bark, swim")
+
+    def test_what_sits_beside_a_verdict_is_added_to_it(self):
+        from research.v689.session import summary_of
+
+        outcome, headline, trust = summary_of({"summary": {
+            "outcome": "denied", "trust": "denied",
+            "lines": ["CONTRADICTED — do all birds fly"],
+            "content": {"kind": "members", "answers": False,
+                        "text": "3 do not: chicken, emu, penguin"}}})
+        self.assertEqual((outcome, trust), ("denied", "denied"))
+        self.assertEqual(headline, "CONTRADICTED — do all birds fly — "
+                                   "3 do not: chicken, emu, penguin")
+
+
+class WhyTests(unittest.TestCase):
+    """What a yes or no rests on: the walk for one individual, v688 for a
+    kind."""
+
+    BECAUSE = {"summary": {"outcome": "verified", "trust": "",
+                           "lines": ["VERIFIED — can a dog swim"],
+                           "content": {"kind": "why", "answers": True,
+                                       "text": "because dog can “swim”"}}}
+
+    def test_why_about_what_was_told_answers_from_what_was_told(self):
+        _, turns, _ = talk("there is a beagle", "it can't swim",
+                           "why can't it swim")
+        self.assertEqual(turns[2].act, "why")
+        self.assertIn("you told me", turns[2].answer["text"])
+
+    def test_a_bare_why_asks_the_last_question_why(self):
+        _, turns, asker = talk("can a dog swim", "why",
+                               outcomes={"can a dog swim": "verified",
+                                         "why can a dog swim": self.BECAUSE})
+        self.assertIn("why can a dog swim", asker.asked)
+        self.assertEqual(turns[1].answer["text"], "because dog can “swim”")
+
+    def test_why_about_an_individual_falls_back_to_its_kinds_why(self):
+        run = {"summary": {"outcome": "verified", "trust": "",
+                           "lines": ["VERIFIED — can a beagle swim"],
+                           "content": {"kind": "why", "answers": True,
+                                       "text": "because beagle is a kind of "
+                                               "dog, and dog can “swim”"}}}
+        _, turns, asker = talk("there is a beagle", "why can it swim",
+                               outcomes={"why can a beagle swim": run})
+        self.assertIn("why can a beagle swim", asker.asked)
+        self.assertIn("because beagle is a kind of dog", turns[1].answer["text"])
+
+    def test_why_not_about_an_individual_asks_its_kinds_why_not(self):
+        run = {"summary": {"outcome": "denied", "trust": "",
+                           "lines": ["CONTRADICTED — can a beagle swim"],
+                           "content": {"kind": "why", "answers": True,
+                                       "text": "because the norms deny it"}}}
+        _, turns, asker = talk("there is a beagle", "why can't it swim",
+                               outcomes={"why can't a beagle swim": run})
+        self.assertIn("why can't a beagle swim", asker.asked)
+        self.assertIn("because the norms deny it", turns[1].answer["text"])
+
+    def test_a_bare_why_with_nothing_asked(self):
+        _, turns, _ = talk("why")
+        self.assertIn("why what", turns[0].answer["text"])
 
 
 class HyphenatedTests(unittest.TestCase):

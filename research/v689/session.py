@@ -77,16 +77,34 @@ WORD = {"verified": "yes", "denied": "no"}
 #: v687's verdicts, as v688's readings.
 OUTCOME = {"VERIFIED": "verified", "CONTRADICTED": "denied"}
 
+#: A question's auxiliary, denied: what `why can't it fly` asks of its kind.
+DENIAL = {"can": "can't", "could": "couldn't", "does": "doesn't",
+          "do": "don't", "did": "didn't", "is": "isn't", "are": "aren't",
+          "was": "wasn't", "were": "weren't", "has": "hasn't",
+          "have": "haven't", "will": "won't", "would": "wouldn't"}
+
 #: `a kind of animal`, `a type of dog`.
 HEDGES = ("kind", "type", "sort")
 
 
 def summary_of(run: dict | None) -> tuple[str, str, str]:
-    """(outcome, headline, trust) from a v688 run."""
+    """(outcome, headline, trust) from a v688 run.
+
+    An answer that is not a yes or no -- a listing, an identification, a
+    comparison, a script -- is headlined by what it held: v688's first line
+    for it is the verdict word and the question back. What sits beside a yes
+    or no, like the kinds that do not fly, is added to it."""
     summary = (run or {}).get("summary") or {}
     lines = summary.get("lines") or []
-    return (summary.get("outcome") or "unknown", lines[0] if lines else "",
-            summary.get("trust") or "")
+    headline = lines[0] if lines else ""
+    trust = summary.get("trust") or ""
+    content = summary.get("content") or {}
+    if content.get("text") and content.get("answers"):
+        headline, trust = content["text"], ""
+    elif content.get("text"):
+        headline = (f"{headline} — {content['text']}" if headline
+                    else content["text"])
+    return summary.get("outcome") or "unknown", headline, trust
 
 
 def be(referent: Referent) -> str:
@@ -282,7 +300,8 @@ class Session:
         acts = {"introduce": self._introduce, "tell": self._tell,
                 "ask": self._ask, "what": self._what, "name": self._name,
                 "ask_name": self._ask_name, "teach": self._teach,
-                "compound": self._compound, "define": self._define}
+                "compound": self._compound, "define": self._define,
+                "why": self._why}
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows.
@@ -294,6 +313,9 @@ class Session:
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
+            # What a bare `why` asks about: the last yes or no put.
+            if one.act in ("ask", "generic") and turn.asked:
+                self._last_question = (one, turn.asked)
         if len(parts) > 1:
             turn.resolution, turn.binding = first
             outcomes = [one.get("outcome") for one in replies]
@@ -966,6 +988,40 @@ class Session:
                        "text": text}
         return True
 
+    def _why(self, reading: Reading, turn: Turn) -> None:
+        """What a yes or no about one individual rests on.
+
+        v687's walk already says it -- what you told me of this one, what you
+        taught me of its kind, or the kind it inherits from -- so a why about
+        an individual is its yes or no, answered the same way; where the walk
+        passes to the kind, v688 is asked the kind's why, which says what the
+        kind's answer rests on. A bare `why` asks it of the last question.
+        """
+        from research.v688.rephrase import AUX as ASKS
+
+        if reading.mention is None:
+            last = getattr(self, "_last_question", None)
+            if last is None or last[1].split()[:1] == [] or (
+                    last[1].split()[0] not in ASKS):
+                turn.answer = {"outcome": "unknown", "source": "conversation",
+                               "text": "why what? no yes-or-no question has "
+                                       "been asked yet"}
+                return
+            reading, asked = last
+            if reading.act != "ask":
+                turn.asked = asked
+                turn.run = self._run(f"why {asked}")
+                outcome, headline, trust = summary_of(turn.run)
+                turn.answer = {"outcome": outcome, "source": "kind",
+                               "text": headline + (f" ({trust})" if trust
+                                                   else "")}
+                return
+        self._why_asked = True
+        try:
+            self._ask(reading, turn)
+        finally:
+            self._why_asked = False
+
     def _ask(self, reading: Reading, turn: Turn) -> None:
         referent = self._resolve(reading, turn)
         if referent is None:
@@ -1038,10 +1094,26 @@ class Session:
                            "text": text + note}
             return
 
-        turn.run = self._run(question)
-        outcome, _, trust = summary_of(turn.run)
+        why = getattr(self, "_why_asked", False)
+        if why and not reading.holds:
+            # `why can't it fly`: the premise is a denial, and the kind's why
+            # has to be asked as one, or the answer says it does not hold.
+            head, _, tail = question.partition(" ")
+            question_asked = f"why {DENIAL.get(head, head + ' not')} {tail}"
+        else:
+            question_asked = f"why {question}" if why else question
+        turn.run = self._run(question_asked)
+        outcome, headline, trust = summary_of(turn.run)
         v688 = f"v688 answers “{question}” {outcome}" + (
             f" ({trust})" if trust else "")
+        if why and not e1:
+            # Nothing was told of this one, so what its kind's answer rests on
+            # is what this one's does.
+            turn.answer = {
+                "outcome": outcome, "source": "kind",
+                "text": (f"nothing was told of {described}, so it is as "
+                         f"{kind}: {headline}") + note}
+            return
         if e1:
             turn.answer = {
                 "outcome": "unknown", "source": "tendency",
