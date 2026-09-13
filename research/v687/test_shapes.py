@@ -55,6 +55,17 @@ class ShapeTests(unittest.TestCase):
         self.assertTrue("contrast" in dolphin
                         or "feature norms" in dolphin["note"], dolphin["note"])
 
+    def test_an_analogy_in_another_shape_is_declined_by_name(self):
+        payload = shapes.answer(self.engine, "wing is to bird as fin is to what")
+        self.assertEqual((payload["verdict"], payload["parse"]["relation"]),
+                         ("UNKNOWN", "R24"))
+
+    def test_a_value_comes_from_the_best_source_that_has_one(self):
+        banana = attributes.answer(self.engine, "what color is a banana")
+        self.assertIn("yellow", banana["attribute"]["values"])
+        self.assertLessEqual(len(banana["attribute"]["values"]), 3,
+                             banana["note"])
+
     def test_a_verb_sense_is_not_a_kind(self):
         payload = self.engine.ask("is water wet")
         self.assertNotIn("water.v.01", payload.get("note") or "")

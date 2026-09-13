@@ -184,6 +184,18 @@ def _why(stripped: str, lower: str) -> Rephrased | None:
         if opener == "how come " and about_a_kind(words):
             return Rephrased(polar(body), why=True, negative=denies(body))
         return None
+    # `how does a bird fly` asks what the doing rests on, which is what a why
+    # answers -- and the part the doers have in common is the how of it. It
+    # was answered as a bridge from birds to the insect called a fly.
+    for opener in ("how does ", "how do ", "how can "):
+        if not lower.startswith(opener):
+            continue
+        body = stripped[len("how "):].strip()
+        words = body.lower().split()
+        if len(words) >= 3 and about_a_kind(words[1:]):
+            return Rephrased(body, "asked how: what doing it rests on, and "
+                                   "what the things that do it have in common",
+                             why=True)
     return None
 
 
@@ -227,6 +239,24 @@ def rephrase(text: str) -> Rephrased:
         return Rephrased("what is " + with_article(stripped[10:-5].strip()))
     if lower.startswith("what is the meaning of ") and len(words) > 5:
         return Rephrased("what is " + with_article(stripped[23:].strip()))
+
+    # `what is the purpose of a hammer` was a listing about `purpose`, and
+    # `what is a hammer good for` one about a hammer's `good`.
+    for frame in ("what is the purpose of ", "what's the purpose of ",
+                  "what is the use of "):
+        if lower.startswith(frame) and len(lower) > len(frame):
+            return Rephrased("what is " + with_article(
+                stripped[len(frame):].strip()) + " used for")
+    if (lower.startswith(("what is a ", "what is an "))
+            and lower.endswith(" good for") and len(words) > 5):
+        return Rephrased(stripped[:-len(" good for")] + " used for")
+    # `is there such a thing as a flying fish`: whether the ontology has the
+    # kind, which is what asking what it is finds out.
+    for frame in ("is there such a thing as ", "are there such things as "):
+        if lower.startswith(frame) and len(lower) > len(frame):
+            return Rephrased("what is " + with_article(
+                stripped[len(frame):].strip()),
+                "asked as what it is: a kind the ontology has is one it knows")
 
     if words[:2] == ["are", "there"] and len(words) > 3:
         # `are there birds that cannot fly`: which ones, and there are some

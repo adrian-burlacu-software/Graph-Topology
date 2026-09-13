@@ -48,6 +48,17 @@ class RephraseTests(unittest.TestCase):
         self.assertEqual(self.said("please describe a dog"),
                          "tell me about a dog")
 
+    def test_purpose_existence_and_how(self):
+        self.assertEqual(self.said("what is the purpose of a hammer"),
+                         "what is a hammer used for")
+        self.assertEqual(self.said("what is a hammer good for"),
+                         "what is a hammer used for")
+        self.assertEqual(self.said("is there such a thing as a flying fish"),
+                         "what is a flying fish")
+        found = rephrase("how does a bird fly")
+        self.assertEqual((found.text, found.why), ("does a bird fly", True))
+        self.assertFalse(rephrase("how do you make bread").why)
+
     def test_are_there_asks_which_ones(self):
         found = rephrase("are there any birds that cannot fly")
         self.assertEqual(found.text, "which birds cannot fly")
@@ -122,6 +133,8 @@ class RefusedByName(unittest.TestCase):
     def test_conditionals(self):
         self.refused("could a pig fly if it had wings", "counterfactual")
         self.refused("if a dog had wings could it fly", "counterfactual")
+        self.refused("what would happen if the sun disappeared",
+                     "counterfactual")
 
     def test_words_arithmetic_and_a_comparative_choice(self):
         self.refused("what is another word for big", "word")

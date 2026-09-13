@@ -1003,6 +1003,51 @@ class TaughtKindTests(unittest.TestCase):
         self.assertIn("what can an animal do", asker.asked)
 
 
+class DialogueTests(unittest.TestCase):
+    """About the conversation itself: what was said, how an answer was
+    reached, and a question asked again of another kind."""
+
+    lexicon = FakeLexicon()
+
+    def test_what_did_i_tell_you(self):
+        _, turns, _ = talk("there is a dog", "it barked", "what did i tell you")
+        self.assertIn("“it barked”", turns[2].answer["text"])
+
+    def test_how_do_you_know_that(self):
+        _, turns, _ = talk("there is a beagle", "it can't swim", "can it swim",
+                           "how do you know that")
+        self.assertEqual(turns[3].act, "meta")
+        self.assertIn("what you told me", turns[3].answer["text"])
+
+    def test_what_about_another_kind(self):
+        _, turns, asker = talk("can a dog swim", "what about a cat",
+                               outcomes={"can a dog swim": "verified",
+                                         "can a cat swim": "denied"})
+        self.assertEqual(turns[1].act, "ellipsis")
+        self.assertIn("can a cat swim", asker.asked)
+        self.assertTrue(turns[1].answer["text"].startswith(
+            "asked as “can a cat swim”"), turns[1].answer["text"])
+
+    def test_you_in_a_question_is_anyone(self):
+        self.assertNotEqual(reading.read("what do you need to bake a cake",
+                                         self.lexicon).act, "what_did")
+
+
+class KindPronounTests(unittest.TestCase):
+    """`they`, with nothing here for it to be, is the last kind named."""
+
+    def test_they_is_the_last_kind_talked_about(self):
+        _, turns, asker = talk("dogs can swim", "can they bark",
+                               outcomes={"can a dog bark": "verified"})
+        self.assertIn("can a dog bark", asker.asked)
+        self.assertEqual(turns[1].answer["outcome"], "verified")
+
+    def test_what_it_cannot_do_when_nothing_was_told(self):
+        _, turns, _ = talk("there is a pig", "what can't it do")
+        self.assertIn("nothing it cannot do was told",
+                      turns[1].answer["text"])
+
+
 class HyphenatedTests(unittest.TestCase):
     """`non-fat milk` is not fat: a hyphenated adjective is read whole."""
 

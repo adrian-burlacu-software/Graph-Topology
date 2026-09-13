@@ -127,7 +127,12 @@ def answer(engine, question: str) -> dict | None:
 
     def take(text: str, where: str) -> None:
         words = _words(text)
-        if any(one in DENYING for one in words):
+        # A denial is not a value. Nor, for something measured, is a part's:
+        # `has small eyes` says nothing about how big an elephant is. A
+        # surface's is: a banana is the colour of `has yellow skin`.
+        if any(one in DENYING for one in words) or (
+                dimension in MEASURED
+                and words[:1] in (["has"], ["have"], ["with"])):
             return
         values.extend((one, where, text) for one in words
                       if one in vocabulary)
@@ -143,6 +148,24 @@ def answer(engine, question: str) -> dict | None:
         if len(_words(fact.object)) <= 3:
             take(fact.object, fact.source)
 
+    # The best source that says anything is the answer: what the norms and
+    # the definition state of it, else what the norms say it only can be,
+    # else the store's first few properties. The crawl records a banana
+    # green, brown, black and purple as well as yellow, and all seven read as
+    # one answer; the norms' `can have green skin` is a banana unripe, and
+    # its definition's `yellow fruit` is the colour it has.
+    def hedged(one):
+        return one[1] == "the norms" and _words(one[2])[:1] == ["can"]
+
+    firm = ("the norms", "its definition")
+    tiers = [[one for one in values if one[1] in firm and not hedged(one)],
+             [one for one in values if hedged(one)],
+             [one for one in values if one[1] not in firm]]
+    chosen = next((tier for tier in tiers if tier), [])
+    if chosen and chosen is tiers[2]:
+        first = list(dict.fromkeys(value for value, _, _ in chosen))[:3]
+        chosen = [one for one in chosen if one[0] in first]
+    values = chosen
     distinct = list(dict.fromkeys(value for value, _, _ in values))
     sources = list(dict.fromkeys(where for _, where, _ in values))
     measured = dimension in MEASURED

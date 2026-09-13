@@ -197,7 +197,9 @@ def _backwards(payload: dict):
 def _members(payload: dict):
     asked = (payload.get("profile") or {}).get("asked") or {}
     members = asked.get("members") or []
-    if not members:
+    # Only a quantified question was asked of the kinds: `is a wheel part of
+    # a car` came back beside `3 do: ambulance, limousine, taxi`.
+    if not members or not asked.get("quantifier"):
         return None
     yes = [one["name"] for one in members if one.get("verdict") in DOES]
     no = [one["name"] for one in members if one.get("verdict") in DOES_NOT]
@@ -244,7 +246,7 @@ def _listing(payload: dict):
     by_relation: dict = {}
     for row in rows:
         by_relation.setdefault(row.get("relation") or "", []).append(
-            row.get("object"))
+            name_of(row.get("object")))            # `pack.n.06` as `pack`
     parts = [f"{SAYS.get(relation, relation.replace('_', ' '))} "
              f"{listed(objects, SHOWN if len(by_relation) == 1 else 4)}"
              for relation, objects in list(by_relation.items())[:3]]

@@ -245,7 +245,8 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
      "what ought to be, must be, or is safe to do. The store records what "
      "kinds are and do, not advice or obligation -- and answering `can a dog "
      "eat chocolate` for `should` is the easier question this rule refuses"),
-    (r"^\s*if\b|\bif\s+(?:it|they|he|she|you|we|i)\s+(?:had|were|was|could|"
+    (r"^\s*if\b|\bwould\s+happen\s+if\b|\bwhat\s+would\s+[a-z]+\s+if\b|"
+     r"\bif\s+(?:it|they|he|she|you|we|i)\s+(?:had|were|was|could|"
      r"did|would)\b|\bif\s+(?:a|an|the)\s+[a-z]+\s+(?:had|were|was|could|"
      r"did|would)\b",
      "a counterfactual condition. Every rule here reasons about what is "

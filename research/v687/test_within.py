@@ -27,7 +27,9 @@ class WithinTests(unittest.TestCase):
                          ("birds", "can fly", True))
         self.assertEqual(within.read("what mammals lay eggs?"),
                          ("mammals", "lay eggs", False))
-        for question in ("what animal has a trunk", "what kinds of dogs are there",
+        for question in ("what causes fire", "what causes a fire",
+                         "what eats a mouse",
+                         "what animal has a trunk", "what kinds of dogs are there",
                          "which is heavier, a feather or a brick",
                          "which one is black"):
             self.assertIsNone(within.read(question), question)
@@ -42,8 +44,10 @@ class WithinTests(unittest.TestCase):
 
     def test_which_dogs_bark_and_what_mammals_lay_eggs(self):
         self.assertIn("collie", self.found("which dogs bark")["within"]["norms"])
-        self.assertIn("platypus",
-                      self.found("what mammals lay eggs")["within"]["norms"])
+        eggs = self.found("what mammals lay eggs")["within"]
+        self.assertIn("platypus", eggs["norms"])
+        # The norms decided, so the crawl read backwards adds nothing.
+        self.assertEqual(eggs["store"], [])
 
     def test_the_engine_routes_them_here_and_leaves_identification_alone(self):
         self.assertEqual(self.engine.ask("which birds cannot fly")["parse"]

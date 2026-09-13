@@ -708,10 +708,32 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
             return Reading("about", found, said=said)
         return None
 
+    # About the conversation itself: what was said, and how an answer was
+    # reached. `what did i tell you` asked whether you told yourself things,
+    # and `how do you know that` was refused as a question about method.
+    if tokens in (["what", "did", "i", "tell", "you"],
+                  ["what", "have", "i", "told", "you"],
+                  ["what", "did", "i", "say"], ["what", "have", "i", "said"]):
+        return Reading("happened", said=said)
+    if tokens in (["how", "do", "you", "know"],
+                  ["how", "do", "you", "know", "that"],
+                  ["how", "sure", "are", "you"], ["are", "you", "sure"],
+                  ["why", "do", "you", "think", "so"]):
+        return Reading("meta", said=said)
+    # `what about a cat`, `and a fish?`: the last question, of another kind.
+    for opener in (["what", "about"], ["how", "about"], ["and"]):
+        if tokens[:len(opener)] == opener and len(tokens) > len(opener):
+            found = read_mention(tokens, len(opener), lexicon, "is",
+                                 final_ok=True, names=names)
+            if (found is not None and found.end == len(tokens)
+                    and found.form in ("indefinite", "kind")):
+                return Reading("ellipsis", found, said=said)
+
     if first == "what" and tokens[1] in AUX and tokens[1] not in COPULA:
         at, holds = (3, False) if tokens[2:3] == ["not"] else (2, True)
         found = read_mention(tokens, at, lexicon, tokens[1], names=names)
-        if not _individual(found):
+        # `what do you need to bake a cake`: `you` is anyone, not me.
+        if not _individual(found) or found.form in ("speaker", "addressee"):
             return None
         rest = tokens[found.end:]
         if rest[:1] == ["do"] and rest[1:2] in (["first"], ["last"],

@@ -39,6 +39,12 @@ NOT_A_CLASS = frozenset({"is", "are", "was", "were", "do", "does", "did",
                          "type", "types", "sort", "sorts", "one", "ones",
                          "of", "if"})
 
+#: Verbs a backwards question opens with, which end in `s` like a plural.
+VERBS = frozenset({"causes", "makes", "eats", "lives", "needs", "wants",
+                   "contains", "includes", "has", "uses", "happens",
+                   "explains", "means", "does", "goes", "comes", "grows",
+                   "holds", "carries", "produces", "lays", "hunts", "kills"})
+
 #: What turns a claim into a denial.
 NEGATORS = {"not": "", "cannot": "can", "can't": "can", "don't": "do",
             "doesn't": "does", "aren't": "are", "isn't": "is",
@@ -69,6 +75,10 @@ def read(question: str) -> tuple[str, str, bool] | None:
     if word in NOT_A_CLASS or not word.endswith("s") or word.endswith("ss"):
         return None
     tail = words[2:]
+    # `what causes fire`, `what eats a mouse`: a verb and its object, read
+    # backwards by R22 -- `causes` is not a class of things that fire.
+    if word in VERBS or tail[:1] in (["a"], ["an"], ["the"]):
+        return None
     negative = any(one in NEGATORS for one in tail)
     kept = [NEGATORS.get(one, one) for one in tail]
     predicate = " ".join(one for one in kept if one)
@@ -114,9 +124,11 @@ def answer(engine, question: str) -> dict | None:
             if one.get("verdict") in (DOES_NOT if negative else DOES)]
     others = [one["name"] for one in members
               if one.get("verdict") in (DOES if negative else DOES_NOT)]
-    store = [] if negative else [one for one in store_kinds(engine, name,
-                                                            predicate)
-                                 if one not in fits]
+    # The store is read only where the norms decided nothing. Their kinds
+    # were each asked the same question; the crawl, read backwards, adds
+    # rabbits and goats to the mammals that lay eggs.
+    store = [] if negative or members else [
+        one for one in store_kinds(engine, name, predicate) if one not in fits]
     kinds = len(profiles.subtypes(name))
     said = "do not" if negative else "do"
     note = (f"Asked of the kinds of {name} the norms describe: "

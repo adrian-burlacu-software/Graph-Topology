@@ -53,12 +53,21 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(found["text"], "dog: can run fast, can bark")
 
     def test_the_members_sit_beside_a_quantified_verdict(self):
+        members = [{"name": "chicken", "verdict": "DENIED"},
+                   {"name": "dove", "verdict": "HELD"},
+                   {"name": "magpie", "verdict": "INHERITED"}]
         found = digest({"verdict": "CONTRADICTED", "profile": {"asked": {
-            "members": [{"name": "chicken", "verdict": "DENIED"},
-                        {"name": "dove", "verdict": "HELD"},
-                        {"name": "magpie", "verdict": "INHERITED"}]}}})
+            "members": members, "quantifier": "all"}}})
         self.assertEqual(found["text"], "1 do not: chicken; 2 do: dove, magpie")
         self.assertFalse(found["answers"])
+        # Asked of one concept, not of its kinds: no members to list.
+        self.assertIsNone(digest({"verdict": "VERIFIED", "profile": {"asked": {
+            "members": members, "quantifier": None}}}))
+
+    def test_a_listing_names_synsets_as_words(self):
+        found = digest({"verdict": "LISTING", "concept": "dog.n.01",
+                        "evidence": [row("dog.n.01", "part_of", "pack.n.06")]})
+        self.assertEqual(found["text"], "dog has pack")
 
     def test_contrast_by_mode(self):
         common = digest({"contrast": {"mode": "common", "left": "dog",

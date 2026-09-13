@@ -146,4 +146,14 @@ def answer(engine, question: str) -> dict | None:
     if found:
         return like(engine, question, found.group(1).strip(),
                     found.group(2).strip())
+    padded = f" {text} "
+    if (" is to " in padded or " are to " in padded) and " as " in padded:
+        # R24 reads one shape, and anything else it did not take was answered
+        # as a listing about its first word: `wing is to bird as fin is to
+        # what` came back with everything a wing is.
+        return engine._shell(
+            question, "UNKNOWN", "R24",
+            note=("An analogy is read in one shape: `fins are to fish as what "
+                  "are to birds`, with what is asked for put as `what`, before "
+                  "the last kind. Put that way, it is answered over the norms."))
     return None
