@@ -32,14 +32,17 @@ from typing import Any
 
 from . import pins, rules
 from .identify import Identifier
+from .links import LINKS
 
 #: Relations that pair up, so a question asked one way can be answered by
-#: facts stored the other. WordNet and ConceptNet record whichever direction
-#: the source happened to use, and a reader should not have to know which.
-#: the partner has to be read from the *other column*. Searching `part_of`
-#: for an object of "wings" answered "what has wings" with the aileron and the
-#: flight feather, which are parts of a wing rather than things that have one.
-PAIRS = {"has_part": "part_of", "part_of": "has_part", "has_a": "part_of"}
+#: facts stored the other: each store relation's `converse` in `links.py`.
+#: WordNet and ConceptNet record whichever direction the source happened to
+#: use, and a reader should not have to know which. The partner has to be
+#: read from the *other column*. Searching `part_of` for an object of "wings"
+#: answered "what has wings" with the aileron and the flight feather, which
+#: are parts of a wing rather than things that have one.
+PAIRS = {name: one.converse for name, one in LINKS.items()
+         if one.converse and not one.episodic}
 
 #: Which column a question is asking about.
 #:

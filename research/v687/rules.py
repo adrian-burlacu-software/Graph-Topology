@@ -37,57 +37,31 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .links import LINKS, named
+
+# Which relation is which -- inheritable, gated, a negation, a family -- is
+# each relation's row in `links.py`, with the reasons. The names below are
+# read off that table, so the rules and the table cannot disagree.
+
 # -- R2: which relations descend ------------------------------------------
 #: A subtype has whatever the supertype has. If mammals can breathe, dogs can.
-INHERITABLE: frozenset[str] = frozenset({
-    "capable_of", "has_property", "has_a", "has_part", "receives_action",
-    "used_for", "desires", "not_desires", "not_capable_of",
-    "not_has_property", "has_prerequisite", "has_subevent",
-    "motivated_by_goal", "causes", "at_location", "part_of", "has_attribute",
-    "entails", "located_near",
-})
+INHERITABLE: frozenset[str] = named(lambda one: one.inherited)
 
 #: Relations that do NOT descend, with the reason each is excluded.
 NOT_INHERITABLE: dict[str, str] = {
-    "made_of": "a subtype may be made of something else entirely -- a chair is "
-               "furniture, but furniture is not made of wood",
-    "similar_to": "similarity is not transitive through subtyping",
-    "instance_of": "an instance's membership says nothing about a subclass",
-    "created_by": "the maker of a kind is not the maker of every subkind",
-    "symbol_of": "symbolism attaches to the specific thing, not the category",
-    "defined_as": "a definition is about that concept alone",
-    "manner_of": "manner relates two actions, it does not descend a hierarchy",
-}
+    name: one.why_not for name, one in LINKS.items() if one.why_not}
 
 # -- R7: relations that never participate ---------------------------------
-#: `related_to` is 1,678,150 of v633's 3.9M edges and carries no semantics --
-#: no direction, no relation type, just co-occurrence. Inheriting it floods
-#: every answer. It is excluded from storage and from inference.
-GATED: frozenset[str] = frozenset({"related_to", "has_context", "form_of",
-                                   "derived_from", "etymologically_related_to",
-                                   "synonym", "antonym", "has_sense",
-                                   "definition", "usage_count", "distinct_from",
-                                   "verb_group"})
+GATED: frozenset[str] = named(lambda one: one.gated)
 
 #: R3: an assertion of the key blocks inheritance of the value, and vice versa.
 NEGATIONS: dict[str, str] = {
-    "not_capable_of": "capable_of",
-    "not_has_property": "has_property",
-    "not_desires": "desires",
-}
+    name: one.denies for name, one in LINKS.items() if one.denies}
 POSITIVES: dict[str, str] = {value: key for key, value in NEGATIONS.items()}
 
 # -- R9: relations that answer for each other ------------------------------
-#: Sources disagree about which relation a fact belongs under. WordNet files
-#: "a dog has a tail" as `has_part`; Ascent++ files it as `has_a`. A question
-#: asking about one must see the other, or the answer depends on which source
-#: happened to record it. Only genuinely interchangeable relations appear here
-#: -- `part_of` is NOT a family member of `has_part`, it is its inverse.
-FAMILIES: tuple[frozenset[str], ...] = (
-    frozenset({"has_a", "has_part"}),
-    frozenset({"at_location", "located_near"}),
-    frozenset({"has_property", "has_attribute"}),
-)
+FAMILIES: tuple[frozenset[str], ...] = tuple(dict.fromkeys(
+    one.family for one in LINKS.values() if one.family))
 
 
 def family(relation: str) -> list[str]:
@@ -145,9 +119,7 @@ def inheritable(relation: str) -> bool:
 #:
 #: Only word-level facts are checked. WordNet's own are already sense-tagged.
 RANGES: dict[str, str] = {
-    "at_location": "physical entity.n.01",
-    "located_near": "physical entity.n.01",
-}
+    name: one.range for name, one in LINKS.items() if one.range}
 
 
 def inheritable_from(relation: str, breadth: int, sense_assumed: bool) -> bool:

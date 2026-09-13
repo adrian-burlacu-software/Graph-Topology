@@ -27,6 +27,8 @@ the stream and nothing is asked twice.
 """
 from __future__ import annotations
 
+from research.v687.links import link
+
 from . import change as changes
 from .discourse import OBJECT_WEIGHT
 from .episodic import DID_NOT
@@ -928,8 +930,8 @@ class Story:
                         verb and self.session._opposite(word, verb)):
                     return -sign
             return 0
-        # T3: one place at a time.
-        judge.exclusive = base == "at_location"
+        # T3: one at a time, for the relations `links.py` marks exclusive.
+        judge.exclusive = link(base).exclusive
         return judge
 
     def _ask_state(self, reading, referent, other, relation: str,

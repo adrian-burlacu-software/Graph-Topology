@@ -67,6 +67,7 @@ from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
 from research.v687 import rules
+from research.v687.links import named
 from research.v687.ordering import adaptive_coverage
 from research.v687.reason import Answer, Fact, Reasoner
 from research.v687.rules import Step
@@ -77,8 +78,8 @@ from .events import KNOWLEDGE, Event, Log, Stream
 #: The source column of everything a conversation stores.
 TOLD = "told"
 
-#: E1: what a quality is.
-QUALITIES = frozenset({"has_property", "has_attribute", "not_has_property"})
+#: E1: what a quality is -- the relations `links.py` marks `quality`.
+QUALITIES = named(lambda one: one.quality)
 
 #: Prepositions a quality toward something else takes: afraid of, fond of,
 #: allergic to.
