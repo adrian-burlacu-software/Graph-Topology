@@ -918,6 +918,73 @@ class WhyTests(unittest.TestCase):
         self.assertIn("why what", turns[0].answer["text"])
 
 
+class ConversationQuestionTests(unittest.TestCase):
+    """Wh-questions about this conversation's individuals, answered from
+    episodic memory by walking the trie for what they name."""
+
+    lexicon = FakeLexicon()
+
+    def test_each_shape_is_read(self):
+        cases = {"how many dogs are there": "how_many",
+                 "which dog is black": "which",
+                 "who chased the cat": "who",
+                 "where is the dog": "where",
+                 "what is the cat on": "where",
+                 "what did the dog chase": "what_did",
+                 "what can it do": "about",
+                 "what do you know about it": "about",
+                 "tell me about it": "about",
+                 "what happened": "happened",
+                 "what did it do first": "happened"}
+        for text, act in cases.items():
+            self.assertEqual(reading.read(text, self.lexicon).act, act, text)
+        self.assertEqual(reading.read("how many dogs are there",
+                                      self.lexicon).mention.kind, "dog")
+
+    def test_questions_about_kinds_are_left_for_v688(self):
+        for text in ("what can a dog do", "how many legs does a spider have",
+                     "how many kinds of dog are there",
+                     "what do you know about beagles", "tell me about dogs"):
+            self.assertNotIn(reading.read(text, self.lexicon).act,
+                             ("how_many", "about", "what_did"), text)
+
+    def test_how_many_and_which(self):
+        _, turns, _ = talk("there is a black beagle", "there is a beagle",
+                           "how many beagles are there", "which beagle is black")
+        self.assertTrue(turns[2].answer["text"].startswith("2 — "),
+                        turns[2].answer["text"])
+        self.assertEqual(turns[3].answer["outcome"], "retrieved")
+
+    def test_who_what_and_where(self):
+        _, turns, _ = talk("there is a dog", "there is a cat",
+                           "the dog chased the cat", "who chased the cat",
+                           "what did the dog chase")
+        self.assertIn("the dog", turns[3].answer["text"])
+        self.assertIn("the cat", turns[4].answer["text"])
+        _, turns, _ = talk("there is a dog", "the dog is in the airplane",
+                           "where is the dog")
+        self.assertIn("airplane", turns[2].answer["text"])
+
+    def test_what_happened_in_order_and_what_it_can_do(self):
+        _, turns, _ = talk("there is a dog", "it barked", "it can swim",
+                           "what happened", "what did it do first",
+                           "what can it do")
+        self.assertIn("“it barked”; “it can swim”", turns[3].answer["text"])
+        self.assertIn("“it barked”", turns[4].answer["text"])
+        self.assertNotIn("swim", turns[4].answer["text"])
+        self.assertIn("it can swim", turns[5].answer["text"])
+
+    def test_who_owns_it(self):
+        _, turns, _ = talk("i have a beagle", "who owns the beagle")
+        self.assertIn("yours", turns[1].answer["text"])
+
+    def test_nothing_here_to_answer_from_goes_to_v688(self):
+        _, turns, asker = talk("who invented the telephone",
+                               "which beagles can swim")
+        self.assertIn("who invented the telephone", asker.asked)
+        self.assertIn("which beagles can swim", asker.asked)
+
+
 class HyphenatedTests(unittest.TestCase):
     """`non-fat milk` is not fat: a hyphenated adjective is read whole."""
 
