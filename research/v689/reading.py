@@ -225,6 +225,9 @@ class Reading:
     when: When | None = None
     #: `how many objects is Mary carrying`: a count, not a list
     count: bool = False
+    #: (asked, relation): the goal cell a question fills (`goals.py`), which
+    #: the session answers by cell rather than by the act's name
+    cell: tuple | None = None
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -669,6 +672,13 @@ def _individual(found) -> bool:
                                                     "kind", "plural", "group")
 
 
+def _cell(reading: Reading, asked: str, relation: str) -> Reading:
+    """The same reading, with the goal cell it fills: what is asked of which
+    relation (`goals.py`)."""
+    reading.cell = (asked, relation)
+    return reading
+
+
 def conversational(tokens: list[str], lexicon, names: frozenset,
                    said: str) -> Reading | None:
     """A wh-question about this conversation's individuals, or None.
@@ -695,9 +705,10 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
 
     # `when did the dog chase the cat`, `how many times did it bark`: an
     # occurrence found, and its time or its count read out (`timeline.py`).
-    for opener, act in ((["when"], "when"),
-                        (["how", "many", "times"], "how_many_times"),
-                        (["how", "often"], "how_many_times")):
+    for opener, act, asked in ((["when"], "when", "time"),
+                               (["how", "many", "times"], "how_many_times",
+                                "times"),
+                               (["how", "often"], "how_many_times", "times")):
         at = len(opener)
         if tokens[:at] != opener or len(tokens) < at + 3 \
                 or tokens[at] not in AUX:
@@ -705,9 +716,9 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
         found = read_mention(tokens, at + 1, lexicon, tokens[at],
                              names=names)
         if _individual(found) and found.end < len(tokens):
-            return _with_object(Reading(act, found, tokens[at],
-                                        tokens[found.end:], said=said),
-                                lexicon, names)
+            return _cell(_with_object(Reading(act, found, tokens[at],
+                                              tokens[found.end:], said=said),
+                                      lexicon, names), asked, "occurrence")
         return None
 
     # `what was the dog doing`, `what is it doing`
@@ -731,10 +742,12 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
                              final_ok=True, names=names)
         verb = lexicon.progressive(tokens[-1])
         if _individual(found) and found.end == len(tokens) - 1 and verb:
-            return Reading("carrying", found, tokens[at], [verb], said=said,
-                           count=counting,
-                           obj=(Mention("kind", tokens[2], text=tokens[2])
-                                if counting else None))
+            return _cell(Reading("carrying", found, tokens[at], [verb],
+                                 said=said, count=counting,
+                                 obj=(Mention("kind", tokens[2],
+                                              text=tokens[2])
+                                      if counting else None)),
+                         "count" if counting else "object", "holding")
 
     # `what is north of the office`, `what is the kitchen north of`: one side
     # of a relation asked, the other named (`relations.py`). `?` in `rest`
@@ -807,7 +820,7 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
                                          tokens[found.end:-1], said=said),
                                  lexicon, names)
             asked.rest = asked.rest + [tokens[-1]]
-            return asked
+            return _cell(asked, "recipient", "occurrence")
 
     if tokens[:2] == ["how", "many"]:
         end = next((len(one) for one in COUNT_ENDS
@@ -843,27 +856,31 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
         rest = rest if holds else rest[1:]
         if not rest:
             return None
-        return _with_object(Reading("who", None, aux, rest, holds=holds,
-                                    said=said), lexicon, names)
+        return _cell(_with_object(Reading("who", None, aux, rest, holds=holds,
+                                          said=said), lexicon, names),
+                     "subject", "occurrence")
 
     if first == "where" and tokens[1] in COPULA:
         found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
                              names=names)
         if _individual(found) and found.end == len(tokens):
-            return Reading("where", found, said=said)
+            return _cell(Reading("where", found, said=said),
+                         "place", "located")
         # `where was the football before the bathroom`: where it was just
         # before it came to be there (`story.where_around`).
         if (_individual(found) and len(tokens) > found.end + 1
                 and tokens[found.end] in ("before", "after")):
-            return Reading("where", found, tokens[1], tokens[found.end:],
-                           said=said)
+            return _cell(Reading("where", found, tokens[1],
+                                 tokens[found.end:], said=said),
+                         "place", "located")
         return None
 
     if first == "what" and tokens[1] in COPULA and tokens[-1] in PLACES:
         found = read_mention(tokens[:-1], 2, lexicon, "is", final_ok=True,
                              names=names)
         if _individual(found) and found.end == len(tokens) - 1:
-            return Reading("where", found, said=said)
+            return _cell(Reading("where", found, said=said),
+                         "place", "located")
         return None
 
     # `what will happen tomorrow`: what is to come.
@@ -938,8 +955,9 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
             return Reading("about", found, tokens[1], rest, holds=holds,
                            said=said)
         if rest:
-            return Reading("what_did", found, tokens[1], rest, holds=holds,
-                           said=said)
+            return _cell(Reading("what_did", found, tokens[1], rest,
+                                 holds=holds, said=said),
+                         "object", "occurrence")
         return None
 
     if tokens[:3] == ["what", "kind", "of"] and "is" in tokens[3:]:

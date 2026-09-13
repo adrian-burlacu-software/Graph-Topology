@@ -369,18 +369,24 @@ class Session:
                 "ask_name": self._ask_name, "teach": self._teach,
                 "compound": self._compound, "define": self._define,
                 "why": self._why, "how_many": self._how_many,
-                "which": self._which, "who": self._who,
-                "where": self._where, "what_did": self._what_did,
+                "which": self._which,
                 "about": self._about, "happened": self._happened,
                 "meta": self._meta, "ellipsis": self._ellipsis,
-                "when": self.story.when_asked,
-                "how_many_times": self.story.how_many_times,
                 "doing": self.story.doing,
-                "carrying": self.story.carrying,
-                "to_whom": self.story.to_whom,
                 "related": self._related_to, "route": self._route,
                 "toward": self._toward, "attribute": self._attribute,
                 "where_going": self._where_going}
+        #: The goal cells a question's reading fills (`reading._cell`), each
+        #: answered by the operator for that cell -- what is asked, of which
+        #: relation -- rather than by the name of the pattern that read it.
+        cells = {("place", "located"): self._where,
+                 ("object", "holding"): self.story.carrying,
+                 ("count", "holding"): self.story.carrying,
+                 ("subject", "occurrence"): self._who,
+                 ("object", "occurrence"): self._what_did,
+                 ("recipient", "occurrence"): self.story.to_whom,
+                 ("time", "occurrence"): self.story.when_asked,
+                 ("times", "occurrence"): self.story.how_many_times}
 
         def acted(handler):
             def apply(memory: dict) -> str:
@@ -390,16 +396,22 @@ class Session:
 
         # What the utterance does, as operators (`executive.py`): first the
         # goals a question states, answered by their slots (`goals.py`), then
-        # each act on its own reading, and anything else is v688's.
+        # the cell a pattern read, then each remaining act on its own reading,
+        # and anything else is v688's.
         acting = Executive(
             Answering(self).operators()
+            + [Operator(f"{asked} of {relation}", acted(handler),
+                        proposes=lambda memory, cell=(asked, relation):
+                        memory["reading"].cell == cell)
+               for (asked, relation), handler in cells.items()]
             + [Operator(name, acted(handler),
-                      proposes=lambda memory, name=name:
-                      memory["reading"].act == name)
-             for name, handler in acts.items()]
+                        proposes=lambda memory, name=name:
+                        memory["reading"].act == name)
+               for name, handler in acts.items()]
             + [Operator("generic", acted(self._generic),
                         proposes=lambda memory:
-                        memory["reading"].act not in acts)])
+                        memory["reading"].cell is None
+                        and memory["reading"].act not in acts)])
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows. An anchor nothing was told of is told first,

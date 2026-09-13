@@ -49,6 +49,22 @@ class ReadingGoalsTests(unittest.TestCase):
         self.assertEqual((goal.asked, goal.relation, goal.subject.name),
                          ("object", "holding", "mary"))
 
+    def test_a_pattern_reads_the_cell_it_fills(self):
+        from research.v689.reading import read
+        lexicon = self.lexicon()
+        names = frozenset({"mary", "fred"})
+        for text, cell in (
+                ("where is Mary", ("place", "located")),
+                ("what is Mary carrying", ("object", "holding")),
+                ("how many objects is Mary carrying", ("count", "holding")),
+                ("who went to the kitchen", ("subject", "occurrence")),
+                ("what did Mary drop", ("object", "occurrence")),
+                ("who did Fred give the milk to", ("recipient", "occurrence")),
+                ("when did Mary go to the kitchen", ("time", "occurrence")),
+                ("how many times did Mary go", ("times", "occurrence"))):
+            self.assertEqual(read(text, lexicon, names).cell, cell, text)
+        self.assertIsNone(read("can a dog swim", lexicon, names).cell)
+
     def test_not_a_goal(self):
         lexicon = self.lexicon()
         self.assertIsNone(read_goal("can a dog swim", lexicon))

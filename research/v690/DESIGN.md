@@ -397,10 +397,25 @@ pattern was written for, answered on the real store by composition:
 | holding | who has the football; who is carrying it; is anyone carrying it; does Mary have it (yes, or no because it is with John: T3's one place at a time); what does Mary have; how many things does she have |
 | occurrence | where did Mary go (first); where did she drop the football; did anyone go to the garden; how many people went to the kitchen |
 
-Operators still propose on the acts `reading.py`'s patterns produce where a
-pattern exists. The next step is the other way round: the goal reader
-covering what the patterns read, so a pattern can be deleted once its goal
-answers the same.
+The second step turned seven of `reading.py`'s patterns -- where, what is
+carried, who, what did, to whom, when, how many times -- from acts into the
+cells they fill. Each now reads `(asked, relation)` onto its reading, and the
+session answers the cell, not the pattern's name:
+
+| cell | answered by |
+| --- | --- |
+| place of located | `_where`, T3 and T4 |
+| object / count of holding | `story.carrying`, T4 |
+| subject of occurrence | `_who`, T5 |
+| object of occurrence | `_what_did`, T5 |
+| recipient of occurrence | `story.to_whom`, T5 |
+| time of occurrence | `story.when_asked`, T5 |
+| times of occurrence | `story.how_many_times`, T5 |
+
+So the operator table is the coverage matrix: a question is answered by the
+cell it fills, whichever reader filled it. What is left of the patterns is
+their reading, and that is next -- one goal reader for every cell, and the
+patterns deleted once it reads what they read.
 
 ## 9. Risks
 
