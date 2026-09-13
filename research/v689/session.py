@@ -68,9 +68,14 @@ from .definitions import DEFINED, GlossReader, question_for, says
 from .discourse import OBJECT_WEIGHT, Discourse, Referent, Resolution
 from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
                        name_of)
-from .reading import (ARTICLES, AUX, CARRYING, COPULA, QUESTION_WORDS,
-                      RELATIVE, Reading, article, kind_question, mode_of,
-                      progressive, read, words)
+from .events import KNOWLEDGE
+from .reading import (ARTICLES, AUX, CARRYING, COPULA, HAVING,
+                      QUESTION_WORDS, RELATIVE, Reading, article,
+                      kind_question, mode_of, perfect, progressive, read,
+                      words)
+from .story import Story
+from .tense import When
+from .timeline import Timeline
 
 #: An auxiliary agreeing with `they`, as it agrees with one of a kind.
 SINGULAR = {"do": "does", "are": "is", "were": "was", "have": "has"}
@@ -88,7 +93,8 @@ OUTCOME = {"VERIFIED": "verified", "CONTRADICTED": "denied"}
 DENIAL = {"can": "can't", "could": "couldn't", "does": "doesn't",
           "do": "don't", "did": "didn't", "is": "isn't", "are": "aren't",
           "was": "wasn't", "were": "weren't", "has": "hasn't",
-          "have": "haven't", "will": "won't", "would": "wouldn't"}
+          "have": "haven't", "had": "hadn't", "will": "won't",
+          "would": "wouldn't"}
 
 #: `a kind of animal`, `a type of dog`.
 HEDGES = ("kind", "type", "sort")
@@ -221,6 +227,9 @@ class Taught:
     def progressive(self, word: str):
         return self.asker.progressive(word)
 
+    def participle(self, word: str):
+        return self.asker.participle(word)
+
 
 @dataclass
 class Turn:
@@ -269,9 +278,22 @@ class Session:
         self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation,
                                      definitions)
         self.discourse = Discourse(self.memory, asker.sense)
+        #: story time: a projection of the same stream (`timeline.py`), and
+        #: what the conversation does with it (`story.py`)
+        self.timeline = Timeline(self.memory.log)
+        self.story = Story(self, self.timeline)
+        #: what the part being acted on says about when
+        self._when = When()
         self.turns: list[Turn] = []
         self._turn: Turn | None = None
         self._reader: GlossReader | None = None
+
+    def lexicon(self) -> "Taught":
+        return Taught(self.asker, self.memory.kinds)
+
+    def memory_view(self) -> dict:
+        """Memory as the page shows it: episodic memory and story time."""
+        return {**self.memory.as_dict(), "timeline": self.timeline.as_dict()}
 
     def snapshot(self) -> dict:
         """Everything needed to carry on after a restart, as plain values."""
@@ -282,17 +304,37 @@ class Session:
                               if self.example else None)}
 
     @classmethod
+    def rebuild(cls, asker, conversation: str, events,
+                knowledge: Knowledge | None = None, definitions=None,
+                example: bool = False) -> "Session":
+        """A conversation from its stream: every event applied again, in
+        order, and nothing asked of v687 or v688 on the way."""
+        session = cls(asker, knowledge, conversation, example, definitions)
+        stream = session.memory.log.conversation
+        stream.events[:] = list(events)
+        stream.mark_saved()
+        session.memory.log.replay(stream.events)
+        session.memory.store("replayed")
+        if session.timeline.occurrences:
+            session.timeline.replan("replayed")
+        return session
+
+    @classmethod
     def resume(cls, asker, state: dict, knowledge: Knowledge | None = None,
                definitions=None) -> "Session":
-        """A conversation from its snapshot. An example brings its own
+        """A conversation kept as a snapshot before conversations were kept
+        as events. The snapshot becomes the stream's first event, so what
+        is said from here on is appended after it. An example brings its own
         knowledge back with it; any other reads the one it is given."""
         example = bool(state.get("example"))
+        conversation = state.get("conversation") or ""
         if example:
-            knowledge = Knowledge.from_state(state.get("knowledge") or {})
-        session = cls(asker, knowledge, state.get("conversation") or "",
-                      example, definitions)
-        session.memory.load(state.get("memory") or {})
-        session.discourse.load(state.get("discourse") or {})
+            knowledge = Knowledge.from_state(state.get("knowledge") or {},
+                                             f"{KNOWLEDGE}:{conversation}")
+        session = cls(asker, knowledge, conversation, example, definitions)
+        session.memory.log.record("imported", {
+            "memory": state.get("memory") or {},
+            "discourse": state.get("discourse") or {}})
         session.memory.store("resumed")
         return session
 
@@ -312,14 +354,25 @@ class Session:
                 "which": self._which, "who": self._who,
                 "where": self._where, "what_did": self._what_did,
                 "about": self._about, "happened": self._happened,
-                "meta": self._meta, "ellipsis": self._ellipsis}
+                "meta": self._meta, "ellipsis": self._ellipsis,
+                "when": self.story.when_asked,
+                "how_many_times": self.story.how_many_times,
+                "doing": self.story.doing}
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
-        # what the page shows.
-        parts = [reading] + list(reading.more)
+        # what the page shows. An anchor nothing was told of is told first,
+        # as a claim of its own: `after the dog chased the cat, it slept`.
+        parts = []
+        for one in [reading] + list(reading.more):
+            anchor = self._untold_anchor(one)
+            if anchor is not None:
+                parts.append(anchor)
+            parts.append(one)
         replies, first = [], None
         for index, one in enumerate(parts):
             turn.answer = {}
+            self._when = one.when or When()
+            self.memory.hidden = frozenset()
             acts.get(one.act, self._generic)(one, turn)
             if index == 0:
                 first = (turn.resolution, turn.binding)
@@ -339,11 +392,36 @@ class Session:
                 "source": replies[0].get("source") or "conversation",
                 "text": "; ".join(one.get("text") for one in replies
                                   if one.get("text"))}
+        self._when = When()
+        self.memory.hidden = frozenset()
         turn.growth = [one.as_dict() for one in self.memory.growth[grown:]]
         turn.discourse = self.discourse.as_dict()
-        turn.memory = self.memory.as_dict()
+        turn.memory = self.memory_view()
         self.turns.append(turn)
         return turn
+
+    def _untold_anchor(self, reading: Reading) -> Reading | None:
+        """The clause a statement is placed against, when nothing told is
+        what it names: it is a claim too, and is told before the statement."""
+        when = reading.when
+        if (when is None or not when.anchor
+                or reading.act not in ("tell", "introduce")):
+            return None
+        anchored = read(when.anchor, self.lexicon(), self.discourse.names(),
+                        anchored=False)
+        if anchored.act != "tell" or self.story.find(anchored) is not None:
+            return None
+        anchored.said = when.anchor
+        anchored.when = When(frame=when.frame)
+        return anchored
+
+    def _kind_answer(self, question: str, turn: Turn) -> tuple[str, str]:
+        """(outcome, trust) of v688 on a question about a kind, kept on the
+        turn."""
+        turn.asked = question
+        turn.run = self._run(question)
+        outcome, _, trust = summary_of(turn.run)
+        return outcome, trust
 
     def _resolve(self, reading: Reading, turn: Turn) -> Referent | None:
         turn.resolution = self.discourse.resolve(reading.mention)
@@ -392,6 +470,7 @@ class Session:
         """(relation, object, kind question, mode) for a claim or question
         about `word`; relation is None where nothing can be read."""
         aux, rest = progressive(aux, rest, self.asker)
+        aux, rest = perfect(aux, rest, self.asker)
         question = kind_question(aux, rest, word, self.asker.lemma)
         mode = mode_of(aux)
         parent = taxonomy_parent(aux, rest) or self._plural_kind(aux, rest)
@@ -433,9 +512,9 @@ class Session:
             return None, ""
         if aux in COPULA:
             return "has_property", " ".join(body)
-        if aux in ("has", "have"):
+        if aux in HAVING:
             return "has_a", " ".join(body)
-        if body[0] in ("have", "has"):
+        if body[0] in HAVING:
             return "has_a", " ".join(body[1:])
         if aux is None:
             return "capable_of", " ".join([self.asker.lemma(body[0])]
@@ -657,7 +736,7 @@ class Session:
         else:
             turn.run = self._run(question)
             outcome, _, _ = summary_of(turn.run)
-            self.memory.against[(node, relation, obj)] = outcome
+            self.memory.judge(node, relation, obj, outcome)
             if outcome in WORD and (WORD[outcome] == "yes") != reading.holds:
                 text = (f"{stored} — v688 answers “{question}” {outcome} "
                         f"from the store, and in this conversation what you "
@@ -700,7 +779,9 @@ class Session:
         contrary, near = None, []
         for node in walk.chain:
             for fact in self.memory.facts.get(node, []):
-                if fact.source != TOLD or fact.relation not in family:
+                if (fact.source != TOLD or fact.relation not in family
+                        or (node, fact.relation, fact.object)
+                        in self.memory.hidden):
                     continue
                 have = self._predicate(fact.object)
                 if have == wanted:
@@ -727,13 +808,15 @@ class Session:
         earlier = self.memory.learned_earlier(key)
         verb = "told" if individual else "taught"
         when = " in an earlier conversation" if earlier else ""
+        who = self.discourse.by_id(fact.concept) if individual else None
         turn.answer = {
             "outcome": "denied",
             "source": ("told" if individual else
                        "learned" if earlier else "taught"),
             "text": (f"no — you {verb} me{when}: "
                      f"“{self.memory.said.get(key, '')}”, recorded of "
-                     f"{name_of(fact.concept)} as {fact.relation} "
+                     f"{self.discourse.describe(who) if who else name_of(fact.concept)}"
+                     f" as {fact.relation} "
                      f"“{fact.object}”. “{had}” is the opposite of “{asked}” "
                      f"in WordNet, and the rest of it is the same")}
 
@@ -749,7 +832,8 @@ class Session:
     # -- telling individuals -----------------------------------------------
     def _remember(self, referent: Referent, aux, rest, holds: bool,
                   said: str, turn: Turn,
-                  other: Referent | None = None) -> str:
+                  other: Referent | None = None,
+                  part: Reading | None = None) -> str:
         relation, obj, question, mode = self._relation(
             aux, rest, referent.kind, holds)
         turn.asked = question
@@ -762,8 +846,13 @@ class Session:
                 turn.run = self._run(question)
             return (f"not something I can store about {described}: v687 "
                     f"reads “{question}” as no relation it keeps")
+        when = self.story.before_telling(
+            relation, mode, aux, part.rest if part is not None else rest,
+            holds)
         self.memory.tell(referent.id, relation, obj, said, mode,
-                         bound=other.id if other else None)
+                         bound=other.id if other else None, when=when)
+        placed = self.story.narrate(part, referent, other, relation, obj,
+                                    holds, said)
         stored = f"stored {relation} “{obj}”"
         if other is not None:
             stored += f", about {self.discourse.describe(other)}"
@@ -772,7 +861,7 @@ class Session:
         if store_kind:
             turn.run = self._run(question)
             outcome, _, _ = summary_of(turn.run)
-            self.memory.against[(referent.id, relation, obj)] = outcome
+            self.memory.judge(referent.id, relation, obj, outcome)
             if outcome in WORD and (WORD[outcome] == "yes") != holds:
                 text = (f"{stored} — an exception: for {kind} in general "
                         f"v688 answers “{question}” {outcome}")
@@ -783,6 +872,9 @@ class Session:
                         f"{kind} in general")
         else:
             text = f"{stored} — {referent.kind} is a kind taught here"
+        if placed:
+            text += f"; {placed}"
+        text += self.story.told_note(when)
         notes = [self._carry(referent)] + [
             self._carry(one) for one in self._carried_by(referent)]
         carried = "; ".join(note for note in notes if note)
@@ -809,8 +901,11 @@ class Session:
                     and self.memory.mode.get((node, fact.relation,
                                               fact.object)) == "does"):
                 continue
+            # E2 within one time: being in an airplane yesterday explains
+            # nothing about flying today.
             carrier = next(((word, one) for word, one in carriers
-                            if self._does(word, fact.object, one)), None)
+                            if self.story.same_time(node, fact.object, word)
+                            and self._does(word, fact.object, one)), None)
             if carrier is None:
                 continue
             withdrawal = self.memory.withdraw(node, fact.relation,
@@ -822,7 +917,8 @@ class Session:
                 f"from {described} and kept as {CARRIED}")
         for fact in facts:
             if fact.relation != CARRIED or any(
-                    self._does(word, fact.object, one)
+                    self.story.same_time(node, fact.object, word)
+                    and self._does(word, fact.object, one)
                     for word, one in carriers):
                 continue
             withdrawal = self.memory.restore(node, fact.object)
@@ -875,6 +971,7 @@ class Session:
         return summary_of(run)[0] == "verified"
 
     def _introduce(self, reading: Reading, turn: Turn) -> None:
+        self.story.introduced(reading)
         referent = self._resolve(reading, turn)
         if reading.owned:
             self.discourse.own(referent)
@@ -894,7 +991,8 @@ class Session:
             else:
                 text += " — " + self._remember(
                     referent, reading.relative.aux, rest,
-                    reading.relative.holds, reading.said, turn, other)
+                    reading.relative.holds, reading.said, turn, other,
+                    part=reading.relative)
         turn.answer = {"outcome": "noted", "source": "conversation",
                        "text": text}
 
@@ -913,7 +1011,8 @@ class Session:
         turn.answer = {"outcome": "noted", "source": "told",
                        "text": "noted — " + self._remember(
                            referent, reading.aux, rest,
-                           reading.holds, reading.said, turn, other)}
+                           reading.holds, reading.said, turn, other,
+                           part=reading)}
 
     def _narrow(self, referent: Referent, reading: Reading) -> str:
         """`it is a beagle`, said of a dog: a narrower kind, by R1 both ways."""
@@ -1049,14 +1148,16 @@ class Session:
             return None
         return self._resolve(reading, turn)
 
-    def _object_here(self, reading: Reading, turn: Turn):
+    def _object_here(self, reading: Reading, turn: Turn, exclude=frozenset()):
         """(rest, object) for a question: the object resolved if it is one
-        of the individuals here, and left a kind otherwise."""
+        of the individuals here, and left a kind otherwise. A question never
+        puts one down: `is the pig in an airplane` is about airplanes."""
         found = reading.obj
         if found is None or found.form in ("indefinite", "another", "kind") \
                 or (found.kind and not self._individuals(found.kind)):
             return list(reading.rest), None
-        turn.binding = self.discourse.resolve(found, weight=OBJECT_WEIGHT)
+        turn.binding = self.discourse.resolve(found, exclude=set(exclude),
+                                              weight=OBJECT_WEIGHT)
         other = turn.binding.referent
         if other is None:
             turn.answer = {"outcome": "which", "source": "conversation",
@@ -1157,6 +1258,8 @@ class Session:
                 {"outcome": "unknown", "source": "conversation",
                  "text": f"nobody was said to own {described}"})
             return
+        if self.story.who(reading, turn):
+            return
         rest, other = self._object_here(reading, turn)
         if rest is None:
             return
@@ -1179,6 +1282,8 @@ class Session:
         referent = self._here(reading, turn)
         if referent is None:
             return
+        if self.story.where(reading, referent, turn):
+            return
         described = self.discourse.describe(referent)
         places = []
         for fact in self.memory.facts.get(referent.id, []):
@@ -1199,6 +1304,8 @@ class Session:
     def _what_did(self, reading: Reading, turn: Turn) -> None:
         referent = self._here(reading, turn)
         if referent is None:
+            return
+        if self.story.what_did(reading, referent, turn):
             return
         described = self.discourse.describe(referent)
         verb = self.asker.lemma(reading.rest[0])
@@ -1267,7 +1374,10 @@ class Session:
 
     def _happened(self, reading: Reading, turn: Turn) -> None:
         """What was told, in the order it was told: of one individual's doings,
-        or of everyone."""
+        or of everyone. What happened in the story, and in its order, is the
+        story's (`story.py`); this is telling time."""
+        if self.story.happened(reading, turn):
+            return
         referent = None
         if reading.mention is not None:
             referent = self._here(reading, turn)
@@ -1283,6 +1393,8 @@ class Session:
                 continue
             events.append(said)
         events = list(dict.fromkeys(one for one in events if one))
+        note = (self.story.order_note()
+                if referent is None and reading.rest[:1] != ["told"] else "")
         if not events:
             turn.answer = {"outcome": "unknown", "source": "conversation",
                            "text": "nothing has been told of anyone here yet"
@@ -1290,7 +1402,7 @@ class Session:
                                    f"nothing was told of what "
                                    f"{self.discourse.describe(referent)} did"}
             return
-        which = reading.rest[:1]
+        which = [word for word in reading.rest if word != "told"][:1]
         if which == ["first"]:
             events, lead = events[:1], "first: "
         elif which in (["last"], ["next"]):
@@ -1298,7 +1410,9 @@ class Session:
         else:
             lead = "in the order you told me: "
         turn.answer = {"outcome": "retrieved", "source": "told",
-                       "text": lead + "; ".join(f"“{one}”" for one in events)}
+                       "text": lead + "; ".join(f"“{one}”" for one in events)
+                               + (note if lead.startswith("in the order")
+                                  else "")}
 
     #: Where an answer came from, said as the grounds for it.
     GROUNDS = {"told": "from what you told me",
@@ -1401,7 +1515,7 @@ class Session:
         referent = self._resolve(reading, turn)
         if referent is None:
             return
-        rest, other = self._bind(reading, referent, turn)
+        rest, other = self._object_here(reading, turn, exclude={referent.id})
         if rest is None:
             return
         relation, target, question, mode = self._relation(
@@ -1415,6 +1529,10 @@ class Session:
                 "outcome": "unknown", "source": "conversation",
                 "text": f"v687 reads “{question}” as no relation it keeps"}
             return
+        if relation != "is_a" and self.story.ask(reading, referent, other,
+                                                 relation, target, turn):
+            return
+        self.memory.hidden = self.story.hidden(reading)
         walk = self._walk(referent.id, relation, target)
         turn.walk = walk_of(walk)
 
@@ -1433,6 +1551,8 @@ class Session:
         if relation == "capable_of" and mode == "does":
             for fact in self.memory.facts.get(referent.id, []):
                 if (fact.relation == DID_NOT
+                        and (referent.id, fact.relation, fact.object)
+                        not in self.memory.hidden
                         and self.asker.matcher(fact.object, target)):
                     said = self.memory.said.get(
                         (referent.id, fact.relation, fact.object), "")
@@ -1470,6 +1590,11 @@ class Session:
             return
 
         why = getattr(self, "_why_asked", False)
+        # T6: nothing told says this one did it, and what the kind does is
+        # not what one of them did.
+        if (not why and relation == "capable_of"
+                and self.story.inherited(reading, referent, question, turn)):
+            return
         if why and not reading.holds:
             # `why can't it fly`: the premise is a denial, and the kind's why
             # has to be asked as one, or the answer says it does not hold.
@@ -1706,4 +1831,4 @@ class Session:
     def as_dict(self) -> dict:
         return {"turns": [turn.as_dict() for turn in self.turns],
                 "discourse": self.discourse.as_dict(),
-                "memory": self.memory.as_dict()}
+                "memory": self.memory_view()}

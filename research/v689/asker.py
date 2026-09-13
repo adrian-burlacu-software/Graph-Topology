@@ -44,6 +44,54 @@ class Asker:
         lemma = token.lemma_.lower()
         return lemma if token.pos_ == "VERB" and lemma != word else None
 
+    def verb(self, word: str) -> str:
+        """The lemma of a word used as a verb: `broke` -> break, read in
+        `it ___` so a past tense is not taken for a noun."""
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not word:
+            return word
+        token = nlp(f"it {word}")[-1]
+        return token.lemma_.lower() or word
+
+    def participle(self, word: str):
+        """The verb in `it has eaten`, `it was broken`; None for `it has
+        four`. Read in a frame, as `progressive` is."""
+        nlp = getattr(self.parser, "nlp", None)
+        if nlp is None or not word:
+            return None
+        token = nlp(f"it was {word}")[-1]
+        # The tag decides, not the spelling: `run` and `put` are their own
+        # participles.
+        return token.lemma_.lower() if token.tag_ in ("VBN", "VBD") else None
+
+    def verb_senses(self, lemma: str) -> list[str]:
+        """The store's verb senses for a word, best first."""
+        return [sense["id"] for sense in
+                (self.reasoner.senses_of(lemma, "v") or [])]
+
+    def verb_kinds(self, lemma: str) -> list[str]:
+        """Every verb a verb is a kind of, nearest first, as words: `chase`
+        -> chase, pursue, follow, travel, go, move, locomote. Troponymy,
+        walked up the store's taxonomy as R1 walks a noun."""
+        senses = self.verb_senses(lemma)
+        kinds = [lemma]
+        if not senses:
+            return kinds
+        cache = self.__dict__.setdefault("_verb_kinds", {})
+        if senses[0] not in cache:
+            found = []
+            for node, _, _ in self.reasoner.ascend(senses[0]):
+                head = node.rsplit(".", 2)[0]
+                rows = self.reasoner.connection.execute(
+                    "SELECT lemma FROM lemmas WHERE concept = ?",
+                    (node,)).fetchall()
+                # The synset's own name first, then its other lemmas in a
+                # fixed order: the store keeps them in none.
+                found += [head] + sorted(row[0] for row in rows
+                                         if row[0] != head)
+            cache[senses[0]] = found
+        return list(dict.fromkeys(kinds + cache[senses[0]]))
+
     def _parsed(self, words: list[str]):
         """spaCy over the words exactly as given, read as one sentence.
 

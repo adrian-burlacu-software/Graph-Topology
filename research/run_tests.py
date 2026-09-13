@@ -48,7 +48,7 @@ SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
           "research.v688.test_audit", "research.v688.test_screen",
           "research.v688.test_distil", "research.v688.test_content",
           "research.v688.test_rephrase",
-          "research.v689.test_v689")
+          "research.v689.test_v689", "research.v689.test_time")
 
 COUNT = re.compile(r"^Ran (\d+) test")
 
@@ -70,6 +70,13 @@ def run_one(module: str) -> tuple[str, int, int, float, str]:
 
 
 def main() -> int:
+    # A failing test's output can hold any character, and a Windows console
+    # that cannot print one used to hide the failure behind a traceback.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workers", type=int, default=4,
                         help="processes at once (default 4). Each holds a "

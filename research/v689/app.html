@@ -109,14 +109,38 @@
           border-radius: 6px; padding: 2px 8px; font: inherit;
           cursor: pointer; }
   aside h2.later { margin-top: 18px; }
+  aside h2.part { margin-top: 14px; }
   .earlier { color: var(--which); }
+  .episode { border: 1px solid var(--line); border-radius: 8px;
+          padding: 9px 11px; margin-bottom: 10px; background: #12161c; }
+  .episode.current { border-color: var(--rule); }
+  .episode .head { display: flex; gap: 8px; align-items: baseline;
+          flex-wrap: wrap; }
+  .episode .when { font-weight: 600; }
+  .episode .id { font-family: ui-monospace, Consolas, monospace;
+          color: var(--muted); font-size: 12px; margin-left: auto; }
+  .occ { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; }
+  .occ li { padding: 2px 0; overflow-wrap: anywhere; }
+  .occ .oid { font-family: ui-monospace, Consolas, monospace;
+          color: var(--rule); margin-right: 6px; }
+  .occ .how { color: var(--muted); }
+  .occ .t4 { display: block; color: var(--which); padding-left: 22px; }
+  .occ .state code { font-family: ui-monospace, Consolas, monospace;
+          color: var(--accent); }
+  details.log ol { margin: 6px 0 0; padding: 0; list-style: none;
+          font: 11px/1.5 ui-monospace, Consolas, monospace; max-height: 260px;
+          overflow: auto; }
+  details.log li { color: var(--muted); overflow-wrap: anywhere; }
+  details.log li b { color: var(--text); font-weight: 600; }
+  .chip.time { color: var(--rule); border-color: var(--rule); }
 </style>
 </head>
 <body>
 <header>
   <h1>V689</h1>
-  <span class="sub">who is who — the individuals of a conversation, held in
-    episodic memory and reasoned over by v687's own rules</span>
+  <span class="sub">who is who, and when — the individuals of a conversation
+    and what happened to them, kept as events, held in episodic memory and
+    reasoned over by v687's own rules</span>
   <a href="/v688">v688 →</a>
 </header>
 <main>
@@ -138,9 +162,16 @@
   <aside>
     <h2>episodic memory</h2>
     <div class="stats" id="stats">empty</div>
+    <div id="episodes"></div>
+    <h2 class="part" id="who-heading" hidden>who</h2>
     <div id="referents"><p class="empty">Nothing has come up yet.</p></div>
+    <details class="log" id="log" hidden>
+      <summary id="log-summary">event log</summary>
+      <ol id="events"></ol>
+    </details>
     <h2 class="later">long-term memory</h2>
     <div class="stats" id="learned">nothing taught yet</div>
+    <div id="taught"></div>
     <button type="button" class="quiet" id="unlearn">unlearn everything
       taught</button>
   </aside>
@@ -179,11 +210,27 @@ function describe(discourse, id) {
   return found ? found.description : id;
 }
 
+// What an utterance said about time, as a chip beside it.
+function timeChip(when) {
+  if (!when) return "";
+  const bits = [];
+  if (when.frame) bits.push(when.frame.label);
+  if (when.link) bits.push({ after: "after the one before",
+    before: "before the one before", during: "meanwhile", last: "last",
+    first: "first" }[when.link] || when.link);
+  if (when.anchor) bits.push(`${when.relation === "during" ? "while"
+    : when.relation} “${when.anchor}”`);
+  if (when.again) bits.push("again");
+  return bits.join(" · ");
+}
+
 function renderTurn(box, turn) {
   box.textContent = "";
   const said = el("div", "said");
   said.appendChild(el("span", "text", turn.said));
   said.appendChild(el("span", "chip", turn.act));
+  const time = timeChip(turn.reading && turn.reading.when);
+  if (time) said.appendChild(el("span", "chip time", time));
   box.appendChild(said);
 
   const res = turn.resolution;
@@ -325,19 +372,12 @@ function renderLearned(memory) {
                      : "nothing taught yet");
 }
 
-function renderMemory(turn) {
-  renderLearned(turn && turn.memory);
-  const stats = document.getElementById("stats");
-  const box = document.getElementById("referents");
+// Long-term memory: the kinds and norms taught, which every conversation
+// shares -- not episodic memory, which is this conversation's own.
+function renderTaught(memory) {
+  const box = document.getElementById("taught");
   box.textContent = "";
-  stats.textContent = "";
-  const discourse = turn && turn.discourse;
-  const all = (discourse && discourse.referents) || [];
-  const memory = (turn && turn.memory) || {};
-  // Taught kinds and norms first: they are what every individual below
-  // inherits from, and a conversation can hold them with no individuals.
-  const taught = memory.taught || [];
-  taught.forEach(kind => {
+  ((memory && memory.taught) || []).forEach(kind => {
     const card = el("div", "referent");
     const head = el("div", "head");
     head.appendChild(el("span", "name", kind.node));
@@ -361,20 +401,156 @@ function renderMemory(turn) {
     }
     box.appendChild(card);
   });
-  if (!all.length) {
-    stats.textContent = taught.length ? "taught, no individuals yet" : "empty";
-    if (!taught.length) {
-      box.appendChild(el("p", "empty", "Nothing has come up yet."));
+}
+
+function episodeName(episode) {
+  return episode.key === "then" ? "back then" : episode.label;
+}
+
+// Episodes in story order: what happened in each, where T1 put it, what T4
+// changed, and the states told of that time.
+function renderEpisodes(memory, discourse) {
+  const box = document.getElementById("episodes");
+  box.textContent = "";
+  const timeline = (memory && memory.timeline) || {};
+  const episodes = timeline.episodes || [];
+  const order = timeline.order || [];
+  const number = id => parseInt(String(id).slice(1), 10) || 0;
+  episodes.forEach(episode => {
+    const card = el("div", "episode" + (episode.current ? " current" : ""));
+    const head = el("div", "head");
+    head.appendChild(el("span", "when", episodeName(episode)));
+    head.appendChild(el("span", "chip", episode.tense));
+    if (episode.current) head.appendChild(el("span", "chip time", "the story is here"));
+    head.appendChild(el("span", "id", episode.id));
+    card.appendChild(head);
+    const list = el("ul", "occ");
+    episode.occurrences.forEach(occurrence => {
+      const item = el("li");
+      item.appendChild(el("span", "oid", occurrence.id));
+      item.appendChild(el("span", null, `“${occurrence.said}”`));
+      const bits = [];
+      if (occurrence.aspect !== "simple") bits.push(occurrence.aspect);
+      bits.push(`is_a ${occurrence.kinds.slice(0, 3).join(", ")}`);
+      item.appendChild(el("span", "how", " · " + bits.join(" · ")));
+      // Each placement is shown on the occurrence told later, which is the
+      // one it placed.
+      order.filter(edge => (edge.first === occurrence.id || edge.second === occurrence.id)
+          && number(occurrence.id) === Math.max(number(edge.first), number(edge.second)))
+        .forEach(edge => {
+          const other = edge.first === occurrence.id ? edge.second : edge.first;
+          const how = edge.how === "during" ? "while"
+            : edge.first === occurrence.id ? "before" : "after";
+          item.appendChild(el("span", "how", ` · ${how} ${other} — T1: ${edge.why}`));
+        });
+      (episode.changes || []).filter(change => change.occurrence === occurrence.id)
+        .forEach(change => {
+          const who = describe(discourse, change.individual);
+          const what = change.kind === "location"
+            ? `at ${change.place ? describe(discourse, change.place) : change.place_word}`
+            : change.word;
+          const before = change.before === null ? ""
+            : `, ${change.before ? "" : "not "}before`;
+          item.appendChild(el("span", "t4",
+            `T4 ${change.source}: ${who} ${change.after ? "" : "not "}${what} after${before}`));
+        });
+      list.appendChild(item);
+    });
+    (episode.states || []).forEach(state => {
+      const item = el("li", "state");
+      item.appendChild(el("span", "oid", "·"));
+      item.appendChild(el("span", null, describe(discourse, state.individual) + " "));
+      item.appendChild(el("code", null, `${state.relation} ${state.object}`));
+      if (state.said) item.appendChild(el("span", "how", ` — “${state.said}”`));
+      list.appendChild(item);
+    });
+    if (!episode.occurrences.length && !(episode.states || []).length) {
+      list.appendChild(el("li", "how", "nothing told of this time yet"));
     }
+    card.appendChild(list);
+    box.appendChild(card);
+  });
+  return episodes;
+}
+
+function summarize(event) {
+  const data = event.data || {};
+  switch (event.type) {
+    case "told":
+      return `${data.node} ${data.relation} “${data.object}”` +
+        (data.when ? ` in ${data.when.episode}` : "");
+    case "occurred":
+      return `${data.id} ${data.verb} by ${data.subject}` +
+        (data.object ? `, ${data.object}` : "") + ` in ${data.episode}`;
+    case "ordered": return `${data.first} ${data.how} ${data.second}`;
+    case "changed":
+      return `${data.occurrence}: ${data.individual} ${data.kind} ` +
+        `${data.word || data.place || data.place_word} ${data.after ? "after" : "ended"}`;
+    case "episode_opened": return `${data.id} ${data.label}`;
+    case "episode_entered": return data.id;
+    case "referent_added": return `${data.id} ${data.kind}`;
+    case "attended": return `${data.id} to ${data.weight}`;
+    case "placed": return `${data.individual} under ${data.node || data.word}`;
+    case "turn_began": return `turn ${data.turn}`;
+    case "withdrawn": return `${data.node} ${data.object}, carried by ${data.carrier}`;
+    default:
+      return Object.entries(data).filter(([, value]) => typeof value !== "object")
+        .map(([key, value]) => `${key}=${value}`).join(" ");
+  }
+}
+
+function renderLog(memory) {
+  const log = document.getElementById("log");
+  const list = document.getElementById("events");
+  list.textContent = "";
+  const events = (memory && memory.log) || [];
+  log.hidden = !events.length;
+  document.getElementById("log-summary").textContent =
+    `event log — ${memory && memory.events || 0} events; memory is what ` +
+    `they fold to (the last ${events.length}, newest first)`;
+  events.slice().reverse().forEach(event => {
+    const item = el("li");
+    item.appendChild(el("span", null, `${event.seq} `));
+    item.appendChild(el("b", null, event.type));
+    item.appendChild(el("span", null, " " + summarize(event)));
+    list.appendChild(item);
+  });
+}
+
+function renderMemory(turn) {
+  const memory = (turn && turn.memory) || {};
+  const discourse = turn && turn.discourse;
+  renderLearned(turn && turn.memory);
+  renderTaught(turn && turn.memory);
+  const episodes = renderEpisodes(memory, discourse);
+  renderLog(turn && turn.memory);
+  const stats = document.getElementById("stats");
+  const box = document.getElementById("referents");
+  box.textContent = "";
+  stats.textContent = "";
+  const all = (discourse && discourse.referents) || [];
+  document.getElementById("who-heading").hidden = !all.length;
+  if (!all.length && !episodes.length) {
+    stats.textContent = "empty";
+    box.appendChild(el("p", "empty", "Nothing has come up yet."));
     return;
   }
-  stats.appendChild(el("b", null, String(all.length)));
-  stats.appendChild(el("span", null,
-    ` individual${all.length === 1 ? "" : "s"} · `));
+  const timeline = memory.timeline || {};
+  const occurrences = episodes.reduce((sum, one) => sum + one.occurrences.length, 0);
+  const counted = (count, word) => {
+    stats.appendChild(el("b", null, String(count)));
+    stats.appendChild(el("span", null, ` ${word}${count === 1 ? "" : "s"} · `));
+  };
+  counted(episodes.length, "episode");
+  counted(occurrences, "occurrence");
+  counted(all.length, "individual");
   stats.appendChild(el("b", null, String(memory.nodes || 0)));
   stats.appendChild(el("span", null, ` trie nodes for `));
   stats.appendChild(el("b", null, String(memory.cells || 0)));
-  stats.appendChild(el("span", null, ` predicates, planned by adaptive_coverage`));
+  stats.appendChild(el("span", null, ` predicates, and `));
+  stats.appendChild(el("b", null, String(timeline.nodes || 0)));
+  stats.appendChild(el("span", null,
+    ` for occurrences, planned by adaptive_coverage`));
 
   all.forEach(one => {
     const card = el("div", "referent" + (one.id === discourse.focus ? " focus" : ""));

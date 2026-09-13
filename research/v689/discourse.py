@@ -122,11 +122,23 @@ class Discourse:
         self.turn = 0
         #: the individual most recently talked about -- never you
         self.focus: str | None = None
+        # Attention is a projection of the conversation's stream too: who came
+        # up in what order, and every mention's refresh, so salience after a
+        # restart is what it was rather than a saved number.
+        for kind, handler in (
+                ("turn_began", self._on_turn),
+                ("referent_added", self._on_added),
+                ("attended", self._on_attended), ("named", self._on_named),
+                ("owned", self._on_owned), ("placed", self._on_placed),
+                ("imported", self._on_imported)):
+            memory.log.on(kind, handler)
+
+    def _record(self, kind: str, data: dict):
+        return self.memory.log.record(kind, data)
 
     # -- the state ---------------------------------------------------------
     def next_turn(self) -> None:
-        self.turn += 1
-        self.activation.decay()
+        self._record("turn_began", {"turn": self.turn + 1})
 
     def everyone(self) -> list[Referent]:
         return ([one for one in (self.you, self.program) if one]
@@ -138,16 +150,18 @@ class Discourse:
 
     def me(self) -> Referent:
         if self.you is None:
-            self.you = Referent("you", SPEAKER_KIND, 0, self.turn,
-                                speaker=True)
+            self._record("referent_added", {
+                "id": "you", "kind": SPEAKER_KIND, "order": 0,
+                "turn": self.turn, "speaker": True})
             self.memory.place("you", SPEAKER_KIND, self.memory.kind_node(
                 SPEAKER_KIND, self.sense_of(SPEAKER_KIND)))
         return self.you
 
     def addressed(self) -> Referent:
         if self.program is None:
-            self.program = Referent("program", ADDRESSEE_KIND, 0, self.turn,
-                                    addressee=True)
+            self._record("referent_added", {
+                "id": "program", "kind": ADDRESSEE_KIND, "order": 0,
+                "turn": self.turn, "addressee": True})
             self.memory.place("program", ADDRESSEE_KIND,
                               self.memory.kind_node(
                                   ADDRESSEE_KIND,
@@ -162,10 +176,11 @@ class Discourse:
     def introduce(self, kind: str, accommodated: bool = False,
                   owner: str | None = None,
                   weight: float = 1.0) -> Referent:
-        referent = Referent(f"r{len(self.referents) + 1}", kind,
-                            len(self.referents) + 1, self.turn,
-                            accommodated=accommodated)
-        self.referents.append(referent)
+        number = len(self.referents) + 1
+        self._record("referent_added", {
+            "id": f"r{number}", "kind": kind, "order": number,
+            "turn": self.turn, "accommodated": accommodated})
+        referent = self.referents[-1]
         self.memory.place(referent.id, kind, self.memory.kind_node(
             kind, self.sense_of(kind)))
         if owner:
@@ -174,15 +189,12 @@ class Discourse:
         return referent
 
     def own(self, referent: Referent) -> None:
-        referent.owner = self.me().id
-        self.memory.label(referent.id, f"owner {referent.owner}")
+        self._record("owned", {"id": referent.id, "owner": self.me().id})
 
     def rename(self, referent: Referent, name: str) -> None:
-        referent.name = name
-        self.memory.label(referent.id, f"name {name.lower()}")
+        self._record("named", {"id": referent.id, "name": name})
 
     def narrow(self, referent: Referent, kind: str) -> None:
-        referent.kind = kind
         self.memory.place(referent.id, kind, self.memory.kind_node(
             kind, self.sense_of(kind)))
 
@@ -192,11 +204,50 @@ class Discourse:
         An object refreshes only to `OBJECT_WEIGHT`, and leaves the focus
         where the subject put it.
         """
-        level = max(weight, self.activation.table.get(referent.id, 0.0))
-        self.activation.table[referent.id] = level
-        self.activation.history.append((self.turn, referent.id, level))
-        if weight >= 1.0 and not referent.apart:
-            self.focus = referent.id
+        self._record("attended", {"id": referent.id, "weight": weight})
+
+    # -- handlers ----------------------------------------------------------
+    def _on_turn(self, event) -> None:
+        self.turn = int(event.data["turn"])
+        self.memory.log.turn = self.turn
+        self.activation.decay()
+
+    def _on_added(self, event) -> None:
+        referent = Referent(**event.data)
+        if referent.speaker:
+            self.you = referent
+        elif referent.addressee:
+            self.program = referent
+        else:
+            self.referents.append(referent)
+
+    def _on_attended(self, event) -> None:
+        individual = event.data["id"]
+        weight = float(event.data["weight"])
+        level = max(weight, self.activation.table.get(individual, 0.0))
+        self.activation.table[individual] = level
+        self.activation.history.append((self.turn, individual, level))
+        found = self.by_id(individual)
+        if weight >= 1.0 and found is not None and not found.apart:
+            self.focus = individual
+
+    def _on_named(self, event) -> None:
+        found = self.by_id(event.data["id"])
+        if found is not None:
+            found.name = event.data["name"]
+
+    def _on_owned(self, event) -> None:
+        found = self.by_id(event.data["id"])
+        if found is not None:
+            found.owner = event.data["owner"]
+
+    def _on_placed(self, event) -> None:
+        found = self.by_id(event.data["individual"])
+        if found is not None:
+            found.kind = event.data.get("word") or found.kind
+
+    def _on_imported(self, event) -> None:
+        self.load(event.data.get("discourse") or {})
 
     def salience(self, referent: Referent) -> float:
         return self.activation.salience(referent.id)

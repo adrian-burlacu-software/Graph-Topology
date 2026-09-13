@@ -45,11 +45,15 @@ from dataclasses import dataclass, field
 from research.v688.rephrase import rephrase
 
 from . import clauses as coordination
+from .tense import When, subordinate, take
 
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
 #: phrase can start with.
 AUX = frozenset({"am", "is", "are", "was", "were", "can", "could", "does",
-                 "do", "did", "has", "have", "will", "would"})
+                 "do", "did", "has", "have", "had", "will", "would"})
+
+#: Having: what a told `has` is read as, and what a perfect is made with.
+HAVING = ("has", "have", "had")
 COPULA = frozenset({"am", "is", "are", "was", "were"})
 
 FIRST_PERSON = frozenset({"i", "me", "myself"})
@@ -108,6 +112,7 @@ CONTRACTIONS = {"can't": ["can", "not"], "cannot": ["can", "not"],
                 "couldn't": ["could", "not"], "wouldn't": ["would", "not"],
                 "weren't": ["were", "not"],
                 "don't": ["do", "not"], "didn't": ["did", "not"],
+                "hadn't": ["had", "not"],
                 "isn't": ["is", "not"], "aren't": ["are", "not"],
                 "wasn't": ["was", "not"], "hasn't": ["has", "not"],
                 "haven't": ["have", "not"], "there's": ["there", "is"],
@@ -204,6 +209,8 @@ class Reading:
     #: `and expand in warm ones`: the claims joined to this one, each read
     #: as its own statement
     more: list = field(default_factory=list)
+    #: what it says about when (`tense.py`)
+    when: When | None = None
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -213,7 +220,8 @@ class Reading:
                 "object": self.obj.as_dict() if self.obj else None,
                 "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
-                             else None)}
+                             else None),
+                "when": self.when.as_dict() if self.when else None}
 
 
 def _stops(word: str) -> bool:
@@ -318,7 +326,7 @@ def clause(tokens: list[str]) -> Reading | None:
     holds = True
     if at < len(tokens) and tokens[at] == "not":
         holds, at = False, at + 1
-    elif aux in ("has", "have") and at < len(tokens) and tokens[at] == "no":
+    elif aux in HAVING and at < len(tokens) and tokens[at] == "no":
         holds, at = False, at + 1
     rest = tokens[at:]
     if not rest:
@@ -336,7 +344,7 @@ def object_of(aux: str | None, rest: list[str], lexicon,
     `it is a dog` says what it is. A bare `that` is not one either: `it can do
     that` points at a doing, not a thing.
     """
-    first = 0 if aux in ("has", "have") else 1
+    first = 0 if aux in HAVING else 1
     for at in range(first, len(rest)):
         carried = at > 0 and rest[at - 1] in CARRYING
         if aux in COPULA and not carried:
@@ -610,6 +618,10 @@ KIND_WORDS = frozenset({"kind", "kinds", "type", "types", "sort", "sorts",
 PLACES = frozenset({"on", "in", "inside", "under", "at", "near", "beside",
                     "behind", "above", "below"})
 
+#: Words that pick one out of a sequence: `what did it do second`.
+SEQUENCE = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+            "next": -1, "last": -1}
+
 
 def _individual(found) -> bool:
     """A phrase naming one of this conversation's individuals, rather than a
@@ -641,6 +653,32 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
     if len(tokens) < 2:
         return None
     first = tokens[0]
+
+    # `when did the dog chase the cat`, `how many times did it bark`: an
+    # occurrence found, and its time or its count read out (`timeline.py`).
+    for opener, act in ((["when"], "when"),
+                        (["how", "many", "times"], "how_many_times"),
+                        (["how", "often"], "how_many_times")):
+        at = len(opener)
+        if tokens[:at] != opener or len(tokens) < at + 3 \
+                or tokens[at] not in AUX:
+            continue
+        found = read_mention(tokens, at + 1, lexicon, tokens[at],
+                             names=names)
+        if _individual(found) and found.end < len(tokens):
+            return _with_object(Reading(act, found, tokens[at],
+                                        tokens[found.end:], said=said),
+                                lexicon, names)
+        return None
+
+    # `what was the dog doing`, `what is it doing`
+    if (first == "what" and len(tokens) >= 4 and tokens[1] in COPULA
+            and tokens[-1] == "doing"):
+        found = read_mention(tokens[:-1], 2, lexicon, tokens[1],
+                             final_ok=True, names=names)
+        if _individual(found) and found.end == len(tokens) - 1:
+            return Reading("doing", found, tokens[1], ["doing"], said=said)
+        return None
 
     if tokens[:2] == ["how", "many"]:
         end = next((len(one) for one in COUNT_ENDS
@@ -693,9 +731,25 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
             return Reading("where", found, said=said)
         return None
 
+    # `what will happen tomorrow`: what is to come.
+    if tokens[:3] in (["what", "will", "happen"],
+                      ["what", "is", "going"]) and (
+            tokens[1] == "will" or tokens[3:5] == ["to", "happen"]):
+        at = 3 if tokens[1] == "will" else 5
+        return Reading("happened", rest=["future"] + [
+            word for word in tokens[at:] if word in SEQUENCE], said=said)
+
     if tokens[:2] == ["what", "happened"] or tokens[:3] == ["what", "has",
                                                             "happened"]:
-        return Reading("happened", said=said)
+        at = 2 if tokens[1] == "happened" else 3
+        # `what happened to the vase`: what it took part in.
+        if tokens[at:at + 1] == ["to"]:
+            found = read_mention(tokens, at + 1, lexicon, "is", final_ok=True,
+                                 names=names)
+            if _individual(found) and found.end == len(tokens):
+                return Reading("happened", found, None, ["to"], said=said)
+        return Reading("happened", rest=[word for word in tokens[at:]
+                                         if word in SEQUENCE], said=said)
 
     # Before `what` + auxiliary, which would read `you` in `what do you
     # know about it` as the individual asked about.
@@ -711,10 +765,14 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
     # About the conversation itself: what was said, and how an answer was
     # reached. `what did i tell you` asked whether you told yourself things,
     # and `how do you know that` was refused as a question about method.
-    if tokens in (["what", "did", "i", "tell", "you"],
-                  ["what", "have", "i", "told", "you"],
-                  ["what", "did", "i", "say"], ["what", "have", "i", "said"]):
-        return Reading("happened", said=said)
+    for told in (["what", "did", "i", "tell", "you"],
+                 ["what", "have", "i", "told", "you"],
+                 ["what", "did", "i", "say"], ["what", "have", "i", "said"]):
+        after = tokens[len(told):]
+        if tokens[:len(told)] == told and (not after or (
+                len(after) == 1 and after[0] in SEQUENCE)):
+            # Telling time, not story time: the order it was said in.
+            return Reading("happened", rest=["told"] + after, said=said)
     if tokens in (["how", "do", "you", "know"],
                   ["how", "do", "you", "know", "that"],
                   ["how", "sure", "are", "you"], ["are", "you", "sure"],
@@ -736,9 +794,11 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
         if not _individual(found) or found.form in ("speaker", "addressee"):
             return None
         rest = tokens[found.end:]
-        if rest[:1] == ["do"] and rest[1:2] in (["first"], ["last"],
-                                                ["next"]):
+        if rest[:1] == ["do"] and rest[1:2] and rest[1] in SEQUENCE:
             return Reading("happened", found, tokens[1], rest[1:], said=said)
+        # `what did the dog do`: what it did, not what it can do.
+        if rest == ["do"] and tokens[1] == "did":
+            return Reading("happened", found, tokens[1], [], said=said)
         if rest in (["do"], ["have"]):
             return Reading("about", found, tokens[1], rest, holds=holds,
                            said=said)
@@ -756,18 +816,46 @@ def conversational(tokens: list[str], lexicon, names: frozenset,
     return None
 
 
-def read(text: str, lexicon, names: frozenset = frozenset()) -> Reading:
+def read(text: str, lexicon, names: frozenset = frozenset(),
+         anchored: bool = True) -> Reading:
     """Read one utterance.
 
     `lexicon` needs `subject(question)`, `lemma(word)` and `known(phrase)`;
     v687's parser supplies all three. `names` is every name the conversation
     has been told, lowercased, so a mention of one is read as a mention.
+
+    What it says about time is taken out first (`tense.py`) and kept on the
+    reading as `when`. An anchor clause -- `after the dog chased the cat` --
+    is only one if it reads as a statement about someone; otherwise the
+    utterance is read whole.
     """
     said = (text or "").strip()
     # A request is read as the question inside it: `do you know if a dog can
     # swim` is `can a dog swim`, and `can't it swim` is `can it swim`.
     asked = rephrase(said)
-    tokens, typed = tokens_of(asked.text)
+    split = subordinate(asked.text) if anchored else None
+    if split is not None:
+        anchor = read(split[2], lexicon, names, anchored=False)
+        if anchor.act != "tell" or anchor.mention is None:
+            split = None
+    tokens, typed = tokens_of(split[0] if split else asked.text)
+    tokens, typed, when = take(tokens, typed, names)
+    if split is not None:
+        when.relation, when.anchor = split[1], split[2]
+    if split is not None or when.words:
+        # Quoted without the words that placed it, except `again`, without
+        # which three barks read as one said three times.
+        when.main = " ".join(typed + list(when.again_words))
+    found = _read(said, asked, tokens, typed, lexicon, names)
+    found.when = when
+    for one in found.more:
+        if one.when is None or one.when.empty:
+            one.when = When(frame=when.frame)
+    return found
+
+
+def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
+          names: frozenset) -> Reading:
     if not tokens:
         return Reading("generic", said=said)
 
@@ -924,6 +1012,21 @@ def progressive(aux: str | None, rest: list[str], lexicon):
     return aux, rest
 
 
+def perfect(aux: str | None, rest: list[str], lexicon):
+    """`had eaten` -> (`does`, [`eat`]): a perfect is something it did.
+
+    Without this `it had eaten` was `has_part "eaten"`. `lexicon.participle`
+    decides whether the word is a verb's participle, so `had a ball` and `has
+    four legs` stay having.
+    """
+    rest = list(rest)
+    if aux in HAVING and rest and hasattr(lexicon, "participle"):
+        verb = lexicon.participle(rest[0])
+        if verb:
+            return "does", [verb] + rest[1:]
+    return aux, rest
+
+
 def mode_of(aux: str | None) -> str:
     """`can` asks what it is able to do; everything else, what it does."""
     return "can" if aux in ("can", "could") else "does"
@@ -943,7 +1046,7 @@ def kind_question(aux: str | None, rest: list[str], kind: str,
         return f"is {who} {tail}"
     if aux in ("can", "could"):
         return f"can {who} {tail}"
-    if aux in ("has", "have"):
+    if aux in HAVING:
         return f"does {who} have {tail}"
     if aux in ("does", "do", "did", "will", "would"):
         return f"does {who} {tail}"
@@ -960,7 +1063,7 @@ def predicate_key(aux: str | None, rest: list[str], lemma) -> str:
     body = [word for word in rest if word not in ARTICLES]
     if aux in COPULA:
         head = "is"
-    elif aux in ("has", "have"):
+    elif aux in HAVING:
         head = "have"
     else:
         head = "does"
