@@ -63,7 +63,6 @@ everyone stored beneath fits.
 """
 from __future__ import annotations
 
-import time
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
@@ -72,6 +71,8 @@ from research.v687.ordering import adaptive_coverage
 from research.v687.reason import Answer, Fact, Reasoner
 from research.v687.rules import Step
 from research.v687.trie import ROOT, PredicateTrie
+
+from .events import KNOWLEDGE, Event, Log, Stream
 
 #: The source column of everything a conversation stores.
 TOLD = "told"
@@ -108,6 +109,32 @@ def _stem(obj: str) -> str:
 def _quoted(said: str) -> str:
     """Kept without closing punctuation: it is only ever shown in quotes."""
     return (said or "").strip().rstrip(".!?")
+
+
+def walk_down(trie: PredicateTrie, members: dict, wanted: frozenset):
+    """(found, reached, visited): identification, the trie read downwards.
+
+    Walk down until the description is exhausted. A predicate on the path
+    that the description does not name is walked through, not refused -- a
+    black beagle is still a beagle -- and once every wanted predicate has
+    been met, everything stored beneath fits. Individuals and occurrences
+    (`timeline.py`) are found by the same walk.
+    """
+    found: set = set()
+    reached: list[tuple] = []
+    visited = 0
+    stack = [(ROOT, frozenset())]
+    while stack:
+        node, have = stack.pop()
+        visited += 1
+        if have >= wanted:
+            path = trie.path(node)
+            reached.append(path)
+            found.update(members.get(path, ()))
+            continue
+        for symbol, child in trie.children(node).items():
+            stack.append((child, have | (frozenset({symbol}) & wanted)))
+    return found, reached, visited
 
 
 @dataclass
@@ -163,6 +190,87 @@ class Withdrawal:
                 "said": self.said, "carrier_id": self.carrier_id}
 
 
+# -- applying events to tables ---------------------------------------------
+#
+# Each function takes anything with episodic memory's tables -- `Knowledge`
+# on its own, or `EpisodicMemory`, whose tables are `Layered` over one -- and
+# applies one event to them. Knowledge replayed on its own and knowledge
+# written through a conversation are the same fold because they are the same
+# functions.
+
+def _origin(tables, key: tuple, event: Event) -> None:
+    """Where knowledge was taught: only an event on the knowledge stream
+    names the conversation, and a row kept before events has its own time."""
+    if "conversation" in event.data:
+        tables.origin[key] = (event.data["conversation"],
+                              event.data.get("when") or event.recorded)
+
+
+def apply_coined(tables, event: Event) -> None:
+    word = event.data["word"]
+    tables.kinds.setdefault(word, word)
+    tables.edges.setdefault(word, [])
+    tables.facts.setdefault(word, [])
+
+
+def apply_related(tables, event: Event) -> None:
+    node, parent = event.data["node"], event.data["parent"]
+    parents = tables.edges.setdefault(node, [])
+    if parent not in parents:
+        parents.append(parent)
+    tables.facts.setdefault(node, [])
+    key = (node, "is_a", parent)
+    tables.said[key] = event.data.get("said", "")
+    _origin(tables, key, event)
+
+
+def apply_told(tables, event: Event) -> None:
+    """One fact about one node; what it contradicts is dropped.
+
+    A fact replaces the same relation or its negation about the same object.
+    `it can swim` after `it can't swim` is a correction, not two facts for R3
+    to adjudicate. `bound` is the individual the object named: the same fact
+    told of another one adds it, and told of no one in particular it is about
+    any.
+    """
+    data = event.data
+    node, relation, obj = data["node"], data["relation"], data["object"]
+    opposed = {relation}
+    if relation in rules.NEGATIONS:
+        opposed.add(rules.NEGATIONS[relation])
+    if relation in rules.POSITIVES:
+        opposed.add(rules.POSITIVES[relation])
+    stem = _stem(obj)
+    key = (node, relation, obj)
+    before = tables.facts.setdefault(node, [])
+    again = any(fact.relation == relation and fact.object == obj
+                for fact in before)
+    kept = []
+    for fact in before:
+        if fact.relation in opposed and _stem(fact.object) == stem:
+            if (fact.relation, fact.object) != (relation, obj):
+                tables.bound.pop((node, fact.relation, fact.object), None)
+            continue
+        kept.append(fact)
+    kept.append(Fact(node, relation, obj, TOLD, 1.0, False))
+    tables.facts[node] = kept
+    tables.said[key] = data.get("said", "")
+    tables.mode[key] = data.get("mode", "does")
+    _origin(tables, key, event)
+    bound = data.get("bound")
+    if bound:
+        tables.bound[key] = (set(tables.bound.get(key, ())) if again
+                             else set()) | {bound}
+    else:
+        tables.bound.pop(key, None)
+
+
+def apply_judged(tables, event: Event) -> None:
+    data = event.data
+    tables.against[(data["node"], data["relation"], data["object"])] = \
+        data["outcome"]
+
+
 class Knowledge:
     """What was taught about kinds: taught kinds, taxonomy and norms.
 
@@ -170,9 +278,17 @@ class Knowledge:
     one in particular: `longterm.py` shares one between every conversation and
     keeps it on disk. Its tables are episodic memory's, keyed the same way, so
     `Layered` can put the two together without either one knowing.
+
+    The tables are a fold of `stream` (`events.py`): `kind_coined`, `related`,
+    `told`, `judged` and `unlearned`, applied by the same functions a
+    conversation applies them with.
     """
 
-    def __init__(self) -> None:
+    APPLY = {"kind_coined": apply_coined, "related": apply_related,
+             "told": apply_told, "judged": apply_judged,
+             "unlearned": lambda knowledge, event: knowledge.clear()}
+
+    def __init__(self, stream: Stream | None = None) -> None:
         self.kinds: dict[str, str] = {}
         self.edges: dict[str, list[str]] = {}
         self.facts: dict[str, list[Fact]] = {}
@@ -182,11 +298,34 @@ class Knowledge:
         self.bound: dict[tuple, set] = {}
         #: (node, relation, object) -> (conversation, when) it was taught in
         self.origin: dict[tuple, tuple] = {}
+        self.stream = stream if stream is not None else Stream(KNOWLEDGE)
 
     def clear(self) -> None:
         for table in (self.kinds, self.edges, self.facts, self.said,
                       self.mode, self.against, self.bound, self.origin):
             table.clear()
+
+    def record(self, kind: str, data: dict) -> Event:
+        event = self.stream.append(kind, data)
+        self.apply(event)
+        return event
+
+    def apply(self, event: Event) -> None:
+        handler = self.APPLY.get(event.type)
+        if handler is not None:
+            handler(self, event)
+
+    def unlearn(self) -> None:
+        """Forget everything taught. The stream still says it was taught,
+        and that it was unlearned; what it folds to is nothing."""
+        self.record("unlearned", {})
+
+    @classmethod
+    def replayed(cls, events, name: str = KNOWLEDGE) -> "Knowledge":
+        knowledge = cls(Stream(name, events))
+        for event in knowledge.stream:
+            knowledge.apply(event)
+        return knowledge
 
     def as_state(self) -> dict:
         """Rows of plain values: what `longterm.Archive` writes."""
@@ -207,29 +346,32 @@ class Knowledge:
         return {"kinds": list(self.kinds), "edges": edges, "norms": norms}
 
     @classmethod
-    def from_state(cls, state: dict) -> "Knowledge":
-        knowledge = cls()
+    def from_state(cls, state: dict, name: str = KNOWLEDGE) -> "Knowledge":
+        """Knowledge kept as rows before it was kept as events.
+
+        Each row is recorded as the event that would have written it, with
+        the conversation and the time it was taught in, so what it folds to
+        is what the rows said. The events are new to the stream, and the
+        archive writes them.
+        """
+        knowledge = cls(Stream(name))
         for word in state.get("kinds") or ():
-            knowledge.kinds[word] = word
-            knowledge.edges.setdefault(word, [])
-            knowledge.facts.setdefault(word, [])
+            knowledge.record("kind_coined", {"word": word})
         for node, parent, said, conversation, when in (state.get("edges")
                                                        or ()):
-            knowledge.edges.setdefault(node, []).append(parent)
-            knowledge.facts.setdefault(node, [])
-            key = (node, "is_a", parent)
-            knowledge.said[key] = said
-            knowledge.origin[key] = (conversation, when)
+            knowledge.record("related", {
+                "node": node, "parent": parent, "said": said,
+                "conversation": conversation, "when": when})
         for (node, relation, obj, said, mode, against, conversation,
              when) in state.get("norms") or ():
-            knowledge.facts.setdefault(node, []).append(
-                Fact(node, relation, obj, TOLD, 1.0, False))
-            key = (node, relation, obj)
-            knowledge.said[key] = said
-            knowledge.mode[key] = mode
+            knowledge.record("told", {
+                "node": node, "relation": relation, "object": obj,
+                "said": said, "mode": mode, "bound": None,
+                "conversation": conversation, "when": when})
             if against:
-                knowledge.against[key] = against
-            knowledge.origin[key] = (conversation, when)
+                knowledge.record("judged", {
+                    "node": node, "relation": relation, "object": obj,
+                    "outcome": against})
         return knowledge
 
 
@@ -271,19 +413,32 @@ class Layered(MutableMapping):
 
 
 class EpisodicMemory:
-    """Everything one conversation added to what the store knows."""
+    """Everything one conversation added to what the store knows.
+
+    Every table here is a projection of `log` (`events.py`). The methods that
+    change memory -- `place`, `tell`, `relate`, `withdraw` -- are commands:
+    each records one event, and the `_on_*` handler for that event is the only
+    code that writes a table. Replaying a stream through the handlers builds
+    memory again without asking v687 or v688 anything.
+    """
 
     def __init__(self, reasoner: Reasoner, knowledge: Knowledge | None = None,
-                 conversation: str = "", definitions=None) -> None:
+                 conversation: str = "", definitions=None,
+                 log: Log | None = None) -> None:
         self.base = reasoner
         #: what glosses were read into (`definitions.DefinitionMemory`),
         #: shared by every conversation; None where nothing keeps them
         self.definitions = definitions
         #: what was taught about kinds: shared with every other conversation
-        #: when `longterm.py` hands one in, a fresh one of its own otherwise
-        self.knowledge = knowledge if knowledge is not None else Knowledge()
+        #: when `longterm.py` hands one in, a fresh one of its own otherwise,
+        #: kept in a stream named for the conversation
+        self.knowledge = (knowledge if knowledge is not None else
+                          Knowledge(Stream(f"{KNOWLEDGE}:{conversation}")))
         #: the id the page keeps, so knowledge can say where it was taught
         self.conversation = conversation
+        #: the conversation's stream and the knowledge stream it writes to
+        self.log = log if log is not None else Log(
+            Stream(conversation or "conversation"), self.knowledge.stream)
         #: the nodes that are individuals, in the order they came up
         self.individuals: list[str] = []
 
@@ -318,11 +473,28 @@ class EpisodicMemory:
         #: individual -> every kind it is, nearest first, as words
         self.lineage: dict[str, list[str]] = {}
         self.withdrawn: list[Withdrawal] = []
+        #: (node, relation, object) the walk may not read for the question
+        #: being answered: T3 keeps what was told of another episode from
+        #: answering this one (`timeline.py`)
+        self.hidden: frozenset = frozenset()
         self.trie = PredicateTrie()
         self.plan: list = []
         self.members: dict[tuple, list[str]] = {}
         self.growth: list[Growth] = []
         self.reasoner = EpisodicReasoner(reasoner, self)
+        for kind, handler in (
+                ("placed", self._on_placed), ("told", self._on_told),
+                ("judged", self._on_judged), ("withdrawn", self._on_withdrawn),
+                ("restored", self._on_restored), ("named", self._on_named),
+                ("owned", self._on_owned), ("kind_coined", self._on_coined),
+                ("related", self._on_related),
+                ("imported", self._on_imported)):
+            self.log.on(kind, handler)
+
+    @property
+    def origin(self) -> dict:
+        """Where knowledge was taught: the knowledge's own table."""
+        return self.knowledge.origin
 
     @property
     def parent(self) -> dict:
@@ -335,7 +507,20 @@ class EpisodicMemory:
         return bool(node) and (node in self.individuals
                                or node in self.kinds.values())
 
-    # -- writing -----------------------------------------------------------
+    # -- commands: each records one event -----------------------------------
+    def _record(self, kind: str, data: dict, about: str | None = None):
+        """Record a change and apply it; what the handler returns.
+
+        An event about a node that is not one of this conversation's
+        individuals is knowledge: it goes to the knowledge stream, with the
+        conversation it was taught in. That is the test `Layered` routes a
+        table write by, taken before the write rather than during it.
+        """
+        knowledge = about is not None and about not in self.individuals
+        if knowledge:
+            data = {**data, "conversation": self.conversation}
+        return self.log.record(kind, data, knowledge=knowledge)
+
     def kind_node(self, word: str, sense: str | None) -> str:
         """Where a kind word lives: its synset, or a kind taught here.
 
@@ -348,90 +533,107 @@ class EpisodicMemory:
             return sense
         word = (word or "").strip().lower()
         if word not in self.kinds:
-            self.kinds[word] = word
-            self.edges.setdefault(word, [])
-            self.facts.setdefault(word, [])
+            self._record("kind_coined", {"word": word}, about=word)
         return self.kinds[word]
 
-    def place(self, individual: str, word: str, node: str | None) -> Growth:
+    def place(self, individual: str, word: str, node: str | None):
         """Put an individual under a kind, or move it under a narrower one."""
+        return self._record("placed", {"individual": individual,
+                                       "word": word, "node": node})
+
+    def relate(self, node: str, parent: str, said: str):
+        """A taught edge: `a wemble is a kind of animal`."""
+        return self._record("related", {"node": node, "parent": parent,
+                                        "said": _quoted(said)}, about=node)
+
+    def tell(self, node: str, relation: str, obj: str, said: str,
+             mode: str = "does", bound: str | None = None,
+             when: dict | None = None):
+        """Record one fact about one node (`apply_told`).
+
+        `when` is where in the story it holds (`timeline.py`), for a fact
+        about an individual; a fact about a kind holds whenever.
+        """
+        data = {"node": node, "relation": relation, "object": obj,
+                "said": _quoted(said), "mode": mode, "bound": bound}
+        if when:
+            data["when"] = dict(when)
+        return self._record("told", data, about=node)
+
+    def judge(self, node: str, relation: str, obj: str, outcome: str) -> None:
+        """What v688 answered for the kind, kept beside a told fact."""
+        self._record("judged", {"node": node, "relation": relation,
+                                "object": obj, "outcome": outcome},
+                     about=node)
+
+    def withdraw(self, node: str, relation: str, obj: str,
+                 carrier: str, carrier_id: str | None = None) -> Withdrawal:
+        """E2: take a fact back and keep it as `carried`. The decision was
+        made by the session, asking v687 and v688; this records it."""
+        return self._record("withdrawn", {
+            "node": node, "relation": relation, "object": obj,
+            "carrier": carrier, "carrier_id": carrier_id})
+
+    def restore(self, node: str, obj: str) -> Withdrawal | None:
+        """E2 undone: nothing carrying it does the thing, so the doing was
+        its own. The fact goes back as it was told."""
+        if not any(one.node == node and one.object == obj
+                   for one in self.withdrawn):
+            return None
+        return self._record("restored", {"node": node, "object": obj})
+
+    # -- handlers: the only code that writes a table --------------------------
+    def _changed(self, reason: str) -> Growth | None:
+        """Re-plan the trie after a change, except while replaying, when it
+        is re-planned once at the end."""
+        return None if self.log.replaying else self.store(reason)
+
+    def _on_coined(self, event: Event) -> None:
+        apply_coined(self, event)
+
+    def _on_placed(self, event: Event) -> Growth | None:
+        individual = event.data["individual"]
+        node, word = event.data.get("node"), event.data.get("word", "")
         if individual not in self.individuals:
             self.individuals.append(individual)
         self.edges[individual] = [node] if node else []
         self.words[individual] = word
         self.facts.setdefault(individual, [])
         self.labels.setdefault(individual, set())
-        return self.store(f"{individual} is {word}")
+        return self._changed(f"{individual} is {word}")
 
-    def relate(self, node: str, parent: str, said: str) -> Growth:
-        """A taught edge: `a wemble is a kind of animal`."""
-        parents = self.edges.setdefault(node, [])
-        if parent not in parents:
-            parents.append(parent)
-        self.facts.setdefault(node, [])
-        self.said[(node, "is_a", parent)] = _quoted(said)
-        self._taught((node, "is_a", parent))
-        return self.store(f"{name_of(node)} is a kind of {name_of(parent)}")
+    def _on_related(self, event: Event) -> Growth | None:
+        apply_related(self, event)
+        return self._changed(f"{name_of(event.data['node'])} is a kind of "
+                             f"{name_of(event.data['parent'])}")
 
-    def tell(self, node: str, relation: str, obj: str, said: str,
-             mode: str = "does", bound: str | None = None) -> Growth:
-        """Record one fact about one node; what it contradicts is dropped.
+    def _on_told(self, event: Event) -> Growth | None:
+        apply_told(self, event)
+        data = event.data
+        return self._changed(f"{name_of(data['node'])} {data['relation']} "
+                             f"{data['object']}")
 
-        A fact replaces the same relation or its negation about the same
-        object. `it can swim` after `it can't swim` is a correction, not two
-        facts for R3 to adjudicate.
+    def _on_judged(self, event: Event) -> None:
+        apply_judged(self, event)
 
-        `bound` is the individual the object named. The same fact told of
-        another one adds it -- `it chased the first cat`, then `it chased the
-        second cat` -- and the fact told of no one in particular is about any.
-        """
-        opposed = {relation}
-        if relation in rules.NEGATIONS:
-            opposed.add(rules.NEGATIONS[relation])
-        if relation in rules.POSITIVES:
-            opposed.add(rules.POSITIVES[relation])
-        stem = _stem(obj)
-        key = (node, relation, obj)
-        before = self.facts.setdefault(node, [])
-        again = any(fact.relation == relation and fact.object == obj
-                    for fact in before)
-        kept = []
-        for fact in before:
-            if fact.relation in opposed and _stem(fact.object) == stem:
-                if (fact.relation, fact.object) != (relation, obj):
-                    self.bound.pop((node, fact.relation, fact.object), None)
-                continue
-            kept.append(fact)
-        kept.append(Fact(node, relation, obj, TOLD, 1.0, False))
-        self.facts[node] = kept
-        self.said[key] = _quoted(said)
-        self.mode[key] = mode
-        self._taught(key)
-        if bound:
-            self.bound[key] = (set(self.bound.get(key, ())) if again
-                               else set()) | {bound}
-        else:
-            self.bound.pop(key, None)
-        return self.store(f"{name_of(node)} {relation} {obj}")
-
-    def withdraw(self, node: str, relation: str, obj: str,
-                 carrier: str, carrier_id: str | None = None) -> Withdrawal:
-        """E2: take a fact back and keep it as `carried`."""
+    def _on_withdrawn(self, event: Event) -> Withdrawal:
+        data = event.data
+        node, relation, obj = data["node"], data["relation"], data["object"]
         said = self.said.get((node, relation, obj), "")
         self.facts[node] = [fact for fact in self.facts.get(node, [])
                             if not (fact.relation == relation
                                     and fact.object == obj)]
         self.facts[node].append(Fact(node, CARRIED, obj, TOLD, 1.0, False))
         self.said[(node, CARRIED, obj)] = said
-        withdrawal = Withdrawal(node, relation, obj, carrier, said,
-                                carrier_id)
+        withdrawal = Withdrawal(node, relation, obj, data["carrier"], said,
+                                data.get("carrier_id"))
         self.withdrawn.append(withdrawal)
-        self.store(f"{node} {relation} {obj} withdrawn, carried by {carrier}")
+        self._changed(f"{node} {relation} {obj} withdrawn, carried by "
+                      f"{data['carrier']}")
         return withdrawal
 
-    def restore(self, node: str, obj: str) -> Withdrawal | None:
-        """E2 undone: nothing carrying it does the thing, so the doing was
-        its own. The fact goes back as it was told."""
+    def _on_restored(self, event: Event) -> Withdrawal | None:
+        node, obj = event.data["node"], event.data["object"]
         withdrawal = next((one for one in reversed(self.withdrawn)
                            if one.node == node and one.object == obj), None)
         if withdrawal is None:
@@ -445,21 +647,27 @@ class EpisodicMemory:
                                      1.0, False))
         self.said[key] = withdrawal.said
         self.mode[key] = "does"
-        self.store(f"{node} {withdrawal.relation} {obj} restored, "
-                   f"{withdrawal.carrier} does not do it")
+        self._changed(f"{node} {withdrawal.relation} {obj} restored, "
+                      f"{withdrawal.carrier} does not do it")
         return withdrawal
 
-    def label(self, individual: str, predicate: str) -> Growth:
+    def _on_named(self, event: Event) -> Growth | None:
+        return self._label(event.data["id"],
+                           f"name {event.data['name'].lower()}")
+
+    def _on_owned(self, event: Event) -> Growth | None:
+        return self._label(event.data["id"], f"owner {event.data['owner']}")
+
+    def _label(self, individual: str, predicate: str) -> Growth | None:
         """`name rex`, `owner you`: one of each kind, the latest kept."""
         head = predicate.split(" ", 1)[0] + " "
-        self.labels[individual] = {one for one in self.labels[individual]
+        self.labels[individual] = {one for one in
+                                   self.labels.get(individual, set())
                                    if not one.startswith(head)} | {predicate}
-        return self.store(f"{individual} {predicate}")
+        return self._changed(f"{individual} {predicate}")
 
-    def _taught(self, key: tuple) -> None:
-        """Where knowledge came from, so a later conversation can say so."""
-        if key[0] not in self.individuals:
-            self.knowledge.origin[key] = (self.conversation, time.time())
+    def _on_imported(self, event: Event) -> None:
+        self.load(event.data.get("memory") or {})
 
     def learned_earlier(self, key: tuple) -> bool:
         """Knowledge taught in a conversation other than this one."""
@@ -545,27 +753,10 @@ class EpisodicMemory:
 
     # -- reading -----------------------------------------------------------
     def identify(self, wanted) -> Identification:
-        """Walk down the trie until the description is exhausted.
-
-        A predicate on the path that the description does not name is walked
-        through, not refused -- a black beagle is still a beagle -- and once
-        every wanted predicate has been met, everyone stored beneath fits.
-        """
+        """Walk down the trie until the description is exhausted
+        (`walk_down`): everyone stored beneath fits."""
         wanted = frozenset(wanted)
-        found: set[str] = set()
-        reached: list[tuple] = []
-        visited = 0
-        stack = [(ROOT, frozenset())]
-        while stack:
-            node, have = stack.pop()
-            visited += 1
-            if have >= wanted:
-                path = self.trie.path(node)
-                reached.append(path)
-                found.update(self.members.get(path, ()))
-                continue
-            for symbol, child in self.trie.children(node).items():
-                stack.append((child, have | (frozenset({symbol}) & wanted)))
+        found, reached, visited = walk_down(self.trie, self.members, wanted)
         return Identification(sorted(wanted),
                               sorted(found, key=self.individuals.index),
                               visited, reached)
@@ -600,7 +791,9 @@ class EpisodicMemory:
                      "parents": list(self.edges.get(node, [])),
                      "facts": facts(node)}
                     for node in taught],
-                "withdrawn": [one.as_dict() for one in self.withdrawn]}
+                "withdrawn": [one.as_dict() for one in self.withdrawn],
+                "events": len(self.log.conversation),
+                "log": self.log.conversation.tail(40)}
 
 
 class EpisodicReasoner(Reasoner):
@@ -627,10 +820,12 @@ class EpisodicReasoner(Reasoner):
         # Copies: `verify` writes distance and decayed confidence onto the
         # facts it is handed, and these are the memory's own rows. Told facts
         # come first, as the store's own order would put a confidence of 1.
+        hidden = self.memory.hidden
         told = [Fact(fact.concept, fact.relation, fact.object, fact.source,
                      fact.confidence, False)
                 for fact in self.memory.facts.get(concept, [])
-                if group is None or fact.relation in group]
+                if (group is None or fact.relation in group)
+                and (concept, fact.relation, fact.object) not in hidden]
         if self.memory.episodic_only(concept):
             return told
         # What its definition says comes after what was told and before the

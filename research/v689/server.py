@@ -110,6 +110,49 @@ EXAMPLES = [
               "from memory; asked a fact in it, the walk reads the "
               "definition like any record. A kitten told it is old is kept as "
               "said, and the answer says the definition rules it out."},
+    {"title": "yesterday and today",
+     "lines": ["there is a dog", "there is a cat",
+               "yesterday the dog chased the cat", "it was hungry",
+               "today the dog is asleep", "what happened yesterday",
+               "is the dog hungry", "was the dog hungry yesterday",
+               "when did the dog chase the cat"],
+     "shows": "Two episodes. `yesterday` names a time on the line of days, "
+              "and the chase and the hunger are told of it; `today the dog "
+              "is asleep` of the present. T3: a state belongs to the time it "
+              "was told of, so `is the dog hungry` is not answered by "
+              "yesterday's hunger, and the reply says when it was told. "
+              "`when did the dog chase the cat` is identification on the "
+              "occurrence trie with the episode read out (T5)."},
+    {"title": "what happened first",
+     "lines": ["there was a dog", "it slept", "before that, it had barked",
+               "then it woke up", "what happened first",
+               "did it bark before it slept", "did it wake up before it slept",
+               "what did i tell you first"],
+     "shows": "Told sleep, bark, wake; happened bark, sleep, wake. T1 "
+              "places each clause: a past perfect before the time the story "
+              "is at, `then` after it. T2 walks `before` the way R1 walks "
+              "`is_a`, so `did it bark before it slept` is a walk, and `what "
+              "did i tell you first` is telling time, which the event log "
+              "keeps."},
+    {"title": "a broken vase",
+     "lines": ["there was a vase", "there was a cat", "the cat broke the vase",
+               "is the vase broken",
+               "was the vase broken before the cat broke it",
+               "what happened to the vase"],
+     "shows": "T4 reads VerbNet's event structure: break-45.1 puts the "
+              "Patient in a result state, so after `the cat broke the vase` "
+              "the vase is broken, and before it, it was not. The frame is "
+              "matched by position and joined to the verb's WordNet sense, "
+              "so a killed mouse is not amused."},
+    {"title": "did it bark?",
+     "lines": ["there is a dog", "does it bark", "did it bark", "it barked",
+               "it barked again", "did it bark",
+               "how many times did it bark"],
+     "shows": "T6: what a kind does is not what one of them did. `does it "
+              "bark` is a question about dogs; `did it bark`, with nothing "
+              "told, is not answered by dogs barking. Told twice, it is two "
+              "occurrences under `is_a bark`, and counting them is "
+              "identification."},
     {"title": "nothing to refer to",
      "lines": ["can it swim", "the cat is black", "does it purr"],
      "shows": "`it` with nothing before it is refused. `the cat`, said "

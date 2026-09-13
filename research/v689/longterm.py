@@ -29,6 +29,22 @@ and keeps the knowledge; `unlearn` forgets the knowledge.
 demonstration that wrote that into what every later conversation starts from
 would be a false norm with a permanent address. An example conversation has
 knowledge of its own, saved with it and read by nothing else.
+
+## Events are what is kept
+
+Both memories are event streams (`events.py`), and the `events` table is the
+record of them: append-only, one row per event, in the order it happened. A
+conversation comes back by replaying its stream, and knowledge by replaying
+`knowledge`. The other tables are read models kept beside the log -- the
+knowledge as rows, a snapshot of each conversation, and every turn as the page
+showed it -- so sqlite can be read without folding a stream by hand.
+
+Rows kept before there were events are read once and recorded as the events
+that would have written them: a conversation's snapshot as one `imported`
+event at the head of its stream, and knowledge rows as `kind_coined`,
+`related`, `told` and `judged`. `start over` deletes a conversation's stream,
+because it asks for the conversation to be gone; `unlearn` appends
+`unlearned`, and the stream keeps what was unlearned.
 """
 from __future__ import annotations
 
@@ -40,6 +56,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from .episodic import Knowledge
+from .events import KNOWLEDGE, Event, Stream
 from .session import Session
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -73,6 +90,10 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS turns (
     conversation TEXT NOT NULL, number INTEGER NOT NULL, turn TEXT NOT NULL,
     PRIMARY KEY (conversation, number));
+CREATE TABLE IF NOT EXISTS events (
+    stream TEXT NOT NULL, seq INTEGER NOT NULL, type TEXT NOT NULL,
+    turn INTEGER NOT NULL, recorded REAL NOT NULL, data TEXT NOT NULL,
+    PRIMARY KEY (stream, seq));
 """
 
 
@@ -95,11 +116,36 @@ class Archive:
         with self.lock:
             self.connection.close()
 
+    # -- events ------------------------------------------------------------
+    def append(self, stream: Stream) -> int:
+        """Write what a stream has that the archive does not. Returns how
+        many events were written."""
+        rows = [event.as_row() for event in stream.unsaved()]
+        if rows:
+            with self.lock, self.connection:
+                self.connection.executemany(
+                    "INSERT OR REPLACE INTO events VALUES (?, ?, ?, ?, ?, ?)",
+                    rows)
+        stream.mark_saved()
+        return len(rows)
+
+    def events(self, stream: str) -> list[Event]:
+        with self.lock:
+            rows = self.connection.execute(
+                "SELECT stream, seq, type, turn, recorded, data FROM events "
+                "WHERE stream = ? ORDER BY seq", (stream,)).fetchall()
+        return [Event.from_row(row) for row in rows]
+
     # -- knowledge ---------------------------------------------------------
-    def knowledge(self) -> Knowledge:
+    def knowledge(self, name: str = KNOWLEDGE) -> Knowledge:
+        """Knowledge replayed from its stream, or -- kept before there were
+        events -- read from its rows and recorded as events."""
+        events = self.events(name)
+        if events or name != KNOWLEDGE:
+            return Knowledge.replayed(events, name)
         with self.lock:
             read = self.connection.execute
-            return Knowledge.from_state({
+            state = {
                 "kinds": [row[0] for row in read(
                     "SELECT word FROM kinds ORDER BY rowid")],
                 "edges": [list(row) for row in read(
@@ -107,15 +153,19 @@ class Archive:
                     "FROM edges ORDER BY rowid")],
                 "norms": [list(row) for row in read(
                     "SELECT node, relation, object, said, mode, against, "
-                    "conversation, taught FROM norms ORDER BY rowid")]})
+                    "conversation, taught FROM norms ORDER BY rowid")]}
+        knowledge = Knowledge.from_state(state, name)
+        self.append(knowledge.stream)
+        return knowledge
 
     def keep(self, knowledge: Knowledge) -> None:
-        """Write the knowledge as it stands, whole, in one transaction.
+        """Append the knowledge's new events, and write the rows it folds to.
 
-        It is small, and rewriting it is simpler than tracking what changed
-        -- a correction replaces a norm, `unlearn` empties it -- and a
-        half-written norm is worse than one that was never saved.
+        The rows are a read model, rewritten whole in one transaction: they
+        are small, a correction replaces a norm and `unlearn` empties them,
+        and a half-written norm is worse than one that was never saved.
         """
+        self.append(knowledge.stream)
         state = knowledge.as_state()
         with self.lock, self.connection:
             write = self.connection.execute
@@ -132,8 +182,12 @@ class Archive:
 
     # -- conversations -----------------------------------------------------
     def save(self, session: Session, turn: dict | None = None) -> None:
-        """The conversation as it is after a turn, and that turn as the page
-        showed it."""
+        """What the conversation's stream gained in a turn, and beside it a
+        snapshot and the turn as the page showed it. An example's own
+        knowledge is its own stream, kept with it."""
+        self.append(session.memory.log.conversation)
+        if session.example:
+            self.append(session.memory.knowledge.stream)
         state = json.dumps(session.snapshot())
         with self.lock, self.connection:
             self.connection.execute(
@@ -166,6 +220,9 @@ class Archive:
                 "DELETE FROM conversations WHERE id = ?", (conversation,))
             self.connection.execute(
                 "DELETE FROM turns WHERE conversation = ?", (conversation,))
+            self.connection.execute(
+                "DELETE FROM events WHERE stream IN (?, ?)",
+                (conversation, f"{KNOWLEDGE}:{conversation}"))
 
 
 class Keeper:
@@ -199,10 +256,7 @@ class Keeper:
         """
         found = self.held.pop(conversation, None)
         if found is None and self.archive is not None:
-            state = self.archive.state(conversation)
-            if state is not None:
-                found = Session.resume(self.asker, state, self.knowledge,
-                                       self.definitions)
+            found = self._restore(conversation)
         if found is None:
             found = Session(self.asker, None if example else self.knowledge,
                             conversation, example, self.definitions)
@@ -210,6 +264,22 @@ class Keeper:
         while len(self.held) > self.kept:
             self.held.popitem(last=False)
         return found
+
+    def _restore(self, conversation: str) -> Session | None:
+        """A conversation on disk: replayed from its stream, or, kept before
+        there were streams, resumed from its snapshot."""
+        state = self.archive.state(conversation)
+        events = self.archive.events(conversation)
+        if events:
+            example = bool(state and state.get("example"))
+            knowledge = (self.archive.knowledge(f"{KNOWLEDGE}:{conversation}")
+                         if example else self.knowledge)
+            return Session.rebuild(self.asker, conversation, events,
+                                   knowledge, self.definitions, example)
+        if state is not None:
+            return Session.resume(self.asker, state, self.knowledge,
+                                  self.definitions)
+        return None
 
     def say(self, conversation: str, text: str, example: bool = False,
             trim=None) -> dict:
@@ -236,7 +306,7 @@ class Keeper:
                      if session else [])
         return {"turns": turns,
                 "example": bool(session and session.example),
-                "memory": session.memory.as_dict() if session else None,
+                "memory": session.memory_view() if session else None,
                 "discourse": session.discourse.as_dict() if session else None,
                 "knowledge": self.summary()}
 
@@ -249,7 +319,7 @@ class Keeper:
         """Forget every kind, edge and norm that was taught. Conversations
         keep their individuals; an individual of a kind that is gone keeps
         the word it was introduced by, and nothing above it."""
-        self.knowledge.clear()
+        self.knowledge.unlearn()
         if self.archive is not None:
             self.archive.keep(self.knowledge)
         for session in self.held.values():

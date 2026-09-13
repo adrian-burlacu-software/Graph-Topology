@@ -22,6 +22,7 @@ from research.v689 import reading
 from research.v689.asker import Asker
 from research.v689.definitions import (DefinitionMemory, GlossReader, pieces,
                                        question_for)
+from research.v689.episodic import Knowledge
 from research.v689.longterm import Archive, Keeper
 from research.v689.session import Session
 
@@ -1434,6 +1435,98 @@ class LongTermTests(unittest.TestCase):
         keeper.say("z", "there is a beagle")
         self.assertEqual(keeper.say("z", "can it swim")["answer"]["source"],
                          "kind")
+
+
+class EventSourcingTests(unittest.TestCase):
+    """Memory is a fold of its stream: replaying it is the conversation."""
+
+    #: The page's examples, as conversations: every one must replay.
+    CONVERSATIONS = (
+        ("there is a beagle", "can it swim", "it can't swim", "can it swim",
+         "i have another beagle", "can it swim", "can the first one swim"),
+        ("there was a pig", "he was flying", "can the pig fly",
+         "it was in an airplane", "can the pig fly",
+         "the airplane couldn't fly", "can the pig fly"),
+        ("there is a dog", "there is a cat", "the dog chased it",
+         "there is another cat", "did the dog chase the first cat"),
+        ("a wemble is a kind of animal", "wembles can fly",
+         "there is a wemble", "can it fly", "beagles can't swim",
+         "there is a beagle", "can it swim"),
+        ("my name is Adrian", "i have a beagle", "its name is Rex",
+         "i can't swim", "can Rex swim", "what is my name"),
+        ("there is a dog", "it is a beagle", "what is it"),
+    )
+
+    OUTCOMES = {"can a pig fly": "denied", "does a pig fly": "denied",
+                "can a beagle swim": "verified"}
+
+    def test_replaying_a_stream_rebuilds_the_conversation(self):
+        for lines in self.CONVERSATIONS:
+            session, _, _ = talk(*lines, outcomes=self.OUTCOMES)
+            asker = TinyAsker(self.OUTCOMES)
+            again = Session.rebuild(asker, session.conversation,
+                                    list(session.memory.log.conversation),
+                                    session.memory.knowledge)
+            self.assertEqual(again.snapshot(), session.snapshot(), lines[0])
+            self.assertEqual(asker.asked, [], "replay asked v688 something")
+
+    def test_e2_is_in_the_log_and_not_asked_again(self):
+        session, _, _ = talk("there was a pig", "he was flying",
+                             "it was in an airplane", outcomes=self.OUTCOMES)
+        kinds = [event.type for event in session.memory.log.conversation]
+        self.assertIn("withdrawn", kinds)
+        again = Session.rebuild(TinyAsker(), session.conversation,
+                                list(session.memory.log.conversation),
+                                session.memory.knowledge)
+        self.assertEqual(again.memory.withdrawn[0].carrier_id, "r2")
+
+    def test_knowledge_is_a_stream_of_its_own(self):
+        session, _, _ = talk("a wemble is a kind of animal", "wembles can fly",
+                             "beagles can't swim", outcomes=self.OUTCOMES)
+        knowledge = session.memory.knowledge
+        self.assertEqual({event.type for event in knowledge.stream},
+                         {"kind_coined", "related", "told", "judged"})
+        self.assertFalse(any(event.type in ("related", "kind_coined")
+                             for event in session.memory.log.conversation))
+        replayed = Knowledge.replayed(list(knowledge.stream))
+        self.assertEqual(replayed.as_state(), knowledge.as_state())
+        self.assertEqual(replayed.origin, knowledge.origin)
+
+    def test_unlearning_is_an_event_and_folds_to_nothing(self):
+        session, _, _ = talk("wembles can fly")
+        knowledge = session.memory.knowledge
+        knowledge.unlearn()
+        self.assertEqual(knowledge.stream.events[-1].type, "unlearned")
+        replayed = Knowledge.replayed(list(knowledge.stream))
+        self.assertEqual(replayed.as_state()["norms"], [])
+
+    def test_rows_kept_before_events_become_events(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = Path(folder.name) / "old.sqlite"
+        archive = Archive(path)
+        with archive.connection:
+            archive.connection.execute("INSERT INTO kinds VALUES ('wemble')")
+            archive.connection.execute(
+                "INSERT INTO norms VALUES ('wemble', 'capable_of', 'fly', "
+                "'wembles can fly', 'can', NULL, 'old', 1.0)")
+        knowledge = archive.knowledge()
+        self.assertEqual([event.type for event in archive.events("knowledge")],
+                         ["kind_coined", "told"])
+        self.assertEqual(knowledge.origin[("wemble", "capable_of", "fly")],
+                         ("old", 1.0))
+        archive.close()
+
+    def test_a_snapshot_from_before_events_is_the_head_of_its_stream(self):
+        session, _, _ = talk("there is a beagle", "its name is Rex",
+                             "it can't swim")
+        resumed = Session.resume(TinyAsker(), session.snapshot())
+        self.assertEqual(resumed.memory.log.conversation.events[0].type,
+                         "imported")
+        self.assertEqual(resumed.snapshot()["memory"],
+                         session.snapshot()["memory"])
+        turn = resumed.say("can Rex swim")
+        self.assertEqual(turn.answer["source"], "told")
 
 
 if __name__ == "__main__":
