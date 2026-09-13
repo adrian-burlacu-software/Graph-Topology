@@ -64,6 +64,8 @@ from research.v687 import rules
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
                                      Operator)
 from research.v688 import retrieval
+
+from .goals import Answering, read_goal
 from research.v688.teacher import SETTLING_FLOOR
 
 from .definitions import DEFINED, GlossReader, question_for, says
@@ -386,10 +388,12 @@ class Session:
                 return ANSWERED
             return apply
 
-        # What the utterance does, as operators (`executive.py`): each act
-        # proposes on its own reading, and anything else is v688's.
+        # What the utterance does, as operators (`executive.py`): first the
+        # goals a question states, answered by their slots (`goals.py`), then
+        # each act on its own reading, and anything else is v688's.
         acting = Executive(
-            [Operator(name, acted(handler),
+            Answering(self).operators()
+            + [Operator(name, acted(handler),
                       proposes=lambda memory, name=name:
                       memory["reading"].act == name)
              for name, handler in acts.items()]
@@ -411,7 +415,9 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            acting.run({"reading": one, "turn": turn})
+            goal = (read_goal(one.said, lexicon, self.discourse.names())
+                    if index == 0 else None)
+            acting.run({"reading": one, "turn": turn, "goal": goal})
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
