@@ -61,6 +61,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
+from research.v688 import retrieval
 from research.v688.teacher import SETTLING_FLOOR
 
 from .definitions import DEFINED, GlossReader, question_for, says
@@ -593,7 +594,9 @@ class Session:
         told = sorted((seq, value, said, one) for one in kin
                       for value, said, seq in self._values(one.id, attribute))
         if told:
-            _, value, said, one = told[-1]
+            # The most recently told is the most active evidence: I1 is
+            # retrieval by recency over the kin (`retrieval.latest`).
+            _, value, said, one = retrieval.latest(told, lambda each: each[0])
             if len({each[1] for each in told}) == 1:
                 why = f"every {referent.kind} here that was told of is {value}"
             else:

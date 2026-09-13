@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
+from research.v688 import retrieval
 from research.v688.attention import Activation
 
 from .episodic import name_of
@@ -398,17 +399,20 @@ class Discourse:
                 else list(self.referents))
         pool = [one for one in pool if one is not None
                 and not one.apart and one.id not in exclude]
+        #: What a candidate should be, strongest first: each narrows the pool
+        #: unless nothing satisfies it (`retrieval.preferred`).
+        preferences = []
         if mention.form == "pronoun" and mention.text in GENDERED:
-            # `she`: never someone whose name says otherwise, and a person
-            # before anything else -- `Mary went to the kitchen. then she` is
-            # not the kitchen. With no person at all it is whatever is there:
+            # `she`: never someone whose name says otherwise -- a filter, which
+            # may leave nothing -- and a person before anything else -- a
+            # preference: `Mary went to the kitchen. then she` is not the
+            # kitchen, and with no person at all it is whatever is there:
             # `there was a pig. he was flying`.
             wanted_gender = GENDERED[mention.text]
-            fitting = [one for one in pool
-                       if one.gender in ("", wanted_gender)]
+            pool = [one for one in pool if one.gender in ("", wanted_gender)]
             people = set(self.memory.identify(
                 {f"is_a {SPEAKER_KIND}"}).candidates)
-            pool = [one for one in fitting if one.id in people] or fitting
+            preferences.append(("a person", lambda one: one.id in people))
         seen = found.as_dict() if found else None
         noun = kind or "thing"
 
@@ -451,10 +455,10 @@ class Discourse:
         # Said the way one of them was introduced: `the container` is the one
         # put down as a container, not the box that is a kind of container.
         # Otherwise `the suitcase` said next finds its suitcase taken.
-        if kind and len(pool) > 1:
-            exact = [one for one in pool if one.kind == kind]
-            if exact and len(exact) < len(pool):
-                pool = exact
+        if kind:
+            preferences.append(("said as introduced",
+                                lambda one: one.kind == kind))
+        pool, _ = retrieval.preferred(pool, preferences)
         ids = [one.id for one in pool]
         if mention.form == "ordinal":
             ordered = sorted(pool, key=lambda one: one.order)
@@ -502,13 +506,15 @@ class Discourse:
                    else f"“{said}”: the only one that fits")
             return Resolution(said, chosen, how, ids, identification=seen)
 
-        ranked = sorted(pool, key=lambda one: (-self.salience(one),
-                                               -one.order))
-        top, second = self.salience(ranked[0]), self.salience(ranked[1])
-        pronoun_like = not kind
-        if top > 0 and ((pronoun_like and top > second)
-                        or top >= CLEAR_LEAD * second):
-            chosen = ranked[0]
+        # Several fit: the most salient, if far enough ahead. Like a pronoun,
+        # a phrase with no kind in it needs only to lead; a description needs
+        # CLEAR_LEAD (`retrieval.retrieve`).
+        recalled = retrieval.retrieve(
+            pool, self.salience, lambda one: one.order,
+            lead=CLEAR_LEAD if kind else None)
+        top, second, ranked = recalled.top, recalled.second, recalled.ranked
+        if recalled.chosen is not None:
+            chosen = recalled.chosen
             self.attend(chosen, weight)
             return Resolution(
                 said, chosen,

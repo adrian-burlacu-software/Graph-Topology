@@ -28,6 +28,7 @@ the stream and nothing is asked twice.
 from __future__ import annotations
 
 from research.v687.links import link
+from research.v688 import retrieval
 
 from . import change as changes
 from .discourse import OBJECT_WEIGHT
@@ -1277,8 +1278,9 @@ class Story:
             return True
         if other is not None and len(found) > 1:
             # `who gave the football`, given three times: the last one gave
-            # it, and the others had given it before (T1).
-            last = found[-1]
+            # it, and the others had given it before (T1): the most recent
+            # in story order (`retrieval.latest`).
+            last = retrieval.latest(found, found.index)
             doer = self.discourse.by_id(last.subject or "")
             turn.answer = {
                 "outcome": "retrieved", "source": "told",
@@ -1315,8 +1317,8 @@ class Story:
                  and change.kind == "location" and change.place in people]
         if not given:
             return False
-        last = max(given, key=lambda change: (order.get(change.occurrence, -1),
-                                              change.seq))
+        last = retrieval.latest(given, lambda change: (
+            order.get(change.occurrence, -1), change.seq))
         turn.answer = {
             "outcome": "retrieved", "source": "told",
             "text": (f"{self.discourse.describe(self.discourse.by_id(last.place))}"
