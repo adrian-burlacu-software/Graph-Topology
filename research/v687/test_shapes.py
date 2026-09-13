@@ -55,6 +55,11 @@ class ShapeTests(unittest.TestCase):
         self.assertTrue("contrast" in dolphin
                         or "feature norms" in dolphin["note"], dolphin["note"])
 
+    def test_a_verb_sense_is_not_a_kind(self):
+        payload = self.engine.ask("is water wet")
+        self.assertNotIn("water.v.01", payload.get("note") or "")
+        self.assertNotEqual(payload.get("concept"), "water.v.01")
+
     def test_the_engine_routes_them(self):
         self.assertEqual(self.engine.ask("what color is a banana")["parse"]
                          ["relation"], "attribute")

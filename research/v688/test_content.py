@@ -213,5 +213,24 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(listed(list("abcdefghij"), 3), "a, b, c and 7 more")
 
 
+class ConflictTests(unittest.TestCase):
+    """A family with an exception does not overturn a claim; one that denies
+    it does."""
+
+    def test_an_exception_is_not_a_denial(self):
+        from research.v688.buffer import Conflict
+
+        chicken = Conflict("fly", "can a bird fly", "VERIFIED",
+                           [("can a chicken fly", "CONTRADICTED")], decided=5)
+        self.assertFalse(chicken.overturns)
+        denied = Conflict("fly", "can a mammal fly", "VERIFIED",
+                          [("can a dog fly", "CONTRADICTED"),
+                           ("can a cat fly", "CONTRADICTED")], decided=3)
+        self.assertTrue(denied.overturns)
+        unknown = Conflict("fly", "can a pig fly", "VERIFIED",
+                           [("can a hog fly", "DENIED")])
+        self.assertTrue(unknown.overturns)
+
+
 if __name__ == "__main__":
     unittest.main()

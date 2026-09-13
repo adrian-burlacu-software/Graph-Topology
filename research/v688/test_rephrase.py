@@ -97,6 +97,16 @@ class SeedTests(unittest.TestCase):
         self.assertEqual(seed_questions("wemble"), ["what is a wemble"])
 
 
+class ConnectiveTests(unittest.TestCase):
+
+    def test_but_joins_two_claims(self):
+        query = logic.parse("fur but not feathers", frozenset())
+        self.assertEqual((query.tree.op, len(query.tree.children)),
+                         ("and", 2))
+        self.assertEqual(query.tree.children[1].op, "not")
+        self.assertNotIn("but", query.tree.terms())
+
+
 class RefusedByName(unittest.TestCase):
 
     def refused(self, text, word):

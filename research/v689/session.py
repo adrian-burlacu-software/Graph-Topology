@@ -506,6 +506,25 @@ class Session:
         definition through v688 the first time it is asked."""
         word = reading.mention.kind
         node = self.asker.sense(word)
+        taught = self.memory.kinds.get(word)
+        if node is None and taught is not None:
+            # `what is a wemble`: the store has no word for it, and v688 said
+            # so. What it is, is what it was taught to be.
+            parents = [name_of(one) for one in self.memory.edges.get(taught,
+                                                                      [])]
+            told = [self.memory.said.get((taught, fact.relation, fact.object),
+                                         "")
+                    for fact in self.memory.facts.get(taught, [])]
+            told = [one for one in dict.fromkeys(told) if one]
+            text = (f"{article(word)} {word}: a kind of "
+                    f"{', '.join(parents)}, as you taught me" if parents else
+                    f"{article(word)} {word}: a kind taught here")
+            if told:
+                text += "; and you taught me " + "; ".join(
+                    f"“{one}”" for one in told)
+            turn.answer = {"outcome": "retrieved", "source": "taught",
+                           "text": text}
+            return
         if node is None or self.definitions is None:
             self._generic(reading, turn)
             return
@@ -1473,9 +1492,45 @@ class Session:
         turn.answer = {"outcome": "retrieved", "source": "conversation",
                        "text": text}
 
+    def _taught_can(self, word: str, node: str, wanted: str,
+                    turn: Turn) -> None:
+        """`what can a wemble do`, for a kind the store has no word for:
+        what was taught of it, and what its taught kind above can do."""
+        relations = ("capable_of",) if wanted == "do" else ("has_a",
+                                                            "has_part")
+        told = [self.memory.said.get((node, fact.relation, fact.object), "")
+                for fact in self.memory.facts.get(node, [])
+                if fact.relation in relations]
+        told = [one for one in dict.fromkeys(told) if one]
+        who = f"{article(word)} {word}"
+        text = (f"{who}: you taught me " + "; ".join(f"“{one}”" for one in told)
+                if told else
+                f"nothing was taught of what {who} "
+                f"{'can do' if wanted == 'do' else 'has'}")
+        above = next((one for one in self.memory.edges.get(node, [])
+                      if not self.memory.episodic_only(one)), None)
+        if above is not None:
+            kind = f"{article(name_of(above))} {name_of(above)}"
+            turn.asked = (f"what can {kind} do" if wanted == "do"
+                          else f"what does {kind} have")
+            turn.run = self._run(turn.asked)
+            _, headline, _ = summary_of(turn.run)
+            if headline:
+                text += f"; and as {kind}: {headline}"
+        turn.answer = {"outcome": "retrieved" if told else "unknown",
+                       "source": "taught", "text": text}
+
     def _generic(self, reading: Reading, turn: Turn) -> None:
         """About a kind: from episodic memory if anything taught bears on
         it, otherwise v688's question, asked as said."""
+        words = reading.said.lower().rstrip("?").split()
+        if (len(words) == 5 and words[0] == "what"
+                and words[1] in ("can", "does", "do")
+                and words[2] in ("a", "an") and words[4] in ("do", "have")):
+            node = self.memory.kinds.get(words[3])
+            if node is not None and self.asker.sense(words[3]) is None:
+                self._taught_can(words[3], node, words[4], turn)
+                return
         if (reading.mention is not None and reading.mention.kind
                 and reading.rest and self._about_kind(reading, turn)):
             return

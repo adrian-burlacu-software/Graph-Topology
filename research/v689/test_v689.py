@@ -985,6 +985,24 @@ class ConversationQuestionTests(unittest.TestCase):
         self.assertIn("which beagles can swim", asker.asked)
 
 
+class TaughtKindTests(unittest.TestCase):
+    """A kind the store has no word for is what it was taught to be."""
+
+    def test_what_is_a_taught_kind(self):
+        _, turns, _ = talk("a wemble is a kind of animal", "wembles can fly",
+                           "what is a wemble")
+        text = turns[2].answer["text"]
+        self.assertIn("a kind of animal", text)
+        self.assertIn("wembles can fly", text)
+        self.assertEqual(turns[2].answer["source"], "taught")
+
+    def test_what_a_taught_kind_can_do(self):
+        _, turns, asker = talk("a wemble is a kind of animal",
+                               "wembles can fly", "what can a wemble do")
+        self.assertIn("wembles can fly", turns[2].answer["text"])
+        self.assertIn("what can an animal do", asker.asked)
+
+
 class HyphenatedTests(unittest.TestCase):
     """`non-fat milk` is not fat: a hyphenated adjective is read whole."""
 

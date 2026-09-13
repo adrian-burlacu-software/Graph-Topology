@@ -371,8 +371,12 @@ class Loop:
             lines.append(f"{headline.verdict} — {headline.question}")
         for bad in conflicts:
             names = ", ".join(question for question, _ in bad.against)
-            about = ("but not corroborated"
-                     if headline is not None and bad.question == headline.question
+            mine = headline is not None and bad.question == headline.question
+            # A family that holds exceptions has not overturned the claim, and
+            # the line says which: `can a bird fly`, with a chicken that does
+            # not, is a generic with an exception.
+            about = ("but not corroborated" if mine and bad.overturns
+                     else "with exceptions" if mine
                      else f"and along the way, “{bad.question}” did not hold up")
             lines.append(f"{about}: {bad.detail} ({names})")
         # What the teacher said when asked the question directly. It is
@@ -584,8 +588,11 @@ class Loop:
         if headline is None:
             return False
         conflicts = buffer.conflicts() if conflicts is None else conflicts
+        # A family that holds exceptions to the claim has not argued against
+        # it: `can a bird fly` is not overturned by a chicken (`Conflict`).
         return (bool(buffer.overreach())
-                or any(bad.question == headline.question for bad in conflicts)
+                or any(bad.question == headline.question and bad.overturns
+                       for bad in conflicts)
                 or any(one.origin == "require" and one.about
                        and self.failed(one, buffer)
                        for one in buffer.answers.values()))
@@ -732,8 +739,14 @@ class Loop:
         # way past -- does not survive its own family. Reporting the second as
         # though it were the first says the shark is not a fish, which is both
         # wrong and not what any part of the system concluded.
-        if any(bad.question == headline.question for bad in conflicts):
+        about_this = [bad for bad in conflicts
+                      if bad.question == headline.question]
+        if any(bad.overturns for bad in about_this):
             return "contradicted by its own family"
+        if about_this:
+            # `can a bird fly`: a chicken does not, and the family still bears
+            # it out. An exception is not a contradiction.
+            return "holds, with exceptions in its family"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
         rank = self.rank_of(headline) if hasattr(self, "rank_of") else None

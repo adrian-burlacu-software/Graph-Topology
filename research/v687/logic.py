@@ -173,7 +173,9 @@ def parse(text: str, aside: frozenset[str]) -> Query:
     groups = re.split(r"\s+or\s+|\s*,\s*or\s+", lowered)
     disjuncts: list[Node] = []
     for group in groups:
-        parts = re.split(r"\s+and\s+|\s*,\s+", group)
+        # `but` joins two claims as `and` does: `fur but not feathers` scored
+        # `but` as a property and came back UNRECORDED.
+        parts = re.split(r"\s+and\s+|\s+but\s+|\s*,\s+", group)
         atoms = [node for node in (_atom(part, aside) for part in parts)
                  if node is not None]
         if not atoms:
