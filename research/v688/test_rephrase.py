@@ -120,6 +120,15 @@ class RefusedByName(unittest.TestCase):
         self.refused("is seven a prime number", "arithmetic")
         self.refused("which is heavier, a feather or a brick", "comparative")
 
+    def test_durations_methods_and_prices(self):
+        self.refused("how long do dogs live", "duration")
+        self.refused("how often do cats sleep", "duration")
+        self.refused("how do you make bread", "method")
+        self.refused("how much does a car cost", "price")
+        for text in ("how much does an elephant weigh", "how long is a snake",
+                     "how big is an elephant", "how fast can a cheetah run"):
+            self.assertIsNone(logic.unsupported(text), text)
+
     def test_what_is_answerable_is_not_refused(self):
         for text in ("can a dog swim", "what is a hammer made of",
                      "how many kinds of dog are there",

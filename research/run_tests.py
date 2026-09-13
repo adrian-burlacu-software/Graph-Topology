@@ -43,7 +43,7 @@ ROOT = HERE.parent
 SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
           "research.v687.test_v687", "research.v687.test_norms",
           "research.v687.test_bridging", "research.v687.test_trie",
-          "research.v687.test_within",
+          "research.v687.test_within", "research.v687.test_shapes",
           "research.v688.test_audit", "research.v688.test_screen",
           "research.v688.test_distil", "research.v688.test_content",
           "research.v688.test_rephrase",

@@ -169,6 +169,26 @@ class DigestTests(unittest.TestCase):
         self.assertIn("nothing recorded settles",
                       because({"verdict": "UNKNOWN"})["text"])
 
+    def test_a_value_the_kind_above_parts_and_a_choice(self):
+        value = digest({"attribute": {"kind": "elephant", "dimension": "size",
+                                      "values": ["big", "large"],
+                                      "measured": True}})
+        self.assertTrue(value["text"].startswith("big, large — a word for it"))
+        none = digest({"attribute": {"kind": "rock", "dimension": "color",
+                                     "values": []}})
+        self.assertEqual(none["text"],
+                         "nothing recorded of rock says what its color is")
+        self.assertEqual(digest({"above": {"kind": "dog", "chain": [
+            "canine", "carnivore"]}})["text"], "dog is a kind of canine, "
+                                               "carnivore")
+        self.assertEqual(digest({"parts": {"kind": "car", "parts": [
+            "wheel", "engine"]}})["text"], "car has wheel, engine")
+        choice = digest({"choice": {"subject": "tomato", "holds": ["vegetable"],
+                                    "options": [{"option": "fruit"},
+                                                {"option": "vegetable"}]}})
+        self.assertEqual(choice["text"], "tomato is filed under vegetable, "
+                                         "not recorded as fruit")
+
     def test_which_of_a_class(self):
         found = digest({"verdict": "LISTING", "within": {
             "class": "bird", "negative": True,

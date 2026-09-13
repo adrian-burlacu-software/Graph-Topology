@@ -72,10 +72,15 @@ class ReasoningEngine(IdentifyingEngine):
             # `which birds cannot fly`: the kinds beneath a class, asked one
             # by one (`within.py`), before identification looks for a single
             # unnamed thing and comes back AMBIGUOUS.
+            # And the shapes the question-kinds audit found answered as
+            # something else: a value (`what color is a banana`), the kind
+            # above, the parts, a choice between kinds, and likeness.
+            from . import attributes, shapes
             from .within import answer as within
-            answer = within(self, question or "")
-            if answer is not None:
-                return answer
+            for layer in (within, attributes.answer, shapes.answer):
+                answer = layer(self, question or "")
+                if answer is not None:
+                    return answer
         if not concept and self._is_backwards(question or ""):
             backwards = self._inverse(question or "")
             if backwards is not None:
@@ -577,7 +582,10 @@ class ReasoningEngine(IdentifyingEngine):
         left, right = pair
         found = self.contrast.compare(left, right)
         if found is None:
-            return None
+            # The same argument as above, for a pair the norms do not both
+            # describe: `is a dolphin like a fish` fell through to a lookup
+            # and came back VERIFIED on the word `fish` in a dolphin's norms.
+            return self._uncomparable(question, text)
         wants = "difference" if self.DIFFERENCE.search(text) else "common"
         # "walk 0 nodes together before parting at X" is a sentence arguing
         # with itself: sharing nothing and having a parting point are not both

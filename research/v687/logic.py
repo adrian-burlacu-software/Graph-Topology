@@ -258,6 +258,16 @@ UNSUPPORTED: tuple[tuple[str, str], ...] = (
      r"\bprime\s+numbers?\b|\bsquare\s+root\b|\b\d+\s*[-+*/x]\s*\d+\b",
      "arithmetic. Numbers here are words with senses, not quantities, and "
      "nothing computes with them"),
+    (r"\bhow\s+(?:long|often|frequently)\s+(?:do|does|did|can|will|would)\b|"
+     r"\bhow\s+many\s+times\b|\bat\s+what\s+age\b",
+     "a duration or a frequency. Nothing here is in time, and no fact in it "
+     "carries a number"),
+    (r"^\s*how\s+(?:do|does|can|should|would)\s+(?:you|i|we|one|people)\b|"
+     r"\bhow\s+is\s+(?:an?\s+|the\s+)?[a-z]+\s+made\b|\bhow\s+to\b",
+     "a method or a procedure. The store records that things are done, not "
+     "how to do them"),
+    (r"\bhow\s+much\s+(?:does|do|is|are)\b(?!.*\bweigh)",
+     "a quantity or a price. There are no numbers in this data"),
     (r"\bwhich\s+(?:one\s+)?(?:is|are)\s+(?:the\s+)?(?:bigger|smaller|larger|"
      r"heavier|lighter|faster|slower|older|younger|stronger|taller|shorter|"
      r"better|worse|more|less)\b",

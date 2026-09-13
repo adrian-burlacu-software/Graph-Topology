@@ -285,10 +285,64 @@ def _within(payload: dict):
     return _found("within", "; ".join(parts), norms + store)
 
 
+def _attribute(payload: dict):
+    """`what color is a banana`: the values of one dimension it carries."""
+    found = payload.get("attribute")
+    if not found:
+        return None
+    values = found.get("values") or []
+    if not values:
+        return _found("attribute", f"nothing recorded of {found.get('kind')} "
+                                   f"says what its {found.get('dimension')} "
+                                   f"is", [])
+    text = listed(values)
+    if found.get("measured"):
+        text += (" — a word for it, never a measurement: there are no numbers "
+                 "in this data")
+    return _found("attribute", text, values)
+
+
+def _above(payload: dict):
+    """`what is a dog a kind of`: the taxonomy above it, nearest first."""
+    found = payload.get("above")
+    if not found or not found.get("chain"):
+        return None
+    return _found("above", f"{found.get('kind')} is a kind of "
+                           f"{listed(found['chain'])}", found["chain"])
+
+
+def _parts(payload: dict):
+    found = payload.get("parts")
+    if not found or not found.get("parts"):
+        return None
+    return _found("parts", f"{found.get('kind')} has "
+                           f"{listed(found['parts'], 12)}", found["parts"])
+
+
+def _choice(payload: dict):
+    """`is a tomato a fruit or a vegetable`: the option the taxonomy holds."""
+    found = payload.get("choice")
+    if not found:
+        return None
+    holds = found.get("holds") or []
+    options = [one.get("option") for one in found.get("options") or []]
+    if holds:
+        others = [one for one in options if one not in holds]
+        text = (f"{found.get('subject')} is filed under "
+                f"{' and '.join(holds)}"
+                + (f", not recorded as {' or '.join(others)}" if others
+                   else ""))
+    else:
+        text = (f"neither: {found.get('subject')} is not recorded as "
+                f"{' or '.join(options)}")
+    return _found("choice", text, holds)
+
+
 #: Most specific first: the payloads of contrast, causal, kinds and the rest
 #: all carry an identification tree too, drawn for the page.
-READERS = (_within, _definition, _kinds, _contrast, _causal, _bridge,
-           _backwards, _members, _profile, _identified, _listing, _refused)
+READERS = (_within, _attribute, _above, _parts, _choice, _definition, _kinds,
+           _contrast, _causal, _bridge, _backwards, _members, _profile,
+           _identified, _listing, _refused)
 
 
 def digest(payload: dict | None) -> dict | None:
