@@ -49,7 +49,7 @@ class ReadingGoalsTests(unittest.TestCase):
         self.assertEqual((goal.asked, goal.relation, goal.subject.name),
                          ("object", "holding", "mary"))
 
-    def test_a_pattern_reads_the_cell_it_fills(self):
+    def test_the_grammar_reads_the_cell_it_fills(self):
         from research.v689.reading import read
         lexicon = self.lexicon()
         names = frozenset({"mary", "fred"})
@@ -61,9 +61,33 @@ class ReadingGoalsTests(unittest.TestCase):
                 ("what did Mary drop", ("object", "occurrence")),
                 ("who did Fred give the milk to", ("recipient", "occurrence")),
                 ("when did Mary go to the kitchen", ("time", "occurrence")),
-                ("how many times did Mary go", ("times", "occurrence"))):
+                ("how many times did Mary go", ("times", "occurrence")),
+                ("what was Mary doing", ("verb", "occurrence")),
+                ("what is north of Mary", ("subject", "dimension")),
+                ("what is Mary north of", ("object", "dimension")),
+                ("how do you go from Mary to Fred", ("path", "dimension")),
+                ("what color is Mary", ("value", "attribute")),
+                ("what is Mary afraid of", ("object", "attribute")),
+                ("where will Mary go", ("place", "motive")),
+                ("how many dogs are there", ("count", "is_a")),
+                ("which dog is black", ("which", "is_a")),
+                ("what kind of person is Mary", ("kind", "is_a")),
+                ("what happened", ("events", "story")),
+                ("what did Mary do first", ("events", "story")),
+                ("what did i tell you", ("events", "told")),
+                ("what will happen", ("events", "future")),
+                ("what do you know about Mary", ("facts", "any")),
+                ("what can Mary do", ("facts", "any")),
+                ("how do you know that", ("grounds", "answer")),
+                ("what about a person", ("again", "question"))):
             self.assertEqual(read(text, lexicon, names).cell, cell, text)
         self.assertIsNone(read("can a dog swim", lexicon, names).cell)
+
+    def test_every_cell_the_grammar_reads_is_answered(self):
+        from research.v689.grammar import ACTS
+        from research.v689.session import Session
+        self.assertEqual(set(ACTS),
+                         set(Session(people.PeopleAsker())._cells()))
 
     def test_not_a_goal(self):
         lexicon = self.lexicon()

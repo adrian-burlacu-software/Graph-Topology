@@ -357,6 +357,37 @@ class Session:
         return session
 
     # -- one utterance -----------------------------------------------------
+    def _cells(self) -> dict:
+        """The goal cells a question's reading fills (`grammar.py`), each
+        answered by the operator for that cell -- what is asked, of which
+        relation -- rather than by the name of the pattern that read it. This
+        table is the coverage matrix."""
+        story = self.story
+        return {("time", "occurrence"): story.when_asked,
+                ("times", "occurrence"): story.how_many_times,
+                ("subject", "occurrence"): self._who,
+                ("recipient", "occurrence"): story.to_whom,
+                ("object", "occurrence"): self._what_did,
+                ("verb", "occurrence"): story.doing,
+                ("place", "located"): self._where,
+                ("object", "holding"): story.carrying,
+                ("count", "holding"): story.carrying,
+                ("subject", "dimension"): self._related_to,
+                ("object", "dimension"): self._related_to,
+                ("path", "dimension"): self._route,
+                ("value", "attribute"): self._attribute,
+                ("object", "attribute"): self._toward,
+                ("place", "motive"): self._where_going,
+                ("count", "is_a"): self._how_many,
+                ("which", "is_a"): self._which,
+                ("kind", "is_a"): self._what,
+                ("events", "story"): self._happened,
+                ("events", "told"): self._happened,
+                ("events", "future"): self._happened,
+                ("facts", "any"): self._about,
+                ("grounds", "answer"): self._meta,
+                ("again", "question"): self._ellipsis}
+
     def say(self, text: str) -> Turn:
         self.discourse.next_turn()
         grown = len(self.memory.growth)
@@ -368,25 +399,8 @@ class Session:
                 "ask": self._ask, "what": self._what, "name": self._name,
                 "ask_name": self._ask_name, "teach": self._teach,
                 "compound": self._compound, "define": self._define,
-                "why": self._why, "how_many": self._how_many,
-                "which": self._which,
-                "about": self._about, "happened": self._happened,
-                "meta": self._meta, "ellipsis": self._ellipsis,
-                "doing": self.story.doing,
-                "related": self._related_to, "route": self._route,
-                "toward": self._toward, "attribute": self._attribute,
-                "where_going": self._where_going}
-        #: The goal cells a question's reading fills (`reading._cell`), each
-        #: answered by the operator for that cell -- what is asked, of which
-        #: relation -- rather than by the name of the pattern that read it.
-        cells = {("place", "located"): self._where,
-                 ("object", "holding"): self.story.carrying,
-                 ("count", "holding"): self.story.carrying,
-                 ("subject", "occurrence"): self._who,
-                 ("object", "occurrence"): self._what_did,
-                 ("recipient", "occurrence"): self.story.to_whom,
-                 ("time", "occurrence"): self.story.when_asked,
-                 ("times", "occurrence"): self.story.how_many_times}
+                "why": self._why}
+        cells = self._cells()
 
         def acted(handler):
             def apply(memory: dict) -> str:

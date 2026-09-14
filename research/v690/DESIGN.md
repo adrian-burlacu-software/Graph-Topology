@@ -427,12 +427,32 @@ goal. Checked reading by reading on 1,206 questions -- every question in
 the tests and probes, and templates for every pattern family crossed with
 eleven noun phrases: none reads differently.
 
-Still patterns: `doing`, `related`, `route`, `toward`, `attribute`,
-`where_going`, `how_many`, `which`, `happened`, `about`, the questions about
-the conversation, and ellipsis. Most are cells of relations the grammar does
-not have yet -- S1-S4's relations, attributes, motives, the story's order --
-and each moves the same way: its cell in the operator table, then its shape
-in the grammar, checked against the saved readings.
+The fourth step moved the rest: `reading.py` has no question patterns left.
+`v689/grammar.py` reads every wh-question about this conversation's
+individuals into the cell it fills, trying shapes in order after the question
+word, and `Session._cells` is the operator table, one handler per cell:
+
+| relation | cells |
+| --- | --- |
+| occurrence | time, times, subject, recipient, object, verb (`what was it doing`) |
+| located | place |
+| holding | object, count |
+| dimension (S1-S4) | subject (`what is north of X`), object (`what is X north of`), path (`how do you go from X to Y`) |
+| attribute | value (`what color is X`), object (`what is X afraid of`) |
+| motive | place (`where will X go`) |
+| is_a | count (`how many dogs are there`), which (`which dog is black`), kind (`what kind of dog is X`) |
+| story / told / future | events (`what happened`, `what did it do first`, `what did i tell you`, `what will happen`) |
+| any | facts (`what do you know about X`, `what can X do`) |
+| answer | grounds (`how do you know that`) |
+| question | again (`what about a dog`) |
+
+Checked against the saved readings: of 1,206, 170 differ, each only in now
+naming the cell its act fills, and none in anything else. A test pins that
+the cells the grammar reads are exactly the cells the session answers.
+
+Two readers remain -- the grammar's cells and `goals.goal_from`'s slots --
+over the same words. Merging them, so every cell is read as slots and the
+act names go, is the next step.
 
 ## 9. Risks
 
