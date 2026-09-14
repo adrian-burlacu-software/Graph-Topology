@@ -39,9 +39,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-TRUE = "TRUE"
-FALSE = "FALSE"
-UNKNOWN = "UNKNOWN"
+#: The three values are the three answers read off evidence (`truth.py`):
+#: UNKNOWN is too little of it to speak, not a frequency of one half.
+from .truth import FALSE, TRUE, UNKNOWN  # noqa: E402
 
 #: Words that turn a claim into its denial.
 NEGATORS = frozenset("""

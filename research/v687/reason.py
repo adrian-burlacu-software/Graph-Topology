@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-from . import corpora, rules
+from . import corpora, rules, walks
+from .links import LINKS, link
 from .rules import Step
 
 #: Set `V687_NO_DEMOTION=1` to inherit every class-node fact again, the way
@@ -212,24 +213,13 @@ class Reasoner:
     #: swim"` is stated of rock itself.
     R28_ON_STATED = True
 
-    #: R27. Branches of the taxonomy that nothing belongs to two of. These
-    #: are not guessed: `plant.n.02`, `animal.n.01`, `person.n.01`,
-    #: `artifact.n.01` and `abstraction.n.06` were checked against each other
-    #: and none is an ancestor of another.
-    #:
-    #: Kept deliberately small. WordNet's hypernym tree is incomplete in the
-    #: middle -- it does not record that a dog is a pet, or a whale not a
-    #: fish -- so exclusion is claimed only between these top branches, where
-    #: the tree really does partition. Everything finer stays UNKNOWN, which
-    #: is the answer the closed-world assumption licenses.
-    PARTITIONS = ("plant.n.02", "animal.n.01", "person.n.01",
-                  "artifact.n.01", "abstraction.n.06")
-
-    #: The one pair that the tree separates and the world does not. WordNet
-    #: files `person` beside `animal` rather than under it, so the partitions
-    #: would have `a person is not an animal`. It reads one way only: a person
-    #: is an animal, and a dog is still not a person.
-    NOT_REALLY_DISJOINT = (("person.n.01", "animal.n.01"),)
+    #: R27. Branches of the taxonomy that nothing belongs to two of, and the
+    #: one pair the tree separates and the world does not: `is_a`'s row in
+    #: `links.py`, where why each was chosen is written. Everything finer
+    #: stays UNKNOWN, which is the answer the closed-world assumption
+    #: licenses.
+    PARTITIONS = link("is_a").disjoint
+    NOT_REALLY_DISJOINT = link("is_a").not_disjoint
 
     def partition_of(self, concept: str) -> str | None:
         """Which top branch a sense belongs to, if one of them."""
@@ -322,23 +312,14 @@ class Reasoner:
         """Breadth-first up the taxonomy, nearest ancestors first (R1, R4).
 
         Yields (concept, distance, parents). Bounded by MAX_DEPTH and
-        MAX_ANCESTORS so a pathological branch cannot hang the UI.
+        MAX_ANCESTORS so a pathological branch cannot hang the UI. The walk
+        is `walks.levels` along `is_a`, which is transitive (`links.py`).
         """
-        seen = {concept}
-        frontier = [concept]
-        yield concept, 0, self.parents_of(concept)
-        for distance in range(1, self.MAX_DEPTH + 1):
-            nxt: list[str] = []
-            for node in frontier:
-                for parent in self.parents_of(node):
-                    if parent not in seen:
-                        seen.add(parent)
-                        nxt.append(parent)
-            if not nxt or len(seen) > self.MAX_ANCESTORS:
-                return
-            for node in nxt:
+        for distance, nodes in walks.levels(concept, self.parents_of,
+                                            self.MAX_DEPTH,
+                                            self.MAX_ANCESTORS):
+            for node in nodes:
                 yield node, distance, self.parents_of(node)
-            frontier = nxt
 
     # -- R8: the three query shapes --------------------------------------
     def classify(self, concept: str, target_lemma: str) -> Answer:
@@ -646,15 +627,11 @@ class Reasoner:
     #: question looks. Checked against four unambiguous pairs rather than
     #: assumed from the column name.
     #:
-    #: (concept column, relation to search, object column) per asked relation.
+    #: (relation to search, reversed) per asked relation: each one's `stored`
+    #: in `links.py`. False when the node is the concept column, True when
+    #: it is the object column, None when either.
     SENSE_TAGGED: dict[str, tuple[str, bool]] = {
-        "has_part": ("part_of", False),   # the object is a part of the node
-        "has_a": ("part_of", False),
-        "part_of": ("part_of", True),     # the node is a part of the object
-        "similar_to": ("similar_to", None),   # symmetric: either column
-        "causes": ("causes", False),
-        "entails": ("entails", False),
-    }
+        name: one.stored for name, one in LINKS.items() if one.stored}
 
     def verify_sense(self, concept: str, relation: str, sense: str) -> Answer:
         """R29: answer between two synsets, with no string matching at all.

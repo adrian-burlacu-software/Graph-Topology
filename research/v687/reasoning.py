@@ -26,6 +26,7 @@ from . import logic, pins, rules as v684_rules
 from .analogy import Analogies
 from .causal import Causal
 from .contrast import Contrast
+from .executive import Executive, Operator, attempt
 from .inverse import Inverse
 from .relevance import RULE_TEXT as V685_RULES
 from .server import V686_RULES, V687_RULES, IdentifyingEngine
@@ -64,37 +65,55 @@ class ReasoningEngine(IdentifyingEngine):
             clash = self._pin_fights_the_question(question or "", pinned)
             if clash is not None:
                 return clash
-            for attempt in (self._compare, self._gated, self._define,
-                            self._contrast, self._causal, self._analogy):
-                answer = attempt(question or "")
-                if answer is not None:
-                    return answer
-            # `which birds cannot fly`: the kinds beneath a class, asked one
-            # by one (`within.py`), before identification looks for a single
-            # unnamed thing and comes back AMBIGUOUS.
-            # And the shapes the question-kinds audit found answered as
-            # something else: a value (`what color is a banana`), the kind
-            # above, the parts, a choice between kinds, and likeness.
-            from . import attributes, shapes
-            from .within import answer as within
-            for layer in (within, attributes.answer, shapes.answer):
-                answer = layer(self, question or "")
-                if answer is not None:
-                    return answer
-        if not concept and self._is_backwards(question or ""):
-            backwards = self._inverse(question or "")
-            if backwards is not None:
-                return backwards
-        if not concept:
-            rated = self._rated(question or "")
-            if rated is not None:
-                return rated
+            memory: dict = {}
+            self.layers(question or "").run(memory)
+            if "answer" in memory:
+                return memory["answer"]
         payload = super().ask(question, concept or subject_sense)
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
         if not concept:
             payload = self._folk(question or "", payload) or payload
         self._report_unused_pins(payload, pinned)
         return payload
+
+    def layers(self, question: str) -> Executive:
+        """What a question is tried as before v684 reads it, as operators
+        (`executive.py`): the order written is their utility, and the first
+        to answer ends it. Nothing answering is v684's to read.
+
+        `within` comes before identification looks for a single unnamed
+        thing and comes back AMBIGUOUS (`which birds cannot fly`); after it,
+        the shapes the question-kinds audit found answered as something
+        else: a value (`what color is a banana`), the kind above, the parts,
+        a choice between kinds, and likeness. A backwards question is only
+        proposed when the question reads backwards.
+        """
+        from . import attributes, shapes
+        from .within import answer as within
+        return Executive([
+            Operator("comparative", attempt(lambda: self._compare(question)),
+                     rule="R31"),
+            Operator("refused by name",
+                     attempt(lambda: self._gated(question)), rule="R18"),
+            Operator("definition", attempt(lambda: self._define(question)),
+                     rule="R26"),
+            Operator("contrast", attempt(lambda: self._contrast(question)),
+                     rule="R21"),
+            Operator("script", attempt(lambda: self._causal(question)),
+                     rule="R23"),
+            Operator("analogy", attempt(lambda: self._analogy(question)),
+                     rule="R24"),
+            Operator("within a class",
+                     attempt(lambda: within(self, question))),
+            Operator("attribute",
+                     attempt(lambda: attributes.answer(self, question))),
+            Operator("shape", attempt(lambda: shapes.answer(self, question))),
+            Operator("backwards", attempt(lambda: self._inverse(question)),
+                     proposes=lambda memory: self._is_backwards(question),
+                     rule="R22"),
+            Operator("rated", attempt(lambda: self._rated(question)),
+                     rule="R32"),
+        ])
 
     # -- R31, and the rated norms for what the norms do not name -------------
     def _compare(self, question: str) -> dict | None:

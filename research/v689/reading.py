@@ -203,7 +203,8 @@ class Reading:
     """What an utterance does, and to whom."""
 
     #: introduce | tell | ask | what | name | ask_name | teach | generic |
-    #: define | compound, for several claims the parse could not tell apart
+    #: define | why | compound, for several claims the parse could not tell
+    #: apart | question, for one `grammar.py` reads into goals
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -225,6 +226,14 @@ class Reading:
     when: When | None = None
     #: `how many objects is Mary carrying`: a count, not a list
     count: bool = False
+    #: what a question asks, as goals (`grammar.py`), in the order they are
+    #: tried: the goal read as slots, then the one its own words' cell states
+    goals: list = field(default_factory=list)
+
+    @property
+    def cells(self) -> list[tuple]:
+        """(asked, relation) of each goal: what the session answers by."""
+        return [one.cell for one in self.goals]
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -235,7 +244,8 @@ class Reading:
                 "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
                              else None),
-                "when": self.when.as_dict() if self.when else None}
+                "when": self.when.as_dict() if self.when else None,
+                "goals": [one.as_dict() for one in self.goals]}
 
 
 def _stops(word: str) -> bool:
@@ -641,18 +651,6 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
     return first
 
 
-#: What a count of individuals ends with: `how many dogs are there`.
-COUNT_ENDS = (("are", "there"), ("is", "there"), ("there", "are"),
-              ("have", "come", "up"), ("has", "come", "up"))
-
-#: Words after `how many` that count kinds of a thing, which R25 answers.
-KIND_WORDS = frozenset({"kind", "kinds", "type", "types", "sort", "sorts",
-                        "breed", "breeds", "species"})
-
-#: What a question about a quality toward something ends with: `what is
-#: Gertrude afraid of`.
-TOWARD = frozenset({"of", "to", "about", "with", "for", "at", "by"})
-
 #: What a location question may end with: `what is the cat on`.
 PLACES = frozenset({"on", "in", "inside", "under", "at", "near", "beside",
                     "behind", "above", "below"})
@@ -660,295 +658,6 @@ PLACES = frozenset({"on", "in", "inside", "under", "at", "near", "beside",
 #: Words that pick one out of a sequence: `what did it do second`.
 SEQUENCE = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
             "next": -1, "last": -1}
-
-
-def _individual(found) -> bool:
-    """A phrase naming one of this conversation's individuals, rather than a
-    kind or a new one."""
-    return found is not None and found.form not in ("indefinite", "another",
-                                                    "kind", "plural", "group")
-
-
-def conversational(tokens: list[str], lexicon, names: frozenset,
-                   said: str) -> Reading | None:
-    """A wh-question about this conversation's individuals, or None.
-
-        how many dogs are there        how_many   count them
-        which dog is black             which      identify one by description
-        who chased the cat             who        identify the doer
-        where is the dog               where      what it was told to be in
-        what is the cat on             where
-        what did the dog chase         what_did   the object of what it did
-        what can it do                 about      what was told, and its kind
-        what do you know about it      about
-        what happened                  happened   what was told, in order
-        what did it do first           happened
-
-    Each is answered from episodic memory, by the same identification that
-    finds `the black one`: a walk down the trie for what the question names.
-    A question about a kind -- `what can a dog do`, `how many legs does a
-    spider have` -- is left for v688.
-    """
-    if len(tokens) < 2:
-        return None
-    first = tokens[0]
-
-    # `when did the dog chase the cat`, `how many times did it bark`: an
-    # occurrence found, and its time or its count read out (`timeline.py`).
-    for opener, act in ((["when"], "when"),
-                        (["how", "many", "times"], "how_many_times"),
-                        (["how", "often"], "how_many_times")):
-        at = len(opener)
-        if tokens[:at] != opener or len(tokens) < at + 3 \
-                or tokens[at] not in AUX:
-            continue
-        found = read_mention(tokens, at + 1, lexicon, tokens[at],
-                             names=names)
-        if _individual(found) and found.end < len(tokens):
-            return _with_object(Reading(act, found, tokens[at],
-                                        tokens[found.end:], said=said),
-                                lexicon, names)
-        return None
-
-    # `what was the dog doing`, `what is it doing`
-    if (first == "what" and len(tokens) >= 4 and tokens[1] in COPULA
-            and tokens[-1] == "doing"):
-        found = read_mention(tokens[:-1], 2, lexicon, tokens[1],
-                             final_ok=True, names=names)
-        if _individual(found) and found.end == len(tokens) - 1:
-            return Reading("doing", found, tokens[1], ["doing"], said=said)
-        return None
-
-    # `what is Mary carrying`, `how many objects is Mary carrying`: what is
-    # with someone -- if the verb means that, which the session asks VerbNet
-    # (`change.accompanies`).
-    counting = tokens[:2] == ["how", "many"]
-    at = 3 if counting else 1
-    if ((first == "what" or counting) and len(tokens) >= at + 3
-            and tokens[at] in COPULA and tokens[-1].endswith("ing")
-            and hasattr(lexicon, "progressive")):
-        found = read_mention(tokens[:-1], at + 1, lexicon, tokens[at],
-                             final_ok=True, names=names)
-        verb = lexicon.progressive(tokens[-1])
-        if _individual(found) and found.end == len(tokens) - 1 and verb:
-            return Reading("carrying", found, tokens[at], [verb], said=said,
-                           count=counting,
-                           obj=(Mention("kind", tokens[2], text=tokens[2])
-                                if counting else None))
-
-    # `what is north of the office`, `what is the kitchen north of`: one side
-    # of a relation asked, the other named (`relations.py`). `?` in `rest`
-    # marks the side asked.
-    if first == "what" and len(tokens) >= 4 and tokens[1] in COPULA:
-        opened = relation_phrase(tokens[2:])
-        if opened is not None:
-            found = read_mention(tokens, 2 + opened.length, lexicon, "is",
-                                 final_ok=True, names=names)
-            if _individual(found) and found.end == len(tokens):
-                return Reading("related", found, tokens[1],
-                               ["?"] + tokens[2:2 + opened.length],
-                               said=said)
-        found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
-                             names=names)
-        closed = relation_phrase(tokens[found.end:]) if found else None
-        if (_individual(found) and closed is not None
-                and found.end + closed.length == len(tokens)):
-            return Reading("related", found, tokens[1],
-                           tokens[found.end:] + ["?"], said=said)
-
-    # `how do you go from the kitchen to the garden`: a way over the compass.
-    if (first == "how" and tokens[1] in AUX and "from" in tokens
-            and "to" in tokens[tokens.index("from"):]):
-        start = tokens.index("from")
-        there = read_mention(tokens, start + 1, lexicon, "is", final_ok=True,
-                             names=names)
-        if (_individual(there) and there.end < len(tokens)
-                and tokens[there.end] == "to"):
-            goal = read_mention(tokens, there.end + 1, lexicon, "is",
-                                final_ok=True, names=names)
-            if _individual(goal) and goal.end == len(tokens):
-                asked = Reading("route", there, tokens[1],
-                                tokens[3:start], said=said)
-                asked.obj = goal
-                return asked
-
-    # `what is Gertrude afraid of`: what a quality toward something is toward.
-    if (first == "what" and len(tokens) >= 5 and tokens[1] in COPULA
-            and tokens[-1] in TOWARD):
-        found = read_mention(tokens[:-2], 2, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens) - 2:
-            return Reading("toward", found, tokens[1], tokens[-2:],
-                           said=said)
-
-    # `what color is Greg`: one of its attributes, the kind of value asked.
-    if (first == "what" and len(tokens) >= 4 and tokens[2] in COPULA
-            and tokens[1] not in AUX and tokens[1] not in QUESTION_WORDS):
-        found = read_mention(tokens, 3, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens):
-            return Reading("attribute", found, tokens[2], [tokens[1]],
-                           said=said)
-
-    # `where will Sumit go`: where someone is going, which nothing has told.
-    if (first == "where" and len(tokens) == 4 and tokens[1] == "will"):
-        found = read_mention(tokens, 2, lexicon, "will", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == 3:
-            return Reading("where_going", found, "will", tokens[3:],
-                           said=said)
-
-    # `who did Fred give the football to`: the one it went to.
-    if (first in ("who", "whom") and len(tokens) >= 5 and tokens[1] in AUX
-            and tokens[-1] in ("to", "from")):
-        found = read_mention(tokens, 2, lexicon, tokens[1], names=names)
-        if _individual(found) and found.end < len(tokens) - 1:
-            asked = _with_object(Reading("to_whom", found, tokens[1],
-                                         tokens[found.end:-1], said=said),
-                                 lexicon, names)
-            asked.rest = asked.rest + [tokens[-1]]
-            return asked
-
-    if tokens[:2] == ["how", "many"]:
-        end = next((len(one) for one in COUNT_ENDS
-                    if tuple(tokens[-len(one):]) == one), 0)
-        middle = tokens[2:len(tokens) - end] if end else []
-        if not end or (middle and middle[0] in KIND_WORDS):
-            return None
-        kind = (" ".join(middle[:-1] + [lexicon.lemma(middle[-1])])
-                if middle else "")
-        return Reading("how_many", Mention("kind", kind, text=" ".join(middle),
-                                           end=2 + len(middle)), said=said)
-
-    if first == "which" and len(tokens) >= 3:
-        at, kind = 1, ""
-        if tokens[1] not in AUX:
-            kind = "" if tokens[1] == "one" else lexicon.lemma(tokens[1])
-            at = 2
-        aux = tokens[at] if tokens[at] in AUX else None
-        rest = tokens[at + 1:] if aux else tokens[at:]
-        holds = rest[:1] != ["not"]
-        rest = rest if holds else rest[1:]
-        if not rest:
-            return None
-        return _with_object(
-            Reading("which", Mention("kind", kind, text=" ".join(tokens[1:at]),
-                                     end=at), aux, rest, holds=holds,
-                    said=said), lexicon, names)
-
-    if first in ("who", "whom") and tokens[1] not in COPULA:
-        aux = tokens[1] if tokens[1] in AUX else None
-        rest = tokens[2:] if aux else tokens[1:]
-        holds = rest[:1] != ["not"]
-        rest = rest if holds else rest[1:]
-        if not rest:
-            return None
-        return _with_object(Reading("who", None, aux, rest, holds=holds,
-                                    said=said), lexicon, names)
-
-    if first == "where" and tokens[1] in COPULA:
-        found = read_mention(tokens, 2, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens):
-            return Reading("where", found, said=said)
-        # `where was the football before the bathroom`: where it was just
-        # before it came to be there (`story.where_around`).
-        if (_individual(found) and len(tokens) > found.end + 1
-                and tokens[found.end] in ("before", "after")):
-            return Reading("where", found, tokens[1], tokens[found.end:],
-                           said=said)
-        return None
-
-    if first == "what" and tokens[1] in COPULA and tokens[-1] in PLACES:
-        found = read_mention(tokens[:-1], 2, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens) - 1:
-            return Reading("where", found, said=said)
-        return None
-
-    # `what will happen tomorrow`: what is to come.
-    if tokens[:3] in (["what", "will", "happen"],
-                      ["what", "is", "going"]) and (
-            tokens[1] == "will" or tokens[3:5] == ["to", "happen"]):
-        at = 3 if tokens[1] == "will" else 5
-        return Reading("happened", rest=["future"] + [
-            word for word in tokens[at:] if word in SEQUENCE], said=said)
-
-    if tokens[:2] == ["what", "happened"] or tokens[:3] == ["what", "has",
-                                                            "happened"]:
-        at = 2 if tokens[1] == "happened" else 3
-        # `what happened to the vase`: what it took part in.
-        if tokens[at:at + 1] == ["to"]:
-            found = read_mention(tokens, at + 1, lexicon, "is", final_ok=True,
-                                 names=names)
-            if _individual(found) and found.end == len(tokens):
-                return Reading("happened", found, None, ["to"], said=said)
-        return Reading("happened", rest=[word for word in tokens[at:]
-                                         if word in SEQUENCE], said=said)
-
-    # Before `what` + auxiliary, which would read `you` in `what do you
-    # know about it` as the individual asked about.
-    about = (5 if tokens[:5] == ["what", "do", "you", "know", "about"] else
-             3 if tokens[:3] == ["tell", "me", "about"] else None)
-    if about is not None:
-        found = read_mention(tokens, about, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens):
-            return Reading("about", found, said=said)
-        return None
-
-    # About the conversation itself: what was said, and how an answer was
-    # reached. `what did i tell you` asked whether you told yourself things,
-    # and `how do you know that` was refused as a question about method.
-    for told in (["what", "did", "i", "tell", "you"],
-                 ["what", "have", "i", "told", "you"],
-                 ["what", "did", "i", "say"], ["what", "have", "i", "said"]):
-        after = tokens[len(told):]
-        if tokens[:len(told)] == told and (not after or (
-                len(after) == 1 and after[0] in SEQUENCE)):
-            # Telling time, not story time: the order it was said in.
-            return Reading("happened", rest=["told"] + after, said=said)
-    if tokens in (["how", "do", "you", "know"],
-                  ["how", "do", "you", "know", "that"],
-                  ["how", "sure", "are", "you"], ["are", "you", "sure"],
-                  ["why", "do", "you", "think", "so"]):
-        return Reading("meta", said=said)
-    # `what about a cat`, `and a fish?`: the last question, of another kind.
-    for opener in (["what", "about"], ["how", "about"], ["and"]):
-        if tokens[:len(opener)] == opener and len(tokens) > len(opener):
-            found = read_mention(tokens, len(opener), lexicon, "is",
-                                 final_ok=True, names=names)
-            if (found is not None and found.end == len(tokens)
-                    and found.form in ("indefinite", "kind")):
-                return Reading("ellipsis", found, said=said)
-
-    if first == "what" and tokens[1] in AUX and tokens[1] not in COPULA:
-        at, holds = (3, False) if tokens[2:3] == ["not"] else (2, True)
-        found = read_mention(tokens, at, lexicon, tokens[1], names=names)
-        # `what do you need to bake a cake`: `you` is anyone, not me.
-        if not _individual(found) or found.form in ("speaker", "addressee"):
-            return None
-        rest = tokens[found.end:]
-        if rest[:1] == ["do"] and rest[1:2] and rest[1] in SEQUENCE:
-            return Reading("happened", found, tokens[1], rest[1:], said=said)
-        # `what did the dog do`: what it did, not what it can do.
-        if rest == ["do"] and tokens[1] == "did":
-            return Reading("happened", found, tokens[1], [], said=said)
-        if rest in (["do"], ["have"]):
-            return Reading("about", found, tokens[1], rest, holds=holds,
-                           said=said)
-        if rest:
-            return Reading("what_did", found, tokens[1], rest, holds=holds,
-                           said=said)
-        return None
-
-    if tokens[:3] == ["what", "kind", "of"] and "is" in tokens[3:]:
-        at = tokens.index("is", 3) + 1
-        found = read_mention(tokens, at, lexicon, "is", final_ok=True,
-                             names=names)
-        if _individual(found) and found.end == len(tokens):
-            return Reading("what", found, said=said)
-    return None
 
 
 #: Proper-noun tags: what a capitalised word is when it names someone.
@@ -1037,8 +746,16 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # Quoted without the words that placed it, except `again`, without
         # which three barks read as one said three times.
         when.main = " ".join(typed + list(when.again_words))
-    found = _read(said, asked, tokens, typed, lexicon, names)
+    # What a question asks, as goals, read by one grammar (`grammar.py`). The
+    # reading one of them states is the question's reading, unless `_read`
+    # reads the words as something else first; the goal read as slots is
+    # tried before whatever the reading states.
+    from .grammar import propose
+    goals = propose(tokens, lexicon, names, said)
+    stated = next((one.clause for one in goals if one.own), None)
+    found = _read(said, asked, tokens, typed, lexicon, names, stated)
     _mark_fresh(found, fresh)
+    found.goals = [one for one in goals if not one.own] + found.goals
     found.when = when
     for one in found.more:
         if one.when is None or one.when.empty:
@@ -1047,7 +764,7 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
 
 
 def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
-          names: frozenset) -> Reading:
+          names: frozenset, stated: Reading | None = None) -> Reading:
     if not tokens:
         return Reading("generic", said=said)
 
@@ -1078,11 +795,11 @@ def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
                             holds=at == 2, said=said), lexicon, names)
         return Reading("generic", said=said)
 
-    # `who chased the cat`, `where is the dog`, `how many dogs are there`:
-    # about this conversation's individuals, answered from episodic memory.
-    asked_here = conversational(tokens, lexicon, names, said)
-    if asked_here is not None:
-        return asked_here
+    # `who chased the cat`, `where is the dog`, `how many dogs are there`: a
+    # question about this conversation's individuals, the reading its goal
+    # states (`grammar.py`), answered from episodic memory.
+    if stated is not None:
+        return stated
 
     # A statement of several claims is read one claim at a time. Questions
     # are left whole: `can it swim and bark` asks one thing.

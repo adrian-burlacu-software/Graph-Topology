@@ -447,6 +447,12 @@ step of every new answer names a node that exists.
 
 | file | role |
 | --- | --- |
+| `links.py` | the link types: what each relation is -- inherited, gated, a negation, a family, its range, converse, stored direction, partitions, quality, told of a time, one at a time, a dimension -- as one table the rules read (`v690/DESIGN.md`) |
+| `walks.py` | the one closure walk and the one path walk every transitive relation is walked with: R1, T2, S2, S4 |
+| `test_links.py` | the table gives every list the rules used to keep exactly as it was; the walks keep their order and bounds |
+| `truth.py` + `test_truth.py` | truth as evidence: counts for and against, frequency and confidence, and the three answers read off them; R5 and R19 in its terms |
+| `executive.py` + `test_executive.py` | operators over a working memory, fired by utility, with a trace: what `ask`'s layers and v689's session run on |
+| `rulebook.py` + `test_rulebook.py` | every named rule -- R1 to R32, E1, E2, T1 to T6, S1 to S4, I1, motives -- as one row: what it becomes, the link types and field it reads, its truth function, parameters, source and where it is applied; the code reads its numbers and the page its text from the rows |
 | `logic.py` | the query tree, Kleene's three values, R18's refusals |
 | `contrast.py` | difference, commonality, similarity, typicality |
 | `inverse.py` | the fact graph read from the object side |

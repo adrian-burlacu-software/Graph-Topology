@@ -179,19 +179,20 @@ class NameReadingTests(unittest.TestCase):
 
     def test_where_before_a_place(self):
         found = self.read("Where was Julie before the school?", {"julie"})
-        self.assertEqual(found.act, "where")
+        self.assertIn(("place", "located"), found.cells)
         self.assertEqual(found.rest, ["before", "the", "school"])
 
     def test_what_someone_is_carrying(self):
         found = self.read("What is Mary carrying?", {"mary"})
-        self.assertEqual((found.act, found.rest, found.count),
-                         ("carrying", ["carry"], False))
+        self.assertIn(("object", "holding"), found.cells)
+        self.assertEqual((found.rest, found.count), (["carry"], False))
         found = self.read("How many objects is Mary carrying?", {"mary"})
-        self.assertEqual((found.act, found.count), ("carrying", True))
+        self.assertIn(("count", "holding"), found.cells)
+        self.assertTrue(found.count)
 
     def test_who_it_went_to(self):
         found = self.read("Who did Fred give the milk to?", {"fred"})
-        self.assertEqual(found.act, "to_whom")
+        self.assertIn(("recipient", "occurrence"), found.cells)
         self.assertEqual(found.rest, ["give", "the", "milk", "to"])
         self.assertEqual(found.obj.kind, "milk")
 

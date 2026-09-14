@@ -55,6 +55,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from research.v687 import walks
+from research.v687.links import LINKS
+
 #: Words that are not part of a relation's phrase.
 ARTICLES = frozenset({"a", "an", "the"})
 
@@ -72,12 +75,11 @@ class Dimension:
     compass: bool = False
 
 
-DIMENSIONS = {one.name: one for one in (
-    Dimension("north-south", "north", "south", "east-west", True),
-    Dimension("east-west", "east", "west", "north-south", True),
-    Dimension("vertical", "above", "below", "lateral"),
-    Dimension("lateral", "right", "left", "vertical"),
-    Dimension("size", "bigger", "smaller"))}
+#: One per relation `links.py` gives an axis: its row is the side up the
+#: order, its converse the side down.
+DIMENSIONS = {one.axis: Dimension(one.axis, one.name, one.converse,
+                                  one.across, one.compass)
+              for one in LINKS.values() if one.axis}
 
 #: (words, dimension, side): `side` is +1 where the one said first is on the
 #: `more` side of the other. Articles are left out, and the longest match is
@@ -201,25 +203,11 @@ class Relations:
 
     @staticmethod
     def _walk(edges: dict, start: str, goal: str) -> list | None:
-        parent: dict[str, tuple | None] = {start: None}
-        frontier = [start]
-        while frontier:
-            step = []
-            for node in frontier:
-                for higher, relation in edges.get(node, ()):
-                    if higher in parent:
-                        continue
-                    parent[higher] = (node, relation)
-                    if higher == goal:
-                        path, at = [], higher
-                        while parent[at] is not None:
-                            node_before, used = parent[at]
-                            path.append(used)
-                            at = node_before
-                        return path[::-1]
-                    step.append(higher)
-            frontier = step
-        return None
+        """The relations on the way up from `start` to `goal`: the one path
+        walk (`walks.path`) along the dimension's order."""
+        route = walks.path(start, goal, lambda node: (
+            (relation, higher) for higher, relation in edges.get(node, ())))
+        return None if route is None else [relation for relation, _ in route]
 
     def compare(self, first: str, second: str, dimension: str,
                 side: int) -> Found:
@@ -269,25 +257,12 @@ class Relations:
                 (toward, relation.first, relation))
             steps.setdefault(relation.first, []).append(
                 (away, relation.second, relation))
-        parent: dict[str, tuple | None] = {start: None}
-        frontier = [start]
-        while frontier:
-            step = []
-            for node in frontier:
-                for direction, reached, relation in steps.get(node, ()):
-                    if reached in parent:
-                        continue
-                    parent[reached] = (node, direction, relation)
-                    if reached == goal:
-                        path, at = [], reached
-                        while parent[at] is not None:
-                            before, went, used = parent[at]
-                            path.append((went, at, used))
-                            at = before
-                        return path[::-1]
-                    step.append(reached)
-            frontier = step
-        return None
+        route = walks.path(start, goal, lambda node: (
+            ((direction, relation), reached)
+            for direction, reached, relation in steps.get(node, ())))
+        return None if route is None else [
+            (direction, reached, relation)
+            for (direction, relation), reached in route]
 
     def as_dict(self) -> dict:
         return {"relations": [one.as_dict() for one in self.relations]}

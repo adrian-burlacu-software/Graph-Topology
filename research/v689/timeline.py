@@ -70,15 +70,18 @@ from __future__ import annotations
 import heapq
 from dataclasses import asdict, dataclass, field
 
+from research.v687 import walks
+from research.v687.links import named
 from research.v687.ordering import adaptive_coverage
 from research.v687.trie import PredicateTrie
+from research.v688 import retrieval
 
 from .episodic import walk_down
 
-#: Relations told of a time. What an individual is, what it is called, whose
-#: it is and what it can do are not among them.
-IN_TIME = frozenset({"has_property", "not_has_property", "has_attribute",
-                     "at_location", "did_not"})
+#: Relations told of a time: those `links.py` marks `in_time`. What an
+#: individual is, what it is called, whose it is and what it can do are not
+#: among them.
+IN_TIME = named(lambda one: one.in_time)
 
 #: The keys of the three episodes a story can be in without naming a day.
 NOW, THEN, LATER = "now", "then", "later"
@@ -451,25 +454,11 @@ class Timeline:
 
     def path(self, start: str, goal: str) -> list[str]:
         """The `before` edges from one occurrence to another, as the
-        occurrences on the way, both ends included; [] if none."""
-        parent: dict[str, str | None] = {start: None}
-        frontier = [start]
-        while frontier:
-            step = []
-            for node in frontier:
-                for later in sorted(self.after.get(node, ())):
-                    if later in parent:
-                        continue
-                    parent[later] = node
-                    if later == goal:
-                        route, at = [], later
-                        while at is not None:
-                            route.append(at)
-                            at = parent[at]
-                        return route[::-1]
-                    step.append(later)
-            frontier = step
-        return []
+        occurrences on the way, both ends included; [] if none. T2 is the
+        one path walk (`walks.path`) along `before`."""
+        route = walks.path(start, goal, lambda node: (
+            ("before", later) for later in sorted(self.after.get(node, ()))))
+        return [start] + [node for _, node in route] if route else []
 
     def _reaches(self, start: str, goal: str) -> bool:
         return bool(self.path(start, goal))
@@ -603,8 +592,10 @@ class Timeline:
                           value, occurrence, "T5", None))
         earlier = [one for one in found if one[0] <= moment]
         settled = [one for one in earlier if one[2] is not None]
+        # The latest that settles it before the moment: T3 as retrieval by
+        # recency (`retrieval.latest`).
         if settled:
-            chosen = max(settled, key=lambda one: (one[0], one[1]))
+            chosen = retrieval.latest(settled, lambda one: (one[0], one[1]))
             return Holding(chosen[2], chosen[3], chosen[4], episode)
         later = sorted((one for one in found
                         if one[0] > moment and one[5] is not None),
@@ -612,7 +603,7 @@ class Timeline:
         if later:
             return Holding(later[0][5], later[0][3], "T4", episode)
         if earlier:
-            chosen = max(earlier, key=lambda one: (one[0], one[1]))
+            chosen = retrieval.latest(earlier, lambda one: (one[0], one[1]))
             return Holding(None, chosen[3], chosen[4], episode)
         elsewhere = []
         if not _nested:

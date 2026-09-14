@@ -50,6 +50,7 @@ v688 does, and reports: *weakly yes, and I don't believe it.*
 | `graph.py` | the rest of the store: what a concept's family expects of it, what an action turns out to need, and which kinds a claim should be put to. |
 | `gap.py` | types a v687 payload's incompleteness — a **Gap** (memory says it lacks something) or a **Doubt** (the answer is thinner than its verdict looks). Reads the payload v687 already returns; **edits nothing in v687**. |
 | `attention.py` | salience (activation, decaying per cycle) · gain (bits of the candidate set a question removes, on the predicate trie) · urgency (what kind of hole). Ranked as a **product**, so a zero anywhere is fatal. |
+| `retrieval.py` + `test_retrieval.py` | one retrieval: preferences that narrow without emptying, the most active candidate, and the lead it needs; recency as base-level activation. What v689's discourse, story and I1 pick with (`v690/DESIGN.md` §4.4). |
 | `question.py` | the five generators, and the queue they feed. |
 | `buffer.py` | one utterance's state: cycle, activation, topics, open gaps and doubts, carried questions, and the conflicts the answers add up to. |
 | `pool.py` | N engines, asked in parallel, with per-question worker and timing. |

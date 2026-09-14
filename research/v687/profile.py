@@ -42,11 +42,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import truth
 from .ordering import adaptive_coverage
 from .substrate import Corpus
 from .trie import PredicateTrie
 from . import corpora, logic, pins, rules
 from .rated import Ratings
+from .rulebook import rule
 
 #: Facts shown per ancestor. One ancestor can carry hundreds; six is enough to
 #: see what a level contributes without burying the level below it.
@@ -128,13 +130,12 @@ RELATION_RANK = {"capable_of": 0, "has_a": 1, "has_part": 1, "has_property": 2,
 #: different prompt.
 #:
 #: Overridable with `V687_CORROBORATION_FLOOR`.
-CORROBORATION_FLOOR = float(
-    os.environ.get("V687_CORROBORATION_FLOOR") or 0.6)
+CORROBORATION_FLOOR = rule("R19").parameters["floor"]
 
 #: ...and refusal needs a sample worth refusing on. `whale.n.02` has four
 #: kinds in the norms; one of them singing is not evidence that whales do not
 #: sing. Below this, an inherited fact is taken as it was before.
-CORROBORATION_MIN_KINDS = 8
+CORROBORATION_MIN_KINDS = rule("R19").parameters["min_kinds"]
 
 #: Set `V687_NO_DISTILLED_NORMS=1` to run R19 on elicited norms alone. The
 #: ablation the audit needs, and the switch to reach for first when a denial
@@ -247,12 +248,17 @@ def corroborated(bearing: int, kinds: int, source: str | None = None) -> bool:
     And the stricter burden falls only on `CRAWLED` sources. A caller that
     does not know the source passes None and gets the shipped behaviour,
     which keeps the rule safe where the evidence is unattributed.
+
+    Said as evidence (`truth.py`): `bearing` of `kinds` is induction from a
+    kind's members, the minimum sample is the confidence eight of them reach,
+    and the floor is on the share of them for it.
     """
-    if kinds < CORROBORATION_MIN_KINDS:
+    evidence = truth.counted(bearing, kinds)
+    if evidence.confidence() < truth.speaks_at(CORROBORATION_MIN_KINDS):
         strict = (CORROBORATION_REQUIRED and kinds
                   and (source or "").lower() in CRAWLED)
         return bearing > 0 if strict else True
-    return bearing / kinds >= CORROBORATION_FLOOR
+    return truth.borne_out(evidence, CORROBORATION_FLOOR)
 
 
 def _clone(node: logic.Node) -> logic.Node:

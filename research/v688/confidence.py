@@ -58,6 +58,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from research.v687 import rulebook, rules
+
 from . import gap
 
 #: The four readings. Seventeen verdicts collapse onto these, and nothing
@@ -78,12 +80,10 @@ ASCENT = ((0.081, 0.05), (0.125, 0.10), (0.157, 0.25), (0.264, 0.50),
 #: number is not a signal and the source is.
 FLAT = {"conceptnet": 0.50, "wordnet": 0.90}
 
-#: What the derivation stood on, before anything the loop found moved it.
-GROUND = {"R1": 0.95, "R27": 0.95, "R29": 0.95, "R26": 0.90,
-          "R17": 0.85, "R16": 0.85, "R21": 0.85, "R20": 0.80,
-          # Rated norms: people's ratings, priced as the norms are. R32 is two
-          # sources joined, and a join is one more place to be wrong.
-          "R31": 0.85, "R32": 0.80}
+#: What the derivation stood on, before anything the loop found moved it:
+#: each rule's `ground` (`rulebook.py`). Rated norms are priced as the norms
+#: are; R32 is two sources joined, and a join is one more place to be wrong.
+GROUND = rulebook.grounds()
 
 #: Rules whose walk *is* the proof, so distance from the concept costs them
 #: nothing. Subsumption is transitive and exact: `is a beagle a dog` is no
@@ -93,14 +93,14 @@ GROUND = {"R1": 0.95, "R27": 0.95, "R29": 0.95, "R26": 0.90,
 #: R2 and R4 are the opposite and are absent on purpose. An inherited
 #: *property* is defeasible, which is the whole of what R3 exists to
 #: override, so every level of borrowing costs it.
-EXACT = frozenset({"R1", "R27", "R29"})
+EXACT = rulebook.exact()
 
 #: Where the bands fall. Thirds, deliberately: any finer split would claim a
 #: precision the inputs do not have.
 LOW, HIGH = 1 / 3, 2 / 3
 
 #: The judgement in this file, kept small and kept together.
-PER_LEVEL = 0.85          # R5's own decay, one level of borrowing
+PER_LEVEL = rules.DECAY   # R5's own decay, one level of borrowing
 DOUBT_COSTS = 0.80        # each undermining doubt, compounding
 BORNE_OUT = 1.25          # the family was asked and most of it agreed
 OVERTURNED = 0.55         # the loop had to correct what v687 answered

@@ -37,57 +37,32 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .links import LINKS, named
+from .rulebook import rule, texts
+
+# Which relation is which -- inheritable, gated, a negation, a family -- is
+# each relation's row in `links.py`, with the reasons. The names below are
+# read off that table, so the rules and the table cannot disagree.
+
 # -- R2: which relations descend ------------------------------------------
 #: A subtype has whatever the supertype has. If mammals can breathe, dogs can.
-INHERITABLE: frozenset[str] = frozenset({
-    "capable_of", "has_property", "has_a", "has_part", "receives_action",
-    "used_for", "desires", "not_desires", "not_capable_of",
-    "not_has_property", "has_prerequisite", "has_subevent",
-    "motivated_by_goal", "causes", "at_location", "part_of", "has_attribute",
-    "entails", "located_near",
-})
+INHERITABLE: frozenset[str] = named(lambda one: one.inherited)
 
 #: Relations that do NOT descend, with the reason each is excluded.
 NOT_INHERITABLE: dict[str, str] = {
-    "made_of": "a subtype may be made of something else entirely -- a chair is "
-               "furniture, but furniture is not made of wood",
-    "similar_to": "similarity is not transitive through subtyping",
-    "instance_of": "an instance's membership says nothing about a subclass",
-    "created_by": "the maker of a kind is not the maker of every subkind",
-    "symbol_of": "symbolism attaches to the specific thing, not the category",
-    "defined_as": "a definition is about that concept alone",
-    "manner_of": "manner relates two actions, it does not descend a hierarchy",
-}
+    name: one.why_not for name, one in LINKS.items() if one.why_not}
 
 # -- R7: relations that never participate ---------------------------------
-#: `related_to` is 1,678,150 of v633's 3.9M edges and carries no semantics --
-#: no direction, no relation type, just co-occurrence. Inheriting it floods
-#: every answer. It is excluded from storage and from inference.
-GATED: frozenset[str] = frozenset({"related_to", "has_context", "form_of",
-                                   "derived_from", "etymologically_related_to",
-                                   "synonym", "antonym", "has_sense",
-                                   "definition", "usage_count", "distinct_from",
-                                   "verb_group"})
+GATED: frozenset[str] = named(lambda one: one.gated)
 
 #: R3: an assertion of the key blocks inheritance of the value, and vice versa.
 NEGATIONS: dict[str, str] = {
-    "not_capable_of": "capable_of",
-    "not_has_property": "has_property",
-    "not_desires": "desires",
-}
+    name: one.denies for name, one in LINKS.items() if one.denies}
 POSITIVES: dict[str, str] = {value: key for key, value in NEGATIONS.items()}
 
 # -- R9: relations that answer for each other ------------------------------
-#: Sources disagree about which relation a fact belongs under. WordNet files
-#: "a dog has a tail" as `has_part`; Ascent++ files it as `has_a`. A question
-#: asking about one must see the other, or the answer depends on which source
-#: happened to record it. Only genuinely interchangeable relations appear here
-#: -- `part_of` is NOT a family member of `has_part`, it is its inverse.
-FAMILIES: tuple[frozenset[str], ...] = (
-    frozenset({"has_a", "has_part"}),
-    frozenset({"at_location", "located_near"}),
-    frozenset({"has_property", "has_attribute"}),
-)
+FAMILIES: tuple[frozenset[str], ...] = tuple(dict.fromkeys(
+    one.family for one in LINKS.values() if one.family))
 
 
 def family(relation: str) -> list[str]:
@@ -101,10 +76,10 @@ def family(relation: str) -> list[str]:
 #: R5: what one level of borrowing costs. A fact five levels up retains
 #: 0.85**5 = 0.44 of its confidence, so `thing capable_of fall down` ranks
 #: below anything stated about dogs directly.
-DECAY = 0.85
+DECAY = rule("R5").parameters["decay"]
 
 #: R5: below this, a derived fact is not worth reporting.
-FLOOR = 0.05
+FLOOR = rule("R5").parameters["floor"]
 
 #: R12: how wide a subtree makes a word-level fact untrustworthy to inherit.
 #:
@@ -120,7 +95,7 @@ FLOOR = 0.05
 #: `plant` (4,487) sit below it and keep inheriting, because there the word
 #: and the class really do mean the same thing. The gap in the data between
 #: those two groups is where the threshold goes.
-BREADTH_LIMIT = 8000
+BREADTH_LIMIT = rule("R12").parameters["breadth_limit"]
 
 
 def inheritable(relation: str) -> bool:
@@ -145,9 +120,7 @@ def inheritable(relation: str) -> bool:
 #:
 #: Only word-level facts are checked. WordNet's own are already sense-tagged.
 RANGES: dict[str, str] = {
-    "at_location": "physical entity.n.01",
-    "located_near": "physical entity.n.01",
-}
+    name: one.range for name, one in LINKS.items() if one.range}
 
 
 def inheritable_from(relation: str, breadth: int, sense_assumed: bool) -> bool:
@@ -171,8 +144,9 @@ def why_not_inheritable(relation: str) -> str:
 
 
 def confidence_at(base: float, distance: int) -> float:
-    """R5."""
-    return base * (DECAY ** distance)
+    """R5: deduction down the taxonomy spends confidence (`truth.py`)."""
+    from .truth import deduced
+    return deduced(base, distance, DECAY)
 
 
 #: R3: words that turn an object phrase into a denial of itself.
@@ -231,28 +205,6 @@ class Step:
         }
 
 
-RULE_TEXT: dict[str, str] = {
-    "R1": "Subsumption closure: is_a is transitive over an acyclic taxonomy.",
-    "R2": "Property lift: a subtype inherits a supertype's facts, for "
-          "inheritable relations only.",
-    "R3": "Exception blocking: a closer statement, or an explicit negation, "
-          "overrides an inherited fact.",
-    "R4": "Specificity preference: the nearest ancestor that answers wins.",
-    "R5": f"Confidence decay: each level of borrowing multiplies confidence "
-          f"by {DECAY}.",
-    "R6": "Sense scoping: inference runs per WordNet sense, never per word.",
-    "R7": "Relation gating: contentless relations such as related_to never "
-          "participate.",
-    "R8": "Answer synthesis: VERIFIED, CONTRADICTED or UNKNOWN.",
-    "R9": "Relation families: has_a and has_part answer for each other, "
-          "because the sources disagree about which one a fact belongs under.",
-    "R10": "Redundancy elimination: a fact an ancestor already states is not "
-           "stored twice -- R2 rebuilds it. Lossless.",
-    "R11": "Hoisting: a fact every child states moves to the parent. A "
-           "generalisation, not a deduction, so hoisted rows are marked.",
-    "R12": f"Breadth gating: a word-level fact does not inherit from a concept "
-           f"with {BREADTH_LIMIT:,}+ descendants, where the word and the class "
-           f"have stopped meaning the same thing.",
-    "R13": "Range typing: a relation's object must be the kind of thing the "
-           "relation takes. A location has to be a place.",
-}
+#: What the page shows for each rule, from its row (`rulebook.py`).
+RULE_TEXT: dict[str, str] = texts("R1", "R2", "R3", "R4", "R5", "R6", "R7",
+                                  "R8", "R9", "R10", "R11", "R12", "R13")
