@@ -216,21 +216,22 @@ class ReadingTimeTests(unittest.TestCase):
 
     def test_an_anchor_that_is_not_a_clause_leaves_the_utterance_whole(self):
         found = self.read("what happened after the dog chased the cat")
-        self.assertEqual((found.act, found.when.relation, found.when.anchor),
-                         ("happened", "after", "the dog chased the cat"))
+        self.assertEqual((found.cells, found.when.relation, found.when.anchor),
+                         ([("events", "story")], "after",
+                          "the dog chased the cat"))
         self.assertEqual(self.read("the dog slept after dinner").when.anchor,
                          "")
 
     def test_the_questions_about_occurrences(self):
-        for text, act in (("when did the dog chase the cat", "when"),
-                          ("how many times did the dog bark",
-                           "how_many_times"),
-                          ("what was the dog doing", "doing"),
-                          ("what happened to the vase", "happened"),
-                          ("what did the dog do", "happened"),
-                          ("what did the cat do second", "happened"),
-                          ("what did i tell you first", "happened")):
-            self.assertEqual(self.read(text).act, act, text)
+        for text, cell in (
+                ("when did the dog chase the cat", ("time", "occurrence")),
+                ("how many times did the dog bark", ("times", "occurrence")),
+                ("what was the dog doing", ("verb", "occurrence")),
+                ("what happened to the vase", ("events", "story")),
+                ("what did the dog do", ("events", "story")),
+                ("what did the cat do second", ("events", "story")),
+                ("what did i tell you first", ("events", "told"))):
+            self.assertIn(cell, self.read(text).cells, text)
         self.assertEqual(self.read("what did i tell you first").rest,
                          ["told", "first"])
 

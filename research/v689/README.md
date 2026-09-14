@@ -493,8 +493,8 @@ kind of one.
 | `relations.py` | S1 to S4: relations between two individuals along a dimension, their order, and the compass as a map |
 | `motives.py` | the store's motivations: what a state moves one to, and what a place is for |
 | `discourse.py` | attention: salience, order, focus, names, groups, and resolving a phrase to one individual |
-| `grammar.py` | one grammar for every wh-question about this conversation's individuals: the question word says what is asked, the shape after it of which relation, and the reading names the goal cell it fills, which `Session._cells` answers (`v690/DESIGN.md` P5) |
-| `goals.py` + `test_goals.py` | what a question asks, as slots -- asked, relation, who, subject, object, verb -- and the operators that answer by composing memory: who or what is at a place, what is with whom, where an occurrence went (`v690/DESIGN.md` P5) |
+| `grammar.py` | one grammar for every wh-question about this conversation's individuals: the question word says what is asked, the shape after it of which relation; the reading carries its goals -- asked, relation, who, subject, object, verb, clause -- in the order they are tried (`v690/DESIGN.md` P5) |
+| `goals.py` + `test_goals.py` | the operators that answer the cells a relation's slots make by composing memory (`COMPOSES`): who or what is at a place, what is with whom, where an occurrence went; every other cell has its own operator in `Session._cells` |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
 | `clauses.py` | a statement split into its claims by the dependency parse |

@@ -203,7 +203,8 @@ class Reading:
     """What an utterance does, and to whom."""
 
     #: introduce | tell | ask | what | name | ask_name | teach | generic |
-    #: define | compound, for several claims the parse could not tell apart
+    #: define | why | compound, for several claims the parse could not tell
+    #: apart | question, for one `grammar.py` reads into goals
     act: str
     mention: Mention | None = None
     aux: str | None = None        # `can` in `it can't swim`; None for `it barks`
@@ -225,12 +226,14 @@ class Reading:
     when: When | None = None
     #: `how many objects is Mary carrying`: a count, not a list
     count: bool = False
-    #: (asked, relation): the goal cell a question fills (`grammar.py`),
-    #: which the session answers by cell rather than by the act's name
-    cell: tuple | None = None
-    #: the goal a question states (`goals.goal_from`), for the operators that
-    #: answer by its slots; None for anything else
-    goal: object | None = None
+    #: what a question asks, as goals (`grammar.py`), in the order they are
+    #: tried: the goal read as slots, then the one its own words' cell states
+    goals: list = field(default_factory=list)
+
+    @property
+    def cells(self) -> list[tuple]:
+        """(asked, relation) of each goal: what the session answers by."""
+        return [one.cell for one in self.goals]
 
     def as_dict(self) -> dict:
         return {"act": self.act,
@@ -241,7 +244,8 @@ class Reading:
                 "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
                              else None),
-                "when": self.when.as_dict() if self.when else None}
+                "when": self.when.as_dict() if self.when else None,
+                "goals": [one.as_dict() for one in self.goals]}
 
 
 def _stops(word: str) -> bool:
@@ -744,9 +748,12 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         when.main = " ".join(typed + list(when.again_words))
     found = _read(said, asked, tokens, typed, lexicon, names)
     _mark_fresh(found, fresh)
-    # What a question asks, as slots, from the same words (`goals.py`).
-    from .goals import goal_from
-    found.goal = goal_from(tokens, lexicon, names, said)
+    # What a question asks, as slots, from the same words (`grammar.py`),
+    # tried before the goal its reading's own cell states.
+    from .grammar import slot_goal
+    asked = slot_goal(tokens, lexicon, names, said)
+    if asked is not None:
+        found.goals.insert(0, asked)
     found.when = when
     for one in found.more:
         if one.when is None or one.when.empty:

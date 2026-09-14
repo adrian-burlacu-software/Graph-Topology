@@ -450,9 +450,25 @@ Checked against the saved readings: of 1,206, 170 differ, each only in now
 naming the cell its act fills, and none in anything else. A test pins that
 the cells the grammar reads are exactly the cells the session answers.
 
-Two readers remain -- the grammar's cells and `goals.goal_from`'s slots --
-over the same words. Merging them, so every cell is read as slots and the
-act names go, is the next step.
+The fifth step merged the two readers. A question's reading carries its
+**goals**, in the order they are tried: the goal read as slots
+(`grammar.slot_goal`, which was `goals.goal_from`), then the goal its own
+words' cell states, with the slots read off the reading (`_own_goal`). The
+act names are gone: the grammar's readings are `question`, the page shows
+each goal's cell, and the session asks the cells, not the name, whether a
+turn was `how do you know that` or `what about a cat`. Every cell has one
+operator, which a test pins: its own (`Session._cells`), or its relation's
+(`goals.COMPOSES`). What is carried was two -- `story.carrying` for `what is
+Mary carrying` and the holding operator for `what does Mary have` -- and is
+now the holding operator, which resolves a question's own subject as a
+question's subject is resolved. `what does Mary have` is proposed twice:
+what is with her, composed first, and failing that what was told she has.
+Of 1,209 readings, 455 differ, each only in its act being `question`.
+
+The grammar still reads in two families of shapes -- the slots and the cells
+-- each taking its first match. Collapsing them into one table of shapes,
+each proposing a goal, is next; after it, the cells with operators of their
+own can move one at a time onto the relations' operators, as holding's did.
 
 ## 9. Risks
 

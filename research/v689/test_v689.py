@@ -926,19 +926,19 @@ class ConversationQuestionTests(unittest.TestCase):
     lexicon = FakeLexicon()
 
     def test_each_shape_is_read(self):
-        cases = {"how many dogs are there": "how_many",
-                 "which dog is black": "which",
-                 "who chased the cat": "who",
-                 "where is the dog": "where",
-                 "what is the cat on": "where",
-                 "what did the dog chase": "what_did",
-                 "what can it do": "about",
-                 "what do you know about it": "about",
-                 "tell me about it": "about",
-                 "what happened": "happened",
-                 "what did it do first": "happened"}
-        for text, act in cases.items():
-            self.assertEqual(reading.read(text, self.lexicon).act, act, text)
+        cases = {"how many dogs are there": ("count", "is_a"),
+                 "which dog is black": ("which", "is_a"),
+                 "who chased the cat": ("subject", "occurrence"),
+                 "where is the dog": ("place", "located"),
+                 "what is the cat on": ("place", "located"),
+                 "what did the dog chase": ("object", "occurrence"),
+                 "what can it do": ("facts", "any"),
+                 "what do you know about it": ("facts", "any"),
+                 "tell me about it": ("facts", "any"),
+                 "what happened": ("events", "story"),
+                 "what did it do first": ("events", "story")}
+        for text, cell in cases.items():
+            self.assertIn(cell, reading.read(text, self.lexicon).cells, text)
         self.assertEqual(reading.read("how many dogs are there",
                                       self.lexicon).mention.kind, "dog")
 
@@ -946,8 +946,9 @@ class ConversationQuestionTests(unittest.TestCase):
         for text in ("what can a dog do", "how many legs does a spider have",
                      "how many kinds of dog are there",
                      "what do you know about beagles", "tell me about dogs"):
-            self.assertNotIn(reading.read(text, self.lexicon).act,
-                             ("how_many", "about", "what_did"), text)
+            self.assertFalse(
+                {("count", "is_a"), ("facts", "any"), ("object", "occurrence")}
+                & set(reading.read(text, self.lexicon).cells), text)
 
     def test_how_many_and_which(self):
         _, turns, _ = talk("there is a black beagle", "there is a beagle",
@@ -1017,21 +1018,22 @@ class DialogueTests(unittest.TestCase):
     def test_how_do_you_know_that(self):
         _, turns, _ = talk("there is a beagle", "it can't swim", "can it swim",
                            "how do you know that")
-        self.assertEqual(turns[3].act, "meta")
+        self.assertIn(("grounds", "answer"), turns[3].reading.cells)
         self.assertIn("what you told me", turns[3].answer["text"])
 
     def test_what_about_another_kind(self):
         _, turns, asker = talk("can a dog swim", "what about a cat",
                                outcomes={"can a dog swim": "verified",
                                          "can a cat swim": "denied"})
-        self.assertEqual(turns[1].act, "ellipsis")
+        self.assertIn(("again", "question"), turns[1].reading.cells)
         self.assertIn("can a cat swim", asker.asked)
         self.assertTrue(turns[1].answer["text"].startswith(
             "asked as “can a cat swim”"), turns[1].answer["text"])
 
     def test_you_in_a_question_is_anyone(self):
-        self.assertNotEqual(reading.read("what do you need to bake a cake",
-                                         self.lexicon).act, "what_did")
+        self.assertNotIn(("object", "occurrence"),
+                         reading.read("what do you need to bake a cake",
+                                      self.lexicon).cells)
 
 
 class KindPronounTests(unittest.TestCase):

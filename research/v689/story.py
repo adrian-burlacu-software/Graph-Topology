@@ -443,45 +443,6 @@ class Story:
                 out.append((one.id, where[-1][2]))
         return out
 
-    def carrying(self, reading, turn) -> None:
-        """`what is Mary carrying`, `how many objects is Mary carrying`: what
-        is with her -- when VerbNet reads the verb as having something with
-        you (`change.accompanies`) -- counted, where the question counts."""
-        referent = self.session._here(reading, turn)
-        if referent is None:
-            return
-        described = self.discourse.describe(referent)
-        verb = reading.rest[0] if reading.rest else ""
-        if not changes.accompanies(verb, self.asker.verb_senses(verb)):
-            turn.answer = {"outcome": "unknown", "source": "conversation",
-                           "text": f"not told — VerbNet does not read "
-                                   f"“{verb}” as having something with you, "
-                                   f"and nothing was said of what "
-                                   f"{described} is {verb}ing"}
-            return
-        held = self.held_by(referent.id)
-        kind = (self.asker.lemma(reading.obj.kind)
-                if reading.obj is not None else "")
-        if kind and kind not in self.ANYTHING:
-            ones = {one.id for one in self.session._individuals(kind)}
-            held = [one for one in held if one[0] in ones]
-        names = [self.discourse.describe(self.discourse.by_id(one))
-                 for one, _ in held]
-        why = "; ".join(f"{name}: {self.quote(basis)}"
-                        for name, (_, basis) in zip(names, held))
-        if reading.count:
-            count = (self.COUNTS[len(held)] if len(held) < len(self.COUNTS)
-                     else str(len(held)))
-            text = (f"{count} — {why}" if held else
-                    f"none — nothing was said to be with {described} now")
-        elif held:
-            text = (", ".join(names[:-1]) + " and " + names[-1]
-                    if len(names) > 1 else names[0]) + f" — {why}"
-        else:
-            text = f"nothing — nothing was said to be with {described} now"
-        turn.answer = {"outcome": "retrieved", "source": "told",
-                       "text": text + " (T4, T3)"}
-
     def to_whom(self, reading, turn) -> None:
         """`who did Fred give the football to`: where what he did put it --
         the last time, when there were several (T1)."""

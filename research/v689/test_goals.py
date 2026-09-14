@@ -13,7 +13,7 @@ from __future__ import annotations
 import unittest
 
 from research.v689 import test_people as people
-from research.v689.goals import read_goal
+from research.v689.grammar import read_goal
 from research.v689.test_people import said, talk
 
 
@@ -80,14 +80,25 @@ class ReadingGoalsTests(unittest.TestCase):
                 ("what can Mary do", ("facts", "any")),
                 ("how do you know that", ("grounds", "answer")),
                 ("what about a person", ("again", "question"))):
-            self.assertEqual(read(text, lexicon, names).cell, cell, text)
-        self.assertIsNone(read("can a dog swim", lexicon, names).cell)
+            self.assertIn(cell, read(text, lexicon, names).cells, text)
+        self.assertEqual(read("can a dog swim", lexicon, names).cells, [])
 
-    def test_every_cell_the_grammar_reads_is_answered(self):
-        from research.v689.grammar import ACTS
+    def test_every_cell_has_one_operator(self):
+        from research.v689.goals import COMPOSES
+        from research.v689.grammar import CELLS
         from research.v689.session import Session
-        self.assertEqual(set(ACTS),
-                         set(Session(people.PeopleAsker())._cells()))
+        composed = {(asked, relation) for relation, asks in COMPOSES.items()
+                    for asked in asks}
+        own = set(Session(people.PeopleAsker())._cells())
+        self.assertLessEqual(CELLS, own | composed)
+        self.assertFalse(own & composed)
+
+    def test_a_question_read_two_ways_is_tried_as_slots_first(self):
+        from research.v689.reading import read
+        found = read("what does Mary have", self.lexicon(),
+                     frozenset({"mary"}))
+        self.assertEqual(found.cells, [("object", "holding"),
+                                       ("facts", "any")])
 
     def test_not_a_goal(self):
         lexicon = self.lexicon()
@@ -140,7 +151,7 @@ class HoldingTests(unittest.TestCase):
     def test_a_pattern_still_answers_what_it_did(self):
         _, turns = talk("Mary went to the kitchen.", "Mary got the football.",
                         "what is Mary carrying", "who went to the kitchen")
-        self.assertEqual(turns[2].act, "carrying")
+        self.assertIn(("object", "holding"), turns[2].reading.cells)
         self.assertEqual(said(turns[2]), "the football")
         self.assertEqual(said(turns[3]), "Mary")
 

@@ -229,6 +229,10 @@ function renderTurn(box, turn) {
   const said = el("div", "said");
   said.appendChild(el("span", "text", turn.said));
   said.appendChild(el("span", "chip", turn.act));
+  // What a question asks: each goal's cell, in the order they are tried.
+  for (const goal of (turn.reading && turn.reading.goals) || []) {
+    said.appendChild(el("span", "chip", `${goal.asked} of ${goal.relation}`));
+  }
   const time = timeChip(turn.reading && turn.reading.when);
   if (time) said.appendChild(el("span", "chip time", time));
   box.appendChild(said);

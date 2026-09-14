@@ -33,17 +33,34 @@ asked, and what follows it says of which relation:
 
 Each shape is tried in turn after the question word, first match reading.
 The reading given for each cell is the one its old pattern in `reading.py`
-gave -- the handlers read `aux`, `rest` and `obj` as they did -- and the act
-it was named for is kept as the reading's name, which the page shows and
-nothing dispatches on (`ACTS`).
+gave -- the handlers read `aux`, `rest` and `obj` as they did -- with the act
+`question`, and one goal: the cell, with its slots read off the reading
+(`_own_goal`).
+
+Some questions are also read as slots (`slot_goal`), the relation and what
+is asked of it read straight off the words:
+
+    who is in the kitchen, is anyone in it, how many people are in it
+    when was Mary in the kitchen
+    who has the football, is anyone carrying it, does Mary have it
+    what does Mary have, how many things does she have
+    did anyone go to the garden, how many people went to the kitchen
+    where did Mary go (first), where did she drop the football
+
+That goal is tried first, and composed from memory by its relation's
+operator (`goals.py`); when it finds nothing, the goal the question's own
+words state is tried, or the act the rest of `reading.py` read. So `what does
+Mary have` is what is with her, and failing that what was told she has.
 
 A question about a kind -- `what can a dog do`, `how many legs does a spider
 have` -- fills no cell here, and is v688's.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .reading import (AUX, COPULA, PLACES, QUESTION_WORDS, SEQUENCE, Mention,
-                      Reading, _with_object, read_mention)
+                      Reading, _with_object, read_mention, tags_of, tokens_of)
 from .relations import phrase as relation_phrase
 
 #: What a count of individuals ends with: `how many dogs are there`.
@@ -73,31 +90,68 @@ GROUNDS = (("how", "do", "you", "know"), ("how", "do", "you", "know", "that"),
 #: The last question, of another kind: `what about a cat`, `and a fish?`.
 AGAIN = (("what", "about"), ("how", "about"), ("and",))
 
-#: The act each cell was a pattern for, kept as the reading's name.
-ACTS = {("time", "occurrence"): "when",
-        ("times", "occurrence"): "how_many_times",
-        ("subject", "occurrence"): "who",
-        ("recipient", "occurrence"): "to_whom",
-        ("object", "occurrence"): "what_did",
-        ("verb", "occurrence"): "doing",
-        ("place", "located"): "where",
-        ("object", "holding"): "carrying",
-        ("count", "holding"): "carrying",
-        ("subject", "dimension"): "related",
-        ("object", "dimension"): "related",
-        ("path", "dimension"): "route",
-        ("value", "attribute"): "attribute",
-        ("object", "attribute"): "toward",
-        ("place", "motive"): "where_going",
-        ("count", "is_a"): "how_many",
-        ("which", "is_a"): "which",
-        ("kind", "is_a"): "what",
-        ("events", "story"): "happened",
-        ("events", "told"): "happened",
-        ("events", "future"): "happened",
-        ("facts", "any"): "about",
-        ("grounds", "answer"): "meta",
-        ("again", "question"): "ellipsis"}
+#: The cells this grammar's shapes read. Each has one operator: its own
+#: (`Session._cells`), or its relation's (`goals.COMPOSES`).
+CELLS = frozenset({
+    ("time", "occurrence"), ("times", "occurrence"), ("subject", "occurrence"),
+    ("recipient", "occurrence"), ("object", "occurrence"),
+    ("verb", "occurrence"), ("place", "located"), ("object", "holding"),
+    ("count", "holding"), ("subject", "dimension"), ("object", "dimension"),
+    ("path", "dimension"), ("value", "attribute"), ("object", "attribute"),
+    ("place", "motive"), ("count", "is_a"), ("which", "is_a"),
+    ("kind", "is_a"), ("events", "story"), ("events", "told"),
+    ("events", "future"), ("facts", "any"), ("grounds", "answer"),
+    ("again", "question")})
+
+
+# -- goals ------------------------------------------------------------------------
+#: Being at a place: `in the kitchen`, `at school`.
+PLACING = frozenset({"in", "inside", "at", "on"})
+
+#: Anyone at all, and anything at all.
+PEOPLE = frozenset({"anyone", "anybody", "someone", "somebody"})
+THINGS = frozenset({"anything", "something"})
+
+#: Counting people: `how many people`, `how many persons`.
+PERSONS = frozenset({"people", "person", "persons"})
+
+#: A verb of having said bare, before its object: `who has the football`.
+HAS = frozenset({"has", "have", "had", "holds", "owns", "keeps"})
+
+#: What `does Mary ___ it` asks of her when it is having something.
+HAVE = frozenset({"have", "hold", "own", "keep", "carry"})
+
+#: Auxiliaries a question about an occurrence or a having opens with.
+DID = frozenset({"did", "does", "do", "has", "have", "had"})
+
+#: Mention forms that name no one here.
+NO_ONE = frozenset({"indefinite", "another", "kind", "plural", "group"})
+
+
+@dataclass
+class Goal:
+    asked: str
+    relation: str
+    who: str = ""
+    subject: Mention | None = None
+    object: Mention | None = None
+    verb: str = ""
+    sequence: int | None = None
+    clause: Reading | None = None
+    said: str = ""
+
+    @property
+    def cell(self) -> tuple:
+        """What is asked, of which relation: what the session answers by."""
+        return (self.asked, self.relation)
+
+    def as_dict(self) -> dict:
+        return {"asked": self.asked, "relation": self.relation,
+                "who": self.who,
+                "subject": self.subject.text if self.subject else None,
+                "object": self.object.text if self.object else None,
+                "verb": self.verb, "sequence": self.sequence,
+                "clause": " ".join(self.clause.rest) if self.clause else None}
 
 
 def _individual(found) -> bool:
@@ -114,11 +168,12 @@ class _Question:
                  said: str) -> None:
         self.tokens, self.lexicon, self.names, self.said = (tokens, lexicon,
                                                             names, said)
+        #: the cell of the last reading made
+        self.cell: tuple | None = None
 
     def reading(self, cell: tuple, *args, **kwargs) -> Reading:
-        found = Reading(ACTS[cell], *args, said=self.said, **kwargs)
-        found.cell = cell
-        return found
+        self.cell = cell
+        return Reading("question", *args, said=self.said, **kwargs)
 
     def with_object(self, reading: Reading) -> Reading:
         return _with_object(reading, self.lexicon, self.names)
@@ -500,5 +555,191 @@ def cell_reading(tokens: list[str], lexicon, names: frozenset,
     for shape in SHAPES.get(tokens[0], ()):
         found = shape(question)
         if found is not None:
+            found.goals = [_own_goal(question.cell, found, lexicon)]
             return found
+    return None
+
+
+def _own_goal(cell: tuple, reading: Reading, lexicon) -> Goal:
+    """The goal a question's own words state: the cell its shape read, with
+    the slots read off its reading, which is the goal's clause."""
+    mention = reading.mention
+    kind = mention is not None and mention.form == "kind"
+    who = mention.kind if kind else ""
+    if reading.count and reading.obj is not None:
+        who = lexicon.lemma(reading.obj.kind)
+        who = "people" if who in PERSONS else who
+    verb = ""
+    if cell[1] in ("occurrence", "holding"):
+        verb = next((lexicon.lemma(word) for word in reading.rest
+                     if word.isalpha()), "")
+    sequence = next((SEQUENCE[word] for word in reading.rest
+                     if word in SEQUENCE), None)
+    return Goal(cell[0], cell[1], who, None if kind else mention, reading.obj,
+                verb, sequence, reading, reading.said)
+
+
+# -- goals read as slots ------------------------------------------------------------
+def read_goal(text: str, lexicon, names: frozenset = frozenset()
+              ) -> Goal | None:
+    """The goal a question states, read from its text."""
+    return slot_goal(tokens_of(text)[0], lexicon, names, text)
+
+
+def slot_goal(tokens: list[str], lexicon, names: frozenset = frozenset(),
+              text: str = "") -> Goal | None:
+    """The goal a question states, or None when it is not one of these.
+    `reading.read` reads it from the words it read the question in, once
+    requests are rephrased and time words taken off."""
+    if len(tokens) < 3:
+        return None
+    first = tokens[0]
+
+    def someone(found) -> bool:
+        return found is not None and found.form not in NO_ONE
+
+    def named(at: int, upto: int | None = None, opener: str = "is"):
+        """The individual named from `at` to the end (or to `upto`)."""
+        span = tokens if upto is None else tokens[:upto]
+        found = read_mention(span, at, lexicon, opener, final_ok=True,
+                             names=names)
+        return found if someone(found) and found.end == len(span) else None
+
+    def filling(word: str) -> str:
+        return ("people" if word in ("who", "whom") or word in PEOPLE
+                else "things")
+
+    def kind_of(words: list[str]) -> str:
+        who = " ".join(words[:-1] + [lexicon.lemma(words[-1])])
+        return "people" if who in PERSONS else who
+
+    def clause(aux, rest, subject=None) -> Reading:
+        return _with_object(Reading("question", subject, aux, list(rest),
+                                    said=text), lexicon, names)
+
+    def progressive(word: str) -> str:
+        if not word.endswith("ing") or not hasattr(lexicon, "progressive"):
+            return ""
+        return lexicon.progressive(word) or ""
+
+    # `who is in the kitchen`, `what is in the box`
+    if first in ("who", "what") and tokens[1] in COPULA \
+            and tokens[2] in PLACING:
+        place = named(3)
+        if place is not None:
+            return Goal("subject", "located", filling(first), object=place,
+                        said=text)
+
+    # `when was Mary in the kitchen`
+    if first == "when" and tokens[1] in COPULA:
+        found = read_mention(tokens, 2, lexicon, tokens[1], names=names)
+        if someone(found) and found.end + 1 < len(tokens) \
+                and tokens[found.end] in PLACING:
+            place = named(found.end + 1)
+            if place is not None:
+                return Goal("time", "located", subject=found, object=place,
+                            said=text)
+
+    # `is anyone in the kitchen`, `is anyone carrying the football`
+    if first in COPULA and tokens[1] in PEOPLE | THINGS and len(tokens) > 3:
+        if tokens[2] in PLACING:
+            place = named(3)
+            if place is not None:
+                return Goal("any", "located", filling(tokens[1]),
+                            object=place, said=text)
+        verb = progressive(tokens[2])
+        if verb:
+            thing = named(3)
+            if thing is not None:
+                return Goal("any", "holding", filling(tokens[1]),
+                            object=thing, verb=verb, said=text)
+
+    if first in DID and len(tokens) > 3:
+        # `does anyone have the football`
+        if tokens[1] in PEOPLE and tokens[2] in HAVE:
+            thing = named(3)
+            if thing is not None:
+                return Goal("any", "holding", "people", object=thing,
+                            verb=tokens[2], said=text)
+        # `did anyone go to the garden`
+        if tokens[1] in PEOPLE | THINGS:
+            return Goal("any", "occurrence", filling(tokens[1]),
+                        clause=clause(first, tokens[2:]), said=text)
+        # `does Mary have the football`
+        holder = read_mention(tokens, 1, lexicon, first, names=names)
+        if someone(holder) and holder.end + 1 < len(tokens) \
+                and tokens[holder.end] in HAVE:
+            thing = named(holder.end + 1)
+            if thing is not None:
+                return Goal("whether", "holding", subject=holder,
+                            object=thing, verb=tokens[holder.end], said=text)
+
+    # `is Mary carrying the football`
+    if first in COPULA and len(tokens) > 3:
+        holder = read_mention(tokens, 1, lexicon, first, names=names)
+        if someone(holder) and holder.end + 1 < len(tokens):
+            verb = progressive(tokens[holder.end])
+            thing = named(holder.end + 1) if verb else None
+            if thing is not None:
+                return Goal("whether", "holding", subject=holder,
+                            object=thing, verb=verb, said=text)
+
+    if tokens[:2] == ["how", "many"] and len(tokens) > 3:
+        # `how many people are in the kitchen`
+        at = next((index for index in range(3, len(tokens))
+                   if tokens[index] in COPULA), None)
+        if at is not None and at + 2 < len(tokens) \
+                and tokens[at + 1] in PLACING:
+            place = named(at + 2)
+            if place is not None:
+                return Goal("count", "located", kind_of(tokens[2:at]),
+                            object=place, said=text)
+        # `how many things does Mary have`
+        at = next((index for index in range(3, len(tokens))
+                   if tokens[index] in DID), None)
+        if at is not None and tokens[-1] in HAVE and at + 1 < len(tokens) - 1:
+            holder = named(at + 1, len(tokens) - 1, opener=tokens[at])
+            if holder is not None:
+                return Goal("count", "holding", kind_of(tokens[2:at]),
+                            subject=holder, verb=tokens[-1], said=text)
+        # `how many people went to the kitchen`
+        tags = tags_of(tokens, lexicon)
+        if tokens[3] not in AUX and tags and tags[3].startswith("VB"):
+            return Goal("count", "occurrence", kind_of(tokens[2:3]),
+                        clause=clause(None, tokens[3:]), said=text)
+
+    # `who has the football`, `who is carrying the football`
+    if first in ("who", "what"):
+        verb, at = "", 0
+        if tokens[1] in HAS:
+            verb, at = lexicon.lemma(tokens[1]), 2
+        elif tokens[1] in COPULA and len(tokens) > 3:
+            verb, at = progressive(tokens[2]), 3
+        if verb:
+            thing = named(at)
+            if thing is not None:
+                return Goal("subject", "holding", filling(first),
+                            object=thing, verb=verb, said=text)
+
+    # `what does Mary have`
+    if first == "what" and tokens[1] in DID and tokens[-1] in HAVE:
+        holder = named(2, len(tokens) - 1, opener=tokens[1])
+        if holder is not None:
+            return Goal("object", "holding", subject=holder,
+                        verb=tokens[-1], said=text)
+
+    # `where did Mary go`, `where did Mary go first`, `where did Mary drop
+    # the football`
+    if first == "where" and tokens[1] in DID:
+        found = read_mention(tokens, 2, lexicon, tokens[1], names=names)
+        if someone(found) and found.end < len(tokens):
+            rest = tokens[found.end:]
+            sequence = None
+            if len(rest) == 2 and rest[-1] in SEQUENCE:
+                sequence, rest = SEQUENCE[rest[-1]], rest[:-1]
+            said = clause(tokens[1], rest, found)
+            if len(rest) == 1 or said.obj is not None:
+                return Goal("place", "occurrence", subject=found,
+                            verb=lexicon.lemma(rest[0]), sequence=sequence,
+                            clause=said, said=text)
     return None

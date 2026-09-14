@@ -358,10 +358,11 @@ class Session:
 
     # -- one utterance -----------------------------------------------------
     def _cells(self) -> dict:
-        """The goal cells a question's reading fills (`grammar.py`), each
+        """The goal cells a question's goals fill (`grammar.py`), each
         answered by the operator for that cell -- what is asked, of which
-        relation -- rather than by the name of the pattern that read it. This
-        table is the coverage matrix."""
+        relation. With the cells a relation's operator composes
+        (`goals.COMPOSES`), this table is the coverage matrix: one operator
+        a cell."""
         story = self.story
         return {("time", "occurrence"): story.when_asked,
                 ("times", "occurrence"): story.how_many_times,
@@ -370,8 +371,6 @@ class Session:
                 ("object", "occurrence"): self._what_did,
                 ("verb", "occurrence"): story.doing,
                 ("place", "located"): self._where,
-                ("object", "holding"): story.carrying,
-                ("count", "holding"): story.carrying,
                 ("subject", "dimension"): self._related_to,
                 ("object", "dimension"): self._related_to,
                 ("path", "dimension"): self._route,
@@ -408,15 +407,16 @@ class Session:
                 return ANSWERED
             return apply
 
-        # What the utterance does, as operators (`executive.py`): first the
-        # goals a question states, answered by their slots (`goals.py`), then
-        # the cell a pattern read, then each remaining act on its own reading,
-        # and anything else is v688's.
+        # What the utterance does, as operators (`executive.py`): the goals a
+        # question states, each by its cell's operator -- first the cells a
+        # relation's operator composes from memory (`goals.py`), then the
+        # cells with operators of their own -- then each remaining act on its
+        # own reading, and anything else is v688's.
         acting = Executive(
             Answering(self).operators()
             + [Operator(f"{asked} of {relation}", acted(handler),
                         proposes=lambda memory, cell=(asked, relation):
-                        memory["reading"].cell == cell)
+                        cell in memory["reading"].cells)
                for (asked, relation), handler in cells.items()]
             + [Operator(name, acted(handler),
                         proposes=lambda memory, name=name:
@@ -424,8 +424,8 @@ class Session:
                for name, handler in acts.items()]
             + [Operator("generic", acted(self._generic),
                         proposes=lambda memory:
-                        memory["reading"].cell is None
-                        and memory["reading"].act not in acts)])
+                        memory["reading"].act not in acts
+                        and memory["reading"].act != "question")])
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows. An anchor nothing was told of is told first,
@@ -441,8 +441,7 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            goal = one.goal if index == 0 else None
-            acting.run({"reading": one, "turn": turn, "goal": goal})
+            acting.run({"reading": one, "turn": turn, "goals": one.goals})
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
@@ -451,7 +450,8 @@ class Session:
                 self._last_question = (one, turn.asked)
             # What `they` means when nothing here is: the last kind named.
             if (one.mention is not None and one.mention.kind
-                    and one.act in ("generic", "teach", "define", "ellipsis")):
+                    and (one.act in ("generic", "teach", "define")
+                         or ("again", "question") in one.cells)):
                 self._last_kind = one.mention.kind
         if len(parts) > 1:
             turn.resolution, turn.binding = first
@@ -1868,7 +1868,10 @@ class Session:
         """`how do you know that`, `how sure are you`: the last answer's
         grounds -- where it came from, and what v688 made of it."""
         last = next((one for one in reversed(self.turns)
-                     if one.answer and one.act != "meta"), None)
+                     if one.answer and not (
+                         one.reading is not None
+                         and ("grounds", "answer") in one.reading.cells)),
+                    None)
         if last is None:
             turn.answer = {"outcome": "unknown", "source": "conversation",
                            "text": "nothing has been answered yet"}
