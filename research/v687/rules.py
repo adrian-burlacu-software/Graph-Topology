@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .links import LINKS, named
+from .rulebook import rule, texts
 
 # Which relation is which -- inheritable, gated, a negation, a family -- is
 # each relation's row in `links.py`, with the reasons. The names below are
@@ -75,10 +76,10 @@ def family(relation: str) -> list[str]:
 #: R5: what one level of borrowing costs. A fact five levels up retains
 #: 0.85**5 = 0.44 of its confidence, so `thing capable_of fall down` ranks
 #: below anything stated about dogs directly.
-DECAY = 0.85
+DECAY = rule("R5").parameters["decay"]
 
 #: R5: below this, a derived fact is not worth reporting.
-FLOOR = 0.05
+FLOOR = rule("R5").parameters["floor"]
 
 #: R12: how wide a subtree makes a word-level fact untrustworthy to inherit.
 #:
@@ -94,7 +95,7 @@ FLOOR = 0.05
 #: `plant` (4,487) sit below it and keep inheriting, because there the word
 #: and the class really do mean the same thing. The gap in the data between
 #: those two groups is where the threshold goes.
-BREADTH_LIMIT = 8000
+BREADTH_LIMIT = rule("R12").parameters["breadth_limit"]
 
 
 def inheritable(relation: str) -> bool:
@@ -204,28 +205,6 @@ class Step:
         }
 
 
-RULE_TEXT: dict[str, str] = {
-    "R1": "Subsumption closure: is_a is transitive over an acyclic taxonomy.",
-    "R2": "Property lift: a subtype inherits a supertype's facts, for "
-          "inheritable relations only.",
-    "R3": "Exception blocking: a closer statement, or an explicit negation, "
-          "overrides an inherited fact.",
-    "R4": "Specificity preference: the nearest ancestor that answers wins.",
-    "R5": f"Confidence decay: each level of borrowing multiplies confidence "
-          f"by {DECAY}.",
-    "R6": "Sense scoping: inference runs per WordNet sense, never per word.",
-    "R7": "Relation gating: contentless relations such as related_to never "
-          "participate.",
-    "R8": "Answer synthesis: VERIFIED, CONTRADICTED or UNKNOWN.",
-    "R9": "Relation families: has_a and has_part answer for each other, "
-          "because the sources disagree about which one a fact belongs under.",
-    "R10": "Redundancy elimination: a fact an ancestor already states is not "
-           "stored twice -- R2 rebuilds it. Lossless.",
-    "R11": "Hoisting: a fact every child states moves to the parent. A "
-           "generalisation, not a deduction, so hoisted rows are marked.",
-    "R12": f"Breadth gating: a word-level fact does not inherit from a concept "
-           f"with {BREADTH_LIMIT:,}+ descendants, where the word and the class "
-           f"have stopped meaning the same thing.",
-    "R13": "Range typing: a relation's object must be the kind of thing the "
-           "relation takes. A location has to be a place.",
-}
+#: What the page shows for each rule, from its row (`rulebook.py`).
+RULE_TEXT: dict[str, str] = texts("R1", "R2", "R3", "R4", "R5", "R6", "R7",
+                                  "R8", "R9", "R10", "R11", "R12", "R13")

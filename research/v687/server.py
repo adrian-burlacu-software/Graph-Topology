@@ -35,6 +35,7 @@ from pathlib import Path
 
 from . import build, compress, rules as v684_rules, engine as v684_server
 from .relevance import RULE_TEXT as V685_RULES
+from .rulebook import texts
 from .bridged import BridgedEngine
 from . import logic, profile
 from .identify import Identifier
@@ -42,21 +43,7 @@ from .profile import (Profiles, CORROBORATION_FLOOR,
                       CORROBORATION_MIN_KINDS, corroborated)
 
 #: Rule text for the identification half, listed on the page beside the rest.
-V686_RULES: dict[str, str] = {
-    "R16": "Identification: a description is answered by walking the trie "
-           "down instead of storing into it. Properties are taken general "
-           "first, so each step narrows visibly -- round things, then the "
-           "round thing with hexagons. Rarest-first would identify in fewer "
-           "questions but answer the whole thing at step one. What a norm "
-           "states about a thing outranks what it inherits.",
-    "R17": "Retrieval is the same walk backwards. An individual sits at a "
-           "leaf, so walking from that leaf to the origin recovers exactly "
-           "the predicates it was stored with: the ones met first are shared "
-           "with nothing, the ones met last with half the corpus. Nodes where "
-           "nothing branched are collapsed. A property the norms scored false "
-           "is a denial and not a silence; one they never mention is looked "
-           "for above the leaf, in what the concept inherits.",
-}
+V686_RULES: dict[str, str] = texts("R16", "R17")
 
 #: The badge a verdict from the norms wears on the page. `INHERITED` is a yes
 #: like `HELD` is, but the note says which ancestor supplied it.
@@ -553,106 +540,6 @@ if __name__ == "__main__":
 
 
 #: Rule text for the reasoning the backlog added, listed with the rest.
-V687_RULES: dict[str, str] = {
-    "R18": "Question-shape gating: a construction no rule covers is refused "
-           "by name, not answered from the part of it that happens to be "
-           "understandable. Comparatives, superlatives, counts of parts, "
-           "counterfactuals, dates, questions about words rather than senses, "
-           "facts about named individuals and antonyms are named and "
-           "declined -- every silent wrong answer found in the v686 and v687 "
-           "audits came from answering an easier question than the one asked. "
-           "A pinned sense whose part of speech cannot complete the sentence "
-           "is refused the same way: `can a dog bark` answered VERIFIED with "
-           "`bark` pinned to the covering of a tree, and to a three-masted "
-           "sailing ship, because the norms match the word and never resolve "
-           "it. Where a pin merely fails to bite rather than contradicting "
-           "the sentence, the answer says which pins it did not use.",
-    "R19": "Corroboration: an inherited fact is put to the ancestor's other "
-           "kinds before it is believed. `bird capable_of fly` is borne out "
-           "by 21 of 29 birds in the norms and is inherited; `animal has a "
-           "wing` by 20 of 143 and is refused. One crawled sentence is not a "
-           "property of a category. This governs both answering paths. It was "
-           "written for the norms and wired only into them, so the fact store "
-           "believed `mammal capable_of fly` on one sentence and answered `do "
-           "pigs fly` yes; a crawled fact about a class says some of its "
-           "members do this, and the norms are what tell an existential from "
-           "a universal.",
-    "R20": "Three-valued composition: a question with structure is evaluated "
-           "in Kleene's logic, because silence is not falsehood. One false "
-           "conjunct settles a conjunction, one true disjunct settles a "
-           "disjunction, and an unknown part suspends the whole. Quantifiers "
-           "ask every kind beneath a concept and count.",
-    "R21": "Contrast: what two concepts share, where they part, how alike "
-           "they are and how typical one is are one operation -- the lowest "
-           "common ancestor of two branches. Semantic overlap and trie "
-           "prefix are both reported, because they disagree: a trie built "
-           "for storage does not group by similarity.",
-    "R22": "Inverse traversal: the graph is read from the object as well as "
-           "the subject, so `what is made of wood` is answerable and not only "
-           "`what is a hammer made of`. Relations that pair (`has_part` and "
-           "`part_of`) are read from both columns.",
-    "R23": "Scripts and abduction: prerequisites, subevents and effects are "
-           "walked in script order -- before, during, after. An observation "
-           "is explained by ranking causes as competing hypotheses, scored by "
-           "specificity, directness and confidence. A cause that causes forty "
-           "things explains none of them.",
-    "R28": "Qualified claims: a fact that carries the question inside a wider "
-           "claim does not answer it. `rock capable_of “go for swim”` "
-           "is about a place people swim and `fish capable_of “walk on "
-           "land”` is about the fish that do, and both answered yes. "
-           "v687 already declined the mirror of this -- denying a qualified "
-           "property does not deny the property -- and this is the same "
-           "reading applied to yes. The match itself is whole-word now: "
-           "`fly` was named by “attract butterfly”, `walk` by "
-           "“block the sidewalk” and `run` by “get drunk”, "
-           "so `can a tree fly` was VERIFIED on a butterfly.",
-    "R29": "Sense-to-sense lookup: where both ends of a question are synsets, "
-           "it is answered between them and no string is matched. Only "
-           "WordNet writes an object as a synset id -- has_part, part_of, "
-           "similar_to, entails and causes, 36,283 concepts -- and that is "
-           "the only place a pin on the object has anything to bind to. "
-           "`does a car have an accelerator` is UNKNOWN through the words, "
-           "because the accelerator is recorded only as a synset, and "
-           "VERIFIED through the graph. It is tried first and it is not "
-           "authoritative: the synset rows are patchy (they have a car's "
-           "wheel and a dog's tail, and not a fish's gills), so when the "
-           "graph is silent the words still answer and the note says which "
-           "of the two spoke.",
-    "R31": "Magnitudes: bigger, smaller, heavier and lighter are compared on "
-           "the scales THINGSplus had people rate for 1,854 objects -- "
-           "real-world size, anchored from a grain of sand to an aircraft "
-           "carrier, and heaviness from 1 to 7. Two objects rated too close "
-           "together are called too close, not ordered by the noise. Faster, "
-           "older and better have no scale, and R18 still refuses them.",
-    "R32": "Only the living: a thing rated not alive is not the doer of a "
-           "verb VerbNet gives an animate subject in every class it is in -- "
-           "breathe, eat, drink, think. Neither source says a rock does not "
-           "breathe; together they do. It stands down when the store states "
-           "that the thing does exactly that, which is the disagreement test "
-           "AwA2's zeros face, and when any reading of the word is alive.",
-    "R26": "Definition: `what is a robin` is answered from the taxonomy "
-           "itself -- which sense is meant, the gloss WordNet gives it, what "
-           "it is a kind of, and what kinds it has. Before this it fell "
-           "through to a property listing and returned `helpful, passionate, "
-           "professional` for a robin, because ConceptNet holds those of the "
-           "name Robin. A definition is the one question a taxonomy answers "
-           "by being a taxonomy.",
-    "R27": "Taxonomic exclusion: absence is not denial, except between the "
-           "top branches of the taxonomy, where it is. Nothing is both a "
-           "plant and an animal, or both an artifact and an abstraction, so "
-           "`is a dog a plant` is a no with a reason and not a silence. Held "
-           "to those branches on purpose: WordNet's middle does not record "
-           "that a dog is a pet, so `is a dog a pet` stays unknown. Every "
-           "sense of the target has to be excluded, because `plant` also "
-           "means a factory.",
-    "R25": "Counting kinds: the ontology holds no numbers, so it cannot count "
-           "a dog's legs -- but it can count what stands beneath a concept in "
-           "the taxonomy, which is what `how many kinds of dog` asks. Two "
-           "counts are reported: every descendant WordNet records, and the "
-           "far smaller number the feature norms actually describe, because "
-           "only the second can be reasoned about.",
-    "R24": "Analogy over the norms only: a role is approximated by feature "
-           "type plus standing within the concept. `bark : dog :: ? : cat` "
-           "gives meow and purr. The scraped graph cannot support this and is "
-           "not asked -- its `part_of` is largely taxonomy misfiled.",
-}
+V687_RULES: dict[str, str] = texts(
+    "R18", "R19", "R20", "R21", "R22", "R23", "R28", "R29", "R31", "R32",
+    "R26", "R27", "R25", "R24")

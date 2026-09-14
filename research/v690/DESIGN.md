@@ -483,6 +483,26 @@ located operator's, `who chased the cat` the occurrence operator's.
 `Session._cells` is gone, and a test pins that the grammar's cells are
 exactly the operators' cells.
 
+**P6 landed as rules as data.** Every named rule is a row of
+`v687/rulebook.py` -- R1 to R32, E1, E2, T1 to T6, S1 to S4, I1 and the
+motives: what it becomes in the architecture (§6), the link types it reads
+and the link-type field that decides it, the truth function it applies, its
+parameters, its source and the module that applies it. The code reads its
+numbers and its text from the rows: R5's decay and floor, R12's breadth
+limit, R14's sibling limit, R19's floor and sample, v688's price for a
+derivation by each rule and the rules whose walk is the proof, and the
+page's text for every rule, which lived in three dictionaries across two
+versions. A test pins that every link type, field and truth function a row
+names exists, that every rule v687, v688 and v689 cite has a row, and that
+the page's text is the rows'.
+
+What the rows do not do yet is run. R2 is still `reason.py`'s walk, which
+reads R2's link-type field and R5's decay from the table; it is not a
+pattern compiled into a matcher. T4 already is data: VerbNet's frames, read
+at runtime (`change.py`). The motives are flagged: they meet on a shared
+lemma, and spreading activation (§4.4) would change which place is chosen,
+so it waits for the fitting step and a bAbI run.
+
 ## 9. Risks
 
 - **Speed.** A graph over 1.96M facts in Python is slow if built eagerly. The
