@@ -30,6 +30,12 @@ held before, what holds at the end or the result is what holds after.
     John discarded the milk      throw-17.1   contact(end(E0), Agent, Theme);
                                               !contact(during(E1), ...)
                                  the milk is no longer with John
+    Carter entered the porch     escape-51.1  path_rel(end(E), Theme,
+                                              Destination, ch_of_loc)
+                                 Carter is where the object is, after
+    Mary left the pear in it     keep-15.2    location(during(E), Theme,
+                                              Location)
+                                 the pear is in it, after
 
 **Roles are matched by position.** A frame's syntax says which role is the
 noun phrase before the verb, which the one after it, and which the one after a
@@ -361,6 +367,51 @@ def effects(verb: str, has_object: bool = False, preposition: str = "",
     return list(found.values())
 
 
+def meaning(verb: str) -> frozenset:
+    """What VerbNet says a verb does to its subject, as the relations a
+    question about it asks: `location` when the subject ends up or stays
+    somewhere (path_rel ... ch_of_loc, location), `possession` when the
+    subject has, or ends up having, its object (has_possession, ch_of_poss
+    at the end). `wind up`, `hide`, `stay` are locations; `hold`, `grab` are
+    possessions."""
+    found: set[str] = set()
+    for frame, _ in frames().get(verb, ()):
+        positions = dict(frame.positions)
+        same = {}
+        for predicate, _, _, roles in frame.semantics:
+            if predicate == "equals" and len(roles) == 2:
+                one, other = (role.lstrip("?") for role in roles)
+                if one in positions:
+                    same[other] = positions[one]
+                if other in positions:
+                    same[one] = positions[other]
+        for predicate, negated, phase, roles in frame.semantics:
+            if negated:
+                continue
+            parties = [positions.get(role.lstrip("?"))
+                       or same.get(role.lstrip("?")) for role in roles]
+            if parties[:1] == ["subject"] and (
+                    (predicate == "path_rel" and "ch_of_loc" in roles
+                     and phase == "end")
+                    or predicate in ("location", "has_location")):
+                found.add("location")
+            if parties[:2] == ["subject", "object"] and (
+                    predicate == "has_possession"
+                    or (predicate == "path_rel" and "ch_of_poss" in roles
+                        and phase == "end")):
+                found.add("possession")
+    return frozenset(found)
+
+
+def theme_subject(verb: str) -> bool:
+    """Does VerbNet have a frame of this verb whose subject is the thing
+    moved or changed: `the ball rolled`, `the vase broke`? Then a passive with
+    no agent -- `the apple was moved to the kitchen` -- can be said with it as
+    the subject."""
+    return any(dict(frame.positions).get(role) == "subject"
+               for frame, _ in frames().get(verb, ()) for role in THEMES)
+
+
 def accompanies(verb: str, senses=None) -> bool:
     """Is being in the middle of this doing having its object with you?
 
@@ -453,6 +504,13 @@ def _read(frame: Frame, verb: str, preposition: str,
                     out.append(Effect("location", entity, "", False, True,
                                       frame.klass))
                 continue
+            # `Carter entered the porch`, `Mary reached the kitchen`: the
+            # place it ends at is the object (escape-51.1, reach-51.8).
+            if (phase == "end" and entity == "subject" and len(roles) > 1
+                    and where(roles[1]) == "object"):
+                out.append(Effect("location", "subject", "", True, False,
+                                  frame.klass, at="object"))
+                continue
             if phase != "start" or len(roles) < 2:
                 continue
             # `John left the kitchen`: it was at the object. `Mary dropped
@@ -475,6 +533,17 @@ def _read(frame: Frame, verb: str, preposition: str,
                 began = predicate == "begin"
                 out.append(Effect("activity", "subject", clause, began,
                                   not began, frame.klass))
+        elif (predicate in ("location", "has_location") and not negated
+              and phase in ("during", "result", "end") and len(roles) >= 2):
+            # `Mary left the apple in the kitchen`, `she kept it in the
+            # drawer` (keep-15.2: location(during(E), Theme, Location)):
+            # where the Theme is kept is where it is, until something moves
+            # it (T3).
+            if (where(roles[0]) in ("subject", "object")
+                    and where(roles[1]) == "place"
+                    and preposition in DESTINATION):
+                out.append(Effect("location", where(roles[0]), "", True,
+                                  None, frame.klass))
         elif (predicate not in MACHINERY and "_" not in predicate
               and phase in ("start", "result", "end")):
             entity = next((positions[role] for role in roles
