@@ -2,8 +2,8 @@
 
 `grammar.py` reads a question by where its words are and which words they
 are: `tokens[1] in COPULA`, `tokens[-1] in HAVE`. A word it did not expect
-breaks it, so every wording has cost a shape, a list or a rule
-(`frames.py`, `exemplars.py`). Here a sentence encoder does the recognising
+breaks it, so every wording has cost a shape, a list or a rule. Here a
+sentence encoder does the recognising
 and nothing is matched:
 
     where did Shanda wind up
@@ -35,8 +35,14 @@ grammar, takes each reading apart into its act, cells and roles, checks that
 that and on wordings of the same readings the grammar never read. At run time
 the grammar is not asked.
 
-A statement goes on to the statement reader (`reading._read`). Without the
-model (`llm/reader`), or with `V689_READER=0`, the grammar reads as it did.
+A statement is read the same way: its act (`introduce`, `tell`, `teach`,
+`name`, `compound`), the words of each claim, and where each claim after the
+first begins (`CLAUSES`) -- `beagles can swim, and they bark` is two claims,
+the second about beagles. What spaCy makes of each word (its tag and its
+dependency) is read beside the word, so a word the corpus never had is still
+a noun, a verb or an object.
+
+There is no other reader: without the model (`llm/reader`) nothing is read.
 """
 from __future__ import annotations
 
@@ -53,11 +59,26 @@ LLM = Path(__file__).resolve().parents[2] / "llm"
 MODEL = Path(os.environ.get("V689_READER_MODEL") or LLM / "reader")
 BASE = LLM / "MiniLM-L6-v2"
 
-STATEMENT = "statement"
 NONE = "none"
 
-#: Acts other than a cell: `_read`'s, for a question.
-ACTS = ("why", "what", "define", "ask", "ask_name", "generic", STATEMENT)
+#: What a statement does: puts someone new down (and whether they are yours),
+#: says something of someone here, of a kind, or what someone is called; or
+#: says several things the words do not tell apart.
+STATEMENTS = ("introduce", "introduce owned", "tell", "teach", "name",
+              "compound")
+
+#: Acts other than a cell.
+ACTS = ("why", "what", "define", "ask", "ask_name", "generic") + STATEMENTS
+
+#: Where a claim begins, with what it does, and where the clause a new
+#: individual is introduced with begins (`there is a beagle that can't swim`).
+CLAUSES = ("O", "B-relative") + tuple(f"B-{one}" for one in ACTS)
+
+#: The subjects that stand for the kind a claim before was about.
+STANDING = frozenset({"it", "he", "she", "they"})
+
+#: A noun left out and pointed back to: `in warm ones`.
+ELIDED = frozenset({"ones", "one"})
 
 #: The cells a question's own words state (the grammar's `_stated` shapes).
 STATED = ("time occurrence", "times occurrence", "recipient occurrence",
@@ -79,7 +100,7 @@ SLOTS = ("subject located", "time located", "any located", "any holding",
 WHO = ("", "people", "things", "kind")
 
 ROLES = ("O", "AUX", "NEG", "B-SUBJ", "I-SUBJ", "B-OBJ", "I-OBJ", "REST",
-         "VERB", "B-KIND", "I-KIND", "SEQ")
+         "VERB", "B-KIND", "I-KIND", "SEQ", "B-NAME", "I-NAME")
 
 #: Cells whose verb phrase is searched for its object, as a told clause is.
 WITH_OBJECT = frozenset({"time occurrence", "times occurrence",
@@ -147,8 +168,8 @@ def said_as(tokens: list[str], names, kinds=None, lemma=None) -> list[str]:
 
 
 def enabled() -> bool:
-    return os.environ.get("V689_READER", "1") != "0" and (
-        MODEL / "labels.json").exists()
+    """Is there a model to read with?"""
+    return (MODEL / "labels.json").exists()
 
 
 # -- roles --------------------------------------------------------------------
@@ -367,6 +388,8 @@ def act(name: str, roles: list[str], tokens: list[str], lexicon,
     opener = _opener(tokens, roles, span[0])
     found = mention(tokens, span, lexicon, names, opener,
                     shorter=name in SPILLED)
+    if found is None and name == "what":
+        found = _subject(tokens, span, lexicon, names)    # `Mary and John`
     if name == "generic":
         if found is None:
             found = bare_kind(tokens, span[0], lexicon)
@@ -461,34 +484,245 @@ def slotted(cell: str, who: str, roles: list[str], tokens: list[str],
                 clause, said)
 
 
+
+# -- statements ---------------------------------------------------------------------
+def _masked(roles: list[str], lo: int, hi: int) -> list[str]:
+    """The roles of the words from `lo` up to `hi`; every other word O."""
+    return [role if lo <= at < hi else "O" for at, role in enumerate(roles)]
+
+
+def _body(roles: list[str], tokens: list[str], lexicon, names: frozenset,
+          said: str = ""):
+    """A verb phrase as a statement, as `reading.clause` puts one: its
+    auxiliary, whether it is denied, what is said, and the object that closes
+    it."""
+    from .reading import Reading
+
+    rest_at = _rest(roles)
+    if not rest_at:
+        return None
+    aux_at = first(roles, "AUX")
+    reading = Reading("tell",
+                      aux=tokens[aux_at] if aux_at is not None else None,
+                      rest=[tokens[at] for at in rest_at],
+                      holds="NEG" not in roles, said=said)
+    _object(reading, roles, rest_at, tokens, lexicon, names)
+    return reading
+
+
+def _subject(tokens: list[str], span, lexicon, names: frozenset):
+    """Who a statement is about: one phrase, or two names (`Mary and
+    Daniel`), told of each."""
+    from .reading import Mention, read_mention
+
+    found = mention(tokens, span, lexicon, names, "does")
+    if found is not None:
+        return found
+    start, end = span
+    one = read_mention(tokens, start, lexicon, names=names)
+    if (one is None or one.form != "name" or one.end + 1 >= end
+            or tokens[one.end] != "and"):
+        return None
+    other = read_mention(tokens, one.end + 1, lexicon, names=names)
+    if other is None or other.form != "name" or other.end != end:
+        return None
+    return Mention("group", text=" ".join(tokens[start:end]), end=end,
+                   members=[one, other])
+
+
+def statement(name: str, roles: list[str], clauses: list[str],
+              tokens: list[str], typed: list[str], lexicon, names: frozenset,
+              said: str):
+    """A reading of one of `STATEMENTS`, built from its roles."""
+    from .reading import Mention, Reading, _whose, proper
+
+    if name == "compound":
+        return Reading("compound", said=said)
+    subjects, named = spans(roles, "SUBJ"), spans(roles, "NAME")
+    if not subjects:
+        return None
+    span = subjects[0]
+    words = list(tokens[span[0]:span[1]])
+    if name == "name":
+        if not named:
+            return None
+        whose = _whose(words, lexicon, names) or mention(
+            tokens, span, lexicon, names, "is")
+        if whose is None or whose.form in ("indefinite", "another"):
+            return None
+        return Reading("name", whose, said=said,
+                       name=proper(list(typed[named[0][0]:named[0][1]])))
+    if name == "teach":
+        from .reading import NOT_NAMES, ORDINALS
+
+        led = words[0] in ("a", "an")
+        head = words[1:] if led else words
+        if (not head or head[0] in names or head[0] in NOT_NAMES
+                or head[0] in ORDINALS):
+            return None
+        lemma = lexicon.lemma(head[-1])
+        kind = " ".join(head) if led else " ".join(head[:-1] + [lemma])
+        if not led and lemma == head[-1] and not lexicon.known(kind):
+            # `Adrian can swim`: a bare singular the store has no word for
+            # is someone, not a kind.
+            return None
+        body = _body(roles, tokens, lexicon, names, said)
+        if body is None:
+            return None
+        body.act = "teach"
+        body.mention = Mention("kind", kind, text=" ".join(words),
+                               end=span[1])
+        return body
+    if name in ("introduce", "introduce owned"):
+        if named:
+            # `Rex is a beagle`: someone new, told their name and kind.
+            if len(words) < 2 or words[0] not in ("a", "an"):
+                return None
+            found = Mention("indefinite", " ".join(words[1:]),
+                            text=" ".join(words), end=span[1])
+            return Reading("introduce", found, said=said, name=proper(
+                list(typed[named[0][0]:named[0][1]])))
+        found = mention(tokens, span, lexicon, names, "is")
+        if (found is None and len(words) == 2
+                and words[0] in ("a", "an", "another")):
+            # A kind nothing here has a word for: `there is a wemble`.
+            found = Mention("another" if words[0] == "another"
+                            else "indefinite", words[1],
+                            text=" ".join(words), end=span[1])
+        if found is None or found.form not in ("indefinite", "another"):
+            return None
+        at = next((one for one, label in enumerate(clauses)
+                   if label == "B-relative"), None)
+        relative = (_body(_masked(roles, at, len(tokens)), tokens, lexicon,
+                          names) if at is not None else None)
+        return Reading("introduce", found, relative=relative, said=said,
+                       owned=name == "introduce owned")
+    if name == "tell":
+        found = _subject(tokens, span, lexicon, names)
+        if found is None or found.form in KINDS:
+            return None
+        body = _body(roles, tokens, lexicon, names)
+        if body is None:
+            return None
+        body.mention, body.said = found, said
+        return body
+    return None
+
+
+def _one(name: str, roles: list[str], clauses: list[str], tokens: list[str],
+         typed: list[str], lexicon, names: frozenset, said: str):
+    """The reading of one claim, or of a question, without goals as slots."""
+    if name in STATED:
+        return stated(name, roles, tokens, lexicon, names, said)
+    if name in STATEMENTS:
+        return statement(name, roles, clauses, tokens, typed, lexicon, names,
+                         said)
+    return act(name, roles, tokens, lexicon, names, said)
+
+
+def _claims(markers: list[tuple[int, str]], name: str, roles: list[str],
+            clauses: list[str], tokens: list[str], typed: list[str],
+            tags: list[str], deps: list[str], lexicon, names: frozenset,
+            said: str):
+    """Several claims, each over its own words and each filled in from the
+    one before, as `clauses.standalone` fills them: a claim with no subject
+    of its own takes the subject before it, and its auxiliary, and its
+    denial after `or`; a claim about the kind just taught goes on about it,
+    through `they`; `ones` is the noun said before. The word the parse says
+    joins two claims (`cc`) is said of neither."""
+    roles = list(roles)
+    for at, _ in markers:
+        if deps and deps[at - 1] == "cc":
+            roles[at - 1] = "O"
+    bounds = [0] + [at for at, _ in markers] + [len(tokens)]
+    acts = [name] + [label for _, label in markers]
+    readings, prior, prior_roles = [], None, None
+    for index, one_name in enumerate(acts):
+        lo, hi = bounds[index], bounds[index + 1]
+        own = _masked(roles, lo, hi)
+        words = list(tokens)
+        if prior is not None:
+            subjects = spans(own, "SUBJ")
+            subject = [tokens[at] for at in range(*subjects[0])] \
+                if subjects else []
+            shared = not subjects
+            standing = len(subject) == 1 and subject[0] in STANDING
+            nouns = [at for at in _rest(prior_roles)
+                     if tags and tags[at].startswith("NN")
+                     and tokens[at] not in ELIDED]
+            for at in _rest(own):
+                if tokens[at] in ELIDED and nouns:
+                    words[at] = tokens[nouns[-1]]
+            if shared and first(own, "AUX") is None:
+                aux = first(prior_roles, "AUX")
+                if aux is not None:
+                    own[aux] = "AUX"
+                if (lo and tokens[lo - 1] in ("or", "nor")
+                        and "NEG" in prior_roles):
+                    own[prior_roles.index("NEG")] = "NEG"
+            if (one_name == "teach" and prior.act == "teach"
+                    and prior.mention is not None and (shared or standing)):
+                if standing:
+                    own = ["O" if role.endswith("SUBJ") else role
+                           for role in own]
+                found = _body(own, words, lexicon, names, said)
+                if found is None:
+                    return None
+                found.act, found.mention = "teach", prior.mention
+                readings.append(found)
+                prior, prior_roles = found, own
+                continue
+            if shared:
+                for at in range(len(tokens)):
+                    if prior_roles[at].endswith("SUBJ"):
+                        own[at] = prior_roles[at]
+        found = _one(one_name, own, clauses, words, typed, lexicon, names,
+                     said)
+        if found is None:
+            return None
+        found.said = said
+        readings.append(found)
+        prior, prior_roles = found, own
+    readings[0].more = readings[1:]
+    return readings[0]
+
+
 @dataclass
 class Guess:
     """What the encoder read: acts and slots cells best first, who fills
-    the slots, and a role per word for each."""
+    the slots, a role per word for each, and where claims begin."""
 
     acts: list[tuple[str, float]]
     slots: list[tuple[str, float]]
     who: str
     stated: list[str]
     slotted: list[str]
+    clauses: list[str] = field(default_factory=list)
     scores: dict = field(default_factory=dict)
 
 
 def build(act_name: str, slots, who: str, stated_roles: list[str],
           slotted_roles: list[str], tokens: list[str], lexicon,
-          names: frozenset, said: str):
+          names: frozenset, said: str, typed: list[str] | None = None,
+          clauses: list[str] | None = None, tags: list[str] | None = None,
+          deps: list[str] | None = None):
     """The reading these labels give, with its goals, or None when a phrase
     they need names nobody here. `slots` is a cell, or cells ranked with how
     likely each is: when the likeliest is a cell that names nobody here, the
     next is tried."""
-    if act_name == STATEMENT:
-        return None
-    if act_name in STATED:
-        found = stated(act_name, stated_roles, tokens, lexicon, names, said)
-    else:
-        found = act(act_name, stated_roles, tokens, lexicon, names, said)
+    typed = list(typed) if typed is not None else list(tokens)
+    clauses = list(clauses) if clauses else ["O"] * len(tokens)
+    markers = [(at, label[2:]) for at, label in enumerate(clauses)
+               if label.startswith("B-") and label != "B-relative" and at]
+    if markers:
+        return _claims(markers, act_name, stated_roles, clauses, tokens,
+                       typed, tags or [], deps or [], lexicon, names, said)
+    found = _one(act_name, stated_roles, clauses, tokens, typed, lexicon,
+                 names, said)
     if found is None:
         return None
+    if act_name in STATEMENTS:
+        return found
     ranked = [(slots, 1.0)] if isinstance(slots, str) else list(slots)
     goal = None
     if len(tokens) >= 3 and ranked and ranked[0][0] in SLOTS:
@@ -504,8 +738,37 @@ def build(act_name: str, slots, who: str, stated_roles: list[str],
 
 
 # -- the encoder -----------------------------------------------------------------
+def analysed(tokens: list[str], lexicon) -> tuple[list[str], list[str]]:
+    """(tags, dependencies): spaCy's reading of each word in the sentence,
+    or empty strings where the lexicon has no parser."""
+    analyse = getattr(lexicon, "analyse", None)
+    found = analyse([str(one) for one in tokens]) if analyse and tokens \
+        else None
+    if not found or len(found) != len(tokens):
+        return [""] * len(tokens), [""] * len(tokens)
+    return [one[0] for one in found], [one[1] for one in found]
+
+
+def features(encoded, rows: list[tuple[list[str], list[str]]],
+             labels: dict):
+    """Each piece's word's tag and dependency, as indices (0 for none)."""
+    import torch
+
+    tags = {tag: at for at, tag in enumerate(labels["tags"])}
+    deps = {dep: at for at, dep in enumerate(labels["deps"])}
+    shape = encoded["input_ids"].shape
+    tag_ids = torch.zeros(shape, dtype=torch.long)
+    dep_ids = torch.zeros(shape, dtype=torch.long)
+    for row, (row_tags, row_deps) in enumerate(rows):
+        for at, word in enumerate(encoded.word_ids(row)):
+            if word is not None and word < len(row_tags):
+                tag_ids[row, at] = tags.get(row_tags[word], 0)
+                dep_ids[row, at] = deps.get(row_deps[word], 0)
+    return tag_ids, dep_ids
+
+
 class Model:
-    """The encoder and its five heads, as trained (`teach_reader.py`)."""
+    """The encoder and its heads, as trained (`teach_reader.py`)."""
 
     def __init__(self, path: Path = MODEL, device: str | None = None) -> None:
         import torch
@@ -514,8 +777,8 @@ class Model:
         self.torch = torch
         meta = json.loads((path / "labels.json").read_text(encoding="utf-8"))
         self.labels = meta
-        self.device = device or ("cuda" if torch.cuda.is_available()
-                                 else "cpu")
+        self.device = device or os.environ.get("V689_READER_DEVICE") or (
+            "cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(str(path))
         encoder = AutoModel.from_pretrained(str(path))
         self.net = Heads(encoder, meta)
@@ -525,16 +788,20 @@ class Model:
         if self.device == "cuda":
             self.net.half()
         self.net.eval()
+        self.lock = threading.Lock()
 
-    def guess(self, sentences: list[list[str]]) -> list[Guess]:
+    def guess(self, sentences: list[list[str]],
+              analyses: list[tuple[list[str], list[str]]]) -> list[Guess]:
         torch = self.torch
         encoded = self.tokenizer(sentences, is_split_into_words=True,
                                  padding=True, truncation=True, max_length=64,
                                  return_tensors="pt")
-        with torch.no_grad():
+        tag_ids, dep_ids = features(encoded, analyses, self.labels)
+        with self.lock, torch.no_grad():
             out = self.net(encoded["input_ids"].to(self.device),
-                           encoded["attention_mask"].to(self.device))
-        acts, slots, who, stated_roles, slotted_roles = [
+                           encoded["attention_mask"].to(self.device),
+                           tag_ids.to(self.device), dep_ids.to(self.device))
+        acts, slots, who, stated_roles, slotted_roles, clauses = [
             one.float().cpu() for one in out]
         found = []
         labels = self.labels
@@ -549,19 +816,24 @@ class Model:
             for at, word in enumerate(encoded.word_ids(row)):
                 if word is not None and word not in firsts:
                     firsts[word] = at
+
+            def tagged(scores, names):
+                return [names[int(scores[row, firsts[at]].argmax())]
+                        if at in firsts else "O" for at in range(len(words))]
+
             found.append(Guess(
                 ranked(acts[row], labels["acts"]),
                 ranked(slots[row], labels["slots"]),
                 labels["who"][int(who[row].argmax())],
-                [labels["roles"][int(stated_roles[row, firsts[at]].argmax())]
-                 if at in firsts else "O" for at in range(len(words))],
-                [labels["roles"][int(slotted_roles[row, firsts[at]].argmax())]
-                 if at in firsts else "O" for at in range(len(words))]))
+                tagged(stated_roles, labels["roles"]),
+                tagged(slotted_roles, labels["roles"]),
+                tagged(clauses, labels["clauses"])))
         return found
 
 
 def Heads(encoder, labels: dict):
-    """The encoder with a head for each thing read."""
+    """The encoder with a head for each thing read, reading each word beside
+    spaCy's tag and dependency for it."""
     import torch
 
     class _Heads(torch.nn.Module):
@@ -569,20 +841,29 @@ def Heads(encoder, labels: dict):
             super().__init__()
             size = encoder.config.hidden_size
             self.encoder = encoder
+            self.tags = torch.nn.Embedding(len(labels["tags"]), size)
+            self.deps = torch.nn.Embedding(len(labels["deps"]), size)
+            # From nothing: the encoder starts reading as it was trained.
+            torch.nn.init.zeros_(self.tags.weight)
+            torch.nn.init.zeros_(self.deps.weight)
             self.acts = torch.nn.Linear(size, len(labels["acts"]))
             self.slots = torch.nn.Linear(size, len(labels["slots"]))
             self.who = torch.nn.Linear(size, len(labels["who"]))
             self.stated = torch.nn.Linear(size, len(labels["roles"]))
             self.slotted = torch.nn.Linear(size, len(labels["roles"]))
+            self.clauses = torch.nn.Linear(size, len(labels["clauses"]))
 
-        def forward(self, input_ids, attention_mask):
-            hidden = self.encoder(input_ids=input_ids,
+        def forward(self, input_ids, attention_mask, tag_ids, dep_ids):
+            embedded = (self.encoder.get_input_embeddings()(input_ids)
+                        + self.tags(tag_ids) + self.deps(dep_ids))
+            hidden = self.encoder(inputs_embeds=embedded,
                                   attention_mask=attention_mask
                                   ).last_hidden_state
             mask = attention_mask.unsqueeze(-1).to(hidden.dtype)
             pooled = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1)
             return (self.acts(pooled), self.slots(pooled), self.who(pooled),
-                    self.stated(hidden), self.slotted(hidden))
+                    self.stated(hidden), self.slotted(hidden),
+                    self.clauses(hidden))
 
     return _Heads()
 
@@ -590,18 +871,17 @@ def Heads(encoder, labels: dict):
 class _Loaded:
     def __init__(self) -> None:
         self.model: Model | None = None
-        self.tried = False
         self.lock = threading.Lock()
 
-    def get(self) -> Model | None:
+    def get(self) -> Model:
         with self.lock:
-            if not self.tried:
-                self.tried = True
-                if enabled():
-                    try:
-                        self.model = Model()
-                    except Exception:                   # noqa: BLE001
-                        self.model = None
+            if self.model is None:
+                if not enabled():
+                    raise RuntimeError(
+                        f"no reader at {MODEL}: nothing can be read without "
+                        f"it (python -m research.v689.teach_reader corpus, "
+                        f"then train)")
+                self.model = Model()
             return self.model
 
 
@@ -614,26 +894,26 @@ ACT_FLOOR = 0.05
 
 
 def reading(tokens: list[str], lexicon, names: frozenset, said: str,
-            model: Model | None = None):
-    """(reading, guess): the reading the encoder gives, None for a statement,
-    or (None, None) without the model."""
-    model = model or LOADED.get()
-    if model is None or not tokens:
-        return None, None
+            model: Model | None = None, typed: list[str] | None = None):
+    """(reading, guess): what the encoder reads the words as, built."""
     from .reading import Reading
 
+    if not tokens:
+        return Reading("generic", said=said), None
+    model = model or LOADED.get()
+    tags, deps = analysed(tokens, lexicon)
     guess = model.guess([said_as(tokens, names,
                                  getattr(lexicon, "kinds", None),
-                                 getattr(lexicon, "lemma", None))])[0]
+                                 getattr(lexicon, "lemma", None))],
+                        [(tags, deps)])[0]
     for rank, (name, chance) in enumerate(guess.acts[:TRIED]):
         # An act the encoder hardly thinks likely is not read into a cell
         # because the likely one named nobody here.
         if rank and chance < ACT_FLOOR:
             break
-        if name == STATEMENT:
-            return None, guess
         found = build(name, guess.slots, guess.who, guess.stated,
-                      guess.slotted, tokens, lexicon, names, said)
+                      guess.slotted, tokens, lexicon, names, said, typed,
+                      guess.clauses, tags, deps)
         if found is not None:
             return found, guess
     return Reading("generic", said=said), guess

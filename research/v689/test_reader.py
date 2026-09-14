@@ -3,7 +3,8 @@
 No model is needed: every reading here is taken apart by the teacher
 (`teach_reader.py`) and built again by `reader.build`, which must give the
 grammar's reading back exactly. Over the people store, as `test_people` reads.
-The model's own test needs `llm/reader` and torch.
+The model's own test needs `llm/reader` and torch, as everything that reads
+does.
 """
 from __future__ import annotations
 
@@ -102,8 +103,25 @@ class RoundTripTests(unittest.TestCase):
                 ("can a dog swim", "generic", "none")):
             self.assertRoundTrips(text, act, slots)
 
-    def test_a_statement_is_left_to_the_statement_reader(self):
-        self.assertRoundTrips("Mary moved to the bathroom", "statement")
+    def test_statements_of_each_act(self):
+        for text, act in (
+                ("Mary moved to the bathroom", "tell"),
+                ("Fred picked up the football", "tell"),
+                ("Mary and Daniel went to the kitchen", "tell"),
+                ("there is a beagle that can't swim", "introduce"),
+                ("i have a beagle", "introduce owned"),
+                ("my name is Adrian", "name"),
+                ("beagles can not swim", "teach")):
+            self.assertRoundTrips(text, act)
+
+    def test_several_claims_are_read_claim_by_claim(self):
+        from research.v689 import teach_reader
+
+        record, why = teach_reader.label(
+            "beagles can swim, and they can bark", lexicon(), NAMES)
+        self.assertIsNotNone(record, why)
+        self.assertEqual(record["act"], "teach")
+        self.assertIn("B-teach", record["clauses"])
 
     def test_a_phrase_that_names_nobody_is_not_built(self):
         roles = ["O", "O", "B-SUBJ"]

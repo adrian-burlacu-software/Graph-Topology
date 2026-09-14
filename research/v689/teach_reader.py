@@ -9,9 +9,11 @@ they were said (`At`), so every auxiliary, verb phrase and mention in the
 reading points back at its words. `extract` turns the reading into what the
 encoder is to say -- the act, the slots cell, who fills it, and each word's
 role -- and `build` (`reader.py`) must put the very same reading back
-together from that, or the utterance is not taught (`label`). A text the
-grammar reads only through the parse's normal form (`frames.py`) is not taught
-either: its reading would be the grammar's gap, not what it asks.
+together from that, or the utterance is not taught (`label`). Statements are
+taken apart the same way, over their normal form (`reading.normal`), and a
+statement of several claims claim by claim, each marked where it begins.
+spaCy's tag and dependency of each word are kept with it, for the encoder to
+read beside the word.
 
 **What is read.** Every short string in v689's tests, bAbI's training lines,
 the grammar's documented examples and its shapes, each also said with other
@@ -58,9 +60,9 @@ import zlib
 from functools import lru_cache
 from pathlib import Path
 
-from .reader import (ACTS, LLM, MARKED, NAMED, NONE, ROLES, SLOTS, STATED,
-                     STATEMENT, WHO, Heads, build, first, mark, said_as,
-                     spans)
+from .reader import (ACTS, CLAUSES, ELIDED, LLM, MARKED, NAMED, NONE, ROLES,
+                     SLOTS, STATED, STATEMENTS, WHO, Heads, analysed, build,
+                     features, first, mark, said_as, spans)
 
 #: Acts the grammar reads a denial in, which each such question is also
 #: taught denied.
@@ -112,7 +114,7 @@ def _prepare(text: str, lexicon, names: frozenset):
     off. (said, asked, tokens, typed, names)."""
     from research.v688.rephrase import rephrase
 
-    from .reading import new_names, read, tokens_of
+    from .reading import grammar, new_names, normal, read, tokens_of
     from .tense import subordinate, take
 
     said = (text or "").strip()
@@ -120,11 +122,12 @@ def _prepare(text: str, lexicon, names: frozenset):
     names = names | new_names(*tokens_of(asked.text), lexicon, names)
     split = subordinate(asked.text)
     if split is not None:
-        anchor = read(split[2], lexicon, names, anchored=False)
+        anchor = read(split[2], lexicon, names, anchored=False, by=grammar)
         if anchor.act != "tell" or anchor.mention is None:
             split = None
     tokens, typed = tokens_of(split[0] if split else asked.text)
     tokens, typed, _ = take(tokens, typed, names)
+    tokens, typed = normal(tokens, typed, lexicon)
     return said, asked, tokens, typed, names
 
 
@@ -135,19 +138,15 @@ def prepared(text: str, lexicon, names: frozenset = frozenset()):
 
 
 def teacher(text: str, lexicon, names: frozenset = frozenset()):
-    """(tokens, names, reading): what the grammar and the statement reader
-    read, before any normal form or exemplar, each word keeping its place."""
-    from .grammar import propose
-    from .reading import _read
+    """(tokens, names, reading, typed): what the grammar and the statement
+    reader read, each word keeping its place."""
+    from .reading import grammar
 
     lexicon = Plain(lexicon)
     said, asked, tokens, typed, names = _prepare(text, lexicon, names)
     tokens = [At(word, at) for at, word in enumerate(tokens)]
-    goals = propose(tokens, lexicon, names, said)
-    stated = next((one.clause for one in goals if one.own), None)
-    found = _read(said, asked, tokens, typed, lexicon, names, stated)
-    found.goals = [one for one in goals if not one.own] + found.goals
-    return tokens, names, found
+    found = grammar(said, asked, tokens, typed, lexicon, names)
+    return tokens, names, found, typed
 
 
 # -- taking a reading apart ------------------------------------------------------
@@ -297,67 +296,198 @@ def _goal_roles(goal, cell: str, tokens, roles: list[str], lexicon) -> str:
     return goal.who if goal.who in ("people", "things") else ""
 
 
-def extract(tokens, found, lexicon) -> dict | None:
+def _act(found) -> str:
+    return ("introduce owned" if found.act == "introduce" and found.owned
+            else found.act)
+
+
+def _name_span(name: str, typed) -> tuple[int, int] | None:
+    """Where the words a name was said in are: running to the end, or
+    opening the utterance (`Rex is a beagle`)."""
+    from .reading import proper
+
+    typed = [str(one) for one in typed]
+    for start in range(len(typed)):
+        if proper(typed[start:]) == name:
+            return start, len(typed)
+    for end in range(1, len(typed) + 1):
+        if proper(typed[:end]) == name:
+            return 0, end
+    return None
+
+
+def _statement_roles(found, name: str, tokens, typed, roles: list[str],
+                     clauses: list[str], lexicon) -> bool:
+    """A statement's relative clause and name, tagged."""
+    relative = found.relative
+    if relative is not None:
+        places = [where(word) for word in [relative.aux] + list(relative.rest)
+                  if where(word) is not None]
+        if not places or not _reading_roles(relative, "tell", tokens, roles,
+                                            lexicon):
+            return False
+        clauses[min(places)] = "B-relative"
+    if found.name:
+        span = _name_span(found.name, typed)
+        if span is None:
+            return False
+        mark(roles, span, "NAME")
+    return True
+
+
+def _claims_record(tokens, found, analysis) -> dict | None:
+    """A statement of several claims, claim by claim: the words of each
+    tagged within its own stretch, and where each after the first begins,
+    with what it does. The stretches are the parse's clauses
+    (`clauses.split`), as `reading._several` read them."""
+    from . import clauses as coordination
+
+    words = [str(one) for one in tokens]
+    parts = coordination.split(words, analysis) if analysis else None
+    readings = [found] + list(found.more)
+    if parts is None or len(parts) != len(readings):
+        return None
+    starts = []
+    for part in parts:
+        own = [one.index for one in part.subject + part.aux + part.rest]
+        if not own:
+            return None
+        starts.append(min(own))
+    starts[0] = 0
+    if starts != sorted(set(starts)):
+        return None
+    bounds = starts + [len(words)]
+    roles, clauses = ["O"] * len(words), ["O"] * len(words)
+    for index, (part, one) in enumerate(zip(parts, readings)):
+        lo, hi = bounds[index], bounds[index + 1]
+        name = _act(one)
+        if name not in ACTS or one.relative is not None or one.name:
+            return None
+        if index:
+            clauses[lo] = f"B-{name}"
+        # Who the claim is about: its own phrase where the words are in the
+        # claim, else the parse's subject standing for the one before
+        # (`they`), and nothing for a claim about no one.
+        subject = sorted(word.index for word in part.subject)
+        phrase = _span(one.mention, words[lo:hi]) \
+            if one.mention is not None and one.mention.text else None
+        if phrase is not None:
+            mark(roles, (lo + phrase[0], lo + phrase[1]), "SUBJ")
+        elif one.mention is not None and subject:
+            if (subject != list(range(subject[0], subject[-1] + 1))
+                    or subject[0] < lo or subject[-1] >= hi):
+                return None
+            mark(roles, (subject[0], subject[-1] + 1), "SUBJ")
+        if one.aux is not None:
+            at = next((word.index for word in part.aux
+                       if words[word.index] == one.aux
+                       and roles[word.index] == "O"), None)
+            if at is not None:
+                roles[at] = "AUX"
+        pointer, places = lo, []
+        for said in one.rest:
+            at = next((at for at in range(pointer, hi) if roles[at] == "O"
+                       and words[at] == said), None)
+            if at is None:
+                at = next((at for at in range(pointer, hi)
+                           if roles[at] == "O" and words[at] in ELIDED), None)
+            if at is None:
+                return None
+            roles[at] = "REST"
+            places.append(at)
+            pointer = at + 1
+        if not one.holds:
+            at = next((at for at in range(lo, hi) if roles[at] == "O"
+                       and words[at] in ("not", "no")), None)
+            if at is not None:
+                roles[at] = "NEG"
+        if one.obj is not None and 0 <= one.obj_at < len(places):
+            start = places[one.obj_at]
+            mark(roles, (start, start + len(str(one.obj.text).split())),
+                 "OBJ")
+    return {"words": words, "act": _act(found), "slots": NONE, "who": "",
+            "stated": roles, "slotted": ["O"] * len(words),
+            "clauses": clauses}
+
+
+def extract(tokens, found, lexicon, typed=None,
+            analysis=None) -> dict | None:
     """What the encoder is to say of a reading: its act, slots cell, who
-    fills that, and each word's role in each. None when a part of the
-    reading cannot be found among the words."""
+    fills that, each word's role in each, and where claims begin. None when
+    a part of the reading cannot be found among the words."""
     count = len(tokens)
+    typed = list(typed) if typed is not None else [str(one) for one in tokens]
+    if found.more:
+        return _claims_record(tokens, found, analysis)
     own = next((one for one in found.goals if one.own), None)
     slots_goal = next((one for one in found.goals if not one.own), None)
-    name = found.act
+    name = _act(found)
     if name == "question":
         if own is None:
             return None
         name = " ".join(own.cell)
-    elif name not in ACTS or found.more:
-        name = STATEMENT
-    stated_roles = ["O"] * count
-    if name != STATEMENT and not _reading_roles(found, name, tokens,
-                                                stated_roles, lexicon):
+    elif name not in ACTS:
+        return None
+    stated_roles, clauses = ["O"] * count, ["O"] * count
+    if not _reading_roles(found, name, tokens, stated_roles, lexicon):
         return None
     slots, who, slotted_roles = NONE, "", ["O"] * count
-    if slots_goal is not None and name != STATEMENT:
+    if name in STATEMENTS:
+        if not _statement_roles(found, name, tokens, typed, stated_roles,
+                                clauses, lexicon):
+            return None
+    elif slots_goal is not None:
         slots = " ".join(slots_goal.cell)
         who = _goal_roles(slots_goal, slots, tokens, slotted_roles, lexicon)
     return {"words": [str(word) for word in tokens], "act": name,
             "slots": slots, "who": who, "stated": stated_roles,
-            "slotted": slotted_roles}
+            "slotted": slotted_roles, "clauses": clauses}
 
 
 def view(found) -> dict:
-    """A reading as compared: everything it says, and its goals."""
+    """A reading as compared: everything it says, its goals and each claim
+    joined to it; not when, which is read before, nor who is new."""
+    def plain(value):
+        if isinstance(value, dict):
+            return {key: plain(one) for key, one in value.items()
+                    if key not in ("when", "fresh")}
+        if isinstance(value, list):
+            return [plain(one) for one in value]
+        return value
+
     shown = found.as_dict()
     shown.update(obj_at=found.obj_at, count=found.count,
-                 more=len(found.more))
-    shown.pop("when", None)
-    return json.loads(json.dumps(shown, default=str))
+                 more=[view(one) for one in found.more])
+    return plain(json.loads(json.dumps(shown, default=str)))
 
 
-def label(text: str, lexicon, names: frozenset = frozenset(),
-          check: bool = False):
-    """(record, why): the record to teach for a text, or None and why not.
-    With `check`, a text `reading.read` reads otherwise -- through the
-    parse's normal form -- is not taught."""
+def _built(record: dict, lexicon, names: frozenset):
+    return build(record["act"], record["slots"], record["who"],
+                 record["stated"], record["slotted"], record["words"],
+                 lexicon, names, record["said"], record["typed"],
+                 record["clauses"], record["tags"], record.get("deps"))
+
+
+def label(text: str, lexicon, names: frozenset = frozenset()):
+    """(record, why): the record to teach for a text, or None and why not."""
+    from .reading import _analysis
+
     lexicon = Plain(lexicon)
-    tokens, names, found = teacher(text, lexicon, names)
+    tokens, names, found, typed = teacher(text, lexicon, names)
     if not tokens:
         return None, "empty"
-    record = extract(tokens, found, lexicon)
+    words = [str(word) for word in tokens]
+    analysis = _analysis(words, lexicon)
+    record = extract(tokens, found, lexicon, typed, analysis)
     if record is None:
         return None, "unaligned"
-    record["names"] = sorted(names)
-    record["said"] = found.said
-    if check:
-        from .reading import read
-        whole = read(text, lexicon, names)
-        if whole.act != found.act or [list(one) for one in whole.cells] != [
-                list(one) for one in found.cells]:
-            return None, "normal form"
-    if record["act"] == STATEMENT:
-        return record, ""
-    built = build(record["act"], record["slots"], record["who"],
-                  record["stated"], record["slotted"],
-                  [str(word) for word in tokens], lexicon, names, found.said)
+    record.update(names=sorted(names), said=found.said,
+                  typed=[str(one) for one in typed],
+                  tags=[one[0] for one in analysis] if analysis
+                  else [""] * len(words),
+                  deps=[one[1] for one in analysis] if analysis
+                  else [""] * len(words))
+    built = _built(record, lexicon, names)
     if built is None:
         return None, "unbuilt"
     if view(built) != view(found):
@@ -367,22 +497,27 @@ def label(text: str, lexicon, names: frozenset = frozenset(),
 
 def explain(text: str, lexicon, names: frozenset = frozenset()) -> str:
     """Why a text does not round-trip: the two readings side by side."""
+    from .reading import _analysis
+
     lexicon = Plain(lexicon)
-    tokens, names, found = teacher(text, lexicon, names)
-    record = extract(tokens, found, lexicon)
-    lines = [f"> {text}", f"  act {found.act} cells {found.cells}"]
+    tokens, names, found, typed = teacher(text, lexicon, names)
+    words = [str(word) for word in tokens]
+    analysis = _analysis(words, lexicon)
+    record = extract(tokens, found, lexicon, typed, analysis)
+    lines = [f"> {text}", f"  act {found.act} cells {found.cells} "
+                          f"more {len(found.more)}"]
     if record is None:
         return "\n".join(lines + ["  unaligned"])
-    lines.append("  " + " ".join(f"{w}/{r}" for w, r in
-                                 zip(record["words"], record["stated"])))
+    record.update(said=found.said, typed=[str(one) for one in typed],
+                  tags=[one[0] for one in analysis] if analysis
+                  else [""] * len(words))
+    lines.append("  " + " ".join(
+        f"{w}/{r}" + (f"/{c}" if c != "O" else "") for w, r, c in
+        zip(record["words"], record["stated"], record["clauses"])))
     lines.append(f"  {record['act']} | {record['slots']} {record['who']} | "
                  + " ".join(f"{w}/{r}" for w, r in
                             zip(record["words"], record["slotted"])))
-    if record["act"] == STATEMENT:
-        return "\n".join(lines)
-    built = build(record["act"], record["slots"], record["who"],
-                  record["stated"], record["slotted"],
-                  [str(word) for word in tokens], lexicon, names, found.said)
+    built = _built(record, lexicon, names)
     if built is None:
         return "\n".join(lines + ["  unbuilt"])
     one, other = view(found), view(built)
@@ -580,6 +715,54 @@ def _contrasts() -> list[str]:
     return found
 
 
+def _statements(count: int = 30) -> list[str]:
+    """Things said rather than asked, for the statement reader to read:
+    someone new put down, named, told of, and kinds taught. The words are
+    NLTK's names, the nouns WordNet files as animals and artifacts that Brown
+    has, VerbNet's verbs with no object and WordNet's attribute adjectives;
+    only the frames are written here, and what each says is the grammar's."""
+    from nltk.corpus import wordnet
+
+    from . import change
+
+    counts = _brown()
+    rng = random.Random(6890)
+    nouns = sorted({word for synset in wordnet.all_synsets("n")
+                    if synset.lexname() in ("noun.animal", "noun.artifact")
+                    for word in synset.lemma_names()
+                    if word.isalpha() and word.islower()
+                    and counts[word] >= 40})
+    verbs = sorted({verb for verb, entries in change.frames().items()
+                    if verb.isalpha() and counts[verb] >= 100
+                    and any(not frame.shape for frame, _ in entries)})
+    adjectives = sorted({lemma.name() for synset in wordnet.all_synsets("a")
+                         if synset.attributes() for lemma in synset.lemmas()
+                         if lemma.name().isalpha()
+                         and counts[lemma.name()] >= 50})
+    names = [one for one in _people() if one.isalpha()] or ["Rex", "Ada"]
+    frames = (
+        "there is a {n}", "there was a {n} that can {v}", "here is a {n}",
+        "i have a {n}", "i got a {n}", "we have a {n}", "i saw a {n}",
+        "i met a {n}", "i found a {n}", "there is another {n}",
+        "another {n} can {v}", "i have a {n} that can not {v}",
+        "my name is {N}", "call me {N}", "i am {N}", "{N} is a {n}",
+        "the {n} is called {N}", "its name is {N}", "my {n} is named {N}",
+        "{N} can {v}", "it can not {v}", "the {n} is {a}", "{N} is {a}",
+        "{N} has a {n}", "the {n} can {v}", "{N} and {M} can {v}",
+        "{ns} can {v}", "{ns} do not {v}", "a {n} can {v}",
+        "{ns} can {v}, and they can {w}", "{N} can {v} but it can not {w}")
+    found = []
+    for frame in frames:
+        for _ in range(count):
+            noun = rng.choice(nouns)
+            one, other = rng.sample(verbs, 2)
+            name, second = rng.sample(names, 2)
+            found.append(frame.format(
+                n=noun, ns=noun + "s", v=one, w=other, a=rng.choice(adjectives),
+                N=name.capitalize(), M=second.capitalize()))
+    return found
+
+
 #: Where question datasets are kept (`data/questions`, not committed):
 #: WikiAnswers' first 20 thousand clusters, Quora's question pairs, and
 #: QA-SRL Bank 2.1.
@@ -688,9 +871,32 @@ def _qasrl(limit: int = 30000) -> list[str]:
     return random.Random(689).sample(kept, min(limit, len(kept)))
 
 
+def documented() -> list[str]:
+    """Every example quoted in the docstrings of the grammar's shapes, and
+    the questions its module docstring lists as read into slots."""
+    import re
+
+    from . import grammar
+    from .reading import QUESTION_WORDS
+
+    found: list[str] = []
+    shapes = {shape for table in grammar.SHAPES.values() for shape in table}
+    for shape in sorted(shapes, key=lambda one: one.__name__):
+        found += re.findall(r"`([^`]+)`", shape.__doc__ or "")
+    doc = grammar.__doc__ or ""
+    start = doc.find("Some shapes read a question straight into slots")
+    block = doc[start:doc.find("That goal is tried first", start)]
+    for line in block.splitlines()[1:]:
+        found += [piece.strip() for piece in line.split(",") if piece.strip()]
+    # `where did Mary go (first)`: the question, without its option.
+    found = [" ".join(re.sub(r"\([^)]*\)", " ", one).split()) for one in found]
+    return [one for one in dict.fromkeys(found)
+            if one.split() and one.split()[0].lower() in QUESTION_WORDS]
+
+
 #: Sources said in more ways, with other names, nouns and verbs (`vary`);
 #: questions people asked are taught as they were asked.
-VARIED = frozenset({"tests", "grammar", "babi", "contrast"})
+VARIED = frozenset({"tests", "grammar", "babi", "contrast", "statement"})
 
 
 def sources(external: bool = False) -> list[tuple[str, str]]:
@@ -698,16 +904,15 @@ def sources(external: bool = False) -> list[tuple[str, str]]:
     (`_natural`, `_qasrl`) only with `external`: read by this grammar they
     taught unfamiliar wording as generic -- WikiAnswers' `where is the X
     located` is about no one here -- and cost the held-out paraphrases."""
-    from . import exemplars
-
     texts = [(one, "tests") for one in _test_strings()]
-    texts += [(one, "grammar") for one in exemplars.documented()]
+    texts += [(one, "grammar") for one in documented()]
     for shape in SHAPES:
         texts += [(one, "grammar") for one in
                   ([shape.format(x=phrase) for phrase in PHRASES]
                    if "{x}" in shape else [shape])]
     texts += [(one, "babi") for one in _babi()]
     texts += [(one, "contrast") for one in _contrasts()]
+    texts += [(one, "statement") for one in _statements()]
     if external:
         texts += [(one, "natural") for one in _natural()]
         texts += [(one, "qasrl") for one in _qasrl()]
@@ -1067,9 +1272,15 @@ def vary(text: str, names: frozenset, pools: Pools, lexicon,
 
 
 def _copy(record: dict, words: list[str], stated: list[str],
-          slotted: list[str], how: str) -> dict:
+          slotted: list[str], how: str,
+          clauses: list[str] | None = None) -> dict:
+    if clauses is None:
+        clauses = (list(record["clauses"])
+                   if len(words) == len(record["words"])
+                   else ["O"] * len(words))
     return {**record, "words": words, "stated": stated, "slotted": slotted,
-            "how": how, "said": " ".join(words)}
+            "clauses": clauses, "how": how, "said": " ".join(words),
+            "typed": words}
 
 
 def _inside(record: dict, at: int) -> bool:
@@ -1083,7 +1294,9 @@ def _insert(record: dict, at: int, words: list[str], how: str) -> dict:
     return _copy(record, record["words"][:at] + words + record["words"][at:],
                  record["stated"][:at] + ["O"] * size + record["stated"][at:],
                  record["slotted"][:at] + ["O"] * size
-                 + record["slotted"][at:], how)
+                 + record["slotted"][at:], how,
+                 record["clauses"][:at] + ["O"] * size
+                 + record["clauses"][at:])
 
 
 def adjunct(record: dict, pools: Pools, lexicon, rng) -> dict | None:
@@ -1123,7 +1336,7 @@ def embedded(record: dict, pools: Pools, lexicon, rng) -> dict | None:
     from .reading import AUX, QUESTION_WORDS
 
     words = record["words"]
-    if (record["act"] == STATEMENT or len(words) < 2
+    if (record["act"] in STATEMENTS or len(words) < 2
             or words[0] not in QUESTION_WORDS or words[0] == "why"):
         return None
     order: list[int] | None = None
@@ -1267,7 +1480,7 @@ TRANSPORTS = ((adjunct, 0.4, 0.15), (timed, 0.15, 0.05), (opened, 0.15, 0.1),
 
 def transports(record: dict, pools: Pools, lexicon, rng) -> list[dict]:
     out = []
-    asking = record["act"] != STATEMENT
+    asking = record["act"] not in STATEMENTS
     for transport, question, statement in TRANSPORTS:
         chance = question if asking else statement
         if rng.random() >= chance:
@@ -1311,7 +1524,7 @@ def _teach(job) -> tuple[list[dict], collections.Counter]:
     reasons: collections.Counter = collections.Counter()
     # What the last corpus had few of is said in more ways.
     try:
-        source, _ = label(text, lexicon, names, check=True)
+        source, _ = label(text, lexicon, names)
     except Exception:                                   # noqa: BLE001
         source = None
     if source is not None and (source["act"] in rare
@@ -1345,18 +1558,21 @@ def _teach(job) -> tuple[list[dict], collections.Counter]:
             continue
         seen.add((said, known))
         try:
-            record, why = label(said, lexicon, known, check=True)
+            record, why = label(said, lexicon, known)
         except Exception as bad:                        # noqa: BLE001
             record, why = None, f"error {type(bad).__name__}"
         reasons[why or "taught"] += 1
         if record is None:
             continue
-        if how == "varied" and record["act"] == STATEMENT \
+        if how == "varied" and record["act"] in STATEMENTS \
                 and rng.random() < 0.5:
             continue
         record.update(source=index, how=how)
         records.append(record)
-        records.extend(transports(record, pools, lexicon, rng))
+        for moved in transports(record, pools, lexicon, rng):
+            # Words were added: spaCy reads the new sentence again.
+            moved["tags"], moved["deps"] = analysed(moved["words"], lexicon)
+            records.append(moved)
     return records, reasons
 
 
@@ -1366,8 +1582,6 @@ def corpus(variants: int, processes: int, limit: int = 0,
 
     from research.v687 import build as store
 
-    os.environ["V689_EXEMPLARS"] = "0"
-    os.environ["V689_READER"] = "0"
     texts = sources(external)
     if limit:
         texts = random.Random(689).sample(texts, min(limit, len(texts)))
@@ -1428,9 +1642,14 @@ def corpus(variants: int, processes: int, limit: int = 0,
 
 
 # -- training ---------------------------------------------------------------------
-def labels() -> dict:
+def labels(rows=()) -> dict:
+    """Every label each head says, and the tags and dependencies spaCy gave
+    the corpus (0 is none)."""
+    tags = sorted({tag for row in rows for tag in row.get("tags", ()) if tag})
+    deps = sorted({dep for row in rows for dep in row.get("deps", ()) if dep})
     return {"acts": list(STATED) + list(ACTS), "slots": [NONE] + list(SLOTS),
-            "who": list(WHO), "roles": list(ROLES)}
+            "who": list(WHO), "roles": list(ROLES), "clauses": list(CLAUSES),
+            "tags": [""] + tags, "deps": [""] + deps}
 
 
 def _load(name: str) -> list[dict]:
@@ -1438,34 +1657,40 @@ def _load(name: str) -> list[dict]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def _batch(tokenizer, chunk: list[dict], names: dict, device: str):
+def _batch(tokenizer, chunk: list[dict], index: dict, names: dict,
+           device: str):
     import torch
 
     encoded = tokenizer([said_as(one["words"], frozenset(one["names"]))
                          for one in chunk],
                         is_split_into_words=True, truncation=True,
                         max_length=64, padding=True, return_tensors="pt")
+    tag_ids, dep_ids = features(
+        encoded, [(one["tags"], one["deps"]) for one in chunk], names)
     stated = torch.full(encoded["input_ids"].shape, -100)
     slotted = torch.full(encoded["input_ids"].shape, -100)
+    clauses = torch.full(encoded["input_ids"].shape, -100)
     for row, one in enumerate(chunk):
         seen = set()
         for at, word in enumerate(encoded.word_ids(row)):
             if word is None or word in seen:
                 continue
             seen.add(word)
-            stated[row, at] = names["roles"][one["stated"][word]]
-            slotted[row, at] = names["roles"][one["slotted"][word]]
-    acts = torch.tensor([names["acts"][one["act"]] for one in chunk])
-    slots = torch.tensor([names["slots"][one["slots"]] for one in chunk])
-    who = torch.tensor([names["who"][one["who"]] if one["slots"] != NONE
+            stated[row, at] = index["roles"][one["stated"][word]]
+            slotted[row, at] = index["roles"][one["slotted"][word]]
+            clauses[row, at] = index["clauses"][one["clauses"][word]]
+    acts = torch.tensor([index["acts"][one["act"]] for one in chunk])
+    slots = torch.tensor([index["slots"][one["slots"]] for one in chunk])
+    who = torch.tensor([index["who"][one["who"]] if one["slots"] != NONE
                         else -100 for one in chunk])
-    return ({key: value.to(device) for key, value in encoded.items()
-             if key in ("input_ids", "attention_mask")},
+    return ({"input_ids": encoded["input_ids"].to(device),
+             "attention_mask": encoded["attention_mask"].to(device),
+             "tag_ids": tag_ids.to(device), "dep_ids": dep_ids.to(device)},
             acts.to(device), slots.to(device), who.to(device),
-            stated.to(device), slotted.to(device))
+            stated.to(device), slotted.to(device), clauses.to(device))
 
 
-def evaluate(net, tokenizer, rows: list[dict], names: dict,
+def evaluate(net, tokenizer, rows: list[dict], index: dict, names: dict,
              device: str, batch: int = 256) -> dict:
     import torch
 
@@ -1474,27 +1699,38 @@ def evaluate(net, tokenizer, rows: list[dict], names: dict,
     with torch.no_grad():
         for start in range(0, len(rows), batch):
             chunk = rows[start:start + batch]
-            inputs, acts, slots, who, stated, slotted = _batch(
-                tokenizer, chunk, names, device)
+            inputs, acts, slots, who, stated, slotted, clauses = _batch(
+                tokenizer, chunk, index, names, device)
             with torch.autocast(device, dtype=torch.bfloat16,
                                 enabled=device == "cuda"):
-                out = net(inputs["input_ids"], inputs["attention_mask"])
+                out = net(**inputs)
             guess_acts = out[0].argmax(-1) == acts
             guess_slots = out[1].argmax(-1) == slots
             guess_who = (out[2].argmax(-1) == who) | (who == -100)
-            mask_s = stated != -100
-            guess_stated = ((out[3].argmax(-1) == stated) | ~mask_s).all(-1)
+            guess_stated = ((out[3].argmax(-1) == stated)
+                            | (stated == -100)).all(-1)
             guess_slotted = ((out[4].argmax(-1) == slotted)
                              | (slotted == -100)).all(-1)
+            guess_clauses = ((out[5].argmax(-1) == clauses)
+                             | (clauses == -100)).all(-1)
             whole = (guess_acts & guess_slots & guess_who & guess_stated
-                     & guess_slotted)
+                     & guess_slotted & guess_clauses)
+            statements = torch.tensor([one["act"] in STATEMENTS
+                                       for one in chunk], device=device)
             for key, value in (("act", guess_acts), ("slots", guess_slots),
                                ("who", guess_who), ("stated", guess_stated),
-                               ("slotted", guess_slotted), ("all", whole)):
+                               ("slotted", guess_slotted),
+                               ("clauses", guess_clauses), ("all", whole)):
                 right[key] += int(value.sum())
+            right["statements"] += int(statements.sum())
+            right["statements right"] += int((whole & statements).sum())
     net.train()
-    return {key: round(value / max(1, len(rows)), 4)
-            for key, value in right.items()}
+    statements = right.pop("statements")
+    found = {key: round(value / max(1, len(rows)), 4)
+             for key, value in right.items() if key != "statements right"}
+    found["statements"] = round(right["statements right"]
+                                / max(1, statements), 4)
+    return found
 
 
 def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
@@ -1509,9 +1745,13 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
     # Each epoch draws its rows by how rare what they teach is: a cell the
     # corpus has few of is seen more often than its share, by the square
     # root of how much rarer it is.
+    # A text as it was said (a test's own words, or a source's) is drawn
+    # more often than each of the ways it was varied.
     taught = collections.Counter((row["act"], row["slots"]) for row in rows)
-    weights = [taught[(row["act"], row["slots"])] ** -0.5 for row in rows]
-    names = labels()
+    weights = [taught[(row["act"], row["slots"])] ** -0.5
+               * (3.0 if row.get("how") in ("source", "unnamed", "negated")
+                  else 1.0) for row in rows]
+    names = labels(rows + held)
     index = {key: {label: at for at, label in enumerate(values)}
              for key, values in names.items()}
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -1524,6 +1764,11 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
     schedule = get_linear_schedule_with_warmup(optimiser, int(steps * 0.06),
                                                steps)
     loss_of = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    # Where a claim begins is one word in many: missed, two claims are one.
+    begins = torch.ones(len(names["clauses"]))
+    begins[1:] = 5.0
+    clause_loss = torch.nn.CrossEntropyLoss(weight=begins.to(device),
+                                            ignore_index=-100)
     print(f"{len(rows)} train, {len(held)} valid, {steps} steps on {device}",
           flush=True)
     started = time.time()
@@ -1532,11 +1777,11 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
         drawn = rng.choices(rows, weights=weights, k=len(rows))
         total = 0.0
         for start in range(0, len(drawn), batch):
-            inputs, acts, slots, who, stated, slotted = _batch(
-                tokenizer, drawn[start:start + batch], index, device)
+            inputs, acts, slots, who, stated, slotted, clauses = _batch(
+                tokenizer, drawn[start:start + batch], index, names, device)
             with torch.autocast(device, dtype=torch.bfloat16,
                                 enabled=device == "cuda"):
-                read = net(inputs["input_ids"], inputs["attention_mask"])
+                read = net(**inputs)
                 roles = len(names["roles"])
                 # A batch with no goal read as slots has no one to fill it:
                 # a mean over nothing is not a number.
@@ -1548,14 +1793,16 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
                         + loss_of(read[3].float().reshape(-1, roles),
                                   stated.reshape(-1))
                         + loss_of(read[4].float().reshape(-1, roles),
-                                  slotted.reshape(-1)))
+                                  slotted.reshape(-1))
+                        + clause_loss(read[5].float().reshape(
+                            -1, len(names["clauses"])), clauses.reshape(-1)))
             optimiser.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
             optimiser.step()
             schedule.step()
             total += float(loss)
-        scores = evaluate(net, tokenizer, held, index, device)
+        scores = evaluate(net, tokenizer, held, index, names, device)
         print(f"epoch {epoch + 1}: loss {total:.1f} valid {scores} "
               f"({time.time() - started:.0f}s)", flush=True)
     out.mkdir(parents=True, exist_ok=True)
@@ -1599,7 +1846,6 @@ def main(argv=None) -> int:
             print(kind, rng.sample(chosen, min(30, len(chosen))))
     else:
         from research.v687 import build as store
-        os.environ["V689_EXEMPLARS"] = "0"
         _start_worker(str(store.DEFAULT_STORE))
         pools = _WORKER["pools"]
         print(json.dumps(pools.as_dict(), indent=1))

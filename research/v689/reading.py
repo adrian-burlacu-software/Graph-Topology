@@ -629,7 +629,7 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
     `read` would have to find a kind in words that do not name it. Any other
     clause is filled in (`clauses.standalone`) and read from the start.
     """
-    first = read(" ".join(parts[0].words(typed)), lexicon, names, told=True)
+    first = read(" ".join(parts[0].words(typed)), lexicon, names, by=grammar)
     readings = [first]
     before, reading_before = parts[0], first
     for part in parts[1:]:
@@ -646,7 +646,7 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
             one.act, one.mention = "teach", reading_before.mention
         else:
             one = read(" ".join(whole.words(typed)), lexicon, names,
-                       told=True)
+                       by=grammar)
         readings.append(one)
         before, reading_before = whole, one
     for one in readings:
@@ -719,37 +719,14 @@ def _mark_fresh(reading: "Reading", fresh: frozenset) -> None:
         waiting.extend([one.relative] + list(one.more))
 
 
-def _normal(tokens: list[str], typed: list[str], lexicon, names: frozenset,
-            said: str) -> tuple[list[str], list[str], list]:
-    """(tokens, typed, goals) in normal form (`frames.py`), for words the
-    grammar read no goal from. A question is taken in normal form only when
-    that states a goal; a statement whenever its parse read an adjunct, a
-    fronted phrase or a passive, since read in the order said, `quickly` is
-    the verb and `was moved ... by Mary` a quality."""
-    from . import change, frames
-    from .grammar import propose
-
-    if not tokens or tokens[0] in MODALS:
-        return tokens, typed, []
-    found = frames.normal(tokens, typed, _analysis(typed, lexicon),
-                          lexicon.lemma, change.theme_subject,
-                          getattr(lexicon, "tags", None), change.meaning)
-    if found is None:
-        return tokens, typed, []
-    goals = propose(found[0], lexicon, names, said)
-    asking = any(word in QUESTION_WORDS for word in tokens)
-    if goals or not asking:
-        return found[0], found[1], goals
-    return tokens, typed, []
-
-
-def _statement_normal(tokens: list[str], typed: list[str],
-                      lexicon) -> tuple[list[str], list[str]]:
-    """A statement in normal form (`frames.py`): read in the order said,
-    `quickly` is the verb and `was moved ... by Mary` a quality."""
+def normal(tokens: list[str], typed: list[str],
+           lexicon) -> tuple[list[str], list[str]]:
+    """A statement in normal form (`frames.py`), from spaCy's parse: read in
+    the order said, `quickly` is the verb and `was moved ... by Mary` a
+    quality. A question is read as said."""
     from . import change, frames
 
-    if (not tokens or tokens[0] in MODALS
+    if (not tokens or tokens[0] in MODALS or tokens[0] in AUX
             or any(word in QUESTION_WORDS for word in tokens)):
         return tokens, typed
     found = frames.normal(tokens, typed, _analysis(typed, lexicon),
@@ -758,41 +735,31 @@ def _statement_normal(tokens: list[str], typed: list[str],
     return found if found is not None else (tokens, typed)
 
 
-def _grammar_read(said: str, asked, tokens: list[str], typed: list[str],
-                  lexicon, names: frozenset) -> Reading:
-    """The reading without the encoder: what a question asks, as goals, read
-    by one grammar (`grammar.py`), then its normal form, then an exemplar.
-    The reading one of them states is the question's reading, unless `_read`
-    reads the words as something else first; the goal read as slots is tried
-    before whatever the reading states."""
-    from . import exemplars
+def encoded(said: str, asked, tokens: list[str], typed: list[str], lexicon,
+            names: frozenset) -> Reading:
+    """What the encoder reads the words as (`reader.py`)."""
+    from . import reader
+
+    return reader.reading(tokens, lexicon, names, said, typed=typed)[0]
+
+
+def grammar(said: str, asked, tokens: list[str], typed: list[str], lexicon,
+            names: frozenset) -> Reading:
+    """What the grammar reads the words as: the encoder's teacher
+    (`teach_reader.py`), never asked at run time. A question's goals are
+    read by `grammar.py`, and the reading one of them states is the
+    question's, unless `_read` reads the words as something else first."""
     from .grammar import propose
 
     goals = propose(tokens, lexicon, names, said)
-    if not goals:
-        tokens, typed, goals = _normal(tokens, typed, lexicon, names, said)
-    first = None
-    if goals:
-        exemplars.MEMORY.learn(tokens, typed, goals, names)
-    else:
-        # Read like the nearest question the grammar understood, only when
-        # nothing else here reads it either: `what is Mary` is `what`, and
-        # an exemplar never takes a reading the reader already has.
-        first = _read(said, asked, tokens, typed, lexicon, names)
-        if first.act == "generic":
-            like = exemplars.like(tokens, typed, lexicon, names, said)
-            if like is not None:
-                tokens, typed, goals = like
-                first = None
     stated = next((one.clause for one in goals if one.own), None)
-    found = first if first is not None else _read(
-        said, asked, tokens, typed, lexicon, names, stated)
+    found = _read(said, asked, tokens, typed, lexicon, names, stated)
     found.goals = [one for one in goals if not one.own] + found.goals
     return found
 
 
 def read(text: str, lexicon, names: frozenset = frozenset(),
-         anchored: bool = True, told: bool = False) -> Reading:
+         anchored: bool = True, by=None) -> Reading:
     """Read one utterance.
 
     `lexicon` needs `subject(question)`, `lemma(word)` and `known(phrase)`;
@@ -802,7 +769,8 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
     What it says about time is taken out first (`tense.py`) and kept on the
     reading as `when`. An anchor clause -- `after the dog chased the cat` --
     is only one if it reads as a statement about someone; otherwise the
-    utterance is read whole.
+    utterance is read whole. The words are read by the encoder (`encoded`),
+    or by whatever `by` is: the teacher reads them with `grammar`.
     """
     said = (text or "").strip()
     # A request is read as the question inside it: `do you know if a dog can
@@ -814,7 +782,7 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
     names = names | fresh
     split = subordinate(asked.text) if anchored else None
     if split is not None:
-        anchor = read(split[2], lexicon, names, anchored=False, told=True)
+        anchor = read(split[2], lexicon, names, anchored=False, by=by)
         if anchor.act != "tell" or anchor.mention is None:
             split = None
     tokens, typed = tokens_of(split[0] if split else asked.text)
@@ -825,25 +793,10 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # Quoted without the words that placed it, except `again`, without
         # which three barks read as one said three times.
         when.main = " ".join(typed + list(when.again_words))
-    # What a question asks is read by the encoder (`reader.py`): its act,
-    # its goals and the words that fill them, built into the grammar's own
-    # readings. A statement goes on to the statement reader, in normal form.
-    from . import reader
-    # A clause of something already read as a statement (`told`) is one
-    # too: asked alone, `testicles shrink in cold temperatures` of
-    # `testicles shrink in cold temperatures, and they expand in warm ones`
-    # read as nothing a statement says.
-    if reader.enabled() and told:
-        found, guess = None, "told"
-    else:
-        found, guess = (reader.reading(tokens, lexicon, names, said)
-                        if reader.enabled() else (None, None))
-    if guess is not None:
-        if found is None:
-            tokens, typed = _statement_normal(tokens, typed, lexicon)
-            found = _read(said, asked, tokens, typed, lexicon, names)
-    else:
-        found = _grammar_read(said, asked, tokens, typed, lexicon, names)
+    # What it does, of whom, and the words that fill each part, built into
+    # readings: by the encoder, over a statement in normal form.
+    tokens, typed = normal(tokens, typed, lexicon)
+    found = (by or encoded)(said, asked, tokens, typed, lexicon, names)
     _mark_fresh(found, fresh)
     found.when = when
     for one in found.more:

@@ -151,9 +151,6 @@ class Goal:
     #: stated by the question's own reading, which is its clause and the
     #: reading `reading.read` gives the question
     own: bool = False
-    #: the exemplar a question nothing else read was read like, and how near
-    #: (`exemplars.py`)
-    like: str = ""
 
     @property
     def cell(self) -> tuple:
@@ -166,8 +163,7 @@ class Goal:
                 "subject": self.subject.text if self.subject else None,
                 "object": self.object.text if self.object else None,
                 "verb": self.verb, "sequence": self.sequence,
-                "clause": " ".join(self.clause.rest) if self.clause else None,
-                "like": self.like}
+                "clause": " ".join(self.clause.rest) if self.clause else None}
 
 
 def _individual(found) -> bool:
