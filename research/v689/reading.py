@@ -746,14 +746,16 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # Quoted without the words that placed it, except `again`, without
         # which three barks read as one said three times.
         when.main = " ".join(typed + list(when.again_words))
-    found = _read(said, asked, tokens, typed, lexicon, names)
+    # What a question asks, as goals, read by one grammar (`grammar.py`). The
+    # reading one of them states is the question's reading, unless `_read`
+    # reads the words as something else first; the goal read as slots is
+    # tried before whatever the reading states.
+    from .grammar import propose
+    goals = propose(tokens, lexicon, names, said)
+    stated = next((one.clause for one in goals if one.own), None)
+    found = _read(said, asked, tokens, typed, lexicon, names, stated)
     _mark_fresh(found, fresh)
-    # What a question asks, as slots, from the same words (`grammar.py`),
-    # tried before the goal its reading's own cell states.
-    from .grammar import slot_goal
-    asked = slot_goal(tokens, lexicon, names, said)
-    if asked is not None:
-        found.goals.insert(0, asked)
+    found.goals = [one for one in goals if not one.own] + found.goals
     found.when = when
     for one in found.more:
         if one.when is None or one.when.empty:
@@ -762,7 +764,7 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
 
 
 def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
-          names: frozenset) -> Reading:
+          names: frozenset, stated: Reading | None = None) -> Reading:
     if not tokens:
         return Reading("generic", said=said)
 
@@ -793,13 +795,11 @@ def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,
                             holds=at == 2, said=said), lexicon, names)
         return Reading("generic", said=said)
 
-    # `who chased the cat`, `where is the dog`, `how many dogs are there`:
-    # the goal cell a question about this conversation's individuals fills,
-    # read by one grammar (`grammar.py`) and answered from episodic memory.
-    from .grammar import cell_reading
-    asked_here = cell_reading(tokens, lexicon, names, said)
-    if asked_here is not None:
-        return asked_here
+    # `who chased the cat`, `where is the dog`, `how many dogs are there`: a
+    # question about this conversation's individuals, the reading its goal
+    # states (`grammar.py`), answered from episodic memory.
+    if stated is not None:
+        return stated
 
     # A statement of several claims is read one claim at a time. Questions
     # are left whole: `can it swim and bark` asks one thing.

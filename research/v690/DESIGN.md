@@ -465,10 +465,12 @@ question's subject is resolved. `what does Mary have` is proposed twice:
 what is with her, composed first, and failing that what was told she has.
 Of 1,209 readings, 455 differ, each only in its act being `question`.
 
-The grammar still reads in two families of shapes -- the slots and the cells
--- each taking its first match. Collapsing them into one table of shapes,
-each proposing a goal, is next; after it, the cells with operators of their
-own can move one at a time onto the relations' operators, as holding's did.
+The sixth step made the grammar one table (`grammar.SHAPES`): after each
+question word, the shapes that read a question straight into slots and the
+shapes that read it as a reading of its own, in one order, each proposing a
+goal. A question is proposed the first of each, and `reading.read` proposes
+before it reads, so the reading a goal states is the question's reading.
+Of 1,210 readings, none differs.
 
 ## 9. Risks
 
