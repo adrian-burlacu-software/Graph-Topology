@@ -94,9 +94,14 @@ GROUNDS = (("how", "do", "you", "know"), ("how", "do", "you", "know", "that"),
 #: The last question, of another kind: `what about a cat`, `and a fish?`.
 AGAIN = (("what", "about"), ("how", "about"), ("and",))
 
-#: The cells this grammar's shapes read. Each has one operator: its own
-#: (`Session._cells`), or its relation's (`goals.COMPOSES`).
+#: The cells this grammar's shapes read, into slots or as readings of their
+#: own. Each is answered by one method of its relation's operator
+#: (`goals.Answering.cells`).
 CELLS = frozenset({
+    ("subject", "located"), ("any", "located"), ("count", "located"),
+    ("time", "located"), ("any", "holding"), ("whether", "holding"),
+    ("subject", "holding"), ("any", "occurrence"), ("count", "occurrence"),
+    ("place", "occurrence"),
     ("time", "occurrence"), ("times", "occurrence"), ("subject", "occurrence"),
     ("recipient", "occurrence"), ("object", "occurrence"),
     ("verb", "occurrence"), ("place", "located"), ("object", "holding"),

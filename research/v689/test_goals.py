@@ -83,15 +83,14 @@ class ReadingGoalsTests(unittest.TestCase):
             self.assertIn(cell, read(text, lexicon, names).cells, text)
         self.assertEqual(read("can a dog swim", lexicon, names).cells, [])
 
-    def test_every_cell_has_one_operator(self):
-        from research.v689.goals import COMPOSES
+    def test_every_cell_is_answered_by_its_relations_operator(self):
+        from research.v689.goals import Answering
         from research.v689.grammar import CELLS
         from research.v689.session import Session
-        composed = {(asked, relation) for relation, asks in COMPOSES.items()
-                    for asked in asks}
-        own = set(Session(people.PeopleAsker())._cells())
-        self.assertLessEqual(CELLS, own | composed)
-        self.assertFalse(own & composed)
+        cells = Answering(Session(people.PeopleAsker())).cells()
+        self.assertEqual(CELLS, {(asked, relation)
+                                 for relation, methods in cells.items()
+                                 for asked in methods})
 
     def test_a_question_read_two_ways_is_tried_as_slots_first(self):
         from research.v689.reading import read

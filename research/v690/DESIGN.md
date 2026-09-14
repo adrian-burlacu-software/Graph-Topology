@@ -472,6 +472,17 @@ goal. A question is proposed the first of each, and `reading.read` proposes
 before it reads, so the reading a goal states is the question's reading.
 Of 1,210 readings, none differs.
 
+The seventh step put every cell on its relation's operator. There is one
+operator a relation -- located, holding, occurrence, dimension, attribute,
+motive, is_a, story, told, future, any, answer, question -- and it answers
+every cell of its relation, trying a question's goals of that relation in
+the order they were proposed (`goals.Answering.cells`). The cells memory is
+composed for are the operator's own methods; the rest are the handlers
+written for them, now its methods for those slots: `where is Mary` is the
+located operator's, `who chased the cat` the occurrence operator's.
+`Session._cells` is gone, and a test pins that the grammar's cells are
+exactly the operators' cells.
+
 ## 9. Risks
 
 - **Speed.** A graph over 1.96M facts in Python is slow if built eagerly. The

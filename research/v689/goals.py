@@ -43,6 +43,11 @@ nothing**, so what a pattern answered before it still answers -- `what does
 it have` of a beagle told to have a tail is what was told -- unless nothing
 else would read the question at all, when "not told" is the answer rather
 than a question about kinds.
+
+Every other cell is answered by its relation's operator too, by the handler
+written for it (`Answering.cells`): `where is Mary` by the located operator,
+`who chased the cat` by the occurrence operator, `what color is Greg` by the
+attribute operator. One operator a relation, one method a cell.
 """
 from __future__ import annotations
 
@@ -53,12 +58,7 @@ from . import change as changes
 from .discourse import SPEAKER_KIND
 from .grammar import NO_ONE, Goal
 
-#: The cells each relation's operator answers by composing memory. A
-#: relation's other cells have operators of their own (`Session._cells`).
-COMPOSES = {"located": frozenset({"subject", "any", "count", "time"}),
-            "holding": frozenset({"any", "whether", "subject", "object",
-                                  "count"}),
-            "occurrence": frozenset({"any", "count", "place"})}
+
 
 class Answering:
     """The operators, over one session's memory."""
@@ -74,32 +74,80 @@ class Answering:
     def discourse(self):
         return self.session.discourse
 
+    #: The rule each relation's operator mainly carries out, for its trace.
+    RULES = {"located": "T3", "holding": "T4", "occurrence": "T5",
+             "dimension": "S2", "attribute": "I1", "is_a": "R1",
+             "story": "T1", "future": "T1"}
+
+    def cells(self) -> dict[str, dict]:
+        """Every cell, by relation: what answers what is asked of it. The
+        cells memory is composed for are this class's; the rest are the
+        handlers written for them, which always answer."""
+        session, story = self.session, self.story
+
+        def handled(handler):
+            def answer(goal: Goal, reading, turn) -> str:
+                handler(reading, turn)
+                return ANSWERED
+            return answer
+
+        happened = handled(session._happened)
+        return {
+            "located": {"subject": self.located, "any": self.located,
+                        "count": self.located, "time": self.located,
+                        "place": handled(session._where)},
+            "holding": {"any": self.holding, "whether": self.holding,
+                        "subject": self.holding, "object": self.holding,
+                        "count": self.holding},
+            "occurrence": {"any": self.occurrence, "count": self.occurrence,
+                           "place": self.occurrence,
+                           "time": handled(story.when_asked),
+                           "times": handled(story.how_many_times),
+                           "subject": handled(session._who),
+                           "recipient": handled(story.to_whom),
+                           "object": handled(session._what_did),
+                           "verb": handled(story.doing)},
+            "dimension": {"subject": handled(session._related_to),
+                          "object": handled(session._related_to),
+                          "path": handled(session._route)},
+            "attribute": {"value": handled(session._attribute),
+                          "object": handled(session._toward)},
+            "motive": {"place": handled(session._where_going)},
+            "is_a": {"count": handled(session._how_many),
+                     "which": handled(session._which),
+                     "kind": handled(session._what)},
+            "story": {"events": happened},
+            "told": {"events": happened},
+            "future": {"events": happened},
+            "any": {"facts": handled(session._about)},
+            "answer": {"grounds": handled(session._meta)},
+            "question": {"again": handled(session._ellipsis)},
+        }
+
     def operators(self) -> list[Operator]:
-        def on(relation: str):
-            return lambda memory: self.goal(memory, relation) is not None
+        """One operator a relation: proposed when a goal of it is, and trying
+        each such goal, in the order they were proposed, until one is
+        answered."""
+        cells = self.cells()
 
-        return [
-            Operator("located", self._step(self.located, "located"),
-                     on("located"), rule="T3"),
-            Operator("holding", self._step(self.holding, "holding"),
-                     on("holding"), rule="T4"),
-            Operator("occurrence", self._step(self.occurrence, "occurrence"),
-                     on("occurrence"), rule="T5"),
-        ]
+        def goals(memory: dict, relation: str) -> list:
+            return [one for one in memory.get("goals", ())
+                    if one.relation == relation
+                    and one.asked in cells[relation]]
 
-    @staticmethod
-    def goal(memory: dict, relation: str) -> Goal | None:
-        """The first goal proposed of a cell this relation's operator
-        composes."""
-        return next((one for one in memory.get("goals", ())
-                     if one.relation == relation
-                     and one.asked in COMPOSES[relation]), None)
+        def operator(relation: str) -> Operator:
+            def apply(memory: dict) -> str:
+                for goal in goals(memory, relation):
+                    answer = cells[relation][goal.asked]
+                    if answer(goal, memory["reading"],
+                              memory["turn"]) == ANSWERED:
+                        return ANSWERED
+                return DECLINED
+            return Operator(relation, apply,
+                            lambda memory: bool(goals(memory, relation)),
+                            rule=self.RULES.get(relation, ""))
 
-    def _step(self, answer, relation: str):
-        def apply(memory: dict) -> str:
-            return answer(self.goal(memory, relation), memory["reading"],
-                          memory["turn"])
-        return apply
+        return [operator(relation) for relation in cells]
 
     # -- what may fill a slot --------------------------------------------------
     def candidates(self, who: str) -> list:

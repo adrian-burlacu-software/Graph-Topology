@@ -357,36 +357,6 @@ class Session:
         return session
 
     # -- one utterance -----------------------------------------------------
-    def _cells(self) -> dict:
-        """The goal cells a question's goals fill (`grammar.py`), each
-        answered by the operator for that cell -- what is asked, of which
-        relation. With the cells a relation's operator composes
-        (`goals.COMPOSES`), this table is the coverage matrix: one operator
-        a cell."""
-        story = self.story
-        return {("time", "occurrence"): story.when_asked,
-                ("times", "occurrence"): story.how_many_times,
-                ("subject", "occurrence"): self._who,
-                ("recipient", "occurrence"): story.to_whom,
-                ("object", "occurrence"): self._what_did,
-                ("verb", "occurrence"): story.doing,
-                ("place", "located"): self._where,
-                ("subject", "dimension"): self._related_to,
-                ("object", "dimension"): self._related_to,
-                ("path", "dimension"): self._route,
-                ("value", "attribute"): self._attribute,
-                ("object", "attribute"): self._toward,
-                ("place", "motive"): self._where_going,
-                ("count", "is_a"): self._how_many,
-                ("which", "is_a"): self._which,
-                ("kind", "is_a"): self._what,
-                ("events", "story"): self._happened,
-                ("events", "told"): self._happened,
-                ("events", "future"): self._happened,
-                ("facts", "any"): self._about,
-                ("grounds", "answer"): self._meta,
-                ("again", "question"): self._ellipsis}
-
     def say(self, text: str) -> Turn:
         self.discourse.next_turn()
         grown = len(self.memory.growth)
@@ -399,7 +369,6 @@ class Session:
                 "ask_name": self._ask_name, "teach": self._teach,
                 "compound": self._compound, "define": self._define,
                 "why": self._why}
-        cells = self._cells()
 
         def acted(handler):
             def apply(memory: dict) -> str:
@@ -408,16 +377,10 @@ class Session:
             return apply
 
         # What the utterance does, as operators (`executive.py`): the goals a
-        # question states, each by its cell's operator -- first the cells a
-        # relation's operator composes from memory (`goals.py`), then the
-        # cells with operators of their own -- then each remaining act on its
-        # own reading, and anything else is v688's.
+        # question states, each by its relation's operator (`goals.py`), then
+        # each remaining act on its own reading, and anything else is v688's.
         acting = Executive(
             Answering(self).operators()
-            + [Operator(f"{asked} of {relation}", acted(handler),
-                        proposes=lambda memory, cell=(asked, relation):
-                        cell in memory["reading"].cells)
-               for (asked, relation), handler in cells.items()]
             + [Operator(name, acted(handler),
                         proposes=lambda memory, name=name:
                         memory["reading"].act == name)

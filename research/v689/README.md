@@ -494,7 +494,7 @@ kind of one.
 | `motives.py` | the store's motivations: what a state moves one to, and what a place is for |
 | `discourse.py` | attention: salience, order, focus, names, groups, and resolving a phrase to one individual |
 | `grammar.py` | one grammar for every wh-question about this conversation's individuals: the question word says what is asked, the shape after it of which relation; the reading carries its goals -- asked, relation, who, subject, object, verb, clause -- in the order they are tried (`v690/DESIGN.md` P5) |
-| `goals.py` + `test_goals.py` | the operators that answer the cells a relation's slots make by composing memory (`COMPOSES`): who or what is at a place, what is with whom, where an occurrence went; every other cell has its own operator in `Session._cells` |
+| `goals.py` + `test_goals.py` | one operator a relation, answering every cell of it (`Answering.cells`): composed from memory where it can be -- who or what is at a place, what is with whom, where an occurrence went -- and otherwise by the handler written for the cell |
 | `session.py` | one conversation: told facts into memory, questions to v687's walk, the kind to v688 |
 | `asker.py` | what a session needs from v687 |
 | `clauses.py` | a statement split into its claims by the dependency parse |
