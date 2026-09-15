@@ -42,11 +42,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from research.v688.rephrase import rephrase
+from research.v687.language import taught_by_cues
 
 from . import clauses as coordination
 from .relations import phrase as relation_phrase
-from .tense import When, subordinate, take
+from .tense import When
 
 #: Auxiliaries: what opens a yes/no question, and what a statement's verb
 #: phrase can start with.
@@ -89,7 +89,8 @@ NOT_NAMES = (FIRST_PERSON | SECOND_PERSON | PRONOUNS | PLURAL
 #: unknown word -- and `how many legs does a spider have` taught one called
 #: `how many leg`. An utterance opening with one is a question, read whole.
 QUESTION_WORDS = frozenset({"what", "who", "whom", "whose", "which", "why",
-                            "how", "where", "when"})
+                            "how", "where", "when", "whereabouts", "whence",
+                            "whither"})
 
 #: Modal openers. `should a dog eat chocolate` is not a claim to store or a
 #: question about one individual: it goes to v688 as said, where R18 names it.
@@ -124,7 +125,9 @@ CONTRACTIONS = {"can't": ["can", "not"], "cannot": ["can", "not"],
                 "that's": ["that", "is"], "i've": ["i", "have"],
                 "i'm": ["i", "am"], "he's": ["he", "is"],
                 "she's": ["she", "is"], "what's": ["what", "is"],
-                "who's": ["who", "is"], "you're": ["you", "are"]}
+                "who's": ["who", "is"], "you're": ["you", "are"],
+                "where's": ["where", "is"], "when's": ["when", "is"],
+                "how's": ["how", "is"], "why's": ["why", "is"]}
 
 #: The typographic apostrophe, spelled without an escape sequence.
 CURLY_APOSTROPHE = chr(8217)
@@ -161,6 +164,23 @@ def tokens_of(text: str) -> tuple[list[str], list[str]]:
 def words(text: str) -> list[str]:
     """Lowercased words, contractions expanded, punctuation dropped."""
     return tokens_of(text)[0]
+
+
+def pieces(text: str) -> tuple[list[str], list[str]]:
+    """`tokens_of`, with each comma kept as a word of its own: where the
+    clause an utterance is placed against ends (`after the dog chased the
+    cat, it slept`)."""
+    lower: list[str] = []
+    typed: list[str] = []
+    others = PUNCTUATION.replace(",", "")
+    for raw in (text or "").replace(CURLY_APOSTROPHE, "'").split():
+        one_lower, one_typed = tokens_of(raw)
+        lower += one_lower
+        typed += one_typed
+        if one_lower and raw.rstrip(others).endswith(","):
+            lower.append(",")
+            typed.append(",")
+    return lower, typed
 
 
 def proper(pieces: list[str]) -> str:
@@ -626,7 +646,7 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
     `read` would have to find a kind in words that do not name it. Any other
     clause is filled in (`clauses.standalone`) and read from the start.
     """
-    first = read(" ".join(parts[0].words(typed)), lexicon, names)
+    first = taught(" ".join(parts[0].words(typed)), lexicon, names)
     readings = [first]
     before, reading_before = parts[0], first
     for part in parts[1:]:
@@ -642,7 +662,7 @@ def _several(parts: list, typed: list[str], said: str, lexicon,
                 continue
             one.act, one.mention = "teach", reading_before.mention
         else:
-            one = read(" ".join(whole.words(typed)), lexicon, names)
+            one = taught(" ".join(whole.words(typed)), lexicon, names)
         readings.append(one)
         before, reading_before = whole, one
     for one in readings:
@@ -676,6 +696,9 @@ def new_names(tokens: list[str], typed: list[str], lexicon,
 
     Only in a statement -- a question never puts anyone down -- and never in
     `Rex is a beagle`, which `naming` reads as someone new of that kind.
+
+    The encoder's teacher (`reader.place` reads who is new), never asked at
+    run time.
     """
     if (not tokens or tokens[0] in AUX or tokens[0] in QUESTION_WORDS
             or tokens[0] in MODALS):
@@ -691,8 +714,11 @@ def new_names(tokens: list[str], typed: list[str], lexicon,
         if (at == 0 and len(tokens) > 3 and tokens[1] in ("is", "was")
                 and tokens[2] in ("a", "an")):
             continue
-        if tags[at] in PROPER or (tags[at] == "NN"
-                                  and not lexicon.known(word)):
+        # `Rees went to the cabin`: a name the tagger reads as a plural is
+        # still no noun the ontology has, in either form.
+        if tags[at] in PROPER or (
+                tags[at] in ("NN", "NNS") and not lexicon.known(word)
+                and not lexicon.known(lexicon.lemma(word))):
             found.add(word)
     return frozenset(found)
 
@@ -712,30 +738,126 @@ def _mark_fresh(reading: "Reading", fresh: frozenset) -> None:
         waiting.extend([one.relative] + list(one.more))
 
 
+def normal(tokens: list[str], typed: list[str],
+           lexicon) -> tuple[list[str], list[str]]:
+    """A statement in normal form (`frames.py`), from spaCy's parse: read in
+    the order said, `quickly` is the verb and `was moved ... by Mary` a
+    quality. A question is read as said. The encoder's teacher
+    (`reader.place` says the words back in normal form), never asked at run
+    time."""
+    from . import change, frames
+
+    if (not tokens or tokens[0] in MODALS or tokens[0] in AUX
+            or any(word in QUESTION_WORDS for word in tokens)):
+        return tokens, typed
+    found = frames.normal(tokens, typed, _analysis(typed, lexicon),
+                          lexicon.lemma, change.theme_subject,
+                          getattr(lexicon, "tags", None), change.meaning)
+    return found if found is not None else (tokens, typed)
+
+
+@taught_by_cues
+def grammar(said: str, asked, tokens: list[str], typed: list[str], lexicon,
+            names: frozenset) -> Reading:
+    """What the grammar reads the words as: the encoder's teacher
+    (`teach_reader.py`), never asked at run time. A question's goals are
+    read by `grammar.py`, and the reading one of them states is the
+    question's, unless `_read` reads the words as something else first."""
+    from .grammar import propose
+
+    goals = propose(tokens, lexicon, names, said)
+    stated = next((one.clause for one in goals if one.own), None)
+    found = _read(said, asked, tokens, typed, lexicon, names, stated)
+    found.goals = [one for one in goals if not one.own] + found.goals
+    return found
+
+
+def _timed(found: Reading, fresh: frozenset, when: When) -> Reading:
+    """A reading with who is new in it marked, and when it happened: each
+    claim joined to it in the frame of the whole unless it says otherwise."""
+    _mark_fresh(found, fresh)
+    found.when = when
+    for one in found.more:
+        if one.when is None or one.when.empty:
+            one.when = When(frame=when.frame)
+    return found
+
+
 def read(text: str, lexicon, names: frozenset = frozenset(),
          anchored: bool = True) -> Reading:
-    """Read one utterance.
+    """Read one utterance, by the encoder and nothing else.
 
     `lexicon` needs `subject(question)`, `lemma(word)` and `known(phrase)`;
     v687's parser supplies all three. `names` is every name the conversation
     has been told, lowercased, so a mention of one is read as a mention.
 
-    What it says about time is taken out first (`tense.py`) and kept on the
-    reading as `when`. An anchor clause -- `after the dog chased the cat` --
-    is only one if it reads as a statement about someone; otherwise the
-    utterance is read whole.
+    A request is read as the question inside it (`rephrase`: `do you know if
+    a dog can swim` is `can a dog swim`). Then it is placed (`reader.place`):
+    who is someone new, what it says about time -- kept on the reading as
+    `when` -- the clause it is placed against, and the rest in normal form.
+    An anchor clause (`after the dog chased the cat`) is only one if it reads
+    as a statement about someone; otherwise the utterance is read whole.
+    What is left is read into readings (`reader.reading`).
     """
+    from research.v688.rephrase import rephrase
+
+    from . import reader
+
     said = (text or "").strip()
-    # A request is read as the question inside it: `do you know if a dog can
-    # swim` is `can a dog swim`, and `can't it swim` is `can it swim`.
     asked = rephrase(said)
+    placed = reader.place(asked.text, lexicon, names, anchored)
+    names = names | placed.fresh
+    tokens, typed, when = placed.tokens, placed.typed, placed.when
+    main = placed.main
+    if placed.relation:
+        anchor = read(placed.anchor, lexicon, names, anchored=False)
+        if anchor.act == "tell" and anchor.mention is not None:
+            when.relation, when.anchor = placed.relation, placed.anchor
+        else:
+            tokens, typed = placed.unanchored()
+            main = placed.words
+    if when.relation or when.words:
+        # Quoted without the words that placed it, except `again`, without
+        # which three barks read as one said three times.
+        when.main = " ".join(list(main) + list(when.again_words))
+    found = reader.reading(tokens, lexicon, names, said, typed=typed)[0]
+    return _timed(found, placed.fresh, when)
+
+
+@dataclass
+class Front:
+    """What the rules take off an utterance before the grammar reads it."""
+
+    said: str
+    asked: object
+    tokens: list
+    typed: list
+    names: frozenset
+    fresh: frozenset
+    when: When
+
+
+@taught_by_cues
+def taught_front(text: str, lexicon, names: frozenset = frozenset(),
+                 anchored: bool = True) -> Front:
+    """An utterance as the rules put it before reading it: a request as its
+    question (`rephrase.requested`), someone new named (`new_names`), an
+    anchor and the time words taken off (`tense.subordinate`, `tense.take`),
+    and a statement in normal form (`normal`). The encoder's teacher, never
+    asked at run time."""
+    from research.v688.rephrase import requested
+
+    from .tense import subordinate, take
+
+    said = (text or "").strip()
+    asked = requested(said)
     # Someone new can be named anywhere in a statement, and before a link or
     # a time word is taken off: `then Mary went to the kitchen`.
     fresh = new_names(*tokens_of(asked.text), lexicon, names)
     names = names | fresh
     split = subordinate(asked.text) if anchored else None
     if split is not None:
-        anchor = read(split[2], lexicon, names, anchored=False)
+        anchor = taught(split[2], lexicon, names, anchored=False)
         if anchor.act != "tell" or anchor.mention is None:
             split = None
     tokens, typed = tokens_of(split[0] if split else asked.text)
@@ -743,24 +865,20 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
     if split is not None:
         when.relation, when.anchor = split[1], split[2]
     if split is not None or when.words:
-        # Quoted without the words that placed it, except `again`, without
-        # which three barks read as one said three times.
         when.main = " ".join(typed + list(when.again_words))
-    # What a question asks, as goals, read by one grammar (`grammar.py`). The
-    # reading one of them states is the question's reading, unless `_read`
-    # reads the words as something else first; the goal read as slots is
-    # tried before whatever the reading states.
-    from .grammar import propose
-    goals = propose(tokens, lexicon, names, said)
-    stated = next((one.clause for one in goals if one.own), None)
-    found = _read(said, asked, tokens, typed, lexicon, names, stated)
-    _mark_fresh(found, fresh)
-    found.goals = [one for one in goals if not one.own] + found.goals
-    found.when = when
-    for one in found.more:
-        if one.when is None or one.when.empty:
-            one.when = When(frame=when.frame)
-    return found
+    tokens, typed = normal(tokens, typed, lexicon)
+    return Front(said, asked, tokens, typed, names, fresh, when)
+
+
+@taught_by_cues
+def taught(text: str, lexicon, names: frozenset = frozenset(),
+           anchored: bool = True) -> Reading:
+    """What the rules and the grammar read an utterance as: the encoder's
+    teacher (`teach_reader.py`), never asked at run time."""
+    front = taught_front(text, lexicon, names, anchored)
+    found = grammar(front.said, front.asked, front.tokens, front.typed,
+                    lexicon, front.names)
+    return _timed(found, front.fresh, front.when)
 
 
 def _read(said: str, asked, tokens: list[str], typed: list[str], lexicon,

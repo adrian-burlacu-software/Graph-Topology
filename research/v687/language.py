@@ -1,16 +1,24 @@
 """Turning a typed question into a concept, a relation and a target.
 
-spaCy does the linguistic work -- lemmatising, tagging, finding the noun the
-question is about. The mapping from question shape to relation is a table
-rather than a model, because it has to be inspectable: when an answer is wrong,
-the first thing to check is whether the question was read correctly, and the UI
-shows this parse for exactly that reason.
+The encoder reads the question (`research/encoder.py`): which relation it
+asks, whether it is a yes or no, and which words are its subject, its target
+and the word completing its auxiliary. spaCy's tag and dependency of each word
+are read beside it, and what the store holds decides the rest -- the subject
+is the longest phrase among the subject's words the ontology has a word for,
+and a bare noun after the copula is a class only where the ontology has it as
+a noun (`hedged`). The parse is still shown on the page, because when an
+answer is wrong the first thing to check is whether the question was read
+correctly.
 
-Without spaCy installed everything still runs on a regex fallback, and
-`Parser.backend` says which one answered.
+The table of cues this read by before (`RELATION_CUES`, `Parser.cued`) is the
+encoder's teacher now, asked offline (`v689/teach_reader.py`) and never at run
+time.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import functools
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -145,6 +153,66 @@ class Parse:
 #: of words cannot be mangled and says the same thing.
 CONNECTIVES = frozenset({"and", "or", "not", "no", "never"})
 
+#: The relations a question asks of a kind, as ConceptNet names them; `none`
+#: for one that names none (a yes or no then asks what the kind can do).
+RELATIONS = ("none", "made_of", "used_for", "at_location", "part_of",
+             "has_part", "desires", "causes", "has_prerequisite",
+             "receives_action", "capable_of", "has_property", "is_a")
+
+#: What a word of a question is: its subject, its target, the word that
+#: completes its auxiliary, or that word and one of the others at once (`can
+#: a dog fall into a hole`: `fall`; `what did it own`: `own`).
+PARSE_ROLES = ("O", "SUBJ", "TARGET", "VERB", "TARGET-VERB", "SUBJ-VERB")
+VERBS = frozenset({"VERB", "TARGET-VERB", "SUBJ-VERB"})
+POLARITY = ("no", "yes")
+
+#: The heads the encoder reads a question for v687 with (`encoder.py`).
+PARSE_HEADS = ("relation", "polar", "parse")
+
+#: Whether questions are parsed by the table of cues instead of the encoder:
+#: only while the rules teach it, when there may be no encoder to read with.
+_CUED: contextvars.ContextVar = contextvars.ContextVar("cued", default=False)
+
+
+@contextlib.contextmanager
+def by_cues():
+    """Parse by the table of cues for as long as this lasts."""
+    token = _CUED.set(True)
+    try:
+        yield
+    finally:
+        _CUED.reset(token)
+
+
+def taught_by_cues(function):
+    """`function`, a teacher (`v689/teach_reader.py`), run with every
+    question it puts to v687 parsed by the table of cues: the rules it
+    teaches with read what the cues say of a phrase, as they always did."""
+    @functools.wraps(function)
+    def run(*args, **kwargs):
+        with by_cues():
+            return function(*args, **kwargs)
+    return run
+
+
+def _run(roles: list[str], *names: str) -> tuple[int, int] | None:
+    """(start, end) of the first run of words tagged one of `names`."""
+    start = next((at for at, role in enumerate(roles) if role in names), None)
+    if start is None:
+        return None
+    end = start
+    while end < len(roles) and roles[end] in names:
+        end += 1
+    return start, end
+
+
+def _text(token) -> str:
+    return getattr(token, "text", token)
+
+
+def _lemma(token) -> str:
+    return (getattr(token, "lemma_", None) or str(token)).lower()
+
 
 def whole_words(needle: str, haystack: str) -> bool:
     """Does `haystack` contain `needle` as whole words?
@@ -179,7 +247,7 @@ class Parser:
                  vocabulary: set[str] | None = None,
                  nouns: set[str] | None = None):
         self.nlp = None
-        self.backend = "regex"
+        self.backend = "encoder"
         #: Every lemma the ontology knows, used to find where a subject ends.
         #: Optional: without it the parser still reads questions, just less
         #: well on compound subjects.
@@ -193,7 +261,7 @@ class Parser:
         try:
             import spacy
             self.nlp = spacy.load(model, disable=["ner"])
-            self.backend = f"spacy:{model}"
+            self.backend = f"encoder+spacy:{model}"
         except Exception:                      # noqa: BLE001 - optional dependency
             pass
 
@@ -443,6 +511,125 @@ class Parser:
 
     # -- question -> (subject, relation, target) --------------------------
     def parse(self, question: str) -> Parse:
+        """What a question asks of a kind, as the encoder reads it."""
+        from research import encoder
+
+        if _CUED.get():
+            return self.cued(question)
+        text = (question or "").strip().rstrip("?").strip()
+        doc = self.nlp(text) if self.nlp is not None else None
+        if doc is not None:
+            kept = [token for token in doc
+                    if not token.is_punct and not token.is_space]
+            tags = [token.tag_ for token in kept]
+            deps = [token.dep_ for token in kept]
+        else:
+            kept = re.findall(r"[a-z0-9']+", text.lower())
+            tags = deps = None
+        words = [_text(token).lower() for token in kept]
+        guess = (encoder.read(words, tags, deps, PARSE_HEADS)
+                 if words else None)
+        return self.parsed(question, doc, kept, guess)
+
+    def parsed(self, question: str, doc, kept: list, guess) -> Parse:
+        """The parse `guess` reads (the encoder's reading, or a teacher's
+        labels in the same shape) over `kept`, the question's words: the
+        relation it names, whether it is a yes or no, and which words are its
+        subject, its target and the word completing its auxiliary."""
+        guess = guess or {"relation": [("none", 1.0)],
+                          "polar": [("no", 1.0)],
+                          "parse": ["O"] * len(kept)}
+        polar = guess["polar"][0][0] == "yes"
+        relation = guess["relation"][0][0]
+        relation = None if relation == "none" else relation
+        roles = list(guess["parse"])
+        subject_span = _run(roles, "SUBJ", "SUBJ-VERB")
+        verb = next((at for at, role in enumerate(roles) if role in VERBS),
+                    None)
+        if verb is not None and verb >= len(kept):
+            verb = None
+        pos = {token.i: token.pos_ for token in doc} if doc is not None \
+            else {}
+        # The word completing the auxiliary is a verb whatever the tagger
+        # said, and the subject before it is a thing: `can dogs bark` came
+        # back with `dogs` a VERB and `bark` a NOUN.
+        if doc is not None and verb is not None:
+            for at in (range(*subject_span) if subject_span else ()):
+                if at != verb and pos[kept[at].i] == "VERB":
+                    pos[kept[at].i] = "NOUN"
+            if pos[kept[verb].i] == "NOUN":
+                pos[kept[verb].i] = "VERB"
+        subject, unknown = self._named(kept, subject_span, polar, pos)
+        target, hedged = None, False
+        target_span = _run(roles, "TARGET", "TARGET-VERB")
+        if polar and subject and target_span:
+            start, end = target_span
+            target = (doc[kept[start].i:kept[end - 1].i + 1].text.lower()
+                      if doc is not None else " ".join(kept[start:end]))
+        # A mass noun takes no determiner and names a class all the same:
+        # `is a chair furniture`. Only the store can say so -- `furniture`
+        # has a noun sense, `telepathic` has none -- and a coordination is
+        # never one class.
+        if (polar and subject and target and relation == "has_property"
+                and self.nouns and not CONNECTIVES & set(target.split())
+                and len(target.split()) <= 3 and target in self.nouns):
+            relation, hedged = "is_a", True
+        tokens: list[dict[str, Any]] = []
+        verb_slot = ""
+        if doc is not None:
+            if verb is not None:
+                verb_slot = kept[verb].lemma_.lower()
+            tokens = [{"text": token.text, "lemma": token.lemma_,
+                       "pos": pos[token.i], "dep": token.dep_}
+                      for token in doc]
+        note = ""
+        if relation is None and polar:
+            relation = "capable_of"
+        if guess["relation"][0][0] == "none":
+            note = "No relation cue recognised; defaulted."
+        if subject is None:
+            note = (f"“{unknown}” is not a word this ontology holds, "
+                    f"and it is what the question is about." if unknown else
+                    "Could not find a noun to reason about.")
+        return Parse(question, subject, relation, target, polar,
+                     self.backend, tokens, verb_slot, note, unknown, hedged)
+
+    def _named(self, kept: list, span, polar: bool, pos: dict):
+        """(subject, unknown) for the words read as the subject. With a
+        vocabulary, a yes or no is about the longest phrase among them the
+        ontology has a word for -- `fire truck` is one, `canine fall` is not
+        -- or about the first word, which it has none for; otherwise about
+        the last word's lemma, the head of the phrase."""
+        if span is None:
+            return None, None
+        group = kept[span[0]:span[1]]
+        texts = [_text(token).lower() for token in group]
+        lemmas = [_lemma(token) for token in group]
+        if self.vocabulary and polar:
+            for start in range(len(group)):
+                for stop in range(len(group), start, -1):
+                    # A phrase that ends on a noun by its lemma (`queens`
+                    # is about queens); a word that is no noun as said
+                    # (`running` and `greeting` are concepts of their own).
+                    last = pos.get(getattr(group[stop - 1], "i", None), "")
+                    if last in ("NOUN", "PROPN"):
+                        forms = (" ".join(lemmas[start:stop]),
+                                 " ".join(texts[start:stop]))
+                    elif stop - start == 1:
+                        forms = (texts[start], lemmas[start])
+                    else:
+                        continue
+                    for form in forms:
+                        if form in self.vocabulary and form not in STOP:
+                            return form, None
+            return None, texts[0]
+        return lemmas[-1], None
+
+    def cued(self, question: str) -> Parse:
+        """The parse by the table of cues: the encoder's teacher
+        (`v689/teach_reader.py`), never asked at run time. `cue` on what it
+        returns is the relation the words name, before a bare noun is hedged
+        into a class and before a yes or no with no cue is defaulted."""
         text = question.strip().rstrip("?").strip()
         lowered = text.lower()
         polar = lowered.split()[0] in POLAR if lowered.split() else False
@@ -514,6 +701,7 @@ class Parser:
             if re.match(r"^(what|which) (kind|type|sort)s? of", lowered):
                 relation = "is_a"
 
+        cue = "has_property" if hedged else relation
         tokens: list[dict[str, Any]] = []
         verb_slot = ""
         if self.nlp is not None:
@@ -530,10 +718,12 @@ class Parser:
                     f"and it is what the question is about." if blocked else
                     "Could not find a noun to reason about.")
 
-        return Parse(question=question, subject=subject, relation=relation,
-                     target=target, polar=polar, backend=self.backend,
-                     tokens=tokens, note=note, unknown=blocked, hedged=hedged,
-                     verb_slot=verb_slot)
+        found = Parse(question=question, subject=subject, relation=relation,
+                      target=target, polar=polar, backend=self.backend,
+                      tokens=tokens, note=note, unknown=blocked,
+                      hedged=hedged, verb_slot=verb_slot)
+        found.cue = cue
+        return found
 
     # -- matching a target phrase against a stored fact --------------------
     def matcher(self, threshold: float = 0.6):

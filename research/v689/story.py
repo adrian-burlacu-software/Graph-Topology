@@ -147,6 +147,14 @@ class Story:
         frame = self.when().frame
         if frame is not None:
             found = self.timeline.by_key(frame.key)
+            # `where is Mary right now`, of a story told in the past with no
+            # day named: its present is where the story is, as `episode_for`
+            # reads a statement in the present. A story told of yesterday
+            # says nothing of now.
+            if found is None and frame.key == NOW:
+                current = self.timeline.latest("present")
+                found = current if current is not None and \
+                    current.key == THEN else None
             return found, ("" if found else
                            f"nothing was told of {frame.label}")
         return self.timeline.latest(tense), ""

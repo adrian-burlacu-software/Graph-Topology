@@ -23,7 +23,7 @@ from pathlib import Path
 
 from research.v687.language import Parser
 from research.v687.reason import Reasoner
-from research.v689 import change, reading
+from research.v689 import change, reader, reading
 from research.v689.asker import Asker
 from research.v689.session import Session
 from research.v689.test_v689 import SCHEMA
@@ -150,9 +150,8 @@ class NameReadingTests(unittest.TestCase):
         self.assertEqual(found.name, "Winona")
 
     def test_a_plural_kind_is_not_a_name(self):
-        self.assertEqual(reading.new_names(
-            *reading.tokens_of("Mice are afraid of rooms"), self.lexicon),
-            frozenset())
+        self.assertEqual(reader.place("Mice are afraid of rooms",
+                                      self.lexicon).fresh, frozenset())
 
     def test_two_names_are_a_group(self):
         found = self.read("Mary and Daniel went to the kitchen")
