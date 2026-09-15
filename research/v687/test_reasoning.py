@@ -407,6 +407,24 @@ class SubjectDetectionTests(unittest.TestCase):
         """`large` is a lemma too; the phrase has to end on a noun."""
         self.assertEqual(self.subject("can a large dog fall"), "dog")
 
+    def test_a_noun_tagged_as_an_adjective_is_the_subject_to_the_cues(self):
+        """spaCy tags `goldfish`, `minnow` and `wemble` ADJ after an article,
+        and the cues stepped over them as modifiers: `can a goldfish walk on
+        land` was about walking, with `on` its verb. The cues teach the
+        encoder, so they are held to it here and not the encoder."""
+        for question, expected in (
+                ("can a goldfish walk on land",
+                 ("goldfish", "walk on land", None)),
+                ("is a minnow slimy", ("minnow", "slimy", None)),
+                ("can a large goldfish swim", ("goldfish", "swim", None)),
+                ("can a wemble fly", (None, None, "wemble"))):
+            with self.subTest(question=question):
+                cued = self.parser.cued(question)
+                self.assertEqual((cued.subject, cued.target, cued.unknown),
+                                 expected)
+        self.assertEqual(self.parser.cued("can a large dog fall").subject,
+                         "dog")
+
     def test_the_target_survives_a_multiword_subject(self):
         parse = self.parser.parse("can a fire truck move")
         self.assertEqual(parse.subject, "fire truck")

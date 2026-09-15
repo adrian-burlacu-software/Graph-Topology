@@ -59,6 +59,8 @@ from dataclasses import dataclass, field
 
 from research.encoder import BASE, LLM, MODEL, enabled  # noqa: F401
 
+from . import social as _social
+
 NONE = "none"
 
 #: What a statement does: puts someone new down (and whether they are yours),
@@ -67,8 +69,13 @@ NONE = "none"
 STATEMENTS = ("introduce", "introduce owned", "tell", "teach", "name",
               "compound")
 
+#: What is said to be sociable (`social.py`): a greeting, thanks, `what can
+#: you do`.
+SOCIAL = _social.ACTS
+
 #: Acts other than a cell.
-ACTS = ("why", "what", "define", "ask", "ask_name", "generic") + STATEMENTS
+ACTS = ("why", "what", "define", "ask", "ask_name", "generic") + STATEMENTS \
+    + SOCIAL
 
 #: Where a claim begins, with what it does, and where the clause a new
 #: individual is introduced with begins (`there is a beagle that can't swim`).
@@ -388,6 +395,8 @@ def act(name: str, roles: list[str], tokens: list[str], lexicon,
     """A reading of one of `ACTS`, other than a statement."""
     from .reading import Reading, _whose, bare_kind
 
+    if name in SOCIAL:
+        return Reading(name, said=said)
     subjects = spans(roles, "SUBJ")
     aux_at = first(roles, "AUX")
     aux = tokens[aux_at] if aux_at is not None else None

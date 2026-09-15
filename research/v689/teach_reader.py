@@ -549,9 +549,11 @@ HEAD_KINDS = {
     "new": "word", "when": "word", "anchor": "word", "place_op": "word",
     "place_insert": "word", "place_opening": "sentence",
     "place_next": "pointer",
-    "relation": "sentence", "polar": "sentence", "parse": "word"}
+    "relation": "sentence", "polar": "sentence", "parse": "word",
+    "stance": "sentence", "part": "word"}
 
-#: Which field of a record each head is taught from, for each reader.
+#: Which field of a record each head is taught from, for each reader. A
+#: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
 FIELDS = {
     "read": {"acts": "act", "slots": "slots", "who": "who",
              "stated": "stated", "slotted": "slotted", "clauses": "clauses"},
@@ -560,7 +562,8 @@ FIELDS = {
     "place": {"new": "new", "when": "when", "anchor": "anchor",
               "place_op": "ops", "place_insert": "inserts",
               "place_opening": "opening", "place_next": "order"},
-    "parse": {"relation": "relation", "polar": "polar", "parse": "parse"}}
+    "parse": {"relation": "relation", "polar": "polar", "parse": "parse"},
+    "reply": {"stance": "stance", "part": "parts"}}
 
 
 def task_of(record: dict) -> str:
@@ -1393,6 +1396,11 @@ REQUEST_FRAMES = (
     "could you eat", "can you eat the {n}", "what do you use to {t} {ms}",
     "what do people use for {g}", "what do we use to {t} a {m}",
     "can you {v}", "can you see me", "can you {t} it",
+    # A pronoun names no thing, so the program is still what is asked. One
+    # frame of it against a hundred `can an apple be eaten` rewrites was
+    # too few: a retrain said `can you eat it` back as `can you eaten it`.
+    "could you {t} it", "can you {t} them", "could you {t} them",
+    "can you {t} it for me",
     "can you {v} in the dark", "can you help me with my {n}",
     "is a {n} in a {l}", "are {ns} in the {l}", "is a {n} on a {l}",
     "is a {n} in danger", "is it in a {l}", "is a {n} found in a {l}",
@@ -2303,6 +2311,14 @@ def _teach(job) -> tuple[list[dict], collections.Counter]:
     # mouse` introduces her, and `where is Winona` asks of no one here.
     if names:
         todo.append((text, frozenset(), "unnamed"))
+    # And with only the first of several told of: `Mary gave the football to
+    # John` once Mary is known and John never was. Every name known or none
+    # were the only two taught, so the mix was a guess, and a reader that
+    # guessed John known answered `who has the football` with nobody.
+    if len(names) > 1:
+        from .reading import tokens_of
+        said = [word for word in tokens_of(text)[0] if word in names]
+        todo.append((text, frozenset(said[:1]), "partly"))
     # And denied, where the grammar reads a denial: `why can it not swim`.
     if source is not None and source["act"] in NEGATED \
             and "not" not in source["words"]:
@@ -2438,9 +2454,91 @@ def corpus(variants: int, processes: int, limit: int = 0,
     print(json.dumps(stats, indent=1))
 
 
+#: What a social phrase is said with around it (`social.py`).
+SOCIAL_OPENINGS = ("", "", "oh ", "well ", "so ", "ok ")
+SOCIAL_CLOSINGS = ("", "", " again", " there", " then")
+SOCIAL_MARKS = ("", "", "!", ".", "?")
+
+
+def social_texts(seed: int = 689) -> list[str]:
+    """Every social phrase (`social.PHRASES`), as said and with the words and
+    marks said around one, and two said together (`hi, how are you`)."""
+    from .social import PHRASES
+
+    rng = random.Random(seed)
+    found: list[str] = []
+    for act, phrases in PHRASES.items():
+        for phrase in phrases:
+            found.append(phrase)
+            found.append(phrase.capitalize() + rng.choice(SOCIAL_MARKS))
+            for _ in range(3):
+                said = (rng.choice(SOCIAL_OPENINGS) + phrase
+                        + rng.choice(SOCIAL_CLOSINGS))
+                if rng.random() < 0.5:
+                    said = said.capitalize()
+                found.append(said + rng.choice(SOCIAL_MARKS))
+    for _ in range(120):
+        first, second = rng.sample(list(PHRASES), 2)
+        found.append(f"{rng.choice(PHRASES[first])}, "
+                     f"{rng.choice(PHRASES[second])}")
+    # What says something of you or me in the words social phrases are said
+    # in -- `i am happy`, `you are a teacher`, `that is heavy` -- is no social
+    # act: taught beside them, as the grammar reads it. Without these,
+    # `i am sorry` taught `i am happy` to be praise.
+    words = _vocabulary()
+    for _ in range(SOCIAL_CONTRASTS):
+        frame = rng.choice(SOCIAL_CONTRAST_FRAMES)
+        found.append(_articled(frame.format(
+            a=rng.choice(words["adjectives"]), n=rng.choice(words["things"]))))
+    return list(dict.fromkeys(found))
+
+
+#: Statements said in the words of social phrases, and how many are taught.
+SOCIAL_CONTRAST_FRAMES = (
+    "i am {a}", "i am so {a}", "you are {a}", "you are very {a}",
+    "i am a {n}", "you are a {n}", "i am not {a}", "you are not {a}",
+    "that is {a}", "that is a {n}", "it is {a}", "i have a {n}",
+    "i am a {a} {n}", "you are a {a} {n}")
+SOCIAL_CONTRASTS = 240
+
+
+def social(store: str) -> None:
+    """Records for the social acts, read, asked and placed as the rules and
+    the grammar read them, into `train-social.jsonl` and
+    `valid-social.jsonl`: every tenth phrase held out."""
+    _start_worker(store)
+    lexicon, parser = _WORKER["lexicon"], _WORKER["parser"]
+    reasons: collections.Counter = collections.Counter()
+    seen: set = set()
+    with open(DATA / "train-social.jsonl", "w", encoding="utf-8") as train, \
+            open(DATA / "valid-social.jsonl", "w", encoding="utf-8") as valid:
+        for index, text in enumerate(social_texts()):
+            into = valid if zlib.crc32(text.encode()) % 10 == 0 else train
+            record, why = label(text, lexicon, frozenset())
+            reasons[why or "taught"] += 1
+            if record is not None:
+                record.update(source=f"social-{index}", how="social",
+                              task="read")
+                into.write(json.dumps(record) + "\n")
+                reasons[f"act {record['act']}"] += 1
+            more, why = _others(text, frozenset(), lexicon, parser, seen,
+                                ("ask", "place"))
+            reasons.update(why)
+            for one in more:
+                one.update(source=f"social-{index}", how="social")
+                into.write(json.dumps(one) + "\n")
+    print(json.dumps(dict(reasons), indent=1))
+
+
 # -- training ---------------------------------------------------------------------
 #: What share of each epoch each reader's records are.
-SHARES = {"read": 0.4, "ask": 0.15, "place": 0.2, "parse": 0.25}
+#: Reading replies back took 16% at first, most of it from parsing, and a
+#: word the parser's vocabulary lacks (`can a goldfish walk on land`) was
+#: read half as its teacher reads it: v688 then answered a question
+#: differently. The older readers keep close to the shares they were
+#: taught at.
+SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
+          "reply": 0.08}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2455,6 +2553,8 @@ def taught_as(record: dict) -> tuple:
     task = task_of(record)
     if task == "read":
         return task, record["act"], record["slots"]
+    if task == "reply":
+        return task, record["stance"], "NEG" in record["parts"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
             and record.get("order") == sorted(record.get("order", ())))
@@ -2499,14 +2599,24 @@ def labels(rows=()) -> dict:
         "place_opening": phrases("place", "opening"), "place_next": [],
         "relation": list(RELATIONS), "polar": list(POLARITY),
         "parse": list(PARSE_ROLES)}
+    if any(task_of(row) == "reply" for row in rows):
+        from research.v690.message import STANCE_LABELS
+        from research.v690.roundtrip import PARTS
+
+        said.update(stance=list(STANCE_LABELS), part=list(PARTS))
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}
 
 
 def _load(name: str) -> list[dict]:
-    with open(DATA / f"{name}.jsonl", encoding="utf-8") as handle:
-        return [json.loads(line) for line in handle if line.strip()]
+    """The corpus's records for a split, and every other reader's taught
+    beside it (`train-social.jsonl`, `train-reply.jsonl`)."""
+    rows: list[dict] = []
+    for path in [DATA / f"{name}.jsonl"] + sorted(DATA.glob(f"{name}-*.jsonl")):
+        with open(path, encoding="utf-8") as handle:
+            rows += [json.loads(line) for line in handle if line.strip()]
+    return rows
 
 
 #: How often a reading or a placing is taught with no parse beside its
@@ -2623,7 +2733,8 @@ def _weights(rows: list[dict]) -> list[float]:
     kinds = [taught_as(row) for row in rows]
     counts = collections.Counter(kinds)
     raw = [counts[kind] ** -0.5
-           * (3.0 if row.get("how") in ("source", "unnamed", "negated")
+           * (3.0 if row.get("how") in ("source", "unnamed", "partly",
+                                         "negated")
               else 1.0) for row, kind in zip(rows, kinds)]
     totals: collections.Counter = collections.Counter()
     for row, one in zip(rows, raw):
@@ -2710,7 +2821,7 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("what", choices=("corpus", "train", "pools",
-                                         "sources"))
+                                         "sources", "social"))
     parser.add_argument("--variants", type=int, default=6)
     parser.add_argument("--external", action="store_true",
                         help="also read WikiAnswers, Quora and QA-SRL")
@@ -2728,6 +2839,9 @@ def main(argv=None) -> int:
     elif options.what == "train":
         train(Path(options.base), Path(options.out), options.epochs,
               options.batch, options.rate)
+    elif options.what == "social":
+        from research.v687 import build as store
+        social(str(store.DEFAULT_STORE))
     elif options.what == "sources":
         texts = sources(external=True)
         print(dict(collections.Counter(kind for _, kind in texts)))

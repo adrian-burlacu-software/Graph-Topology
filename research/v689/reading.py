@@ -249,6 +249,10 @@ class Reading:
     #: what a question asks, as goals (`grammar.py`), in the order they are
     #: tried: the goal read as slots, then the one its own words' cell states
     goals: list = field(default_factory=list)
+    #: how the encoder heard it (`read`): what a request asked, the words
+    #: placed in normal form, who is new, the acts it thought likeliest --
+    #: for the page, never compared
+    heard: dict = field(default_factory=dict)
 
     @property
     def cells(self) -> list[tuple]:
@@ -764,7 +768,14 @@ def grammar(said: str, asked, tokens: list[str], typed: list[str], lexicon,
     read by `grammar.py`, and the reading one of them states is the
     question's, unless `_read` reads the words as something else first."""
     from .grammar import propose
+    from .social import act_of
 
+    # `hello`, `thanks`, `what can you do`: said to be sociable, not to tell
+    # or ask anything (`social.py`) -- as said, before normal form left
+    # `later` off `talk to you later`.
+    sociable = act_of(tokens_of(said)[0]) or act_of(tokens)
+    if sociable:
+        return Reading(sociable, said=said)
     goals = propose(tokens, lexicon, names, said)
     stated = next((one.clause for one in goals if one.own), None)
     found = _read(said, asked, tokens, typed, lexicon, names, stated)
@@ -820,8 +831,21 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # Quoted without the words that placed it, except `again`, without
         # which three barks read as one said three times.
         when.main = " ".join(list(main) + list(when.again_words))
-    found = reader.reading(tokens, lexicon, names, said, typed=typed)[0]
-    return _timed(found, placed.fresh, when)
+    found, guess = reader.reading(tokens, lexicon, names, said, typed=typed)
+    found = _timed(found, placed.fresh, when)
+    found.heard = {
+        "said": said, "asked": asked.text if asked.text != said else "",
+        "request": asked.note, "why": asked.why,
+        "placed": " ".join(typed), "fresh": sorted(placed.fresh),
+        "anchor": when.anchor, "relation": when.relation,
+        "time": list(when.words),
+        "acts": [[name, round(chance, 3)]
+                 for name, chance in (guess.acts[:3] if guess else [])],
+        "slots": [[name, round(chance, 3)]
+                  for name, chance in (guess.slots[:2] if guess else [])],
+        "roles": [[word, role] for word, role in
+                  zip(tokens, guess.stated if guess else [])]}
+    return found
 
 
 @dataclass

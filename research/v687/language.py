@@ -74,6 +74,23 @@ prerequisite able capable
 LOCATING = frozenset({"found", "located", "kept", "stored", "in", "on", "at",
                       "inside", "near", "a", "an", "the"})
 
+
+@functools.lru_cache(maxsize=None)
+def describes(word: str) -> bool:
+    """Can `word` be an adjective at all, by WordNet?
+
+    The tagger calls a noun it does not expect after an article an adjective:
+    `can a goldfish walk on land` has `goldfish/ADJ`, and so do `minnow` and
+    `wemble`. Stepping over every adjective as a modifier of the subject then
+    walked past the subject into the predicate, and the question was answered
+    about walking. `large` in `can a large dog fall` is a modifier because it
+    is an adjective by its senses; `goldfish` has no adjective sense and is
+    what the question is about."""
+    from nltk.corpus import wordnet
+
+    return any(sense.pos() in ("a", "s")
+               for sense in wordnet.synsets(word.replace(" ", "_")))
+
 #: Yes/no questions open with one of these.
 POLAR = ("can", "could", "is", "are", "was", "were", "does", "do", "did",
          "has", "have", "will", "would", "should", "must", "may", "might")
@@ -320,14 +337,14 @@ class Parser:
         for start in range(min(3, len(group))):
             span = group[start:start + self.MAX_SUBJECT_TOKENS]
             for length in range(len(span), 0, -1):
-                if span[length - 1].pos_ not in ("NOUN", "PROPN"):
+                if not self.nominal(span[length - 1]):
                     continue
                 for form in (" ".join(t.lemma_.lower() for t in span[:length]),
                              " ".join(t.text.lower() for t in span[:length])):
                     if form in self.vocabulary and form not in STOP:
                         return form, None
             token = group[start]
-            if token.pos_ in self.MODIFIER_POS or token.lemma_.lower() in STOP:
+            if self.modifies(token) or token.lemma_.lower() in STOP:
                 continue               # a modifier of the subject, not it
             # Text before lemma: `running` and `greeting` are both concepts in
             # their own right, and lemmatising first answered about `run` and
@@ -335,7 +352,7 @@ class Parser:
             for form in (token.text.lower(), token.lemma_.lower()):
                 if form in self.vocabulary and form not in STOP:
                     return form, None
-            if token.pos_ in self.SUBJECT_POS:
+            if token.pos_ in self.SUBJECT_POS or self.nominal(token):
                 return None, token.text.lower()
         # Every token in the group modifies something, so the subject is a
         # modifier used as a noun: `is red a color` is about red.
@@ -344,6 +361,22 @@ class Parser:
                 if form in self.vocabulary and form not in STOP:
                     return form, None
         return None, group[0].text.lower() if group else None
+
+    def modifies(self, token) -> bool:
+        """Is this a word in front of a subject rather than the subject?
+        An adjective only when it can be one (`describes`)."""
+        if token.pos_ == "ADJ":
+            return self.nominal(token) is False
+        return token.pos_ in self.MODIFIER_POS
+
+    @staticmethod
+    def nominal(token) -> bool:
+        """Does this word name a thing: a noun, or a word tagged an adjective
+        that has no adjective sense (`goldfish`, `wemble`)?"""
+        if token.pos_ in ("NOUN", "PROPN"):
+            return True
+        return (token.pos_ == "ADJ" and not describes(token.text.lower())
+                and not describes(token.lemma_.lower()))
 
     # -- lemmatisation ----------------------------------------------------
     def lemmas(self, text: str) -> list[str]:
@@ -465,9 +498,14 @@ class Parser:
         # into one. `large` has to go: it is a lemma this ontology holds, so
         # `can a large dog fall` took it for the subject and made `dog` the
         # verb.
+        # And not an adjective that cannot be one: `goldfish` in `can a
+        # goldfish walk on land` is tagged ADJ, and dropping it left `walk`
+        # as the subject and `on` as the verb.
         after: list = []
         for token in rest[1:]:
-            if not after and token.pos_ in ("DET", "ADJ", "ADV", "NUM"):
+            if not after and (token.pos_ in ("DET", "ADV", "NUM")
+                              or (token.pos_ == "ADJ"
+                                  and self.modifies(token))):
                 continue
             after.append(token)
         if len(after) < 2:
@@ -612,7 +650,9 @@ class Parser:
                     # is about queens); a word that is no noun as said
                     # (`running` and `greeting` are concepts of their own).
                     last = pos.get(getattr(group[stop - 1], "i", None), "")
-                    if last in ("NOUN", "PROPN"):
+                    if last in ("NOUN", "PROPN") or (
+                            last == "ADJ" and not describes(texts[stop - 1])
+                            and not describes(lemmas[stop - 1])):
                         forms = (" ".join(lemmas[start:stop]),
                                  " ".join(texts[start:stop]))
                     elif stop - start == 1:

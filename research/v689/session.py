@@ -263,9 +263,13 @@ class Turn:
     memory: dict = field(default_factory=dict)
     #: definitions read into definitions memory during this turn
     learned: list = field(default_factory=list)
+    #: the operators that fired on each claim, in order (`executive.py`)
+    trace: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"number": self.number, "said": self.said, "act": self.act,
+                "heard": self.reading.heard if self.reading else {},
+                "trace": self.trace,
                 "reading": self.reading.as_dict() if self.reading else None,
                 "resolution": (self.resolution.as_dict()
                                if self.resolution else None),
@@ -369,6 +373,9 @@ class Session:
                 "ask_name": self._ask_name, "teach": self._teach,
                 "compound": self._compound, "define": self._define,
                 "why": self._why}
+        # `hello`, `thanks`, `what can you do` (`social.py`).
+        from .social import ACTS as SOCIAL
+        acts.update({name: self._social for name in SOCIAL})
 
         def acted(handler):
             def apply(memory: dict) -> str:
@@ -404,7 +411,16 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            acting.run({"reading": one, "turn": turn, "goals": one.goals})
+            fired = acting.run({"reading": one, "turn": turn,
+                                "goals": one.goals})
+            # Of several claims, each as it was claimed: its subject, its
+            # auxiliary and the rest -- `said` is the whole utterance.
+            said = [one.mention.text] if (one.mention is not None
+                                           and one.mention.text) else []
+            said += ([one.aux] if one.aux else []) + list(one.rest)
+            turn.trace.append({"claim": one.said if len(parts) == 1
+                               else " ".join(said) or one.said,
+                               "act": one.act, **fired.as_dict()})
             if index == 0:
                 first = (turn.resolution, turn.binding)
             replies.append(dict(turn.answer))
@@ -431,6 +447,17 @@ class Session:
         turn.memory = self.memory_view()
         self.turns.append(turn)
         return turn
+
+    def _social(self, reading: Reading, turn: Turn) -> None:
+        """`hello`, `thanks`, `what can you do` (`social.py`): nothing told,
+        nothing asked of memory; answered by what the conversation is, and
+        what it can do by the relations its operators answer."""
+        from .social import answer
+
+        turn.answer = {"outcome": "social", "source": "conversation",
+                       "act": reading.act,
+                       "text": answer(reading.act, list(
+                           Answering(self).cells()))}
 
     def _untold_anchor(self, reading: Reading) -> Reading | None:
         """The clause a statement is placed against, when nothing told is

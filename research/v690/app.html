@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V690 — say it, read it back</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #151a21; --panel2: #1a2029; --line: #262e39;
+    --text: #d9e0e8; --muted: #8a96a6; --faint: #5d6877;
+    --accent: #b48cff; --rule: #7cc4ff; --warm: #e0a84a;
+    --yes: #3fb27f; --no: #e5534b; --unknown: #768390; --noted: #4c9be8;
+    --which: #d9a33a; --value: #a8b3bf; --social: #c77dff; --refused: #9f6b53;
+    --subj: #5aa9ff; --claim: #b48cff; --neg: #ff6b6b; --val: #4fd18b;
+    --quote: #e0a84a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               sans-serif; }
+  button { font: inherit; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+           padding: 12px 22px; border-bottom: 1px solid var(--line);
+           background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
+  header .sub { color: var(--muted); }
+  header nav { margin-left: auto; display: flex; gap: 14px; }
+  header nav a { color: var(--accent); text-decoration: none; }
+  main { display: grid; grid-template-columns: minmax(0, 1.15fr)
+         minmax(360px, .85fr); height: calc(100vh - 50px); }
+  @media (max-width: 1000px) {
+    main { grid-template-columns: 1fr; height: auto; }
+    #talk { height: auto !important; }
+  }
+  #talk { display: flex; flex-direction: column; min-width: 0;
+          border-right: 1px solid var(--line); height: calc(100vh - 50px); }
+  .examples { padding: 12px 22px 8px; border-bottom: 1px solid var(--line); }
+  .examples .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .examples button, .quiet { background: var(--panel2); color: var(--text);
+         border: 1px solid var(--line); border-radius: 999px;
+         padding: 4px 11px; cursor: pointer; }
+  .examples button:hover, .quiet:hover { border-color: var(--accent); }
+  .shows { color: var(--muted); margin-top: 8px; font-size: 13px; }
+  .mode { color: var(--muted); font-size: 12px; margin-top: 6px;
+          display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mode b { color: var(--text); font-weight: 600; }
+  #transcript { flex: 1; overflow-y: auto; padding: 16px 22px;
+                display: flex; flex-direction: column; gap: 14px; }
+  .you { align-self: flex-end; max-width: 78%; background: #243149;
+         border: 1px solid #2f4263; border-radius: 14px 14px 4px 14px;
+         padding: 8px 12px; font-size: 15px; overflow-wrap: anywhere; }
+  .me { align-self: flex-start; max-width: 92%; min-width: 0;
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 14px 14px 14px 4px; padding: 10px 13px; }
+  .me .reply { font-size: 15px; overflow-wrap: anywhere; }
+  .me .reply.untraced { color: #f0c9a0; }
+  .me .reply.silent { color: var(--muted); font-style: italic; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px;
+            align-items: center; }
+  .chip { font-size: 11px; padding: 1px 8px; border-radius: 999px;
+          border: 1px solid var(--line); color: var(--muted);
+          white-space: nowrap; }
+  .stance { color: #0e1116; font-weight: 700; border: 0;
+            text-transform: uppercase; letter-spacing: .03em; }
+  .s-yes { background: var(--yes); } .s-no { background: var(--no); }
+  .s-unknown { background: var(--unknown); } .s-noted { background: var(--noted); }
+  .s-which { background: var(--which); } .s-value { background: var(--value); }
+  .s-social { background: var(--social); } .s-refused { background: var(--refused); }
+  .traced { color: var(--yes); border-color: #2c5e47; }
+  .untraced-chip { color: var(--warm); border-color: #6b5327; }
+  .how { background: none; border: 0; color: var(--accent); cursor: pointer;
+         padding: 0; font-size: 12px; margin-left: auto; }
+  .pending { color: var(--muted); font-style: italic; }
+  .error { color: var(--no); }
+  /* the steps */
+  .steps { margin: 10px 0 2px; padding: 0 0 0 4px; list-style: none;
+           border-left: 2px solid var(--line); }
+  .steps > li { position: relative; padding: 4px 0 8px 16px; }
+  .steps > li::before { content: ""; position: absolute; left: -7px; top: 9px;
+           width: 12px; height: 12px; border-radius: 50%;
+           background: var(--panel); border: 2px solid var(--rule); }
+  .steps > li.said::before { border-color: var(--yes); }
+  .steps > li.said.bad::before { border-color: var(--warm); }
+  .step-name { font-size: 11px; text-transform: uppercase;
+               letter-spacing: .08em; color: var(--rule); margin-right: 6px; }
+  .step-line { color: var(--text); }
+  .step-open { background: none; border: 0; color: var(--faint);
+               cursor: pointer; font-size: 12px; padding: 0 0 0 6px; }
+  .step-open:hover { color: var(--accent); }
+  .detail { margin-top: 6px; background: var(--panel2);
+            border: 1px solid var(--line); border-radius: 8px;
+            padding: 8px 10px; font-size: 12.5px; overflow-x: auto; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .words { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  .word { padding: 1px 6px; border-radius: 5px; background: #202733;
+          border: 1px solid var(--line); font-size: 12.5px; }
+  .word small { color: var(--muted); margin-left: 4px; font-size: 10.5px; }
+  .word.p-SUBJ { border-color: var(--subj); color: var(--subj); }
+  .word.p-CLAIM { border-color: var(--claim); color: var(--claim); }
+  .word.p-NEG { border-color: var(--neg); color: var(--neg); }
+  .word.p-VALUE { border-color: var(--val); color: var(--val); }
+  .word.p-QUOTE { border-color: var(--quote); color: var(--quote); }
+  .word.sense { cursor: pointer; text-decoration: underline dotted; }
+  .bars { display: grid; grid-template-columns: max-content 1fr max-content;
+          gap: 3px 8px; align-items: center; }
+  .barline { height: 6px; background: var(--line); border-radius: 3px;
+             overflow: hidden; }
+  .barline i { display: block; height: 100%; background: var(--accent); }
+  table.plain { border-collapse: collapse; width: 100%; }
+  table.plain td, table.plain th { text-align: left; padding: 2px 6px;
+          border-top: 1px solid #222a35; vertical-align: top; }
+  table.plain th { color: var(--muted); font-weight: 500; border-top: 0; }
+  .ok { color: var(--yes); } .bad { color: var(--warm); } .muted { color: var(--muted); }
+  .rule { color: var(--rule); font-weight: 700; font-family: ui-monospace,
+          Consolas, monospace; }
+  code, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .candidate { border-top: 1px solid #222a35; padding: 6px 0; }
+  .candidate:first-child { border-top: 0; }
+  .candidate .text { font-size: 13.5px; }
+  .candidate .chosen { color: var(--yes); font-size: 11px; margin-left: 6px; }
+  form { display: flex; gap: 8px; padding: 12px 22px 16px;
+         border-top: 1px solid var(--line); background: var(--panel); }
+  input[type=text] { flex: 1; min-width: 0; background: var(--bg);
+         color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+         padding: 10px 12px; font: inherit; font-size: 15px; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  form button[type=submit] { background: var(--accent); color: #0e1116;
+         border: 0; border-radius: 8px; padding: 0 16px; font-weight: 600;
+         cursor: pointer; }
+  /* memory */
+  aside { display: flex; flex-direction: column; min-width: 0;
+          height: calc(100vh - 50px); background: var(--panel); }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tabs button { flex: 1; background: none; border: 0; color: var(--muted);
+         padding: 11px 6px; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tab { flex: 1; overflow-y: auto; padding: 14px 18px; }
+  h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .09em;
+       color: var(--muted); margin: 16px 0 8px; font-weight: 600; }
+  h2:first-child { margin-top: 0; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat { background: var(--panel2); border: 1px solid var(--line);
+          border-radius: 8px; padding: 6px 10px; min-width: 76px; }
+  .stat b { display: block; font-size: 17px; }
+  .stat span { color: var(--muted); font-size: 11.5px; }
+  .empty { color: var(--muted); font-style: italic; }
+  .lane { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .episode { flex: 0 0 230px; background: var(--panel2);
+             border: 1px solid var(--line); border-radius: var(--radius);
+             padding: 8px 10px; }
+  .episode.current { border-color: var(--rule); }
+  .episode .head { display: flex; gap: 6px; align-items: baseline;
+                   margin-bottom: 4px; }
+  .episode .head b { font-size: 13.5px; }
+  .occ { list-style: none; margin: 0; padding: 0; }
+  .occ li { padding: 5px 0; border-top: 1px solid #222a35; font-size: 12.5px; }
+  .occ li:first-child { border-top: 0; }
+  .occ .order { color: var(--faint); font-size: 11px; }
+  .occ .change { display: block; color: var(--warm); font-size: 11.5px; }
+  .occ .state { color: var(--accent); }
+  .places { display: grid; grid-template-columns: repeat(auto-fill,
+            minmax(150px, 1fr)); gap: 8px; }
+  .place { background: var(--panel2); border: 1px solid var(--line);
+           border-radius: var(--radius); padding: 7px 9px; }
+  .place b { display: block; font-size: 13px; margin-bottom: 3px; }
+  .place .who { font-size: 12.5px; }
+  .place .with { color: var(--muted); font-size: 11.5px; }
+  .card { background: var(--panel2); border: 1px solid var(--line);
+          border-radius: var(--radius); padding: 8px 10px; margin-bottom: 8px; }
+  .card.focus { border-color: var(--accent); }
+  .card .head { display: flex; gap: 8px; align-items: baseline; }
+  .card .head b { font-size: 13.5px; }
+  .card .head .id { margin-left: auto; color: var(--faint); font-size: 11px; }
+  .salience { height: 3px; background: var(--line); border-radius: 2px;
+              margin: 6px 0 4px; overflow: hidden; }
+  .salience i { display: block; height: 100%; background: var(--accent); }
+  .meta { color: var(--muted); font-size: 12px; }
+  .facts { list-style: none; margin: 5px 0 0; padding: 0; }
+  .facts li { font-size: 12.5px; padding: 2px 0; }
+  .facts .said { color: var(--text); }
+  .facts .as { color: var(--faint); font-size: 11px; margin-left: 5px; }
+  .log { max-height: 240px; overflow-y: auto; font: 11.5px/1.5 ui-monospace,
+         Consolas, monospace; color: var(--muted); list-style: none;
+         padding: 0; margin: 0; }
+  .log b { color: var(--text); font-weight: 600; }
+  .tree { list-style: none; margin: 0; padding-left: 14px; }
+  .tree > li { margin: 3px 0; }
+  .tree .kind { font-weight: 600; }
+  .search { display: flex; gap: 6px; margin-bottom: 8px; }
+  .search input { flex: 1; background: var(--bg); color: var(--text);
+                  border: 1px solid var(--line); border-radius: 6px;
+                  padding: 5px 8px; font: inherit; }
+  .definition { padding: 5px 0; border-top: 1px solid #222a35; font-size: 12.5px; }
+  .definition:first-child { border-top: 0; }
+  .senseword { margin-bottom: 12px; }
+  .senseword .head { display: flex; gap: 8px; align-items: baseline;
+                     margin-bottom: 4px; }
+  .senseword .head b { font-size: 14px; }
+  .sense { display: grid; grid-template-columns: 18px 1fr; gap: 6px;
+           padding: 4px 6px; border-radius: 6px; cursor: pointer;
+           border: 1px solid transparent; font-size: 12.5px; }
+  .sense:hover { border-color: var(--line); background: var(--panel2); }
+  .sense.on { border-color: var(--accent); background: #211b30; }
+  .sense .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px;
+                border: 2px solid var(--faint); }
+  .sense.on .dot { background: var(--accent); border-color: var(--accent); }
+  .sense .id { font-family: ui-monospace, Consolas, monospace; color: var(--rule);
+               font-size: 11.5px; }
+  .note { color: var(--muted); font-size: 12px; margin: 6px 0 10px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>V690</h1>
+  <span class="sub">say it, read it back — English in, English out: the encoder
+    reads you, memory and rules answer, the decoder says it, and the encoder
+    reads the reply back before it is said</span>
+  <nav><a href="/v689">v689</a><a href="/v688">v688</a></nav>
+</header>
+<main>
+  <section id="talk">
+    <div class="examples">
+      <div class="row" id="examples"></div>
+      <div class="shows" id="shows"></div>
+      <div class="mode" id="mode"></div>
+    </div>
+    <div id="transcript"></div>
+    <form id="say">
+      <input type="text" id="line" autocomplete="off"
+             placeholder="hello · there is a beagle · can it swim · where is Mary · what is a whale">
+      <button type="submit">say</button>
+      <button type="button" class="quiet" id="forget">start over</button>
+    </form>
+  </section>
+  <aside>
+    <div class="tabs">
+      <button data-tab="episodic" class="on">episodic memory</button>
+      <button data-tab="longterm">long-term memory</button>
+      <button data-tab="senses">senses</button>
+    </div>
+    <div class="tab" id="tab-episodic"></div>
+    <div class="tab" id="tab-longterm" hidden></div>
+    <div class="tab" id="tab-senses" hidden></div>
+  </aside>
+</main>
+<script>
+"use strict";
+function makeId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+let SID = makeId();
+// `?sid=` opens that conversation, as it was kept; otherwise the one this
+// browser keeps.
+const ASKED_SID = new URLSearchParams(location.search).get("sid");
+if (ASKED_SID) {
+  SID = ASKED_SID.slice(0, 64);
+} else {
+  try {
+    const kept = localStorage.getItem("v690-sid");
+    if (kept) SID = kept; else localStorage.setItem("v690-sid", SID);
+  } catch (_) { /* a fresh conversation per load */ }
+}
+const EXAMPLE_SID = SID + "-example";
+let current = { sid: SID, example: false, title: "" };
+let busy = false;
+let lastTurn = null;
+let lastSaid = "";
+let pins = {};
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+}
+function add(parent, ...children) {
+  children.forEach(child => { if (child) parent.appendChild(child); });
+  return parent;
+}
+function kv(pairs) {
+  const box = el("dl", "kv");
+  pairs.filter(([, value]) => value !== undefined && value !== null && value !== ""
+      && !(Array.isArray(value) && !value.length))
+    .forEach(([key, value]) => {
+      add(box, el("dt", null, key));
+      const dd = el("dd");
+      if (value instanceof Node) dd.appendChild(value);
+      else dd.textContent = Array.isArray(value) ? value.join(", ") : String(value);
+      box.appendChild(dd);
+    });
+  return box;
+}
+function name(concept) {
+  const text = String(concept || "");
+  const parts = text.split(".");
+  return parts.length >= 3 && /^\d\d$/.test(parts[parts.length - 1])
+    ? parts.slice(0, -2).join(".").replace(/_/g, " ") : text;
+}
+function describe(discourse, id) {
+  const found = ((discourse && discourse.referents) || []).find(one => one.id === id);
+  return found ? found.description : (id || "");
+}
+async function getJSON(url) {
+  const response = await fetch(url);
+  const found = await response.json();
+  if (found.error) throw new Error(found.error);
+  return found;
+}
+
+// -- the conversation -------------------------------------------------------
+const STEP_NAMES = { heard: "heard", read: "read", resolved: "resolved",
+  reasoned: "reasoned", remembered: "remembered", answered: "answered",
+  said: "said" };
+
+function wordChips(pairs, cls) {
+  const box = el("div", "words");
+  pairs.forEach(([word, label]) => {
+    const chip = el("span", "word " + (cls ? cls(label) : ""));
+    chip.appendChild(document.createTextNode(word));
+    if (label && label !== "O") chip.appendChild(el("small", null, label));
+    box.appendChild(chip);
+  });
+  return box;
+}
+
+function detailOf(step, turn) {
+  const d = step.detail || {};
+  const box = el("div", "detail");
+  if (step.step === "heard") {
+    add(box, kv([["said", d.said], ["the request asks", d.asked],
+      ["request", d.request], ["placed as", d.placed],
+      ["someone new", d.fresh], ["time words", d.time],
+      ["placed against", d.anchor ? `${d.relation} “${d.anchor}”` : ""]]));
+  } else if (step.step === "read") {
+    if ((d.acts || []).length) {
+      const bars = el("div", "bars");
+      d.acts.forEach(([act, chance]) => {
+        const line = el("div", "barline");
+        const fill = el("i");
+        fill.style.width = Math.round(chance * 100) + "%";
+        line.appendChild(fill);
+        add(bars, el("span", null, act), line,
+            el("span", "muted", Math.round(chance * 100) + "%"));
+      });
+      add(box, el("div", "muted", "acts, as the encoder weighed them"), bars);
+    }
+    if ((d.roles || []).length) {
+      add(box, el("div", "muted", "each word's part"),
+          wordChips(d.roles, () => ""));
+    }
+    add(box, kv([
+      ["goals", (d.goals || []).map(g => `${g.asked} of ${g.relation}` +
+        (g.subject ? ` · subject ${g.subject}` : "") +
+        (g.object ? ` · object ${g.object}` : "") +
+        (g.verb ? ` · verb ${g.verb}` : ""))],
+      ["about", d.mention && d.mention.text],
+      ["auxiliary", d.aux], ["said of it", d.rest],
+      ["holds", d.holds === false ? "no — denied" : ""],
+      ["object", d.object && d.object.text]]));
+  } else if (step.step === "resolved") {
+    (d || []).forEach(one => add(box, kv([
+      ["phrase", `“${one.expression}” → ${one.means}`], ["how", one.how],
+      ["candidates", one.candidates],
+      ["trie walk", one.wanted ? `${one.wanted.join(" + ")} · ${one.visited} nodes` : ""]])));
+  } else if (step.step === "reasoned") {
+    if ((d.fired || []).length) {
+      const table = el("table", "plain");
+      add(table, add(el("tr"), el("th", null, "operator"), el("th", null, "rule"),
+                     el("th", null, "outcome"), el("th", null, "claim")));
+      d.fired.forEach(one => add(table, add(el("tr"),
+        el("td", null, one.operator), el("td", "rule", one.rule || ""),
+        el("td", one.outcome === "answered" ? "ok" : "muted", one.outcome),
+        el("td", "muted", one.claim || ""))));
+      add(box, el("div", "muted", "the executive, cycle by cycle"), table);
+    }
+    const walk = d.walk || {};
+    if ((walk.steps || []).length) {
+      const table = el("table", "plain");
+      add(table, add(el("tr"), el("th", null, "rule"), el("th", null, "at"),
+                     el("th", null, "step")));
+      walk.steps.forEach(one => add(table, add(el("tr"),
+        el("td", "rule", one.rule), el("td", "muted", String(one.distance)),
+        el("td", null, one.detail))));
+      add(box, el("div", "muted", `v687's walk — ${walk.verdict}`), table);
+    }
+    const run = d.run || {};
+    if (run.outcome) {
+      add(box, el("div", "muted", `v688 on “${d.asked}”`), kv([
+        ["verdict", run.verdict], ["trust", run.trust],
+        ["confidence", run.confidence != null ? Math.round(run.confidence * 100) + "%" : ""],
+        ["lines", (run.lines || []).join(" · ")],
+        ["content", run.content && run.content.text]]));
+    }
+  } else if (step.step === "remembered") {
+    const list = el("ul", "log");
+    (d.events || []).forEach(one => {
+      const item = el("li");
+      add(item, el("b", null, one.type), document.createTextNode(" " + summarize(one)));
+      list.appendChild(item);
+    });
+    if ((d.events || []).length) add(box, el("div", "muted", "events recorded"), list);
+    (d.learned || []).forEach(one => add(box, el("div", null,
+      `definitions memory + ${one.concept}: “${one.gloss}”`)));
+  } else if (step.step === "answered") {
+    const m = d.message || {};
+    add(box, el("div", "muted", "v689's own answer"),
+        el("div", "mono", (d.answer || {}).text || ""),
+        el("div", "muted", "the message a reply has to carry"),
+        kv([["stance", m.stance], ["about", m.subject], ["claim", m.claim],
+            ["values", m.values], ["quotes", m.quotes], ["source", m.source],
+            ["trust", m.trust], ["rules cited", m.rules]]));
+  } else if (step.step === "said") {
+    (d.candidates || []).forEach(one => {
+      const row = el("div", "candidate");
+      const head = el("div", "text", one.text);
+      if (one.text === d.text) head.appendChild(el("span", "chosen", d.traced ? "said" : "said, untraced"));
+      const read = one.read || {};
+      add(row, head,
+          wordChips((read.words || []).map((w, i) => [w, (read.parts || [])[i]]),
+                    part => "p-" + part),
+          el("div", one.trace.traced ? "ok" : "bad",
+             `reads as ${read.stance} (${Math.round((read.chance || 0) * 100)}%) — ${one.trace.why}`));
+      box.appendChild(row);
+    });
+    add(box, el("div", "muted", `written and read back in ${d.seconds}s`));
+  }
+  return box;
+}
+
+function renderSteps(turn) {
+  const list = el("ol", "steps");
+  (turn.steps || []).forEach(step => {
+    const said = step.step === "said";
+    const item = el("li", step.step + (said && !(step.detail || {}).traced ? " bad" : ""));
+    add(item, el("span", "step-name", STEP_NAMES[step.step] || step.step),
+        el("span", "step-line", step.line));
+    const open = el("button", "step-open", "details");
+    let shown = null;
+    open.addEventListener("click", () => {
+      if (shown) { shown.remove(); shown = null; open.textContent = "details"; return; }
+      shown = detailOf(step, turn);
+      item.appendChild(shown);
+      open.textContent = "hide";
+    });
+    item.appendChild(open);
+    list.appendChild(item);
+  });
+  return list;
+}
+
+function renderTurn(turn, box) {
+  box.textContent = "";
+  box.appendChild(el("div", "you", turn.said));
+  const me = el("div", "me");
+  const said = turn.reply || null;
+  const answer = turn.answer || {};
+  const message = (said && said.message) || {};
+  const OUTCOME = { verified: "yes", denied: "no", retrieved: "value" };
+  const stance = message.stance || OUTCOME[answer.outcome] || answer.outcome || "unknown";
+  let reply;
+  if (said && said.text) {
+    reply = el("div", "reply" + (said.traced ? "" : " untraced"), said.text);
+  } else if (said && said.error) {
+    reply = el("div", "reply silent", `the decoder failed: ${said.error}`);
+  } else {
+    reply = el("div", "reply silent", answer.text || "");
+  }
+  me.appendChild(reply);
+  const badges = el("div", "badges");
+  add(badges, el("span", "chip stance s-" + stance, stance));
+  if (said && said.text) {
+    add(badges, el("span", "chip " + (said.traced ? "traced" : "untraced-chip"),
+                   said.traced ? "✓ reads back" : "⚠ untraced"));
+  }
+  if (answer.source) add(badges, el("span", "chip", "from " + answer.source));
+  ((turn.heard || {}).time || []).length &&
+    add(badges, el("span", "chip", "when: " + turn.heard.time.join(" ")));
+  const how = el("button", "how", "how I got here");
+  let steps = null;
+  how.addEventListener("click", () => {
+    if (steps) { steps.remove(); steps = null; how.textContent = "how I got here"; return; }
+    steps = renderSteps(turn);
+    me.appendChild(steps);
+    how.textContent = "hide the steps";
+  });
+  badges.appendChild(how);
+  me.appendChild(badges);
+  box.appendChild(me);
+  // `?steps=1`: every turn shown with its steps open.
+  if (new URLSearchParams(location.search).get("steps") === "1" &&
+      (turn.steps || []).length) how.click();
+}
+
+function transcriptBox() {
+  const box = el("div");
+  box.style.display = "flex";
+  box.style.flexDirection = "column";
+  box.style.gap = "8px";
+  document.getElementById("transcript").appendChild(box);
+  return box;
+}
+function scrollDown() {
+  const pane = document.getElementById("transcript");
+  pane.scrollTop = pane.scrollHeight;
+}
+
+async function say(text) {
+  const box = transcriptBox();
+  add(box, el("div", "you", text), el("div", "me pending", "reading, thinking, saying …"));
+  scrollDown();
+  try {
+    const turn = await getJSON(`/api/say?sid=${encodeURIComponent(current.sid)}` +
+      `&q=${encodeURIComponent(text)}&example=${current.example ? 1 : 0}`);
+    renderTurn(turn, box);
+    lastTurn = turn;
+    lastSaid = text;
+    renderMemory(turn);
+    renderSenses(turn.senses || [], turn.pins || pins);
+  } catch (bad) {
+    box.textContent = "";
+    add(box, el("div", "you", text), el("div", "me error", String(bad.message || bad)));
+  }
+  scrollDown();
+}
+
+function summarize(event) {
+  const data = event.data || {};
+  switch (event.type) {
+    case "told": return `${data.node} ${data.relation} “${data.object}”` +
+      (data.when ? ` in ${data.when.episode}` : "");
+    case "occurred": return `${data.id} ${data.verb} by ${data.subject}` +
+      (data.object ? `, ${data.object}` : "") + ` in ${data.episode}`;
+    case "ordered": return `${data.first} ${data.how} ${data.second}`;
+    case "changed": return `${data.occurrence}: ${data.individual} ${data.kind} ` +
+      `${data.word || data.place || data.place_word} ${data.after ? "after" : "ended"}`;
+    case "episode_opened": return `${data.id} ${data.label}`;
+    case "referent_added": return `${data.id} ${data.kind}`;
+    case "placed": return `${data.individual} under ${data.node || data.word}`;
+    default:
+      return Object.entries(data).filter(([, v]) => typeof v !== "object")
+        .map(([k, v]) => `${k}=${v}`).join(" ");
+  }
+}
+
+// -- episodic memory ----------------------------------------------------------
+function stat(value, label) {
+  return add(el("div", "stat"), el("b", null, String(value)), el("span", null, label));
+}
+
+function whereNow(memory, discourse) {
+  const timeline = (memory && memory.timeline) || {};
+  const at = {};
+  (timeline.episodes || []).forEach(episode => {
+    (episode.changes || []).forEach(change => {
+      if (change.kind !== "location" || !change.after) return;
+      at[change.individual] = change;
+    });
+  });
+  const referents = (discourse && discourse.referents) || [];
+  const byId = Object.fromEntries(referents.map(one => [one.id, one]));
+  const places = {};
+  Object.entries(at).forEach(([individual, change]) => {
+    const place = change.place ? describe(discourse, change.place) : `the ${change.place_word}`;
+    const holder = change.place && byId[change.place] &&
+      (byId[change.place].kind === "person" || byId[change.place].name);
+    const key = holder ? "carried" : place;
+    (places[key] = places[key] || []).push({ who: describe(discourse, individual),
+                                             with: holder ? place : "" });
+  });
+  return places;
+}
+
+function renderMemory(turn) {
+  const box = document.getElementById("tab-episodic");
+  box.textContent = "";
+  const memory = (turn && turn.memory) || {};
+  const discourse = (turn && turn.discourse) || {};
+  const timeline = memory.timeline || {};
+  const episodes = timeline.episodes || [];
+  const referents = discourse.referents || [];
+  if (!episodes.length && !referents.length) {
+    add(box, el("h2", null, "episodic memory"),
+        el("p", "empty", "Nothing has come up yet. Tell me about someone or something."));
+    return;
+  }
+  const occurrences = episodes.reduce((sum, one) => sum + one.occurrences.length, 0);
+  add(box, el("h2", null, "this conversation"),
+      add(el("div", "stats"), stat(referents.length, "individuals"),
+          stat(episodes.length, "episodes"), stat(occurrences, "occurrences"),
+          stat(memory.events || 0, "events"), stat(memory.nodes || 0, "trie nodes")));
+
+  const places = whereNow(memory, discourse);
+  if (Object.keys(places).length) {
+    box.appendChild(el("h2", null, "where everything is now"));
+    const grid = el("div", "places");
+    Object.entries(places).forEach(([place, who]) => {
+      const card = add(el("div", "place"), el("b", null, place === "carried" ? "carried" : place));
+      who.forEach(one => add(card, add(el("div", "who"), document.createTextNode(one.who),
+        one.with ? el("span", "with", ` with ${one.with}`) : null)));
+      grid.appendChild(card);
+    });
+    box.appendChild(grid);
+  }
+
+  if (episodes.length) {
+    box.appendChild(el("h2", null, "story time"));
+    const lane = el("div", "lane");
+    const order = timeline.order || [];
+    episodes.forEach(episode => {
+      const card = el("div", "episode" + (episode.current ? " current" : ""));
+      add(card, add(el("div", "head"),
+        el("b", null, episode.key === "then" ? "back then" : episode.label),
+        el("span", "chip", episode.tense),
+        episode.current ? el("span", "chip traced", "now") : null));
+      const list = el("ul", "occ");
+      episode.occurrences.forEach(occurrence => {
+        const item = el("li");
+        add(item, el("span", "order", occurrence.id + " "),
+            document.createTextNode(`“${occurrence.said}”`));
+        // Each placement is shown on the occurrence told later: the one it
+        // placed.
+        const number = id => parseInt(String(id).slice(1), 10) || 0;
+        order.filter(edge => (edge.first === occurrence.id || edge.second === occurrence.id)
+            && number(occurrence.id) === Math.max(number(edge.first), number(edge.second)))
+          .forEach(edge => {
+            const other = edge.first === occurrence.id ? edge.second : edge.first;
+            const how = edge.how === "during" ? "while" : edge.first === occurrence.id ? "before" : "after";
+            add(item, el("span", "order", ` · ${how} ${other}`));
+          });
+        (episode.changes || []).filter(c => c.occurrence === occurrence.id).forEach(change => {
+          const who = describe(discourse, change.individual);
+          const what = change.kind === "location"
+            ? `at ${change.place ? describe(discourse, change.place) : change.place_word}` : change.word;
+          add(item, el("span", "change", `→ ${who} ${change.after ? "" : "no longer "}${what}`));
+        });
+        list.appendChild(item);
+      });
+      (episode.states || []).forEach(state => add(list, add(el("li"),
+        el("span", "state", describe(discourse, state.individual)),
+        document.createTextNode(state.said ? ` — “${state.said}”` : ` ${state.relation} ${state.object}`))));
+      if (!episode.occurrences.length && !(episode.states || []).length) {
+        list.appendChild(el("li", "empty", "nothing told of this time yet"));
+      }
+      card.appendChild(list);
+      lane.appendChild(card);
+    });
+    box.appendChild(lane);
+  }
+
+  if (referents.length) {
+    box.appendChild(el("h2", null, "who and what"));
+    referents.forEach(one => {
+      const card = el("div", "card" + (one.id === discourse.focus ? " focus" : ""));
+      add(card, add(el("div", "head"), el("b", null, one.description),
+                    one.name ? el("span", "chip", "called " + one.name) : null,
+                    one.owner ? el("span", "chip", "yours") : null,
+                    one.id === discourse.focus ? el("span", "chip traced", "in focus") : null,
+                    el("span", "id", one.id)));
+      const bar = el("div", "salience");
+      const fill = el("i");
+      fill.style.width = Math.min(100, Math.round((one.salience || 0) * 100)) + "%";
+      bar.appendChild(fill);
+      add(card, bar, el("div", "meta",
+        `a ${name(one.sense) || one.kind}` + (one.sense ? ` · sense ${one.sense}` : "") +
+        ` · salience ${(one.salience || 0).toFixed(2)}`));
+      if ((one.told || []).length) {
+        const facts = el("ul", "facts");
+        one.told.forEach(fact => add(facts, add(el("li"),
+          el("span", "said", fact.said ? `“${fact.said}”` : `${fact.relation} ${fact.object}`),
+          el("span", "as", `${fact.relation} ${fact.object}` +
+            ((fact.bound || []).length ? " → " + fact.bound.map(id => describe(discourse, id)).join(", ") : "")))));
+        card.appendChild(facts);
+      }
+      box.appendChild(card);
+    });
+  }
+
+  const log = memory.log || [];
+  if (log.length) {
+    const details = el("details");
+    add(details, el("summary", "muted", `event log — ${memory.events} events, the last ${log.length} shown, newest first`));
+    const list = el("ul", "log");
+    log.slice().reverse().forEach(event => add(list, add(el("li"),
+      document.createTextNode(`${event.seq} `), el("b", null, event.type),
+      document.createTextNode(" " + summarize(event)))));
+    details.appendChild(list);
+    box.appendChild(details);
+  }
+}
+
+// -- long-term memory ---------------------------------------------------------
+async function renderLongterm(like) {
+  const box = document.getElementById("tab-longterm");
+  let found;
+  try {
+    found = await getJSON(`/api/longterm?like=${encodeURIComponent(like || "")}`);
+  } catch (bad) {
+    box.textContent = "";
+    box.appendChild(el("p", "error", String(bad.message || bad)));
+    return;
+  }
+  box.textContent = "";
+  const summary = found.summary || {};
+  add(box, el("h2", null, "long-term memory"),
+      el("p", "note", "Shared by every conversation and kept on disk: kinds, taxonomy and norms you taught, and the definitions read so far. Examples keep what they teach to themselves."),
+      add(el("div", "stats"), stat(summary.kinds || 0, "kinds coined"),
+          stat(summary.edges || 0, "taxonomy edges"), stat(summary.norms || 0, "norms"),
+          stat(summary.definitions || 0, "definitions"), stat(summary.facts || 0, "facts read")));
+
+  box.appendChild(el("h2", null, "what you taught me"));
+  const children = {};
+  (found.edges || []).forEach(edge => (children[name(edge.parent)] = children[name(edge.parent)] || []).push(edge));
+  const norms = {};
+  (found.norms || []).forEach(norm => (norms[name(norm.node)] = norms[name(norm.node)] || []).push(norm));
+  const kinds = new Set([...Object.keys(children), ...Object.keys(norms),
+                         ...(found.edges || []).map(edge => name(edge.node))]);
+  if (!kinds.size) {
+    box.appendChild(el("p", "empty", "Nothing taught yet — try “a wemble is a kind of animal”."));
+  } else {
+    const tree = el("ul", "tree");
+    const roots = Object.keys(children).filter(parent =>
+      !(found.edges || []).some(edge => name(edge.node) === parent));
+    const drawn = new Set();
+    function draw(kind, into) {
+      if (drawn.has(kind)) return;
+      drawn.add(kind);
+      const item = el("li");
+      add(item, el("span", "kind", kind));
+      (norms[kind] || []).forEach(norm => add(item, el("div", "meta",
+        `“${norm.said || `${norm.relation} ${norm.object}`}”` + (norm.against ? ` · against the store: ${norm.against}` : ""))));
+      const below = children[kind] || [];
+      if (below.length) {
+        const list = el("ul", "tree");
+        below.forEach(edge => {
+          const child = name(edge.node);
+          draw(child, list);
+        });
+        item.appendChild(list);
+      }
+      into.appendChild(item);
+    }
+    roots.forEach(root => draw(root, tree));
+    [...kinds].filter(kind => !drawn.has(kind)).forEach(kind => draw(kind, tree));
+    box.appendChild(tree);
+  }
+
+  box.appendChild(el("h2", null, "definitions memory"));
+  const search = el("div", "search");
+  const input = el("input");
+  input.type = "text";
+  input.placeholder = "find a concept or a word in a gloss";
+  input.value = like || "";
+  const go = el("button", "quiet", "find");
+  const run = () => renderLongterm(input.value);
+  go.addEventListener("click", run);
+  input.addEventListener("keydown", event => { if (event.key === "Enter") run(); });
+  add(search, input, go);
+  box.appendChild(search);
+  if (!(found.definitions || []).length) {
+    box.appendChild(el("p", "empty", like ? "No definition read matches." : "No definition read yet — ask “what is a kitten”."));
+  }
+  (found.definitions || []).forEach(one => add(box, add(el("div", "definition"),
+    el("b", null, name(one.concept)), el("span", "muted", ` ${one.concept}`),
+    el("div", null, `“${one.gloss}”`),
+    el("div", "meta", (one.genus ? `a kind of ${name(one.genus)} · ` : "") +
+      `${one.facts} fact${one.facts === 1 ? "" : "s"} read · ${one.how}`))));
+
+  box.appendChild(el("h2", null, "conversations kept"));
+  const table = el("table", "plain");
+  add(table, add(el("tr"), el("th", null, "conversation"), el("th", null, "turns"),
+                 el("th", null, "events"), el("th", null, "saved")));
+  (found.conversations || []).forEach(one => add(table, add(el("tr"),
+    el("td", one.id === current.sid ? "ok" : "", (one.id === SID ? "yours" : one.example ? "an example" : one.id.slice(0, 10))),
+    el("td", null, String(one.turns)), el("td", null, String(one.events)),
+    el("td", "muted", new Date(one.saved * 1000).toLocaleString()))));
+  box.appendChild(table);
+  const unlearn = el("button", "quiet", "unlearn everything taught");
+  unlearn.style.marginTop = "12px";
+  unlearn.addEventListener("click", async () => {
+    if (busy || !confirm("Forget every kind, taxonomy edge and norm taught in any conversation?")) return;
+    await getJSON("/api/unlearn?confirm=yes");
+    renderLongterm();
+  });
+  box.appendChild(unlearn);
+}
+
+// -- senses -------------------------------------------------------------------
+function renderSenses(offered, pinned) {
+  pins = pinned || {};
+  const box = document.getElementById("tab-senses");
+  box.textContent = "";
+  add(box, el("h2", null, "the senses your words were taken in"),
+      el("p", "note", "Each word of the last turn, with the senses the store has for it. The one marked is the one used: the store's first, unless you pin another. A pin holds for this conversation — for every individual placed from now on and every question put to the store."));
+  const pinnedWords = Object.entries(pins);
+  if (pinnedWords.length) {
+    box.appendChild(el("h2", null, "pinned"));
+    const row = el("div", "row");
+    pinnedWords.forEach(([word, sense]) => {
+      const chip = el("button", "quiet", `${word} → ${sense} ✕`);
+      chip.addEventListener("click", () => pin(word, ""));
+      row.appendChild(chip);
+    });
+    box.appendChild(row);
+  }
+  if (!offered.length) {
+    box.appendChild(el("p", "empty", "Say something with a word the store has senses for."));
+    return;
+  }
+  offered.forEach(entry => {
+    const section = el("div", "senseword");
+    add(section, add(el("div", "head"), el("b", null, entry.word),
+      el("span", "muted", entry.as === "n" ? "as a noun" : ""),
+      entry.pinned ? el("span", "chip traced", "pinned") : null));
+    entry.senses.forEach(sense => {
+      const on = entry.pinned ? entry.pinned === sense.id : sense.picks;
+      const row = el("div", "sense" + (on ? " on" : ""));
+      add(row, el("span", "dot"), add(el("div"),
+        el("span", "id", sense.id + " "),
+        el("span", "muted", `${sense.pos} · ${sense.facts} facts`),
+        el("div", null, sense.definition || "(no definition)")));
+      row.addEventListener("click", () => pin(entry.word, on && entry.pinned ? "" : sense.id));
+      section.appendChild(row);
+    });
+    box.appendChild(section);
+  });
+  if (lastSaid) {
+    const again = el("button", "quiet", `ask “${lastSaid}” again with these senses`);
+    again.addEventListener("click", async () => {
+      if (busy) return;
+      busy = true;
+      await say(lastSaid);
+      busy = false;
+    });
+    box.appendChild(again);
+  }
+}
+
+async function pin(word, sense) {
+  const found = await getJSON(`/api/pin?sid=${encodeURIComponent(current.sid)}` +
+    `&w=${encodeURIComponent(word)}&sense=${encodeURIComponent(sense)}`);
+  pins = found.pins || {};
+  const offered = ((lastTurn && lastTurn.senses) || []).map(entry =>
+    ({ ...entry, pinned: pins[entry.word] || null }));
+  if (lastTurn) lastTurn.senses = offered;
+  renderSenses(offered, pins);
+}
+
+// -- tabs, examples, history ------------------------------------------------
+document.querySelectorAll(".tabs button").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(one => one.classList.toggle("on", one === button));
+    ["episodic", "longterm", "senses"].forEach(tab =>
+      document.getElementById("tab-" + tab).hidden = tab !== button.dataset.tab);
+    if (button.dataset.tab === "longterm") renderLongterm();
+  });
+});
+
+function renderMode() {
+  const box = document.getElementById("mode");
+  box.textContent = "";
+  if (current.example) {
+    add(box, document.createTextNode("example: "), el("b", null, current.title),
+        document.createTextNode(" · a conversation of its own; nothing it teaches is kept for others"));
+    const back = el("button", "quiet", "back to your conversation");
+    back.addEventListener("click", () => { if (!busy) open(SID, false); });
+    box.appendChild(back);
+  } else {
+    add(box, el("b", null, "your conversation"),
+        document.createTextNode(" · kept across restarts; kinds you teach are kept for every conversation"));
+  }
+}
+
+async function forget() {
+  await getJSON(`/api/forget?sid=${encodeURIComponent(current.sid)}`);
+  document.getElementById("transcript").textContent = "";
+  lastTurn = null;
+  lastSaid = "";
+  renderMemory(null);
+  renderSenses([], {});
+}
+
+async function open(sid, example, title) {
+  current = { sid, example, title: title || "" };
+  renderMode();
+  document.getElementById("transcript").textContent = "";
+  if (!example) document.getElementById("shows").textContent = "";
+  try {
+    const history = await getJSON(`/api/history?sid=${encodeURIComponent(sid)}`);
+    const turns = history.turns || [];
+    turns.forEach(turn => renderTurn(turn, transcriptBox()));
+    const last = turns[turns.length - 1] || null;
+    lastTurn = last;
+    lastSaid = last ? last.said : "";
+    renderMemory(history.memory ? history : null);
+    renderSenses((last && last.senses) || [], history.pins || {});
+    scrollDown();
+  } catch (_) {
+    renderMemory(null);
+    renderSenses([], {});
+  }
+}
+
+async function play(example) {
+  if (busy) return;
+  busy = true;
+  document.getElementById("shows").textContent = example.shows;
+  current = { sid: EXAMPLE_SID, example: true, title: example.title };
+  renderMode();
+  await forget();
+  for (const line of example.lines) await say(line);
+  busy = false;
+}
+
+document.getElementById("say").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = document.getElementById("line");
+  const text = input.value.trim();
+  if (!text || busy) return;
+  input.value = "";
+  busy = true;
+  await say(text);
+  busy = false;
+  input.focus();
+});
+document.getElementById("forget").addEventListener("click", () => { if (!busy) forget(); });
+
+(async () => {
+  const { examples } = await getJSON("/api/examples");
+  const row = document.getElementById("examples");
+  examples.forEach(example => {
+    const button = el("button", null, example.title);
+    button.title = example.lines.join(" / ");
+    button.addEventListener("click", () => play(example));
+    row.appendChild(button);
+  });
+  await open(SID, false);
+})();
+</script>
+</body>
+</html>

@@ -245,10 +245,33 @@ with their roles and time, states, relations, and a goal if it is a question.
 ### 4.8 Generation: v690
 
 An answer is a node and the path back from it; the path is the derivation.
-SmolLM3 verbalises the path, and the sentence it writes is read back (§4.7)
-and must trace to the same path, or the plain template is used. That is the
-paper's synthesis-by-backward-route with its own error correction, and it is
-v690 proper, after the rest.
+A decoder verbalises it, and the sentence it writes is read back (§4.7) and
+must trace to the same answer before it is said. That is the paper's
+synthesis-by-backward-route with its own error correction.
+
+As built (`v690/README.md`), the path is read off a v689 turn into a
+**message** -- stance, subject and claim or values, what it rests on, and
+v689's own account -- and the pieces are the ones reading already has:
+
+- the **decoder** is small and fine-tuned, SmolLM2-360M-Instruct, not a 3B
+  model at run time; SmolLM3 is its offline teacher, as the grammar was the
+  encoder's, and nothing it wrote is taught unless it traces;
+- the **reader of replies is the encoder**, with two heads of its own
+  (a reply's stance, and each word's part: subject, claim, denial, value,
+  quote); the one model that reads the user reads the system;
+- a reply **traces** when its stance is the message's, every content word of
+  the claim or the values is read in it (a WordNet synonym, or a verb it is a
+  kind of, says it), it denies the claim in the sentences that say it exactly
+  where the answer does, an unknown says it is not known, nothing is read as
+  said that the message lacks (save the words replies of that stance say
+  around content, counted over the corpus), and it credits no source the
+  answer did not come from;
+- the first candidate that traces is said; when none does, the least wrong
+  is said and **marked untraced** on the page, never passed off -- there is no
+  template behind it;
+- the decoder **teaches itself** on what it can check: once taught on the
+  teacher's replies, it replies to every message in the corpus, and what
+  traces is taught again.
 
 ## 5. Data-driven, and where it stops
 
@@ -502,6 +525,33 @@ pattern compiled into a matcher. T4 already is data: VerbNet's frames, read
 at runtime (`change.py`). The motives are flagged: they meet on a shared
 lemma, and spreading activation (§4.4) would change which place is chosen,
 so it waits for the fitting step and a bAbI run.
+
+**v690 proper, first (2026-09-15, `v690/decoder`): generation read back.**
+Answers are said in English by a small decoder and read back by the encoder
+before they are said (§4.8, `v690/README.md`). Social acts -- `hello`,
+`thanks`, `what can you do` -- became acts of v689's reader, answered from
+what the conversation is.
+
+| step | what it came to |
+| --- | --- |
+| conversations | 1,851 played through v689 over the real store: 16,427 turns, 14,042 distinct messages (noted 7,139, value 2,634, unknown 2,583, yes 902, no 538, refused 162, which 84) |
+| teacher | SmolLM3-3B, offline, one greedy reply each to 6,678 stratified messages (3.7 a second once nothing else held the card) |
+| label 1 | 5,256 messages (79%) with a reply that reads back: noted 95%, yes 85%, no 83%, unknown 82%, refused 82%, value 63%, social 50%, which 23% |
+| decoder v1 | SmolLM2-360M, 4,713 pairs, 3 epochs, 8-bit Adam: held-out loss 1.396 → 0.148 |
+| bootstrap | v1 replied four times to the 7,625 messages the teacher never saw |
+| label 2 | 12,534 of 14,303 messages (88%) read back: noted 97%, unknown 88%, yes 83%, refused 80%, no 78%, value 70%, social 50%, which 13% |
+| label 3 | 12,505 once a denial is judged by sentence and an unknown must say it is not known |
+| decoder v2 | 9,829 pairs balanced by stance, 3 epochs: held-out loss 1.604 → 0.123 |
+| teacher fixes | the cues v687's parse is taught from stepped over `goldfish` and `minnow` as adjectives -- spaCy's tag after an article -- and read `can a goldfish walk on land` as about walking; an adjective now modifies only if WordNet has it as one (211 parse records moved). Names were taught all known or none, never `Mary gave the football to John` with only Mary known, and `can you V it` kept as said 26 times against 114 participle rewrites; both are taught now |
+| encoder | `reader-v690d`, one MiniLM-L6 for every reader, 10 epochs: held-out whole records read 97.4%, ask 99.8%, place 97.7%, parse 97.1%, reply 93.6%, stance 99.4%; all 1,012 tests pass with it |
+| page probe | every reply read back, and two that should not have: `No, a penguin can't fly. You said so.` of what the norms state -- the check's denial window reached the answer's own `can't` in the sentence before -- and `what can you do` stopped mid-sentence, a habit the decoder learned from teacher replies capped at 64 tokens. A denial now excuses only its own sentence, a reply has to end its sentence, and when nothing traces the speaker reads each reply again with one sentence left out, which never adds a word |
+| evaluation | 600 messages of held-out conversations, decoder v2 writing and `reader-v690d` reading back: the first reply reads back 94.7%, one of four 96.0%, one of four or shortened 96.7% (noted 98.8%, unknown 100%, yes 97.9%, no 93.8%, value 85.9%); stance read 98.1%; the encoder agrees with the teacher's labels 97.4%. Corrupted replies caught: an invented word or a rule named 100%, a value swapped 98.4%, a denial added 98.0%, a denial dropped 79.2% |
+
+What the check rejects is mostly invention -- `How can I assist you today?`,
+`used for grand prix races`, a beagle said of a pig because the teacher's
+example had one, `you told me so` of what the store says of stags. `which
+one?` is the weak stance: when `the other one` resolves to nothing, the
+message has nobody in it to say, and the teacher made someone up.
 
 ## 9. Risks
 

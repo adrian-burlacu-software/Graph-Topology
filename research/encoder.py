@@ -41,8 +41,9 @@ BASE = LLM / "MiniLM-L6-v2"
 #: How wide a pointer's query and key are.
 POINTING = 128
 
-#: The longest utterance read, in word pieces.
-LONGEST = 64
+#: The longest utterance read, in word pieces: a reply read back runs longer
+#: than anything said to it.
+LONGEST = 96
 
 #: How a word is said back: as it was, left out, or as another form of
 #: itself -- its lemma, its past tense, in lower case, the positive of a

@@ -137,6 +137,20 @@ class Archive:
         return [Event.from_row(row) for row in rows]
 
     # -- knowledge ---------------------------------------------------------
+    def listed(self, limit: int = 30) -> list[dict]:
+        """The conversations kept, latest first: when each was last saved,
+        whether it was an example, and how many turns and events it has."""
+        with self.lock:
+            rows = self.connection.execute(
+                "SELECT c.id, c.example, c.saved, "
+                "(SELECT count(*) FROM turns t WHERE t.conversation = c.id), "
+                "(SELECT count(*) FROM events e WHERE e.stream = c.id) "
+                "FROM conversations c ORDER BY c.saved DESC LIMIT ?",
+                (int(limit),)).fetchall()
+        return [{"id": conversation, "example": bool(example),
+                 "saved": saved, "turns": turns, "events": events}
+                for conversation, example, saved, turns, events in rows]
+
     def knowledge(self, name: str = KNOWLEDGE) -> Knowledge:
         """Knowledge replayed from its stream, or -- kept before there were
         events -- read from its rows and recorded as events."""
