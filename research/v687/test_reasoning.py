@@ -836,6 +836,14 @@ class AnswerAuditTests(unittest.TestCase):
                 self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
                 self.assertIn(payload["parse"]["unknown"], question)
 
+    def test_an_animal_s_attributes_are_joined_to_the_animal(self):
+        """AwA2 says pigs do not fly, and `pig` was joined to `pig bed.n.01`,
+        a pigsty -- the row marked its primary sense -- so `do pigs fly` was
+        UNKNOWN beside a CONTRADICTED `do whales fly`."""
+        for question in ("do pigs fly", "can a pig fly", "do whales fly"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
     def test_a_bare_noun_predicate_is_a_class(self):
         self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
 
@@ -1415,9 +1423,16 @@ class AnswerWordingTests(unittest.TestCase):
         claimed, nothing to truncate. So the truncation is exercised on a list
         that is still long.
         """
+        import re
+
+        # The count is read off the note rather than asserted: joining AwA2's
+        # pig, sheep and buffalo to the animals took it from 41 to 48.
         note = self.engine.ask("do all mammals fly")["note"]
-        self.assertIn("41 do not", note)
-        self.assertIn("more", note)
+        found = re.search(r"(\d+) do not: (.+?) and (\d+) more", note)
+        self.assertIsNotNone(found, note)
+        named = found.group(2).split(", ")
+        self.assertEqual(int(found.group(1)),
+                         len(named) + int(found.group(3)), note)
 
     def test_dropping_the_foils_left_the_flightless_birds_that_really_are(self):
         """The same question, as a record of what the change bought: seven
@@ -1512,7 +1527,9 @@ class OverAffirmationTests(unittest.TestCase):
         refusal on sharper evidence. What must hold is that R19 ran, that it
         refused, and that whatever class it names is one the concept actually
         belongs to."""
-        for question in ("do pigs fly", "does a cat lay eggs"):
+        # `do pigs fly` was the first example until AwA2's pig was joined to
+        # the animal rather than a pigsty: the norms deny it outright now.
+        for question in ("does a cat lay eggs", "do fish run"):
             with self.subTest(question=question):
                 answer = self.engine.ask(question)
                 self.assertEqual(answer["verdict"], "UNKNOWN")

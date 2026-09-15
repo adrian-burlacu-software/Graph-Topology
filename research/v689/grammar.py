@@ -602,10 +602,17 @@ def _grounds(q: _Question) -> Reading | None:
 def _again(q: _Question) -> Reading | None:
     """`what about a cat`, `and a fish?`: the last question, of another
     kind."""
+    from .reading import bare_kind
+
     tokens = q.tokens
     for opener in AGAIN:
         if tuple(tokens[:len(opener)]) == opener and len(tokens) > len(opener):
             found = q.mention(len(opener))
+            # `what about whales`: a kind said bare is no phrase a mention
+            # reads.
+            if found is None:
+                found = bare_kind(tokens, len(opener), q.lexicon,
+                                  final_ok=True)
             if (found is not None and found.end == len(tokens)
                     and found.form in ("indefinite", "kind")):
                 return q.reading(("again", "question"), found)

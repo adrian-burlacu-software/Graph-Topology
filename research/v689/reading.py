@@ -518,19 +518,23 @@ def naming(tokens: list[str], typed: list[str], lexicon,
     return None
 
 
-def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
+def bare_kind(tokens: list[str], at: int, lexicon,
+              final_ok: bool = False) -> Mention | None:
     """A kind named with nothing v687 can place: `can a wemble fly`, `do
     wembles fly`.
 
     v687's parser reads `can a wemble fly` as being about `fly`, because
     `wemble` is not a word it has. One word after an article, or a plural
     with none, is taken as the kind, and the rest is what is asked of it.
+    With `final_ok` nothing need be asked of it: `what about whales` names
+    the kind the last question is put to.
     """
-    if at >= len(tokens) - 1:
+    last = len(tokens) if final_ok else len(tokens) - 1
+    if at >= last:
         return None
     word = tokens[at]
     if word in ("a", "an"):
-        if at + 2 >= len(tokens):
+        if at + 2 > last:
             return None
         return Mention("kind", tokens[at + 1],
                        text=" ".join(tokens[at:at + 2]), end=at + 2)
@@ -538,7 +542,11 @@ def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
         return None
     lemma = lexicon.lemma(word)
     if lemma == word and not lexicon.known(word):
-        return None
+        # A plural the lemmatiser leaves alone: `and geese?`.
+        from nltk.corpus import wordnet
+        lemma = wordnet.morphy(word, wordnet.NOUN) or word
+        if lemma == word or not lexicon.known(lemma):
+            return None
     return Mention("kind", lemma, text=word, end=at + 1)
 
 

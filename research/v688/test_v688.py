@@ -782,11 +782,12 @@ class ExampleTests(unittest.TestCase):
         self.assertNotIn(" ", senses[0]["id"].split(".")[0])
 
     def test_a_fact_about_a_few_is_not_a_fact_about_the_class(self):
-        """`do pigs fly` rests on `mammal capable_of fly`, true of bats and
-        false of the other kinds the store knows. The shape is general: a
+        """`does a cat lay eggs` rests on `feline lay egg`, which none of the
+        kinds of feline the store knows bear out. The shape is general: a
         claim inherited from an ancestor that a minority of that ancestor's
-        own kinds bear out."""
-        found = run("do pigs fly")
+        own kinds bear out. (`do pigs fly` was this example until AwA2's pig
+        was joined to the animal, and the norms deny that one outright.)"""
+        found = run("does a cat lay eggs")
         self.assertEqual(found.summary["verdict"], "UNKNOWN")
         # R19 inside v687 is where this shape is caught now. The v688-level
         # version of it needed a conflict, and the two the page had were both
@@ -1035,8 +1036,8 @@ class ReadingTests(unittest.TestCase):
 
     def test_silence_carries_no_confidence(self):
         """A number beside `unknown` would be read as a weakly held claim,
-        and there is no claim. `do pigs fly` is not a faint yes."""
-        found = run("do pigs fly")
+        and there is no claim. `does a cat lay eggs` is not a faint yes."""
+        found = run("does a cat lay eggs")
         self.assertEqual(found.summary["outcome"], "unknown")
         self.assertEqual(found.summary["confidence"], 0.0)
 

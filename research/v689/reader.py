@@ -310,7 +310,7 @@ def stated(cell: str, roles: list[str], tokens: list[str], lexicon,
            names: frozenset, said: str):
     """The reading a question's own words state, for one of `STATED`."""
     from .grammar import _own_goal
-    from .reading import Mention, Reading
+    from .reading import Mention, Reading, bare_kind
 
     asked, relation = cell.split()
     aux_at = first(roles, "AUX")
@@ -326,6 +326,13 @@ def stated(cell: str, roles: list[str], tokens: list[str], lexicon,
                         _opener(tokens, roles, start), cell in TRUNCATED,
                         shorter=cell in SPILLED)
         if cell == "again question":
+            # `what about whales`, `and fish?`: a kind said bare, last, is no
+            # phrase a mention reads, and the question it asks again was
+            # answered about whales instead.
+            if found is None:
+                found = bare_kind(tokens, start, lexicon, final_ok=True)
+                if found is not None and found.end != subjects[0][1]:
+                    found = None
             if found is None or found.form not in ("indefinite", "kind"):
                 return None
         elif not _individual(found):
@@ -892,9 +899,12 @@ def placed(lower: list[str], typed: list[str], guess: dict, lexicon,
     from .tense import FRAMES, Frame, When
 
     count = len(lower)
+    # Only a word said with a capital, as its teacher labels one
+    # (`teach_reader.label_place`): the encoder took `ostriches` in `what about
+    # ostriches` for someone new, and the last question was never asked again.
     fresh = frozenset(lower[at] for at, label in enumerate(guess["new"])
                       if label == "NAME" and lower[at] not in names
-                      and lower[at] != ",")
+                      and lower[at] != "," and typed[at][:1].isupper())
     anchors = list(guess["anchor"]) if anchored else ["O"] * count
     sub = next((at for at, label in enumerate(anchors)
                 if label.startswith("SUB-")), None)

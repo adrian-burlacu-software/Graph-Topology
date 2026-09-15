@@ -1899,10 +1899,24 @@ class Session:
                                    f"question about a kind has been asked "
                                    f"yet" if kind else "what about what?"}
             return
+        import re
+
+        from research.v688.question import plural
+
         asked = last[1]
         phrase = f"{article(old)} {old}"
-        question = (asked.replace(phrase, f"{article(kind)} {kind}", 1)
-                    if phrase in asked else asked.replace(old, kind, 1))
+        said = before.mention.text or old
+        if phrase in asked:
+            question = asked.replace(phrase, f"{article(kind)} {kind}", 1)
+        elif said != old and re.search(rf"\b{re.escape(said)}\b", asked):
+            # `do pigs fly`, then `what about mice`: a plural asked again of
+            # another plural. `pig` swapped inside `pigs` asked whether mouses
+            # fly.
+            now = (reading.mention.text if reading.mention.form == "kind"
+                   and reading.mention.text != kind else plural(kind))
+            question = re.sub(rf"\b{re.escape(said)}\b", now, asked, count=1)
+        else:
+            question = asked.replace(old, kind, 1)
         again = read(question, Taught(self.asker, self.memory.kinds),
                      self.discourse.names())
         again.said = question

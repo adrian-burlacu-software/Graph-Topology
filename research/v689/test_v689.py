@@ -1030,6 +1030,26 @@ class DialogueTests(unittest.TestCase):
         self.assertTrue(turns[1].answer["text"].startswith(
             "asked as “can a cat swim”"), turns[1].answer["text"])
 
+    def test_what_about_a_kind_said_bare(self):
+        """`What about whales?` after `Do pigs fly` listed what whales do:
+        a plural said last is no phrase a mention reads, so the last
+        question was never asked again."""
+        for said in ("what about cats", "What about cats?", "and cats?"):
+            with self.subTest(said=said):
+                _, turns, asker = talk(
+                    "can a dog swim", said,
+                    outcomes={"can a dog swim": "verified",
+                              "can a cat swim": "denied"})
+                self.assertIn(("again", "question"), turns[1].reading.cells)
+                self.assertIn("can a cat swim", asker.asked)
+        # A word the encoder took for someone new: only a capital makes one.
+        # This store has no ostrich, so the question is asked and not sent.
+        _, turns, _ = talk("can a dog swim", "what about ostriches",
+                           outcomes={"can a dog swim": "verified"})
+        self.assertIn(("again", "question"), turns[1].reading.cells)
+        self.assertTrue(turns[1].answer["text"].startswith(
+            "asked as “can an ostrich swim”"), turns[1].answer["text"])
+
     def test_you_in_a_question_is_anyone(self):
         self.assertNotIn(("object", "occurrence"),
                          reading.read("what do you need to bake a cake",

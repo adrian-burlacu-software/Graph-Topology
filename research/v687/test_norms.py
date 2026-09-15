@@ -583,7 +583,12 @@ class ProfileRoutingTests(unittest.TestCase):
                 ("describe a penguin", "profile", "penguin"),
                 ("is a blue whale furry", "verify", "blue whale"),
                 ("does a killer whale have flippers", "verify",
-                 "killer whale")):
+                 "killer whale"),
+                # Said in the plural: `do pigs fly` went past the norms that
+                # deny it while `can a pig fly` was denied.
+                ("do pigs fly", "verify", "pig"),
+                ("do cows fly", "verify", "cow"),
+                ("do mice have tails", "verify", "mouse")):
             routed = self.profiles.route(question)
             self.assertIsNotNone(routed, question)
             self.assertEqual(routed[0], mode, question)

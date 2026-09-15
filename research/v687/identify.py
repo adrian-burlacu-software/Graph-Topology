@@ -31,6 +31,7 @@ guessing is needed here at all.
 from __future__ import annotations
 
 import collections
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,6 +53,10 @@ thing things something anything one ones me you i tell name
 #: the properties are `physical entity` generalities that identify nothing --
 #: the same reason v684's R12 exists.
 INHERIT_DEPTH = 6
+
+#: Set `V687_NAME_JOINS=1` to join AwA2's classes by name alone, the way they
+#: were joined before `Identifier._join_animal`: `pig` to a pigsty.
+NAME_JOINS = bool(os.environ.get("V687_NAME_JOINS"))
 
 #: How many rivals to hand the page. Thirty birds is already a crowded globe.
 MAX_CONSIDERED = 24
@@ -129,6 +134,8 @@ class Identifier:
         for name in self.stated:
             if name not in self.synset:
                 self._join(name, name)
+            if self.origin.get(name) == "awa2" and not NAME_JOINS:
+                self._join_animal(name)
 
         self.inherited: dict[str, frozenset[str]] = {}
         if inherit:
@@ -141,6 +148,32 @@ class Identifier:
             "ORDER BY primary_sense DESC LIMIT 1", (lemma,)).fetchone()
         if row:
             self.synset[name] = row[0]
+
+    def _join_animal(self, name: str) -> None:
+        """AwA2's classes are all animals, and a name joined by its primary
+        sense can land on something that is not one: `pig` joined `pig
+        bed.n.01`, a pigsty, the row marked its primary sense, so `do pigs
+        fly` never met AwA2's zero on `flys` and was answered UNKNOWN. A join
+        that is no animal is moved to the name's first noun sense that is --
+        `hog.n.03`, which a question about pigs is answered on."""
+        concept = self.synset.get(name)
+        if concept and self._is_animal(concept):
+            return
+        connection = self.reasoner.connection
+        # A store built before `ranks.py` has no ranks: the rows as stored.
+        ranked = "sense_rank" in {row[1] for row in connection.execute(
+            "PRAGMA table_info(lemmas)")}
+        for row in connection.execute(
+                "SELECT concept FROM lemmas WHERE lemma = ?"
+                + (" ORDER BY sense_rank" if ranked else ""),
+                (name,)).fetchall():
+            if ".n." in row[0] and self._is_animal(row[0]):
+                self.synset[name] = row[0]
+                return
+
+    def _is_animal(self, concept: str) -> bool:
+        return any(node == "animal.n.01"
+                   for node, _, _ in self.reasoner.ascend(concept))
 
     def close(self) -> None:
         if self._owns_reasoner:
