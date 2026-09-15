@@ -17,9 +17,14 @@ Every one of these was answered about something else. `do you know if a dog
 can swim` asked whether a computer program knows things, `doesn't a cat have
 fur` became `does a doesn't a cat have fur`, and `describe a cat` was re-asked
 as `what is a describe a cat`. The question was there all along, in words a
-parser was never going to take apart, so they are taken apart first -- by
-string operations, which is what this repository uses where it can: three
-regular expressions here have had their escapes mangled in transit.
+parser was never going to take apart, so they are taken apart first.
+
+**Read by the encoder** (`research/encoder.py`, `rephrase`): what the request
+was put as (`REQUESTS`: the note the answer carries, and whether it asks why),
+and how each word is said back -- kept, left out, or another form of itself,
+what is said after it, and which word comes next. The frames and templates
+below (`requested`) are the encoder's teacher, asked offline
+(`v689/teach_reader.py`) and never at run time.
 
 **Why.** A why-question about a kind asks the yes or no inside it and what
 that rests on, so it is asked as the yes or no and marked `why`; `negative`
@@ -178,7 +183,7 @@ def _why(stripped: str, lower: str) -> Rephrased | None:
                 after = after[1:]
             if not about_a_kind(after):
                 return None
-            asked = rephrase(body).text if words[0] in NEGATIVE or (
+            asked = requested(body).text if words[0] in NEGATIVE or (
                 len(words) > 1 and words[1] == "not") else body
             return Rephrased(asked, why=True, negative=denies(body))
         if opener == "how come " and about_a_kind(words):
@@ -297,7 +302,98 @@ def _placed(words: list[str]) -> Rephrased | None:
     return None
 
 
+HOW_NOTE = ("asked how: what doing it rests on, and what the things that do "
+            "it have in common")
+WHICH_NOTE = "asked as which ones there are"
+SUCH_NOTE = "asked as what it is: a kind the ontology has is one it knows"
+
+#: What a request was put as, and what that says of the answer: (the note it
+#: carries, whether it is a question already and read whole downstream,
+#: whether it asks why, whether a why's premise was a denial).
+REQUESTS = {
+    "": ("", False, False, False),
+    "asking": ("", True, False, False),
+    "why": ("", False, True, False),
+    "why denied": ("", False, True, True),
+    "how": (HOW_NOTE, False, True, False),
+    "likely": (LIKELY_NOTE, False, False, False),
+    "negative": (NEGATIVE_NOTE, False, False, False),
+    "anyone": (GENERIC_NOTE, False, False, False),
+    "which ones": (WHICH_NOTE, False, False, False),
+    "such": (SUCH_NOTE, False, False, False),
+}
+
+#: The heads the encoder reads a request with (`research/encoder.py`).
+ASK_HEADS = ("request", "ask_op", "ask_insert", "ask_opening", "ask_next")
+
+#: What surrounds a word and is not part of it.
+PUNCTUATION = ".,;:!?()" + chr(34)
+
+
+def asked_words(text: str) -> list[str]:
+    """A request's words as the encoder reads them: as typed, without the
+    punctuation around them."""
+    found = []
+    for raw in (text or "").replace(chr(8217), "'").split():
+        word = raw.strip(PUNCTUATION)
+        if word:
+            found.append(word)
+    return found
+
+
+def saying(op: str, word: str, at: int = 0) -> str:
+    """One word said back as the encoder says to (`encoder.OPS`)."""
+    lower = word.lower()
+    if op == "LOWER":
+        return lower
+    if op == "POSITIVE":
+        return NEGATIVE.get(lower, word)
+    if op == "SINGULAR":
+        return singular_verb(lower)
+    if op == "GERUND":
+        return gerund(lower)
+    if op == "PARTICIPLE":
+        return PARTICIPLE.get(lower, lower)
+    return word
+
+
+def said_back(stripped: str, words: list[str], guess: dict) -> Rephrased:
+    """The request as `guess` reads it (the encoder's reading, or a teacher's
+    labels in the same shape): its words said back, or as it was typed when
+    nothing about them changed."""
+    from research.encoder import rewrite
+
+    note, asking, why, negative = REQUESTS.get(guess["request"][0][0],
+                                               REQUESTS[""])
+    out = rewrite(words, guess["ask_op"], guess["ask_insert"],
+                  guess["ask_opening"][0][0], guess["ask_next"], saying)
+    text = stripped if out == words else " ".join(out)
+    return Rephrased(text, note, asking, why, negative)
+
+
+def request_of(found: Rephrased) -> str | None:
+    """Which of `REQUESTS` a teacher's reading was put as."""
+    shape = (found.note, found.asking, found.why, found.negative)
+    return next((name for name, one in REQUESTS.items() if one == shape),
+                None)
+
+
 def rephrase(text: str) -> Rephrased:
+    """The question a request puts, as the encoder reads it."""
+    from research import encoder
+
+    said = " ".join((text or "").replace(chr(8217), "'").split())
+    stripped = said.rstrip("?.! ")
+    words = asked_words(stripped)
+    if not words:
+        return Rephrased(stripped)
+    guess = encoder.read([word.lower() for word in words], heads=ASK_HEADS)
+    return said_back(stripped, words, guess)
+
+
+def requested(text: str) -> Rephrased:
+    """The request put as its question by frames and templates: the
+    encoder's teacher, never asked at run time."""
     said = " ".join((text or "").replace(chr(8217), "'").split())
     stripped = said.rstrip("?.! ")
     lower = stripped.lower()

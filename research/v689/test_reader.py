@@ -123,6 +123,36 @@ class RoundTripTests(unittest.TestCase):
         self.assertEqual(record["act"], "teach")
         self.assertIn("B-teach", record["clauses"])
 
+    def test_a_request_is_said_back_as_its_question(self):
+        from research.v689 import teach_reader
+
+        for text in ("do you know if a dog can swim", "describe a cat",
+                     "can you cut bread with a knife", "name three birds",
+                     "why can't a penguin fly", "can a dog swim"):
+            record, why = teach_reader.label_ask(text)
+            self.assertIsNotNone(record, f"{text}: {why}")
+
+    def test_an_utterance_is_placed_as_the_rules_place_it(self):
+        from research.v689 import teach_reader
+
+        for text in ("yesterday Mary went to the kitchen",
+                     "after Mary went to the kitchen, John slept",
+                     "then she went to the garden",
+                     "can you tell me where Mary is",
+                     "the apple was given to Fred by Bill"):
+            record, why = teach_reader.label_place(text, lexicon(), NAMES)
+            self.assertIsNotNone(record, f"{text}: {why}")
+
+    def test_a_question_is_parsed_as_the_cues_parse_it(self):
+        from research.v689 import teach_reader
+
+        for text in ("can a mouse fall into a hole", "is a mouse an animal",
+                     "what is a ball made of", "where do you find a ball",
+                     "does a mouse have a tail"):
+            record, why = teach_reader.label_parse(text,
+                                                   people.STORE["parser"])
+            self.assertIsNotNone(record, f"{text}: {why}")
+
     def test_a_phrase_that_names_nobody_is_not_built(self):
         roles = ["O", "O", "B-SUBJ"]
         self.assertIsNone(reader.build(
@@ -140,6 +170,20 @@ class ModelTests(unittest.TestCase):
                                       NAMES, "where is Mary")
         self.assertEqual(guess.acts[0][0], "place located")
         self.assertEqual(found.cells, [("place", "located")])
+
+    def test_the_model_asks_places_and_parses(self):
+        from research.v688.rephrase import rephrase
+
+        self.assertEqual(rephrase("do you know if a dog can swim").text,
+                         "can a dog swim")
+        found = reader.place("yesterday Mary went to the kitchen", lexicon(),
+                             frozenset({"mary"}))
+        self.assertEqual((found.tokens, found.when.frame.key),
+                         (["mary", "went", "to", "the", "kitchen"],
+                          "yesterday"))
+        parse = people.STORE["parser"].parse("is a mouse an animal")
+        self.assertEqual((parse.subject, parse.relation, parse.target),
+                         ("mouse", "is_a", "animal"))
 
 
 if __name__ == "__main__":

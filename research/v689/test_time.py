@@ -17,7 +17,7 @@ from pathlib import Path
 
 from research.v687.language import Parser
 from research.v687.reason import Reasoner
-from research.v689 import change, reading, tense
+from research.v689 import change, reader, reading, tense
 from research.v689.asker import Asker
 from research.v689.session import Session
 from research.v689.test_v689 import SCHEMA
@@ -134,12 +134,17 @@ def answer(turn) -> tuple[str, str]:
 
 # -- reading when ------------------------------------------------------------
 
+@unittest.skipUnless(reader.enabled(), "needs llm/reader")
 class TenseTests(unittest.TestCase):
-    """What an utterance says about time, taken out before it is read."""
+    """What an utterance says about time, taken off before it is read
+    (`reader.place`)."""
+
+    def placed(self, text: str):
+        return reader.place(text, StoryAsker(), frozenset())
 
     def taken(self, text: str):
-        tokens = reading.words(text)
-        return tense.take(tokens, tokens)
+        found = self.placed(text)
+        return found.tokens, found.typed, found.when
 
     def test_a_frame_comes_off_either_end(self):
         tokens, _, when = self.taken("yesterday there was a dog")
@@ -173,17 +178,18 @@ class TenseTests(unittest.TestCase):
         self.assertEqual(self.taken("now what")[0], ["now", "what"])
 
     def test_an_anchor_needs_a_clause_either_side(self):
-        self.assertEqual(tense.subordinate(
-            "after the dog chased the cat, it slept"),
-            ("it slept", "after", "the dog chased the cat"))
-        self.assertEqual(tense.subordinate(
-            "was the vase broken before the cat broke it"),
-            ("was the vase broken", "before", "the cat broke it"))
-        self.assertEqual(tense.subordinate("while the dog slept, the cat ate")
-                         [1], "during")
+        found = self.placed("after the dog chased the cat, it slept")
+        self.assertEqual((found.tokens, found.relation, found.anchor),
+                         (["it", "slept"], "after", "the dog chased the cat"))
+        found = self.placed("was the vase broken before the cat broke it")
+        self.assertEqual((found.tokens, found.relation, found.anchor),
+                         (["was", "the", "vase", "broken"], "before",
+                          "the cat broke it"))
+        self.assertEqual(self.placed("while the dog slept, the cat ate")
+                         .relation, "during")
         for text in ("the dog slept after dinner",
                      "when did the dog chase the cat"):
-            self.assertIsNone(tense.subordinate(text), text)
+            self.assertEqual(self.placed(text).relation, "", text)
 
     def test_reichenbach_from_the_auxiliary_and_the_form(self):
         for aux, rest, tags, expected in (

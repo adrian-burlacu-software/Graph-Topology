@@ -42,22 +42,22 @@ the second about beagles. What spaCy makes of each word (its tag and its
 dependency) is read beside the word, so a word the corpus never had is still
 a noun, a verb or an object.
 
+**Placing, before reading** (`place`). The same encoder says who is someone
+new, what the words say about when (a time named, a link to what was told
+before, `again`), the clause an utterance is placed against (`after the dog
+chased the cat, it slept`), and how the rest is said back in normal form --
+each word kept, left out or said as its lemma or its past, what is said after
+it, and which word comes next: `the apple was given to Fred by Bill` is `bill
+gave the apple to fred`. These were `new_names`, `tense.take`,
+`tense.subordinate` and `frames.normal`, and are the encoder's teachers now.
+
 There is no other reader: without the model (`llm/reader`) nothing is read.
 """
 from __future__ import annotations
 
-import json
-import os
-import threading
 from dataclasses import dataclass, field
-from pathlib import Path
 
-LLM = Path(__file__).resolve().parents[2] / "llm"
-
-#: The fine-tuned reader (another with `V689_READER_MODEL`), and the encoder
-#: it starts from.
-MODEL = Path(os.environ.get("V689_READER_MODEL") or LLM / "reader")
-BASE = LLM / "MiniLM-L6-v2"
+from research.encoder import BASE, LLM, MODEL, enabled  # noqa: F401
 
 NONE = "none"
 
@@ -167,9 +167,26 @@ def said_as(tokens: list[str], names, kinds=None, lemma=None) -> list[str]:
     return out
 
 
-def enabled() -> bool:
-    """Is there a model to read with?"""
-    return (MODEL / "labels.json").exists()
+#: The heads an utterance's words are read into readings with
+#: (`research/encoder.py`).
+READ_HEADS = ("acts", "slots", "who", "stated", "slotted", "clauses")
+
+#: Whether a word names someone nobody here has been called yet.
+NEW = ("O", "NAME")
+
+#: What a word says of when (`tense.py`): a time it names, how its clause
+#: stands to the occurrence told before (`then`, `before that`, `meanwhile`,
+#: `first`, `finally`), or that it happened again.
+WHEN = ("O", "FRAME", "LINK-after", "LINK-before", "LINK-during",
+        "LINK-first", "LINK-last", "AGAIN")
+
+#: The clause an utterance is placed against, and the word that places it
+#: there, with how: `after the dog chased the cat, it slept`.
+ANCHOR = ("O", "ANCHOR", "SUB-after", "SUB-before", "SUB-during")
+
+#: The heads an utterance is placed with.
+PLACE_HEADS = ("new", "when", "anchor", "place_op", "place_insert",
+               "place_opening", "place_next")
 
 
 # -- roles --------------------------------------------------------------------
@@ -749,143 +766,11 @@ def analysed(tokens: list[str], lexicon) -> tuple[list[str], list[str]]:
     return [one[0] for one in found], [one[1] for one in found]
 
 
-def features(encoded, rows: list[tuple[list[str], list[str]]],
-             labels: dict):
-    """Each piece's word's tag and dependency, as indices (0 for none)."""
-    import torch
+def guessed(found: dict) -> Guess:
+    """A `Guess` from what the encoder's heads read (`encoder.read`)."""
+    return Guess(found["acts"], found["slots"], found["who"][0][0],
+                 found["stated"], found["slotted"], found["clauses"])
 
-    tags = {tag: at for at, tag in enumerate(labels["tags"])}
-    deps = {dep: at for at, dep in enumerate(labels["deps"])}
-    shape = encoded["input_ids"].shape
-    tag_ids = torch.zeros(shape, dtype=torch.long)
-    dep_ids = torch.zeros(shape, dtype=torch.long)
-    for row, (row_tags, row_deps) in enumerate(rows):
-        for at, word in enumerate(encoded.word_ids(row)):
-            if word is not None and word < len(row_tags):
-                tag_ids[row, at] = tags.get(row_tags[word], 0)
-                dep_ids[row, at] = deps.get(row_deps[word], 0)
-    return tag_ids, dep_ids
-
-
-class Model:
-    """The encoder and its heads, as trained (`teach_reader.py`)."""
-
-    def __init__(self, path: Path = MODEL, device: str | None = None) -> None:
-        import torch
-        from transformers import AutoModel, AutoTokenizer
-
-        self.torch = torch
-        meta = json.loads((path / "labels.json").read_text(encoding="utf-8"))
-        self.labels = meta
-        self.device = device or os.environ.get("V689_READER_DEVICE") or (
-            "cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(str(path))
-        encoder = AutoModel.from_pretrained(str(path))
-        self.net = Heads(encoder, meta)
-        self.net.load_state_dict(torch.load(path / "heads.pt",
-                                            map_location="cpu"), strict=False)
-        self.net.to(self.device)
-        if self.device == "cuda":
-            self.net.half()
-        self.net.eval()
-        self.lock = threading.Lock()
-
-    def guess(self, sentences: list[list[str]],
-              analyses: list[tuple[list[str], list[str]]]) -> list[Guess]:
-        torch = self.torch
-        encoded = self.tokenizer(sentences, is_split_into_words=True,
-                                 padding=True, truncation=True, max_length=64,
-                                 return_tensors="pt")
-        tag_ids, dep_ids = features(encoded, analyses, self.labels)
-        with self.lock, torch.no_grad():
-            out = self.net(encoded["input_ids"].to(self.device),
-                           encoded["attention_mask"].to(self.device),
-                           tag_ids.to(self.device), dep_ids.to(self.device))
-        acts, slots, who, stated_roles, slotted_roles, clauses = [
-            one.float().cpu() for one in out]
-        found = []
-        labels = self.labels
-
-        def ranked(scores, names):
-            chances = scores.softmax(-1)
-            return [(names[at], float(chances[at]))
-                    for at in chances.argsort(descending=True).tolist()]
-
-        for row, words in enumerate(sentences):
-            firsts = {}
-            for at, word in enumerate(encoded.word_ids(row)):
-                if word is not None and word not in firsts:
-                    firsts[word] = at
-
-            def tagged(scores, names):
-                return [names[int(scores[row, firsts[at]].argmax())]
-                        if at in firsts else "O" for at in range(len(words))]
-
-            found.append(Guess(
-                ranked(acts[row], labels["acts"]),
-                ranked(slots[row], labels["slots"]),
-                labels["who"][int(who[row].argmax())],
-                tagged(stated_roles, labels["roles"]),
-                tagged(slotted_roles, labels["roles"]),
-                tagged(clauses, labels["clauses"])))
-        return found
-
-
-def Heads(encoder, labels: dict):
-    """The encoder with a head for each thing read, reading each word beside
-    spaCy's tag and dependency for it."""
-    import torch
-
-    class _Heads(torch.nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-            size = encoder.config.hidden_size
-            self.encoder = encoder
-            self.tags = torch.nn.Embedding(len(labels["tags"]), size)
-            self.deps = torch.nn.Embedding(len(labels["deps"]), size)
-            # From nothing: the encoder starts reading as it was trained.
-            torch.nn.init.zeros_(self.tags.weight)
-            torch.nn.init.zeros_(self.deps.weight)
-            self.acts = torch.nn.Linear(size, len(labels["acts"]))
-            self.slots = torch.nn.Linear(size, len(labels["slots"]))
-            self.who = torch.nn.Linear(size, len(labels["who"]))
-            self.stated = torch.nn.Linear(size, len(labels["roles"]))
-            self.slotted = torch.nn.Linear(size, len(labels["roles"]))
-            self.clauses = torch.nn.Linear(size, len(labels["clauses"]))
-
-        def forward(self, input_ids, attention_mask, tag_ids, dep_ids):
-            embedded = (self.encoder.get_input_embeddings()(input_ids)
-                        + self.tags(tag_ids) + self.deps(dep_ids))
-            hidden = self.encoder(inputs_embeds=embedded,
-                                  attention_mask=attention_mask
-                                  ).last_hidden_state
-            mask = attention_mask.unsqueeze(-1).to(hidden.dtype)
-            pooled = (hidden * mask).sum(1) / mask.sum(1).clamp(min=1)
-            return (self.acts(pooled), self.slots(pooled), self.who(pooled),
-                    self.stated(hidden), self.slotted(hidden),
-                    self.clauses(hidden))
-
-    return _Heads()
-
-
-class _Loaded:
-    def __init__(self) -> None:
-        self.model: Model | None = None
-        self.lock = threading.Lock()
-
-    def get(self) -> Model:
-        with self.lock:
-            if self.model is None:
-                if not enabled():
-                    raise RuntimeError(
-                        f"no reader at {MODEL}: nothing can be read without "
-                        f"it (python -m research.v689.teach_reader corpus, "
-                        f"then train)")
-                self.model = Model()
-            return self.model
-
-
-LOADED = _Loaded()
 
 #: How many of the acts the encoder ranks are tried before the reading is
 #: left generic, and how likely one after the first must be.
@@ -894,18 +779,22 @@ ACT_FLOOR = 0.05
 
 
 def reading(tokens: list[str], lexicon, names: frozenset, said: str,
-            model: Model | None = None, typed: list[str] | None = None):
+            model=None, typed: list[str] | None = None):
     """(reading, guess): what the encoder reads the words as, built."""
+    from research import encoder
+
     from .reading import Reading
 
     if not tokens:
         return Reading("generic", said=said), None
-    model = model or LOADED.get()
     tags, deps = analysed(tokens, lexicon)
-    guess = model.guess([said_as(tokens, names,
-                                 getattr(lexicon, "kinds", None),
-                                 getattr(lexicon, "lemma", None))],
-                        [(tags, deps)])[0]
+    words = said_as(tokens, names, getattr(lexicon, "kinds", None),
+                    getattr(lexicon, "lemma", None))
+    if model is not None:
+        found = model.guess([words], [(tags, deps)], READ_HEADS)[0]
+    else:
+        found = encoder.read(words, tags, deps, READ_HEADS)
+    guess = guessed(found)
     for rank, (name, chance) in enumerate(guess.acts[:TRIED]):
         # An act the encoder hardly thinks likely is not read into a cell
         # because the likely one named nobody here.
@@ -917,3 +806,129 @@ def reading(tokens: list[str], lexicon, names: frozenset, said: str,
         if found is not None:
             return found, guess
     return Reading("generic", said=said), guess
+
+
+# -- placing an utterance ---------------------------------------------------------
+@dataclass
+class Placed:
+    """What placing an utterance takes off it, and the words left to read."""
+
+    #: the words left, in normal form, lowercased and as typed
+    tokens: list
+    typed: list
+    #: what it says about when (`tense.When`)
+    when: object
+    #: names nobody here has been called yet
+    fresh: frozenset = frozenset()
+    #: after | before | during: how it stands to the clause it is placed
+    #: against, and that clause as typed
+    relation: str = ""
+    anchor: str = ""
+    #: the words it is placed by, as typed, before normal form
+    main: list = field(default_factory=list)
+    #: every word but the time words, as typed: the utterance unplaced
+    words: list = field(default_factory=list)
+
+    def unanchored(self) -> tuple[list[str], list[str]]:
+        """The words read whole, when the clause it was placed against is
+        no statement about anyone."""
+        return [one.lower() for one in self.words], list(self.words)
+
+
+def place(text: str, lexicon, names: frozenset = frozenset(),
+          anchored: bool = True) -> Placed:
+    """An utterance placed, as the encoder reads it: who is someone new,
+    what it says about when, the clause it is placed against, and the rest
+    said back in normal form -- `can you tell me where Mary is` as `where is
+    mary`, `the apple was given to Fred by Bill` as `bill gave the apple to
+    fred`."""
+    from research import encoder
+
+    from .reading import pieces
+    from .tense import When
+
+    lower, typed = pieces(text)
+    if not lower:
+        return Placed([], [], When())
+    tags, deps = analysed(typed, lexicon)
+    guess = encoder.read(said_as(lower, names), tags, deps, PLACE_HEADS)
+    return placed(lower, typed, guess, lexicon, names, anchored)
+
+
+def placing(lexicon):
+    """How a word is said back in normal form (`encoder.OPS`): as its
+    lemma (`where did Mary go`), its simple past (`Bill gave`), or in lower
+    case."""
+    from .frames import past_form
+
+    def saying(op: str, word: str, at: int = 0) -> str:
+        if op == "LEMMA":
+            return lexicon.lemma(word.lower())
+        if op == "PAST":
+            lemma = lexicon.lemma(word.lower())
+            return past_form(word.lower(), lemma, lexicon.tags) or word
+        if op == "LOWER":
+            return word.lower()
+        return word
+
+    return saying
+
+
+def placed(lower: list[str], typed: list[str], guess: dict, lexicon,
+           names: frozenset = frozenset(), anchored: bool = True) -> Placed:
+    """What `guess` (the encoder's reading, or a teacher's labels in the same
+    shape) takes off an utterance and leaves of it."""
+    from research.encoder import rewrite
+
+    from .tense import FRAMES, Frame, When
+
+    count = len(lower)
+    fresh = frozenset(lower[at] for at, label in enumerate(guess["new"])
+                      if label == "NAME" and lower[at] not in names
+                      and lower[at] != ",")
+    anchors = list(guess["anchor"]) if anchored else ["O"] * count
+    sub = next((at for at, label in enumerate(anchors)
+                if label.startswith("SUB-")), None)
+    anchor_at = [at for at, label in enumerate(anchors)
+                 if label == "ANCHOR" and lower[at] != ","]
+    relation = anchor = ""
+    split: set[int] = set()
+    if sub is not None and anchor_at:
+        relation = anchors[sub][len("SUB-"):]
+        anchor = " ".join(typed[at] for at in anchor_at)
+        split = set(anchor_at) | {sub}
+    labels = guess["when"]
+    timed = {at for at, label in enumerate(labels)
+             if label != "O" and lower[at] != "," and at not in split}
+    main = [at for at in range(count)
+            if at not in timed and at not in split and lower[at] != ","]
+
+    when = When()
+    frame = [at for at in sorted(timed) if labels[at] == "FRAME"]
+    entry = next((one for one in FRAMES
+                  if one[0] == tuple(lower[at] for at in frame)), None)
+    if frame and entry is not None:
+        when.frame = Frame(entry[1], entry[2], " ".join(entry[0]))
+    when.link = next((labels[at][len("LINK-"):] for at in sorted(timed)
+                      if labels[at].startswith("LINK-")), "")
+    again = [at for at in sorted(timed) if labels[at] == "AGAIN"]
+    if again:
+        when.again, when.again_words = True, [typed[at] for at in again]
+    # In the order they were taken off: from the start, then a time named
+    # at the end, then `again` before it.
+    first = min(main) if main else count
+    taken = ([at for at in sorted(timed) if at < first]
+             + [at for at in frame if at >= first]
+             + [at for at in again if at >= first])
+    when.words = [typed[at] for at in taken]
+
+    kept = set(main)
+    ops = [op if at in kept else "DROP"
+           for at, op in enumerate(guess["place_op"])]
+    out = rewrite(typed, ops, guess["place_insert"],
+                  guess["place_opening"][0][0], guess["place_next"],
+                  placing(lexicon))
+    return Placed([one.lower() for one in out], out, when, fresh, relation,
+                  anchor, [typed[at] for at in main],
+                  [typed[at] for at in range(count)
+                   if at not in timed and lower[at] != ","])

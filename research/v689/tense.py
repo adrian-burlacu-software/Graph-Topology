@@ -234,6 +234,13 @@ def subordinate(text: str) -> tuple[str, str, str] | None:
     """
     said = (text or "").strip().rstrip("?.!").strip()
     lowered = said.lower()
+    # A word of a named time places nothing: `the day before yesterday it
+    # rained` is one clause, said on a day. Joined, at the same length, the
+    # phrase has no ` before ` to split on.
+    for entry in FRAMES:
+        phrase = " ".join(entry[0])
+        if len(entry[0]) > 1 and SUBORDINATORS.keys() & set(entry[0]):
+            lowered = lowered.replace(phrase, phrase.replace(" ", "_"))
     for word, relation in SUBORDINATORS.items():
         head = word + " "
         if lowered.startswith(head) and "," in lowered:
