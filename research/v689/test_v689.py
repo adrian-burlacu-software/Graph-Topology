@@ -887,6 +887,18 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(turns[0].answer["outcome"], "unknown")
         self.assertIn("NOT SUPPORTED", turns[0].answer["text"])
 
+    def test_a_denial_about_another_reading_is_not_a_no(self):
+        """`is a mouse alive`: v687 denies it of the computer mouse, and the
+        store holds nothing at all about the rodent. A no there is about a
+        word the question did not use."""
+        from research.v689.session import summary_of
+
+        run = {"summary": {
+            "outcome": "denied",
+            "trust": "denied about another reading of the word",
+            "lines": ["CONTRADICTED — is a mouse alive"]}}
+        self.assertEqual(summary_of(run)[0], "unknown")
+
     def test_a_caveat_on_an_answer_leaves_it_answered(self):
         from research.v689.session import summary_of
 

@@ -95,13 +95,16 @@ WORD = {"verified": "yes", "denied": "no"}
 #: v687's verdicts, as v688's readings.
 OUTCOME = {"VERIFIED": "verified", "CONTRADICTED": "denied"}
 
-#: What v688 says of a headline its own run argued against (`loop.trust`).
+#: What v688 says of a headline it will not stand behind (`loop.trust`):
+#: three where the run's own argument went against it, and one where the
+#: answer is about a reading of the word the store knows nothing else about.
 #: Not every misgiving: a generic that holds with exceptions still holds,
 #: and a doubt about the sense or the predicate is a caveat on an answer
 #: rather than the run refusing it.
 AGAINST = frozenset({"not supported by the rest of the store",
                      "contradicted by its own family",
-                     "its own evidence says the opposite"})
+                     "its own evidence says the opposite",
+                     "denied about another reading of the word"})
 
 #: A question's auxiliary, denied: what `why can't it fly` asks of its kind.
 DENIAL = {"can": "can't", "could": "couldn't", "does": "doesn't",
