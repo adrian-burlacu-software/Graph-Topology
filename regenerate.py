@@ -656,12 +656,16 @@ def _bootstrap_check() -> str | None:
     if not BOOTSTRAPPED.exists():
         return None
     rows = _lines(BOOTSTRAPPED)
-    # `bootstrap` passes `caps={}`, so it replies to every message -- the
-    # teacher's few thousand and the rest, about 14,151.
-    if rows < 8_000:
-        raise Failed(f"{rows} bootstrapped replies against about 14,151: "
-                     f"unfinished or stopped. It appends, so let it finish.")
-    return f"{rows} bootstrapped replies"
+    # `bootstrap` sees all 14,151 messages (`caps={}`) but skips every one
+    # the teacher already replied to (`_kept(path) | _kept(REPLIES)`), so it
+    # writes only the rest: 14,151 - 6,728 = 7,423, matching DESIGN.md:553's
+    # "the 7,625 messages the teacher never saw". A floor of 8,000 against
+    # 14,151 counted the teacher's share twice and failed a complete run.
+    if rows < 6_000:
+        raise Failed(f"{rows} bootstrapped replies against about 7,400 (the "
+                     f"messages the teacher did not reply to): unfinished or "
+                     f"stopped. It appends, so let it finish.")
+    return f"{rows} bootstrapped replies (the teacher's remainder)"
 
 
 def _social_check() -> str | None:
