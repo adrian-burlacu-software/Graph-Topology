@@ -47,6 +47,14 @@ STANCE_LABELS = ("yes", "no", "unknown", "which", "noted", "value", "social",
 REFUSED = ("not answerable here",)
 
 #: What a reply lists of a listing, at most.
+#:
+#: Eight was tried, on the reasoning that a listing's later items are the
+#: store's own content and a message stopping at five counts a reply naming
+#: the sixth as invention (`value added` is the corpus's largest rejection
+#: group). Measured over the whole corpus it was **worse on every count**:
+#: value traced 1,865 -> 1,860, value added 884 -> 892, traced 12,389 ->
+#: 12,384. A longer prompt and a smaller `and N more` cost more than the
+#: licensed words bought. Left at five.
 LISTED = 5
 
 #: What a reply has to name of a listing, at most.
