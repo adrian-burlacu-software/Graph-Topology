@@ -296,6 +296,13 @@ It is detectable without touching v687: **the predicate the verdict cites
 shares no word with what the question asked about.** The loop reports it, and
 the trust reads *reached on a different predicate*.
 
+A plural is not a different predicate, though, and `do mice have tails` on
+`has a short tail` was filed as one -- a complaint about the letter `s`. So a
+word and its singular count as shared, but only where the cited predicate
+frames it as the question does: `does a boat have sails` rests on `can sail`,
+which is a boat that can sail and not a boat with a sail, and that is the
+case this exists for.
+
 The same fault is why the generated habitat questions carry no verb of their
 own. `is a dog on the ground` agrees with the feature norms on every animal
 tested; `does a dog live on the ground` agrees on three of five.

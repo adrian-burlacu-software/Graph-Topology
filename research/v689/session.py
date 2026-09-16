@@ -95,6 +95,14 @@ WORD = {"verified": "yes", "denied": "no"}
 #: v687's verdicts, as v688's readings.
 OUTCOME = {"VERIFIED": "verified", "CONTRADICTED": "denied"}
 
+#: What v688 says of a headline its own run argued against (`loop.trust`).
+#: Not every misgiving: a generic that holds with exceptions still holds,
+#: and a doubt about the sense or the predicate is a caveat on an answer
+#: rather than the run refusing it.
+AGAINST = frozenset({"not supported by the rest of the store",
+                     "contradicted by its own family",
+                     "its own evidence says the opposite"})
+
 #: A question's auxiliary, denied: what `why can't it fly` asks of its kind.
 DENIAL = {"can": "can't", "could": "couldn't", "does": "doesn't",
           "do": "don't", "did": "didn't", "is": "isn't", "are": "aren't",
@@ -118,12 +126,21 @@ def summary_of(run: dict | None) -> tuple[str, str, str]:
     headline = lines[0] if lines else ""
     trust = summary.get("trust") or ""
     content = summary.get("content") or {}
+    outcome = summary.get("outcome") or "unknown"
+    # v688 prices an overturned headline down but leaves the word it came
+    # under alone (`confidence.of_run`), so the summary can say `verified`
+    # over lines reading `NOT SUPPORTED — … the rest of the store does not
+    # bear it out`. Said back as a yes, that is the page answering “yes,
+    # penguins do fly” off a run whose whole argument was that they do not.
+    # Nothing is settled there, and unknown is what v689 has for that.
+    if outcome in WORD and trust in AGAINST:
+        outcome = "unknown"
     if content.get("text") and content.get("answers"):
         headline, trust = content["text"], ""
     elif content.get("text"):
         headline = (f"{headline} — {content['text']}" if headline
                     else content["text"])
-    return summary.get("outcome") or "unknown", headline, trust
+    return outcome, headline, trust
 
 
 def be(referent: Referent) -> str:

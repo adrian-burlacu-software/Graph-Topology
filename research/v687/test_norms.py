@@ -613,5 +613,37 @@ class ProfileRoutingTests(unittest.TestCase):
             self.assertIsNone(self.profiles.route(question), question)
 
 
+class TailTests(unittest.TestCase):
+    """What the norms are asked, once the subject is taken out of the
+    question."""
+
+    def test_an_irregular_plural_subject_is_not_left_as_a_property(self):
+        """`_tail` knew `mouse`, `mouses` and `mouseses`, so `mice` stayed in
+        and became a property to test: `do mice fly` was denied by scoring
+        (“mice” and “fly”) as two claims -- the right answer, off a reading
+        of the question that never happened. The name is found by
+        singularising the subject, so it is dropped the same way."""
+        for question, name, tail in (
+                ("do mice fly", "mouse", "fly"),
+                ("do mice swim", "mouse", "swim"),
+                ("do mice have tails", "mouse", "have tails"),
+                ("do geese fly", "goose", "fly"),
+                ("do wolves howl", "wolf", "howl"),
+                # The regular plurals `_tail` always handled.
+                ("do cows fly", "cow", "fly"),
+                ("do pigs fly", "pig", "fly"),
+                ("is a blue whale furry", "blue whale", "a furry")):
+            with self.subTest(question=question):
+                self.assertEqual(IdentifyingEngine._tail(question, name)
+                                 .split(), tail.split())
+
+    def test_a_connective_survives_the_subject_coming_out(self):
+        """`route` strips connectives as noise; `_tail` must not, or a
+        conjunction becomes two unrelated properties."""
+        self.assertEqual(
+            IdentifyingEngine._tail("do mice fly and swim", "mouse").split(),
+            ["fly", "and", "swim"])
+
+
 if __name__ == "__main__":
     unittest.main()

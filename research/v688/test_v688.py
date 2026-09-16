@@ -153,6 +153,37 @@ class GapReadingTests(unittest.TestCase):
         self.assertEqual(payload["verdict"], "VERIFIED")
         self.assertEqual(gap.read_doubts(payload), [])
 
+    def test_a_plural_is_not_a_different_predicate(self):
+        """`do mice have tails` rests on the norms' `has a short tail` and was
+        filed as reached on a different predicate -- a complaint about the
+        letter `s`.
+
+        The boat is the case the detector exists for and has to keep firing:
+        `does a boat have sails` is VERIFIED on `can sail`, which is a boat
+        that can sail rather than a boat with a sail. Same stem, different
+        claim, and the frame is what tells them apart.
+        """
+        tails = POOL.engines[0].ask("do mice have tails")
+        self.assertEqual(tails["verdict"], "VERIFIED")
+        self.assertIsNone(gap.off_target(tails))
+        sails = POOL.engines[0].ask("does a boat have sails")
+        self.assertEqual(sails["verdict"], "VERIFIED")
+        self.assertIsNotNone(gap.off_target(sails))
+
+        # The rule itself, so it stays pinned if the store's wording moves.
+        for question, target, note, doubted in (
+                ("do mice have tails", "tails",
+                 "The norms state “has a short tail” of mouse.", False),
+                ("does a boat have sails", "sails",
+                 "The norms state “can sail” of boat.", True),
+                ("does a dog live on the ground", "live",
+                 "The norms state “lives in kennels” of dog.", True)):
+            with self.subTest(question=question):
+                found = gap.off_target(
+                    {"question": question, "note": note,
+                     "parse": {"target": target, "relation": "verify"}})
+                self.assertEqual(found is not None, doubted)
+
     def test_the_relation_to_re_ask_under_comes_from_the_evidence(self):
         """`is a dog wild` routes as is_a and rests on a has_property fact;
         re-asking under the route produced `is a collie a wild`."""

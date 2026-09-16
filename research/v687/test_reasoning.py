@@ -844,6 +844,21 @@ class AnswerAuditTests(unittest.TestCase):
             with self.subTest(question=question):
                 self.assertEqual(self.verdict(question), "CONTRADICTED")
 
+    def test_an_irregular_plural_is_read_as_the_subject_not_a_property(self):
+        """`do mice fly` was CONTRADICTED -- the right answer, reached by
+        scoring (“mice” and “fly”) as two claims and failing one. `_tail`
+        took out `mouse`/`mouses`/`mouseses`, so `mice` stayed in the
+        question as a property to test. The verdict is no evidence either
+        way here, so what is asserted is that the question was read whole.
+        """
+        for question, target in (("do mice fly", "fly"),
+                                 ("do mice swim", "swim"),
+                                 ("do geese fly", "fly")):
+            with self.subTest(question=question):
+                payload = self.engine.ask(question)
+                self.assertEqual(payload["parse"]["target"], target)
+                self.assertNotIn("(“", payload["note"] or "")
+
     def test_a_bare_noun_predicate_is_a_class(self):
         self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
 

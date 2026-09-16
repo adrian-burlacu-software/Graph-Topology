@@ -871,6 +871,33 @@ class ContentTests(unittest.TestCase):
                                    "3 do not: chicken, emu, penguin")
 
 
+class TrustTests(unittest.TestCase):
+    """A headline the run's own argument went against is not an answer."""
+
+    NOT_SUPPORTED = {"summary": {
+        "outcome": "verified",
+        "trust": "not supported by the rest of the store",
+        "lines": ["NOT SUPPORTED — can a dog fly. v687 answers "
+                  "VERIFIED, and the rest of the store does not bear "
+                  "it out."]}}
+
+    def test_a_verdict_the_store_does_not_bear_out_is_not_a_yes(self):
+        _, turns, _ = talk("can a dog fly",
+                           outcomes={"can a dog fly": self.NOT_SUPPORTED})
+        self.assertEqual(turns[0].answer["outcome"], "unknown")
+        self.assertIn("NOT SUPPORTED", turns[0].answer["text"])
+
+    def test_a_caveat_on_an_answer_leaves_it_answered(self):
+        from research.v689.session import summary_of
+
+        for trust in ("holds, with exceptions in its family", "weakly held",
+                      "about a different sense of the word"):
+            with self.subTest(trust=trust):
+                run = {"summary": {"outcome": "verified", "trust": trust,
+                                   "lines": ["VERIFIED — can a bird fly"]}}
+                self.assertEqual(summary_of(run)[0], "verified")
+
+
 class WhyTests(unittest.TestCase):
     """What a yes or no rests on: the walk for one individual, v688 for a
     kind."""

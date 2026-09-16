@@ -21,6 +21,7 @@ different questions, which is the whole reason for separating them.
 """
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 
@@ -296,6 +297,18 @@ def off_target(payload: dict) -> Doubt | None:
             continue
         if wanted & words:
             return None
+        # A plural is not a different predicate. `do mice have tails` rests
+        # on the norms' `has a short tail` and was filed as reached
+        # elsewhere, which is a complaint about the letter `s`.
+        #
+        # Only where the cited predicate frames the word as the question
+        # does. `does a boat have sails` rests on `can sail`, which is a boat
+        # that can sail and not a boat with a sail: same stem, different
+        # claim, and that one is the case this detector exists for.
+        if (_frame(phrase) == _frame(payload.get("question") or "")
+                and {_base(word) for word in wanted}
+                & {_base(word) for word in words}):
+            return None
         return Doubt(
             "off_target", payload.get("question") or "",
             payload.get("concept") or "", phrase,
@@ -312,6 +325,41 @@ FRAME_WORDS = frozenset("""
 a an the of in on at to for is are was were be been do does did have has had
 can could will would made make making live lives living found find its their
 """.split())
+
+#: What a predicate claims of the word it carries. `do` is not one of them:
+#: `do mice have tails` and `does a boat have sails` both open with it, and
+#: the claim each makes is in `have`.
+FRAMES = {"have": "has", "has": "has", "had": "has",
+          "can": "can", "could": "can", "will": "can", "would": "can",
+          "is": "is", "are": "is", "was": "is", "were": "is",
+          "be": "is", "been": "is",
+          "made": "made", "make": "made", "making": "made",
+          "live": "live", "lives": "live", "living": "live"}
+
+
+def _frame(text: str) -> str:
+    """Which of those claims a phrase makes, or "" where it makes none."""
+    for word in re.findall(r"[a-z]+", (text or "").lower()):
+        if word in FRAMES:
+            return FRAMES[word]
+    return ""
+
+
+@functools.lru_cache(maxsize=4096)
+def _base(word: str) -> str:
+    """A word with its plural taken off, where WordNet knows one.
+
+    The twin of v687's `Profiles._singular`, and a copy rather than an import
+    on purpose: this module reads a payload and nothing else, which is what
+    lets it be tested without a store.
+    """
+    from nltk.corpus import wordnet
+
+    found = wordnet.morphy(word, wordnet.NOUN) or word
+    # WordNet gives `cows` back as it is, while `pigs` is `pig`.
+    if found == word and word.endswith("s") and len(word) > 3:
+        return word[:-1]
+    return found
 
 
 def read_doubts(payload: dict, question: str = "") -> list[Doubt]:
