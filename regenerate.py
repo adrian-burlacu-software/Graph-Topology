@@ -283,6 +283,131 @@ def _genericskb_check() -> str | None:
     return f"{len(found)} parquet" if found else None
 
 
+#: `data/` also holds directories nothing reads any more: stepgame, tomi,
+#: propara-leaderboard, ubuntu, ubuntu-ranking-dataset-creator, UD_GUM,
+#: WordNet, propbank-frames-3.1. Each was searched for across `research/`
+#: and `ingestion/` and has no reference at all (`dbpedia` appears only as
+#: relation *names* in `normalize.py`, never as a file). They are named here
+#: rather than quietly omitted: a step list that silently lacks something is
+#: the failure this whole file exists to prevent.
+ABANDONED = ("stepgame", "tomi", "propara-leaderboard", "ubuntu",
+             "ubuntu-ranking-dataset-creator", "UD_GUM", "WordNet",
+             "propbank-frames-3.1", "dbpedia")
+
+
+def _wiktionary_make() -> None:
+    """English noun senses, flattened out of kaikki's raw extract.
+
+    `learn_wiktionary.usable` wants one flat row per sense -- `word`,
+    `gloss`, `tags` -- while upstream is one object per (word, part of
+    speech) with glosses nested under `senses`. The script that first did
+    this was never committed, which is why the file could not be rebuilt.
+    """
+    import gzip
+
+    url = "https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz"
+    out = DATA / "wiktionary" / "english-nouns.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    print(f"    streaming {url} (2.7 GB gzipped)", flush=True)
+    request = urllib.request.Request(url, headers={"User-Agent": "curl/8"})
+    kept = read = 0
+    started = time.time()
+    with urllib.request.urlopen(request, timeout=1800) as response, \
+            out.open("w", encoding="utf-8") as sink:
+        for line in gzip.GzipFile(fileobj=response):
+            read += 1
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get("lang_code") != "en" or row.get("pos") != "noun":
+                continue
+            word = row.get("word") or ""
+            for sense in row.get("senses") or ():
+                glosses = sense.get("glosses") or ()
+                if not glosses:
+                    continue
+                sink.write(json.dumps({
+                    "word": word,
+                    "gloss": glosses[0],
+                    # absent on many senses; `usable` reads it as a set
+                    "tags": sense.get("tags") or []}) + "\n")
+                kept += 1
+            if read % 500_000 == 0:
+                print(f"    {read:,} read, {kept:,} senses kept, "
+                      f"{time.time() - started:.0f}s", flush=True)
+    print(f"    {read:,} rows read, {kept:,} noun senses kept", flush=True)
+
+
+def _wiktionary_check() -> str | None:
+    out = DATA / "wiktionary" / "english-nouns.jsonl"
+    if not out.exists():
+        return None
+    rows = _lines(out)
+    # English Wiktionary has hundreds of thousands of noun senses; a far
+    # smaller file means the stream was cut off partway.
+    if rows < 100_000:
+        raise Failed(f"{rows} senses: the kaikki stream was truncated. "
+                     f"Delete the file and regenerate.")
+    return f"{rows} noun senses"
+
+
+def _wikipedia_check() -> str | None:
+    out = DATA / "wikipedia" / "intros.jsonl"
+    if not out.exists():
+        return None
+    return f"{_lines(out)} article intros"
+
+
+def _oewn_make() -> None:
+    _get("https://github.com/globalwordnet/english-wordnet/releases/download/"
+         "2025-edition/english-wordnet-2025-json.zip",
+         DATA / "oewn" / "english-wordnet-2025-json.zip",
+         "english-wordnet-2025-json.zip (9.5 MB)")
+
+
+def _memory_check(path: Path, glosses: int, defined: int
+                  ) -> Callable[[], str | None]:
+    """A definitions memory, against what it held on 2026-09-16.
+
+    Floors, not equalities: these are written by reading glosses with
+    v689's own reader, and a rebuild reads with `reader-first` rather than
+    the reader that wrote them, so some rows move. Far fewer means the run
+    stopped partway -- and a run that stopped partway still leaves a
+    perfectly openable database, which is why existence proves nothing.
+    """
+    def check() -> str | None:
+        if not path.exists():
+            return None
+        import sqlite3
+
+        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            counts = {name: connection.execute(
+                f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+                for name in ("glosses", "defined")}
+        finally:
+            connection.close()
+        if counts["glosses"] < glosses * 0.8:
+            raise Failed(f"{path.name}: {counts['glosses']} glosses against "
+                         f"{glosses} on 2026-09-16 -- a partial run")
+        return f"{counts['glosses']} glosses, {counts['defined']} defined"
+    return check
+
+
+def _oewn_check() -> str | None:
+    # `ingestion/oewn.py:34` opens this exact name and reads it in place.
+    archive = DATA / "oewn" / "english-wordnet-2025-json.zip"
+    if not archive.exists():
+        return None
+    try:
+        with zipfile.ZipFile(archive) as zipped:
+            names = zipped.namelist()
+    except zipfile.BadZipFile as bad:
+        raise Failed(f"oewn archive is not a zip: {bad}") from bad
+    return f"{len(names)} files, {archive.stat().st_size // 1024 ** 2} MB"
+
+
 def _store_check() -> str | None:
     from research.v687 import build
     if not build.DEFAULT_STORE.exists():
@@ -430,21 +555,45 @@ def _replies_check() -> str | None:
     from research.v690.teach_decoder import REPLIES
     if not REPLIES.exists():
         return None
-    return f"{_lines(REPLIES)} replies"
+    rows = _lines(REPLIES)
+    # SmolLM3 writes a few replies for each of ~14,000 messages and appends
+    # as it goes, so a file that exists proves only that the run started.
+    # Without this floor a run in progress reports as done -- caught with
+    # forty-eight replies in the file, which `label` would have taken and
+    # trained a decoder and a reader on.
+    if rows < 10_000:
+        raise Failed(f"{rows} replies: the run is unfinished or was stopped "
+                     f"(~14,000 messages, a few replies each). It appends, "
+                     f"so let it finish, or delete "
+                     f"llm/decoder-data/replies.jsonl and start again.")
+    return f"{rows} replies"
 
 
 def _label_check() -> str | None:
     found = list((LLM / "reader-data").glob("*-reply.jsonl"))
     if not found:
         return None
-    return f"{sum(_lines(path) for path in found)} labelled replies"
+    rows = sum(_lines(path) for path in found)
+    # DESIGN.md:563 -- 12,389 messages read back, after the narration check
+    # dropped 93 of the 12,482 that decoder v3 was taught on.
+    if rows < 8_000:
+        raise Failed(f"{rows} labelled replies against a documented 12,389: "
+                     f"a partial run, or `replies` was incomplete when this "
+                     f"read it")
+    return f"{rows} labelled replies (documented 12,389)"
 
 
 def _screened_check() -> str | None:
     path = DATA / "xcslb" / "comps_screened.jsonl"
     if not path.exists():
         return None
-    return f"{_lines(path)} screened pairs"
+    rows = _lines(path)
+    # `data/xcslb.SOURCE.md` -- 20,925 of the 49,340 pairs kept, because a
+    # calibrated judge denied the foil.
+    if rows < 15_000:
+        raise Failed(f"{rows} screened pairs against a documented 20,925: "
+                     f"a partial run")
+    return f"{rows} screened pairs (documented 20,925)"
 
 
 def steps() -> list[Step]:
@@ -467,6 +616,36 @@ def steps() -> list[Step]:
              _babi_make, _babi_check, cost="seconds"),
         Step("genericskb", "GenericsKB-Best (39 MB)",
              _genericskb_make, _genericskb_check, cost="a minute"),
+
+        # -- what the ingestion memories are read from ----------------------
+        # `state/` survived the 2026-09-16 deletion, so these are usually
+        # already present; they are here because the memories cannot be
+        # rebuilt without them.
+        Step("wiktionary", "English noun senses, flattened out of kaikki",
+             _wiktionary_make, _wiktionary_check, cost="30 minutes, 2.7 GB"),
+        Step("wikipedia", "article intros, from the live MediaWiki API",
+             lambda: _run("ingestion.wikipedia"), _wikipedia_check,
+             cost="an hour (it sleeps between batches)"),
+        Step("oewn", "Open English WordNet 2025, the changed definitions",
+             _oewn_make, _oewn_check, cost="a minute"),
+
+        # -- the taught memories in `state/` --------------------------------
+        # Read with v689's own reader, so they come after `reader-first`.
+        Step("definitions-memory", "WordNet glosses read into facts",
+             lambda: _run("research.v689.learn_definitions", "read",
+                          reader=LLM / "reader-first"),
+             _memory_check(STATE / "v689-definitions.sqlite", 82116, 69419),
+             needs=("store", "reader-first"), cost="an hour"),
+        Step("wiktionary-memory", "Wiktionary senses matched to one synset",
+             lambda: _run("research.v689.learn_wiktionary", "read",
+                          reader=LLM / "reader-first"),
+             _memory_check(STATE / "v689-wiktionary.sqlite", 21941, 16918),
+             needs=("wiktionary", "store", "reader-first"), cost="an hour"),
+        Step("articles-memory", "Wikipedia leads read into facts",
+             lambda: _run("research.v689.articles", "read",
+                          reader=LLM / "reader-first"),
+             _memory_check(STATE / "v689-articles.sqlite", 485, 803),
+             needs=("wikipedia", "store", "reader-first"), cost="20 minutes"),
 
         # -- the store ------------------------------------------------------
         Step("store", "the reasoning store, built from v633 + Ascent++",
@@ -523,6 +702,39 @@ def steps() -> list[Step]:
     ]
 
 
+def _ordered(known: dict, wanted: set) -> list[str]:
+    """`wanted`, in an order where every step follows what it needs.
+
+    The declared `needs` decide this, not where a step sits in the list.
+    Hand-ordering put the taught memories beside the corpora they are read
+    from, which reads well and is wrong: they need the store and a reader,
+    both declared far below them, so a run from empty attempted them first.
+    """
+    out: list[str] = []
+    done: set[str] = set()
+    open_: set[str] = set()
+
+    def visit(name: str, path: tuple[str, ...]) -> None:
+        if name in done:
+            return
+        if name in open_:
+            raise Failed("steps need each other in a circle: "
+                         + " -> ".join(path + (name,)))
+        open_.add(name)
+        for need in known[name].needs:
+            if need not in known:
+                raise Failed(f"{name} needs {need!r}, which is not a step")
+            visit(need, path + (name,))
+        open_.discard(name)
+        done.add(name)
+        if name in wanted:
+            out.append(name)
+
+    for name in known:
+        visit(name, ())
+    return out
+
+
 def main(argv=None) -> int:
     known = {step.name: step for step in steps()}
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -541,16 +753,16 @@ def main(argv=None) -> int:
         if name not in known:
             parser.error(f"no step {name!r}; try --list")
 
-    wanted = list(known)
+    wanted = set(known)
     if options.only:
-        wanted, queue = [], list(options.only)
+        wanted, queue = set(), list(options.only)
         while queue:
             name = queue.pop()
             if name in wanted:
                 continue
-            wanted.append(name)
+            wanted.add(name)
             queue.extend(known[name].needs)
-        wanted = [name for name in known if name in wanted]
+    wanted = _ordered(known, wanted)
 
     if options.list:
         for name in known:
