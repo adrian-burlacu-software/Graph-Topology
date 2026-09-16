@@ -609,17 +609,17 @@ def _replies_check() -> str | None:
     if not REPLIES.exists():
         return None
     rows = _lines(REPLIES)
-    # SmolLM3 writes a few replies for each of ~14,000 messages and appends
-    # as it goes, so a file that exists proves only that the run started.
-    # Without this floor a run in progress reports as done -- caught with
-    # forty-eight replies in the file, which `label` would have taken and
-    # trained a decoder and a reader on.
-    if rows < 10_000:
-        raise Failed(f"{rows} replies: the run is unfinished or was stopped "
-                     f"(~14,000 messages, a few replies each). It appends, "
-                     f"so let it finish, or delete "
+    # The teacher writes to a *stratified sample*, not to everything:
+    # `messages_from` applies `teach_decoder.CAPS` (noted and unknown 1,500,
+    # value 1,800, the rest uncapped), which is 6,728 of the 14,151. The
+    # other 7,423 are `bootstrap`'s, replied to by the decoder itself.
+    # A floor of 10,000 here would have rejected a correct run forever.
+    if rows < 6_000:
+        raise Failed(f"{rows} replies against a target of about 6,728 "
+                     f"(`teach_decoder.CAPS`): unfinished or stopped. It "
+                     f"appends, so let it finish, or delete "
                      f"llm/decoder-data/replies.jsonl and start again.")
-    return f"{rows} replies"
+    return f"{rows} replies (target ~6,728)"
 
 
 def _label_check() -> str | None:
@@ -647,6 +647,64 @@ def _screened_check() -> str | None:
         raise Failed(f"{rows} screened pairs against a documented 20,925: "
                      f"a partial run")
     return f"{rows} screened pairs (documented 20,925)"
+
+
+def _bootstrap_check() -> str | None:
+    from research.v690.teach_decoder import BOOTSTRAPPED
+    if not BOOTSTRAPPED.exists():
+        return None
+    rows = _lines(BOOTSTRAPPED)
+    # `bootstrap` passes `caps={}`, so it replies to every message -- the
+    # teacher's few thousand and the rest, about 14,151.
+    if rows < 8_000:
+        raise Failed(f"{rows} bootstrapped replies against about 14,151: "
+                     f"unfinished or stopped. It appends, so let it finish.")
+    return f"{rows} bootstrapped replies"
+
+
+def _social_check() -> str | None:
+    found = sorted((LLM / "reader-data").glob("*-social.jsonl"))
+    if not found:
+        return None
+    return f"{sum(_lines(path) for path in found)} social rows"
+
+
+def _newer(what: Path, than: Path) -> bool:
+    return what.stat().st_mtime > than.stat().st_mtime
+
+
+def _label_all_check() -> str | None:
+    """Labelled *after* the bootstrapped replies existed.
+
+    `label` writes the same files whether it read the teacher's replies
+    alone or both sets, so their presence cannot tell the two runs apart --
+    the first `label` would satisfy a check that only looked. What
+    distinguishes them is recency: the labels must be newer than the
+    bootstrapped replies they are supposed to include.
+    """
+    from research.v690.teach_decoder import BOOTSTRAPPED
+    found = list((LLM / "reader-data").glob("*-reply.jsonl"))
+    if not found or not BOOTSTRAPPED.exists():
+        return None
+    if not all(_newer(path, BOOTSTRAPPED) for path in found):
+        return None
+    return f"{sum(_lines(path) for path in found)} labelled, both sets"
+
+
+def _decoder_final_check() -> str | None:
+    """The decoder trained after the full corpus, not the first one.
+
+    Both trainings write `llm/decoder`, so the same recency argument as
+    `_label_all_check` applies: weights older than the labels they were
+    meant to learn from are the first decoder, not the last.
+    """
+    weights = LLM / "decoder" / "config.json"
+    found = list((LLM / "reader-data").glob("*-reply.jsonl"))
+    if not weights.exists() or not found:
+        return None
+    if not all(_newer(weights, path) for path in found):
+        return None
+    return _model_check(LLM / "decoder", 600)()
 
 
 def steps() -> list[Step]:
@@ -733,22 +791,52 @@ def steps() -> list[Step]:
              lambda: _run("research.v690.conversations",
                           reader=LLM / "reader-first"),
              _turns_check, needs=("reader-first",), cost="an hour"),
-        Step("replies", "SmolLM3 writing a reply to each message",
+        # The cycle, exactly as `v690/README.md` "How it is taught" runs it:
+        #   replies -> label -> decoder-first -> bootstrap -> label-all
+        #   -> reader-social -> reader -> decoder
+        # The teacher writes to a stratified sample only (`CAPS`), greedily
+        # and one reply a message (`--samples 1`, since `writer.write` takes
+        # `greedy=samples == 1`); the first decoder then replies to all
+        # 14,151 itself, and what traces is taught beside the teacher's.
+        # SmolLM3 wants the card to itself: the README measures 3.7 messages
+        # a second alone against 0.2 with a second model resident.
+        Step("replies", "SmolLM3 replying to a stratified sample",
              lambda: _run("research.v690.teach_decoder", "replies",
+                          "--samples", "1", "--batch", "12",
                           reader=LLM / "reader-first"),
              _replies_check, needs=("turns", "smollm3"),
-             cost="hours", gpu=True),
-        Step("label", "replies kept only where they read back",
+             cost="hours (6,728 messages)", gpu=True),
+        Step("label", "the teacher's replies, kept where they read back",
              lambda: _run("research.v690.teach_decoder", "label",
                           reader=LLM / "reader-first"),
              _label_check, needs=("replies",), cost="20 minutes"),
-        Step("decoder", "SmolLM2 fine-tuned to write the replies",
+        Step("decoder-first", "SmolLM2 taught on the teacher's replies",
              lambda: _run("research.v690.teach_decoder", "train"),
              _model_check(LLM / "decoder", 600),
              needs=("label", "smollm2"), cost="an hour", gpu=True),
+        Step("bootstrap", "the first decoder replying to every message",
+             lambda: _run("research.v690.teach_decoder", "bootstrap",
+                          "--samples", "4", "--batch", "24",
+                          reader=LLM / "reader-first"),
+             _bootstrap_check, needs=("decoder-first",),
+             cost="hours", gpu=True),
+        Step("label-all", "both sets of replies labelled together",
+             lambda: _run("research.v690.teach_decoder", "label",
+                          reader=LLM / "reader-first"),
+             _label_all_check, needs=("bootstrap",), cost="20 minutes"),
+        Step("reader-social", "the social acts, for the reader to learn",
+             lambda: _run("research.v689.teach_reader", "social",
+                          reader=LLM / "reader-first"),
+             _social_check, needs=("reader-corpus", "store", "reader-first"),
+             cost="a minute"),
         Step("reader", "the shipped reader, taught on the replies too",
              _reader_train(LLM / "reader"), _reader_check(LLM / "reader"),
-             needs=("label", "minilm"), cost="an hour", gpu=True),
+             needs=("label-all", "reader-social", "minilm"),
+             cost="an hour", gpu=True),
+        Step("decoder", "SmolLM2 taught again on everything that traces",
+             lambda: _run("research.v690.teach_decoder", "train"),
+             _decoder_final_check, needs=("label-all", "smollm2"),
+             cost="an hour", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
