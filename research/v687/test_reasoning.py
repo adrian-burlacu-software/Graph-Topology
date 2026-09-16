@@ -407,6 +407,24 @@ class SubjectDetectionTests(unittest.TestCase):
         """`large` is a lemma too; the phrase has to end on a noun."""
         self.assertEqual(self.subject("can a large dog fall"), "dog")
 
+    def test_a_noun_tagged_as_an_adjective_is_the_subject_to_the_cues(self):
+        """spaCy tags `goldfish`, `minnow` and `wemble` ADJ after an article,
+        and the cues stepped over them as modifiers: `can a goldfish walk on
+        land` was about walking, with `on` its verb. The cues teach the
+        encoder, so they are held to it here and not the encoder."""
+        for question, expected in (
+                ("can a goldfish walk on land",
+                 ("goldfish", "walk on land", None)),
+                ("is a minnow slimy", ("minnow", "slimy", None)),
+                ("can a large goldfish swim", ("goldfish", "swim", None)),
+                ("can a wemble fly", (None, None, "wemble"))):
+            with self.subTest(question=question):
+                cued = self.parser.cued(question)
+                self.assertEqual((cued.subject, cued.target, cued.unknown),
+                                 expected)
+        self.assertEqual(self.parser.cued("can a large dog fall").subject,
+                         "dog")
+
     def test_the_target_survives_a_multiword_subject(self):
         parse = self.parser.parse("can a fire truck move")
         self.assertEqual(parse.subject, "fire truck")
@@ -817,6 +835,29 @@ class AnswerAuditTests(unittest.TestCase):
                 payload = self.engine.ask(question)
                 self.assertEqual(payload["verdict"], "UNKNOWN_WORD")
                 self.assertIn(payload["parse"]["unknown"], question)
+
+    def test_an_animal_s_attributes_are_joined_to_the_animal(self):
+        """AwA2 says pigs do not fly, and `pig` was joined to `pig bed.n.01`,
+        a pigsty -- the row marked its primary sense -- so `do pigs fly` was
+        UNKNOWN beside a CONTRADICTED `do whales fly`."""
+        for question in ("do pigs fly", "can a pig fly", "do whales fly"):
+            with self.subTest(question=question):
+                self.assertEqual(self.verdict(question), "CONTRADICTED")
+
+    def test_an_irregular_plural_is_read_as_the_subject_not_a_property(self):
+        """`do mice fly` was CONTRADICTED -- the right answer, reached by
+        scoring (“mice” and “fly”) as two claims and failing one. `_tail`
+        took out `mouse`/`mouses`/`mouseses`, so `mice` stayed in the
+        question as a property to test. The verdict is no evidence either
+        way here, so what is asserted is that the question was read whole.
+        """
+        for question, target in (("do mice fly", "fly"),
+                                 ("do mice swim", "swim"),
+                                 ("do geese fly", "fly")):
+            with self.subTest(question=question):
+                payload = self.engine.ask(question)
+                self.assertEqual(payload["parse"]["target"], target)
+                self.assertNotIn("(“", payload["note"] or "")
 
     def test_a_bare_noun_predicate_is_a_class(self):
         self.assertEqual(self.verdict("is a chair furniture"), "VERIFIED")
@@ -1397,9 +1438,16 @@ class AnswerWordingTests(unittest.TestCase):
         claimed, nothing to truncate. So the truncation is exercised on a list
         that is still long.
         """
+        import re
+
+        # The count is read off the note rather than asserted: joining AwA2's
+        # pig, sheep and buffalo to the animals took it from 41 to 48.
         note = self.engine.ask("do all mammals fly")["note"]
-        self.assertIn("41 do not", note)
-        self.assertIn("more", note)
+        found = re.search(r"(\d+) do not: (.+?) and (\d+) more", note)
+        self.assertIsNotNone(found, note)
+        named = found.group(2).split(", ")
+        self.assertEqual(int(found.group(1)),
+                         len(named) + int(found.group(3)), note)
 
     def test_dropping_the_foils_left_the_flightless_birds_that_really_are(self):
         """The same question, as a record of what the change bought: seven
@@ -1494,7 +1542,9 @@ class OverAffirmationTests(unittest.TestCase):
         refusal on sharper evidence. What must hold is that R19 ran, that it
         refused, and that whatever class it names is one the concept actually
         belongs to."""
-        for question in ("do pigs fly", "does a cat lay eggs"):
+        # `do pigs fly` was the first example until AwA2's pig was joined to
+        # the animal rather than a pigsty: the norms deny it outright now.
+        for question in ("does a cat lay eggs", "do fish run"):
             with self.subTest(question=question):
                 answer = self.engine.ask(question)
                 self.assertEqual(answer["verdict"], "UNKNOWN")

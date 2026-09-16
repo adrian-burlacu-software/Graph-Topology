@@ -153,6 +153,37 @@ class GapReadingTests(unittest.TestCase):
         self.assertEqual(payload["verdict"], "VERIFIED")
         self.assertEqual(gap.read_doubts(payload), [])
 
+    def test_a_plural_is_not_a_different_predicate(self):
+        """`do mice have tails` rests on the norms' `has a short tail` and was
+        filed as reached on a different predicate -- a complaint about the
+        letter `s`.
+
+        The boat is the case the detector exists for and has to keep firing:
+        `does a boat have sails` is VERIFIED on `can sail`, which is a boat
+        that can sail rather than a boat with a sail. Same stem, different
+        claim, and the frame is what tells them apart.
+        """
+        tails = POOL.engines[0].ask("do mice have tails")
+        self.assertEqual(tails["verdict"], "VERIFIED")
+        self.assertIsNone(gap.off_target(tails))
+        sails = POOL.engines[0].ask("does a boat have sails")
+        self.assertEqual(sails["verdict"], "VERIFIED")
+        self.assertIsNotNone(gap.off_target(sails))
+
+        # The rule itself, so it stays pinned if the store's wording moves.
+        for question, target, note, doubted in (
+                ("do mice have tails", "tails",
+                 "The norms state “has a short tail” of mouse.", False),
+                ("does a boat have sails", "sails",
+                 "The norms state “can sail” of boat.", True),
+                ("does a dog live on the ground", "live",
+                 "The norms state “lives in kennels” of dog.", True)):
+            with self.subTest(question=question):
+                found = gap.off_target(
+                    {"question": question, "note": note,
+                     "parse": {"target": target, "relation": "verify"}})
+                self.assertEqual(found is not None, doubted)
+
     def test_the_relation_to_re_ask_under_comes_from_the_evidence(self):
         """`is a dog wild` routes as is_a and rests on a has_property fact;
         re-asking under the route produced `is a collie a wild`."""
@@ -782,11 +813,12 @@ class ExampleTests(unittest.TestCase):
         self.assertNotIn(" ", senses[0]["id"].split(".")[0])
 
     def test_a_fact_about_a_few_is_not_a_fact_about_the_class(self):
-        """`do pigs fly` rests on `mammal capable_of fly`, true of bats and
-        false of the other kinds the store knows. The shape is general: a
+        """`does a cat lay eggs` rests on `feline lay egg`, which none of the
+        kinds of feline the store knows bear out. The shape is general: a
         claim inherited from an ancestor that a minority of that ancestor's
-        own kinds bear out."""
-        found = run("do pigs fly")
+        own kinds bear out. (`do pigs fly` was this example until AwA2's pig
+        was joined to the animal, and the norms deny that one outright.)"""
+        found = run("does a cat lay eggs")
         self.assertEqual(found.summary["verdict"], "UNKNOWN")
         # R19 inside v687 is where this shape is caught now. The v688-level
         # version of it needed a conflict, and the two the page had were both
@@ -1035,8 +1067,8 @@ class ReadingTests(unittest.TestCase):
 
     def test_silence_carries_no_confidence(self):
         """A number beside `unknown` would be read as a weakly held claim,
-        and there is no claim. `do pigs fly` is not a faint yes."""
-        found = run("do pigs fly")
+        and there is no claim. `does a cat lay eggs` is not a faint yes."""
+        found = run("does a cat lay eggs")
         self.assertEqual(found.summary["outcome"], "unknown")
         self.assertEqual(found.summary["confidence"], 0.0)
 

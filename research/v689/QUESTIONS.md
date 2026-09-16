@@ -43,7 +43,8 @@ the code path that produced it.
    if`, and numbers or objects inside a yes/no question.
 5. **Some basic questions come back wrong** (last section): `can a bird fly` is
    headlined NOT SUPPORTED, `is water wet` is a yes about the verb, `do cats eat
-   mice` is a yes about meat.
+   mice` is a yes about meat. *(All three are fixed; the last section says how.
+   Read that section before treating any bullet here as still true.)*
 
 ## The catalogue
 
@@ -219,10 +220,13 @@ These work: `do wembles breathe` (asked of animal, yes); `penguins can swim` ·
 Not missing kinds of question, but wrong answers to questions the page claims
 to handle:
 
-- **`can a bird fly`** is headlined `NOT SUPPORTED — … the rest of the store
-  does not bear it out`, because 1 of the 5 kinds it was put to (chicken)
-  denies it. A generic with an exception is read as overturned, and the badge
-  beside it still says verified.
+- **`can a bird fly`** *(fixed)* was headlined `NOT SUPPORTED — … the rest of
+  the store does not bear it out`, because one of the kinds it was put to
+  (chicken) denies it: a generic with an exception read as overturned.
+  `Conflict.overturns` now wants half of those that decided to deny it, and
+  the run answers VERIFIED under `holds, with exceptions in its family`. A
+  trust that *does* say the run argued against its own headline is no longer
+  read as a yes either (`session.AGAINST`).
 - **`is water wet`**: VERIFIED as `is_a`, through `water.v.01`, WordNet's
   seventh sense -- the any-sense rule for taxonomy applied to a property.
 - **`do cats eat mice`, `does a cow eat grass`, `does a spider have eight

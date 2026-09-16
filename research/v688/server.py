@@ -50,9 +50,11 @@ EXAMPLES = [
               "fly`, five levels up, and R19 now refuses it: 1 of the 65 "
               "kinds of mammal the norms cover flies. The loop still asks "
               "what flying needs and puts it to the pig, and nothing says a "
-              "pig has wings either. Absent, not false — which is the "
-              "honest reading of a store that never recorded it.",
-     "expect": "absent, not false"},
+              "pig has wings either. That was absent, not false, until a "
+              "seventh bug: AwA2's pig was joined by name to the pigsty as "
+              "well, so the norms that score pigs as not flying were never "
+              "read. Joined to the animal, they deny it outright.",
+     "expect": "denied, unchallenged"},
 
     {"text": "is a mouse an animal",
      "shows": "This said **no** until 2026-09-09, correctly, about "

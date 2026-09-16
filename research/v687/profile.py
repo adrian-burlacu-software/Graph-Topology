@@ -37,6 +37,7 @@ ancestor that supplies it.
 """
 from __future__ import annotations
 
+import functools
 import os
 import re
 from dataclasses import dataclass, field
@@ -190,6 +191,15 @@ SHARPEST = not os.environ.get("V687_ATTACHED_CORROBORATION")
 #: however true it is of each of them. The refusal is the rule working, not
 #: the rule failing, and the page cards now say so.
 DENSE_WITNESSES = not os.environ.get("V687_SPARSE_WITNESSES")
+
+#: Set `V687_SILENT_KINDS_COUNT=1` to count, in R19's denominator, a kind that
+#: nothing could have asked about the term (`Profiles.asked`), the way every
+#: kind was counted before AwA2's classes were joined to animals.
+SILENT_KINDS_COUNT = bool(os.environ.get("V687_SILENT_KINDS_COUNT"))
+
+#: Set `V687_WHOLE_NAMES=1` to route a question to the norms only by a name
+#: said whole, the way `do pigs fly` was routed before `Profiles._singular`.
+WHOLE_NAMES = bool(os.environ.get("V687_WHOLE_NAMES"))
 
 #: Words that carry no property in a question about a named thing.
 ASIDE = frozenset("""
@@ -404,6 +414,11 @@ class Profiles:
         self.denied: dict[str, frozenset[str]] = {}
         for name, properties in corpora.denied_awa2().items():
             self.denied[name] = self.denied.get(name, frozenset()) | properties
+        # Every attribute AwA2 scored: all a class it alone describes can
+        # speak to (`asked`).
+        self.awa2_terms: frozenset[str] = frozenset().union(
+            *self.denied.values(),
+            *(predicates for _, predicates in corpora.load_awa2().items))
 
         # R19's evidence, and nothing else's. Model-distilled, so it is held
         # apart from `stated` rather than merged into it -- see
@@ -717,15 +732,37 @@ class Profiles:
         distillation adds properties to concepts the norms already cover and
         does not introduce new kinds. That keeps the change to one term of
         one ratio, which is what makes the ablation clean.
+
+        A kind counts only where it could have borne the term out (`asked`).
         """
         kinds = [name for name, above in self._lineage().items()
-                 if ancestor in above and self.stated.get(name)]
+                 if ancestor in above and self.stated.get(name)
+                 and Profiles.asked(self, name, term)]
         bearing = sum(1 for name in kinds
                       if self.bears(term, self.stated[name])
                       or self.bears(term, self.distilled.get(name,
                                                              frozenset())))
         extra, borne = self.witnesses(ancestor, term)
         return bearing + borne, len(kinds) + extra
+
+    def asked(self, name: str, term: str) -> bool:
+        """Could anything have told R19 whether this kind bears the term out?
+
+        A kind counts against a fact it does not bear out, which is fair only
+        where it could have. XCSLB's kinds count as they always did, and so
+        does a kind the distillation asked (`distilled`). A class that only
+        AwA2 describes and nothing distilled was scored on 85 attributes and on
+        nothing else, so a term that is none of them was never put to it.
+        `chihuahua` was joined to the Mexican state until AwA2's classes were
+        joined to animals, so it was never distilled, and counted as a dog it
+        took `does a beagle breathe` from 8 of 13 to 8 of 14 -- under the
+        floor, on a question nobody asked it.
+        """
+        if SILENT_KINDS_COUNT or getattr(self, "origin", {}).get(name) \
+                != "awa2" or name in self.distilled:
+            return True
+        return (self.bears(term, self.stated.get(name, frozenset()))
+                or self.bears(term, self.awa2_terms))
 
     def bears(self, term: str, predicates) -> bool:
         """Does one kind bear a term out? `_hit`, but for terms of any length.
@@ -1405,4 +1442,41 @@ class Profiles:
                 continue
             if re.search(r"\b" + re.escape(name) + r"\b", text):
                 best = name
+        if best is None and not WHOLE_NAMES:
+            best = self._plural_subject(text)
         return best
+
+    #: How many of a question's own words its subject may take.
+    SUBJECT_WORDS = 3
+
+    def _plural_subject(self, text: str) -> str | None:
+        """A name said in the plural where the subject is. `do pigs fly`
+        names `pig`, and found only as a whole word it went past the norms,
+        which deny it, to one crawled sentence about mammals -- while `can a
+        pig fly` was denied. Only at the subject: read anywhere, `do cats eat
+        mice` was about mice and `does a fish have legs` about legs."""
+        words = [word for word in re.findall(r"[a-z]+", text)
+                 if word not in ASIDE]
+        head = self._singular(" ".join(words[:self.SUBJECT_WORDS]))
+        best: str | None = None
+        for name in self.stated:
+            if (best is None or len(name) > len(best)) and re.match(
+                    re.escape(name) + r"\b", head):
+                best = name
+        return best
+
+    @staticmethod
+    @functools.lru_cache(maxsize=4096)
+    def _singular(text: str) -> str:
+        """The question with each word a noun's base form where WordNet has
+        one: `do mice have tails` is `do mouse have tail`."""
+        from nltk.corpus import wordnet
+
+        def base(word: str) -> str:
+            found = wordnet.morphy(word, wordnet.NOUN) or word
+            # WordNet gives `cows` back as it is, while `pigs` is `pig`.
+            if found == word and word.endswith("s") and len(word) > 3:
+                return word[:-1]
+            return found
+
+        return " ".join(base(word) for word in text.split())

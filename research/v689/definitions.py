@@ -884,6 +884,22 @@ class DefinitionMemory:
                           for relation, obj, rule, checked, confidence
                           in facts]}
 
+    def recent(self, limit: int = 40, like: str = "") -> list[dict]:
+        """The definitions read most lately, or those whose concept or gloss
+        has `like` in it: each with its genus and how many facts were read
+        out of it."""
+        pattern = f"%{like.strip().lower()}%" if like.strip() else "%"
+        with self.lock:
+            rows = self.connection.execute(
+                "SELECT g.concept, g.gloss, g.genus, g.how, g.learned, "
+                "(SELECT count(*) FROM defined d WHERE d.concept = g.concept)"
+                " FROM glosses g WHERE g.concept LIKE ? OR g.gloss LIKE ? "
+                "ORDER BY g.learned DESC LIMIT ?",
+                (pattern, pattern, int(limit))).fetchall()
+        return [{"concept": concept, "gloss": gloss, "genus": genus,
+                 "how": how, "learned": learned, "facts": facts}
+                for concept, gloss, genus, how, learned, facts in rows]
+
     def summary(self) -> dict:
         with self.lock:
             glosses = self.connection.execute(

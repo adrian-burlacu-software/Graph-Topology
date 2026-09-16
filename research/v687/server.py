@@ -236,6 +236,16 @@ class IdentifyingEngine(BridgedEngine):
         # `is used to kill whales`.
         for form in (name, name + "s", name + "es"):
             text = re.sub(r"\b" + re.escape(form) + r"\b", " ", text)
+        # An irregular plural is not the name with a letter on the end:
+        # `mice` is `mouse`, `geese` is `goose`, `wolves` is `wolf`. The name
+        # was *found* by singularising the subject (`Profiles._plural_subject`),
+        # so it is dropped the same way. Left in, it stays as a property to
+        # test: `do mice fly` was scored as (“mice” and “fly”) and denied --
+        # the right answer, reached on a reading of the question that never
+        # happened.
+        if " " not in name:
+            text = " ".join(word for word in text.split()
+                            if profile.Profiles._singular(word) != name)
         return text
 
     def _payload(self, question: str, mode: str, found) -> dict:

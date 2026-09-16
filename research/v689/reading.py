@@ -249,6 +249,10 @@ class Reading:
     #: what a question asks, as goals (`grammar.py`), in the order they are
     #: tried: the goal read as slots, then the one its own words' cell states
     goals: list = field(default_factory=list)
+    #: how the encoder heard it (`read`): what a request asked, the words
+    #: placed in normal form, who is new, the acts it thought likeliest --
+    #: for the page, never compared
+    heard: dict = field(default_factory=dict)
 
     @property
     def cells(self) -> list[tuple]:
@@ -514,19 +518,23 @@ def naming(tokens: list[str], typed: list[str], lexicon,
     return None
 
 
-def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
+def bare_kind(tokens: list[str], at: int, lexicon,
+              final_ok: bool = False) -> Mention | None:
     """A kind named with nothing v687 can place: `can a wemble fly`, `do
     wembles fly`.
 
     v687's parser reads `can a wemble fly` as being about `fly`, because
     `wemble` is not a word it has. One word after an article, or a plural
     with none, is taken as the kind, and the rest is what is asked of it.
+    With `final_ok` nothing need be asked of it: `what about whales` names
+    the kind the last question is put to.
     """
-    if at >= len(tokens) - 1:
+    last = len(tokens) if final_ok else len(tokens) - 1
+    if at >= last:
         return None
     word = tokens[at]
     if word in ("a", "an"):
-        if at + 2 >= len(tokens):
+        if at + 2 > last:
             return None
         return Mention("kind", tokens[at + 1],
                        text=" ".join(tokens[at:at + 2]), end=at + 2)
@@ -534,7 +542,11 @@ def bare_kind(tokens: list[str], at: int, lexicon) -> Mention | None:
         return None
     lemma = lexicon.lemma(word)
     if lemma == word and not lexicon.known(word):
-        return None
+        # A plural the lemmatiser leaves alone: `and geese?`.
+        from nltk.corpus import wordnet
+        lemma = wordnet.morphy(word, wordnet.NOUN) or word
+        if lemma == word or not lexicon.known(lemma):
+            return None
     return Mention("kind", lemma, text=word, end=at + 1)
 
 
@@ -764,7 +776,14 @@ def grammar(said: str, asked, tokens: list[str], typed: list[str], lexicon,
     read by `grammar.py`, and the reading one of them states is the
     question's, unless `_read` reads the words as something else first."""
     from .grammar import propose
+    from .social import act_of
 
+    # `hello`, `thanks`, `what can you do`: said to be sociable, not to tell
+    # or ask anything (`social.py`) -- as said, before normal form left
+    # `later` off `talk to you later`.
+    sociable = act_of(tokens_of(said)[0]) or act_of(tokens)
+    if sociable:
+        return Reading(sociable, said=said)
     goals = propose(tokens, lexicon, names, said)
     stated = next((one.clause for one in goals if one.own), None)
     found = _read(said, asked, tokens, typed, lexicon, names, stated)
@@ -820,8 +839,21 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         # Quoted without the words that placed it, except `again`, without
         # which three barks read as one said three times.
         when.main = " ".join(list(main) + list(when.again_words))
-    found = reader.reading(tokens, lexicon, names, said, typed=typed)[0]
-    return _timed(found, placed.fresh, when)
+    found, guess = reader.reading(tokens, lexicon, names, said, typed=typed)
+    found = _timed(found, placed.fresh, when)
+    found.heard = {
+        "said": said, "asked": asked.text if asked.text != said else "",
+        "request": asked.note, "why": asked.why,
+        "placed": " ".join(typed), "fresh": sorted(placed.fresh),
+        "anchor": when.anchor, "relation": when.relation,
+        "time": list(when.words),
+        "acts": [[name, round(chance, 3)]
+                 for name, chance in (guess.acts[:3] if guess else [])],
+        "slots": [[name, round(chance, 3)]
+                  for name, chance in (guess.slots[:2] if guess else [])],
+        "roles": [[word, role] for word, role in
+                  zip(tokens, guess.stated if guess else [])]}
+    return found
 
 
 @dataclass
