@@ -411,7 +411,19 @@ def _turns_check() -> str | None:
     from research.v690.conversations import TURNS
     if not TURNS.exists():
         return None
-    return f"{_lines(TURNS)} turns"
+    turns = _lines(TURNS)
+    # DESIGN.md:549 -- 1,851 conversations, 16,427 turns, 14,042 distinct
+    # messages. That run was played with the reader that shipped then; this
+    # one is played with `reader-first`, so some answers differ and the
+    # count with them. Hence a floor and the documented figure beside it,
+    # rather than equality (which a healthy run would fail) or mere
+    # existence (which a truncated one would pass -- `conversations.run`
+    # appends to this file and skips what it already has).
+    if turns < 12_000:
+        raise Failed(f"{turns} turns against a documented 16,427: a partial "
+                     f"run. It appends, so delete llm/decoder-data/"
+                     f"turns.jsonl before regenerating.")
+    return f"{turns} turns (documented 16,427)"
 
 
 def _replies_check() -> str | None:
