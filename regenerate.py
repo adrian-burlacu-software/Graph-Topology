@@ -329,10 +329,24 @@ def _model_check(out: Path, least_mb: int) -> Callable[[], str | None]:
     return check
 
 
-def _run(module: str, *args: str) -> None:
+def _run(module: str, *args: str, reader: Path | None = None) -> None:
+    """`python -m module args`, optionally reading with a given checkpoint.
+
+    Anything that plays a conversation needs a reader, and resolves it
+    through `encoder.MODEL`, which is `llm/reader` unless
+    `V689_READER_MODEL` says otherwise. During a rebuild from empty there is
+    no `llm/reader` yet -- that is the last step of the cycle -- so the
+    steps before it must be told to read with `reader-first`.
+    """
+    import os
+
     command = [sys.executable, "-u", "-m", module, *args]
     print(f"    {' '.join(command[3:])}", flush=True)
-    result = subprocess.run(command, cwd=str(ROOT))
+    environment = dict(os.environ)
+    if reader is not None:
+        environment["V689_READER_MODEL"] = str(reader)
+        print(f"    reading with {reader.name}", flush=True)
+    result = subprocess.run(command, cwd=str(ROOT), env=environment)
     if result.returncode:
         raise Failed(f"{module} {' '.join(args)} exited {result.returncode}")
 
@@ -369,22 +383,26 @@ def _reader_check(out: Path) -> Callable[[], str | None]:
             return None
         # The real test is that it reads: a checkpoint that loads but parses
         # nothing is worse than none, because nothing else will notice.
-        import os
-        os.environ["V689_READER_MODEL"] = str(out)
-        from research.v687 import build
-        from research.v687.language import Parser
-        from research.v687.reason import Reasoner
-        reasoner = Reasoner(build.DEFAULT_STORE)
-        try:
-            parser = Parser(vocabulary=reasoner.vocabulary(),
-                            nouns=reasoner.noun_vocabulary())
-            parse = parser.parse("is a whale a fish")
-            if (parse.subject, parse.relation, parse.target) != (
-                    "whale", "is_a", "fish"):
-                raise Failed(f"{out.name} misreads `is a whale a fish`: "
-                             f"{parse.subject}/{parse.relation}/{parse.target}")
-        finally:
-            reasoner.connection.close()
+        # In a separate process, so that pointing the encoder at this
+        # checkpoint does not leak into every later step of the run -- the
+        # encoder caches the model it loaded, keyed by the path it saw.
+        script = ("import os, sys;"
+                  f"os.environ['V689_READER_MODEL']={str(out)!r};"
+                  "from research.v687 import build;"
+                  "from research.v687.language import Parser;"
+                  "from research.v687.reason import Reasoner;"
+                  "r=Reasoner(build.DEFAULT_STORE);"
+                  "p=Parser(vocabulary=r.vocabulary(),"
+                  " nouns=r.noun_vocabulary());"
+                  "q=p.parse('is a whale a fish');"
+                  "r.connection.close();"
+                  "print(q.subject, q.relation, q.target)")
+        result = subprocess.run([sys.executable, "-c", script], cwd=str(ROOT),
+                                capture_output=True, text=True)
+        read = (result.stdout or "").strip().splitlines()[-1:] or [""]
+        if read[0] != "whale is_a fish":
+            raise Failed(f"{out.name} misreads `is a whale a fish` as "
+                         f"{read[0]!r}: {(result.stderr or '')[-200:]}")
         return "reads `is a whale a fish` correctly"
     return check
 
@@ -466,14 +484,17 @@ def steps() -> list[Step]:
              _reader_check(LLM / "reader-first"),
              needs=("reader-corpus", "minilm"), cost="an hour", gpu=True),
         Step("turns", "conversations played through a working engine",
-             lambda: _run("research.v690.conversations"), _turns_check,
-             needs=("reader-first",), cost="an hour"),
+             lambda: _run("research.v690.conversations",
+                          reader=LLM / "reader-first"),
+             _turns_check, needs=("reader-first",), cost="an hour"),
         Step("replies", "SmolLM3 writing a reply to each message",
-             lambda: _run("research.v690.teach_decoder", "replies"),
+             lambda: _run("research.v690.teach_decoder", "replies",
+                          reader=LLM / "reader-first"),
              _replies_check, needs=("turns", "smollm3"),
              cost="hours", gpu=True),
         Step("label", "replies kept only where they read back",
-             lambda: _run("research.v690.teach_decoder", "label"),
+             lambda: _run("research.v690.teach_decoder", "label",
+                          reader=LLM / "reader-first"),
              _label_check, needs=("replies",), cost="20 minutes"),
         Step("decoder", "SmolLM2 fine-tuned to write the replies",
              lambda: _run("research.v690.teach_decoder", "train"),
