@@ -27,9 +27,14 @@ hs_err_pid*
 # Python cache files
 **/__pycache__/
 
-# LLM and Data files
+# LLM and Data files. `data/` is excluded by its *contents*, not as a
+# directory: an excluded directory is never descended into, so a later
+# negation cannot re-include anything inside it (git check-ignore names
+# the directory rule, not the file). Provenance must stay committed --
+# a SOURCE.md is the only reason a lost dataset can be fetched again.
 llm/
-data/
+data/*
+!data/*.SOURCE.md
 data/v684_genericskb.sqlite
 data/genericskb/*.parquet
 
@@ -38,3 +43,7 @@ state/
 
 # bAbI replies, kept so the scorer can read them again
 research/v689/babi-out/
+
+# Provenance travels with the data it documents. `data/` is not committed,
+# but how to get it back must be.
+!data/*.SOURCE.md

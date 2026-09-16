@@ -54,7 +54,7 @@ Full detail, every measurement, and an honest account of what does not work:
 | | |
 | --- | --- |
 | `research/v687/` | everything: the trie, the reasoner, the page, the tests |
-| `data/` | WordNet, ConceptNet, Ascent++, XCSLB, AwA2, Buchanan, with a `SOURCE.md` for each |
+| `data/` | WordNet, ConceptNet, Ascent++, XCSLB, AwA2, Buchanan, with a `SOURCE.md` for each. Not committed: regenerate with `python -m regenerate` |
 | `llm/` | a separate line of work |
 
 Earlier versions (v683–v686) were folded into v687, which is self-contained

@@ -1,0 +1,573 @@
+"""Rebuild everything the repository does not carry, with one command.
+
+    python -m regenerate                 # everything missing, in order
+    python -m regenerate --list          # what there is, and what is present
+    python -m regenerate --only awa2 babi
+    python -m regenerate --force reader  # rebuild even if it looks present
+    python -m regenerate --dry-run
+
+Nothing under `data/`, `llm/` or `state/` is committed: between them they are
+tens of gigabytes of downloaded corpora, trained checkpoints and taught
+memories. On 2026-09-16 all of `llm/` and 21 directories of `data/` were
+destroyed at once, and what made recovery possible was not a backup but the
+`SOURCE.md` beside each dataset. What made it *painful* was that the trained
+models and two of the corpora had no such path, and the pipeline that built
+the shipped reader existed only in a shell script that was never committed.
+
+So: every artefact this system needs is a `Step` below, and every step says
+how to make it, how to tell whether it is already there, and what it must
+contain when it is. A step that cannot verify its own result is not done.
+
+**Order matters, and it is a cycle.** The reader is read by every layer, and
+without `llm/reader` nothing parses at all (`research/encoder.py`). But the
+reader shipped in v690 was taught partly on the decoder's filtered replies,
+and those replies are played through a running engine -- which needs a
+reader. That is a two-pass cycle and it is written out as one:
+
+    reader-corpus -> reader-first -> turns -> replies -> label
+                  -> decoder -> reader        (taught on the replies too)
+
+`reader-first` is a working reader taught only by the rules (the
+`RELATION_CUES` table, via `language.taught_by_cues`); `reader` is the
+shipped one. Skipping straight to `reader` is not possible from empty.
+
+**Downloads are pinned to files, never to project pages.** Two traps found
+the hard way: osf.io needs a trailing slash or answers 308, and NEWTON is on
+`master` while COMPS is on `main` with its pair file one directory deeper
+than the rest.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.request
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+ROOT = Path(__file__).resolve().parent
+DATA = ROOT / "data"
+LLM = ROOT / "llm"
+STATE = ROOT / "state"
+
+#: Where nltk keeps its corpora. VerbNet 3.3 is already there as `verbnet3`,
+#: so it is copied rather than downloaded -- and WordNet lives here too,
+#: outside the repository, which is why the taxonomy survived the deletion.
+def _nltk_corpora() -> Path | None:
+    try:
+        import nltk
+    except ImportError:
+        return None
+    for base in nltk.data.path:
+        found = Path(base) / "corpora"
+        if found.is_dir():
+            return found
+    return None
+
+
+class Failed(Exception):
+    """A step ran but its result is not what it must be."""
+
+
+@dataclass
+class Step:
+    """One artefact: how to make it, and how to know it is really there.
+
+    `check` returns a short description when the artefact is present and
+    correct, and raises `Failed` when it is present but wrong. Returning
+    None means "not there yet". A step whose `check` only tests existence
+    is a step that will one day report success over an empty file --
+    `corpora.load_lvis_categories` swallows a missing file and returns `{}`,
+    which is how NEWTON's join silently fell to nothing.
+    """
+
+    name: str
+    what: str
+    make: Callable[[], None]
+    check: Callable[[], str | None]
+    needs: tuple[str, ...] = ()
+    #: minutes, very roughly, to say what a run is about to cost
+    cost: str = ""
+    gpu: bool = False
+
+
+# ---------------------------------------------------------------- fetching
+
+def _get(url: str, into: Path, note: str = "") -> Path:
+    into.parent.mkdir(parents=True, exist_ok=True)
+    print(f"    fetch {note or url}", flush=True)
+    request = urllib.request.Request(url, headers={"User-Agent": "curl/8"})
+    with urllib.request.urlopen(request, timeout=900) as response:
+        into.write_bytes(response.read())
+    return into
+
+
+def _lines(path: Path) -> int:
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        return sum(1 for _ in handle)
+
+
+def _count(loader: Callable[[], object], expected: int, name: str) -> str:
+    """Run a loader and insist on the documented count."""
+    got = len(loader())                                  # type: ignore[arg-type]
+    if got != expected:
+        raise Failed(f"{name}: {got}, documented {expected}")
+    return f"{got} {name}"
+
+
+# ------------------------------------------------------------------ steps
+
+def _awa2_make() -> None:
+    archive = _get("https://cvml.ista.ac.at/AwA2/AwA2-base.zip",
+                   DATA / "awa2" / "AwA2-base.zip", "AwA2-base.zip (32 KB)")
+    with zipfile.ZipFile(archive) as zipped:
+        zipped.extractall(DATA / "awa2")
+    archive.unlink()
+
+
+def _awa2_check() -> str | None:
+    if not (DATA / "awa2" / "Animals_with_Attributes2" / "classes.txt").exists():
+        return None
+    from research.v687 import corpora
+    return _count(lambda: corpora.load_awa2().items, 50, "classes")
+
+
+def _xcslb_make() -> None:
+    base = "https://raw.githubusercontent.com/kanishkamisra/comps/main/data/"
+    # The pair file is a directory deeper than the other three.
+    for name, where in (("comps_base.jsonl", "comps/comps_base.jsonl"),
+                        ("feature_lexicon.csv", "feature_lexicon.csv"),
+                        ("concept_senses.csv", "concept_senses.csv"),
+                        ("concept_matrix.txt", "concept_matrix.txt")):
+        _get(base + where, DATA / "xcslb" / name, name)
+
+
+def _xcslb_check() -> str | None:
+    if not (DATA / "xcslb" / "comps_base.jsonl").exists():
+        return None
+    from research.v687 import corpora
+    return _count(lambda: corpora.load_xcslb().items, 521, "concepts")
+
+
+#: THINGSplus, one osf.io id per file. The trailing slash is required:
+#: without it osf.io answers 308 and nothing downloads.
+THINGSPLUS = {"concepts-metadata_things.tsv": "5uvc2",
+              "property-ratings.tsv": "7cz69",
+              "category53_long-format.tsv": "vehr3",
+              "typicality53_mean-ratings.tsv": "qj7ec",
+              "object-level_description.txt": "kdyq6",
+              "category-level_description.txt": "bpxye"}
+
+
+def _thingsplus_make() -> None:
+    for name, osf in THINGSPLUS.items():
+        _get(f"https://osf.io/download/{osf}/", DATA / "thingsplus" / name, name)
+
+
+def _thingsplus_check() -> str | None:
+    if not (DATA / "thingsplus" / "concepts-metadata_things.tsv").exists():
+        return None
+    from research.v687 import corpora
+    return _count(corpora.load_thingsplus, 1854, "objects")
+
+
+def _newton_make() -> None:
+    # NEWTON is on `master`, not `main`.
+    _get("https://raw.githubusercontent.com/NewtonReasoning/Newton/master/"
+         "data/confident_questions.csv",
+         DATA / "newton" / "confident_questions.csv", "confident_questions.csv")
+    # LVIS's categories are a Python literal in detectron2, kept here as the
+    # JSON the loader reads.
+    import ast
+    source = urllib.request.urlopen(
+        urllib.request.Request(
+            "https://raw.githubusercontent.com/facebookresearch/detectron2/"
+            "main/detectron2/data/datasets/lvis_v1_categories.py",
+            headers={"User-Agent": "curl/8"}), timeout=300).read().decode("utf-8")
+    rows = None
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(
+                getattr(target, "id", "") == "LVIS_CATEGORIES"
+                for target in node.targets):
+            rows = ast.literal_eval(node.value)
+            break
+    if rows is None:
+        raise Failed("LVIS_CATEGORIES not found in detectron2")
+    (DATA / "newton" / "lvis_v1_categories.json").write_text(
+        json.dumps(rows), encoding="utf-8")
+
+
+def _newton_check() -> str | None:
+    categories = DATA / "newton" / "lvis_v1_categories.json"
+    if not (DATA / "newton" / "confident_questions.csv").exists():
+        return None
+    from research.v687 import corpora
+    note = _count(corpora.load_newton, 777, "objects")
+    if not categories.exists():
+        raise Failed("lvis_v1_categories.json missing: load_lvis_categories "
+                     "returns {} for it and NEWTON's join silently empties")
+    # 1203 *rows*; the loader returns a dict keyed by name AND synonym, so
+    # its length is larger and is not the number to assert.
+    rows = json.loads(categories.read_text(encoding="utf-8"))
+    if len(rows) != 1203:
+        raise Failed(f"lvis categories: {len(rows)}, documented 1203")
+    return f"{note}, 1203 lvis categories"
+
+
+def _buchanan_make() -> None:
+    # Upstream the name has spaces, in a directory that also has one.
+    _get("https://raw.githubusercontent.com/doomlab/Word-Norms-2/master/"
+         "3%20parsed/top%20to%20final.csv",
+         DATA / "buchanan" / "top_to_final.csv", "top to final.csv (1.4 MB)")
+
+
+def _buchanan_check() -> str | None:
+    if not (DATA / "buchanan" / "top_to_final.csv").exists():
+        return None
+    from research.v687 import corpora
+    return _count(lambda: corpora.load_buchanan().items, 3722, "concepts")
+
+
+def _verbnet_make() -> None:
+    corpora_dir = _nltk_corpora()
+    source = corpora_dir / "verbnet3" if corpora_dir else None
+    if not source or not source.is_dir():
+        raise Failed("nltk's verbnet3 is not installed: "
+                     "python -m nltk.downloader verbnet3")
+    out = DATA / "verbnet3.3"
+    out.mkdir(parents=True, exist_ok=True)
+    for path in source.glob("*.xml"):
+        shutil.copy2(path, out / path.name)
+
+
+def _verbnet_check() -> str | None:
+    found = list((DATA / "verbnet3.3").glob("*.xml"))
+    if not found:
+        return None
+    if len(found) < 300:
+        raise Failed(f"verbnet: {len(found)} xml, expected ~325")
+    return f"{len(found)} verbnet classes"
+
+
+def _babi_make() -> None:
+    archive = _get("https://dl.fbaipublicfiles.com/parlai/babi/babi.tar.gz",
+                   DATA / "babi" / "babi.tar.gz", "babi.tar.gz (19 MB)")
+    with tarfile.open(archive) as tar:
+        tar.extractall(DATA / "babi", filter="data")
+    archive.unlink()
+
+
+def _babi_check() -> str | None:
+    valid = DATA / "babi" / "tasks_1-20_v1-2" / "en-valid"
+    if not valid.is_dir():
+        return None
+    found = list(valid.glob("*.txt"))
+    if len(found) != 60:
+        raise Failed(f"babi en-valid: {len(found)} files, expected 60")
+    return f"{len(found)} task files"
+
+
+def _genericskb_make() -> None:
+    from ingestion import genericskb
+    genericskb.fetch()
+
+
+def _genericskb_check() -> str | None:
+    found = list((DATA / "genericskb").glob("*.parquet"))
+    return f"{len(found)} parquet" if found else None
+
+
+def _store_check() -> str | None:
+    from research.v687 import build
+    if not build.DEFAULT_STORE.exists():
+        return None
+    size = build.DEFAULT_STORE.stat().st_size // 1024 ** 2
+    if size < 100:
+        raise Failed(f"store is only {size} MB")
+    return f"{size} MB"
+
+
+def _store_make() -> None:
+    from research.v687 import build
+    build.ensure()
+
+
+def _minilm_make() -> None:
+    from transformers import AutoModel, AutoTokenizer
+    out = LLM / "MiniLM-L6-v2"
+    out.mkdir(parents=True, exist_ok=True)
+    name = "sentence-transformers/all-MiniLM-L6-v2"
+    AutoTokenizer.from_pretrained(name).save_pretrained(str(out))
+    AutoModel.from_pretrained(name).save_pretrained(str(out))
+
+
+def _hf_make(repo: str, out: Path) -> Callable[[], None]:
+    def make() -> None:
+        from huggingface_hub import snapshot_download
+        out.mkdir(parents=True, exist_ok=True)
+        snapshot_download(repo_id=repo, local_dir=str(out),
+                          ignore_patterns=["*.onnx", "onnx/*", "*.gguf",
+                                           "*.msgpack", "*.h5"])
+    return make
+
+
+def _model_check(out: Path, least_mb: int) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "config.json").exists():
+            return None
+        size = sum(path.stat().st_size for path in out.rglob("*")
+                   if path.is_file()) // 1024 ** 2
+        if size < least_mb:
+            raise Failed(f"{out.name}: {size} MB, expected at least {least_mb}")
+        return f"{size} MB"
+    return check
+
+
+def _run(module: str, *args: str) -> None:
+    command = [sys.executable, "-u", "-m", module, *args]
+    print(f"    {' '.join(command[3:])}", flush=True)
+    result = subprocess.run(command, cwd=str(ROOT))
+    if result.returncode:
+        raise Failed(f"{module} {' '.join(args)} exited {result.returncode}")
+
+
+def _reader_corpus_make() -> None:
+    _run("research.v689.teach_reader", "corpus")
+
+
+def _reader_corpus_check() -> str | None:
+    train = LLM / "reader-data" / "train.jsonl"
+    if not train.exists():
+        return None
+    rows = _lines(train)
+    # A `--limit` run writes here too, and training on it would teach the
+    # shipped reader from a handful of sources.
+    if rows < 20_000:
+        raise Failed(f"reader corpus has {rows} rows: that is a --limit run, "
+                     f"not the whole corpus. Delete llm/reader-data and "
+                     f"regenerate.")
+    return f"{rows} rows"
+
+
+def _reader_train(out: Path) -> Callable[[], None]:
+    def make() -> None:
+        _run("research.v689.teach_reader", "train",
+             "--base", str(LLM / "MiniLM-L6-v2"), "--out", str(out),
+             "--epochs", "10")
+    return make
+
+
+def _reader_check(out: Path) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "config.json").exists():
+            return None
+        # The real test is that it reads: a checkpoint that loads but parses
+        # nothing is worse than none, because nothing else will notice.
+        import os
+        os.environ["V689_READER_MODEL"] = str(out)
+        from research.v687 import build
+        from research.v687.language import Parser
+        from research.v687.reason import Reasoner
+        reasoner = Reasoner(build.DEFAULT_STORE)
+        try:
+            parser = Parser(vocabulary=reasoner.vocabulary(),
+                            nouns=reasoner.noun_vocabulary())
+            parse = parser.parse("is a whale a fish")
+            if (parse.subject, parse.relation, parse.target) != (
+                    "whale", "is_a", "fish"):
+                raise Failed(f"{out.name} misreads `is a whale a fish`: "
+                             f"{parse.subject}/{parse.relation}/{parse.target}")
+        finally:
+            reasoner.connection.close()
+        return "reads `is a whale a fish` correctly"
+    return check
+
+
+def _turns_check() -> str | None:
+    from research.v690.conversations import TURNS
+    if not TURNS.exists():
+        return None
+    return f"{_lines(TURNS)} turns"
+
+
+def _replies_check() -> str | None:
+    from research.v690.teach_decoder import REPLIES
+    if not REPLIES.exists():
+        return None
+    return f"{_lines(REPLIES)} replies"
+
+
+def _label_check() -> str | None:
+    found = list((LLM / "reader-data").glob("*-reply.jsonl"))
+    if not found:
+        return None
+    return f"{sum(_lines(path) for path in found)} labelled replies"
+
+
+def _screened_check() -> str | None:
+    path = DATA / "xcslb" / "comps_screened.jsonl"
+    if not path.exists():
+        return None
+    return f"{_lines(path)} screened pairs"
+
+
+def steps() -> list[Step]:
+    """Every artefact, in the order it can be built."""
+    return [
+        # -- corpora: downloads, minutes at most ----------------------------
+        Step("awa2", "AwA2 class/attribute table (32 KB)",
+             _awa2_make, _awa2_check, cost="seconds"),
+        Step("xcslb", "COMPS/XCSLB property norms (14 MB)",
+             _xcslb_make, _xcslb_check, cost="a minute"),
+        Step("thingsplus", "THINGSplus ratings and categories (10 MB)",
+             _thingsplus_make, _thingsplus_check, cost="a minute"),
+        Step("newton", "NEWTON physical attributes + LVIS categories",
+             _newton_make, _newton_check, cost="seconds"),
+        Step("buchanan", "Buchanan feature production norms (1.4 MB)",
+             _buchanan_make, _buchanan_check, cost="seconds"),
+        Step("verbnet", "VerbNet 3.3, copied from nltk_data",
+             _verbnet_make, _verbnet_check, cost="seconds"),
+        Step("babi", "bAbI tasks 1-20 (19 MB), read by the reader corpus",
+             _babi_make, _babi_check, cost="seconds"),
+        Step("genericskb", "GenericsKB-Best (39 MB)",
+             _genericskb_make, _genericskb_check, cost="a minute"),
+
+        # -- the store ------------------------------------------------------
+        Step("store", "the reasoning store, built from v633 + Ascent++",
+             _store_make, _store_check, needs=("awa2", "xcslb"),
+             cost="a few minutes"),
+
+        # -- base models ----------------------------------------------------
+        Step("minilm", "MiniLM-L6-v2, the reader's base (87 MB)",
+             _minilm_make, _model_check(LLM / "MiniLM-L6-v2", 80),
+             cost="a minute"),
+        Step("smollm2", "SmolLM2-360M-Instruct, the decoder's base (694 MB)",
+             _hf_make("HuggingFaceTB/SmolLM2-360M-Instruct",
+                      LLM / "SmolLM2-360M-Instruct"),
+             _model_check(LLM / "SmolLM2-360M-Instruct", 600),
+             cost="a few minutes"),
+        Step("smollm3", "SmolLM3-3B, the offline teacher (5.9 GB)",
+             _hf_make("HuggingFaceTB/SmolLM3-3B", LLM / "SmolLM3-3B"),
+             _model_check(LLM / "SmolLM3-3B", 5000),
+             cost="ten minutes or more"),
+
+        # -- the cycle ------------------------------------------------------
+        Step("reader-corpus", "what the rules read, for the encoder to learn",
+             _reader_corpus_make, _reader_corpus_check,
+             needs=("store", "babi"), cost="20 minutes"),
+        Step("reader-first", "a reader taught only by the rules",
+             _reader_train(LLM / "reader-first"),
+             _reader_check(LLM / "reader-first"),
+             needs=("reader-corpus", "minilm"), cost="an hour", gpu=True),
+        Step("turns", "conversations played through a working engine",
+             lambda: _run("research.v690.conversations"), _turns_check,
+             needs=("reader-first",), cost="an hour"),
+        Step("replies", "SmolLM3 writing a reply to each message",
+             lambda: _run("research.v690.teach_decoder", "replies"),
+             _replies_check, needs=("turns", "smollm3"),
+             cost="hours", gpu=True),
+        Step("label", "replies kept only where they read back",
+             lambda: _run("research.v690.teach_decoder", "label"),
+             _label_check, needs=("replies",), cost="20 minutes"),
+        Step("decoder", "SmolLM2 fine-tuned to write the replies",
+             lambda: _run("research.v690.teach_decoder", "train"),
+             _model_check(LLM / "decoder", 600),
+             needs=("label", "smollm2"), cost="an hour", gpu=True),
+        Step("reader", "the shipped reader, taught on the replies too",
+             _reader_train(LLM / "reader"), _reader_check(LLM / "reader"),
+             needs=("label", "minilm"), cost="an hour", gpu=True),
+
+        # -- measurement ----------------------------------------------------
+        Step("screened", "COMPS foils a calibrated judge denied",
+             lambda: _run("research.v688.screen", "--build"), _screened_check,
+             needs=("xcslb", "smollm3"), cost="hours", gpu=True),
+    ]
+
+
+def main(argv=None) -> int:
+    known = {step.name: step for step in steps()}
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--list", action="store_true",
+                        help="what there is, and what is already present")
+    parser.add_argument("--only", nargs="+", metavar="STEP",
+                        help="these steps and what they need")
+    parser.add_argument("--force", nargs="+", metavar="STEP", default=[],
+                        help="rebuild these even if they look present")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-gpu", action="store_true",
+                        help="stop before anything that trains")
+    options = parser.parse_args(argv)
+
+    for name in (options.only or []) + options.force:
+        if name not in known:
+            parser.error(f"no step {name!r}; try --list")
+
+    wanted = list(known)
+    if options.only:
+        wanted, queue = [], list(options.only)
+        while queue:
+            name = queue.pop()
+            if name in wanted:
+                continue
+            wanted.append(name)
+            queue.extend(known[name].needs)
+        wanted = [name for name in known if name in wanted]
+
+    if options.list:
+        for name in known:
+            step = known[name]
+            try:
+                state = step.check()
+            except Failed as bad:
+                state = f"BROKEN: {bad}"
+            mark = "ok  " if state and not str(state).startswith("BROKEN") \
+                else ("BAD " if state else "-   ")
+            print(f"  {mark}{name:14} {state or 'missing':<44} "
+                  f"{step.cost}{' [gpu]' if step.gpu else ''}")
+            print(f"       {step.what}")
+        return 0
+
+    started, built, failures = time.time(), [], []
+    for name in wanted:
+        step = known[name]
+        if options.skip_gpu and step.gpu:
+            print(f"[skip] {name}: needs the gpu")
+            continue
+        try:
+            state = None if name in options.force else step.check()
+        except Failed as bad:
+            state = None
+            print(f"[bad ] {name}: {bad}")
+        if state:
+            print(f"[have] {name}: {state}")
+            continue
+        print(f"[make] {name}: {step.what} ({step.cost})", flush=True)
+        if options.dry_run:
+            continue
+        try:
+            step.make()
+            confirmed = step.check()
+            if not confirmed:
+                raise Failed("made, but its check still says it is missing")
+            print(f"[done] {name}: {confirmed}", flush=True)
+            built.append(name)
+        except Exception as bad:                          # noqa: BLE001
+            print(f"[FAIL] {name}: {type(bad).__name__}: {bad}", flush=True)
+            failures.append(name)
+            break
+
+    print(f"\n{len(built)} built, {len(failures)} failed, "
+          f"{round(time.time() - started)}s")
+    if failures:
+        print(f"failed: {', '.join(failures)}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
