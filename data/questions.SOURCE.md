@@ -4,6 +4,8 @@ Questions people actually asked, read by the grammar as it stands. Used by
 `research/v689/teach_reader.py` (`_natural`, `_qasrl`) and **only** with
 `--external`.
 
+Fetch with `python -m regenerate --only questions`.
+
 ## Not used by default, on purpose
 
 `teach_reader.sources()` says why:
@@ -25,11 +27,11 @@ not because the pipeline needs them.
 - Downloaded from: **https://qasrl.org/data/qasrl-v2_1.tar** (37.7 MB,
   verified 2026-09-16)
 - Read as: `questions/qasrl/qasrl-v2_1/expanded/train.jsonl.gz`
-  (`teach_reader.py:1559`)
+  (`teach_reader.py`, `_qasrl`)
 
 Note the repository's own `download.sh` fetches `qasrl-v2.tar` — Bank
 **2.0**, 37.9 MB. That is a different archive and unpacks to `qasrl-v2`,
-which does not satisfy the `qasrl-v2_1` path above. Take 2.1.
+which does not satisfy the `qasrl-v2_1` path the code reads. Take 2.1.
 
 ## WikiAnswers
 
@@ -38,25 +40,32 @@ which does not satisfy the `qasrl-v2_1` path above. Take 2.1.
 - Paper: Fader, Zettlemoyer & Etzioni, *Paraphrase-Driven Learning for Open
   Question Answering* (Paralex), ACL 2013.
   http://knowitall.cs.washington.edu/paralex/
-- Available as: https://huggingface.co/datasets/embedding-data/WikiAnswers
+- Downloaded from:
+  https://huggingface.co/datasets/embedding-data/WikiAnswers/resolve/main/WikiAnswers.jsonl.gz
   (jsonl.gz, one JSON object per line, `{"set": [...]}` — exactly the shape
   `_natural` reads)
+- Licence: see the dataset card; the corpus is Paralex's.
 - Read as: `questions/wikianswers-20k.jsonl`
 
-**Derived, not downloaded.** The local file is the **first 20,000 clusters**
-of that corpus (`teach_reader.py:1501`: "WikiAnswers' first 20 thousand
-clusters"), one `{"set": [...]}` object per line. The full corpus is 40 GB
-decompressed; do not fetch all of it.
+**Derived, not downloaded whole.** The local file is the **first 20,000
+clusters**, one `{"set": [...]}` object per line, which is what
+`teach_reader` calls "WikiAnswers' first 20 thousand clusters". The full
+corpus is 40 GB decompressed, so the regenerator streams it and stops at
+20,000 rather than fetching all of it. The check insists on exactly 20,000
+clusters, because a short file would quietly teach less.
 
-## Quora question pairs
+## Quora — removed 2026-09-16
 
-- Read as: `questions/quora-pair-class.parquet`, columns `sentence1` and
-  `sentence2` (`teach_reader.py:1522-1527`)
-- **Source not established.** The columns match the SetFit/QQP family of
-  exports rather than Quora's original release, and no URL in this
-  repository or its history records which one was taken.
+`questions/quora-pair-class.parquet` was read by `_natural` alongside
+WikiAnswers, taking `sentence1` and `sentence2` from each row. It is
+**no longer read, and is not fetched**.
 
-This is the one file here with no verified provenance. It is `--external`
-only, so nothing shipped depends on it, but it should not be guessed at: a
-different QQP export would change what the reader is taught without any
-error saying so.
+It was dropped rather than re-sourced. The file was lost with the rest of
+`data/`, and nothing in this repository or its history recorded where it
+came from: several QQP exports carry those same two column names, and
+substituting one would have changed what the reader is taught with nothing
+to say so. Since `--external` is not used by any shipped reader, the honest
+option was to remove it rather than guess.
+
+If it is ever wanted again, it needs a real source recorded here first, and
+`_natural` needs its branch back.

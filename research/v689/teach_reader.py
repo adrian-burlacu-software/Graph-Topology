@@ -1499,8 +1499,9 @@ def _passives(count: int = 60) -> list[str]:
 
 
 #: Where question datasets are kept (`data/questions`, not committed):
-#: WikiAnswers' first 20 thousand clusters, Quora's question pairs, and
-#: QA-SRL Bank 2.1.
+#: WikiAnswers' first 20 thousand clusters and QA-SRL Bank 2.1. Both are
+#: fetched by `python -m regenerate --only questions`, and both are read
+#: only with `--external`. See `data/questions.SOURCE.md`.
 QUESTIONS = REPOSITORY / "data" / "questions"
 
 #: How QA-SRL says an argument it does not name.
@@ -1508,25 +1509,24 @@ UNNAMED = frozenset({"someone", "something"})
 
 
 def _natural(limit: int = 30000) -> list[str]:
-    """Questions people asked: WikiAnswers' and Quora's, each read by the
-    grammar as it stands. One is never read like another of its cluster: a
-    WikiAnswers cluster is questions about one thing, not one question --
-    `where did Justin Bieber go to school` sits with `did Justin Bieber go
-    snowboarding`."""
+    """Questions people asked: WikiAnswers', read by the grammar as it
+    stands. One is never read like another of its cluster: a WikiAnswers
+    cluster is questions about one thing, not one question -- `where did
+    Justin Bieber go to school` sits with `did Justin Bieber go
+    snowboarding`.
+
+    Quora's pairs were read here too and were dropped on 2026-09-16: the
+    local export could not be traced to a source, several QQP releases carry
+    the same `sentence1`/`sentence2` columns, and substituting one would
+    have changed what this teaches with nothing to say so. Nothing shipped
+    used it -- these datasets are `--external` only.
+    """
     found: list[str] = []
     wiki = QUESTIONS / "wikianswers-20k.jsonl"
     if wiki.exists():
         with open(wiki, encoding="utf-8") as handle:
             for line in handle:
                 found += json.loads(line)["set"]
-    quora = QUESTIONS / "quora-pair-class.parquet"
-    if quora.exists():
-        try:
-            import pyarrow.parquet as parquet
-            for row in parquet.read_table(quora).to_pylist():
-                found += [row["sentence1"], row["sentence2"]]
-        except ImportError:
-            pass
     kept = [text for text in dict.fromkeys(one.strip() for one in found)
             if text.isascii() and 3 <= len(text.split()) <= 14
             and text.count("?") <= 1]
@@ -2824,7 +2824,7 @@ def main(argv=None) -> int:
                                          "sources", "social"))
     parser.add_argument("--variants", type=int, default=6)
     parser.add_argument("--external", action="store_true",
-                        help="also read WikiAnswers, Quora and QA-SRL")
+                        help="also read WikiAnswers and QA-SRL")
     parser.add_argument("--processes", type=int, default=6)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--base", default=str(LLM / "MiniLM-L6-v2"))

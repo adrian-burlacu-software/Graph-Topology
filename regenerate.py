@@ -366,6 +366,59 @@ def _oewn_make() -> None:
          "english-wordnet-2025-json.zip (9.5 MB)")
 
 
+def _questions_make() -> None:
+    """The `--external` question datasets, as far as they can be sourced.
+
+    QA-SRL 2.1 is a plain archive. WikiAnswers is the first 20,000 clusters
+    of a 30-million-cluster corpus, so it is truncated here rather than
+    downloaded whole (40 GB decompressed). Quora's pairs were read here too
+    until 2026-09-16, when they were dropped for having no traceable
+    source; `teach_reader._natural` no longer reads them.
+    """
+    import gzip
+
+    out = DATA / "questions"
+    out.mkdir(parents=True, exist_ok=True)
+
+    archive = out / "qasrl-v2_1.tar"
+    if not archive.exists():
+        _get("https://qasrl.org/data/qasrl-v2_1.tar", archive,
+             "qasrl-v2_1.tar (37.7 MB)")
+    with tarfile.open(archive) as tar:
+        tar.extractall(out / "qasrl", filter="data")
+
+    wiki = out / "wikianswers-20k.jsonl"
+    if not wiki.exists():
+        url = ("https://huggingface.co/datasets/embedding-data/WikiAnswers/"
+               "resolve/main/WikiAnswers.jsonl.gz")
+        print("    streaming WikiAnswers, keeping the first 20,000 clusters",
+              flush=True)
+        request = urllib.request.Request(url, headers={"User-Agent": "curl/8"})
+        with urllib.request.urlopen(request, timeout=1800) as response, \
+                wiki.open("w", encoding="utf-8") as sink:
+            for at, line in enumerate(gzip.GzipFile(fileobj=response)):
+                if at >= 20_000:
+                    break
+                sink.write(line.decode("utf-8"))
+
+
+def _questions_check() -> str | None:
+    out = DATA / "questions"
+    wiki = out / "wikianswers-20k.jsonl"
+    qasrl = out / "qasrl" / "qasrl-v2_1" / "expanded" / "train.jsonl.gz"
+    if not wiki.exists() and not qasrl.exists():
+        return None
+    missing = [name for name, path in (("wikianswers", wiki),
+                                       ("qasrl", qasrl)) if not path.exists()]
+    if missing:
+        raise Failed(f"missing {', '.join(missing)} -- "
+                     f"see data/questions.SOURCE.md")
+    rows = _lines(wiki)
+    if rows != 20_000:
+        raise Failed(f"wikianswers-20k.jsonl has {rows} clusters, not 20,000")
+    return f"{rows} clusters, qasrl 2.1"
+
+
 def _memory_check(path: Path, glosses: int, defined: int
                   ) -> Callable[[], str | None]:
     """A definitions memory, against what it held on 2026-09-16.
@@ -628,6 +681,8 @@ def steps() -> list[Step]:
              cost="an hour (it sleeps between batches)"),
         Step("oewn", "Open English WordNet 2025, the changed definitions",
              _oewn_make, _oewn_check, cost="a minute"),
+        Step("questions", "WikiAnswers and QA-SRL, read only with --external",
+             _questions_make, _questions_check, cost="ten minutes"),
 
         # -- the taught memories in `state/` --------------------------------
         # Read with v689's own reader, so they come after `reader-first`.
