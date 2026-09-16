@@ -422,7 +422,8 @@ def _checked(job: tuple) -> dict:
         found = trace(message, read, words, kept_framing, reply)
         if not found.traced:
             out["reasons"] += [f"{message.stance} {why}" for why in
-                               ("missing", "added", "denial", "internal")
+                               ("missing", "added", "denial", "internal",
+                                "source", "unfinished")
                                if getattr(found, why)]
             continue
         _, _, deps, _ = words.read(reply)
