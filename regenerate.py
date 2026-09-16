@@ -706,10 +706,22 @@ def _decoder_final_check() -> str | None:
     Both trainings write `llm/decoder`, so the same recency argument as
     `_label_all_check` applies: weights older than the labels they were
     meant to learn from are the first decoder, not the last.
+
+    Recency against the labels alone is not enough. `decoder-first` writes
+    these very weights *before* `bootstrap` runs, so from the moment it
+    finishes until `label-all` rewrites the labels, the weights are newer
+    than every label file on disk and the first decoder passes for the
+    last. A full run in order happens to recover; `--only decoder` and
+    `--list` do not. So the bootstrapped replies must exist and predate the
+    weights as well: nothing is the final decoder before the corpus it is
+    trained on exists.
     """
+    from research.v690.teach_decoder import BOOTSTRAPPED
     weights = LLM / "decoder" / "config.json"
     found = list((LLM / "reader-data").glob("*-reply.jsonl"))
-    if not weights.exists() or not found:
+    if not weights.exists() or not found or not BOOTSTRAPPED.exists():
+        return None
+    if not _newer(weights, BOOTSTRAPPED):
         return None
     if not all(_newer(weights, path) for path in found):
         return None
