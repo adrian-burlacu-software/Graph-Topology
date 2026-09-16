@@ -799,13 +799,18 @@ def steps() -> list[Step]:
         # `greedy=samples == 1`); the first decoder then replies to all
         # 14,151 itself, and what traces is taught beside the teacher's.
         # SmolLM3 wants the card to itself: the README measures 3.7 messages
-        # a second alone against 0.2 with a second model resident.
+        # a second alone against 0.2 with a second model resident. Measured
+        # here and it holds -- 4.0/s with the card free, against 0.27/s
+        # while this file's own `--list` was being run to watch progress,
+        # which loads the reader onto the GPU. Watch a run by counting its
+        # output file; anything that loads a model makes the run it is
+        # watching fifteen times slower.
         Step("replies", "SmolLM3 replying to a stratified sample",
              lambda: _run("research.v690.teach_decoder", "replies",
                           "--samples", "1", "--batch", "12",
                           reader=LLM / "reader-first"),
              _replies_check, needs=("turns", "smollm3"),
-             cost="hours (6,728 messages)", gpu=True),
+             cost="~30 minutes (6,728 at 4/s)", gpu=True),
         Step("label", "the teacher's replies, kept where they read back",
              lambda: _run("research.v690.teach_decoder", "label",
                           reader=LLM / "reader-first"),
