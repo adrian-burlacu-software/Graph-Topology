@@ -942,6 +942,23 @@ class ExampleTests(unittest.TestCase):
                 found = run(utterance)
                 self.assertNotEqual(found.summary["trust"], "weakly held")
 
+    @requires_store
+    def test_a_denial_about_a_sense_nothing_is_recorded_of_says_so(self):
+        """`is a mouse alive` is CONTRADICTED on `mouse.n.04`, the device,
+        which ConceptNet records as not alive. Every one of the store's 1,164
+        mouse facts is about that device and `mouse.n.01`, WordNet's first
+        reading, has none -- so the no is about the reading nobody meant.
+
+        `can a dog fly` is the control: also a denial, and about `dog.n.01`,
+        the reading the dictionary lists first.
+        """
+        found = run("is a mouse alive")
+        self.assertEqual(found.summary["verdict"], "CONTRADICTED")
+        self.assertEqual(found.summary["trust"],
+                         "denied about another reading of the word")
+        self.assertEqual(run("can a dog fly").summary["trust"],
+                         "denied, unchallenged")
+
     def test_corroborated_means_something_bore_it_out(self):
         """`is a dog wild` rests on one fact and the family returns two
         shrugs and a yes. Nothing contradicted it, which is not the same as

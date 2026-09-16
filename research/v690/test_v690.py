@@ -240,6 +240,40 @@ class RoundTripTests(unittest.TestCase):
             "says you told it, and you did not")
         self.assertTrue(self.traced(kind, "No, a penguin can't fly.").traced)
 
+    def test_narrating_an_exchange_that_did_not_happen_is_caught(self):
+        """`What about whales?` is the reader putting the last question to a
+        new kind. The reply said `You asked if they can fly, and I said no`
+        -- nobody asked that, and nothing was said before it. Framing does
+        not stop it: `say` and `tell` are licensed for yes and no, and `ask`
+        comes free with the message's own `asked as “Do whales fly”`."""
+        again = messages.of_turn(turn(
+            "What about whales?", "again question", "denied",
+            "asked as “Do whales fly”: CONTRADICTED — Do whales fly "
+            "(denied, unchallenged)", mention="whales", aux="do", rest="fly",
+            source="kind", referent=None))
+        self.assertTrue(self.traced(again, "No, whales don't fly.").traced)
+        for reply in ("No, whales don't fly. You asked if they can fly, and "
+                      "I said no.",
+                      "No, whales don't fly. You asked if they could.",
+                      "No, whales don't fly. I said so earlier."):
+            with self.subTest(reply=reply):
+                self.assertEqual(
+                    self.traced(again, reply).source,
+                    "says what was asked and answered, and it was not")
+
+    def test_a_contraction_does_not_hide_who_told_it(self):
+        """spaCy reads `You've` as one token, so a check looking for `you`
+        beside the verb never saw it and `You've told me so` read back
+        clean."""
+        kind = messages.of_turn(turn(
+            "can a robin fly", "generic", "verified",
+            "VERIFIED — can a robin fly (corroborated)", mention="a robin",
+            aux="can", rest="fly", source="kind", referent=None))
+        self.assertEqual(
+            self.traced(kind, "Yes, a robin can fly. You've told me so.")
+            .source, "says you told it, and you did not")
+        self.assertTrue(self.traced(kind, "Yes, a robin can fly.").traced)
+
     def test_a_reply_cut_off_is_caught(self):
         """The decoder stops at its longest reply; the words it wrote by then
         can all read back and still not be a sentence."""

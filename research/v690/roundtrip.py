@@ -421,9 +421,20 @@ def trace(message: Message, read: Read, words: Words,
             # so.` is excused by the answer's own `can't`.
             before = {lower[one] for one in range(max(0, at - 3), at)
                       if sentence[one] == sentence[at]}
-            if (lemma in SAYING and "you" in lower[max(0, at - 2):at]
-                    and not NEGATIONS & before):
+            if NEGATIONS & before:
+                continue
+            person = _speaker_at(read.words, at, sentence)
+            if not person:
+                continue
+            if lemma in SAYING and person == "you":
                 found.source = "says you told it, and you did not"
+                break
+            # `You asked if they can fly, and I said no`: not where the
+            # answer came from but a turn of the conversation, and there was
+            # no such turn. The question was put again by the reader, not by
+            # you, and nothing was said before it.
+            if lemma in NARRATING:
+                found.source = "says what was asked and answered, and it was not"
                 break
     # The decoder stops at its longest reply, and what it wrote by then can
     # read back word for word: `... and what someone is like. I can even help`.
@@ -437,6 +448,41 @@ FROM_YOU = frozenset({"told", "taught", "learned", "conversation"})
 
 #: What a reply says you did when it says an answer came from you.
 SAYING = frozenset({"tell", "teach", "say", "mention"})
+
+#: What a reply says happened *between you* when it narrates the exchange:
+#: `you asked`, `I said`, `I told you`.
+#:
+#: Framing cannot be what stops this. `teach_decoder.framing` counts the
+#: words replies of a stance say around what they were told to say, and the
+#: teacher's own replies habitually said `You told me so` -- so `tell` and
+#: `say` cleared the threshold and are licensed for yes and no, the two
+#: stances this goes wrong on. `ask` needs no licence at all: `vocabulary`
+#: reads `message.found`, and an ellipsis answer's own account opens `asked
+#: as “Do whales fly”`. So `What about whales?` was answered `No, whales
+#: don't fly. You asked if they can fly, and I said no.` and read back
+#: clean. Nobody asked that. A conversation that did not happen is a claim,
+#: not framing.
+NARRATING = frozenset({"ask", "answer", "reply", "tell", "teach", "say",
+                       "mention"})
+
+#: Who a narrated exchange is between. A contraction is one token -- spaCy
+#: reads `You've` as a single NNP whose lemma is `you've` -- which is how
+#: `You've told me so` walked past a check looking for `you` beside the verb.
+SPEAKERS = frozenset({"you", "i", "we"})
+
+
+def _speaker_at(words: list, at: int, sentence: list[int]) -> str:
+    """Who a word of narrating has for its subject -- `you`, `i` or `we` --
+    among the two words before it or inside a contraction of its own; "" for
+    none. Its own sentence only: `can't swim. You told me` tells of the
+    telling, not of the swimming."""
+    for one in range(max(0, at - 2), at + 1):
+        if sentence[one] != sentence[at]:
+            continue
+        head = re.split(r"['’]", str(words[one]).lower())[0]
+        if head in SPEAKERS:
+            return head
+    return ""
 
 
 def label(message: Message, text: str, words: Words) -> Read:

@@ -654,6 +654,37 @@ class Loop:
                 return None if rank is None or rank >= 90 else int(rank)
         return None
 
+    def unheard_sense(self, headline) -> bool:
+        """A denial about a reading of the word nobody could have meant.
+
+        `is a mouse alive` is CONTRADICTED on `mouse.n.04`, the hand-operated
+        device, which ConceptNet records as not alive. WordNet's first
+        reading is the rodent, and the store holds **no fact about it at
+        all** -- so the run denies about the sense it has facts for while
+        knowing nothing about the one the question named. Saying no there is
+        the most confident kind of wrong answer this system can give.
+
+        `sense_mismatch` cannot catch it: that compares the concept's name
+        with the word asked about, and both senses are spelt `mouse`. What
+        separates them is the dictionary's order and an empty shelf.
+        """
+        if headline is None or headline.verdict not in ("CONTRADICTED",
+                                                        "DENIED"):
+            return False
+        rank = self.rank_of(headline)
+        if rank is None or rank < 1:
+            return False
+        parse = (headline.payload or {}).get("parse") or {}
+        word = (parse.get("subject") or "").strip().lower()
+        if not word:
+            return False
+        earlier = [one for one in
+                   (self.pool.engines[0].reasoner.senses_of(word) or [])
+                   if (one.get("id") or "").split(".")[-2:-1] == ["n"]
+                   and one.get("rank") is not None and one["rank"] < rank]
+        return bool(earlier) and not any(one.get("fact_count")
+                                         for one in earlier)
+
     @staticmethod
     def shaky(answer, buffer: Buffer) -> bool:
         """Is this answer too thin to assert as a fact of its own?
@@ -747,6 +778,11 @@ class Loop:
             # `can a bird fly`: a chicken does not, and the family still bears
             # it out. An exception is not a contradiction.
             return "holds, with exceptions in its family"
+        # Said before the doubts, because none of them fires here: the names
+        # match, so `sense_mismatch` sees nothing, and a denial raises no
+        # doubts at all (`gap.read_doubts`).
+        if self.unheard_sense(headline):
+            return "denied about another reading of the word"
         doubted = [d for d in buffer.seen_doubts if d.question ==
                    headline.question]
         rank = self.rank_of(headline) if hasattr(self, "rank_of") else None
