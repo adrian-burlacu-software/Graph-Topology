@@ -627,13 +627,15 @@ def _label_check() -> str | None:
     if not found:
         return None
     rows = sum(_lines(path) for path in found)
-    # DESIGN.md:563 -- 12,389 messages read back, after the narration check
-    # dropped 93 of the 12,482 that decoder v3 was taught on.
-    if rows < 8_000:
-        raise Failed(f"{rows} labelled replies against a documented 12,389: "
-                     f"a partial run, or `replies` was incomplete when this "
-                     f"read it")
-    return f"{rows} labelled replies (documented 12,389)"
+    # This is the *first* label, over the teacher's replies alone: about
+    # 6,700 of which some 5,300 trace. DESIGN.md:563's 12,389 is the figure
+    # *after* `bootstrap`, and belongs to `label-all`, not here -- a floor
+    # of 8,000 against it failed a perfectly good run at 6,268.
+    if rows < 4_000:
+        raise Failed(f"{rows} labelled replies against about 6,300 from the "
+                     f"teacher's alone: a partial run, or `replies` was "
+                     f"incomplete when this read it")
+    return f"{rows} labelled, the teacher's replies"
 
 
 def _screened_check() -> str | None:
@@ -688,7 +690,14 @@ def _label_all_check() -> str | None:
         return None
     if not all(_newer(path, BOOTSTRAPPED) for path in found):
         return None
-    return f"{sum(_lines(path) for path in found)} labelled, both sets"
+    rows = sum(_lines(path) for path in found)
+    # DESIGN.md:563 -- 12,389 messages read back over both sets, after the
+    # narration check dropped 93 of the 12,482 decoder v3 was taught on.
+    if rows < 9_000:
+        raise Failed(f"{rows} labelled against a documented 12,389 over "
+                     f"both sets: `bootstrap` was incomplete when this "
+                     f"read it")
+    return f"{rows} labelled, both sets (documented 12,389)"
 
 
 def _decoder_final_check() -> str | None:
@@ -811,15 +820,19 @@ def steps() -> list[Step]:
                           reader=LLM / "reader-first"),
              _replies_check, needs=("turns", "smollm3"),
              cost="~30 minutes (6,728 at 4/s)", gpu=True),
-        # `label` reads every reply back through the encoder, twelve
-        # processes at once (`teach_decoder.PROCESSES`), and the encoder
-        # takes cuda when it is there (`encoder.py:157`) -- so this holds
-        # the card too, whatever its name suggests. `V689_READER_DEVICE=cpu`
-        # puts the workers on the processor if they contend.
+        # Not a gpu step, though it looks like one. `roundtrip.reading_of`
+        # calls the encoder, but only behind `roundtrip.enabled()`, which
+        # wants every one of `REPLY_HEADS` in the model's `labels.json`.
+        # Both label runs read with `reader-first`, which was taught before
+        # any reply existed and so has no reply heads: the check is False
+        # and labelling falls back to spaCy alone. Measured mid-run at 0 MiB
+        # of GPU across twelve ~800 MB processes, in 35 seconds. Marking it
+        # `gpu=True` only broke `--skip-gpu`, which would then skip a step
+        # that never wanted the card.
         Step("label", "the teacher's replies, kept where they read back",
              lambda: _run("research.v690.teach_decoder", "label",
                           reader=LLM / "reader-first"),
-             _label_check, needs=("replies",), cost="20 minutes", gpu=True),
+             _label_check, needs=("replies",), cost="a minute"),
         Step("decoder-first", "SmolLM2 taught on the teacher's replies",
              lambda: _run("research.v690.teach_decoder", "train"),
              _model_check(LLM / "decoder", 600),
