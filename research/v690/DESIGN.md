@@ -400,6 +400,18 @@ Each phase so far lands its structure with the parameters set to what the
 code did, so that the tests and the probes show nothing moved; fitting is a
 step of its own, once there is data to fit on.
 
+**What a phase is accepted on**, from E1 onwards: the suite, and
+`research/v689/probe.py` -- 114 ordinary questions answered from the real
+store, compared on the outcome and the source, never on the wording. The
+suite alone is not enough: 1,027 tests passed either side of a relaxation of
+R28 that `v688/audit.py` then measured as tripling over-affirmation, so a
+phase that changes an answer has to be seen changing it. The probe was a
+scratch script until now and is committed for that reason. Its companion,
+the time-and-events probe, is **not** reconstructable -- its log kept the
+thirty scenario names and none of their turns -- so `test_time` (39) and
+`test_goals` (17) stand in for it, and this is a weaker criterion than the
+phase table above was written against.
+
 | phase | branch | what landed |
 | --- | --- | --- |
 | P1 | `v690/graph` | `v687/links.py`, one table of link types every rule's list is read off; `v687/walks.py`, one closure and one path for R1, T2, S2, S4. 913 tests; both probes unchanged |
