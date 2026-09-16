@@ -695,13 +695,16 @@ def _label_all_check() -> str | None:
     if not all(_newer(path, BOOTSTRAPPED) for path in found):
         return None
     rows = sum(_lines(path) for path in found)
-    # DESIGN.md:563 -- 12,389 messages read back over both sets, after the
-    # narration check dropped 93 of the 12,482 decoder v3 was taught on.
-    if rows < 9_000:
-        raise Failed(f"{rows} labelled against a documented 12,389 over "
-                     f"both sets: `bootstrap` was incomplete when this "
-                     f"read it")
-    return f"{rows} labelled, both sets (documented 12,389)"
+    # These are reply *rows* -- up to `MOST_REPLIES` kept per message -- not
+    # messages. DESIGN.md:563's 12,389 counts messages read back; the
+    # rebuild of 2026-09-16 read back 12,444 messages as 20,949 rows. Rows
+    # are what is on disk, so the floor is on rows, and the message says so
+    # rather than setting one count beside the other.
+    if rows < 15_000:
+        raise Failed(f"{rows} reply rows over both sets, against about "
+                     f"21,000 (12,444 messages read back): `bootstrap` was "
+                     f"incomplete when this read it")
+    return f"{rows} reply rows, both sets"
 
 
 def _decoder_final_check() -> str | None:
