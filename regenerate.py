@@ -811,10 +811,15 @@ def steps() -> list[Step]:
                           reader=LLM / "reader-first"),
              _replies_check, needs=("turns", "smollm3"),
              cost="~30 minutes (6,728 at 4/s)", gpu=True),
+        # `label` reads every reply back through the encoder, twelve
+        # processes at once (`teach_decoder.PROCESSES`), and the encoder
+        # takes cuda when it is there (`encoder.py:157`) -- so this holds
+        # the card too, whatever its name suggests. `V689_READER_DEVICE=cpu`
+        # puts the workers on the processor if they contend.
         Step("label", "the teacher's replies, kept where they read back",
              lambda: _run("research.v690.teach_decoder", "label",
                           reader=LLM / "reader-first"),
-             _label_check, needs=("replies",), cost="20 minutes"),
+             _label_check, needs=("replies",), cost="20 minutes", gpu=True),
         Step("decoder-first", "SmolLM2 taught on the teacher's replies",
              lambda: _run("research.v690.teach_decoder", "train"),
              _model_check(LLM / "decoder", 600),
