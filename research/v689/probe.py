@@ -153,9 +153,22 @@ QUESTIONS: tuple[tuple[str, str], ...] = (
     ("folk category", "is milk a drink"),
 )
 
-#: question -> `outcome source`, as they answered on 2026-09-14 (the run
-#: `probe-common-rulebook.log` recorded, after P5's first step). A run that
-#: differs from this has moved an answer, which is the thing to explain.
+#: question -> `outcome source`, as answered on 2026-09-17 at `f59e0fb`, with
+#: the models `python -m regenerate` rebuilt and 19 workers, before E1. Two
+#: runs of that code, hours apart, agreed on all 114. A run that differs from
+#: this has moved an answer, which is the thing to explain.
+#:
+#: It replaces the 2026-09-14 set that `probe-common-rulebook.log` recorded,
+#: from which 20 of these differ. That log's harness was a session script and
+#: is lost. Every one of the sixteen logs it wrote agreed with it, and the
+#: code of that day (`99da149`) run through *this* harness gives today's
+#: answers -- so the difference is between harnesses, not in the system. One
+#: cause is established: the page's sessions have the definitions memory
+#: (`state/v689-definitions.sqlite`) and these do not, which is why `is a ball
+#: round` and `is a car man-made` answer from `kind`, not `definition`. The
+#: other eighteen are unexplained. The memory is not opened here: whether a
+#: probe session would write to it has not been checked, and a probe must not
+#: change what the page reads.
 BASELINE: dict[str, str] = {
     "is an elephant big": "verified kind",
     "is a mouse small": "verified kind",
@@ -176,21 +189,21 @@ BASELINE: dict[str, str] = {
     "is a rock hard": "verified kind",
     "is a pillow soft": "verified kind",
     "is a knife sharp": "verified kind",
-    "is rubber flexible": "verified kind",
+    "is rubber flexible": "unknown kind",
     "is metal shiny": "unknown kind",
     "is ice cold": "verified kind",
     "is fire hot": "denied kind",
     "is the sun hot": "unknown tendency",
     "does wood float": "unknown kind",
-    "does a rock float": "denied kind",
-    "can a stone float on water": "denied kind",
+    "does a rock float": "unknown kind",
+    "can a stone float on water": "unknown kind",
     "is water a liquid": "verified kind",
     "is ice solid": "verified kind",
     "what color is grass": "retrieved kind",
     "is snow white": "unknown kind",
     "is the sky blue": "unknown tendency",
-    "are strawberries red": "retrieved kind",
-    "is a ball round": "verified definition",
+    "are strawberries red": "verified kind",
+    "is a ball round": "verified kind",
     "what shape is a coin": "retrieved kind",
     "is sandpaper rough": "unknown kind",
     "is a cat furry": "verified kind",
@@ -202,7 +215,7 @@ BASELINE: dict[str, str] = {
     "can you drink from a cup": "verified kind",
     "can you sit on a chair": "verified kind",
     "can you eat soup with a fork": "unknown kind",
-    "can you write with a pencil": "verified kind",
+    "can you write with a pencil": "unknown kind",
     "what do you use to cut paper": "retrieved kind",
     "what can you use to open a door": "retrieved kind",
     "what is a chair for": "retrieved kind",
@@ -210,17 +223,17 @@ BASELINE: dict[str, str] = {
     "is a hammer used for hitting nails": "verified kind",
     "is a spoon used for eating": "verified kind",
     "can you eat an apple": "verified kind",
-    "can people eat rocks": "denied kind",
+    "can people eat rocks": "unknown kind",
     "is a mushroom edible": "verified kind",
     "is it safe to eat a mushroom": "unknown kind",
-    "is bleach poisonous": "verified kind",
+    "is bleach poisonous": "retrieved kind",
     "is fire dangerous": "verified kind",
     "is a knife dangerous": "verified kind",
     "can dogs eat chocolate": "unknown kind",
     "is chocolate bad for dogs": "unknown kind",
     "is a snake dangerous": "verified kind",
-    "does a plant need water": "verified kind",
-    "do people need sleep": "unknown kind",
+    "does a plant need water": "unknown kind",
+    "do people need sleep": "retrieved kind",
     "does a car need fuel": "verified kind",
     "does a fish need water": "unknown kind",
     "what does a fish need to live": "retrieved kind",
@@ -240,17 +253,17 @@ BASELINE: dict[str, str] = {
     "where do people sleep": "retrieved kind",
     "is a bed in a bedroom": "verified kind",
     "where would you find a book": "retrieved kind",
-    "do fish live in trees": "denied kind",
+    "do fish live in trees": "unknown kind",
     "is a chair alive": "denied kind",
     "is a tree alive": "verified kind",
     "does a rock breathe": "denied kind",
     "can a table think": "denied kind",
-    "is a car man-made": "verified definition",
+    "is a car man-made": "verified kind",
     "is a mountain natural": "verified kind",
-    "did people make rivers": "unknown kind",
+    "did people make rivers": "retrieved kind",
     "can a fish see": "unknown kind",
     "can a worm hear": "unknown kind",
-    "does a stone feel pain": "denied kind",
+    "does a stone feel pain": "unknown kind",
     "can a dog smell": "verified kind",
     "can a dog be happy": "unknown kind",
     "can a robot feel sad": "unknown kind",
@@ -259,15 +272,15 @@ BASELINE: dict[str, str] = {
     "can a person breathe underwater": "unknown kind",
     "can a person lift a car": "unknown kind",
     "can a person see in the dark": "unknown kind",
-    "does a dog have cells": "verified kind",
-    "does a bicycle have an engine": "denied kind",
+    "does a dog have cells": "unknown kind",
+    "does a bicycle have an engine": "unknown kind",
     "does a table have legs": "verified kind",
     "does a snake have legs": "denied kind",
-    "does a fish have lungs": "unknown kind",
+    "does a fish have lungs": "verified kind",
     "is a tomato a fruit": "verified kind",
-    "is a spider an insect": "denied kind",
-    "is a whale a fish": "denied kind",
-    "is a bat a bird": "denied kind",
+    "is a spider an insect": "unknown kind",
+    "is a whale a fish": "unknown kind",
+    "is a bat a bird": "unknown kind",
     "is a dog a good pet": "unknown kind",
     "is a knife a tool": "verified kind",
     "is milk a drink": "verified kind",
