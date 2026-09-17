@@ -7,7 +7,8 @@ import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
                                      Ledger, Operator, Subgoal, Unwired,
-                                     Working, attempt, episode)
+                                     Working, attempt, episode,
+                                     suppressed)
 
 
 class ExecutiveTests(unittest.TestCase):
@@ -358,6 +359,35 @@ class WiringTests(unittest.TestCase):
                   subgoals={"nowhere": Subgoal("find", finding,
                                                returns=("found",))},
                   given=())
+
+
+class SuppressedTests(unittest.TestCase):
+    """E4: the same question asked again without an operator, to see what
+    the others would have come to."""
+
+    def cascade(self, name: str = "layers") -> Executive:
+        return Executive([
+            Operator("definition", attempt(lambda: "a bird")),
+            Operator("parts", attempt(lambda: "wings"))], name=name)
+
+    def test_without_the_one_that_answered_the_next_answers(self):
+        with suppressed({("layers", "definition")}):
+            memory: dict = {}
+            trace = self.cascade().run(memory)
+        self.assertEqual((trace.answered_by, memory["answer"]),
+                         ("parts", "wings"))
+        # and outside it, nothing is suppressed
+        self.assertEqual(self.cascade().run({}).answered_by, "definition")
+
+    def test_only_the_executive_named(self):
+        with suppressed({("other", "definition")}):
+            self.assertEqual(self.cascade().run({}).answered_by, "definition")
+
+    def test_suppressions_nest(self):
+        with suppressed({("layers", "definition")}):
+            with suppressed({("layers", "parts")}):
+                self.assertTrue(self.cascade().run({}).impasse)
+            self.assertEqual(self.cascade().run({}).answered_by, "parts")
 
 
 if __name__ == "__main__":

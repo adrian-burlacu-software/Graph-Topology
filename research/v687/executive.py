@@ -57,6 +57,26 @@ RATE = 0.0
 #: The runs of the episode open now, as (executive name, trace), or None.
 _EPISODE: ContextVar[list | None] = ContextVar("episode", default=None)
 
+#: (executive name, operator name) pairs never proposed while `suppressed`
+#: holds them.
+_SUPPRESSED: ContextVar[frozenset] = ContextVar("suppressed",
+                                                default=frozenset())
+
+
+@contextmanager
+def suppressed(pairs):
+    """Ask again as though these operators were not there: each is an
+    (executive name, operator name), and neither proposed nor fired in any
+    run inside this. What the others then come to is what a suppressed
+    operator's answer was worth against -- its credit counterfactually,
+    on the same question, where a ledger's mean compares different
+    questions (E4). Nests: an inner suppression adds to the outer."""
+    token = _SUPPRESSED.set(_SUPPRESSED.get() | frozenset(pairs))
+    try:
+        yield
+    finally:
+        _SUPPRESSED.reset(token)
+
 
 @contextmanager
 def episode():
@@ -219,6 +239,9 @@ class Executive:
                       depth=getattr(memory, "depth", 1))
         fired: set = set()
         resolved: set = set()
+        # Suppressed for this executive: treated as already fired.
+        fired.update(operator for executive, operator in _SUPPRESSED.get()
+                     if executive == self.name)
         while True:
             proposed = [one for one in self.operators
                         if one.name not in fired and one.ready(memory)]
