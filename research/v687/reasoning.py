@@ -26,7 +26,9 @@ from . import logic, pins, rules as v684_rules
 from .analogy import Analogies
 from .causal import Causal
 from .contrast import Contrast
-from .executive import Executive, Operator, Working, attempt
+from .engine import Engine
+from .executive import (ANSWERED, CONTINUE, DECLINED, Executive, Operator,
+                        Working, attempt, record)
 from .inverse import Inverse
 from .relevance import RULE_TEXT as V685_RULES
 from .server import V686_RULES, V687_RULES, IdentifyingEngine
@@ -61,35 +63,116 @@ class ReasoningEngine(IdentifyingEngine):
         if not concept and pinned:
             subject = (self.parser.parse(question or "").subject or "").lower()
             subject_sense = pins.of(subject)
-        if not concept:
-            clash = self._pin_fights_the_question(question or "", pinned)
-            if clash is not None:
-                return clash
-            memory = Working(goal=f"answer before v684: {question}")
-            layers = self.layers(question or "").run(memory)
-            # What the layers did, on what is returned, for whatever asked
-            # to credit it (E3): the audit asks from a pool, so a payload is
-            # the only thing that comes back.
-            ran = [{"executive": "v687 layers", "goal": layers.goal,
-                    **layers.as_dict()}]
-            if "answer" in memory:
-                answer = memory["answer"]
-                if isinstance(answer, dict):
-                    answer = {**answer, "executed": ran}
-                return answer
-        payload = super().ask(question, concept or subject_sense)
-        if not concept:
-            payload["executed"] = ran
-        payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
-        if not concept:
-            payload = self._folk(question or "", payload) or payload
-        self._report_unused_pins(payload, pinned)
-        return payload
+        memory = Working({"question": question or "", "concept": concept,
+                          "subject_sense": subject_sense, "pinned": pinned},
+                         goal=f"answer: {question}")
+        trace = Executive(
+            self.operators(memory), name="v687",
+            given=("question", "concept", "subject_sense", "pinned"),
+        ).run(memory)
+        if trace.impasse:
+            raise RuntimeError(f"v687 answered nothing for {question!r}")
+        # What ran, on what is returned, for whatever asked to credit it
+        # (E3): the audit asks from a pool, so a payload is the only thing
+        # that comes back. v684's own run is kept beneath v687's.
+        return {**memory["payload"],
+                "executed": [record("v687", trace),
+                             *memory.get("beneath", ())]}
 
-    def layers(self, question: str) -> Executive:
-        """What a question is tried as before v684 reads it, as operators
-        (`executive.py`): the order written is their utility, and the first
-        to answer ends it. Nothing answering is v684's to read.
+    def operators(self, m: Working) -> list[Operator]:
+        """What a question is tried as, in the order the engines were
+        stacked, as one executive (E4b): each is an operator, the order
+        written is its utility, and what answered is named.
+
+        A pin that fights the question, then v687's layers (`layers`), each
+        of which answers outright. Then what v686 and v685 put in front of
+        v684 -- the norms (R17), a description with no name (R16), two
+        subjects (R6) -- and v684's derivation, which always comes to
+        something; what they come to is still v687's to look at, as a folk
+        category (`_folk`), before it is the answer.
+
+        `concept` is the reader choosing a sense on an answer: it skips
+        everything above v684. A pin on the subject is a sense too, but only
+        v686 and below are given it -- pinning `bark` to its verb sense must
+        not stop `why does a dog bark` being a why-question.
+        """
+        question, concept, pinned = m["question"], m["concept"], m["pinned"]
+        below = concept or m["subject_sense"]
+
+        def asked(_) -> bool:
+            return concept is None
+
+        def open_to_all(_) -> bool:
+            return below is None and "payload" not in m
+
+        def decided(payload: dict) -> str:
+            payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
+            m["beneath"] = payload.pop("executed", None) or []
+            m["payload"] = payload
+            return CONTINUE
+
+        def clash(_) -> str:
+            found = self._pin_fights_the_question(question, pinned)
+            if found is None:
+                return DECLINED
+            m["payload"] = found
+            return ANSWERED
+
+        def norms(_) -> str:
+            found = self.about(question)
+            return DECLINED if found is None else decided(found)
+
+        def identified(_) -> str:
+            found = self.identified(question)
+            if found is None:
+                return DECLINED
+            return decided(found)
+
+        def two_subjects(_) -> str:
+            found = self.bridge(question)
+            if found is None:
+                return DECLINED
+            found["rules"] = {**found.get("rules", {}), **V686_RULES}
+            return decided(found)
+
+        def fact_graph(_) -> str:
+            found = self.with_rules(Engine.ask(self, question, below))
+            found["rules"] = {**found.get("rules", {}), **V686_RULES}
+            return decided(found)
+
+        def folk(_) -> str:
+            found = self._folk(question, m["payload"])
+            if found is None:
+                return DECLINED
+            m["payload"] = found
+            return CONTINUE
+
+        def answer(_) -> str:
+            self._report_unused_pins(m["payload"], pinned)
+            return ANSWERED
+
+        decides = ("payload",)
+        return [
+            Operator("the pin fights the question", clash, rule="R18",
+                     proposes=asked),
+            *self.layers(question, when=asked),
+            Operator("the norms", norms, rule="R17", gives=decides,
+                     proposes=open_to_all),
+            Operator("a description", identified, rule="R16", gives=decides,
+                     proposes=open_to_all),
+            Operator("two subjects", two_subjects, rule="R6", gives=decides,
+                     proposes=open_to_all),
+            Operator("the fact graph", fact_graph, gives=decides,
+                     proposes=lambda _: "payload" not in m),
+            Operator("a folk category", folk, rule="R17", needs=decides,
+                     gives=decides, proposes=asked),
+            Operator("the answer", answer, needs=decides),
+        ]
+
+    def layers(self, question: str, when=lambda _: True) -> list[Operator]:
+        """What a question is tried as before the norms and v684 read it:
+        the first to answer ends it, and nothing answering is theirs to
+        read. `when` is what every one of them needs to be proposed at all.
 
         `within` comes before identification looks for a single unnamed
         thing and comes back AMBIGUOUS (`which birds cannot fly`); after it,
@@ -100,30 +183,38 @@ class ReasoningEngine(IdentifyingEngine):
         """
         from . import attributes, shapes
         from .within import answer as within
-        return Executive([
-            Operator("comparative", attempt(lambda: self._compare(question)),
-                     rule="R31"),
+
+        def tried(function):
+            return attempt(function, slot="payload")
+
+        return [
+            Operator("comparative", tried(lambda: self._compare(question)),
+                     rule="R31", proposes=when),
             Operator("refused by name",
-                     attempt(lambda: self._gated(question)), rule="R18"),
-            Operator("definition", attempt(lambda: self._define(question)),
-                     rule="R26"),
-            Operator("contrast", attempt(lambda: self._contrast(question)),
-                     rule="R21"),
-            Operator("script", attempt(lambda: self._causal(question)),
-                     rule="R23"),
-            Operator("analogy", attempt(lambda: self._analogy(question)),
-                     rule="R24"),
+                     tried(lambda: self._gated(question)), rule="R18",
+                     proposes=when),
+            Operator("definition", tried(lambda: self._define(question)),
+                     rule="R26", proposes=when),
+            Operator("contrast", tried(lambda: self._contrast(question)),
+                     rule="R21", proposes=when),
+            Operator("script", tried(lambda: self._causal(question)),
+                     rule="R23", proposes=when),
+            Operator("analogy", tried(lambda: self._analogy(question)),
+                     rule="R24", proposes=when),
             Operator("within a class",
-                     attempt(lambda: within(self, question))),
+                     tried(lambda: within(self, question)), proposes=when),
             Operator("attribute",
-                     attempt(lambda: attributes.answer(self, question))),
-            Operator("shape", attempt(lambda: shapes.answer(self, question))),
-            Operator("backwards", attempt(lambda: self._inverse(question)),
-                     proposes=lambda memory: self._is_backwards(question),
+                     tried(lambda: attributes.answer(self, question)),
+                     proposes=when),
+            Operator("shape", tried(lambda: shapes.answer(self, question)),
+                     proposes=when),
+            Operator("backwards", tried(lambda: self._inverse(question)),
+                     proposes=lambda memory: (when(memory) and
+                                              self._is_backwards(question)),
                      rule="R22"),
-            Operator("rated", attempt(lambda: self._rated(question)),
-                     rule="R32"),
-        ], name="v687 layers")
+            Operator("rated", tried(lambda: self._rated(question)),
+                     rule="R32", proposes=when),
+        ]
 
     # -- R31, and the rated norms for what the norms do not name -------------
     def _compare(self, question: str) -> dict | None:

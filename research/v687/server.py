@@ -120,10 +120,19 @@ class IdentifyingEngine(BridgedEngine):
             payload = super().ask(question, concept)
             payload["rules"] = {**payload.get("rules", {}), **V686_RULES}
             return payload
+        identified = self.identified(question)
+        return (identified if identified is not None
+                else super().ask(question, concept))
 
+    def identified(self, question: str) -> dict | None:
+        """R16: a description with no name, answered with the kinds it fits.
+        None when it is no description, or matched nothing and named nothing
+        to match."""
+        if not self.identifier.describes(question or ""):
+            return None
         found = self.identifier.identify(question)
         if found.verdict == "NO_MATCH" and not found.terms:
-            return super().ask(question, concept)
+            return None
 
         payload = {
             "question": question,

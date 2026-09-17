@@ -441,6 +441,12 @@ class Ledger:
                       key=lambda one: (-one[2], one[0], one[1]))
 
 
+def record(name: str, trace: Trace) -> dict:
+    """A run as a payload carries it, for whatever credits it (E3): the
+    executive's name, its goal, and what fired."""
+    return {"executive": name, "goal": trace.goal, **trace.as_dict()}
+
+
 def attempt(function: Callable[[], object | None], slot: str = "answer"
             ) -> Callable[[dict], str | None]:
     """An operator's action from a function that answers or returns None:

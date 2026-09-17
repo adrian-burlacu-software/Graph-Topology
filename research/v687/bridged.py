@@ -34,15 +34,25 @@ class BridgedEngine(v684_server.Engine):
         self.bridged.parser = self.parser
 
     def ask(self, question: str, concept: str | None = None) -> dict:
+        # The user pinned a sense by clicking, or no second subject: an
+        # ordinary v684 question, and it stays one.
+        if not concept:
+            bridged = self.bridge(question)
+            if bridged is not None:
+                return bridged
+        return self.with_rules(super().ask(question, concept))
+
+    def bridge(self, question: str) -> dict | None:
+        """R6: a question with two subjects, answered about the role the
+        second plays for the first. None when there is no second subject, or
+        no role for it -- the ordinary question, which is v684's."""
         anchor, role = self.bridged.two_subjects(question)
-        if not role or concept:
-            # No second subject, or the user pinned a sense by clicking: this
-            # is an ordinary v684 question and stays one.
-            return self.with_rules(super().ask(question, concept))
+        if not role:
+            return None
 
         result = self.bridged.ask(question)
         if result.answer is None:
-            return self.with_rules(super().ask(question, concept))
+            return None
 
         # Answer about the role, exactly as v684 would, so the derivation
         # replay and the globe keep working with no special case.

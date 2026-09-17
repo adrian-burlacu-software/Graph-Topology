@@ -16,6 +16,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import build, compress, pins, rules
+from .executive import (ANSWERED, CONTINUE, DECLINED, Executive, Operator,
+                        Working, record)
 from .language import Parser
 from .reason import Reasoner
 
@@ -53,41 +55,93 @@ class Engine:
         self.match = self.parser.matcher()
 
     def ask(self, question: str, concept: str | None = None) -> dict:
-        parse = self.parser.parse(question)
-        if not parse.subject and not concept:
+        """v684's derivation, run by the executive (E4b): each decision it
+        makes is an operator, so what answered is named on the payload's
+        `executed` and can be credited. `concept`, when given, is the sense
+        chosen for the subject, and is what the operators start from."""
+        memory = Working({"question": question, "concept": concept},
+                         goal=f"derive: {question}")
+        trace = Executive(self.derivation(memory), name="v684",
+                          given=("question", "concept")).run(memory)
+        if trace.impasse:
+            raise RuntimeError(f"v684 derived nothing for {question!r}")
+        payload = memory["payload"]
+        payload["executed"] = [record("v684", trace)]
+        return payload
+
+    def derivation(self, m: Working) -> list[Operator]:
+        """The operators of `ask`, in the order they were a cascade.
+
+        One path is taken by what the question is -- a kind (`is_a` with a
+        target), a yes or no about anything else, or a description -- and
+        each step on it looks, and says whether it changed the answer
+        (CONTINUE) or left it (DECLINED). Only a step's *path* is its
+        condition: what it looks at in the answer is decided when it fires,
+        or a later step changing the answer could propose an earlier one
+        after it, which the cascade never did.
+        """
+        question, concept = m["question"], m["concept"]
+
+        def kind(_=None) -> bool:
+            parse = m["parse"]
+            return parse.relation == "is_a" and bool(parse.target)
+
+        def polar(_=None) -> bool:
+            parse = m["parse"]
+            return (not kind() and bool(parse.polar) and bool(parse.target)
+                    and bool(parse.relation))
+
+        def read(_) -> str:
+            m["parse"] = self.parser.parse(question)
+            return CONTINUE
+
+        def nothing_to_ask_about(_) -> str:
             # When the parser gave up on a particular word, that word is the
             # answer: "I do not know what a wemble is" is a real answer, and
             # answering about the next noun along was not.
-            return {"verdict": "UNKNOWN_WORD" if parse.unknown else "UNPARSED",
-                    "question": question,
-                    "parse": parse.as_dict(), "senses": [], "steps": [],
-                    "evidence": [], "chain": [],
-                    "note": (f"“{parse.unknown}” is not a word in this "
-                             f"ontology, and it is what the question is "
-                             f"about. Nothing can be said about it here "
-                             f"without first being told what it is."
-                             if parse.unknown else
-                             "No noun found to reason about.")}
+            parse = m["parse"]
+            m["payload"] = {
+                "verdict": "UNKNOWN_WORD" if parse.unknown else "UNPARSED",
+                "question": question,
+                "parse": parse.as_dict(), "senses": [], "steps": [],
+                "evidence": [], "chain": [],
+                "note": (f"“{parse.unknown}” is not a word in this "
+                         f"ontology, and it is what the question is "
+                         f"about. Nothing can be said about it here "
+                         f"without first being told what it is."
+                         if parse.unknown else
+                         "No noun found to reason about.")}
+            return ANSWERED
 
-        # Senses always come from the word in the question. `concept` selects
-        # among them; it is a synset id, not something to look up as a lemma.
-        #
-        # The tagger has already said what part of speech the subject was
-        # used as, and offering a noun sense for a word tagged as a verb
-        # throws that away. It rarely changes a subject -- subjects are
-        # mostly nouns -- and it is free and correct.
-        senses = self.reasoner.senses_of(parse.subject or "",
-                                         subject_pos(parse))
-        if not senses and not concept:
-            return {"verdict": "UNKNOWN_WORD", "question": question,
+        def senses(_) -> str:
+            # Senses always come from the word in the question. `concept`
+            # selects among them; it is a synset id, not something to look up
+            # as a lemma.
+            #
+            # The tagger has already said what part of speech the subject was
+            # used as, and offering a noun sense for a word tagged as a verb
+            # throws that away. It rarely changes a subject -- subjects are
+            # mostly nouns -- and it is free and correct.
+            parse = m["parse"]
+            found = self.reasoner.senses_of(parse.subject or "",
+                                            subject_pos(parse))
+            if not found and not concept:
+                m["payload"] = {
+                    "verdict": "UNKNOWN_WORD", "question": question,
                     "parse": parse.as_dict(), "senses": [], "steps": [],
                     "evidence": [], "chain": [],
                     "note": f"“{parse.subject}” is not in the ontology."}
+                return ANSWERED
+            m["senses"] = found
+            m["chosen"] = concept if concept else found[0]["id"]
+            return CONTINUE
 
-        chosen = concept if concept else senses[0]["id"]
+        def classify(_) -> str:
+            m["found"] = self.reasoner.classify(m["chosen"],
+                                                m["parse"].target)
+            return CONTINUE
 
-        if parse.relation == "is_a" and parse.target:
-            answer = self.reasoner.classify(chosen, parse.target)
+        def another_sense(_) -> str:
             # The target is already read existentially -- "any of its senses
             # counts" -- and a classification question reads the same way on
             # the subject side. `is red a color` resolved `red` to the
@@ -104,57 +158,61 @@ class Engine:
             # cannot end the search -- the sentence above says a word names a
             # kind of something if *any* of its senses does, and a no about
             # one sense is not a no about the word.
+            answer, chosen, parse = m["found"], m["chosen"], m["parse"]
             excluded = any(step.rule == "R27" for step in answer.steps)
-            unsettled = answer.verdict == "UNKNOWN" or excluded
-            if unsettled and concept is None and len(senses) > 1:
-                # Where the target is unambiguous about its branch it says
-                # which reading of the subject was meant. `flowering plant` is
-                # `angiosperm.n.01`, under `plant`, so `is a hyacinth a
-                # flowering plant` is about `hyacinth.n.02` and not about the
-                # zircon -- and the answer is then UNKNOWN, because WordNet
-                # files hyacinth under `vascular plant` and never reaches
-                # `angiosperm`. A hole in the tree is an absence; the zircon
-                # was a confident no about the wrong thing.
-                #
-                # Only a *match* moves the sense, never the mere absence of an
-                # exclusion. `dog` has senses the partitions cannot place at
-                # all -- a hot dog is under `substance` -- and taking one of
-                # those as permission to withdraw would lose `is a dog a
-                # plant`, which is a correct no.
-                # One branch, or none of this applies. `plant` is a factory and
-                # a stooge as well as a herb, so its partitions are three and
-                # it says nothing about which dog was meant -- and taking the
-                # andiron as a match there lost `is a dog a plant`. A target
-                # that could be anywhere places nothing.
-                wanted = (self.reasoner.target_partitions(parse.target)
-                          if excluded else set())
-                if len(wanted) != 1:
-                    wanted = set()
-                for other in senses[1:8]:
-                    if other["id"] == chosen:
-                        continue
-                    # A verb sense is not a kind of anything. `is water wet`
-                    # came back VERIFIED as `water.v.01`, to supply with
-                    # water, under `wet.v.01` -- the retry answering about a
-                    # word's verb when the question named a thing.
-                    if other.get("pos") == "v":
-                        continue
-                    attempt = self.reasoner.classify(other["id"], parse.target)
-                    fits = bool(wanted) and (
-                        self.reasoner.partition_of(other["id"]) in wanted)
-                    if attempt.verdict != "VERIFIED" and not fits:
-                        continue
-                    attempt.note = (
-                        f"Not of {chosen}, the sense carrying the most facts, "
-                        f"but of {other['id']} — {other['definition']}. A word "
-                        f"names a kind of something if any of its senses does."
-                        if attempt.verdict == "VERIFIED" else
-                        f"Not of {chosen} — “{parse.target}” places this "
-                        f"question in a branch {chosen} is not in, and "
-                        f"{other['id']} is: {other['definition']}. "
-                        f"{attempt.note}")
-                    answer, chosen = attempt, other["id"]
-                    break
+            if not (answer.verdict == "UNKNOWN" or excluded):
+                return DECLINED
+            # Where the target is unambiguous about its branch it says which
+            # reading of the subject was meant. `flowering plant` is
+            # `angiosperm.n.01`, under `plant`, so `is a hyacinth a flowering
+            # plant` is about `hyacinth.n.02` and not about the zircon -- and
+            # the answer is then UNKNOWN, because WordNet files hyacinth under
+            # `vascular plant` and never reaches `angiosperm`. A hole in the
+            # tree is an absence; the zircon was a confident no about the
+            # wrong thing.
+            #
+            # Only a *match* moves the sense, never the mere absence of an
+            # exclusion. `dog` has senses the partitions cannot place at all
+            # -- a hot dog is under `substance` -- and taking one of those as
+            # permission to withdraw would lose `is a dog a plant`, which is a
+            # correct no.
+            # One branch, or none of this applies. `plant` is a factory and a
+            # stooge as well as a herb, so its partitions are three and it
+            # says nothing about which dog was meant -- and taking the andiron
+            # as a match there lost `is a dog a plant`. A target that could be
+            # anywhere places nothing.
+            wanted = (self.reasoner.target_partitions(parse.target)
+                      if excluded else set())
+            if len(wanted) != 1:
+                wanted = set()
+            for other in m["senses"][1:8]:
+                if other["id"] == chosen:
+                    continue
+                # A verb sense is not a kind of anything. `is water wet` came
+                # back VERIFIED as `water.v.01`, to supply with water, under
+                # `wet.v.01` -- the retry answering about a word's verb when
+                # the question named a thing.
+                if other.get("pos") == "v":
+                    continue
+                attempt = self.reasoner.classify(other["id"], parse.target)
+                fits = bool(wanted) and (
+                    self.reasoner.partition_of(other["id"]) in wanted)
+                if attempt.verdict != "VERIFIED" and not fits:
+                    continue
+                attempt.note = (
+                    f"Not of {chosen}, the sense carrying the most facts, "
+                    f"but of {other['id']} — {other['definition']}. A word "
+                    f"names a kind of something if any of its senses does."
+                    if attempt.verdict == "VERIFIED" else
+                    f"Not of {chosen} — “{parse.target}” places this "
+                    f"question in a branch {chosen} is not in, and "
+                    f"{other['id']} is: {other['definition']}. "
+                    f"{attempt.note}")
+                m["found"], m["chosen"] = attempt, other["id"]
+                return CONTINUE
+            return DECLINED
+
+        def as_a_property(_) -> str:
             # A hedged `is_a` was a guess -- `is winter cold` has the shape of
             # `is a chair furniture`, and only the data tells them apart. When
             # the taxonomy has nothing, the property reading gets its turn,
@@ -174,95 +232,151 @@ class Engine:
             # target happens to own an adjective sense. `animal` owns one too,
             # and gating on that would have taken `is a mouse an animal` with
             # it.
+            answer, chosen, parse = m["found"], m["chosen"], m["parse"]
             excluded = (answer.verdict == "CONTRADICTED"
                         and any(step.rule == "R27" for step in answer.steps))
-            if parse.hedged and (answer.verdict == "UNKNOWN" or excluded):
-                attempt = self.reasoner.verify(chosen, "has_property",
-                                               parse.target, self.match)
-                # Only what the concept says of itself. A hedged reading is
-                # already a guess about which question was asked, and letting
-                # it inherit compounds one guess with another: `wild` is
-                # recorded of canines, and `is a dog wild` came back yes.
-                here = [fact for fact in attempt.evidence
-                        if not getattr(fact, "distance", 0)]
-                if attempt.verdict != "UNKNOWN" and here:
-                    answer = attempt
-                elif excluded:
-                    # Neither reading has anything. The taxonomy one is still
-                    # standing, and it answers a question that was not asked,
-                    # so it goes back to what this codebase says everywhere
-                    # else about a store that never recorded something.
-                    answer.verdict = "UNKNOWN"
-                    answer.note = (
-                        f"“{parse.target}” has a noun sense in a branch of "
-                        f"the taxonomy {chosen} cannot be in, but nothing "
-                        f"here asked a taxonomy question: with no determiner "
-                        f"this reads as a property, and nothing states "
-                        f"{chosen.rsplit('.', 2)[0]} as “{parse.target}”. "
-                        f"Absent, not false. R27 withdrawn.")
-                    answer.steps.append(rules.Step(
-                        len(answer.steps), "stop", chosen, 0, "R27",
-                        f"“{parse.target}” is bare, so the is_a reading was a "
-                        f"guess. The exclusion answers the other question and "
-                        f"is withdrawn."))
-        elif parse.polar and parse.target and parse.relation:
-            answer = self.sense_first(chosen, parse)
-            answer = self.corroborate(answer, parse.target)
-        else:
-            answer = self.reasoner.describe(chosen, parse.relation)
+            if not (answer.verdict == "UNKNOWN" or excluded):
+                return DECLINED
+            attempt = self.reasoner.verify(chosen, "has_property",
+                                           parse.target, self.match)
+            # Only what the concept says of itself. A hedged reading is
+            # already a guess about which question was asked, and letting it
+            # inherit compounds one guess with another: `wild` is recorded of
+            # canines, and `is a dog wild` came back yes.
+            here = [fact for fact in attempt.evidence
+                    if not getattr(fact, "distance", 0)]
+            if attempt.verdict != "UNKNOWN" and here:
+                m["found"] = attempt
+                return CONTINUE
+            if not excluded:
+                return DECLINED
+            # Neither reading has anything. The taxonomy one is still
+            # standing, and it answers a question that was not asked, so it
+            # goes back to what this codebase says everywhere else about a
+            # store that never recorded something.
+            answer.verdict = "UNKNOWN"
+            answer.note = (
+                f"“{parse.target}” has a noun sense in a branch of the "
+                f"taxonomy {chosen} cannot be in, but nothing here asked a "
+                f"taxonomy question: with no determiner this reads as a "
+                f"property, and nothing states {chosen.rsplit('.', 2)[0]} as "
+                f"“{parse.target}”. Absent, not false. R27 withdrawn.")
+            answer.steps.append(rules.Step(
+                len(answer.steps), "stop", chosen, 0, "R27",
+                f"“{parse.target}” is bare, so the is_a reading was a guess. "
+                f"The exclusion answers the other question and is withdrawn."))
+            return CONTINUE
 
-        answer.question = question
-        answer.parse = parse.as_dict()
-        answer.senses = senses
-        payload = answer.as_dict()
-        # Real distances come from the steps. `chain` is visit order, and using
-        # its index as a distance spreads the graph over twice as many shells
-        # as exist, leaving too few nodes in each to form a ring.
-        distances: dict[str, int] = {}
-        for step in answer.steps:
-            distances.setdefault(step.concept, step.distance)
-        payload["neighbourhood"] = self.neighbourhood(chosen, answer.chain, distances)
-        payload["store"] = self.reasoner.store.name
-        return payload
+        # R29 before R2: ask the graph, then fall back to the words.
+        #
+        # A pin on the object only means something where there is a sense to
+        # bind it to, and in this store that is WordNet's synset-to-synset
+        # rows -- `has_part`, `part_of`, `similar_to`, `entails`, `causes`.
+        # Everything else, `capable_of` and its 772,890 rows included, is free
+        # text from a crawl, and `can a dog bark` is answered by matching the
+        # word "bark" against a norm predicate that could be any of its nine
+        # senses.
+        #
+        # So: if the reader pinned a word in the object and the relation has a
+        # sense-tagged form, put the question to the graph between the two
+        # synsets, with no string matching anywhere in it. `does a car have an
+        # accelerator` is UNKNOWN through the words -- the accelerator is
+        # recorded only as a synset -- and VERIFIED through the graph.
+        #
+        # When the graph has nothing the words still get their turn, and the
+        # answer says which of the two spoke, because "the graph does not
+        # record this" and "no word matched" are different things to know.
+        def pinned_object() -> str:
+            pinned = ""
+            for word in (m["parse"].target or "").replace("-", " ").split():
+                pinned = pins.of(word.strip(".,;:").lower()) or pinned
+                if pinned:
+                    break
+            return pinned
 
-    def sense_first(self, concept: str, parse):
-        """R29 before R2: ask the graph, then fall back to the words.
+        def between_senses(_) -> str:
+            found = self.reasoner.verify_sense(
+                m["chosen"], m["parse"].relation, pinned_object())
+            if found.verdict == "UNKNOWN":
+                return DECLINED
+            m["found"] = found
+            return CONTINUE
 
-        A pin on the object only means something where there is a sense to
-        bind it to, and in this store that is WordNet's synset-to-synset
-        rows -- `has_part`, `part_of`, `similar_to`, `entails`, `causes`.
-        Everything else, `capable_of` and its 772,890 rows included, is free
-        text from a crawl, and `can a dog bark` is answered by matching the
-        word "bark" against a norm predicate that could be any of its nine
-        senses.
+        def between_words(_) -> str:
+            parse, chosen, pinned = m["parse"], m["chosen"], pinned_object()
+            answer = self.reasoner.verify(chosen, parse.relation,
+                                          parse.target, self.match)
+            if pinned and parse.relation in self.reasoner.SENSE_TAGGED:
+                answer.note = ((answer.note or "").rstrip() + " " + (
+                    f"Asked between senses first — the graph records no "
+                    f"`{parse.relation}` between {chosen} and {pinned} — and "
+                    f"then between words, which is what answered.")).strip()
+            m["found"] = answer
+            return CONTINUE
 
-        So: if the reader pinned a word in the object and the relation has a
-        sense-tagged form, put the question to the graph between the two
-        synsets, with no string matching anywhere in it. `does a car have an
-        accelerator` is UNKNOWN through the words -- the accelerator is
-        recorded only as a synset -- and VERIFIED through the graph.
+        def corroborated(_) -> str:
+            before = m["found"]
+            verdict = before.verdict
+            m["found"] = self.corroborate(before, m["parse"].target)
+            return (CONTINUE if m["found"] is not before
+                    or m["found"].verdict != verdict else DECLINED)
 
-        When the graph has nothing the words still get their turn, and the
-        answer says which of the two spoke, because "the graph does not
-        record this" and "no word matched" are different things to know.
-        """
-        pinned = ""
-        for word in (parse.target or "").replace("-", " ").split():
-            pinned = pins.of(word.strip(".,;:").lower()) or pinned
-            if pinned:
-                break
-        if pinned:
-            found = self.reasoner.verify_sense(concept, parse.relation, pinned)
-            if found.verdict != "UNKNOWN":
-                return found
-        answer = self.reasoner.verify(concept, parse.relation, parse.target,
-                                      self.match)
-        if pinned and parse.relation in self.reasoner.SENSE_TAGGED:
-            answer.note = ((answer.note or "").rstrip() + " " + (
-                f"Asked between senses first — the graph records no "
-                f"`{parse.relation}` between {concept} and {pinned} — and "
-                f"then between words, which is what answered.")).strip()
-        return answer
+        def describe(_) -> str:
+            m["found"] = self.reasoner.describe(m["chosen"],
+                                                m["parse"].relation)
+            return CONTINUE
+
+        def answer(_) -> str:
+            found, parse = m["found"], m["parse"]
+            found.question = question
+            found.parse = parse.as_dict()
+            found.senses = m["senses"]
+            payload = found.as_dict()
+            # Real distances come from the steps. `chain` is visit order, and
+            # using its index as a distance spreads the graph over twice as
+            # many shells as exist, leaving too few nodes in each to form a
+            # ring.
+            distances: dict[str, int] = {}
+            for step in found.steps:
+                distances.setdefault(step.concept, step.distance)
+            payload["neighbourhood"] = self.neighbourhood(
+                m["chosen"], found.chain, distances)
+            payload["store"] = self.reasoner.store.name
+            m["payload"] = payload
+            return ANSWERED
+
+        on_a_sense = ("parse", "senses", "chosen")
+        return [
+            Operator("read the question", read, gives=("parse",)),
+            Operator("nothing to ask about", nothing_to_ask_about,
+                     needs=("parse",),
+                     proposes=lambda _: (not m["parse"].subject
+                                         and not concept)),
+            Operator("senses", senses, needs=("parse",),
+                     gives=("senses", "chosen")),
+            Operator("classify", classify, rule="R1", needs=on_a_sense,
+                     gives=("found",), proposes=kind),
+            Operator("another sense", another_sense, rule="R27",
+                     needs=on_a_sense + ("found",), gives=("found", "chosen"),
+                     proposes=lambda _: (kind() and concept is None
+                                         and len(m["senses"]) > 1)),
+            Operator("as a property", as_a_property, rule="R27",
+                     needs=on_a_sense + ("found",), gives=("found",),
+                     proposes=lambda _: kind() and bool(m["parse"].hedged)),
+            Operator("between senses", between_senses, rule="R29",
+                     needs=on_a_sense, gives=("found",),
+                     proposes=lambda _: polar() and bool(pinned_object())),
+            Operator("between words", between_words, rule="R2",
+                     needs=on_a_sense, gives=("found",),
+                     proposes=lambda _: polar() and "found" not in m),
+            Operator("corroborated", corroborated, rule="R19",
+                     needs=("parse", "found"), gives=("found",),
+                     proposes=polar),
+            Operator("describe", describe, needs=on_a_sense,
+                     gives=("found",),
+                     proposes=lambda _: not kind() and not polar()),
+            Operator("the answer", answer, needs=on_a_sense + ("found",)),
+        ]
 
     def corroborate(self, answer, target: str):
         """R19 hook: put an inherited fact to the ancestor's other kinds.

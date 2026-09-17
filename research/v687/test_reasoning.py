@@ -745,8 +745,22 @@ class AnswerAuditTests(unittest.TestCase):
         """E3: the audit asks from a pool, so what the executive ran has to
         come back on the payload to be credited."""
         runs = self.engine.ask("can a penguin fly").get("executed")
-        self.assertEqual([run["executive"] for run in runs], ["v687 layers"])
-        self.assertTrue(runs[0]["fired"])
+        self.assertEqual([run["executive"] for run in runs], ["v687"])
+        self.assertIn("the norms", self.did(runs[0]))
+
+    @staticmethod
+    def did(run) -> list[str]:
+        return [step["operator"] for step in run["fired"]
+                if step["outcome"] != "declined"]
+
+    def test_what_decides_below_the_layers_is_an_operator_too(self):
+        """E4b: v684's derivation is an executive of its own, kept beneath
+        v687's run, so the rule that decided is what is credited."""
+        runs = self.engine.ask("is a dog an animal").get("executed")
+        self.assertEqual([run["executive"] for run in runs], ["v687", "v684"])
+        self.assertIn("the fact graph", self.did(runs[0]))
+        self.assertIn("classify", self.did(runs[1]))
+        self.assertEqual(runs[1]["answered_by"], "the answer")
 
     # -- F1: a denial is not a denial of every word inside it --------------
     def test_a_qualified_denial_does_not_deny_the_bare_property(self):
