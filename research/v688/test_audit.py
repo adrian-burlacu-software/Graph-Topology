@@ -351,5 +351,47 @@ class ThePoolStillDefaultsToTheShippedEngine(unittest.TestCase):
         self.assertIsNone(parameter["engine_class"].default)
 
 
+class CreditTests(unittest.TestCase):
+    """E3: each question is credited by the side of the gold it is on -- a
+    held property positive, a corrupted claim negative, a foil negative only
+    once a judge has screened it."""
+
+    def setUp(self):
+        self.gold = audit.GOLD
+        self.pair = audit.Pair("has feathers", "robin", "sparrow",
+                               "taxonomic", "visual perceptual")
+        self.bad = [audit.Pair("has a bubble tube", "arm", "arm",
+                               "corrupted", "NA")]
+
+    def tearDown(self):
+        audit.GOLD = self.gold
+
+    def run_of(self, operator):
+        return [{"executive": "v687 layers",
+                 "fired": [{"operator": operator, "outcome": "answered"}]}]
+
+    def test_a_foil_says_nothing_until_it_is_screened(self):
+        audit.GOLD = "base"
+        self.assertEqual(audit.sides([self.pair], self.bad),
+                         {"robin|has feathers": "positive",
+                          "!arm|has a bubble tube": "negative"})
+        audit.GOLD = "screened"
+        self.assertEqual(audit.sides([self.pair], [])["sparrow|has feathers"],
+                         "negative")
+
+    def test_asserting_what_is_false_is_worth_less_than_silence(self):
+        audit.GOLD = "base"
+        answers = {"robin|has feathers": {"outcome": "verified",
+                                          "executed": self.run_of("rated")},
+                   "!arm|has a bubble tube": {"outcome": "verified",
+                                              "executed": self.run_of("parts")}}
+        ledger = audit.credit(answers, [self.pair], self.bad)
+        self.assertEqual(ledger.mean("v687 layers", "rated"), 1.0)
+        self.assertEqual(ledger.mean("v687 layers", "parts"), -1.0)
+        answers["!arm|has a bubble tube"]["outcome"] = "unknown"
+        self.assertEqual(audit.credit(answers, [self.pair], self.bad)
+                         .mean("v687 layers", "parts"), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

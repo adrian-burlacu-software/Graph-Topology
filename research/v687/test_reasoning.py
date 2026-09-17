@@ -741,6 +741,13 @@ class AnswerAuditTests(unittest.TestCase):
     def verdict(self, question):
         return self.engine.ask(question)["verdict"]
 
+    def test_an_answer_carries_what_the_layers_ran(self):
+        """E3: the audit asks from a pool, so what the executive ran has to
+        come back on the payload to be credited."""
+        runs = self.engine.ask("can a penguin fly").get("executed")
+        self.assertEqual([run["executive"] for run in runs], ["v687 layers"])
+        self.assertTrue(runs[0]["fired"])
+
     # -- F1: a denial is not a denial of every word inside it --------------
     def test_a_qualified_denial_does_not_deny_the_bare_property(self):
         """The norms deny `has small ears` of a beaver. Beavers have ears."""

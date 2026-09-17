@@ -66,10 +66,20 @@ class ReasoningEngine(IdentifyingEngine):
             if clash is not None:
                 return clash
             memory = Working(goal=f"answer before v684: {question}")
-            self.layers(question or "").run(memory)
+            layers = self.layers(question or "").run(memory)
+            # What the layers did, on what is returned, for whatever asked
+            # to credit it (E3): the audit asks from a pool, so a payload is
+            # the only thing that comes back.
+            ran = [{"executive": "v687 layers", "goal": layers.goal,
+                    **layers.as_dict()}]
             if "answer" in memory:
-                return memory["answer"]
+                answer = memory["answer"]
+                if isinstance(answer, dict):
+                    answer = {**answer, "executed": ran}
+                return answer
         payload = super().ask(question, concept or subject_sense)
+        if not concept:
+            payload["executed"] = ran
         payload["rules"] = {**payload.get("rules", {}), **V687_RULES}
         if not concept:
             payload = self._folk(question or "", payload) or payload

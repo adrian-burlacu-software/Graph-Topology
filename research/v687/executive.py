@@ -86,10 +86,18 @@ class Fired:
     operator: str
     rule: str
     outcome: str
+    #: every operator proposed in the cycle this one was chosen from -- the
+    #: conflict set, which is what a utility decides (E3)
+    candidates: tuple = ()
 
     def as_dict(self) -> dict:
-        return {"operator": self.operator, "rule": self.rule,
-                "outcome": self.outcome}
+        out = {"operator": self.operator, "rule": self.rule,
+               "outcome": self.outcome}
+        if len(self.candidates) > 1:
+            # Only where there was a choice: a cycle of one proposal decided
+            # nothing, and every trace written before this reads the same.
+            out["candidates"] = list(self.candidates)
+        return out
 
 
 @dataclass
@@ -170,7 +178,8 @@ class Executive:
                                                     -self.place[one.name]))
             fired.add(chosen.name)
             outcome = chosen.apply(memory) or DECLINED
-            trace.fired.append(Fired(chosen.name, chosen.rule, outcome))
+            trace.fired.append(Fired(chosen.name, chosen.rule, outcome,
+                                     tuple(one.name for one in proposed)))
             if outcome == ANSWERED:
                 trace.answered_by = chosen.name
                 return trace
@@ -312,10 +321,19 @@ class Ledger:
     def __init__(self) -> None:
         #: (executive, operator) -> {"count", "total", "outcomes": {...}}
         self.rows: dict[tuple[str, str], dict] = {}
+        #: (executive, chosen) -> {another proposed with it: times}
+        self.conflicts: dict[tuple[str, str], dict] = {}
 
     def credit(self, executive: str, trace: dict, value: float,
                outcome: str = "") -> None:
         for step in trace.get("fired", ()):
+            others = [one for one in step.get("candidates", ())
+                      if one != step["operator"]]
+            if others:
+                seen = self.conflicts.setdefault(
+                    (executive, step["operator"]), {})
+                for one in others:
+                    seen[one] = seen.get(one, 0) + 1
             if step.get("outcome") == DECLINED:
                 continue
             row = self.rows.setdefault((executive, step["operator"]),
@@ -331,6 +349,30 @@ class Ledger:
     def mean(self, executive: str, operator: str) -> float | None:
         row = self.rows.get((executive, operator))
         return row["total"] / row["count"] if row and row["count"] else None
+
+    def reversals(self) -> list[tuple]:
+        """(executive, chosen, its mean, passed over, its mean, times): a
+        choice learning would reverse, because an operator proposed beside
+        the one chosen has earned more when it did fire. Only operators with
+        credit of their own are compared -- one that never fired has no mean
+        -- so this is what the rewards say, not what an untried operator
+        might have done.
+
+        It assumes utilities on the reward's scale. The priors are not: they
+        are the order written (`len - index`, so 12, 11, ... 1), and any
+        operator that fired would be pulled from its prior toward a mean
+        below one, under every operator that never fired. Putting the priors
+        on the reward's scale comes before turning learning on."""
+        out = []
+        for (executive, chosen), others in self.conflicts.items():
+            mine = self.mean(executive, chosen)
+            if mine is None:
+                continue
+            for other, times in others.items():
+                theirs = self.mean(executive, other)
+                if theirs is not None and theirs > mine:
+                    out.append((executive, chosen, mine, other, theirs, times))
+        return sorted(out, key=lambda one: -one[5])
 
     def table(self) -> list[tuple]:
         """(executive, operator, count, mean, outcomes), the most credited

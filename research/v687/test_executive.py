@@ -269,5 +269,35 @@ class CreditTests(unittest.TestCase):
                                ledger.mean("", "answer"), delta=0.1)
 
 
+class ConflictTests(unittest.TestCase):
+    """E3: a fired step keeps what it was chosen from, and the ledger says
+    which choices the rewards would reverse."""
+
+    def test_a_choice_is_kept_only_where_there_was_one(self):
+        trace = Executive([
+            Operator("definition", attempt(lambda: None)),
+            Operator("parts", attempt(lambda: "yes"))]).run(Working())
+        steps = trace.as_dict()["fired"]
+        self.assertEqual(steps[0]["candidates"], ["definition", "parts"])
+        # the second cycle had only `parts` left: nothing was decided there
+        self.assertNotIn("candidates", steps[1])
+
+    def test_a_reversal_is_a_passed_over_operator_that_earned_more(self):
+        ledger = Ledger()
+        chose_worse = {"fired": [{"operator": "definition",
+                                  "outcome": ANSWERED,
+                                  "candidates": ["definition", "parts"]}]}
+        parts_alone = {"fired": [{"operator": "parts", "outcome": ANSWERED}]}
+        for _ in range(3):
+            ledger.credit("layers", chose_worse, -1.0)
+            ledger.credit("layers", parts_alone, 1.0)
+        self.assertEqual(ledger.reversals(),
+                         [("layers", "definition", -1.0, "parts", 1.0, 3)])
+        # an operator with no credit of its own is never compared
+        untried = Ledger()
+        untried.credit("layers", chose_worse, -1.0)
+        self.assertEqual(untried.reversals(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

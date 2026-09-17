@@ -603,7 +603,9 @@ def read_answer(payload: dict, verdict: str) -> dict:
             "confidence": round(weight.value, 3), "band": weight.band,
             "rule": confidence.decided_by(payload),
             "source": lead.get("source") or "",
-            "distance": int(lead.get("distance") or 0)}
+            "distance": int(lead.get("distance") or 0),
+            # what the executive ran for it, for `credit` (E3)
+            "executed": (payload or {}).get("executed") or []}
 
 
 def ask_llm(asked: list) -> list:
@@ -900,10 +902,74 @@ def run_config(config: str, limit: int, shards: int, workers: int,
               "relative": score_pairs(answers, chosen),
               "reliability": reliability(answers, chosen),
               "by_source": by_field(answers, chosen, "source"),
-              "by_rule": by_field(answers, chosen, "rule")}
+              "by_rule": by_field(answers, chosen, "rule"),
+              "credit": credit_report(credit(answers, chosen, bad))}
     (where / f"{config}.json").write_text(json.dumps(report, indent=2),
                                           encoding="utf-8")
     return report
+
+
+#: What an answer is worth to the operators that made it, by which side of
+#: the gold the question was (E3). A listed property confirmed is right and
+#: denied is wrong; a claim built or judged false is the reverse; silence is
+#: worth nothing either way, and so less than being right and more than
+#: being wrong.
+REWARD = {"positive": {"verified": 1.0, "unknown": 0.0, "denied": -1.0},
+          "negative": {"verified": -1.0, "unknown": 0.0, "denied": 1.0}}
+
+
+def sides(chosen: list, bad: list) -> dict:
+    """key -> positive | negative, for every question whose truth the gold
+    says. A held side is positive. A corrupted claim is negative, model-free.
+    A foil is negative only under `--gold screened`, where a judge denied it;
+    under `base` it is a zero in a free listing and says nothing. A key that
+    is held for one pair and a foil for another is left out."""
+    out: dict = {}
+    for pair in chosen:
+        out.setdefault(f"{pair.held}|{pair.prop}", set()).add("positive")
+        if GOLD == "screened":
+            out.setdefault(f"{pair.foil}|{pair.prop}", set()).add("negative")
+    for pair in bad:
+        out.setdefault(f"!{pair.held}|{pair.prop}", set()).add("negative")
+    return {key: next(iter(found)) for key, found in out.items()
+            if len(found) == 1}
+
+
+def credit(answers: dict, chosen: list, bad: list):
+    """Every operator that did something toward an answer, credited with
+    what it was worth (`executive.Ledger`), and the choices between proposed
+    operators the rewards would reverse. No utility moves."""
+    from research.v687.executive import Ledger
+
+    ledger = Ledger()
+    for key, side in sides(chosen, bad).items():
+        row = answers.get(key)
+        if row is None or row.get("outcome") not in REWARD[side]:
+            continue
+        value = REWARD[side][row["outcome"]]
+        for run in row.get("executed") or ():
+            ledger.credit(run.get("executive", ""), run, value,
+                          f"{side} {row['outcome']}")
+    return ledger
+
+
+def credit_report(ledger) -> dict:
+    return {"operators": [
+                {"executive": executive, "operator": operator,
+                 "credited": count, "mean": round(mean, 4),
+                 "outcomes": outcomes}
+                for executive, operator, count, mean, outcomes
+                in ledger.table()],
+            "conflicts": [
+                {"executive": executive, "chosen": chosen,
+                 "passed_over": dict(others)}
+                for (executive, chosen), others in ledger.conflicts.items()],
+            "reversals": [
+                {"executive": executive, "chosen": chosen,
+                 "chosen_mean": round(mine, 4), "passed_over": other,
+                 "its_mean": round(theirs, 4), "times": times}
+                for executive, chosen, mine, other, theirs, times
+                in ledger.reversals()]}
 
 
 def as_text(reports: list) -> str:
