@@ -31,6 +31,12 @@ its conditions, with short-term memory as the variables it reads and writes.
                      `returns` is written back, and the cycle goes on --
                      Soar's impasse, substate and result. Otherwise the
                      impasse is the caller's: ask which one, refuse by name
+    means-ends       an executive that `plans` needs no impasse named: stuck,
+                     it takes the most useful operator waiting only on slots
+                     it needs, pushes a subgoal of the operators that give
+                     them -- its own, or its library of `means` -- and that
+                     subgoal plans in turn for what they need (E5). What
+                     could not be achieved is written to `unachieved`
 
 **Utilities are the order the cascades were written in**, as priors: the first
 listed is the most useful. So converting a cascade changes nothing it
@@ -95,6 +101,12 @@ def firing() -> bool:
     """Whether an operator's action is running: whether `effect` would keep
     anything, so a store need not work out how to undo a change otherwise."""
     return bool(_FIRING.get())
+
+
+#: The slots being achieved by the means-ends subgoals open now: a subgoal
+#: never pursues a slot a goal beneath it is already pursuing.
+_PURSUING: ContextVar[frozenset] = ContextVar("pursuing",
+                                              default=frozenset())
 
 
 #: (executive name, operator name) pairs never proposed while `suppressed`
@@ -246,21 +258,35 @@ class Executive:
     another operator that can itself be reached, or by a subgoal's result --
     or this raises `Unwired`. A need nothing gives is an operator that can
     never fire, which is a mistake in the wiring, not a question it declined.
+
+    `plans` turns on means-ends analysis at an impasse (E5), and `means` is
+    a library of operators never proposed on their own, only pushed as the
+    way to a slot an operator here needs: so no impasse has to be named, and
+    no subgoal wired to it. Off, the order written is all there is, which is
+    what every cascade converted before this relies on. `until` ends a run
+    as soon as every slot in it is in the goal's own frame -- what a
+    means-ends subgoal was pushed for.
     """
 
     def __init__(self, operators: list[Operator], rate: float = RATE,
                  subgoals: dict[str, Subgoal] | None = None,
-                 name: str = "", given: tuple[str, ...] | None = None
-                 ) -> None:
+                 name: str = "", given: tuple[str, ...] | None = None,
+                 means: list[Operator] | None = None, plans: bool = False,
+                 until: tuple[str, ...] = ()) -> None:
         #: what this executive is, as a ledger names it
         self.name = name
         self.operators = list(operators)
         #: impasse name -> the subgoal it opens
         self.subgoals = dict(subgoals or {})
-        count = len(self.operators)
-        for index, one in enumerate(self.operators):
-            if one.utility is None:
-                one.utility = float(count - index)
+        #: operators only ever pushed as the way to a slot needed here
+        self.means = list(means or [])
+        self.plans = plans or bool(self.means)
+        self.until = tuple(until)
+        for group in (self.operators, self.means):
+            count = len(group)
+            for index, one in enumerate(group):
+                if one.utility is None:
+                    one.utility = float(count - index)
         #: ties go to the one listed first
         self.place = {one.name: index
                       for index, one in enumerate(self.operators)}
@@ -277,13 +303,17 @@ class Executive:
         """(operator, the needs nothing reachable gives), for every operator
         that could never be proposed from `given`: forward chaining over
         the declarations, as a planner would search them (E5). A subgoal
-        gives what it returns, and `impasse` and `resolved` along with it."""
+        gives what it returns, and `impasse` and `resolved` along with it; a
+        means gives what it gives, once it can be reached itself; and an
+        executive that plans can always have come to `unachieved`."""
         have = set(given)
         for subgoal in self.subgoals.values():
             have.update(subgoal.returns)
         if self.subgoals:
             have.update(("impasse", "resolved"))
-        waiting = list(self.operators)
+        if self.plans:
+            have.add("unachieved")
+        waiting = list(self.operators) + list(self.means)
         while True:
             reached = [one for one in waiting if have.issuperset(one.needs)]
             if not reached:
@@ -293,6 +323,38 @@ class Executive:
                 waiting.remove(one)
         return [(one, [slot for slot in one.needs if slot not in have])
                 for one in waiting]
+
+    def plan(self, wanted: tuple[str, ...], given: tuple[str, ...] = ()
+             ) -> list[str] | None:
+        """The operators that, fired in this order, would come to every slot
+        `wanted` from `given` -- regression over needs and gives, the most
+        useful way to each slot first, none used twice on one path. What
+        could be, not what will: conditions beyond needs are not read.
+        None when some slot has no way to it."""
+        library = sorted(self.operators + self.means,
+                         key=lambda one: -one.utility)
+
+        def achieve(slots, have: frozenset, path: frozenset):
+            steps: list[str] = []
+            for slot in slots:
+                if slot in have:
+                    continue
+                for one in library:
+                    if slot not in one.gives or one.name in path:
+                        continue
+                    found = achieve(one.needs, have, path | {one.name})
+                    if found is None:
+                        continue
+                    before, have = found
+                    steps += before + [one.name]
+                    have = have | set(one.gives)
+                    break
+                else:
+                    return None
+            return steps, have
+
+        found = achieve(tuple(wanted), frozenset(given), frozenset())
+        return None if found is None else found[0]
 
     def run(self, memory: dict, subgoal: bool = False) -> Trace:
         trace = self._cycle(memory)
@@ -306,6 +368,7 @@ class Executive:
                       depth=getattr(memory, "depth", 1))
         fired: set = set()
         resolved: set = set()
+        tried: set = set()
         # Suppressed for this executive: treated as already fired.
         fired.update(operator for executive, operator in _SUPPRESSED.get()
                      if executive == self.name)
@@ -313,7 +376,8 @@ class Executive:
             proposed = [one for one in self.operators
                         if one.name not in fired and one.ready(memory)]
             if not proposed:
-                if self._subgoal(memory, trace, resolved):
+                if (self._subgoal(memory, trace, resolved)
+                        or self._means_ends(memory, trace, fired, tried)):
                     continue
                 return trace
             chosen = max(proposed, key=lambda one: (one.utility,
@@ -338,6 +402,9 @@ class Executive:
             if outcome == ANSWERED:
                 trace.answered_by = chosen.name
                 return trace
+            if self.until and all(dict.__contains__(memory, slot)
+                                  for slot in self.until):
+                return trace
 
     def _subgoal(self, memory, trace: Trace, resolved: set) -> bool:
         """At an impasse, push the subgoal its name opens, run it, and hand
@@ -353,17 +420,70 @@ class Executive:
         if subgoal is None or name in resolved:
             return False
         resolved.add(name)
-        with memory.subgoal(subgoal.goal) as result:
-            inner = subgoal.executive.run(memory, subgoal=True)
+        self._push(memory, trace, subgoal.goal, subgoal.executive,
+                   subgoal.returns)
+        memory.setdefault("resolved", []).append(name)
+        return True
+
+    def _means_ends(self, memory, trace: Trace, fired: set,
+                    tried: set) -> bool:
+        """At an impasse no subgoal is named for, push one for what the most
+        useful waiting operator needs (E5): the operators that give any of
+        it, from this executive and its means, as an executive that plans
+        too, run until the slots are there. False when this executive does
+        not plan, has no `Working` to push on, or no waiting operator lacks
+        slots something could give that are not already being pursued."""
+        if not self.plans or not isinstance(memory, Working):
+            return False
+        pursuing = _PURSUING.get()
+        waiting = sorted((one for one in self.operators
+                          if one.name not in fired),
+                         key=lambda one: (-one.utility,
+                                          self.place[one.name]))
+        for one in waiting:
+            missing = tuple(slot for slot in one.needs if slot not in memory)
+            if (not missing or missing in tried
+                    or pursuing.intersection(missing)):
+                continue
+            ways = [other for other in self.operators + self.means
+                    if other is not one and other.name not in fired
+                    and set(other.gives).intersection(missing)]
+            if not ways:
+                continue
+            tried.add(missing)
+            achieving = Executive(ways, name=self.name, means=self.means,
+                                  plans=True, until=missing)
+            token = _PURSUING.set(pursuing | set(missing))
+            try:
+                returned = self._push(
+                    memory, trace,
+                    f"achieve {', '.join(missing)} for {one.name}",
+                    achieving, missing)
+            finally:
+                _PURSUING.reset(token)
+            # What fired on the way fired for this goal: it is not proposed
+            # again here.
+            fired.update(step.operator for step in trace.subgoals[-1].fired)
+            if len(returned) < len(missing):
+                memory.setdefault("unachieved", []).extend(
+                    slot for slot in missing if slot not in returned)
+            return True
+        return False
+
+    def _push(self, memory, trace: Trace, goal: str, executive: "Executive",
+              returns: tuple[str, ...]) -> list[str]:
+        """Push a subgoal, run it, pop it: the slots of `returns` it came
+        to, written back into the goal that pushed it."""
+        with memory.subgoal(goal) as result:
+            inner = executive.run(memory, subgoal=True)
         trace.subgoals.append(inner)
-        returned = [slot for slot in subgoal.returns if slot in result]
+        returned = [slot for slot in returns if slot in result]
         # A subgoal that returned nothing leaves nothing behind, outside
         # working memory as within it: what it changed is taken back, the
         # last change first. One that returned keeps its effects, and they
         # are the goal's that pushed it -- to be taken back in turn if that
         # goal is itself a subgoal that fails.
-        succeeded = (bool(returned) if subgoal.returns
-                     else not inner.impasse)
+        succeeded = bool(returned) if returns else not inner.impasse
         if succeeded:
             trace.changes.extend(inner.changes)
         else:
@@ -373,8 +493,7 @@ class Executive:
                     inner.undone += 1
         for slot in returned:
             memory[slot] = result[slot]
-        memory.setdefault("resolved", []).append(name)
-        return True
+        return returned
 
     def reward(self, trace: Trace, value: float) -> None:
         """Utility learning: each operator that did something on the way

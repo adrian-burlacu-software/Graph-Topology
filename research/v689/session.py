@@ -62,7 +62,7 @@ from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator, Subgoal, Working, episode)
+                                     Operator, Working, episode)
 from research.v688 import retrieval
 
 from .goals import Answering
@@ -737,15 +737,16 @@ class Session:
         may -- a state the store says moves one to something that a place
         this conversation has been to is for (`motives.py`).
 
-        A goal of the executive's (E2). When no place here is *for* what the
-        state moves one to, that is an impasse, and it opens a subgoal: find
-        a place here where what they want is *kept*, following where things
-        are found (`Motives.kept`): thirsty moves one to a beverage, which is
-        in a cup, which is in the kitchen. Only places this conversation has
-        been to are candidates -- the store alone cannot tell a bedroom from
-        a hotel as where a tired person goes, so a place never mentioned is
-        not guessed at. What the subgoal finds comes back as its result;
-        when it finds nothing, the answer is still "not told"."""
+        A goal of the executive's, planned (E5). When no place here is *for*
+        what the state moves one to, the answer from a place found still
+        needs one, and the executive pushes, as the means to it, what gives
+        one: find a place here where what they want is *kept*, following
+        where things are found (`Motives.kept`): thirsty moves one to a
+        beverage, which is in a cup, which is in the kitchen. Only places
+        this conversation has been to are candidates -- the store alone
+        cannot tell a bedroom from a hotel as where a tired person goes, so
+        a place never mentioned is not guessed at. When nothing gives one,
+        the place is `unachieved`, and the answer is still "not told"."""
         referent = self._here(reading, turn)
         if referent is None:
             return
@@ -757,7 +758,6 @@ class Session:
                 if one.id in places and one.id not in people]
         motives = self._motives()
         states = self._states(referent.id)
-        IMPASSE = "no place here is for it"
 
         def for_it(memory) -> str:
             for state, said, _ in reversed(states):
@@ -774,8 +774,7 @@ class Session:
                                  f"{one.kind} is for “{purpose}” "
                                  f"(ConceptNet)")}
                     return ANSWERED
-            memory["impasse"] = IMPASSE
-            return CONTINUE
+            return DECLINED
 
         def kept_there(memory) -> str:
             for state, said, _ in reversed(states):
@@ -818,21 +817,16 @@ class Session:
                                    f"{described} will go"}
             return ANSWERED
 
-        finding = Executive([Operator("kept there", kept_there,
-                                      rule="motives")], name="kept there",
-                            given=())
         Executive(
             [Operator("a place here is for it", for_it,
-                      proposes=lambda memory: bool(states), rule="motives",
-                      gives=("impasse",)),
+                      proposes=lambda memory: bool(states), rule="motives"),
              Operator("a place found for it", found, needs=("found",)),
-             Operator("not told", not_told, needs=("resolved",),
-                      proposes=lambda memory: IMPASSE in memory["resolved"]),
+             Operator("not told", not_told, needs=("unachieved",),
+                      proposes=lambda memory: "found" in memory["unachieved"]),
              Operator("nothing told of them", nothing_told,
                       proposes=lambda memory: not states)],
-            subgoals={IMPASSE: Subgoal(
-                "find a place here where what they want is kept", finding,
-                returns=("found",))},
+            means=[Operator("kept there", kept_there, gives=("found",),
+                            rule="motives")],
             name="where will", given=(),
         ).run(Working(goal=f"where will {described} go"))
 

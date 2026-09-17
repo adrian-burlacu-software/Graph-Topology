@@ -463,5 +463,98 @@ class EffectTests(unittest.TestCase):
                          ["taught wemble"])
 
 
+class MeansEndsTests(unittest.TestCase):
+    """E5: stuck, an executive that plans pushes a subgoal of whatever gives
+    what its most useful waiting operator needs -- no impasse named, no
+    subgoal wired."""
+
+    @staticmethod
+    def writes(slot: str, value, needs=()):
+        def apply(memory) -> str:
+            memory[slot] = value
+            return CONTINUE
+        return apply
+
+    def going(self, finds: bool = True, plans: bool = True) -> Executive:
+        """Where will Antoine go: a place for what thirst moves one to, found
+        where a beverage is kept -- a can, and a can is in a kitchen."""
+        means = [
+            Operator("kept there", self.writes("place", "kitchen"),
+                     needs=("container",), gives=("place",)),
+            Operator("in a container",
+                     self.writes("container", "can") if finds
+                     else lambda memory: DECLINED,
+                     needs=("wanted",), gives=("container",))]
+        return Executive(
+            [Operator("wanted", self.writes("wanted", "beverage"),
+                      gives=("wanted",)),
+             Operator("answer", attempt(lambda: "probably the kitchen"),
+                      needs=("place",)),
+             Operator("not told", attempt(lambda: "not told"),
+                      needs=("unachieved",))],
+            means=means if plans else None, name="where will")
+
+    def test_what_is_needed_is_achieved_by_what_gives_it_in_turn(self):
+        memory = Working(goal="where will Antoine go")
+        trace = self.going().run(memory)
+        self.assertEqual((trace.answered_by, memory["answer"]),
+                         ("answer", "probably the kitchen"))
+        # `place` needs `container`, so its subgoal pushed one of its own
+        outer = trace.as_dict()["subgoals"][0]
+        self.assertEqual(outer["goal"], "achieve place for answer")
+        self.assertEqual(outer["subgoals"][0]["goal"],
+                         "achieve container for kept there")
+        self.assertEqual(memory.depth, 1)
+
+    def test_what_cannot_be_achieved_is_said_to_be(self):
+        memory = Working(goal="where will Antoine go")
+        trace = self.going(finds=False).run(memory)
+        self.assertEqual(trace.answered_by, "not told")
+        self.assertEqual(memory["unachieved"], ["place"])
+        self.assertNotIn("container", memory)
+
+    def test_an_executive_that_does_not_plan_stops_at_the_impasse(self):
+        trace = self.going(plans=False).run(Working(goal="where"))
+        self.assertTrue(trace.impasse)
+        self.assertEqual(trace.subgoals, [])
+
+    def test_a_circle_of_needs_is_not_pursued_forever(self):
+        executive = Executive(
+            [Operator("answer", attempt(lambda: "yes"), needs=("a",))],
+            means=[Operator("a from b", self.writes("a", 1), needs=("b",),
+                            gives=("a",)),
+                   Operator("b from a", self.writes("b", 1), needs=("a",),
+                            gives=("b",))])
+        trace = executive.run(Working(goal="ask"))
+        self.assertTrue(trace.impasse)
+
+    def test_a_failed_means_takes_its_effects_back(self):
+        store: list = []
+
+        def looked(memory) -> str:
+            store.append("looked")
+            effect("conversation", "looked", undo=store.pop)
+            return DECLINED
+        Executive([Operator("answer", attempt(lambda: "yes"),
+                            needs=("place",))],
+                  means=[Operator("look", looked, gives=("place",),
+                                  effects=("conversation",))]
+                  ).run(Working(goal="ask"))
+        self.assertEqual(store, [])
+
+    def test_the_plan_is_the_order_the_declarations_allow(self):
+        self.assertEqual(self.going().plan(("place",)),
+                         ["wanted", "in a container", "kept there"])
+        self.assertEqual(self.going().plan(("place",), given=("container",)),
+                         ["kept there"])
+        self.assertIsNone(self.going().plan(("weather",)))
+
+    def test_what_a_means_gives_counts_as_reachable(self):
+        self.assertEqual(self.going().unreachable(()), [])
+        with self.assertRaises(Unwired):
+            Executive([Operator("answer", attempt(lambda: "yes"),
+                                needs=("place",))], given=())
+
+
 if __name__ == "__main__":
     unittest.main()
