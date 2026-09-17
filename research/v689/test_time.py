@@ -486,6 +486,28 @@ class ChangeTests(unittest.TestCase):
                          "subject")
         self.assertEqual(change.effects("chase", True), [])
 
+    def test_a_frame_of_two_objects_is_only_a_sentence_of_two(self):
+        """A second bare `NP` after the verb is a second object only where
+        VerbNet's own description counts two (`NP V NP NP`); otherwise it is
+        an adverb, adjective or unprepositioned place spelled as a noun
+        phrase (`NP V NP ADVP`), and the sentence leaves it unsaid. Neither
+        may be the object: `took the football` must not put the taker at
+        the football through bring-11.3's destination."""
+        by_klass = {frame.klass: frame for frame, _ in change.frames()["take"]
+                    if frame.klass == "bring-11.3"
+                    and dict(frame.positions).get("Instrument")}
+        advp = by_klass["bring-11.3"]
+        self.assertNotIn("Destination", dict(advp.positions))
+        self.assertEqual(advp.shape, frozenset({"object"}))
+        moved = [one for one in change.effects("take", True)
+                 if one.kind == "location" and one.position == "subject"
+                 and one.at == "object"]
+        self.assertEqual(moved, [], moved)
+        give = [frame for frame, _ in change.frames()["give"]
+                if frame.klass == "give-13.1"
+                and "object2" in dict(frame.positions).values()]
+        self.assertTrue(give, "give-13.1's `NP V NP NP` is two objects")
+
     def test_a_broken_vase(self):
         _, turns, _ = talk("there was a cat", "there was a vase",
                            "the cat broke the vase", "is the vase broken",

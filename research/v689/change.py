@@ -186,6 +186,11 @@ def _frame(klass: str, frame) -> Frame | None:
     primary = (frame.find("DESCRIPTION").get("primary") or "").split()
     clause_frame = any(piece.startswith("S_") or piece == "S"
                        for piece in primary)
+    # How many noun phrases VerbNet says follow the verb: `NP V NP NP` two,
+    # `NP V NP ADVP` one, whatever the syntax spells as `NP`.
+    after = primary[primary.index("V") + 1:] if "V" in primary else []
+    described = sum(1 for piece in after
+                    if piece.split(".")[0].split("-")[0] == "NP")
     positions: dict[str, str] = {}
     shape: set[str] = set()
     verb_seen = after_preposition = False
@@ -210,6 +215,28 @@ def _frame(klass: str, frame) -> Frame | None:
                                      for one in restrictions):
                 positions.setdefault(role, "clause")
                 shape.add("clause")
+            elif "object" in shape and described < 2:
+                # A second noun phrase after the verb that VerbNet's own
+                # description does not count as one. This copy spells an
+                # adjective, an adverb, a clause or a place with no
+                # preposition as `NP` in the syntax while the description
+                # says what it is: bring-11.3's `NP V NP ADVP` is `NP.Theme
+                # NP.Destination`, put_direction-9.4's `dropped it there`
+                # likewise, amuse-31.1's `NP V NP ADJ` `NP.Experiencer
+                # NP.Result` -- 90 frames in all. The sentence leaves that
+                # slot unsaid, so the role has no position: a place moved to
+                # is where the holder is (`_located`), a result is a state
+                # with nothing named. Taken as the object instead, `Daniel
+                # took the football there` read through bring-11.3 put
+                # Daniel *at the football*, and the football, once dropped,
+                # with itself (bAbI qa2, qa3, qa6).
+                continue
+            elif "object" in shape:
+                # `gave Fred the football` (give-13.1, `NP V NP NP`): two
+                # objects, which only a sentence of two objects can be. As
+                # one `object` both roles were the one noun.
+                positions.setdefault(role, "object2")
+                shape.add("object2")
             else:
                 positions.setdefault(role, "object")
                 shape.add("object")

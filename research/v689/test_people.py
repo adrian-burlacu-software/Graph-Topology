@@ -325,6 +325,22 @@ class PossessionTests(unittest.TestCase):
         self.assertTrue(said(turns[4]).startswith(
             "the football: the bathroom"), said(turns[4]))
 
+    def test_taking_it_there_does_not_move_him_to_it(self):
+        """`took` is in bring-11.3, whose `NP V NP ADVP` frame this copy of
+        VerbNet spells `NP.Theme NP.Destination`. Read as a second object,
+        the destination was the football, so Daniel moved *to* it -- and
+        once he dropped it, it was with itself (bAbI qa2, qa3, qa6)."""
+        _, turns = talk("Daniel journeyed to the bedroom.",
+                        "Daniel took the football there.",
+                        "Where is Daniel?",
+                        "Daniel dropped the football.",
+                        "Daniel went to the kitchen.",
+                        "Where is the football?")
+        self.assertTrue(said(turns[2]).startswith("Daniel: the bedroom"),
+                        said(turns[2]))
+        self.assertTrue(said(turns[5]).startswith(
+            "the football: the bedroom"), said(turns[5]))
+
     def test_what_she_is_carrying_and_how_many(self):
         _, turns = talk("Mary went to the kitchen.",
                         "Mary got the football there.",
