@@ -13,8 +13,9 @@ its conditions, with short-term memory as the variables it reads and writes.
 
     working memory   `Working`: a stack of goal frames, the top one a
                      dict of slots -- what operators found
-    an operator      a condition on working memory (`proposes`), an action
-                     (`apply`), a utility, and the rule it carries out
+    an operator      the slots it needs and gives, a condition on working
+                     memory beyond them (`proposes`), an action (`apply`),
+                     a utility, and the rule it carries out
     a cycle          propose every operator whose condition holds and that
                      has not fired; fire the one of highest utility
     an outcome       ANSWERED ends the goal; CONTINUE means it wrote slots
@@ -79,6 +80,16 @@ class Operator:
     #: None: set from the operator's place in the list it was given in
     utility: float | None = None
     rule: str = ""
+    #: the slots it reads: it is proposed only once all of them are in
+    #: working memory, and `proposes` is what it asks of them beyond that
+    needs: tuple[str, ...] = ()
+    #: the slots it writes when it goes on (CONTINUE) -- what another
+    #: operator's `needs` can be met by (E4)
+    gives: tuple[str, ...] = ()
+
+    def ready(self, memory: dict) -> bool:
+        return (all(slot in memory for slot in self.needs)
+                and self.proposes(memory))
 
 
 @dataclass
@@ -135,12 +146,25 @@ class Subgoal:
     returns: tuple[str, ...] = ()
 
 
+class Unwired(ValueError):
+    """An operator's declared needs that nothing can give."""
+
+
 class Executive:
-    """Operators, and the cycle that fires them."""
+    """Operators, and the cycle that fires them.
+
+    `given`, when passed, is the slots working memory starts with, and the
+    operators' declarations are checked against it once, here: every
+    operator must be reachable -- each of its needs given at the start, by
+    another operator that can itself be reached, or by a subgoal's result --
+    or this raises `Unwired`. A need nothing gives is an operator that can
+    never fire, which is a mistake in the wiring, not a question it declined.
+    """
 
     def __init__(self, operators: list[Operator], rate: float = RATE,
                  subgoals: dict[str, Subgoal] | None = None,
-                 name: str = "") -> None:
+                 name: str = "", given: tuple[str, ...] | None = None
+                 ) -> None:
         #: what this executive is, as a ledger names it
         self.name = name
         self.operators = list(operators)
@@ -154,6 +178,34 @@ class Executive:
         self.place = {one.name: index
                       for index, one in enumerate(self.operators)}
         self.rate = rate
+        if given is not None:
+            unreached = self.unreachable(given)
+            if unreached:
+                raise Unwired(f"{self.name or 'executive'}: " + "; ".join(
+                    f"{one.name} needs {', '.join(missing)}"
+                    for one, missing in unreached))
+
+    def unreachable(self, given: tuple[str, ...] = ()
+                    ) -> list[tuple[Operator, list[str]]]:
+        """(operator, the needs nothing reachable gives), for every operator
+        that could never be proposed from `given`: forward chaining over
+        the declarations, as a planner would search them (E5). A subgoal
+        gives what it returns, and `impasse` and `resolved` along with it."""
+        have = set(given)
+        for subgoal in self.subgoals.values():
+            have.update(subgoal.returns)
+        if self.subgoals:
+            have.update(("impasse", "resolved"))
+        waiting = list(self.operators)
+        while True:
+            reached = [one for one in waiting if have.issuperset(one.needs)]
+            if not reached:
+                break
+            for one in reached:
+                have.update(one.gives)
+                waiting.remove(one)
+        return [(one, [slot for slot in one.needs if slot not in have])
+                for one in waiting]
 
     def run(self, memory: dict, subgoal: bool = False) -> Trace:
         trace = self._cycle(memory)
@@ -169,7 +221,7 @@ class Executive:
         resolved: set = set()
         while True:
             proposed = [one for one in self.operators
-                        if one.name not in fired and one.proposes(memory)]
+                        if one.name not in fired and one.ready(memory)]
             if not proposed:
                 if self._subgoal(memory, trace, resolved):
                     continue
@@ -178,6 +230,12 @@ class Executive:
                                                     -self.place[one.name]))
             fired.add(chosen.name)
             outcome = chosen.apply(memory) or DECLINED
+            if outcome == CONTINUE:
+                missing = [slot for slot in chosen.gives
+                           if slot not in memory]
+                if missing:
+                    raise Unwired(f"{chosen.name} went on without giving "
+                                  f"{', '.join(missing)}")
             trace.fired.append(Fired(chosen.name, chosen.rule, outcome,
                                      tuple(one.name for one in proposed)))
             if outcome == ANSWERED:

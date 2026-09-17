@@ -799,21 +799,21 @@ class Session:
             return ANSWERED
 
         finding = Executive([Operator("kept there", kept_there,
-                                      rule="motives")], name="kept there")
+                                      rule="motives")], name="kept there",
+                            given=())
         Executive(
             [Operator("a place here is for it", for_it,
-                      proposes=lambda memory: bool(states), rule="motives"),
-             Operator("a place found for it", found,
-                      proposes=lambda memory: "found" in memory),
-             Operator("not told", not_told,
-                      proposes=lambda memory: IMPASSE
-                      in memory.get("resolved", ())),
+                      proposes=lambda memory: bool(states), rule="motives",
+                      gives=("impasse",)),
+             Operator("a place found for it", found, needs=("found",)),
+             Operator("not told", not_told, needs=("resolved",),
+                      proposes=lambda memory: IMPASSE in memory["resolved"]),
              Operator("nothing told of them", nothing_told,
                       proposes=lambda memory: not states)],
             subgoals={IMPASSE: Subgoal(
                 "find a place here where what they want is kept", finding,
                 returns=("found",))},
-            name="where will",
+            name="where will", given=(),
         ).run(Working(goal=f"where will {described} go"))
 
     def _by_change(self, reading: Reading):
@@ -2231,43 +2231,57 @@ class Session:
                              f"up to {referent.kind}, and {v688}") + note}
             return ANSWERED
 
+        # What each step reads, and what the ones that go on write: the
+        # chain resolve -> referent -> bind -> rest -> relation -> walk ->
+        # note, declared, so the executive checks it can all be reached.
+        about = ("referent", "described", "kind")
         Executive([
             Operator("they, of a kind", they,
                      proposes=lambda _: (reading.mention is not None
                                          and reading.mention.form == "plural"
                                          and not self.discourse.group)),
-            Operator("resolve", resolve),
-            Operator("bind the object", bind,
-                     proposes=lambda _: "referent" in m),
+            Operator("resolve", resolve, gives=("referent",)),
+            Operator("bind the object", bind, needs=("referent",),
+                     gives=("rest", "other")),
             Operator("read the relation", relate,
-                     proposes=lambda _: "rest" in m),
+                     needs=("referent", "rest"),
+                     gives=("question", "target", "mode", "described",
+                            "kind", "taught_kind", "relation")),
             Operator("compared", compared, rule="S2",
-                     proposes=lambda _: "relation" in m),
+                     needs=("relation", "rest", "referent", "other")),
             Operator("in the story", in_story, rule="T3",
-                     proposes=lambda _: m.get("relation") not in (None,
-                                                                   "is_a")),
+                     needs=("relation", "referent", "other", "target"),
+                     proposes=lambda _: m["relation"] != "is_a"),
             Operator("walk", walk, rule="R1",
-                     proposes=lambda _: "relation" in m),
+                     needs=("relation", "referent", "target"),
+                     gives=("walk",)),
             Operator("taxonomy", taxonomy, rule="R1",
-                     proposes=lambda _: ("walk" in m
-                                         and m["relation"] == "is_a")),
+                     needs=("walk", "relation", "described"),
+                     proposes=lambda _: m["relation"] == "is_a"),
             Operator("from the walk", from_walk, rule="R3",
-                     proposes=lambda _: "walk" in m),
+                     needs=("walk", "described", "other")),
             Operator("did not", did_not,
-                     proposes=lambda _: ("walk" in m
-                                         and m["relation"] == "capable_of"
+                     needs=("walk", "relation", "mode", "referent", "target"),
+                     proposes=lambda _: (m["relation"] == "capable_of"
                                          and m["mode"] == "does")),
-            Operator("contrary", contrary, proposes=lambda _: "walk" in m),
+            Operator("contrary", contrary,
+                     needs=("walk", "relation", "target"),
+                     gives=("note", "e1")),
             Operator("taught, above", above,
-                     proposes=lambda _: ("note" in m and not m["e1"]
-                                         and taught_through())),
+                     needs=("note", "e1", "walk", "taught_kind", "described",
+                            "rest"),
+                     proposes=lambda _: not m["e1"] and taught_through()),
             Operator("taught", taught,
-                     proposes=lambda _: "note" in m and taught_through()),
+                     needs=("note", "e1", "walk", "taught_kind") + about,
+                     proposes=lambda _: taught_through()),
             Operator("nothing by inheritance", inherited, rule="T6",
-                     proposes=lambda _: ("note" in m and not m["why"]
+                     needs=("note", "why", "relation", "referent",
+                            "question"),
+                     proposes=lambda _: (not m["why"]
                                          and m["relation"] == "capable_of")),
-            Operator("the kind", of_the_kind, proposes=lambda _: "note" in m),
-        ], name="ask about a kind").run(m)
+            Operator("the kind", of_the_kind,
+                     needs=("note", "why", "e1", "question") + about),
+        ], name="ask about a kind", given=("why",)).run(m)
 
     def _ask_above(self, reading: Reading, walk, subject: str,
                    turn: Turn, rest=None) -> bool:

@@ -6,8 +6,8 @@ from __future__ import annotations
 import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Ledger, Operator, Subgoal, Working,
-                                     attempt, episode)
+                                     Ledger, Operator, Subgoal, Unwired,
+                                     Working, attempt, episode)
 
 
 class ExecutiveTests(unittest.TestCase):
@@ -297,6 +297,67 @@ class ConflictTests(unittest.TestCase):
         untried = Ledger()
         untried.credit("layers", chose_worse, -1.0)
         self.assertEqual(untried.reversals(), [])
+
+
+class WiringTests(unittest.TestCase):
+    """E4: an operator declares the slots it needs and gives; it is proposed
+    only once its needs are there, it must give what it says when it goes
+    on, and an executive told what it starts with refuses operators that
+    nothing could ever let fire."""
+
+    @staticmethod
+    def relation(memory) -> str:
+        memory["relation"] = "is_a"
+        return CONTINUE
+
+    def test_an_operator_waits_for_what_it_needs(self):
+        executive = Executive([
+            Operator("taxonomy", attempt(lambda: "R1"), needs=("relation",)),
+            Operator("relation", self.relation, gives=("relation",))])
+        trace = executive.run({})
+        # listed first, it could not be proposed until `relation` was written
+        self.assertEqual([step.operator for step in trace.fired],
+                         ["relation", "taxonomy"])
+        self.assertEqual(trace.answered_by, "taxonomy")
+
+    def test_going_on_without_giving_it_is_a_wiring_error(self):
+        executive = Executive([Operator(
+            "relation", lambda memory: CONTINUE, gives=("relation",))])
+        with self.assertRaises(Unwired):
+            executive.run({})
+
+    def test_a_need_nothing_gives_is_refused_when_built(self):
+        operators = [Operator("relation", self.relation, gives=("relation",)),
+                     Operator("walk", attempt(lambda: "R2"),
+                              needs=("relation", "target"))]
+        with self.assertRaises(Unwired) as raised:
+            Executive(operators, given=())
+        self.assertIn("walk needs target", str(raised.exception))
+        # given at the start, it is wired; unchecked, it is only never ready
+        Executive(operators, given=("target",))
+        self.assertEqual([one.name for one, _ in
+                          Executive(operators).unreachable()], ["walk"])
+
+    def test_reaching_one_needs_what_reaches_it_to_be_reachable(self):
+        # `walk` gives `note`, but `walk` itself can never fire
+        operators = [Operator("walk", self.relation, needs=("target",),
+                              gives=("note",)),
+                     Operator("taught", attempt(lambda: "yes"),
+                              needs=("note",))]
+        self.assertEqual([one.name for one, _ in
+                          Executive(operators).unreachable()],
+                         ["walk", "taught"])
+
+    def test_a_subgoal_gives_what_it_returns(self):
+        finding = Executive([Operator("kept there", attempt(
+            lambda: "kitchen", slot="found"))])
+        Executive([Operator("stuck", lambda memory: memory.update(
+                       impasse="nowhere") or CONTINUE, gives=("impasse",)),
+                   Operator("found", attempt(lambda: "yes"),
+                            needs=("found",))],
+                  subgoals={"nowhere": Subgoal("find", finding,
+                                               returns=("found",))},
+                  given=())
 
 
 if __name__ == "__main__":
