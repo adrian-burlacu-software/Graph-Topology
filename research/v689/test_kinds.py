@@ -204,6 +204,12 @@ class MotiveTests(unittest.TestCase):
                         "Where will Antoine go?")
         self.assertEqual(said(turns[3]), "probably the kitchen")
         self.assertIn("at_location", turns[3].answer["text"])
+        # E3: the turn keeps what ran, subgoal and all, for a reward to credit
+        going = [run for run in turns[3].executed
+                 if run["executive"] == "where will"]
+        self.assertEqual(going[0]["answered_by"], "a place found for it")
+        self.assertEqual(going[0]["subgoals"][0]["answered_by"],
+                         "kept there")
 
     def test_nobody_goes_somewhere_for_a_consequence(self):
         """Hunger *causes* illness, illness is in the body, and the body is

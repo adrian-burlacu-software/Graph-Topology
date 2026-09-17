@@ -6,7 +6,8 @@ from __future__ import annotations
 import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator, Subgoal, Working, attempt)
+                                     Ledger, Operator, Subgoal, Working,
+                                     attempt, episode)
 
 
 class ExecutiveTests(unittest.TestCase):
@@ -215,6 +216,57 @@ class ImpasseTests(unittest.TestCase):
                          "find a place for what is wanted")
         self.assertNotIn("subgoals", Executive([Operator(
             "first", attempt(lambda: "yes"))]).run(Working()).as_dict())
+
+
+class CreditTests(unittest.TestCase):
+    """E3: what ran for an answer is kept, and credited with what the answer
+    was worth, before any utility is allowed to move."""
+
+    def test_runs_are_kept_only_inside_an_episode(self):
+        first = Executive([Operator("first", attempt(lambda: "yes"))],
+                          name="asking")
+        first.run(Working())
+        with episode() as runs:
+            first.run(Working(goal="ask"))
+        first.run(Working())
+        self.assertEqual([(name, trace.goal) for name, trace in runs],
+                         [("asking", "ask")])
+
+    def test_a_subgoal_is_kept_within_the_run_that_pushed_it(self):
+        with episode() as runs:
+            ImpasseTests().going({"beverage": "kitchen"}).run(
+                Working({"wanted": "beverage"}, goal="where"))
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(len(runs[0][1].subgoals), 1)
+
+    def test_only_what_did_something_is_credited_subgoals_too(self):
+        ledger = Ledger()
+        run = {"fired": [{"operator": "a place here", "outcome": CONTINUE},
+                         {"operator": "tried", "outcome": DECLINED},
+                         {"operator": "answer", "outcome": ANSWERED}],
+               "subgoals": [{"goal": "find", "fired": [
+                   {"operator": "kept there", "outcome": ANSWERED}]}]}
+        ledger.credit("where", run, 1.0, "right")
+        ledger.credit("where", run, -1.0, "wrong")
+        self.assertIsNone(ledger.mean("where", "tried"))
+        self.assertEqual(ledger.mean("where", "kept there"), 0.0)
+        rows = {(one[0], one[1]): one for one in ledger.table()}
+        self.assertEqual(rows[("where", "answer")][2:],
+                         (2, 0.0, {"right": 1, "wrong": 1}))
+
+    def test_the_mean_is_where_a_learned_utility_is_heading(self):
+        """ACT-R's `U += rate * (value - U)` settles on the mean reward: the
+        ledger's mean is what `reward` would have taken an operator to."""
+        executive = Executive([Operator("answer", attempt(lambda: "x"))],
+                              rate=0.01)
+        ledger = Ledger()
+        values = [1.0, -1.0, 1.0, 1.0] * 2000
+        for value in values:
+            trace = executive.run(Working())
+            executive.reward(trace, value)
+            ledger.credit("", trace.as_dict(), value)
+        self.assertAlmostEqual(executive.operators[0].utility,
+                               ledger.mean("", "answer"), delta=0.1)
 
 
 if __name__ == "__main__":

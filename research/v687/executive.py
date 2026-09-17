@@ -32,11 +32,19 @@ listed is the most useful. So converting a cascade changes nothing it
 answers. What changes is that the order is a number that can be learned from
 what each operator's answers came to (`reward`, ACT-R's utility learning,
 off by default), and that every question leaves a trace of what fired.
+
+**What an answer came to is kept before anything learns from it** (E3). Every
+run inside an `episode` -- a turn -- is recorded with the executive's name,
+subgoals within the run that pushed them, and a `Ledger` credits each
+operator that did something with what the answer was worth. With `RATE` at
+zero that moves no utility: it says what learning would do, so it can be
+looked at first.
 """
 from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 ANSWERED, CONTINUE, DECLINED = "answered", "continue", "declined"
@@ -44,6 +52,23 @@ ANSWERED, CONTINUE, DECLINED = "answered", "continue", "declined"
 #: How far a reward moves a utility. Zero: the priors are the behaviour
 #: until something is fitted.
 RATE = 0.0
+
+#: The runs of the episode open now, as (executive name, trace), or None.
+_EPISODE: ContextVar[list | None] = ContextVar("episode", default=None)
+
+
+@contextmanager
+def episode():
+    """Record every run of an executive for as long as this lasts -- a turn
+    -- and yield the list they go into, in the order they finished. A
+    subgoal's run is not recorded apart: it is in the trace of the run that
+    pushed it. Episodes nest; an inner one keeps its own runs."""
+    runs: list = []
+    token = _EPISODE.set(runs)
+    try:
+        yield runs
+    finally:
+        _EPISODE.reset(token)
 
 
 @dataclass
@@ -106,7 +131,10 @@ class Executive:
     """Operators, and the cycle that fires them."""
 
     def __init__(self, operators: list[Operator], rate: float = RATE,
-                 subgoals: dict[str, Subgoal] | None = None) -> None:
+                 subgoals: dict[str, Subgoal] | None = None,
+                 name: str = "") -> None:
+        #: what this executive is, as a ledger names it
+        self.name = name
         self.operators = list(operators)
         #: impasse name -> the subgoal it opens
         self.subgoals = dict(subgoals or {})
@@ -119,7 +147,14 @@ class Executive:
                       for index, one in enumerate(self.operators)}
         self.rate = rate
 
-    def run(self, memory: dict) -> Trace:
+    def run(self, memory: dict, subgoal: bool = False) -> Trace:
+        trace = self._cycle(memory)
+        runs = _EPISODE.get()
+        if runs is not None and not subgoal:
+            runs.append((self.name, trace))
+        return trace
+
+    def _cycle(self, memory: dict) -> Trace:
         trace = Trace(goal=getattr(memory, "goal", ""),
                       depth=getattr(memory, "depth", 1))
         fired: set = set()
@@ -155,7 +190,8 @@ class Executive:
             return False
         resolved.add(name)
         with memory.subgoal(subgoal.goal) as result:
-            trace.subgoals.append(subgoal.executive.run(memory))
+            trace.subgoals.append(subgoal.executive.run(memory,
+                                                        subgoal=True))
         for slot in subgoal.returns:
             if slot in result:
                 memory[slot] = result[slot]
@@ -260,6 +296,49 @@ class Working(dict):
             yield result
         finally:
             result.update(self.pop())
+
+
+class Ledger:
+    """What each operator's answers came to, kept while utilities stay put.
+
+    `credit` takes a run as a trace records it and what the answer it went
+    into was worth. Every operator that did something on the way -- answered
+    or wrote slots, not declined -- is credited, within the subgoals it
+    pushed too, as `reward` would move its utility. ACT-R's utility, learned
+    at a small rate, comes to the mean of the rewards it is given: `mean` is
+    where each operator's utility would be heading.
+    """
+
+    def __init__(self) -> None:
+        #: (executive, operator) -> {"count", "total", "outcomes": {...}}
+        self.rows: dict[tuple[str, str], dict] = {}
+
+    def credit(self, executive: str, trace: dict, value: float,
+               outcome: str = "") -> None:
+        for step in trace.get("fired", ()):
+            if step.get("outcome") == DECLINED:
+                continue
+            row = self.rows.setdefault((executive, step["operator"]),
+                                       {"count": 0, "total": 0.0,
+                                        "outcomes": {}})
+            row["count"] += 1
+            row["total"] += value
+            if outcome:
+                row["outcomes"][outcome] = row["outcomes"].get(outcome, 0) + 1
+        for inner in trace.get("subgoals", ()):
+            self.credit(executive, inner, value, outcome)
+
+    def mean(self, executive: str, operator: str) -> float | None:
+        row = self.rows.get((executive, operator))
+        return row["total"] / row["count"] if row and row["count"] else None
+
+    def table(self) -> list[tuple]:
+        """(executive, operator, count, mean, outcomes), the most credited
+        first."""
+        return sorted(((executive, operator, row["count"],
+                        row["total"] / row["count"], dict(row["outcomes"]))
+                       for (executive, operator), row in self.rows.items()),
+                      key=lambda one: (-one[2], one[0], one[1]))
 
 
 def attempt(function: Callable[[], object | None], slot: str = "answer"

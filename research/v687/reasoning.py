@@ -113,7 +113,7 @@ class ReasoningEngine(IdentifyingEngine):
                      rule="R22"),
             Operator("rated", attempt(lambda: self._rated(question)),
                      rule="R32"),
-        ])
+        ], name="v687 layers")
 
     # -- R31, and the rated norms for what the norms do not name -------------
     def _compare(self, question: str) -> dict | None:

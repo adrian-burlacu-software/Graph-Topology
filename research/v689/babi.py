@@ -318,15 +318,19 @@ def tell(asker, story: Story, split: str) -> list[dict]:
     records = []
     for at, line in enumerate(story.lines):
         started = time.time()
+        executed: list = []
         try:
             turn = session.say(line.text)
             reply = (turn.answer or {}).get("text") or ""
             act = turn.act
+            executed = turn.executed
         except Exception as bad:                    # noqa: BLE001
             reply, act = f"error: {type(bad).__name__}: {bad}", "error"
         if line.question is not None:
+            # What ran to answer it, for a reward to credit (E3, `credit`).
             records.append(_record("v689", split, story, at, reply, act=act,
-                                   seconds=round(time.time() - started, 3)))
+                                   seconds=round(time.time() - started, 3),
+                                   executed=executed))
     return records
 
 
@@ -452,6 +456,47 @@ def run_smollm3(split: str, tasks: list[int], limit: int,
 SYSTEMS = ("v689", "smollm3")
 
 
+#: What an answer is worth to the operators that made it (E3): right is what
+#: the executive is for, and declining is worth more than being wrong.
+REWARD = {"right": 1.0, "none": 0.0, "wrong": -1.0}
+
+
+def credit(split: str, tasks: list[int]):
+    """Every operator that did something on the way to a kept v689 answer,
+    credited with what the answer was worth (`executive.Ledger`). No utility
+    moves -- `RATE` is zero -- so this says what learning would do, and
+    where it would head, before anything is allowed to learn."""
+    from research.v687.executive import Ledger
+
+    ledger, unrecorded = Ledger(), 0
+    for record in _kept(OUT / f"v689-{split}.jsonl").values():
+        if tasks and record["task"] not in tasks:
+            continue
+        record = score(record)
+        runs = record.get("executed")
+        if runs is None:
+            unrecorded += 1
+            continue
+        for run in runs:
+            ledger.credit(run.get("executive", ""), run,
+                          REWARD[record["outcome"]], record["outcome"])
+    return ledger, unrecorded
+
+
+def render_credit(ledger, unrecorded: int) -> str:
+    lines = ["| executive | operator | credited | mean reward | right | "
+             "wrong | none |", "|---|---|---|---|---|---|---|"]
+    for executive, operator, count, mean, outcomes in ledger.table():
+        lines.append(f"| {executive or '-'} | {operator} | {count} | "
+                     f"{mean:+.3f} | {outcomes.get('right', 0)} | "
+                     f"{outcomes.get('wrong', 0)} | "
+                     f"{outcomes.get('none', 0)} |")
+    if unrecorded:
+        lines.append(f"\n{unrecorded} answers were kept before runs were "
+                     f"recorded, and are not credited.")
+    return "\n".join(lines)
+
+
 def report(split: str, systems=SYSTEMS, shared: bool = True) -> dict:
     """Per task and overall, each system's right / wrong / none, read again
     from the kept replies. With `shared`, only questions every system with
@@ -506,7 +551,8 @@ def render(summary: dict) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=("v689", "smollm3", "report"))
+    parser.add_argument("what", choices=("v689", "smollm3", "report",
+                                         "credit"))
     parser.add_argument("--split", default="test",
                         choices=("train", "valid", "test"))
     parser.add_argument("--tasks", default="",
@@ -523,6 +569,10 @@ def main(argv=None) -> int:
                              "not only the shared ones")
     options = parser.parse_args(argv)
     tasks = _tasks(options.tasks)
+    if options.what == "credit":
+        print(render_credit(*credit(options.split,
+                                    tasks if options.tasks else [])))
+        return 0
     if options.what == "v689":
         from research.v687 import build
 

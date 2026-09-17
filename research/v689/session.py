@@ -62,7 +62,7 @@ from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator, Subgoal, Working)
+                                     Operator, Subgoal, Working, episode)
 from research.v688 import retrieval
 
 from .goals import Answering
@@ -285,6 +285,9 @@ class Turn:
     learned: list = field(default_factory=list)
     #: the operators that fired on each claim, in order (`executive.py`)
     trace: list = field(default_factory=list)
+    #: every executive run this turn, as its trace records it with the
+    #: executive's name (`executive.episode`) -- what a reward credits (E3)
+    executed: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"number": self.number, "said": self.said, "act": self.act,
@@ -382,6 +385,15 @@ class Session:
 
     # -- one utterance -----------------------------------------------------
     def say(self, text: str) -> Turn:
+        """One utterance: what it does, as `_said`, with every executive
+        run it took kept on the turn (E3)."""
+        with episode() as runs:
+            turn = self._said(text)
+        turn.executed = [{"executive": name, "goal": trace.goal,
+                          **trace.as_dict()} for name, trace in runs]
+        return turn
+
+    def _said(self, text: str) -> Turn:
         self.discourse.next_turn()
         grown = len(self.memory.growth)
         lexicon = Taught(self.asker, self.memory.kinds)
@@ -415,7 +427,8 @@ class Session:
             + [Operator("generic", acted(self._generic),
                         proposes=lambda memory:
                         memory["reading"].act not in acts
-                        and memory["reading"].act != "question")])
+                        and memory["reading"].act != "question")],
+            name="act")
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
         # what the page shows. An anchor nothing was told of is told first,
@@ -786,7 +799,7 @@ class Session:
             return ANSWERED
 
         finding = Executive([Operator("kept there", kept_there,
-                                      rule="motives")])
+                                      rule="motives")], name="kept there")
         Executive(
             [Operator("a place here is for it", for_it,
                       proposes=lambda memory: bool(states), rule="motives"),
@@ -800,6 +813,7 @@ class Session:
             subgoals={IMPASSE: Subgoal(
                 "find a place here where what they want is kept", finding,
                 returns=("found",))},
+            name="where will",
         ).run(Working(goal=f"where will {described} go"))
 
     def _by_change(self, reading: Reading):
@@ -2253,7 +2267,7 @@ class Session:
                      proposes=lambda _: ("note" in m and not m["why"]
                                          and m["relation"] == "capable_of")),
             Operator("the kind", of_the_kind, proposes=lambda _: "note" in m),
-        ]).run(m)
+        ], name="ask about a kind").run(m)
 
     def _ask_above(self, reading: Reading, walk, subject: str,
                    turn: Turn, rest=None) -> bool:
