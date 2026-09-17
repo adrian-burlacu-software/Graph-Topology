@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Ledger, Operator, Subgoal, Unwired,
+                                     Chunks, Ledger, Operator, Subgoal, Unwired,
                                      Working, attempt, effect, episode,
                                      suppressed)
 
@@ -554,6 +554,71 @@ class MeansEndsTests(unittest.TestCase):
         with self.assertRaises(Unwired):
             Executive([Operator("answer", attempt(lambda: "yes"),
                                 needs=("place",))], given=())
+
+
+class ChunkTests(unittest.TestCase):
+    """E6: what a subgoal came to, kept as the operators that did it, so the
+    same impasse is not searched through twice."""
+
+    def going(self, chunks, works=lambda: True) -> Executive:
+        def writes(slot, value, gated=True):
+            def apply(memory) -> str:
+                if gated and not works():
+                    return DECLINED
+                memory[slot] = value
+                return CONTINUE
+            return apply
+
+        return Executive(
+            [Operator("wanted", writes("wanted", "beverage", gated=False),
+                      gives=("wanted",)),
+             Operator("answer", attempt(lambda: "the kitchen"),
+                      needs=("place",)),
+             Operator("not told", attempt(lambda: "not told"),
+                      needs=("unachieved",))],
+            means=[Operator("kept there", writes("place", "kitchen"),
+                            needs=("container",), gives=("place",)),
+                   Operator("in a container", writes("container", "can"),
+                            needs=("wanted",), gives=("container",))],
+            name="where will", chunks=chunks)
+
+    @staticmethod
+    def pushes(trace) -> int:
+        return 1 + sum(ChunkTests.pushes(one) for one in trace.subgoals)
+
+    def test_the_second_time_the_subgoal_is_not_searched_for(self):
+        chunks = Chunks()
+        first = self.going(chunks).run(Working(goal="where will Antoine go"))
+        second = self.going(chunks).run(Working(goal="where will Sumit go"))
+        self.assertEqual(first.answered_by, second.answered_by, "answer")
+        # two subgoals deep, then one that remembers both operators
+        self.assertEqual((self.pushes(first), self.pushes(second)), (3, 2))
+        self.assertTrue(second.as_dict()["subgoals"][0]["chunked"])
+        self.assertEqual((chunks.hits, chunks.misses), (1, 2))
+
+    def test_a_chunk_is_kept_for_every_subgoal_that_came_to_something(self):
+        chunks = Chunks()
+        self.going(chunks).run(Working(goal="where will Antoine go"))
+        # the goal's own, and the one its subgoal reached in turn
+        # only the goal whose subgoal had to push one of its own: the
+        # inner step was no search, so remembering it saves nothing
+        self.assertEqual(chunks.table(), [
+            ("where will", ("place",), ("wanted",),
+             ("kept there", "in a container"))])
+
+    def test_a_chunk_that_no_longer_works_is_forgotten(self):
+        chunks = Chunks()
+        self.going(chunks).run(Working(goal="where will Antoine go"))
+        broken = self.going(chunks, works=lambda: False)
+        trace = broken.run(Working(goal="where will Sumit go"))
+        # it was tried, it came to nothing, and the search followed it
+        self.assertEqual(chunks.forgotten, 1)
+        self.assertEqual(trace.answered_by, "not told")
+        self.assertEqual(chunks.rules, {})
+
+    def test_an_executive_with_no_chunks_keeps_none(self):
+        trace = self.going(None).run(Working(goal="where will Antoine go"))
+        self.assertEqual(self.pushes(trace), 3)
 
 
 if __name__ == "__main__":

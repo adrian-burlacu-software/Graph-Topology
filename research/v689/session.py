@@ -61,7 +61,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
-from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
+from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Chunks,
+                                     Executive,
                                      Operator, Working, episode)
 from research.v688 import retrieval
 
@@ -302,6 +303,12 @@ class Turn:
                 "learned": self.learned,
                 "discourse": self.discourse, "memory": self.memory}
 
+
+#: Procedural memory, shared by every session in this process (E6): what a
+#: subgoal came to is about the executive's own operators, not about any one
+#: conversation, so it is learned once and used by all of them. Nothing it
+#: holds can change an answer -- only how much is done to reach one.
+CHUNKS = Chunks()
 
 #: What each act may change outside working memory (`executive.effect`,
 #: E4c): the individuals and events of this conversation, the kinds taught
@@ -827,7 +834,7 @@ class Session:
                       proposes=lambda memory: not states)],
             means=[Operator("kept there", kept_there, gives=("found",),
                             rule="motives")],
-            name="where will", given=(),
+            name="where will", given=(), chunks=CHUNKS,
         ).run(Working(goal=f"where will {described} go"))
 
     def _by_change(self, reading: Reading):

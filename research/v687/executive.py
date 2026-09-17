@@ -37,6 +37,13 @@ its conditions, with short-term memory as the variables it reads and writes.
                      them -- its own, or its library of `means` -- and that
                      subgoal plans in turn for what they need (E5). What
                      could not be achieved is written to `unachieved`
+    a chunk          what a subgoal came to, remembered as the operators
+                     that did it, so the next impasse of that shape offers
+                     them at once instead of searching for them again
+                     (`Chunks`, Soar's chunking; E6). They are proposed as
+                     ever, so a chunk can only save the search, never
+                     answer in its own right; one that fails is forgotten
+                     and the search runs
 
 **Utilities are the order the cascades were written in**, as priors: the first
 listed is the most useful. So converting a cascade changes nothing it
@@ -218,6 +225,8 @@ class Trace:
     #: how many effects were taken back because this run, as a subgoal,
     #: returned nothing
     undone: int = 0
+    #: whether this subgoal was what a chunk remembered, not a search (E6)
+    chunked: bool = False
 
     @property
     def impasse(self) -> bool:
@@ -231,7 +240,21 @@ class Trace:
                                for one in self.subgoals]
         if self.undone:
             out["undone"] = self.undone
+        if self.chunked:
+            out["chunked"] = True
         return out
+
+
+def _did(trace: Trace) -> tuple:
+    """Every operator that did something in a run, subgoals included, in
+    the order it fired: what a chunk keeps (E6)."""
+    names: list = []
+    for step in trace.fired:
+        if step.outcome != DECLINED:
+            names.append(step.operator)
+    for inner in trace.subgoals:
+        names.extend(_did(inner))
+    return tuple(dict.fromkeys(names))
 
 
 @dataclass
@@ -243,6 +266,54 @@ class Subgoal:
     goal: str
     executive: "Executive"
     returns: tuple[str, ...] = ()
+
+
+class Chunks:
+    """Procedural memory: what a subgoal came to, kept as a rule (E6).
+
+    Only a subgoal that pushed subgoals of its own leaves one (see
+    `_means_ends`). Soar learns a chunk from every subgoal it resolves --
+    conditions from
+    what the subgoal tested, an action from its result -- and never works
+    that impasse through again. Here an operator's action is a closure over
+    the question being answered, so what is worth keeping is not the action
+    but **which operators did it**: an impasse of the same shape (the
+    executive, the slots wanted, and the slots the goal already had) offers
+    exactly those, in one executive rather than a search two or three
+    subgoals deep. They still have to propose, and what they do is what they
+    always did, so a chunk cannot change an answer -- only how much is done
+    to reach it. A chunk that does not come to the slots again is forgotten,
+    and the full search follows it in the same cycle.
+    """
+
+    def __init__(self) -> None:
+        #: (executive, wanted slots, slots in hand) -> operator names
+        self.rules: dict[tuple, tuple] = {}
+        self.hits = self.misses = self.forgotten = 0
+
+    @staticmethod
+    def key(executive: str, wanted: tuple, have) -> tuple:
+        return (executive, tuple(wanted), tuple(sorted(have)))
+
+    def recall(self, key: tuple) -> tuple | None:
+        found = self.rules.get(key)
+        if found is None:
+            self.misses += 1
+        else:
+            self.hits += 1
+        return found
+
+    def learn(self, key: tuple, operators: tuple) -> None:
+        self.rules.setdefault(key, tuple(operators))
+
+    def forget(self, key: tuple) -> None:
+        if self.rules.pop(key, None) is not None:
+            self.forgotten += 1
+
+    def table(self) -> list[tuple]:
+        """(executive, wanted, in hand, the operators that did it)."""
+        return sorted((executive, wanted, have, plan) for
+                      (executive, wanted, have), plan in self.rules.items())
 
 
 class Unwired(ValueError):
@@ -272,7 +343,8 @@ class Executive:
                  subgoals: dict[str, Subgoal] | None = None,
                  name: str = "", given: tuple[str, ...] | None = None,
                  means: list[Operator] | None = None, plans: bool = False,
-                 until: tuple[str, ...] = ()) -> None:
+                 until: tuple[str, ...] = (),
+                 chunks: "Chunks | None" = None) -> None:
         #: what this executive is, as a ledger names it
         self.name = name
         self.operators = list(operators)
@@ -282,6 +354,8 @@ class Executive:
         self.means = list(means or [])
         self.plans = plans or bool(self.means)
         self.until = tuple(until)
+        #: procedural memory shared with whoever passed it, or none kept
+        self.chunks = chunks
         for group in (self.operators, self.means):
             count = len(group)
             for index, one in enumerate(group):
@@ -445,20 +519,51 @@ class Executive:
             if (not missing or missing in tried
                     or pursuing.intersection(missing)):
                 continue
-            ways = [other for other in self.operators + self.means
-                    if other is not one and other.name not in fired
-                    and set(other.gives).intersection(missing)]
+            library = {other.name: other
+                       for other in self.operators + self.means
+                       if other is not one and other.name not in fired}
+            ways = [other for other in library.values()
+                    if set(other.gives).intersection(missing)]
             if not ways:
                 continue
             tried.add(missing)
-            achieving = Executive(ways, name=self.name, means=self.means,
-                                  plans=True, until=missing)
+            goal = f"achieve {', '.join(missing)} for {one.name}"
+            key = remembered = None
+            if self.chunks is not None:
+                key = Chunks.key(self.name, missing, memory.keys())
+                remembered = self.chunks.recall(key)
             token = _PURSUING.set(pursuing | set(missing))
             try:
+                if remembered is not None:
+                    # What did it last time, offered at once: no search, and
+                    # nothing that did not take part.
+                    chunked = Executive(
+                        [library[name] for name in remembered
+                         if name in library],
+                        name=self.name, until=missing, chunks=self.chunks)
+                    returned = self._push(memory, trace, goal, chunked,
+                                          missing)
+                    trace.subgoals[-1].chunked = True
+                    if len(returned) == len(missing):
+                        return True
+                    self.chunks.forget(key)
+                # Everything here is a means to the subgoal: an operator of
+                # this executive can be the way to what a means needs.
                 returned = self._push(
-                    memory, trace,
-                    f"achieve {', '.join(missing)} for {one.name}",
-                    achieving, missing)
+                    memory, trace, goal,
+                    Executive(ways, name=self.name, plans=True,
+                              means=[other for other in library.values()
+                                     if other not in ways],
+                              until=missing, chunks=self.chunks), missing)
+                # Only a subgoal that had to push subgoals of its own is
+                # worth remembering: a chunk collapses a search, and where
+                # there was none it is one more thing to try and undo.
+                # Measured on bAbI: keeping the one-step ones cost 20 extra
+                # subgoals for 21 chunks, because whether the step answers
+                # depends on the question, not on the shape of the impasse.
+                if (key is not None and len(returned) == len(missing)
+                        and trace.subgoals[-1].subgoals):
+                    self.chunks.learn(key, _did(trace.subgoals[-1]))
             finally:
                 _PURSUING.reset(token)
             # What fired on the way fired for this goal: it is not proposed
