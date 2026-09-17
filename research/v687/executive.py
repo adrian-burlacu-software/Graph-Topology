@@ -19,8 +19,13 @@ its conditions, with short-term memory as the variables it reads and writes.
                      has not fired; fire the one of highest utility
     an outcome       ANSWERED ends the goal; CONTINUE means it wrote slots
                      for others to read; DECLINED means it had nothing
-    an impasse       nothing left to propose and nothing answered: the
-                     caller's to resolve -- ask which one, refuse by name
+    an impasse       nothing left to propose and nothing answered. An
+                     operator that cannot get past something names it in
+                     the slot `impasse`; if the executive has a `Subgoal` of
+                     that name, it is pushed, run, and popped, what it
+                     `returns` is written back, and the cycle goes on --
+                     Soar's impasse, substate and result. Otherwise the
+                     impasse is the caller's: ask which one, refuse by name
 
 **Utilities are the order the cascades were written in**, as priors: the first
 listed is the most useful. So converting a cascade changes nothing it
@@ -70,21 +75,41 @@ class Trace:
     #: the goal the run worked on (`Working.goal`), and how many were open
     goal: str = ""
     depth: int = 1
+    #: the trace of each subgoal an impasse pushed, in order
+    subgoals: list = field(default_factory=list)
 
     @property
     def impasse(self) -> bool:
         return self.answered_by is None
 
     def as_dict(self) -> dict:
-        return {"fired": [one.as_dict() for one in self.fired],
-                "answered_by": self.answered_by}
+        out = {"fired": [one.as_dict() for one in self.fired],
+               "answered_by": self.answered_by}
+        if self.subgoals:
+            out["subgoals"] = [{"goal": one.goal, **one.as_dict()}
+                               for one in self.subgoals]
+        return out
+
+
+@dataclass
+class Subgoal:
+    """What an impasse of one name opens: a goal of its own, the operators
+    that work on it, and the slots of its frame handed back to the goal
+    that reached the impasse -- the substate's result."""
+
+    goal: str
+    executive: "Executive"
+    returns: tuple[str, ...] = ()
 
 
 class Executive:
     """Operators, and the cycle that fires them."""
 
-    def __init__(self, operators: list[Operator], rate: float = RATE) -> None:
+    def __init__(self, operators: list[Operator], rate: float = RATE,
+                 subgoals: dict[str, Subgoal] | None = None) -> None:
         self.operators = list(operators)
+        #: impasse name -> the subgoal it opens
+        self.subgoals = dict(subgoals or {})
         count = len(self.operators)
         for index, one in enumerate(self.operators):
             if one.utility is None:
@@ -98,10 +123,13 @@ class Executive:
         trace = Trace(goal=getattr(memory, "goal", ""),
                       depth=getattr(memory, "depth", 1))
         fired: set = set()
+        resolved: set = set()
         while True:
             proposed = [one for one in self.operators
                         if one.name not in fired and one.proposes(memory)]
             if not proposed:
+                if self._subgoal(memory, trace, resolved):
+                    continue
                 return trace
             chosen = max(proposed, key=lambda one: (one.utility,
                                                     -self.place[one.name]))
@@ -111,6 +139,28 @@ class Executive:
             if outcome == ANSWERED:
                 trace.answered_by = chosen.name
                 return trace
+
+    def _subgoal(self, memory, trace: Trace, resolved: set) -> bool:
+        """At an impasse, push the subgoal its name opens, run it, and hand
+        back its result. False when there is none to push: no `Working` to
+        push on, no impasse named in this goal's own frame, no subgoal of
+        that name, or one already pushed for it in this run."""
+        if not isinstance(memory, Working):
+            return False
+        # Only an impasse this goal reached: one named in a goal beneath is
+        # that goal's to resolve, and reading it through would re-open it.
+        name = dict.get(memory, "impasse")
+        subgoal = self.subgoals.get(name)
+        if subgoal is None or name in resolved:
+            return False
+        resolved.add(name)
+        with memory.subgoal(subgoal.goal) as result:
+            trace.subgoals.append(subgoal.executive.run(memory))
+        for slot in subgoal.returns:
+            if slot in result:
+                memory[slot] = result[slot]
+        memory.setdefault("resolved", []).append(name)
+        return True
 
     def reward(self, trace: Trace, value: float) -> None:
         """Utility learning: each operator that did something on the way

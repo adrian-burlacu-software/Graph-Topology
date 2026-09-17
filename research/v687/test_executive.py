@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator, Working, attempt)
+                                     Operator, Subgoal, Working, attempt)
 
 
 class ExecutiveTests(unittest.TestCase):
@@ -129,6 +129,92 @@ class WorkingTests(unittest.TestCase):
                          ("resolve the relation", 2, "taxonomy"))
         self.assertEqual(result["answer"], "R1")
         self.assertNotIn("answer", memory)
+
+
+class ImpasseTests(unittest.TestCase):
+    """E2: an impasse an operator names opens the subgoal of that name; what
+    the subgoal returns is written back, and the goal that reached the
+    impasse carries on."""
+
+    def going(self, place_for=None) -> Executive:
+        """`where will Sumit go`: no place here is for what he wants, so the
+        goal reaches an impasse; a subgoal finds a place another way."""
+        def here(memory):
+            memory["impasse"] = "no place for it"
+            return CONTINUE
+
+        def answer(memory):
+            memory["answer"] = memory["place"]
+            return ANSWERED
+
+        def not_told(memory):
+            memory["answer"] = "not told"
+            return ANSWERED
+
+        def kept(memory):
+            # reads what is beneath: the goal pushed it with `wanted`
+            found = (place_for or {}).get(memory["wanted"])
+            memory["scratch"] = "looked"
+            if found is None:
+                return DECLINED
+            memory["place"] = found
+            return ANSWERED
+
+        finding = Executive([Operator("kept there", kept)])
+        return Executive(
+            [Operator("a place here", here),
+             Operator("answer", answer,
+                      proposes=lambda memory: "place" in memory),
+             Operator("not told", not_told,
+                      proposes=lambda memory: "no place for it"
+                      in memory.get("resolved", ()))],
+            subgoals={"no place for it": Subgoal(
+                "find a place for what is wanted", finding,
+                returns=("place",))})
+
+    def test_an_impasse_opens_its_subgoal_and_the_goal_goes_on(self):
+        memory = Working({"wanted": "beverage"}, goal="where will Sumit go")
+        trace = self.going({"beverage": "kitchen"}).run(memory)
+        self.assertEqual((memory["answer"], trace.answered_by),
+                         ("kitchen", "answer"))
+        self.assertEqual([(one.goal, one.depth, one.answered_by)
+                          for one in trace.subgoals],
+                         [("find a place for what is wanted", 2,
+                           "kept there")])
+        # only what the subgoal returns comes back; its scratch does not
+        self.assertNotIn("scratch", memory)
+        self.assertEqual((memory.goal, memory.depth),
+                         ("where will Sumit go", 1))
+
+    def test_a_subgoal_that_fails_leaves_the_goal_to_say_so(self):
+        memory = Working({"wanted": "orgy"}, goal="where will Antoine go")
+        trace = self.going({"beverage": "kitchen"}).run(memory)
+        self.assertEqual((memory["answer"], trace.answered_by),
+                         ("not told", "not told"))
+        self.assertTrue(trace.subgoals[0].impasse)
+        self.assertNotIn("place", memory)
+
+    def test_an_impasse_with_no_subgoal_is_the_callers(self):
+        executive = Executive([Operator(
+            "stuck", lambda memory: memory.update(impasse="unknown") or
+            CONTINUE)])
+        trace = executive.run(Working(goal="ask"))
+        self.assertTrue(trace.impasse)
+        self.assertEqual(trace.subgoals, [])
+
+    def test_a_plain_dict_has_nowhere_to_push_a_subgoal(self):
+        memory = {"wanted": "beverage"}
+        trace = self.going({"beverage": "kitchen"}).run(memory)
+        self.assertTrue(trace.impasse)
+        self.assertNotIn("answer", memory)
+
+    def test_the_trace_shows_a_subgoal_only_when_one_was_pushed(self):
+        pushed = self.going({"beverage": "kitchen"}).run(
+            Working({"wanted": "beverage"}, goal="where"))
+        self.assertEqual(pushed.as_dict()["subgoals"][0]["goal"],
+                         "find a place for what is wanted")
+        self.assertNotIn("subgoals", Executive([Operator(
+            "first", attempt(lambda: "yes"))]).run(Working()).as_dict())
 
 
 if __name__ == "__main__":

@@ -45,6 +45,13 @@ CONCEPTS = (
     ("kitchen.n.01", ("kitchen",), "room.n.01"),
     ("apple.n.01", ("apple",), "entity.n.01"),
     ("sleeping.n.01", ("sleeping",), "entity.n.01"),
+    # E2: what thirst moves one to, and where it is kept; what hunger leads
+    # to, and where that is.
+    ("beverage.n.01", ("beverage",), "entity.n.01"),
+    ("can.n.01", ("can",), "entity.n.01"),
+    ("hunger.n.01", ("hunger",), "entity.n.01"),
+    ("illness.n.01", ("illness",), "entity.n.01"),
+    ("body.n.01", ("body",), "entity.n.01"),
     ("eat.v.01", ("eat",), None),
     ("travel.v.01", ("travel", "go", "move"), None),
     ("get.v.01", ("get",), None))
@@ -52,7 +59,14 @@ CONCEPTS = (
 FACTS = (("sleeping.n.01", "has_prerequisite", "tired", "conceptnet", 0.9, 0),
          ("bedroom.n.01", "used_for", "sleeping", "conceptnet", 0.9, 0),
          ("eat.v.01", "motivated_by_goal", "hungry", "conceptnet", 0.9, 0),
-         ("kitchen.n.01", "used_for", "eating meals", "conceptnet", 0.9, 0))
+         ("kitchen.n.01", "used_for", "eating meals", "conceptnet", 0.9, 0),
+         ("beverage.n.01", "motivated_by_goal", "thirsty", "conceptnet", 0.9,
+          0),
+         ("beverage.n.01", "at_location", "can", "conceptnet", 0.9, 0),
+         ("can.n.01", "at_location", "kitchen", "conceptnet", 0.9, 0),
+         ("hunger.n.01", "causes", "illness", "conceptnet", 0.9, 0),
+         ("illness.n.01", "at_location", "body", "conceptnet", 0.9, 0),
+         ("body.n.01", "at_location", "bedroom", "conceptnet", 0.9, 0))
 
 STORE: dict = {}
 
@@ -180,6 +194,32 @@ class MotiveTests(unittest.TestCase):
     def test_nowhere_here_is_for_it(self):
         _, turns = talk("Sumit is tired.", "Where will Sumit go?")
         self.assertTrue(said(turns[1]).startswith("not told"))
+
+    def test_where_what_she_wants_is_kept(self):
+        """E2: no kitchen is *for* drinking, so that is an impasse, and its
+        subgoal finds what thirst moves one to kept there: a beverage is in
+        a can, and a can is in a kitchen."""
+        _, turns = talk("John went to the bedroom.",
+                        "John went to the kitchen.", "Antoine is thirsty.",
+                        "Where will Antoine go?")
+        self.assertEqual(said(turns[3]), "probably the kitchen")
+        self.assertIn("at_location", turns[3].answer["text"])
+
+    def test_nobody_goes_somewhere_for_a_consequence(self):
+        """Hunger *causes* illness, illness is in the body, and the body is
+        in a bedroom -- but that is what hunger leads to, not what it moves
+        one to, so the bedroom is no place a hungry person is going."""
+        _, turns = talk("John went to the bedroom.", "Sumit is hungry.",
+                        "Where will Sumit go?")
+        self.assertTrue(said(turns[2]).startswith("not told"),
+                        said(turns[2]))
+
+    def test_a_place_never_mentioned_is_not_guessed(self):
+        """The store alone cannot tell a bedroom from a hotel as where a
+        tired person goes, so with no place mentioned there is none."""
+        _, turns = talk("Antoine is thirsty.", "Where will Antoine go?")
+        self.assertTrue(said(turns[1]).startswith("not told"),
+                        said(turns[1]))
 
     def test_why_she_went_there(self):
         _, turns = talk("Sumit is tired.", "Sumit went to the bedroom.",

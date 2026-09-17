@@ -62,7 +62,7 @@ from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator, Working)
+                                     Operator, Subgoal, Working)
 from research.v688 import retrieval
 
 from .goals import Answering
@@ -702,7 +702,17 @@ class Session:
     def _where_going(self, reading: Reading, turn: Turn) -> None:
         """`where will Sumit go`: nothing told says. What was told of Sumit
         may -- a state the store says moves one to something that a place
-        this conversation has been to is for (`motives.py`)."""
+        this conversation has been to is for (`motives.py`).
+
+        A goal of the executive's (E2). When no place here is *for* what the
+        state moves one to, that is an impasse, and it opens a subgoal: find
+        a place here where what they want is *kept*, following where things
+        are found (`Motives.kept`): thirsty moves one to a beverage, which is
+        in a cup, which is in the kitchen. Only places this conversation has
+        been to are candidates -- the store alone cannot tell a bedroom from
+        a hotel as where a tired person goes, so a place never mentioned is
+        not guessed at. What the subgoal finds comes back as its result;
+        when it finds nothing, the answer is still "not told"."""
         referent = self._here(reading, turn)
         if referent is None:
             return
@@ -714,20 +724,51 @@ class Session:
                 if one.id in places and one.id not in people]
         motives = self._motives()
         states = self._states(referent.id)
-        for state, said, _ in reversed(states):
-            ranked = sorted(((len(motives.support(state, one.kind)), one)
-                             for one in here), key=lambda each: -each[0])
-            if ranked and ranked[0][0]:
-                one = ranked[0][1]
-                goal, row, purpose = motives.meeting(state, one.kind)
-                turn.answer = {
-                    "outcome": "retrieved", "source": "kind",
-                    "text": (f"probably {self.discourse.describe(one)} — you "
-                             f"told me “{said}”; the store has “{row}”, and "
-                             f"{article(one.kind)} {one.kind} is for "
-                             f"“{purpose}” (ConceptNet)")}
-                return
-        if states:
+        IMPASSE = "no place here is for it"
+
+        def for_it(memory) -> str:
+            for state, said, _ in reversed(states):
+                ranked = sorted(((len(motives.support(state, one.kind)), one)
+                                 for one in here), key=lambda each: -each[0])
+                if ranked and ranked[0][0]:
+                    one = ranked[0][1]
+                    goal, row, purpose = motives.meeting(state, one.kind)
+                    turn.answer = {
+                        "outcome": "retrieved", "source": "kind",
+                        "text": (f"probably {self.discourse.describe(one)} — "
+                                 f"you told me “{said}”; the store has "
+                                 f"“{row}”, and {article(one.kind)} "
+                                 f"{one.kind} is for “{purpose}” "
+                                 f"(ConceptNet)")}
+                    return ANSWERED
+            memory["impasse"] = IMPASSE
+            return CONTINUE
+
+        def kept_there(memory) -> str:
+            for state, said, _ in reversed(states):
+                found = []
+                for index, one in enumerate(here):
+                    kept = motives.kept(state, one.kind)
+                    if kept is not None:
+                        found.append((len(kept[1]), index, one, kept))
+                if found:
+                    _, _, one, (goal, rows) = min(found, key=lambda each:
+                                                  each[:2])
+                    memory["found"] = (one, said, rows)
+                    return ANSWERED
+            return DECLINED
+
+        def found(memory) -> str:
+            one, said, rows = memory["found"]
+            quoted = ", ".join(f"“{row}”" for row in rows[:-1])
+            turn.answer = {
+                "outcome": "retrieved", "source": "kind",
+                "text": (f"probably {self.discourse.describe(one)} — you told "
+                         f"me “{said}”; the store has {quoted} and "
+                         f"“{rows[-1]}” (ConceptNet)")}
+            return ANSWERED
+
+        def not_told(memory) -> str:
             state, said, _ = states[-1]
             goals = motives.goals(state)
             turn.answer = {
@@ -736,10 +777,30 @@ class Session:
                          + (f", which the store says moves one to "
                             f"“{goals[0][0]}”, and nowhere here was said to "
                             f"be for that" if goals else ""))}
-            return
-        turn.answer = {"outcome": "unknown", "source": "conversation",
-                       "text": f"not told — nothing was said of where "
-                               f"{described} will go"}
+            return ANSWERED
+
+        def nothing_told(memory) -> str:
+            turn.answer = {"outcome": "unknown", "source": "conversation",
+                           "text": f"not told — nothing was said of where "
+                                   f"{described} will go"}
+            return ANSWERED
+
+        finding = Executive([Operator("kept there", kept_there,
+                                      rule="motives")])
+        Executive(
+            [Operator("a place here is for it", for_it,
+                      proposes=lambda memory: bool(states), rule="motives"),
+             Operator("a place found for it", found,
+                      proposes=lambda memory: "found" in memory),
+             Operator("not told", not_told,
+                      proposes=lambda memory: IMPASSE
+                      in memory.get("resolved", ())),
+             Operator("nothing told of them", nothing_told,
+                      proposes=lambda memory: not states)],
+            subgoals={IMPASSE: Subgoal(
+                "find a place here where what they want is kept", finding,
+                returns=("found",))},
+        ).run(Working(goal=f"where will {described} go"))
 
     def _by_change(self, reading: Reading):
         """The told occurrence a question names by what it changed, when the

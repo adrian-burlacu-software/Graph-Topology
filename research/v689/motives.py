@@ -65,7 +65,9 @@ class Motives:
         self.asker = asker
         self._lemma: dict[str, str] = {}
         self._goals: dict[str, list] = {}
+        self._wanted: dict[str, list] = {}
         self._purposes: dict[str, list] = {}
+        self._located: dict[str, list] = {}
 
     def lemmas(self, text: str) -> set[str]:
         """The content words of a phrase, as lemmas."""
@@ -94,6 +96,7 @@ class Motives:
                 (*words, *MOVES)):
             found.append((name_of(concept),
                           f"{name_of(concept)} {relation} {obj}"))
+        self._wanted[state] = list(found)
         for concept, relation, obj in read(
                 f"SELECT f.concept, f.relation, f.object FROM facts f "
                 f"JOIN lemmas l ON l.concept = f.concept "
@@ -102,6 +105,13 @@ class Motives:
             found.append((obj, f"{name_of(concept)} {relation} {obj}"))
         self._goals[state] = found
         return found
+
+    def wanted(self, state: str) -> list[tuple[str, str]]:
+        """What a state moves one to (`MOVES`) and not what it leads to
+        (`LEADS`): thirst moves one to a beverage and leads to dehydration.
+        Only the first is something one goes somewhere to get."""
+        self.goals(state)
+        return self._wanted.get((state or "").lower(), [])
 
     def purposes(self, kind: str) -> list[str]:
         """What a kind is for, at the sense it is placed under."""
@@ -123,6 +133,49 @@ class Motives:
             for purpose, words in purposes:
                 if wanted & words:
                     return goal, row, purpose
+        return None
+
+    def located(self, thing: str) -> list[tuple[str, str]]:
+        """(where a thing is found, the row that says so): its `at_location`
+        rows, at the sense it is placed under."""
+        if thing not in self._located:
+            node = self.asker.sense(thing)
+            rows = (self.asker.reasoner.connection.execute(
+                "SELECT object FROM facts WHERE concept = ? "
+                "AND relation = 'at_location'", (node,)).fetchall()
+                if node else [])
+            self._located[thing] = [(row[0], f"{thing} at_location {row[0]}")
+                                    for row in rows]
+        return self._located[thing]
+
+    #: How many `at_location` steps a wanted thing may be followed through
+    #: to a place: where it is, and where that is. `beverage at_location
+    #: cup`, `cup at_location kitchen` is two.
+    STEPS = 2
+
+    def kept(self, state: str, kind: str) -> tuple[str, list[str]] | None:
+        """(goal, rows) where something a state moves one to is found at a
+        place of this kind, following `at_location` up to `STEPS` steps --
+        the fewest that reach it, and of those the goal the store lists
+        first. Thirsty moves one to a beverage, which is in a cup, which is
+        in a kitchen: a kitchen is where a thirsty person finds what they
+        want, though nothing says a kitchen is *for* drinking."""
+        place = self.lemmas(kind)
+        if not place:
+            return None
+        # What it moves one to, never what it leads to: hunger causes
+        # illness, and illness is in the body, which is in a bedroom; tired
+        # leads to `change`, read as the coins kept in a kitchen drawer.
+        # Nobody goes somewhere for a consequence.
+        frontier = [(goal, goal, [row]) for goal, row in self.wanted(state)]
+        for _ in range(self.STEPS):
+            following = []
+            for goal, thing, rows in frontier:
+                for where, row in self.located(thing):
+                    if place & self.lemmas(where):
+                        return goal, rows + [row]
+                    following.append((goal, where, rows + [row]))
+            frontier = following
         return None
 
     def support(self, state: str, kind: str) -> list[str]:
