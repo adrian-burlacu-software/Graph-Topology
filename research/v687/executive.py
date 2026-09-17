@@ -11,7 +11,8 @@ over a working memory, one fired per cycle, as a production system does it
 finite state machine whose next state is chosen from the current state and
 its conditions, with short-term memory as the variables it reads and writes.
 
-    working memory   a dict of slots: the goal, and what operators found
+    working memory   `Working`: a stack of goal frames, the top one a
+                     dict of slots -- what operators found
     an operator      a condition on working memory (`proposes`), an action
                      (`apply`), a utility, and the rule it carries out
     a cycle          propose every operator whose condition holds and that
@@ -30,6 +31,7 @@ off by default), and that every question leaves a trace of what fired.
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 ANSWERED, CONTINUE, DECLINED = "answered", "continue", "declined"
@@ -65,6 +67,9 @@ class Trace:
     fired: list = field(default_factory=list)
     #: the operator that answered, or None at an impasse
     answered_by: str | None = None
+    #: the goal the run worked on (`Working.goal`), and how many were open
+    goal: str = ""
+    depth: int = 1
 
     @property
     def impasse(self) -> bool:
@@ -90,7 +95,8 @@ class Executive:
         self.rate = rate
 
     def run(self, memory: dict) -> Trace:
-        trace = Trace()
+        trace = Trace(goal=getattr(memory, "goal", ""),
+                      depth=getattr(memory, "depth", 1))
         fired: set = set()
         while True:
             proposed = [one for one in self.operators
@@ -117,6 +123,93 @@ class Executive:
                 continue
             one = by_name[step.operator]
             one.utility += self.rate * (value - one.utility)
+
+
+class Working(dict):
+    """Working memory as a stack of goal frames (Soar's states and
+    substates; §4.6).
+
+    **It is the top frame.** As a dict it holds the slots of the goal being
+    worked on now, so everything that reads and writes working memory by key
+    -- `memory["answer"]`, `memory.get("goals")` -- is unchanged, and at one
+    frame deep it is exactly the dict it replaces.
+
+    **A subgoal is pushed, and popped with its result.** `push` opens a frame
+    for a goal of its own. What it writes stays in it; what it reads and does
+    not have, it reads from the goals below, as a Soar substate reads its
+    superstate. `pop` closes it, returns what it wrote, and restores the
+    frame and goal beneath. Nothing written in a subgoal reaches the goal
+    that pushed it except what that goal takes from the result, so a subgoal
+    that fails leaves nothing behind.
+
+    What pushes one -- an impasse, when nothing can be proposed -- is the
+    executive's (E2); this is only where the goals are kept.
+    """
+
+    def __init__(self, *args, goal: str = "", **slots) -> None:
+        super().__init__(*args, **slots)
+        #: what the top frame is working toward
+        self.goal = goal
+        #: (goal, slots) of every frame beneath the top, the bottom first
+        self._beneath: list[tuple[str, dict]] = []
+
+    # -- reading through to the goals below --------------------------------
+    def __missing__(self, key):
+        for _, frame in reversed(self._beneath):
+            if key in frame:
+                return frame[key]
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __contains__(self, key) -> bool:
+        return (dict.__contains__(self, key)
+                or any(key in frame for _, frame in self._beneath))
+
+    # -- the stack ---------------------------------------------------------
+    @property
+    def depth(self) -> int:
+        """How many goals are open: 1 with no subgoal."""
+        return len(self._beneath) + 1
+
+    @property
+    def open_goals(self) -> list[str]:
+        """Every open goal, the outermost first. (Not the slot `goals`,
+        which is a question's goals as `goals.py` reads them.)"""
+        return [goal for goal, _ in self._beneath] + [self.goal]
+
+    def push(self, goal: str, **slots) -> None:
+        """Open a subgoal: a frame of its own on top."""
+        self._beneath.append((self.goal, dict(self)))
+        self.clear()
+        self.update(slots)
+        self.goal = goal
+
+    def pop(self) -> dict:
+        """Close the top goal: what it wrote, and the frame beneath back."""
+        if not self._beneath:
+            raise IndexError("the outermost goal is not a subgoal")
+        result = dict(self)
+        self.goal, frame = self._beneath.pop()
+        self.clear()
+        self.update(frame)
+        return result
+
+    @contextmanager
+    def subgoal(self, goal: str, **slots):
+        """`push` for as long as this lasts, and always `pop`: a subgoal that
+        raises must not leave its frame as the goal beneath's working
+        memory. Yields the dict `pop` will return, filled on exit."""
+        result: dict = {}
+        self.push(goal, **slots)
+        try:
+            yield result
+        finally:
+            result.update(self.pop())
 
 
 def attempt(function: Callable[[], object | None], slot: str = "answer"

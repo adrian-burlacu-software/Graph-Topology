@@ -62,7 +62,7 @@ from dataclasses import dataclass, field, replace
 
 from research.v687 import rules
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Operator)
+                                     Operator, Working)
 from research.v688 import retrieval
 
 from .goals import Answering
@@ -431,8 +431,9 @@ class Session:
             turn.answer = {}
             self._when = one.when or When()
             self.memory.hidden = frozenset()
-            fired = acting.run({"reading": one, "turn": turn,
-                                "goals": one.goals})
+            fired = acting.run(Working({"reading": one, "turn": turn,
+                                        "goals": one.goals},
+                                       goal=f"act on: {one.said}"))
             # Of several claims, each as it was claimed: its subject, its
             # auxiliary and the rest -- `said` is the whole utterance.
             said = [one.mention.text] if (one.mention is not None
@@ -1990,7 +1991,8 @@ class Session:
         written is its utility, and working memory `m` holds what the
         steps before it found. An operator that settles the question -- or
         cannot go on, having said why -- answers; the others write slots."""
-        m: dict = {"why": getattr(self, "_why_asked", False)}
+        m = Working({"why": getattr(self, "_why_asked", False)},
+                    goal=f"answer about a kind: {reading.said}")
 
         def they(_) -> str:
             # `can they swim`, with no one talked about together: the kind.

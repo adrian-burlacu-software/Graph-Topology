@@ -26,7 +26,7 @@ from . import logic, pins, rules as v684_rules
 from .analogy import Analogies
 from .causal import Causal
 from .contrast import Contrast
-from .executive import Executive, Operator, attempt
+from .executive import Executive, Operator, Working, attempt
 from .inverse import Inverse
 from .relevance import RULE_TEXT as V685_RULES
 from .server import V686_RULES, V687_RULES, IdentifyingEngine
@@ -65,7 +65,7 @@ class ReasoningEngine(IdentifyingEngine):
             clash = self._pin_fights_the_question(question or "", pinned)
             if clash is not None:
                 return clash
-            memory: dict = {}
+            memory = Working(goal=f"answer before v684: {question}")
             self.layers(question or "").run(memory)
             if "answer" in memory:
                 return memory["answer"]
