@@ -816,6 +816,45 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual((young.answer["outcome"], young.answer["source"]),
                          ("verified", "definition"))
 
+    def test_reading_a_definition_is_an_effect_of_the_act(self):
+        """E4c: the act that read a gloss says so on its step."""
+        run = {"summary": {"outcome": "retrieved", "trust": "",
+                           "lines": ["DEFINED — what is a kitten"]},
+               "cycles": [{"answers": [{"verdict": "DEFINED",
+                                        "concept": "kitten.n.01",
+                                        "question": "what is a kitten"}]}]}
+        session = Session(TinyAsker({"what is a kitten": run}),
+                          definitions=DefinitionMemory())
+        turn = session.say("what is a kitten")
+        effects = [change for one in turn.executed
+                   if one["executive"] == "act"
+                   for step in one["fired"]
+                   for change in step.get("effects", ())]
+        self.assertIn({"store": "definitions",
+                       "what": "read the gloss of kitten.n.01"}, effects)
+
+    def test_a_failed_subgoal_leaves_definitions_memory_as_it_was(self):
+        from research.v687.executive import (CONTINUE, DECLINED, Executive,
+                                             Operator, Subgoal, Working)
+
+        memory = DefinitionMemory()
+        reading = self.reader.read("kitten.n.01", "young domestic cat")
+
+        def read_and_fail(_) -> str:
+            memory.keep(reading, "retrieved")
+            return DECLINED
+
+        looking = Executive([Operator("read the gloss", read_and_fail,
+                                      effects=("definitions",))])
+        Executive([Operator("stuck", lambda frame: frame.update(
+                      impasse="undefined") or CONTINUE,
+                            gives=("impasse",))],
+                  subgoals={"undefined": Subgoal(
+                      "define it", looking, returns=("defined",))}
+                  ).run(Working(goal="what is a kitten"))
+        self.assertFalse(memory.has("kitten.n.01"))
+        self.assertEqual(memory.facts("kitten.n.01"), [])
+
     def test_a_disputed_fact_is_kept_and_never_read(self):
         memory = DefinitionMemory()
         memory.keep(self.reader.read("kitten.n.01", "young domestic cat"),

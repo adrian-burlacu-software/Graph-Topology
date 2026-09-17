@@ -16,6 +16,10 @@ its conditions, with short-term memory as the variables it reads and writes.
     an operator      the slots it needs and gives, a condition on working
                      memory beyond them (`proposes`), an action (`apply`),
                      a utility, and the rule it carries out
+    an effect        a change to a store outside working memory, made
+                     beneath an operator's action and declared by every
+                     operator running (`effect`); a subgoal that returns
+                     nothing takes its effects back
     a cycle          propose every operator whose condition holds and that
                      has not fired; fire the one of highest utility
     an outcome       ANSWERED ends the goal; CONTINUE means it wrote slots
@@ -56,6 +60,42 @@ RATE = 0.0
 
 #: The runs of the episode open now, as (executive name, trace), or None.
 _EPISODE: ContextVar[list | None] = ContextVar("episode", default=None)
+
+#: (executive name, operator, the effects it has made) for every operator
+#: whose action is running now, the outermost first
+_FIRING: ContextVar[tuple] = ContextVar("firing", default=())
+
+
+def effect(store: str, what: str,
+           undo: Callable[[], None] | None = None) -> None:
+    """Say that a store outside working memory was just changed (E4c).
+
+    Called where the store is written, however deep beneath an operator's
+    action, so no operator can change the world without it being known. It
+    is kept on the step of the operator running now, and every operator
+    running now -- an act, and the question it asked inside it -- must have
+    declared the store in its `effects`: an operator's declarations are what
+    a planner reads (E5), and one that changed a store it did not name would
+    make the plan wrong. `undo`, where the store can take the change back,
+    is what a failed subgoal does with it. Outside any executive this does
+    nothing.
+    """
+    stack = _FIRING.get()
+    if not stack:
+        return
+    undeclared = [f"{executive}: {one.name}" for executive, one, _ in stack
+                  if store not in one.effects]
+    if undeclared:
+        raise Unwired(f"{'; '.join(undeclared)} changed {store} ({what}) "
+                      f"without declaring it")
+    stack[-1][2].append(Effect(store, what, undo))
+
+
+def firing() -> bool:
+    """Whether an operator's action is running: whether `effect` would keep
+    anything, so a store need not work out how to undo a change otherwise."""
+    return bool(_FIRING.get())
+
 
 #: (executive name, operator name) pairs never proposed while `suppressed`
 #: holds them.
@@ -106,10 +146,26 @@ class Operator:
     #: the slots it writes when it goes on (CONTINUE) -- what another
     #: operator's `needs` can be met by (E4)
     gives: tuple[str, ...] = ()
+    #: the stores outside working memory it may change (`effect`), by name:
+    #: what it does to the world, where `gives` is what it tells the goal
+    effects: tuple[str, ...] = ()
 
     def ready(self, memory: dict) -> bool:
         return (all(slot in memory for slot in self.needs)
                 and self.proposes(memory))
+
+
+@dataclass
+class Effect:
+    """One change to a store outside working memory, and how to take it
+    back if the goal it was made for fails."""
+
+    store: str
+    what: str
+    undo: Callable[[], None] | None = None
+
+    def as_dict(self) -> dict:
+        return {"store": self.store, "what": self.what}
 
 
 @dataclass
@@ -120,6 +176,8 @@ class Fired:
     #: every operator proposed in the cycle this one was chosen from -- the
     #: conflict set, which is what a utility decides (E3)
     candidates: tuple = ()
+    #: what it changed outside working memory while it ran (E4c)
+    effects: tuple = ()
 
     def as_dict(self) -> dict:
         out = {"operator": self.operator, "rule": self.rule,
@@ -128,6 +186,8 @@ class Fired:
             # Only where there was a choice: a cycle of one proposal decided
             # nothing, and every trace written before this reads the same.
             out["candidates"] = list(self.candidates)
+        if self.effects:
+            out["effects"] = [one.as_dict() for one in self.effects]
         return out
 
 
@@ -141,6 +201,11 @@ class Trace:
     depth: int = 1
     #: the trace of each subgoal an impasse pushed, in order
     subgoals: list = field(default_factory=list)
+    #: every effect this run made and kept, subgoals' included, in order
+    changes: list = field(default_factory=list)
+    #: how many effects were taken back because this run, as a subgoal,
+    #: returned nothing
+    undone: int = 0
 
     @property
     def impasse(self) -> bool:
@@ -152,6 +217,8 @@ class Trace:
         if self.subgoals:
             out["subgoals"] = [{"goal": one.goal, **one.as_dict()}
                                for one in self.subgoals]
+        if self.undone:
+            out["undone"] = self.undone
         return out
 
 
@@ -252,7 +319,13 @@ class Executive:
             chosen = max(proposed, key=lambda one: (one.utility,
                                                     -self.place[one.name]))
             fired.add(chosen.name)
-            outcome = chosen.apply(memory) or DECLINED
+            made: list = []
+            token = _FIRING.set(_FIRING.get() + ((self.name, chosen, made),))
+            try:
+                outcome = chosen.apply(memory) or DECLINED
+            finally:
+                _FIRING.reset(token)
+            trace.changes.extend(made)
             if outcome == CONTINUE:
                 missing = [slot for slot in chosen.gives
                            if slot not in memory]
@@ -260,7 +333,8 @@ class Executive:
                     raise Unwired(f"{chosen.name} went on without giving "
                                   f"{', '.join(missing)}")
             trace.fired.append(Fired(chosen.name, chosen.rule, outcome,
-                                     tuple(one.name for one in proposed)))
+                                     tuple(one.name for one in proposed),
+                                     tuple(made)))
             if outcome == ANSWERED:
                 trace.answered_by = chosen.name
                 return trace
@@ -280,11 +354,25 @@ class Executive:
             return False
         resolved.add(name)
         with memory.subgoal(subgoal.goal) as result:
-            trace.subgoals.append(subgoal.executive.run(memory,
-                                                        subgoal=True))
-        for slot in subgoal.returns:
-            if slot in result:
-                memory[slot] = result[slot]
+            inner = subgoal.executive.run(memory, subgoal=True)
+        trace.subgoals.append(inner)
+        returned = [slot for slot in subgoal.returns if slot in result]
+        # A subgoal that returned nothing leaves nothing behind, outside
+        # working memory as within it: what it changed is taken back, the
+        # last change first. One that returned keeps its effects, and they
+        # are the goal's that pushed it -- to be taken back in turn if that
+        # goal is itself a subgoal that fails.
+        succeeded = (bool(returned) if subgoal.returns
+                     else not inner.impasse)
+        if succeeded:
+            trace.changes.extend(inner.changes)
+        else:
+            for change in reversed(inner.changes):
+                if change.undo is not None:
+                    change.undo()
+                    inner.undone += 1
+        for slot in returned:
+            memory[slot] = result[slot]
         memory.setdefault("resolved", []).append(name)
         return True
 

@@ -46,6 +46,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from research.v687.executive import effect, firing
 from research.v687.reason import Fact
 
 from . import clauses as coordination
@@ -821,6 +822,11 @@ class DefinitionMemory:
         (concept, relation, object)."""
         checks = checks or {}
         now = time.time()
+        readings = list(readings)
+        # E4c: a gloss read in a question is a change to definitions memory,
+        # and one that was not there before can be taken back.
+        new = ([reading.concept for reading in readings
+                if not self.has(reading.concept)] if firing() else [])
         with self.lock, self.connection:
             for reading in readings:
                 self.connection.execute(
@@ -842,6 +848,19 @@ class DefinitionMemory:
                      for fact in reading.facts])
         for reading in readings:
             self._facts.pop(reading.concept, None)
+        for reading in readings:
+            effect("definitions", f"read the gloss of {reading.concept}",
+                   undo=(lambda concept=reading.concept: self.forget(concept))
+                   if reading.concept in new else None)
+
+    def forget(self, concept: str) -> None:
+        """A gloss and the facts read from it, gone: a reading undone."""
+        with self.lock, self.connection:
+            self.connection.execute("DELETE FROM defined WHERE concept = ?",
+                                    (concept,))
+            self.connection.execute("DELETE FROM glosses WHERE concept = ?",
+                                    (concept,))
+        self._facts.pop(concept, None)
 
     def check_all(self, updates) -> None:
         """(verdict, confidence, concept, relation, object) rows."""

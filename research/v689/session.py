@@ -303,6 +303,22 @@ class Turn:
                 "discourse": self.discourse, "memory": self.memory}
 
 
+#: What each act may change outside working memory (`executive.effect`,
+#: E4c): the individuals and events of this conversation, the kinds taught
+#: in it, and definitions memory, which a question read through v688 reads
+#: a gloss into.
+_EVERYTHING = ("conversation", "knowledge", "definitions")
+ACT_EFFECTS = {"introduce": _EVERYTHING, "tell": _EVERYTHING,
+               "teach": _EVERYTHING, "compound": _EVERYTHING,
+               "ask": ("conversation", "definitions"),
+               "why": ("conversation", "definitions"),
+               "define": ("conversation", "definitions"),
+               "generic": ("conversation", "definitions"),
+               "what": ("conversation", "knowledge"),
+               "name": ("conversation", "knowledge"),
+               "ask_name": ("conversation", "knowledge")}
+
+
 class Session:
     """One conversation: attention in `discourse`, what it knows in `memory`."""
 
@@ -418,16 +434,20 @@ class Session:
         # What the utterance does, as operators (`executive.py`): the goals a
         # question states, each by its relation's operator (`goals.py`), then
         # each remaining act on its own reading, and anything else is v688's.
+        #
+        # What each act may change beyond the turn (E4c) is `ACT_EFFECTS`.
         acting = Executive(
             Answering(self).operators()
             + [Operator(name, acted(handler),
                         proposes=lambda memory, name=name:
-                        memory["reading"].act == name)
+                        memory["reading"].act == name,
+                        effects=ACT_EFFECTS.get(name, ()))
                for name, handler in acts.items()]
             + [Operator("generic", acted(self._generic),
                         proposes=lambda memory:
                         memory["reading"].act not in acts
-                        and memory["reading"].act != "question")],
+                        and memory["reading"].act != "question",
+                        effects=ACT_EFFECTS["generic"])],
             name="act")
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is
@@ -2237,12 +2257,14 @@ class Session:
         about = ("referent", "described", "kind")
         Executive([
             Operator("they, of a kind", they,
+                     effects=("conversation", "definitions"),
                      proposes=lambda _: (reading.mention is not None
                                          and reading.mention.form == "plural"
                                          and not self.discourse.group)),
-            Operator("resolve", resolve, gives=("referent",)),
+            Operator("resolve", resolve, gives=("referent",),
+                     effects=("conversation",)),
             Operator("bind the object", bind, needs=("referent",),
-                     gives=("rest", "other")),
+                     gives=("rest", "other"), effects=("conversation",)),
             Operator("read the relation", relate,
                      needs=("referent", "rest"),
                      gives=("question", "target", "mode", "described",
@@ -2270,7 +2292,8 @@ class Session:
             Operator("taught, above", above,
                      needs=("note", "e1", "walk", "taught_kind", "described",
                             "rest"),
-                     proposes=lambda _: not m["e1"] and taught_through()),
+                     proposes=lambda _: not m["e1"] and taught_through(),
+                     effects=("definitions",)),
             Operator("taught", taught,
                      needs=("note", "e1", "walk", "taught_kind") + about,
                      proposes=lambda _: taught_through()),
@@ -2280,7 +2303,8 @@ class Session:
                      proposes=lambda _: (not m["why"]
                                          and m["relation"] == "capable_of")),
             Operator("the kind", of_the_kind,
-                     needs=("note", "why", "e1", "question") + about),
+                     needs=("note", "why", "e1", "question") + about,
+                     effects=("definitions",)),
         ], name="ask about a kind", given=("why",)).run(m)
 
     def _ask_above(self, reading: Reading, walk, subject: str,

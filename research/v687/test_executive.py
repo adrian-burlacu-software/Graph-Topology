@@ -7,7 +7,7 @@ import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
                                      Ledger, Operator, Subgoal, Unwired,
-                                     Working, attempt, episode,
+                                     Working, attempt, effect, episode,
                                      suppressed)
 
 
@@ -388,6 +388,79 @@ class SuppressedTests(unittest.TestCase):
             with suppressed({("layers", "parts")}):
                 self.assertTrue(self.cascade().run({}).impasse)
             self.assertEqual(self.cascade().run({}).answered_by, "parts")
+
+
+class EffectTests(unittest.TestCase):
+    """E4c: what an operator changes outside working memory is declared,
+    kept on its step, and taken back when the subgoal it was made for
+    returns nothing."""
+
+    @staticmethod
+    def teaching(store: list, word: str):
+        def apply(memory) -> str:
+            store.append(word)
+            effect("knowledge", f"taught {word}", undo=store.pop)
+            return ANSWERED
+        return apply
+
+    def test_an_effect_is_kept_on_the_step_that_made_it(self):
+        store: list = []
+        trace = Executive([Operator("teach", self.teaching(store, "wemble"),
+                                    effects=("knowledge",))]).run({})
+        self.assertEqual(store, ["wemble"])
+        self.assertEqual(trace.as_dict()["fired"][0]["effects"],
+                         [{"store": "knowledge", "what": "taught wemble"}])
+
+    def test_an_undeclared_effect_is_a_wiring_error(self):
+        with self.assertRaises(Unwired):
+            Executive([Operator("teach", self.teaching([], "wemble"))]
+                      ).run({})
+
+    def test_every_operator_running_must_declare_it(self):
+        # the act declares nothing, though the question it asks teaches
+        store: list = []
+        inner = Executive([Operator("teach", self.teaching(store, "wemble"),
+                                    effects=("knowledge",))])
+        act = Executive([Operator("ask", lambda memory: inner.run({})
+                                  and ANSWERED)])
+        with self.assertRaises(Unwired) as raised:
+            act.run({})
+        self.assertIn(": ask changed knowledge", str(raised.exception))
+
+    def test_outside_an_executive_nothing_is_checked(self):
+        effect("knowledge", "taught at the prompt")
+
+    def subgoal_teaching(self, store: list, finds: bool) -> Executive:
+        def find(memory) -> str:
+            store.append("wemble")
+            effect("knowledge", "taught wemble", undo=store.pop)
+            if finds:
+                memory["place"] = "kitchen"
+            return CONTINUE if finds else DECLINED
+        finding = Executive([Operator("teach and look", find,
+                                      effects=("knowledge",))])
+        return Executive(
+            [Operator("stuck", lambda memory: memory.update(
+                impasse="nowhere") or CONTINUE, gives=("impasse",)),
+             Operator("answer", attempt(lambda: "yes"), needs=("place",))],
+            subgoals={"nowhere": Subgoal("find", finding,
+                                         returns=("place",))})
+
+    def test_a_subgoal_that_returns_nothing_takes_its_effects_back(self):
+        store: list = []
+        trace = self.subgoal_teaching(store, finds=False).run(
+            Working(goal="ask"))
+        self.assertEqual(store, [])
+        self.assertEqual(trace.as_dict()["subgoals"][0]["undone"], 1)
+        self.assertEqual(trace.changes, [])
+
+    def test_a_subgoal_that_returns_keeps_them_as_the_goals(self):
+        store: list = []
+        trace = self.subgoal_teaching(store, finds=True).run(
+            Working(goal="ask"))
+        self.assertEqual(store, ["wemble"])
+        self.assertEqual([one.what for one in trace.changes],
+                         ["taught wemble"])
 
 
 if __name__ == "__main__":

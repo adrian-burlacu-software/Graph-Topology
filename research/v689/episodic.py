@@ -67,6 +67,7 @@ from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 
 from research.v687 import rules
+from research.v687.executive import effect
 from research.v687.links import named
 from research.v687.ordering import adaptive_coverage
 from research.v687.reason import Answer, Fact, Reasoner
@@ -121,6 +122,13 @@ def _stem(obj: str) -> str:
 def _quoted(said: str) -> str:
     """Kept without closing punctuation: it is only ever shown in quotes."""
     return (said or "").strip().rstrip(".!?")
+
+
+def _what(data: dict) -> str:
+    """An event's data as a line a trace can show: its values, in order,
+    without the conversation it came from."""
+    return " ".join(str(value) for key, value in data.items()
+                    if value not in (None, "") and key != "conversation")
 
 
 def walk_down(trie: PredicateTrie, members: dict, wanted: frozenset):
@@ -531,7 +539,13 @@ class EpisodicMemory:
         knowledge = about is not None and about not in self.individuals
         if knowledge:
             data = {**data, "conversation": self.conversation}
-        return self.log.record(kind, data, knowledge=knowledge)
+        found = self.log.record(kind, data, knowledge=knowledge)
+        # E4c: what was changed, on the step of the operator that changed
+        # it. Events are appended and replayed, so there is no undo here: a
+        # plan that may fail must not tell before it knows.
+        effect("knowledge" if knowledge else "conversation",
+               f"{kind} {_what(data)}")
+        return found
 
     def kind_node(self, word: str, sense: str | None) -> str:
         """Where a kind word lives: its synset, or a kind taught here.
