@@ -660,13 +660,26 @@ class ExampleTests(unittest.TestCase):
     def test_an_action_is_checked_against_what_doing_it_needs(self):
         """`do fish run` rests on one crawled row. The store does not record
         what running needs of a body -- ConceptNet's prerequisites are about
-        people, `find book` and `buy book` -- so it is derived: the things
-        that can run have a leg, 12 of 90, 102 times commoner than among
-        concepts at large."""
+        people, `find book` and `buy book` -- so it is derived, from the
+        rated norms where they rate the action: the things people say can
+        fly have wings, 49 of 54, across birds, bats and insects."""
         from .graph import Requirements
         needs = Requirements(POOL.engines[0].reasoner)
-        self.assertEqual(needs.of("run").part, "leg")
         self.assertEqual(needs.of("fly").part, "wing")
+        self.assertEqual(needs.of("fly").source, "norms")
+        self.assertIn(needs.of("run").part, ("leg", "forelimb", "foot"))
+
+    def test_the_norms_say_what_the_crawl_could_not(self):
+        """Over 25 actions and what they need, the crawl's derivation named a
+        part for 6 and got 3 right; the norms answer 24 and get 15. These
+        are ones the crawl had nothing for."""
+        from .graph import Requirements
+        needs = Requirements(POOL.engines[0].reasoner)
+        for action, part in (("lick", "tongue"), ("cut", "edge"),
+                             ("sail", "hull"), ("hop", "leg"),
+                             ("hunt", "claw"), ("growl", "tooth")):
+            with self.subTest(action=action):
+                self.assertEqual(needs.of(action).part, part)
 
     def test_a_requirement_is_a_part_and_not_a_standing(self):
         """Unfiltered, running needs `reputation` and `the power`, because
@@ -674,9 +687,12 @@ class ExampleTests(unittest.TestCase):
         `friend` and reading needs a `parent`."""
         from .graph import Requirements
         needs = Requirements(POOL.engines[0].reasoner)
-        for action in ("walk", "read"):
-            found = needs.of(action)
-            self.assertIsNone(found, found and found.part)
+        # From the norms walking needs feet, which is a part.
+        self.assertEqual(needs.of("walk").part, "foot")
+        # And reading, which the norms do not rate, still needs nothing the
+        # crawl can derive -- not a `parent`.
+        found = needs.of("read")
+        self.assertIsNone(found, found and found.part)
 
     def test_the_requirement_check_reaches_the_denial(self):
         """The payoff, and it takes two answers: derive the requirement and
@@ -708,12 +724,18 @@ class ExampleTests(unittest.TestCase):
         leg` and `has a wing` are the rows R19 refuses to inherit, so a fish
         and its legs stay an open question while a beagle and its teeth,
         recorded on `dog.n.01`, do not."""
-        found = run("does a beagle swim")
+        # From the norms flying needs wings, and the store records wings of
+        # a sparrow, so the check is settled before it is asked. (`does a
+        # beagle swim` was the example while swimming derived `tooth` from
+        # the crawl; the norms derive `leg`, which the store does not record
+        # of dogs at all, so there it is a real question.)
+        found = run("does a sparrow fly")
         asked = [a.question for cycle in found.cycles for a in cycle.answers
                  if a.origin == "require"]
         self.assertEqual(asked, [])
-        self.assertEqual(found.summary["trust"], "corroborated")
         needs = self.requirements()
+        self.assertEqual(needs.of("fly").part, "wing")
+        self.assertTrue(needs.recorded_of("sparrow.n.01", "wing"))
         self.assertTrue(needs.recorded_of("beagle.n.01", "tooth"))
         self.assertFalse(needs.recorded_of("fish.n.01", "leg"))
 

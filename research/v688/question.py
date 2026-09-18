@@ -950,7 +950,7 @@ class Generator:
         return [Question(
             f"does {article(subject)} {subject} have {many}", "require",
             subject, needs.part,
-            why=f"the things the store says can {action} have "
+            why=f"{needs.said_by} {action} have "
                 f"{article(needs.part)} {needs.part} — {needs.holders} of "
                 f"{needs.doers} of them, {needs.lift:.0f} times commoner than "
                 f"among concepts at large. That is what they have in common, "

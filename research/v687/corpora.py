@@ -74,7 +74,9 @@ def load_xcslb(kinds: tuple[str, ...] | None = None,
                name: str | None = None) -> Corpus:
     """XCSLB as a corpus, optionally sliced by feature type or category.
 
-    Read from the COMPS pair file rather than `concept_matrix.txt`. The matrix
+    Read from the COMPS pair file rather than `concept_matrix.txt`, which
+    samples at most ten holders a property; `xcslb_holders` recovers the
+    matrix's columns where that matters. The matrix
     ships without column labels and its column order is not the lexicon's:
     lining them up in file order gave `budgie` the property `can be covered in
     lip balm`. Trying to recover the labels by matching each column's concept
@@ -111,6 +113,72 @@ def load_xcslb(kinds: tuple[str, ...] | None = None,
     if category:
         label += f"/{category}"
     return Corpus(label, tuple(items))
+
+
+def xcslb_holders() -> dict[str, frozenset[str]]:
+    """property -> every concept XCSLB's full matrix gives it, as far as the
+    matrix's unlabelled columns can be placed.
+
+    `load_xcslb` reads COMPS' pair file, which samples at most ten holders
+    per property: `can fly` has 10 there and 54 in the matrix. The matrix is
+    the dense half of the data -- 30,009 ratings -- and its columns carry no
+    labels, and matching a column by its holders alone placed 31% of them:
+    ten animals sit inside every broad animal column.
+
+    COMPS also names each property's foils, and it drew them from that
+    column's zeros. So the column is the one that holds every COMPS holder
+    **and none of its foils**. That places 1,277 properties at once; taking
+    each placed column out of every other property's candidates and trying
+    again places 1,493 in six rounds, and **no column is claimed twice**,
+    which is the check that the placements are right. 22,477 of the 30,009
+    ratings come back. Where candidates remain -- `can fly`, `has feathers`
+    and `has a beak` are held by nearly the same birds -- a concept counts
+    only if every remaining candidate gives it the property, which is true
+    whichever of them is the column. And where no column fits at all, COMPS'
+    own holders stand.
+    """
+    rows = [line.split() for line in (XCSLB_DIR / "concept_matrix.txt")
+            .read_text(encoding="utf-8").splitlines() if line.strip()]
+    width = len(rows[0]) - 1
+    columns: list[set[str]] = [set() for _ in range(width)]
+    for row in rows:
+        for index, value in enumerate(row[1:]):
+            if value == "1":
+                columns[index].add(row[0])
+    held: dict[str, set[str]] = {}
+    foils: dict[str, set[str]] = {}
+    with (XCSLB_DIR / "comps_base.jsonl").open(encoding="utf-8") as handle:
+        for line in handle:
+            row = json.loads(line)
+            held.setdefault(row["property"], set()).add(
+                row["acceptable_concept"])
+            foils.setdefault(row["property"], set()).add(
+                row["unacceptable_concept"])
+    candidates = {prop: {index for index, column in enumerate(columns)
+                         if holders <= column
+                         and not foils.get(prop, set()) & column}
+                  for prop, holders in held.items()}
+    placed: dict[str, int] = {}
+    while True:
+        found = {prop: next(iter(left)) for prop, left in candidates.items()
+                 if len(left) == 1 and prop not in placed}
+        if not found:
+            break
+        placed.update(found)
+        taken = set(placed.values())
+        for prop, left in candidates.items():
+            if prop not in placed:
+                left -= taken
+    out: dict[str, frozenset[str]] = {}
+    for prop, holders in held.items():
+        if prop in placed:
+            out[prop] = frozenset(columns[placed[prop]])
+        elif candidates[prop]:
+            out[prop] = frozenset(set.intersection(
+                *(columns[index] for index in candidates[prop])))
+        else:
+            out[prop] = frozenset(holders)
+    return out
 
 
 def load_buchanan(min_frequency: int = 1, root_forms: bool = True,

@@ -645,5 +645,29 @@ class TailTests(unittest.TestCase):
             ["fly", "and", "swim"])
 
 
+class MatrixRecoveryTests(unittest.TestCase):
+    """`corpora.xcslb_holders`: XCSLB's unlabelled columns, placed by COMPS'
+    holders and foils together."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687 import corpora
+        cls.holders = corpora.xcslb_holders()
+        cls.sampled = {prop: set() for prop in cls.holders}
+        for concept, properties in corpora.load_xcslb().items:
+            for prop in properties:
+                cls.sampled[prop].add(concept)
+
+    def test_every_sampled_holder_is_kept(self):
+        for prop, concepts in self.sampled.items():
+            self.assertLessEqual(concepts, self.holders[prop], prop)
+
+    def test_the_matrix_holds_more_than_the_sample(self):
+        # COMPS samples ten; the matrix has every bird and bat that flies
+        self.assertEqual(len(self.sampled["can fly"]), 10)
+        self.assertGreater(len(self.holders["can fly"]), 40)
+        self.assertIn("penguin", self.holders["has wings"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -244,6 +244,15 @@ class Requirement:
     #: How far this part leads the next one the same doers share. Only
     #: `fly -> wing` leads decisively; see `DECISIVE`.
     margin: float = 1.0
+    #: where it was derived: `crawl` (the store's rows) or `norms` (XCSLB's
+    #: rated features, `NormRequirements`)
+    source: str = "crawl"
+    #: from the norms: how many kinds of doer share the part, and how much
+    #: commoner it is among doers than among the non-doers of their kind
+    breadth: int = 0
+    contrast: float = 0.0
+    #: of everything the norms give the part, how much can do the action
+    precision: float = 0.0
 
     @property
     def share(self) -> float:
@@ -251,12 +260,159 @@ class Requirement:
 
     @property
     def decisive(self) -> bool:
+        if self.source == "norms":
+            return (self.breadth >= NORM_DECISIVE_BREADTH
+                    and self.contrast >= NORM_DECISIVE_CONTRAST
+                    and self.precision >= NORM_DECISIVE_PRECISION)
         return self.margin >= DECISIVE
+
+    @property
+    def said_by(self) -> str:
+        return ("the things people say can" if self.source == "norms"
+                else "the things the store says can")
 
     def as_dict(self) -> dict:
         return {"action": self.action, "part": self.part,
                 "holders": self.holders, "doers": self.doers,
-                "share": round(self.share, 3), "lift": round(self.lift, 1)}
+                "share": round(self.share, 3), "lift": round(self.lift, 1),
+                "source": self.source}
+
+
+#: A requirement from the norms is decisive -- enough to say a denial is
+#: not about anatomy -- when its part is shared by doers of at least two
+#: kinds, is commoner among them than among the non-doers of their own kind,
+#: and is mostly a doer's part: most of what has it can do it. Without the
+#: last, `bite -> foot` was decisive (every biter has feet, and so does most
+#: of what does not bite). `fly -> wing` (3 kinds, +0.30, 49 of 56 winged
+#: things fly) clears all three.
+NORM_DECISIVE_BREADTH = 2
+NORM_DECISIVE_CONTRAST = 0.25
+NORM_DECISIVE_PRECISION = 0.7
+
+#: Fewest doers the norms must rate before they are asked what an action
+#: needs; below it the crawl's derivation is used, as before.
+NORM_DOERS = 5
+
+#: A part no commoner among doers than among the non-doers of their kind,
+#: where that could be measured, is not what the action needs.
+CONTRAST_FLOOR = 0.02
+
+#: Irregular plurals the part word is read back from.
+IRREGULAR = {"teeth": "tooth", "feet": "foot", "hooves": "hoof",
+             "knives": "knife", "leaves": "leaf", "halves": "half",
+             "mice": "mouse", "geese": "goose"}
+
+
+def head_noun(feature: str) -> str:
+    """`has big hind legs` -> `leg`: the part a feature names."""
+    word = feature.split()[-1].lower()
+    if word in IRREGULAR:
+        return IRREGULAR[word]
+    if word.endswith("es") and word[:-2].endswith(("sh", "ch", "x", "ss")):
+        return word[:-2]
+    if word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+class NormRequirements:
+    """What an action needs, from the rated norms rather than the crawl.
+
+    The crawl records what things have, not what actions need, and over the
+    store's 300 commonest one-word abilities its derivation found a part for
+    38, most of them wrong (`benefit -> website`, `hear -> tooth`). XCSLB
+    rates the same hundreds of concepts for `can fly` and `has wings` alike,
+    and `corpora.xcslb_holders` recovers its full matrix: `can fly` has 54
+    holders there, not the 10 COMPS samples.
+
+    Co-occurrence alone finds what doers share because they are one kind of
+    thing -- runners have `a good sense of smell` because runners are
+    mammals. So a part is ranked first by **breadth**, how many kinds of doer
+    it is shared across (wings: birds, bats and insects), then by
+    **contrast**, how much commoner it is among doers than among the
+    non-doers of their own kind, then by share, then by **precision** -- how
+    much of what has the part can do the action -- in steps of a tenth, so
+    `beak` beats `eye` for pecking (1.0 against 0.24) while `leg` and
+    `forelimb` for running (0.28, 0.34) stay tied. A tie goes to the part the
+    store records of the most concepts, because the requirement is asked of
+    a subject and only a part the store knows can come back denied: `fish
+    has_part "no legs"` is recorded, forelimbs of fish are not. A part whose
+    contrast was measured and is nothing -- `swim -> mouth`, every animal has
+    a mouth -- is not a requirement at all.
+
+    Measured against a hand list of 25 actions and what they need: 15 right
+    and 24 answered, where the crawl's derivation got 3 and answered 6.
+    Tried and worse: ranking by co-occurrence alone (13), by breadth and
+    contrast without precision (14), filtering to parts WordNet files as body
+    parts (11 -- it drops `hull`, `blade` and `sting`), and breaking ties by
+    the store's commonest part without precision (12 -- `peck -> eye`).
+    """
+
+    def __init__(self) -> None:
+        from research.v687 import corpora
+        self.holders = corpora.xcslb_holders()
+        self.kind_of = corpora.categories()
+        self.members: dict[str, set[str]] = {}
+        for concept, kind in self.kind_of.items():
+            self.members.setdefault(kind, set()).add(concept)
+        self.total = len(self.kind_of) or 1
+        self.parts = [feature for feature, holders in self.holders.items()
+                      if feature.startswith("has ") and len(holders) >= 5]
+        self._cache: dict[str, Requirement | None] = {}
+
+    def knows(self, action: str) -> bool:
+        return len(self.holders.get(f"can {action}", ())) >= NORM_DOERS
+
+    def of(self, action: str, recorded=lambda part: 0) -> Requirement | None:
+        """`recorded(part)`: how many concepts the store records the part
+        of, for breaking a tie toward a part that can be asked."""
+        if action in self._cache:
+            return self._cache[action]
+        doers = self.holders.get(f"can {action}", frozenset())
+        by_kind: dict[str, set[str]] = {}
+        for concept in doers:
+            by_kind.setdefault(self.kind_of.get(concept, ""), set()).add(
+                concept)
+        kinds = [kind for kind, some in by_kind.items() if len(some) >= 2]
+        scored = []
+        for feature in self.parts:
+            have = self.holders[feature]
+            both = len(doers & have)
+            if both < 3 or both / len(doers) < 0.3:
+                continue
+            share = both / len(doers)
+            lift = share / (len(have) / self.total)
+            breadth = sum(1 for kind in kinds
+                          if len(by_kind[kind] & have) / len(by_kind[kind])
+                          >= 0.5)
+            contrasts = []
+            for kind in kinds:
+                others = self.members.get(kind, set()) - doers
+                if len(others) >= 2:
+                    contrasts.append(
+                        len(by_kind[kind] & have) / len(by_kind[kind])
+                        - len(others & have) / len(others))
+            # Measured and nothing: every animal has a mouth, swimmers or not.
+            # Not measurable -- no non-doers of the kind to compare -- is not
+            # the same, and stands (every beaked bird pecks).
+            if contrasts and sum(contrasts) / len(contrasts) <= CONTRAST_FLOOR:
+                continue
+            contrast = sum(contrasts) / len(contrasts) if contrasts else 0.0
+            precision = both / len(have)
+            key = (breadth, contrast, share, round(precision * 10),
+                   recorded(head_noun(feature)))
+            scored.append((key, feature, both, lift, breadth, contrast))
+        best = None
+        if scored:
+            scored.sort(key=lambda one: one[0], reverse=True)
+            _, feature, both, lift, breadth, contrast = scored[0]
+            best = Requirement(action, head_noun(feature), both, len(doers),
+                               lift, source="norms", breadth=breadth,
+                               contrast=round(contrast, 3),
+                               precision=round(
+                                   both / len(self.holders[feature]), 3))
+        self._cache[action] = best
+        return best
 
 
 class Requirements:
@@ -315,6 +471,11 @@ class Requirements:
         # swimming needs teeth.
         self._total = reasoner.connection.execute(
             "SELECT COUNT(DISTINCT concept) FROM facts").fetchone()[0] or 1
+
+    def _recorded(self, part: str) -> int:
+        """How many concepts the store records this part of."""
+        self._commonness(part)
+        return self._overall[part]
 
     def _commonness(self, part: str) -> float:
         if part not in self._overall:
@@ -383,9 +544,24 @@ class Requirements:
             self._width[concept] = int(row[0]) if row and row[0] else 0
         return self._width[concept]
 
+    #: the norms' derivation, shared: it reads the whole XCSLB matrix once
+    _norms: "NormRequirements | None" = None
+
+    @classmethod
+    def norms(cls) -> "NormRequirements":
+        if cls._norms is None:
+            cls._norms = NormRequirements()
+        return cls._norms
+
     def of(self, action: str) -> Requirement | None:
+        """The norms' answer wherever they rate the action; the crawl's
+        derivation, as before, where they do not (`NormRequirements`)."""
         action = (action or "").strip().lower()
         if action in self._cache:
+            return self._cache[action]
+        norms = self.norms()
+        if norms.knows(action):
+            self._cache[action] = norms.of(action, self._recorded)
             return self._cache[action]
         self._cache[action] = None
         doers = [row["concept"] for row in self.reasoner.connection.execute(
