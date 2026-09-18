@@ -339,6 +339,8 @@ class Session:
         #: definitions memory, shared: what a WordNet gloss says is not
         #: something an example made up, so examples read into it too
         self.definitions = definitions
+        #: runs of v688's own engines, for the turn being said now
+        self._beneath: list = []
         self.memory = EpisodicMemory(asker.reasoner, knowledge, conversation,
                                      definitions)
         self.discourse = Discourse(self.memory, asker.sense,
@@ -410,10 +412,15 @@ class Session:
     def say(self, text: str) -> Turn:
         """One utterance: what it does, as `_said`, with every executive
         run it took kept on the turn (E3)."""
+        self._beneath = []
         with episode() as runs:
             turn = self._said(text)
+        # This session's own runs, and beneath them what ran inside every
+        # question it put to v688 -- one process asking another, so those
+        # come back on the answer rather than through the episode.
         turn.executed = [{"executive": name, "goal": trace.goal,
                           **trace.as_dict()} for name, trace in runs]
+        turn.executed += self._beneath
         return turn
 
     def _said(self, text: str) -> Turn:
@@ -1038,7 +1045,21 @@ class Session:
         read into definitions memory."""
         run = self.asker.run(question)
         self._harvest(run)
+        self._kept_beneath(run)
         return run
+
+    def _kept_beneath(self, run) -> None:
+        """What v688's engines ran for each question it asked, kept for the
+        turn: the executive that answered, and the question it was put."""
+        if not isinstance(run, dict):
+            return
+        for one in run.get("executed") or []:
+            self._beneath.append({**one, "asked": run.get("utterance", "")})
+        for cycle in run.get("cycles") or []:
+            for answer in cycle.get("answers") or []:
+                for one in answer.get("executed") or []:
+                    self._beneath.append({**one,
+                                          "asked": answer.get("question", "")})
 
     def _harvest(self, run) -> None:
         if self.definitions is None or not isinstance(run, dict):

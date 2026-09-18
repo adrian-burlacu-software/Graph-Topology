@@ -869,6 +869,18 @@ class ExampleTests(unittest.TestCase):
         self.assertNotEqual(pinned.key, plain.key)
         self.assertTrue(pinned.key.startswith("is a mouse an animal "))
 
+    def test_an_answer_carries_what_the_executive_ran(self):
+        """The loop is asked over a socket: a trace that does not travel on
+        the answer does not exist for whoever asked."""
+        from .pool import Answer
+
+        ran = [{"executive": "v687", "fired": [], "answered_by": "the norms"}]
+        answer = Answer(question="can a penguin fly", worker=0, started=0.0,
+                        elapsed=0.0,
+                        payload={"verdict": "CONTRADICTED", "executed": ran})
+        self.assertEqual(answer.as_dict()["executed"], ran)
+        self.assertNotIn("executed", answer.as_dict(with_payload=False))
+
     @requires_store
     def test_the_sense_generator_has_no_live_example(self):
         """The finding, kept so it is noticed if it stops being true.

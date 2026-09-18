@@ -17,6 +17,9 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from research.v687.executive import (ANSWERED, CONTINUE, DECLINED,
+                                     Executive, Operator, Working, record)
+
 from . import attention, confidence
 from .buffer import Buffer
 from .gap import UNDERMINING
@@ -91,9 +94,12 @@ class Run:
     settled: bool
     elapsed: float
     pinned: dict = field(default_factory=dict)
+    #: the loop's own run, as the executive recorded it (V2)
+    executed: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"utterance": self.utterance,
+                "executed": self.executed,
                 "cycles": [c.as_dict() for c in self.cycles],
                 "summary": self.summary, "buffer": self.buffer,
                 "pinned": self.pinned,
@@ -211,57 +217,96 @@ class Loop:
         return read[0].lemma_ if len(read) else word
 
     def run(self, utterance: str, pinned: dict | None = None) -> Run:
-        engine = self.pool.engines[0]
-        buffer = Buffer(utterance, engine, self.curiosity)
-        # A reading the reader chose. It is held for the whole utterance and
-        # every question the loop generates inherits it, which is the
-        # lifetime `pins.py` was written for and never had.
-        buffer.pins.update({word.lower(): sense
-                            for word, sense in (pinned or {}).items()})
-        generator = Generator(engine, self.curiosity)
+        """One utterance, settled, by the executive (V2).
+
+        The cycle was a `for` with a `break`; it is operators now, and what
+        repeats is the conditions: something open to ask, and cycles left to
+        ask it in. The order they are listed in is the order they ran --
+        attend, read the request, seed, then per cycle ask, teach, record,
+        queue -- and each says what it needs and what it gives, so what made
+        a cycle happen is on the trace beside what the answers came to.
+        """
+        memory = Working({"utterance": utterance, "pinned": dict(pinned or {})},
+                         goal=f"settle: {utterance}")
+        trace = Executive(self.operators(memory), name="v688 loop",
+                          given=("utterance", "pinned")).run(memory)
+        found = memory["run"]
+        found.executed = [record("v688 loop", trace)]
+        return found
+
+    def operators(self, m: Working) -> list[Operator]:
+        utterance = m["utterance"]
         started = time.time()
-        cycles: list[Cycle] = []
-        put: set = set()                # questions already put to the teacher
 
-        # -- cycle 0: what was actually said ------------------------------
-        buffer.attend(utterance)
-        # A request is asked as the question inside it (`rephrase.py`):
-        # `do you know if a dog can swim` asked whether a program knows
-        # things. What changed the question is said in the summary.
-        from .rephrase import rephrase
-        asked = rephrase(utterance)
-        buffer.rephrased = asked.note
-        # A why is asked as its yes or no; the summary says what that rests on.
-        buffer.why, buffer.negative = asked.why, asked.negative
-        seeds = [Question(text, "seed", why="what you said, asked as it stands"
-                          if text == asked.text.strip().rstrip("?.")
-                          else "the claim you made, put as a question")
-                 for text in ([asked.text] if asked.asking
-                              else seed_questions(asked.text, self.lemma))]
-        for seed in seeds:
-            buffer.attend(seed.text)
+        def attend(_) -> str:
+            engine = self.pool.engines[0]
+            buffer = Buffer(utterance, engine, self.curiosity)
+            # A reading the reader chose. It is held for the whole utterance
+            # and every question the loop generates inherits it, which is the
+            # lifetime `pins.py` was written for and never had.
+            buffer.pins.update({word.lower(): sense
+                                for word, sense in m["pinned"].items()})
+            buffer.attend(utterance)
+            m.update(buffer=buffer, cycles=[],
+                     generator=Generator(engine, self.curiosity),
+                     put=set())          # questions already put to the teacher
+            return CONTINUE
 
-        pending = seeds
-        for number in range(self.max_cycles):
-            if not pending:
-                break
+        def request(_) -> str:
+            # A request is asked as the question inside it (`rephrase.py`):
+            # `do you know if a dog can swim` asked whether a program knows
+            # things. What changed the question is said in the summary.
+            from .rephrase import rephrase
+            buffer = m["buffer"]
+            asked = rephrase(utterance)
+            buffer.rephrased = asked.note
+            # A why is asked as its yes or no; the summary says what that
+            # rests on.
+            buffer.why, buffer.negative = asked.why, asked.negative
+            m["asked"] = asked
+            return CONTINUE
+
+        def seed(_) -> str:
+            asked, buffer = m["asked"], m["buffer"]
+            seeds = [Question(text, "seed",
+                              why="what you said, asked as it stands"
+                              if text == asked.text.strip().rstrip("?.")
+                              else "the claim you made, put as a question")
+                     for text in ([asked.text] if asked.asking
+                                  else seed_questions(asked.text, self.lemma))]
+            for one in seeds:
+                buffer.attend(one.text)
+            if not seeds:
+                return DECLINED
+            m["pending"] = seeds
+            return CONTINUE
+
+        def ask(_) -> str:
             # A cycle with carried questions still has work even if nothing
             # new opened, so `settled` has to account for them.
+            buffer, pending = m["buffer"], m.pop("pending")
+            number = len(m["cycles"])
             buffer.cycle = number
-            clock = time.time()
+            m["clock"] = time.time()
             for question in pending:
                 buffer.note_depth(question.text, question.depth)
             answers = self.pool.ask_many(pending, buffer.pins or None)
             for answer in answers:
                 answer.cycle = number
+            m.update(pending_asked=pending, answers=answers)
+            return CONTINUE
+
+        def teach(_) -> str:
             # The teacher runs after the fan-out and before the reading,
             # because what it is asked is what the fan-out just left open. It
             # is serial by construction: nineteen workers finish, one GPU
             # starts. `put` spans the run, so a question re-asked under a pin
             # is not drawn twice.
-            judged = []
-            if self.teacher is not None and self.teacher.available:
-                judged = self.teacher.review(answers, done=put)
+            m["judged"] = self.teacher.review(m["answers"], done=m["put"])
+            return CONTINUE
+
+        def record(_) -> str:
+            buffer, answers = m["buffer"], m.pop("answers")
             gaps, doubts = buffer.record(answers)
             # Whatever an answer turned out to be about is now live. This is
             # how attention follows the reasoning instead of only the words:
@@ -271,38 +316,96 @@ class Loop:
                 concept = (answer.payload or {}).get("concept") or ""
                 if not concept:
                     continue
-                buffer.activation.bump(concept.split(".")[0], 0.5, number)
+                buffer.activation.bump(concept.split(".")[0], 0.5,
+                                       buffer.cycle)
                 # Looking something up on purpose is how it becomes a topic.
                 # `fish` is the target of `a whale is a fish` and not what the
                 # sentence is about; it earns curiosity once the loop has
                 # chosen to ask `what is a fish` to close a gap.
                 if answer.origin in ("gap", "chain"):
                     buffer.take_topic(concept)
-            cycles.append(Cycle(
-                number=number, questions=pending, answers=answers,
-                gaps_found=gaps, doubts_found=doubts, judgements=judged,
+            m["cycles"].append(Cycle(
+                number=buffer.cycle, questions=m.pop("pending_asked"),
+                answers=answers, gaps_found=gaps, doubts_found=doubts,
+                judgements=m.pop("judged", []),
                 activation=buffer.activation.as_dict(),
-                elapsed=time.time() - clock))
-
+                elapsed=time.time() - m["clock"]))
             buffer.activation.decay()
-            pending = generator.queue(buffer, self.width)
+            m["recorded"] = buffer.cycle
+            return CONTINUE
 
-        # The one settled answer the teacher is asked about: a yes resting on
-        # a crawled row that nothing in the run bore out. It waits for the
-        # last cycle, because corroboration can arrive until then.
-        if (self.teacher is not None and self.teacher.available and cycles
-                and cycles[0].answers):
+        def queue(_) -> str:
+            del m["recorded"]
+            pending = m["generator"].queue(m["buffer"], self.width)
+            if pending:
+                m["pending"] = pending
+                return CONTINUE
+            return DECLINED
+
+        def challenge(_) -> str:
+            # The one settled answer the teacher is asked about: a yes
+            # resting on a crawled row that nothing in the run bore out. It
+            # waits for the last cycle, because corroboration can arrive
+            # until then.
+            cycles, buffer = m["cycles"], m["buffer"]
+            if not (cycles and cycles[0].answers):
+                return DECLINED
             headline = cycles[0].answers[0]
-            if self.unchallenged(headline, buffer):
-                judged = self.teacher.challenge(headline, done=put)
-                if judged is not None:
-                    cycles[-1].judgements.append(judged)
+            if not self.unchallenged(headline, buffer):
+                return DECLINED
+            judged = self.teacher.challenge(headline, done=m["put"])
+            if judged is None:
+                return DECLINED
+            cycles[-1].judgements.append(judged)
+            return CONTINUE
 
-        return Run(pinned=dict(buffer.pins), utterance=utterance,
-                   cycles=cycles,
-                   summary=self.summarise(buffer, cycles),
-                   buffer=buffer.as_dict(), pool=self.pool.as_dict(),
-                   settled=buffer.settled(), elapsed=time.time() - started)
+        def came_to(_) -> str:
+            buffer, cycles = m["buffer"], m["cycles"]
+            m["run"] = Run(pinned=dict(buffer.pins), utterance=utterance,
+                           cycles=cycles,
+                           summary=self.summarise(buffer, cycles),
+                           buffer=buffer.as_dict(), pool=self.pool.as_dict(),
+                           settled=buffer.settled(),
+                           elapsed=time.time() - started)
+            return ANSWERED
+
+        def teaching(_) -> bool:
+            return self.teacher is not None and self.teacher.available
+
+        def more_cycles(_) -> bool:
+            return len(m["cycles"]) < self.max_cycles
+
+        return [
+            Operator("attend to what was said", attend,
+                     gives=("buffer", "cycles", "generator", "put")),
+            Operator("read the request", request, needs=("buffer",),
+                     gives=("asked",)),
+            Operator("the questions it opens", seed, needs=("asked",),
+                     gives=("pending",)),
+            Operator("ask what is open", ask, repeats=True,
+                     needs=("pending", "buffer", "cycles"),
+                     gives=("answers", "pending_asked", "clock"),
+                     proposes=more_cycles),
+            # Once per cycle, which is what `judged` says: a repeating
+            # operator whose action leaves its own condition standing fires
+            # for ever and starves everything under it.
+            Operator("what the teacher says", teach, repeats=True,
+                     needs=("answers", "put"), gives=("judged",),
+                     proposes=lambda _: teaching(_) and "judged" not in m,
+                     effects=("teacher",)),
+            Operator("what came back", record, repeats=True,
+                     needs=("answers", "buffer", "cycles", "pending_asked",
+                            "clock"),
+                     gives=("recorded",)),
+            Operator("what to ask next", queue, repeats=True,
+                     needs=("recorded", "buffer", "generator"),
+                     gives=("pending",)),
+            Operator("challenge what it settled", challenge,
+                     needs=("cycles", "buffer", "put"), proposes=teaching,
+                     effects=("teacher",)),
+            Operator("what it all came to", came_to,
+                     needs=("cycles", "buffer"), gives=("run",)),
+        ]
 
     # -- what it all came to ----------------------------------------------
     def summarise(self, buffer: Buffer, cycles: list[Cycle]) -> dict:

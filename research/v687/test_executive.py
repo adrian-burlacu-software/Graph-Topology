@@ -6,7 +6,8 @@ from __future__ import annotations
 import unittest
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Executive,
-                                     Chunks, Ledger, Operator, Subgoal, Unwired,
+                                     Chunks, Ledger, Operator, Runaway, Subgoal,
+                                     Unwired,
                                      Working, attempt, effect, episode,
                                      suppressed)
 
@@ -102,7 +103,7 @@ class WorkingTests(unittest.TestCase):
         memory["sense"] = "dog.n.01"
         self.assertEqual((memory.depth, memory.open_goals),
                          (2, ["ask", "which sense"]))
-        result = memory.pop()
+        result = memory.leave()
         self.assertEqual(result, {"relation": "has_part",
                                   "sense": "dog.n.01"})
         # the goal beneath is as it was: nothing the subgoal wrote leaked
@@ -110,9 +111,15 @@ class WorkingTests(unittest.TestCase):
                                         "relation": "is_a"})
         self.assertEqual((memory.goal, memory.depth), ("ask", 1))
 
-    def test_the_outermost_goal_cannot_be_popped(self):
+    def test_the_outermost_goal_cannot_be_left(self):
         with self.assertRaises(IndexError):
-            Working(goal="ask").pop()
+            Working(goal="ask").leave()
+
+    def test_a_slot_is_popped_like_any_dict(self):
+        """`pop` is the dict's: leaving a goal is `leave`."""
+        memory = Working({"place": "kitchen"}, goal="ask")
+        self.assertEqual(memory.pop("place"), "kitchen")
+        self.assertEqual((memory.depth, memory.goal), (1, "ask"))
 
     def test_a_subgoal_that_fails_is_still_closed(self):
         memory = Working({"referent": "rex"}, goal="ask")
@@ -619,6 +626,60 @@ class ChunkTests(unittest.TestCase):
     def test_an_executive_with_no_chunks_keeps_none(self):
         trace = self.going(None).run(Working(goal="where will Antoine go"))
         self.assertEqual(self.pushes(trace), 3)
+
+
+class RepeatTests(unittest.TestCase):
+    """An operator that repeats fires again whenever its conditions hold
+    again: a loop of cycles is the conditions, not a `for`."""
+
+    def cycling(self, most: int = 3) -> Executive:
+        def ask(memory) -> str:
+            memory["answers"] = f"answers {memory['pending']}"
+            del memory["pending"]
+            return CONTINUE
+
+        def again(memory) -> str:
+            memory.setdefault("cycles", []).append(memory["answers"])
+            del memory["answers"]
+            if len(memory["cycles"]) < most:
+                memory["pending"] = len(memory["cycles"])
+            return CONTINUE
+
+        return Executive([
+            Operator("ask what is open", ask, needs=("pending",),
+                     gives=("answers",), repeats=True),
+            Operator("what is open now", again, needs=("answers",),
+                     repeats=True),
+            Operator("what it came to",
+                     attempt(lambda: "settled"), needs=("cycles",),
+                     proposes=lambda memory: "pending" not in memory)])
+
+    def test_it_fires_once_a_cycle_while_there_is_work(self):
+        memory = {"pending": 0}
+        trace = self.cycling().run(memory)
+        self.assertEqual(memory["answer"], "settled")
+        self.assertEqual(len(memory["cycles"]), 3)
+        self.assertEqual([step.operator for step in trace.fired].count(
+            "ask what is open"), 3)
+
+    def test_one_that_never_clears_its_own_condition_is_a_runaway(self):
+        """What cost two hours of a hung suite: a repeating operator whose
+        action leaves its condition standing fires for ever, and starves
+        every operator under it."""
+        executive = Executive([
+            Operator("the teacher", lambda memory: CONTINUE,
+                     needs=("answers",), repeats=True),
+            Operator("what came back", attempt(lambda: "read"),
+                     needs=("answers",))])
+        with self.assertRaises(Runaway):
+            executive.run({"answers": ["yes"]})
+
+    def test_what_does_not_repeat_still_fires_once(self):
+        trace = Executive([
+            Operator("once", lambda memory: CONTINUE),
+            Operator("answer", attempt(lambda: "yes"))]).run({})
+        self.assertEqual([step.operator for step in trace.fired],
+                         ["once", "answer"])
 
 
 if __name__ == "__main__":

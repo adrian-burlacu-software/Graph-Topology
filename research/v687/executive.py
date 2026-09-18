@@ -21,7 +21,9 @@ its conditions, with short-term memory as the variables it reads and writes.
                      operator running (`effect`); a subgoal that returns
                      nothing takes its effects back
     a cycle          propose every operator whose condition holds and that
-                     has not fired; fire the one of highest utility
+                     has not fired -- or that `repeats`, and so may fire
+                     again whenever its conditions hold again; fire the one
+                     of highest utility
     an outcome       ANSWERED ends the goal; CONTINUE means it wrote slots
                      for others to read; DECLINED means it had nothing
     an impasse       nothing left to propose and nothing answered. An
@@ -168,6 +170,9 @@ class Operator:
     #: the stores outside working memory it may change (`effect`), by name:
     #: what it does to the world, where `gives` is what it tells the goal
     effects: tuple[str, ...] = ()
+    #: whether it may fire again in the same run, once its conditions hold
+    #: again: a cycle that repeats while there is work, rather than a `for`
+    repeats: bool = False
 
     def ready(self, memory: dict) -> bool:
         return (all(slot in memory for slot in self.needs)
@@ -320,6 +325,19 @@ class Unwired(ValueError):
     """An operator's declared needs that nothing can give."""
 
 
+class Runaway(RuntimeError):
+    """A run that fired more operators than `LIMIT` and did not come to an
+    answer: a repeating operator whose action leaves its own condition
+    standing, which would otherwise be a hang rather than a mistake."""
+
+
+#: The most operators one run may fire. Whatever a cycle of cycles does, it
+#: does it in fewer than this; reaching it is a repeating operator that
+#: never clears what proposed it (v688's teacher did, and it cost two hours
+#: of a hung suite before this existed).
+LIMIT = 10_000
+
+
 class Executive:
     """Operators, and the cycle that fires them.
 
@@ -456,7 +474,12 @@ class Executive:
                 return trace
             chosen = max(proposed, key=lambda one: (one.utility,
                                                     -self.place[one.name]))
-            fired.add(chosen.name)
+            if not chosen.repeats:
+                fired.add(chosen.name)
+            if len(trace.fired) >= LIMIT:
+                raise Runaway(f"{self.name or 'executive'}: {LIMIT} "
+                              f"operators fired and none answered; last was "
+                              f"{chosen.name}")
             made: list = []
             token = _FIRING.set(_FIRING.get() + ((self.name, chosen, made),))
             try:
@@ -622,10 +645,10 @@ class Working(dict):
     -- `memory["answer"]`, `memory.get("goals")` -- is unchanged, and at one
     frame deep it is exactly the dict it replaces.
 
-    **A subgoal is pushed, and popped with its result.** `push` opens a frame
+    **A subgoal is pushed, and left with its result.** `push` opens a frame
     for a goal of its own. What it writes stays in it; what it reads and does
     not have, it reads from the goals below, as a Soar substate reads its
-    superstate. `pop` closes it, returns what it wrote, and restores the
+    superstate. `leave` closes it, returns what it wrote, and restores the
     frame and goal beneath. Nothing written in a subgoal reaches the goal
     that pushed it except what that goal takes from the result, so a subgoal
     that fails leaves nothing behind.
@@ -677,8 +700,14 @@ class Working(dict):
         self.update(slots)
         self.goal = goal
 
-    def pop(self) -> dict:
-        """Close the top goal: what it wrote, and the frame beneath back."""
+    def leave(self) -> dict:
+        """Close the top goal: what it wrote, and the frame beneath back.
+
+        Not `pop`: that is the dict's own, and an operator writing
+        `memory.pop("place")` means the slot. A stack method that took the
+        name would have closed the goal instead, which is how this came to
+        be called `leave`.
+        """
         if not self._beneath:
             raise IndexError("the outermost goal is not a subgoal")
         result = dict(self)
@@ -691,13 +720,13 @@ class Working(dict):
     def subgoal(self, goal: str, **slots):
         """`push` for as long as this lasts, and always `pop`: a subgoal that
         raises must not leave its frame as the goal beneath's working
-        memory. Yields the dict `pop` will return, filled on exit."""
+        memory. Yields the dict `leave` will return, filled on exit."""
         result: dict = {}
         self.push(goal, **slots)
         try:
             yield result
         finally:
-            result.update(self.pop())
+            result.update(self.leave())
 
 
 class Ledger:

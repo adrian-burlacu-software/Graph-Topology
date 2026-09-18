@@ -96,6 +96,11 @@ class Answer:
             record["evidence"] = (self.payload or {}).get("evidence") or []
             record["concept"] = (self.payload or {}).get("concept")
             record["parse"] = (self.payload or {}).get("parse") or {}
+            # What the executive ran to answer it (E3): the loop is asked
+            # over a socket, so a trace that does not travel on the answer
+            # does not exist for whoever asked -- credit, the counterfactual,
+            # and v689's own turn all read it from here.
+            record["executed"] = (self.payload or {}).get("executed") or []
         return record
 
 

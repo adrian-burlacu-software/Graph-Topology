@@ -816,6 +816,26 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual((young.answer["outcome"], young.answer["source"]),
                          ("verified", "definition"))
 
+    def test_a_turn_keeps_what_ran_inside_the_questions_it_asked(self):
+        """E3 across the boundary: v688's engines ran in another process, so
+        their runs come back on the answer and are kept beneath the
+        session's own."""
+        run = {"summary": {"outcome": "verified", "trust": "",
+                           "lines": ["VERIFIED — can a kitten purr"]},
+               "cycles": [{"answers": [
+                   {"question": "can a kitten purr",
+                    "executed": [{"executive": "v687", "fired": [],
+                                  "answered_by": "the norms"}]}]}]}
+        session = Session(TinyAsker({"can a kitten purr": run}))
+        turn = session.say("can a kitten purr")
+        beneath = [one for one in turn.executed
+                   if one["executive"] == "v687"]
+        self.assertEqual([one["asked"] for one in beneath],
+                         ["can a kitten purr"])
+        self.assertEqual(beneath[0]["answered_by"], "the norms")
+        # and the session's own run is still there, first
+        self.assertEqual(turn.executed[0]["executive"], "act")
+
     def test_reading_a_definition_is_an_effect_of_the_act(self):
         """E4c: the act that read a gloss says so on its step."""
         run = {"summary": {"outcome": "retrieved", "trust": "",
