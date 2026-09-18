@@ -347,6 +347,29 @@ class Loop:
                 return CONTINUE
             return DECLINED
 
+        def conclude(_) -> str:
+            # The run's goal is to settle what was asked, and until now
+            # nothing it found could: the outcome was built on the first
+            # answer, and a search that turned up `a train has no hull`
+            # still reported `can a train sail` unknown (V6). Modus
+            # tollens, and only it: the subject lacks what the things that
+            # do this have in common, so no. The converse -- it has the
+            # part, so yes -- was right 9 of 16 and is not concluded.
+            cycles, buffer = m["cycles"], m["buffer"]
+            if not (cycles and cycles[0].answers):
+                return DECLINED
+            headline = cycles[0].answers[0]
+            if confidence.of_answer(headline.payload,
+                                    headline.verdict).outcome != "unknown":
+                return DECLINED
+            for answer in buffer.answers.values():
+                if (answer.origin == "require"
+                        and answer.parent == headline.question
+                        and self.failed(answer, buffer)):
+                    m["concluded"] = answer
+                    return CONTINUE
+            return DECLINED
+
         def challenge(_) -> str:
             # The one settled answer the teacher is asked about: a yes
             # resting on a crawled row that nothing in the run bore out. It
@@ -368,7 +391,8 @@ class Loop:
             buffer, cycles = m["buffer"], m["cycles"]
             m["run"] = Run(pinned=dict(buffer.pins), utterance=utterance,
                            cycles=cycles,
-                           summary=self.summarise(buffer, cycles),
+                           summary=self.summarise(
+                               buffer, cycles, m.get("concluded")),
                            buffer=buffer.as_dict(), pool=self.pool.as_dict(),
                            settled=buffer.settled(),
                            elapsed=time.time() - started)
@@ -405,6 +429,9 @@ class Loop:
             Operator("what to ask next", queue, repeats=True,
                      needs=("recorded", "buffer", "generator"),
                      gives=("pending",)),
+            Operator("conclude from what it found", conclude,
+                     rule="modus tollens", needs=("cycles", "buffer"),
+                     gives=("concluded",)),
             Operator("challenge what it settled", challenge,
                      needs=("cycles", "buffer", "put"), proposes=teaching,
                      effects=("teacher",)),
@@ -413,7 +440,8 @@ class Loop:
         ]
 
     # -- what it all came to ----------------------------------------------
-    def summarise(self, buffer: Buffer, cycles: list[Cycle]) -> dict:
+    def summarise(self, buffer: Buffer, cycles: list[Cycle],
+                  concluded=None) -> dict:
         """The answer, and every reason to hold it more loosely than it reads.
 
         This is the part that a single `ask` cannot produce, because a single
@@ -564,7 +592,13 @@ class Loop:
             negated = [one for one in buffer.seen_doubts
                        if one.reason == "negated_evidence"
                        and one.question == answer.question]
-            if (denied or negated) and headline is not None:
+            if answer is concluded:
+                lines.append(
+                    f"so probably not: {plural(needs)} are what the things "
+                    f"that do this have in common, and "
+                    f"{article(answer.about)} {answer.about} does not have "
+                    f"them")
+            elif (denied or negated) and headline is not None:
                 lines.append(
                     f"and that is the trouble: {plural(needs)} are what the "
                     f"things that do this have in common, and "
@@ -686,7 +720,8 @@ class Loop:
             **confidence.of_run(headline, buffer, conflicts, overturned,
                                 corrected=corrected,
                                 ratified=ratified,
-                                challenged=challenged).as_dict(),
+                                challenged=challenged,
+                                concluded=concluded).as_dict(),
         }
 
     def overturned(self, headline, buffer: Buffer, conflicts=None) -> bool:

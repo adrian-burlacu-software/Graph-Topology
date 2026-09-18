@@ -237,9 +237,18 @@ def of_answer(payload: dict, verdict: str = "") -> Weight:
 #: stopped. Deliberately not 1.0 however sure the model is.
 RATIFIED = 0.70
 
+#: A no the loop concluded from the store's own answers: the subject lacks
+#: what the things that do this have in common (modus tollens, V7). An
+#: argument from records rather than a record of the claim itself, so
+#: priced below the answer it rests on. On the proving ground it was right
+#: 4 of 4; the converse -- it has the part, so yes -- was right 9 of 16 and
+#: is not concluded at all.
+CONCLUDED = 0.80
+
 
 def of_run(headline, buffer, conflicts, overturned: bool,
-           corrected=None, ratified=None, challenged=None) -> Weight:
+           corrected=None, ratified=None, challenged=None,
+           concluded=None) -> Weight:
     """What the run is worth once the loop has had its say.
 
     The answer's own payload is the ground; everything the loop went and
@@ -251,6 +260,21 @@ def of_run(headline, buffer, conflicts, overturned: bool,
         return Weight(0.0, "unknown", [("nothing asked", 0.0, "no answer")])
     speaking = corrected or headline
     weight = of_answer(speaking.payload, speaking.verdict)
+    if weight.outcome == "unknown" and concluded is not None:
+        # Before the teacher: the store's own argument outranks a model's
+        # word, as it does everywhere else in this file.
+        lacks = of_answer(concluded.payload, concluded.verdict)
+        ground = lacks.value if lacks.outcome == "denied" else 0.5
+        return Weight(
+            max(min(ground * CONCLUDED, 1.0), 0.0), "denied",
+            [("nothing recorded settles it", 1.0,
+              "the store holds no row for the claim either way"),
+             ("it lacks what doing it needs", CONCLUDED,
+              f"asked “{concluded.question}”, the store says no -- and "
+              f"that part is what the things that do this have in common, "
+              f"so it is concluded rather than recorded"),
+             ("the no that concluded it", ground,
+              "the strength of the answer the conclusion rests on")])
     if weight.outcome == "unknown" and ratified:
         # Something did settle it, so `unknown` is the wrong reading and a
         # badge saying so over lines saying otherwise is the wrong page. The

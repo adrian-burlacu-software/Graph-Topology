@@ -783,6 +783,27 @@ class ExampleTests(unittest.TestCase):
                 found = needs.of(action)
                 self.assertFalse(found.decisive, f"{action} -> {found.part}")
 
+    def test_what_the_search_found_can_settle_an_unknown(self):
+        """V7: nothing records whether a train sails, and the loop found
+        that it has no hull, which is what the things that sail have in
+        common. Modus tollens: probably not -- concluded, not recorded, and
+        priced below the answer it rests on."""
+        found = run("can a train sail")
+        self.assertEqual(found.summary["outcome"], "denied")
+        self.assertLess(found.summary["confidence"], 0.8)
+        self.assertTrue(any(line.startswith("so probably not")
+                            for line in found.summary["lines"]))
+        steps = {step["operator"]: step["outcome"]
+                 for step in found.executed[0]["fired"]}
+        self.assertEqual(steps["conclude from what it found"], "continue")
+
+    def test_having_what_it_needs_concludes_nothing(self):
+        """The converse is affirming the consequent: a porcupine has legs
+        and does not run. On the proving ground it was right 9 of 16, so an
+        unknown stays unknown when the subject has the part."""
+        found = run("can an alligator breathe")
+        self.assertEqual(found.summary["outcome"], "unknown")
+
     def test_a_denial_is_grounded_too(self):
         """A penguin cannot fly and does have wings, which says the no is not
         about anatomy. Only checking positives would have missed that."""
