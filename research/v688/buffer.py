@@ -486,9 +486,15 @@ class Buffer:
         return len(hold) > len(decided) / 2
 
     def settled(self) -> bool:
-        """Nothing left that the loop could act on by itself."""
-        return (not self._gaps and not self._doubts and not self.carried
-                and not self.recent)
+        """Nothing left that the loop could act on by itself.
+
+        Not `recent`: it is the last cycle's answers, set by every `record`
+        and never cleared, and by the time a run ends the question
+        generator has read them and found nothing to ask. Requiring it
+        empty made every run that asked anything unsettled -- 0 of 76
+        measured, when every one of them had in fact run out of questions.
+        """
+        return not self._gaps and not self._doubts and not self.carried
 
     def needs_telling(self) -> list[Gap]:
         """Gaps no question of ours can close: the system has to be told.

@@ -869,6 +869,17 @@ class ExampleTests(unittest.TestCase):
         self.assertNotEqual(pinned.key, plain.key)
         self.assertTrue(pinned.key.startswith("is a mouse an animal "))
 
+    @requires_store
+    def test_a_run_that_runs_out_of_questions_is_settled(self):
+        """`settled` required the last cycle's answers to be gone, and they
+        never are: no run that asked anything could ever say it settled."""
+        found = run("is a mouse small")
+        loop = found.executed[0]
+        asking = [step for step in loop["fired"]
+                  if step["operator"] == "what to ask next"]
+        self.assertEqual(asking[-1]["outcome"], "declined")
+        self.assertTrue(found.settled)
+
     def test_an_answer_carries_what_the_executive_ran(self):
         """The loop is asked over a socket: a trace that does not travel on
         the answer does not exist for whoever asked."""
