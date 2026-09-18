@@ -231,7 +231,8 @@ class Loop:
         trace = Executive(self.operators(memory), name="v688 loop",
                           given=("utterance", "pinned")).run(memory)
         found = memory["run"]
-        found.executed = [record("v688 loop", trace)]
+        found.executed = [record("v688 loop", trace),
+                          *dict.get(memory, "chose", ())]
         return found
 
     def operators(self, m: Working) -> list[Operator]:
@@ -336,7 +337,11 @@ class Loop:
 
         def queue(_) -> str:
             del m["recorded"]
-            pending = m["generator"].queue(m["buffer"], self.width)
+            generator = m["generator"]
+            pending = generator.queue(m["buffer"], self.width)
+            # What chose this cycle's questions, kept beside the loop's own
+            # run so a source can be credited for what it asked (V3).
+            m.setdefault("chose", []).append(generator.chose)
             if pending:
                 m["pending"] = pending
                 return CONTINUE

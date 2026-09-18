@@ -25,6 +25,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from research.v687.executive import (ANSWERED, CONTINUE, DECLINED,
+                                     Executive, Operator, Working, record)
+
 from . import attention
 from .gap import Doubt, Gap
 from .graph import GraphCuriosity, Kinds, Requirements
@@ -368,6 +371,8 @@ class Generator:
         self.requirements = requirements or Requirements(engine.reasoner)
         self.wider = GraphCuriosity(engine.reasoner)
         self.kinds = Kinds(engine.reasoner, engine.profiles)
+        #: the last `queue` run, as a trace (V3)
+        self.chose: dict = {}
         self._pos: dict[str, str] = {}
         self._facts: dict[str, bool] = {}
         self._singular: dict[str, str] = {}
@@ -1145,46 +1150,71 @@ class Generator:
     def queue(self, buffer, width: int) -> list[Question]:
         """Everything worth asking this cycle, best first, deduplicated.
 
-        Gaps and doubts are generated from what came back last cycle;
-        curiosity fills whatever room is left. That ordering is the whole of
-        executive control at this stage -- a sort, not a subsystem -- and it
-        is what stops curiosity drowning out a blocked word.
+        Each source is an operator (V3): it proposes when it has something
+        open to ask about, and puts its questions in. Gaps and doubts come
+        from what came back last cycle; curiosity fills whatever room is
+        left, and is ranked last on purpose, so the workers are not busy
+        being interested while something is blocked. The order is still a
+        sort by rank -- what changed is that the sources are named on the
+        trace, so what a cycle chose to ask can be credited and suppressed
+        one at a time.
         """
-        candidates: list[Question] = list(buffer.carried)
-        for hole in buffer.open_gaps():
-            candidates.extend(self.from_gap(hole, buffer))
-        for doubt in buffer.open_doubts():
-            candidates.extend(self.from_doubt(doubt, buffer))
-        for doubt in buffer.open_senses():
-            candidates.extend(self.from_sense(doubt, buffer))
-        for answer in buffer.recent:
-            candidates.extend(self.other_sense_answers(answer, buffer))
-        for answer in buffer.recent:
-            candidates.extend(self.from_requirement(answer, buffer))
-        for split in buffer.splits():
-            candidates.extend(self.from_split(split, buffer))
-        for answer in buffer.recent:
-            candidates.extend(self.from_content(answer, buffer))
+        memory = Working({"buffer": buffer, "width": width},
+                         goal="what to ask next")
+        trace = Executive(self.sources(memory), name="what to ask next",
+                          given=("buffer", "width")).run(memory)
+        #: what this cycle's questions were chosen by, for whoever credits
+        #: them: the loop puts it on the run (V3)
+        self.chose = record("what to ask next", trace)
+        return memory["asking"]
 
-        ranked = sorted(candidates, key=lambda q: -q.rank)
-        chosen: list[Question] = []
-        seen: set[str] = set()
-        for question in ranked:
-            if question.key in seen or buffer.already_asked(question.key):
-                continue
-            seen.add(question.key)
-            chosen.append(question)
-        # Whatever a cycle could not hold waits for the next one, ahead of any
-        # new curiosity. Without this the pool size silently decides which
-        # members of a family get asked, and the conflict a wide pool finds is
-        # one a narrow pool never sees.
-        buffer.carried = chosen[width:]
-        chosen = chosen[:width]
+    def sources(self, m: Working) -> list[Operator]:
+        buffer, width = m["buffer"], m["width"]
 
-        # Curiosity fills the rest of the pool. It is generated last and
-        # ranked last on purpose: the workers would otherwise be busy being
-        # interested while something was blocked.
-        if len(chosen) < width:
+        def opening(find, make):
+            """An operator's action from what is open and what to ask of
+            it: the questions go in, and it goes on if it had any.
+
+            What is open is read *here* and never in a condition: the
+            buffer hands over its gaps, doubts and senses by taking them
+            off its own list, so a condition that asked whether there were
+            any would have spent them before this ran, and the questions
+            would be lost (it did, and it cost every carried family check).
+            """
+            def apply(memory) -> str:
+                asking: list = []
+                for one in find():
+                    asking.extend(make(one, buffer))
+                if not asking:
+                    return DECLINED
+                memory.setdefault("candidates", []).extend(asking)
+                return CONTINUE
+            return apply
+
+        def carried(memory) -> str:
+            memory.setdefault("candidates", []).extend(buffer.carried)
+            return CONTINUE
+
+        def choose(memory) -> str:
+            ranked = sorted(memory.get("candidates") or [],
+                            key=lambda q: -q.rank)
+            chosen: list[Question] = []
+            seen: set[str] = set()
+            for question in ranked:
+                if question.key in seen or buffer.already_asked(question.key):
+                    continue
+                seen.add(question.key)
+                chosen.append(question)
+            # Whatever a cycle could not hold waits for the next one, ahead
+            # of any new curiosity. Without this the pool size silently
+            # decides which members of a family get asked, and the conflict a
+            # wide pool finds is one a narrow pool never sees.
+            buffer.carried = chosen[width:]
+            memory.update(chosen=chosen[:width], seen=seen)
+            return CONTINUE
+
+        def curious(memory) -> str:
+            chosen, seen = memory["chosen"], memory["seen"]
             spare: list[Question] = []
             for concept in buffer.topics[:4]:
                 spare.extend(self.from_curiosity(concept, buffer))
@@ -1195,4 +1225,50 @@ class Generator:
                 chosen.append(question)
                 if len(chosen) >= width:
                     break
-        return chosen[:width]
+            return CONTINUE
+
+        def asking(memory) -> str:
+            memory["asking"] = memory["chosen"][:width]
+            return ANSWERED
+
+        def recent():
+            return buffer.recent
+
+        return [
+            # Before the choice, and only then: choosing refills `carried`
+            # with what did not fit, and this would otherwise take it back.
+            Operator("carried from last cycle", carried, rule="carried",
+                     gives=("candidates",),
+                     proposes=lambda _: (bool(buffer.carried)
+                                         and "chosen" not in m)),
+            Operator("a gap to close", opening(buffer.open_gaps,
+                                               self.from_gap),
+                     rule="gap", gives=("candidates",)),
+            Operator("a doubt to put", opening(buffer.open_doubts,
+                                               self.from_doubt),
+                     rule="doubt", gives=("candidates",)),
+            Operator("which sense was meant",
+                     opening(buffer.open_senses, self.from_sense),
+                     rule="sense", gives=("candidates",)),
+            Operator("the same asked of another sense",
+                     opening(recent, self.other_sense_answers),
+                     rule="sense", gives=("candidates",),
+                     proposes=lambda _: bool(buffer.recent)),
+            Operator("what an answer requires",
+                     opening(recent, self.from_requirement),
+                     rule="requirement", gives=("candidates",),
+                     proposes=lambda _: bool(buffer.recent)),
+            Operator("a claim in two halves",
+                     opening(buffer.splits, self.from_split),
+                     rule="split", gives=("candidates",)),
+            Operator("what an answer said",
+                     opening(recent, self.from_content),
+                     rule="content", gives=("candidates",),
+                     proposes=lambda _: bool(buffer.recent)),
+            Operator("the best of them", choose, gives=("chosen", "seen")),
+            Operator("curiosity fills the room left", curious, rule="wonder",
+                     needs=("chosen",),
+                     proposes=lambda _: len(m["chosen"]) < width),
+            Operator("what to ask", asking, needs=("chosen",),
+                     gives=("asking",)),
+        ]

@@ -157,6 +157,9 @@ def episode():
 class Operator:
     name: str
     apply: Callable[[dict], str | None]
+    #: what it asks of working memory beyond its needs. Called every cycle
+    #: and never once, so it must read and not take: a condition that
+    #: consumed what it tested would spend it before the action ran.
     proposes: Callable[[dict], bool] = lambda memory: True
     #: None: set from the operator's place in the list it was given in
     utility: float | None = None
