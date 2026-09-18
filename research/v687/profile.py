@@ -937,7 +937,8 @@ class Profiles:
     # -- the polar question ------------------------------------------------
     def verify_one(self, name: str, term: str,
                    descend: bool = True,
-                   asked: list[str] | None = None) -> Verdict:
+                   asked: list[str] | None = None,
+                   phrase: str = "") -> Verdict:
         """Does this thing have that *one* property?
 
         Stated, denied, inherited or unrecorded.
@@ -950,6 +951,12 @@ class Profiles:
         is loose enough to make a marble fly.
         """
         terms = [term]
+        # The subject's own words are not part of what is asked of it: `does
+        # a willow tree have a trunk` read its phrase as `tree trunk`, which
+        # no property holds, and lost a trunk the norms state.
+        own = set(name.lower().split())
+        rest = [word for word in phrase.split() if word not in own]
+        phrase = " ".join(rest) if len(rest) > 1 else ""
         if not self.knows(name):
             return Verdict(term=term,
                            verdict="UNRECORDED",
@@ -975,6 +982,15 @@ class Profiles:
                            key=lambda hit: -len(asked_stems & {
                                self.identifier.stem(word)
                                for word in hit.split()}))
+            # One word of a phrase is held only by a property that holds the
+            # phrase. `does a donkey have a long neck` was (`long` and `neck`)
+            # answered word by word, and `has a long tail` supplied `long`:
+            # "yes, every part of it". `_atom` always meant a phrase to be one
+            # claim; the norms were too sparse for this to show until the
+            # full matrix was read (V9).
+            if phrase:
+                plain = [hit for hit in plain
+                         if self.identifier.holds_phrase(phrase, hit)]
             hit = denials[0] if denials else (plain[0] if plain else None)
             if hit is not None and self._denies(hit):
                 return Verdict(
@@ -1080,7 +1096,11 @@ class Profiles:
                     if (self.counted(term)
                             and not fact["relation"].startswith("has")):
                         continue
-                    if self.identifier._hit(term, frozenset({text})):
+                    # A phrase holds here as it does in the norms: `used for
+                    # play` is not `used for cleaning` (V9).
+                    if (self.identifier._hit(term, frozenset({text}))
+                            and (not phrase or self.identifier.holds_phrase(
+                                phrase, text))):
                         matches.append((level, fact, text, term))
                         break
                     if not negated and self.other_count(term, [text]):
@@ -1220,9 +1240,11 @@ class Profiles:
         parts: dict[str, Verdict] = {}
 
         asked = query.tree.terms()
+        phrases = query.tree.phrases()
 
         def test(term: str) -> tuple[str, str]:
-            answer = self.verify_one(name, term, descend=descend, asked=asked)
+            answer = self.verify_one(name, term, descend=descend, asked=asked,
+                                     phrase=phrases.get(term, ""))
             parts[term] = answer
             return self.AS_VALUE.get(answer.verdict, logic.UNKNOWN), answer.detail
 

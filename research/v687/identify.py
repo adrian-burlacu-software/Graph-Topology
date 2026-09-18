@@ -101,6 +101,38 @@ class Identification:
                 "considered": self.considered, "steps": self.steps}
 
 
+#: Read XCSLB's full matrix (`corpora.xcslb_holders`) rather than COMPS'
+#: sample of it: `V690_FULL_MATRIX=1`, read by an audit's subprocesses too.
+#: **Off, as measured (V9).** On the screened audit, with the phrase rule in
+#: place, it confirms 4 more positives and asserts 9 more screened-false
+#: foils (3.4% -> 4.3%). The recovered columns are right -- none of the false
+#: yeses is in them -- the cost is inheritance: more kinds on record let a
+#: name-level climb clear R19's floor (`can an ashtray sail`: ashtray up to
+#: `vessel`, the ship, where 17 of 24 kinds sail). Its upside is the ratings
+#: COMPS never sampled -- every positive the proving ground left unknown
+#: (V8) -- and it is worth turning on once that climb is sense-safe.
+FULL_MATRIX = bool(os.environ.get("V690_FULL_MATRIX"))
+
+
+def xcslb_stated() -> dict[str, frozenset[str]]:
+    """concept -> what XCSLB says of it.
+
+    COMPS' pair file samples at most ten holders a property, so read through
+    it the engine knew `can walk` of ten concepts when the matrix lists 112
+    -- and every positive the proving ground left unknown was a rating the
+    matrix held and the engine never read (V8). The recovered matrix keeps
+    every sampled holder and adds the rest of the column.
+    """
+    if not FULL_MATRIX:
+        return {name: frozenset(predicates)
+                for name, predicates in corpora.load_xcslb().items}
+    stated: dict[str, set[str]] = {}
+    for prop, concepts in corpora.xcslb_holders().items():
+        for concept in concepts:
+            stated.setdefault(concept, set()).add(prop)
+    return {name: frozenset(props) for name, props in sorted(stated.items())}
+
+
 class Identifier:
     """Find the individual a description picks out."""
 
@@ -119,7 +151,7 @@ class Identifier:
         for name, predicates in corpora.load_awa2().items:
             self.stated[name] = predicates
             self.origin[name] = "awa2"
-        for name, predicates in corpora.load_xcslb().items:
+        for name, predicates in xcslb_stated().items():
             merged = self.stated.get(name, frozenset()) | predicates
             self.stated[name] = merged
             self.origin.setdefault(name, "xcslb")
@@ -357,6 +389,20 @@ class Identifier:
         stems = [cls.stem(word) for word in predicate.split()]
         return any(stems[index:index + len(wanted)] == wanted
                    for index in range(len(stems) - len(wanted) + 1))
+
+    @classmethod
+    def holds_phrase(cls, phrase: str, predicate: str) -> bool:
+        """Does the predicate hold every word of the phrase, in order, with
+        anything between them? `used cooking` is held by `is used for
+        cooking` and `long neck` by `has a long thin neck`, but not by `has a
+        long tail`. In order and not merely together, because the question
+        dropped its small words (`for`, `of`) and the property kept them --
+        requiring the words to sit side by side lost 8 points of the
+        audit's positives."""
+        wanted = [cls.stem(word) for word in phrase.split()]
+        stems = iter(cls.stem(word) for word in predicate.split())
+        return bool(wanted) and all(any(stem == word for stem in stems)
+                                    for word in wanted)
 
     #: The frame of a norm, as opposed to what it claims. `has`, `is`, `can`
     #: and their articles say how a property is predicated; the words after

@@ -66,6 +66,20 @@ class Node:
     #: Filled in by `evaluate`, so the page can show which half failed.
     value: str = UNKNOWN
     detail: str = ""
+    #: For a term that is one word of a longer phrase -- `long` in `a long
+    #: neck` -- the whole phrase, which a listed property has to hold for the
+    #: word to count (`Profiles.verify_one`). Empty for a word on its own.
+    phrase: str = ""
+
+    def phrases(self) -> dict[str, str]:
+        """term -> the phrase it was read from, where it had one."""
+        if self.op == "term":
+            return {self.term: self.phrase} if self.phrase else {}
+        found: dict[str, str] = {}
+        for child in self.children:
+            for term, phrase in child.phrases().items():
+                found.setdefault(term, phrase)
+        return found
 
     def terms(self) -> list[str]:
         if self.op == "term":
@@ -162,7 +176,13 @@ def _atom(phrase: str, aside: frozenset[str]) -> Node | None:
             content.append(word)
     if not content:
         return None
-    claim = Node(op="and", children=[Node(op="term", term=word)
+    # Each word stays a term of its own -- a rated word such as `made` is
+    # answered from its rating (`can a dragonfly be made of gold`: people
+    # rated it 1.4 of 7 as manmade) -- and carries the phrase it came from,
+    # so a listed property confirms it only by holding the whole phrase.
+    phrase = " ".join(content) if len(content) > 1 else ""
+    claim = Node(op="and", children=[Node(op="term", term=word,
+                                          phrase=phrase)
                                      for word in content]) \
         if len(content) > 1 else Node(op="term", term=content[0])
     return Node(op="not", children=[claim]) if denied else claim

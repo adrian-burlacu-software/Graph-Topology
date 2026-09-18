@@ -234,7 +234,11 @@ BASELINE: dict[str, str] = {
     "is a snake dangerous": "verified kind",
     "does a plant need water": "unknown kind",
     "do people need sleep": "retrieved kind",
-    "does a car need fuel": "verified kind",
+    # V9: was `verified`, by the wrong route -- `need` matched `fit their
+    # needs` on container, four levels up, and `fuel` matched alone. The
+    # norms state `requires fuel to use` of car, and `need` is not `require`
+    # to a word matcher, so honestly unknown until one is.
+    "does a car need fuel": "unknown kind",
     "does a fish need water": "unknown kind",
     "what does a fish need to live": "retrieved kind",
     "can a person live without water": "unknown kind",

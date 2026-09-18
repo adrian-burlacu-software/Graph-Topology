@@ -762,6 +762,28 @@ class AnswerAuditTests(unittest.TestCase):
         self.assertIn("classify", self.did(runs[1]))
         self.assertEqual(runs[1]["answered_by"], "the answer")
 
+    # -- V9: a phrase is one claim ------------------------------------------
+    def test_a_phrase_is_held_by_one_property_not_by_its_words(self):
+        """`does a donkey have a long neck` was (`long` and `neck`), each word
+        looked up alone: `has a long tail` supplied `long`, and the answer was
+        "yes, every part of it"."""
+        self.assertNotEqual(self.verdict("does a donkey have a long neck"),
+                            "VERIFIED")
+        self.assertEqual(self.verdict("does a giraffe have a long neck"),
+                         "VERIFIED")
+
+    def test_a_rated_word_still_answers_inside_a_phrase(self):
+        """Each word stays a term, so `made` still reaches the rating that
+        says a dragonfly is not manmade."""
+        self.assertEqual(self.verdict("can a dragonfly be made of gold"),
+                         "CONTRADICTED")
+
+    def test_the_subject_is_not_part_of_what_is_asked(self):
+        """The norms know `willow`; the question says `willow tree`, and
+        `tree trunk` is held by no property."""
+        self.assertEqual(self.verdict("does a willow tree have a trunk"),
+                         "VERIFIED")
+
     # -- F1: a denial is not a denial of every word inside it --------------
     def test_a_qualified_denial_does_not_deny_the_bare_property(self):
         """The norms deny `has small ears` of a beaver. Beavers have ears."""

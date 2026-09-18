@@ -669,5 +669,21 @@ class MatrixRecoveryTests(unittest.TestCase):
         self.assertIn("penguin", self.holders["has wings"])
 
 
+class PhraseTests(unittest.TestCase):
+    """`Identifier.holds_phrase`: every word, in order, gaps allowed."""
+
+    def test_in_order_with_anything_between(self):
+        from research.v687.identify import Identifier
+        for phrase, predicate, held in (
+                ("used cooking", "is used for cooking", True),
+                ("long neck", "has a long thin neck", True),
+                ("long neck", "has a long tail", False),
+                ("worn outdoors", "is worn indoors", False),
+                ("neck long", "has a long neck", False)):
+            with self.subTest(phrase=phrase, predicate=predicate):
+                self.assertEqual(Identifier.holds_phrase(phrase, predicate),
+                                 held)
+
+
 if __name__ == "__main__":
     unittest.main()

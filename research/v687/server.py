@@ -182,7 +182,8 @@ class IdentifyingEngine(BridgedEngine):
             # The question's own structure, not a bag of words: `a tail and
             # wings` is a conjunction, `furry or purple` a disjunction, and
             # `all birds` a quantifier over the kinds beneath.
-            query = logic.parse(self._tail(question, name), profile.ASIDE)
+            query = logic.parse(self._asked_of(question, name),
+                                profile.ASIDE)
         found = self.profiles.describe(name)
         if found is None and query is not None and query.quantifier:
             # A class the norms do not cover has no branch of its own, but its
@@ -210,7 +211,7 @@ class IdentifyingEngine(BridgedEngine):
             # matches the phrase whole. `a tail and wings` is a real
             # conjunction and must keep its three-valued answer, which is the
             # defect R20 was written for.
-            tail = self._tail(question, name)
+            tail = self._asked_of(question, name)
             structured = bool(found.asked.quantifier) or bool(
                 re.search(r"\b(and|or|not|no|never)\b", tail))
             # An inherited answer the norms could not corroborate is not an
@@ -227,6 +228,19 @@ class IdentifyingEngine(BridgedEngine):
                     and self.parser.parse(question).subject == name):
                 return None
         return self._payload(question, mode, found)
+
+    def _asked_of(self, question: str, name: str) -> str:
+        """`_tail`, and the rest of the subject with it: the norms know the
+        willow as `willow`, and `does a willow tree have a trunk` left `tree`
+        in what was asked. A word of one phrase now has to be held by one
+        property with the rest of it (V9), so `tree trunk` held nothing and a
+        trunk the norms state was lost."""
+        tail = self._tail(question, name)
+        subject = (self.parser.parse(question).subject or "").lower().split()
+        if len(subject) > 1 and name in subject:
+            tail = " ".join(word for word in tail.split()
+                            if word not in subject)
+        return tail
 
     @staticmethod
     def _tail(question: str, name: str) -> str:
