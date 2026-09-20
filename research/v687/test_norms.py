@@ -685,5 +685,38 @@ class PhraseTests(unittest.TestCase):
                                  held)
 
 
+class SenseJoinTests(unittest.TestCase):
+    """`corpora.senses`: COMPS' one duplicated key, and only that one."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v687 import corpora
+        cls.senses = corpora.senses()
+
+    def test_no_sense_is_claimed_twice(self):
+        keys = list(self.senses.values())
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_the_slip_is_dropped_and_its_owner_kept(self):
+        # `ashtray` carried the row above it. It is joined by name instead.
+        self.assertNotIn("ashtray", self.senses)
+        self.assertEqual(self.senses["yacht"], "yacht%1:06:00::")
+
+    def test_deliberate_synonyms_survive(self):
+        # A key that names another word is usually right: a plural, an
+        # underscore, or the word XCSLB's British speakers meant.
+        self.assertEqual(self.senses["football"], "soccer_ball%1:06:00::")
+        self.assertEqual(self.senses["refrigerator"], "fridge%1:06:00::")
+        self.assertEqual(self.senses["lips"], "lip%1:08:00::")
+        self.assertEqual(len(self.senses), 529)
+
+    def test_an_ashtray_is_a_container(self):
+        from research.v687.identify import Identifier
+        from research.v688 import audit
+        identifier = Identifier(audit.STORE, inherit=False)
+        self.addCleanup(identifier.close)
+        self.assertEqual(identifier.synset["ashtray"], "ashtray.n.01")
+
+
 if __name__ == "__main__":
     unittest.main()

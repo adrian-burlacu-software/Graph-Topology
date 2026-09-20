@@ -59,9 +59,40 @@ def negations() -> dict[str, str]:
 
 
 def senses() -> dict[str, str]:
-    """concept -> WordNet sense key, and concept -> category."""
+    """concept -> WordNet sense key, the duplicated key dropped.
+
+    This file is COMPS's, not ours, and one row of it is a transcription
+    slip: `ashtray` carries `yacht%1:06:00::`, the row above it. A
+    concept-to-sense map is a function into *distinct* senses -- two
+    concepts naming one sense is not a judgement call, it is an error --
+    and this is the only key in all 530 rows that two concepts claim.
+
+    So the duplicate is broken by the one test that can settle it: the key
+    names its own concept (`yacht` is the lemma of `yacht%1:06:00::`) and
+    the other does not. The loser's key is dropped, not guessed at, and
+    `identify.Identifier` then joins it by name as it already does for
+    every AwA2 class -- `ashtray.n.01`, which is what it is.
+
+    Nothing else is touched. The other 27 keys that name a word other than
+    their concept are deliberate and correct: plurals (`lips` -> `lip`),
+    underscores, and real synonyms (`refrigerator` -> `fridge`, `football`
+    -> `soccer ball`, which is the right ball for a British norm). A test
+    that demanded the key match its concept would break all of them to
+    catch this one. If COMPS ever fixes the row, this becomes a no-op.
+
+    Left unfixed, `ashtray` was a yacht: it inherited `part_of hull`,
+    `part_of rudder` and `receives_action registered` from `vessel.n.02`,
+    a craft designed for water transportation.
+    """
     with (XCSLB_DIR / "concept_senses.csv").open(encoding="utf-8") as handle:
-        return {row["concept"]: row["sensekey"] for row in csv.DictReader(handle)}
+        rows = [(row["concept"], row["sensekey"])
+                for row in csv.DictReader(handle)]
+    claims: dict[str, list[str]] = {}
+    for concept, key in rows:
+        claims.setdefault(key, []).append(concept)
+    return {concept: key for concept, key in rows
+            if len(claims[key]) == 1
+            or key.split("%")[0].replace("_", " ") == concept.replace("_", " ")}
 
 
 def categories() -> dict[str, str]:
