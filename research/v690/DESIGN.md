@@ -586,6 +586,7 @@ what the conversation is.
 | V7: the loop concludes | The loop's goal is to settle what was asked, and after V6 nothing it found could. `conclude from what it found` is an operator of the loop's executive (rule: modus tollens): after the cycles, when the first answer is unknown and a requirement check came back **lacks it**, the run concludes no -- `confidence.of_run(concluded=)` returns `denied`, priced at the no it rests on times `CONCLUDED` (0.80), before a teacher is consulted because the store's own argument outranks a model's word -- and the summary says it as an argument: `so probably not: hulls are what the things that do this have in common, and a train does not have them`. The converse is not concluded: having the part was right 9 of 16. **Proving ground: the loop beats its own first answer for the first time -- 35 right, 4 wrong, 61 unknown against the seed's 31 / 4 / 65**; the four it changed are all right (`can an ashtray sail`, `can a train sail`, `can a skunk gnaw`, `can chocolate bleed`), and nothing it changed went wrong. **The class subgoal was measured and not built:** asking the action of the subject's three nearest kinds, nearest first, settles 5 of the 65 unknowns, 3 right and 2 wrong -- `a chest of drawers` read as the thorax and climbing to `part`, `can an ear open` climbing to `organ`. Going up to a class and inheriting is what R19 exists to distrust, and at 60% it is not a conclusion. 1,099 tests; probe 114/114; bAbI test all 20,000 answers identical |
 | V8: are the 61 unknowns a lack of data? | Each question the loop still leaves unknown was checked for evidence anywhere: the COMPS-sampled XCSLB the engine reads, XCSLB's recovered full matrix, and any row on the concept or an ancestor whose object names the verb, before a rule filters it. **Every negative is no data: 39 of 39.** 25 have nothing at all, and 14 have only rows that mention the verb and are not the claim (`plant capable_of "bottle drinks"`, `eagle capable_of "run red light"`, `rock capable_of "float in space"`) -- refused, rightly, by R2, R19 and R28. Denials are hardly ever recorded; inference (V7's modus tollens) or closed-world data is the only way to them. **Every positive is data the engine does not read: 22 of 22.** XCSLB's full matrix gives the concept the ability (`can an ant walk`, `can an alligator swim`, `can a buffalo run`), and the engine's norms are `identify.Identifier`'s `stated`, built from `load_xcslb` -- COMPS' sample of at most ten holders a property. Some also have crawl rows R19 or R28 refused as qualified (`alligator capable_of "swim toward the shore"`). Wiring the recovered matrix into `stated` would answer them -- but this proving ground drew its positives from that matrix, so here they would be right by construction; its worth has to be measured on independent gold (the audit), and the matrix is also R19's denominators, so more holders changes what R19 corroborates |
 | V9: the full matrix, and a phrase is one claim | Wiring XCSLB's recovered matrix into the engine's norms (`identify.xcslb_stated`: 12,335 ratings -> 28,910) was measured on the screened audit before anything else, and it **raised over-affirmation at every rung** of the foil ladder (foils asserted 4.8% -> 6.5%, taxonomic 8.9% -> 12.1%, corrupted 0.7% -> 1.3%) for +0.2 of positives. Row by row, the recovered columns were not the cause -- none of the false yeses is in them -- two older faults were, which the sparse sample had hidden. **R17 read a phrase as its words.** `logic._atom` said a phrase is one claim and built an AND of single words, each looked up alone among everything the norms state: `does a donkey have a long neck` found `long` in `has a long tail`, `is a dressing gown worn outdoors` found each word somewhere, "yes, every part of it". Now each word still gets its own lookups (so `made` still reaches the THINGSplus rating that says a dragonfly is not manmade) but a *listed* property holds a word of a phrase only if it holds the whole phrase, in order with anything between (`Identifier.holds_phrase`: `used cooking` is held by `is used for cooking`, `long neck` is not held by `has a long tail`), on the stated path and the inherited one, with the subject's own words left out of the phrase (`does a willow tree have a trunk`: the norms know `willow`). Side-by-side matching first cost 8 points of positives; in order with gaps, half a point. **Audit, screened: positives 87.2% -> 86.7%; foils asserted 4.8% -> 3.4% (48 -> 34 of 998, 29% fewer); taxonomic 8.9% -> 6.5%; corrupted 0.7% -> 0.3%; decided 85.3% -> 86.0%; accuracy 99.3% -> 99.5%.** Shipped. With the full matrix on top: +0.4 positives, +0.9 foils asserted -- the rest of its cost is inheritance, more kinds on record letting a name-level climb clear R19's floor (`can an ashtray sail`: up to `vessel`, the ship, 17 of 24 kinds sail). So the full matrix is off (`V690_FULL_MATRIX=1`) until that climb is sense-safe; its upside, every positive V8 found unread, is waiting on it. Probe: `does a car need fuel` verified -> unknown -- the yes had come from `need` matching `fit their needs` on container; the norms' `requires fuel to use` needs `need` = `require`. 1,105 tests; bAbI test all 20,000 answers identical |
+| V10: an ashtray was a yacht | V9 left the full matrix off "until that climb is sense-safe". **There was never an unsafe climb.** `Profiles.ancestry` climbs `synset[name]` through WordNet and is right by construction; the defect was one row of COMPS' own `concept_senses.csv`, where `ashtray` carries the sensekey of the row above it (`yacht%1:06:00::`), so `synset["ashtray"]` **was** `yacht.n.01` and an ashtray inherited `part_of hull`, `part_of rudder` and `receives_action registered` from `vessel.n.02`, a craft designed for water transportation. The full matrix did not cause it; it made the ashtray dense enough for the wrong ancestry to clear R19 and show. Fixed in `corpora.senses()`, the only reader of that column -- every other reader of the file takes `category` or `article`. A concept-to-sense map is a function into distinct senses, and that key is the **only one of all 530 rows two concepts claim**, so the duplicate is provably an error rather than a judgement call; it is broken on the one test that settles it, that the key names its own concept, and `ashtray` then joins by name as every AwA2 class already does. **Do not "fix" this by requiring the key to match its concept:** 28 keys name another word and 27 are deliberate and right (`lips` → `lip`, `refrigerator` → `fridge`, `football` → `soccer ball`, the right ball for a British norm). Measured four ways on the screened audit, same machine: matrix **off**, before and after are byte-identical (foils 3.3%, confirm 87.2%) -- the fix is free; matrix **on**, foils 4.0% → 3.9% and taxonomic 8.1% → 7.7%. **The full matrix still stays off**, and now for a settled reason: it buys +0.2 positives for +0.6 foils, the ashtray was only 3 of the 22 answers it flips to yes, and the rest are spread over 20 unrelated concepts. One hypothesis was tested and is false -- that those foils are gold the screening missed; 13 of 17 checked are screened foils denied at 0.96 to 0.998. 1,107 tests (4 new); probe 114/114 |
 
 Two things were tried against this and **measured, rejected and reverted**, both
 recorded where the constant lives. R28 refuses a fact saying more than the
@@ -603,6 +604,66 @@ What the check rejects is mostly invention -- `How can I assist you today?`,
 example had one, `you told me so` of what the store says of stags. `which
 one?` is the weak stance: when `the other one` resolves to nothing, the
 message has nobody in it to say, and the teacher made someone up.
+
+## 8b. V11: a class must not outrank the thing itself
+
+**The finding that sets this phase.** V10 closed the last systematic bug
+standing between the engine and XCSLB's recovered full matrix, and the matrix
+still costs more than it buys. Tracing the 22 answers it flips to yes says
+why, and it is not about the matrix:
+
+    can an emu be airborne     UNRECORDED  ->  INHERITED from bird.n.01
+    does a jellyfish have      UNRECORDED  ->  INHERITED from invertebrate
+      an exoskeleton
+    does a turtle have ears    UNRECORDED  ->  HELD, induction from kinds
+    does a mussel have eyes    UNRECORDED  ->  HELD, stated "has two eyes"
+
+R19's corroboration for `airborne` over animals went from 12 of 160 to 44 of
+160 as the data got denser. The gate opened, and the emu inherited flight --
+while **its own record states `cannot fly`**, as do the penguin's and the
+ostrich's. Nothing in the path consults it. R19 is a test on the *class*: it
+asks what share of an ancestor's kinds bear a fact out, and never asks whether
+this concept contradicts it.
+
+So the system **degrades as correct data is added**, and that is the thing to
+fix before any question about a further corpus is worth asking. The better the
+bird data gets, the more certain the engine is that an emu can fly.
+
+This also unifies what V8 split in two. Its 22 unread positives and its 39
+unreachable negatives are one defect seen from both sides: **a concept's own
+record carries no weight against its class, and its silence carries none at
+all.** The negatives need silence to mean no where the concept was asked; the
+positives need a stated exception to beat a class majority. `Profiles.asked`
+already holds the seed of that scoping -- it is how R19 decides a kind could
+have borne a term out.
+
+**The 22, by mechanism.** Eight are crawl facts (`ascentpp`) inherited from
+distant ancestors, two to seven levels up (`does a hippo have a long tail` at
+seven, `can a daisy store water` at five), which density unlocked by raising
+R19's numerator. Fourteen come through the norms path at the concept itself --
+some inherited, some induced from the kinds below (`turtle`), some stated
+outright by a column the matrix recovered (`mussel`, `has two eyes`).
+
+| step | what it is |
+| --- | --- |
+| V11.0: is the gold right? | **Before optimising against the 22, screen them.** Three look like judge errors -- an artichoke *is* planted, geranium petals *are* edible, turtles *do* have inner ears -- and `comps_screened.jsonl` denied each at 0.96 or better. Fixing the engine to match wrong gold is the trap `data/xcslb.SOURCE.md` documents, and it would be the second time. A second opinion on those 22 pairs, by the `screen.py` route, sets the real target before a line of engine code moves |
+| V11a: a stated exception beats an inherited fact | Before an inherited fact is believed, put it to the concept's own record. `_denies` and `denies_term` exist and `corpora.negations()` gives property → negation for every XCSLB feature, so the stated side is in hand. The work is the lexical gap between the inherited predicate and the stated denial: the fact is `has_property airborne`, the record says `cannot fly`. Acceptance: `can an emu be airborne` is not verified, **and `can a robin fly` still is** |
+| V11b: distance should cost something | A crawl fact seven levels up should not outrank silence. Either cap crawled inheritance by distance or raise R19's floor as it climbs -- measured, not assumed, and reported as an ablation like every other constant in `profile.py` |
+| V11c: induction from below needs the same check | `_from_below` reaches `turtle has ears` from the kinds under it without asking the turtle. Same rule as V11a, applied to the other direction |
+
+**Acceptance for the phase:** the four-cell audit run from V10 (`--gold
+screened --config shipped`, with and without `V690_FULL_MATRIX`), with the
+matrix **on**, foils asserted at or under 3.3% -- today's level with it off --
+and positives at or above +0.2. That is what "the system can absorb correct
+data" means, stated as a number. Plus the standing bar from E1: the suite, and
+probe 114/114 on outcome and source.
+
+**Why this and not a dataset.** Adrian's standing point stands -- the graph is
+thin and the benchmarks do not exercise what is there.
+What V10 adds is that thinness cannot be fixed by pouring data in while
+inheritance has no exception mechanism: 22,477 recovered ratings are sitting
+unused, correct, and currently harmful. This phase is what makes the next
+corpus worth having.
 
 ## 9. Risks
 
