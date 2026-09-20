@@ -665,6 +665,85 @@ inheritance has no exception mechanism: 22,477 recovered ratings are sitting
 unused, correct, and currently harmful. This phase is what makes the next
 corpus worth having.
 
+## 8c. The executive and planning: how far along, and what finishing means
+
+**Short answer: the architecture is finished and the capability is not, and
+the capability cannot be finished from the executive side.** Every mechanism
+on the E list is built, tested and behaviour-preserving. Every one of them is
+also idle, and each time the reason was measured rather than guessed.
+
+### What is built
+
+| piece | commit | state | what the measurement said |
+| --- | --- | --- | --- |
+| E1 goal stack (`Working`) | `d5d6b68` | done | probe 114/114; the old 20-answer gap was between harnesses, not in the system |
+| E2 impasse → subgoal | `78c0497` | done | bAbI task 20 gained 22 answers; first and still main user is `where will` → `kept there` |
+| E3 credit logged | `3e1e144`, `9f79a90`, `4a1e185` | done | **learning would change nothing**: operators do not compete, acts are exclusive, `_ask` is a fixed pipeline |
+| E4a needs/gives | `73a95ab` | done | behaviour identical |
+| E4b v687's deciding path as operators | `ba3ea96` | done | audit rows identical; answers still come from v684's rules inside `super().ask` |
+| counterfactual credit | `f2ecaed` | done | shipped +0.387 against an oracle's +0.411. **Learning stays off** |
+| E4c effects with undo | `3645b64` | done | behaviour identical |
+| E5 means-ends planning | `c40b2e3` | done | **one user**; no capability win, the order is writable in advance |
+| E6 chunking | `1251f9d` | done | **0 chunks kept** on bAbI: at one step deep, whether a step answers depends on the question, not the impasse's shape |
+| V1-V3 the loop is an executive | `663cc84`, `965543e` | done | loop and its question sources are operators; traces cross the socket |
+| V4 depth measured | `e65f06f` | done | 2.85 cycles per utterance, 4.69 on dense material; two question sources dead by design; requirements starve |
+| V5 norms-based requirements | `46f03ef` | done | 15 of 25 against the crawl's 3 -- and the loop did not get deeper for it |
+| V6-V7 the loop concludes | `0f5ec8e`, `d07b6fb` | done | modus tollens; **the first time the loop beats its own first answer** (35/4/61 against 31/4/65) |
+| V8-V11 can it be fed? | `5391153`…`e450f99` | done | no: see below |
+
+Nothing on the E list is outstanding. There is no E7.
+
+### Why it is idle, and why that is not a benchmark artifact
+
+This was first concluded from thin benchmarks, and the objection was fair.
+V8 through V11 tested it from the other side -- by trying to *feed* the
+machinery -- and the answer came back independent of any benchmark's depth:
+
+- **V8**: of the 61 questions the loop cannot settle, 39 of 39 negatives are
+  no data at all and 22 of 22 positives are data the engine does not read.
+- **V9/V10**: reading it makes the system *worse*. XCSLB's recovered matrix
+  is 22,477 correct ratings and switching it on buys +0.2 points of positives
+  for +0.6 of foils. One systematic bug was found and fixed (V10) and it
+  moved 0.1 of that 0.6.
+- **V11a**: the defeaters are not recorded. Of the 18 real negatives the
+  matrix affirms, **16 concepts say nothing at all** about the attribute
+  asked. Only the emu states its exception (`cannot fly`), and the words do
+  not meet (`has property airborne`).
+
+So the executive is not waiting on a bigger property graph. It is waiting on
+a **problem with steps in it**, and that is a different thing from a denser
+set of facts about objects. Those two were conflated in every earlier
+"should we get a dataset" discussion and they should not be.
+
+### What finishing means: three exits, in order
+
+**F1. Close the executive as architecture.** Write down that E1-E6 are
+complete and stop adding mechanisms to them. The evidence for stopping is
+E3's and E6's: a mechanism with no user is not improved by refinement, and
+three sweeps of R19 (`profile.py`'s constant) each bought nothing for the
+same reason. *Cost: an afternoon. This section is most of it.*
+
+**F2. Give planning exactly one target where the order is not writable in
+advance.** E5's single measured weakness. The one candidate already measured
+is V7's class subgoal -- `an ant is an insect, so ask whether insects sleep`
+-- which settled 5 of 65 at 3 right and 2 wrong and was rightly not built on
+those numbers. It becomes buildable only if the sense errors that caused the
+2 (`chest of drawers` → thorax, `ear` → organ) are fixed first, which is
+V10's territory and now has a method. *Accept on: the proving ground, and it
+must beat 35/4/61 without new wrong answers.*
+
+**F3. Decide the depth question with a task, not a corpus.** The loop runs
+2.85 cycles because nothing it is asked needs more. bAbI is saturated at
+98.0%. What would exercise the stack is a task whose answer requires a chain
+the system must *find* -- not more properties per object. This is the real
+dataset question, and it is worth asking; "more norms" is not. Note the
+standing constraint that ToMi and StepGame were rejected, and on grounds
+(template questions, letters as agents) that do not apply to every such task.
+
+**What is explicitly not on this list:** more property norms, another R19
+sweep, and any further work on making the full matrix safe. All three are
+measured dead ends and the measurements are recorded above.
+
 ## 9. Risks
 
 - **Speed.** A graph over 1.96M facts in Python is slow if built eagerly. The
