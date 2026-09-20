@@ -138,6 +138,12 @@ CORROBORATION_FLOOR = rule("R19").parameters["floor"]
 #: sing. Below this, an inherited fact is taken as it was before.
 CORROBORATION_MIN_KINDS = rule("R19").parameters["min_kinds"]
 
+#: Set `V687_R28_INHERITED=1` to put R28's qualified-claim test to facts the
+#: taxonomy walk inherits, as `reason.py` already puts it to the fact graph.
+#: Off by default and measured: see `Profiles.plainly` for what it catches,
+#: what it costs, and the test it still needs.
+R28_INHERITED = bool(os.environ.get("V687_R28_INHERITED"))
+
 #: Set `V687_NO_DISTILLED_NORMS=1` to run R19 on elicited norms alone. The
 #: ablation the audit needs, and the switch to reach for first when a denial
 #: looks wrong: it separates "the crawl is bad" from "the distilled evidence
@@ -398,6 +404,9 @@ class Profiles:
         self.origin = identifier.origin
 
         self._ancestors: dict[str, set[str]] | None = None
+        #: R28's test, built on first use: it caches lemma sets, so one
+        #: matcher per `Profiles` rather than one per question.
+        self._matcher = None
         # AwA2 only. `denied_xcslb` used to be merged in here and it is not a
         # set of denials: XCSLB's matrix is 521 x 3,644 and 1.58% dense, a free
         # listing whose zeros are what nobody happened to say, and COMPS builds
@@ -504,6 +513,61 @@ class Profiles:
         found.denied_total = len(denied)
         found.denied = denied[:DENIALS_SHOWN]
         return found
+
+    def plainly(self, fact_object: str, asked: list[str]) -> bool:
+        """R28 on the inherited path: does the fact state what was asked and
+        add nothing to it? **Off unless `V687_R28_INHERITED=1`** -- measured,
+        and it buys nothing in the shipped configuration.
+
+        The inconsistency it was built for is real and is worth recording.
+        R28 is `reason.py`'s and was only ever applied there, on the fact
+        graph. The taxonomy walk here reads the *same* crawled rows and has
+        no equivalent, so one sentence is refused on one path and believed on
+        the other:
+
+            can a skateboard explode      container.n.01
+                                          `capable of explode in popularity`
+            does a trolley have a mirror  vehicle.n.01
+                                          `capable of fold in the exterior
+                                           mirror`
+
+        Neither is a claim about skateboards or trolleys, and `_hit` matches
+        them because a one-word question has no phrase for `holds_phrase` to
+        check: V9's phrase rule covers the multi-word case and nothing covers
+        this one.
+
+        **Why it is off.** On the screened audit it moves nothing that the
+        report counts -- positives 87.2%, foils asserted 3.3%, both unchanged
+        -- for +0.2 of silence and a tenth off the overlap rung. Its two real
+        catches only appear with `V690_FULL_MATRIX`, which is itself off. And
+        it costs: `do dogs like bones` was answered from `canine.n.02 capable
+        of eat bone`, borne out by 9 of 13 canines, and `plain` refuses it
+        because `eat` is not a word of the question. That is a relation
+        standing in for another, not a qualification widening a claim, and
+        R28's test cannot tell the two apart -- `lemma_set(fact) <=
+        lemma_set(question)` is the whole of it. The same strictness is right
+        for `capable of fall victim` against `does a dog fall`, an idiom that
+        is not about falling, and wrong for the bone.
+
+        So the rule needs a test that distinguishes a surplus which *modifies
+        the matched term* from one which replaces the predicate, and `plain`
+        is not that test. Until there is one, this stays off rather than
+        trading a right answer for two that only the matrix exposes.
+
+        One more thing to fix before it ships: `reason.py` records a `skip`
+        step saying why a qualified fact was passed over, and this drops it
+        silently, so an answer loses the explanation that it was refused.
+
+        The target is the whole question, not the one term being tested:
+        `plain` asks whether the fact's lemmas sit inside the question's, and
+        a single word would refuse `has a hard surface` against the term
+        `hard`.
+        """
+        if not R28_INHERITED:
+            return True
+        if self._matcher is None:
+            self._matcher = self.identifier.parser.matcher()
+        return self._matcher.plain(fact_object, " ".join(asked))
 
     def _nearest(self, name: str, left: list[str]) -> list[str]:
         """The concepts that shared this prefix and went elsewhere, closest first.
@@ -1100,7 +1164,8 @@ class Profiles:
                     # play` is not `used for cleaning` (V9).
                     if (self.identifier._hit(term, frozenset({text}))
                             and (not phrase or self.identifier.holds_phrase(
-                                phrase, text))):
+                                phrase, text))
+                            and self.plainly(fact["object"], asked or terms)):
                         matches.append((level, fact, text, term))
                         break
                     if not negated and self.other_count(term, [text]):

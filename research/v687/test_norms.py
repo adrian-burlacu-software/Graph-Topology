@@ -718,5 +718,48 @@ class SenseJoinTests(unittest.TestCase):
         self.assertEqual(identifier.synset["ashtray"], "ashtray.n.01")
 
 
+@requires_norms
+@requires_store
+class QualifiedInheritanceTests(unittest.TestCase):
+    """`Profiles.plainly`: R28 on the inherited path, and why it is off.
+
+    The flag is measured, not dead: these pin both what it catches and what
+    it costs, so a later attempt starts from the trade rather than from the
+    idea.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.identifier = Identifier(STORE, inherit=False)
+        cls.profiles = Profiles(cls.identifier)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.identifier.close()
+
+    def test_off_by_default(self):
+        from research.v687 import profile
+        self.assertFalse(profile.R28_INHERITED)
+        # With it off, `plainly` lets everything through: the inherited path
+        # is exactly as it was.
+        self.assertTrue(self.profiles.plainly("explode in popularity",
+                                              ["explode"]))
+
+    def test_what_it_would_catch_and_what_it_would_cost(self):
+        """The trade, as one test. `plain` is `reason.py`'s and is reused."""
+        matcher = self.identifier.parser.matcher()
+        # Caught: the surplus changes what the claim is about.
+        self.assertFalse(matcher.plain("explode in popularity", "explode"))
+        self.assertFalse(matcher.plain("fold in the exterior mirror",
+                                       "mirror"))
+        # Caught, and rightly: `fall victim` is an idiom, not falling.
+        self.assertFalse(matcher.plain("fall victim", "fall"))
+        # Cost: a relation standing in for another, not a qualification.
+        # `do dogs like bones` was answered from `capable of eat bone`.
+        self.assertFalse(matcher.plain("eat bone", "like bones"))
+        # Kept either way, so the strictness is not simply length.
+        self.assertTrue(matcher.plain("fall into hole", "fall hole"))
+
+
 if __name__ == "__main__":
     unittest.main()
