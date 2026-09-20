@@ -732,13 +732,59 @@ those numbers. It becomes buildable only if the sense errors that caused the
 V10's territory and now has a method. *Accept on: the proving ground, and it
 must beat 35/4/61 without new wrong answers.*
 
-**F3. Decide the depth question with a task, not a corpus.** The loop runs
-2.85 cycles because nothing it is asked needs more. bAbI is saturated at
-98.0%. What would exercise the stack is a task whose answer requires a chain
-the system must *find* -- not more properties per object. This is the real
-dataset question, and it is worth asking; "more norms" is not. Note the
-standing constraint that ToMi and StepGame were rejected, and on grounds
-(template questions, letters as agents) that do not apply to every such task.
+**F3. Decide the depth question with a task, not a corpus. DONE, both
+halves, and the answer is that the executive was never the problem.**
+
+*ProofWriter* (`scratchpad`, not shipped) settles whether the machinery
+searches. Each of its rules becomes an `executive.Operator` -- `needs` the
+antecedent literals, `gives` the consequent -- the facts are the slots
+working memory starts with, and the question is the slot wanted, so
+reaching it is `Executive`'s means-ends and nothing else. **100% at every
+depth 0 to 5**, 2,046 questions, on the provable and the closed-world-false
+halves alike, with **1,213 subgoals pushed and 432 chunks kept** where bAbI
+had produced none in its whole history. Three things worth keeping: E5
+plans toward *a proposing operator's* unmet need and not toward `until`, so
+with no operators nothing fires at all and the search has to hang off a
+goal operator; `_means_ends` returns False unless working memory is a
+`Working`; and `given=` must not be passed, because a theory always carries
+rules that cannot fire in it and E4a is right to call that unwired.
+Measured on `AttNoneg`, which is 28-30% of the data.
+
+*EntailmentBank* (`research/v690/entailment.py`, `data/entailmentbank.
+SOURCE.md`) is the half where the rules are **not** given. Task 1 hands
+over exactly the sentences a proof needs, so knowledge cannot be the
+blocker -- the failure V8 kept running into is excluded by construction --
+and what is scored is the structure: which sentences group together on the
+way to the hypothesis. Four operators compete for each step (`ground`,
+`elaborate`, `join`, `apply`), which is the conflict set E3 said bAbI could
+never supply.
+
+| method | steps F1 | whole tree | inner F1 |
+| --- | --- | --- | --- |
+| one step for everything | 47.9% | 27.3% | **0.0%** |
+| chain, left to right | 37.9% | 30.5% | 10.6% |
+| the executive | 44.3% | 32.1% | **19.8%** |
+
+The root step is **free** in task 1 -- every sentence is needed, so the root
+is always all of them -- which is how one step for everything scores 47.9%
+at 100% precision while recovering nothing. The inner column drops it and is
+the only one that means anything.
+
+**And the ceiling says the search is not what is missing.** Scoring merges
+by agreement with the gold tree, binary merges rebuild it exactly in 135 of
+187, so **72%** is the most this framing can reach and 38 points sit behind
+a better *reason to merge*. A beam of width 8 over the same affinity scores
+**worse** than taking the best merge each time (18.4% against 19.8%),
+because more search over a wrong objective finds better-scoring wrong trees.
+Nothing reaches depth 4: those are seven-step binary chains, per-step
+accuracy is 10.8%, and a local choice compounds.
+
+So the conclusion of §8c is not that the executive needs more work. It is
+that **what is missing is a judgement about whether two facts compose**,
+which is meaning and not control -- the same wall as V8 and V11, reached
+from the opposite direction and this time with a number on it. Two signals
+that looked obvious from reading four gold trees were measured and cost
+points; they are named in `entailment.SIGNALS` so nobody tries them twice.
 
 **What is explicitly not on this list:** more property norms, another R19
 sweep, and any further work on making the full matrix safe. All three are

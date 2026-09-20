@@ -148,6 +148,36 @@ def _xcslb_make() -> None:
         _get(base + where, DATA / "xcslb" / name, name)
 
 
+def _entailmentbank_make() -> None:
+    """EntailmentBank, which is published on Google Drive and nowhere else.
+
+    The folder holds three dated versions and the id below is v3's zip
+    (`v3_May6_2022`), taken from the folder listing rather than guessed. A
+    public Drive file downloads from `uc?export=download` without a token
+    while it is under the virus-scan threshold, and at 7.8 MB this is; if
+    Drive ever starts interposing the scan page, the download returns HTML
+    and `_entailmentbank_check` fails on the tree count rather than
+    quietly leaving a broken file.
+    """
+    import zipfile
+
+    archive = _get("https://drive.google.com/uc?export=download&id="
+                   "1kVr-YsUVFisceiIklvpWEe0kHNSIFtNh",
+                   DATA / "entailmentbank" / "entailmentbank.zip",
+                   "entailment_trees_emnlp2021_data_v3.zip (7.8 MB)")
+    with zipfile.ZipFile(archive) as zipped:
+        zipped.extractall(DATA / "entailmentbank")
+    archive.unlink()
+
+
+def _entailmentbank_check() -> str | None:
+    from research.v690 import entailment
+    if not entailment.DATASET.exists():
+        return None
+    return _count(lambda: entailment.load("task_1", "dev"), 187,
+                  "task 1 dev trees")
+
+
 def _xcslb_check() -> str | None:
     if not (DATA / "xcslb" / "comps_base.jsonl").exists():
         return None
@@ -743,6 +773,8 @@ def steps() -> list[Step]:
              _awa2_make, _awa2_check, cost="seconds"),
         Step("xcslb", "COMPS/XCSLB property norms (14 MB)",
              _xcslb_make, _xcslb_check, cost="a minute"),
+        Step("entailmentbank", "EntailmentBank proof trees (7.8 MB)",
+             _entailmentbank_make, _entailmentbank_check, cost="seconds"),
         Step("thingsplus", "THINGSplus ratings and categories (10 MB)",
              _thingsplus_make, _thingsplus_check, cost="a minute"),
         Step("newton", "NEWTON physical attributes + LVIS categories",
