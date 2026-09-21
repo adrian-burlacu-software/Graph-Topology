@@ -475,14 +475,20 @@ def brought_about() -> frozenset:
 
 
 def useful(goal, things: Things, rounds: int = 2,
-           per_verb: int = 6) -> list:
+           per_verb: int = 6, prefer: dict | None = None) -> list:
     """Every action worth grounding, working backwards from the goal.
 
     Verbs that add something the goal wants, then verbs that add what those
     need, and so on. The same regression `Executive.plan` does, used to
     decide what to ground rather than what to do -- because 7,796 operators
     over a handful of things is not a search space, it is a memory error.
+
+    `prefer` maps a predicate to verbs experience has seen bring it about
+    -- `put`, for how the pig got onto the plane -- and those are tried
+    before the most central ones: a reason to choose one verb over another
+    that is not a count of VerbNet classes.
     """
+    prefer = prefer or {}
     by_add: dict = collections.defaultdict(list)
     for verb, ways in abilities().items():
         for one in ways:
@@ -514,7 +520,9 @@ def useful(goal, things: Things, rounds: int = 2,
         by_verb: dict = collections.defaultdict(list)
         for one in by_add.get(predicate, ()):
             by_verb[one.verb].append(one)
-        order = sorted(by_verb, key=lambda one: (-central().get(one, 0), one))
+        seen = prefer.get(predicate, ())
+        order = sorted(by_verb, key=lambda one: (one not in seen,
+                                                 -central().get(one, 0), one))
         out = []
         for verb in order[:per_verb]:
             ways = by_verb[verb]
@@ -601,8 +609,13 @@ def functional() -> frozenset:
     return _FUNCTIONAL
 
 
-def ground(ability: Ability, things: Things) -> list:
+def ground(ability: Ability, things: Things,
+           bound: dict | None = None) -> list:
     """Every way this ability can be filled from these things.
+
+    `bound` fixes roles to things whatever the restrictions say, because
+    what has been *seen done* is possible: VerbNet's put-9.1 wants a
+    location to put a thing on, and a pig was put on a plane.
 
     A functional predicate's old value is deleted here rather than in the
     schema, because only here is it known what the other values could be:
@@ -612,9 +625,11 @@ def ground(ability: Ability, things: Things) -> list:
     once = functional()
     wanted = dict(ability.restricts)
     choices = []
+    bound = bound or {}
     for role in ability.roles:
-        allowed = [name for name in things.kinds
-                   if things.allows(name, wanted.get(role, ()))]
+        allowed = ([bound[role]] if role in bound else
+                   [name for name in things.kinds
+                    if things.allows(name, wanted.get(role, ()))])
         if not allowed:
             return []
         choices.append((role, allowed))
@@ -642,6 +657,28 @@ def ground(ability: Ability, things: Things) -> list:
             binding.pop(role)
 
     walk(0, {})
+    return out
+
+
+def seen_done(verb: str, literal: str, things: Things) -> list:
+    """`verb`, ground so that it brings `literal` about, with the things in
+    it bound whatever VerbNet restricts them to: the way a thing was seen
+    done (`put` the pig on the plane), for doing it again."""
+    wanted = literal.split()
+    out: list = []
+    for one in abilities().get(verb, ()):
+        for add in one.adds:
+            parts = add.split()
+            if len(parts) != len(wanted) or parts[0] != wanted[0]:
+                continue
+            bound = {}
+            for word, name in zip(parts[1:], wanted[1:]):
+                role = word[1:] if word.startswith("?") else None
+                if role is None or role not in one.roles:
+                    break
+                bound[role] = name
+            else:
+                out.extend(ground(one, things, bound))
     return out
 
 

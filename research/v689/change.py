@@ -166,6 +166,46 @@ class Sense:
                 "first": self.first}
 
 
+_EVENT_VERBS: dict = {}
+
+
+def event_verb(noun: str) -> str:
+    """The verb a noun names the doing of, or empty: `flight` -> fly, `walk`
+    -> walk, `decision` -> decide. What makes `took a flight` flying and
+    `took the football` taking.
+
+    WordNet's, not a list: the noun's senses that are acts or events
+    (`noun.act`, `noun.event`), nearest first, and the verbs WordNet
+    derives from any word of that sense -- `flight.n.02` is also `flying`,
+    derived from fly.v.01 -- that VerbNet has frames for. A noun with no act
+    or event sense (`seat`, `cake`) names no doing, and neither does one
+    whose act derives from no verb (`football`).
+    """
+    if noun in _EVENT_VERBS:
+        return _EVENT_VERBS[noun]
+    found = ""
+    try:
+        from nltk.corpus import wordnet
+        known = frames()
+        for synset in wordnet.synsets(noun, "n"):
+            if synset.lexname() not in ("noun.act", "noun.event"):
+                continue
+            # The noun's own word first, where it is also the verb (`a
+            # ride` is riding, not driving); then the commonest.
+            verbs = [(other.name() != noun, -other.count(), other.name())
+                     for lemma in synset.lemmas()
+                     for other in lemma.derivationally_related_forms()
+                     if other.synset().pos() == "v"
+                     and other.name() in known]
+            if verbs:
+                found = min(verbs)[2]
+                break
+    except Exception:                               # noqa: BLE001
+        found = ""
+    _EVENT_VERBS[noun] = found
+    return found
+
+
 def adjective(word: str) -> bool:
     """Does WordNet have the word as an adjective?"""
     try:

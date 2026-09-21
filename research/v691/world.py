@@ -114,11 +114,14 @@ class World:
         before = self.facts
         self.facts = action.on(self.facts)
         self.did.append(action)
-        effect(WORLD, action.name, lambda: setattr(self, "facts", before))
+        self.announce(action, before)
         return True
 
     def solved(self, wanted) -> bool:
         return set(wanted) <= self.facts
+
+    def announce(self, action: Action, before) -> None:
+        effect(WORLD, action.name, lambda: setattr(self, "facts", before))
 
     def towers(self) -> list:
         """Facts of the form `on X Y` as chains, bottom first.
@@ -143,6 +146,15 @@ class World:
                 out.append(stack)
         return out
 
+
+class Imagined(World):
+    """A world only thought about: `what steps would it take` is answered
+    by acting in one of these. It changes like the real one and announces
+    nothing, because nothing real moved -- so the act that imagines it has
+    no effect on the world to declare, and it does not."""
+
+    def announce(self, action: Action, before) -> None:
+        return None
 
 
 @dataclass

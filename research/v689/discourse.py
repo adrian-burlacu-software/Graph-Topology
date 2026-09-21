@@ -36,7 +36,7 @@ it swim?` asked about the first beagle.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 from research.v688 import retrieval
 from research.v688.attention import Activation
@@ -428,6 +428,15 @@ class Discourse:
                     f"no {' '.join(mention.modifiers)} {kind} had come up, so "
                     f"“{said}” is taken to introduce one", [referent.id],
                     introduced=True, identification=seen)
+            if mention.modifiers and mention.form == "demonstrative" \
+                    and kind:
+                # `this particular pig`: pointing picks one out, and a word
+                # said of it that nothing here was told of describes what
+                # was pointed at rather than choosing among them.
+                plain = replace(mention, modifiers=[])
+                found = self.resolve(plain, exclude, weight, described)
+                if found.referent is not None:
+                    return found
             if mention.modifiers:
                 return Resolution(
                     said, None,

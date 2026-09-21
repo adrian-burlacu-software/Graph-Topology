@@ -389,6 +389,95 @@ class Scene:
                     + self.look())
         return self.story(report)
 
+    def how(self, heard: Heard) -> str:
+        """What it would take: planned, and not done.
+
+        `what steps are required to make a pig fly` asks for a plan, not
+        for a pig in the air, so the plan is made in a copy of the world --
+        the same planner, the same actions, and nothing in the scene moves.
+        Whoever would do it is the one asking, when nobody in the scene can
+        (`you`), and what the plan needs that nobody said is there -- the
+        plane -- is said as needed rather than assumed.
+        """
+        doing = getattr(self.domain, "a_doing", None)
+        goal = [one for one in (heard.wants or heard.facts)
+                if one.split()[0] in self.domain.goalish
+                or (doing is not None and doing(one.split()[0]))]
+        if not goal:
+            return ("I did not catch what it should come to -- say what "
+                    "should be true, or what something should do")
+        self.introduce(goal, heard.said.lower())
+        things = getattr(self.domain, "things", None)
+        if things is not None and not any(
+                "animate" in things.categories(name)
+                for name in getattr(self.domain, "names", ())):
+            self.told("you", "person")
+            self.domain.names.add("you")
+            self.domain.agents.add("you")
+        toward = getattr(self.domain, "toward", None)
+        if toward is not None:
+            toward(goal)
+        self.wanted = list(goal)
+        offered = self.domain.ground(self.objects)
+        self.offered = len(offered)
+        self.offered_names = [one.name for one in offered]
+        objects = dict(things.kinds) if things is not None else {}
+        objects.update(self.objects)
+        problem = W.Problem("what it would take",
+                            frozenset(self.world.facts), frozenset(goal),
+                            tuple(offered), objects)
+        report = acting.Attempt(name=problem.name)
+        pretend = W.Imagined(self.world.facts)
+        acting.agent(problem, pretend, None, report).run(
+            Working(goal=f"how: {heard.said}"))
+        self.last = report
+        self.last_reasons = (reasons(report.search.trace)
+                             if report.search.trace is not None else [])
+        self.last_plan = list(pretend.did)
+        return self._how_said(goal, report)
+
+    def _how_said(self, goal: list, report) -> str:
+        """The steps, and why they are the steps: what the thing cannot do
+        itself, and what was seen that shows the way it can."""
+        domain = self.domain
+        wanted = " and ".join(domain.in_words(one) for one in goal)
+        carried = getattr(domain, "carried", {})
+        own = getattr(domain, "own", set())
+        why = []
+        for literal in goal:
+            verb, *rest = literal.split()
+            if len(rest) != 1 or literal in own or not (
+                    getattr(domain, "a_doing", None)
+                    and domain.a_doing(verb)):
+                continue
+            thing = domain.the(rest[0])
+            ways = [said for name, (one, _, doing, said) in carried.items()
+                    if one == rest[0] and doing == verb]
+            if ways:
+                seen = " and ".join(f"“{one}”" for one in ways[0].split(" / "))
+                why.append(f"{thing} cannot {verb} by itself, but I have "
+                           f"seen it done by being carried: {seen}")
+            else:
+                why.append(f"{thing} cannot {verb} by itself, and I have "
+                           f"not seen any other way for it to")
+        if not report.solved:
+            said = f"I could not see a way for {wanted}"
+        else:
+            steps = [domain.doing(one.name) for one in self.last_plan]
+            said = (f"for {wanted}: " + "; ".join(
+                f"{index}. {step}" for index, step in enumerate(steps, 1)))
+            needed = sorted(getattr(domain, "supposed", set())
+                            & {part for one in self.last_plan
+                               for part in one.name.split()[1:]})
+            if needed:
+                said += (". You would need " + " and ".join(
+                    f"a {one}" for one in needed))
+        said += (". " + "; ".join(why) if why else "")
+        # Each sentence opened as one, outside what is quoted.
+        return re.sub(r"(^|\. )([a-z])",
+                      lambda found: found.group(1) + found.group(2).upper(),
+                      said)
+
     def planning(self) -> dict:
         """The last plan, as the page shows it.
 

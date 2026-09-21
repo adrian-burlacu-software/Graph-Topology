@@ -18,6 +18,9 @@ running server, not something the repository builds.
     requires   something else that has to be true to do a thing: `you can
                only put it down if you are holding it`
     brings     an effect VerbNet did not mention
+    carries    a doing done by being carried: a pig flies on a plane that
+               flies -- learned from what the story showed (E2), not from
+               being told (`DESIGN.md` §10b)
 
 **Negative preconditions come free with exclusion**, which is why exclusion
 is worth learning first. `needs` in the executive is a list of slots that
@@ -66,6 +69,11 @@ CREATE TABLE IF NOT EXISTS requires (
 CREATE TABLE IF NOT EXISTS brings (
     verb TEXT NOT NULL, literal TEXT NOT NULL, gone INTEGER NOT NULL,
     said TEXT NOT NULL, learned REAL NOT NULL, PRIMARY KEY (verb, literal));
+CREATE TABLE IF NOT EXISTS carries (
+    verb TEXT NOT NULL, thing TEXT NOT NULL, carrier TEXT NOT NULL,
+    named TEXT NOT NULL, way TEXT NOT NULL, own INTEGER NOT NULL,
+    said TEXT NOT NULL,
+    learned REAL NOT NULL, PRIMARY KEY (verb, thing, carrier));
 """
 
 
@@ -169,6 +177,49 @@ class Learned:
                         "SELECT literal, gone FROM brings WHERE verb = ?",
                         (verb,))]
 
+    # -- doing a thing by being carried -----------------------------------
+    def carry(self, verb: str, thing: str, carrier: str, named: str = "",
+              way: str = "", own: bool = False, said: str = "") -> bool:
+        """Learn that a `thing` does `verb` by being aboard a `carrier` that
+        does it -- E2, seen happen: a pig put on a plane that flew, flew.
+
+        Kinds, not individuals: what was seen of one pig and one plane is
+        kept of pigs and planes, the way a person comes away from it. `way`
+        is the verb that put the thing aboard, when the story said, so the
+        plan can do it the way it was seen done; `own` is whether the thing
+        could have done it by itself anyway. `thing` and `carrier` are
+        senses where the story had them, and `named` is the word the
+        carrier was called, for saying it. False when it was known.
+        """
+        if not verb or not thing or not carrier or thing == carrier:
+            return False
+        with self.lock:
+            known = self.connection.execute(
+                "SELECT way FROM carries WHERE verb = ? AND thing = ? AND "
+                "carrier = ?", (verb, thing, carrier)).fetchone()
+            if known is not None and (known[0] == way or not way):
+                return False
+            self.connection.execute(
+                "INSERT OR REPLACE INTO carries VALUES "
+                "(?, ?, ?, ?, ?, ?, ?, ?)",
+                (verb, thing, carrier, named or carrier, way, int(own), said,
+                 time.time()))
+            self.connection.commit()
+        return True
+
+    def carriers(self, verb: str) -> list:
+        """(thing, carrier, named, way, said) for every way of doing
+        `verb` by being carried that has been seen."""
+        with self.lock:
+            return [tuple(row) for row in self.connection.execute(
+                "SELECT thing, carrier, named, way, said FROM carries "
+                "WHERE verb = ? ORDER BY learned", (verb,))]
+
+    def carryings(self) -> list:
+        with self.lock:
+            return sorted(tuple(row) for row in self.connection.execute(
+                "SELECT verb, thing, carrier, way, said FROM carries"))
+
     # -- taking it back ----------------------------------------------------
     def forget(self, what: str, one: str, other: str = "") -> int:
         """Unlearn. Part of the interface and not an afterthought: being
@@ -180,6 +231,10 @@ class Learned:
                     "DELETE FROM excludes WHERE (one = ? AND other = ?) "
                     "OR (one = ? AND other = ?)",
                     (one, other, other, one)).rowcount
+            elif what == "carries":
+                done = self.connection.execute(
+                    "DELETE FROM carries WHERE verb = ? AND thing = ?",
+                    (one, other)).rowcount
             elif what == "requires":
                 done = self.connection.execute(
                     "DELETE FROM requires WHERE verb = ? AND literal = ?",
@@ -195,7 +250,8 @@ class Learned:
         with self.lock:
             return {name: self.connection.execute(
                 f"SELECT COUNT(*) FROM {name}").fetchone()[0]
-                for name in ("excludes", "requires", "brings")}
+                for name in ("excludes", "requires", "brings",
+                             "carries")}
 
     def close(self) -> None:
         self.connection.close()

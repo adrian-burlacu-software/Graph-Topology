@@ -223,6 +223,14 @@ def of_turn(turn: dict) -> Message:
     if act in STATEMENTS or (act in POLAR and stance in ("yes", "no",
                                                          "unknown")):
         claim = _claim(turn, subject)
+    if reading.get("confirms") is not None:
+        # A claim put as a question -- `so pigs don't fly?` -- is answered
+        # about the claim, not about the question that checked it: `yes,
+        # pigs don't fly`. Several are said as they were said.
+        claim = (reading["confirms"] if not reading.get("more") else
+                 (turn.get("said") or "").rstrip(" ?"))
+        claim = " ".join(SAID_BACK.get(word.lower(), word)
+                         for word in claim.split())
     if act in STATEMENTS and stance == "noted" and reading.get("more"):
         # Several claims noted at once -- `the plane took off, carrying the
         # pig, and flying` -- are said as they were said, not as the first.

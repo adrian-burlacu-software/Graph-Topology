@@ -518,6 +518,39 @@ a harness:
   verdict, and *said* says the reply is the agent's own words rather than
   reporting a decoder that never ran.
 
+## 10b. A doing, learned from what the story showed
+
+*"It should have learned that a pig requires to be carried by a plane to
+fly."* Four pieces, none of them about pigs or planes:
+
+- **Experience, in v689.** When the story tells a doer doing something one
+  word long -- *the plane was flying* -- whoever it last put aboard that doer
+  did it too, carried (E2 turned round). `Session.experience` keeps it: the
+  thing's kind and sense, the carrier's, the verb and preposition that put it
+  aboard (`put on`), and whether the thing could have done it itself
+  (`Session.can`: v688 on the kind first, because the raw walk climbs from a
+  pig to a crawled `animal capable_of fly` about bats).
+- **Long-term memory, in v691.** `page.absorb` moves experience into
+  `Learned.carry` -- kinds, not individuals, so what was seen of one pig is
+  kept of pigs -- in `state/v691-learned.sqlite`, where it survives the
+  conversation and the server.
+- **A doing is a goal.** A verb VerbNet has frames for and no verb brings
+  about (`Open.a_doing`: `fly`, not `open`) is done by the thing itself if
+  its kind can, or by a learned carrier: an action that needs the thing
+  aboard and adds the doing. What put it aboard is offered first and grounded
+  **whatever VerbNet restricts its roles to** (`verbs.seen_done`): put-9.1
+  wants a location, and a pig was put on a plane. That is also the first
+  reason here to prefer one verb over another that is not a class count.
+- **Asking is not ordering.** *What steps are required to…* is planned in
+  a `world.Imagined`, which changes and announces nothing, and answered with
+  the steps and where the way came from.
+
+Two older faults surfaced on the way, both a v691 act taking a turn v689
+needed: *the pig is in a field* was answered by `tell` and never remembered
+(T3 then answered from yesterday), and *i put the key in the drawer* was
+taken for an order and carried out. Now an open-world statement is only
+`noting`'s, and an order must be said as one (`page.ordered`).
+
 ## 11. What this does not do
 
 Said plainly, because the gap is the interesting part.

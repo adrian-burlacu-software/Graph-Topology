@@ -233,5 +233,63 @@ class LearningInAConversationTests(unittest.TestCase):
                                      if need.startswith("with ")])
 
 
+class CarriedTests(unittest.TestCase):
+    """A doing done by being carried: learned from what was seen, planned
+    from what was learned (E2 as experience)."""
+
+    def setUp(self):
+        self.learned = L.Learned(None)
+        self.addCleanup(self.learned.close)
+
+    def test_what_was_seen_is_kept_once_and_can_be_forgotten(self):
+        self.assertTrue(self.learned.carry("fly", "hog.n.03",
+                                           "airplane.n.01", "plane", "put",
+                                           said="i put my pig on a plane"))
+        self.assertFalse(self.learned.carry("fly", "hog.n.03",
+                                            "airplane.n.01", "plane", "put"))
+        self.assertEqual(self.learned.carriers("fly"),
+                         [("hog.n.03", "airplane.n.01", "plane", "put",
+                           "i put my pig on a plane")])
+        self.assertEqual(self.learned.forget("carries", "fly", "hog.n.03"),
+                         1)
+        self.assertEqual(self.learned.carriers("fly"), [])
+
+    @needs_store
+    @needs_verbnet
+    def test_a_pig_flies_the_way_it_was_seen_to(self):
+        """No pig can fly by itself, and one was seen flying on a plane it
+        was put on: the plan puts it on one -- by `put`, which VerbNet does
+        not allow onto a plane, because it was seen done -- and the plane
+        flies. Planned in an imagined world: nothing in the scene moves."""
+        self.learned.carry("fly", "hog.n.03", "airplane.n.01", "plane",
+                           "put", said="i put my pig on a plane")
+        scene = Scene(openworld.Open(openworld.resolver(), self.learned))
+        scene.domain.can = lambda kind, verb: kind not in ("pig",)
+        said = page.say_to(scene, "what steps are required to make a pig "
+                                  "fly?")
+        self.assertEqual([one.name for one in scene.last_plan],
+                         ["put you pig plane", "fly pig plane"])
+        self.assertIn("You would need a plane", said)
+        self.assertIn("cannot fly by itself", said)
+        self.assertEqual(scene.world.facts, frozenset())
+
+    @needs_store
+    @needs_verbnet
+    def test_nothing_learned_is_no_way(self):
+        scene = Scene(openworld.Open(openworld.resolver(), self.learned))
+        scene.domain.can = lambda kind, verb: False
+        said = page.say_to(scene, "how would i make a pig fly?")
+        self.assertIn("I could not see a way", said)
+        self.assertIn("not seen any other way", said)
+
+    @needs_store
+    @needs_verbnet
+    def test_what_can_do_it_itself_just_does(self):
+        scene = Scene(openworld.Open(openworld.resolver(), self.learned))
+        scene.domain.can = lambda kind, verb: True
+        page.say_to(scene, "what would it take to make a bird fly?")
+        self.assertEqual([one.name for one in scene.last_plan], ["fly bird"])
+
+
 if __name__ == "__main__":
     unittest.main()

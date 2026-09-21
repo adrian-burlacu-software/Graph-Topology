@@ -43,6 +43,7 @@ import re
 
 from research.v691 import learned as L, verbs
 from research.v691.domains import Domain
+from research.v691.world import Action
 
 #: The shapes a fact is stated in, as (pattern, how to read the groups).
 #: `is <word>` is a state and `is in/at <thing>` is a place, which is the
@@ -164,6 +165,22 @@ class Open(Domain):
         #: things that have been the subject of an action someone did,
         #: so narration does not say the doer twice
         self.agents: set = set()
+        #: whether a thing of a kind can do something itself: `can(kind,
+        #: verb)`, asked of what the conversation knows -- v687's walk and
+        #: v688 -- by whoever opened the world. None is no opinion, and a
+        #: thing may then try anything, as `Things.allows` lets it
+        self.can = None
+        #: the doings of the last goal: an action's name -> (thing,
+        #: carrier, verb, what was said) for a doing by being carried, and
+        #: the names of doings done by the thing itself
+        self.carried: dict = {}
+        self.own: set = set()
+        #: an action done the way it was seen done -> the preposition it
+        #: was said with: `put the pig on the plane`, not `to`
+        self.ways: dict = {}
+        #: things the plan needs that nobody said were there: the plane a
+        #: pig would have to be put on
+        self.supposed: set = set()
 
     # -- what there is -----------------------------------------------------
     @property
@@ -185,9 +202,99 @@ class Open(Domain):
         return list(getattr(self, "_actions", ()))
 
     def toward(self, goal, per_verb: int = 8) -> list:
+        """The actions worth grounding for a goal, with its doings.
+
+        A goal can ask for a state -- `open door`, `at book kitchen`, which
+        a verb brings about -- or for a **doing**: `fly pig`, which no verb
+        brings about, because flying is what a thing does and not a state
+        something leaves it in. A doing is done one of two ways:
+
+        - **by the thing itself**, if its kind can (`can`, asked of what the
+          conversation knows): `fly bird` is one step;
+        - **by being carried**, if the thing's kind has been seen doing it
+          aboard something of another kind that does it (`Learned.carry`,
+          E2 as experience): `fly pig` needs the pig on a plane, and is the
+          plane's doing. What put it aboard in what was seen is tried first
+          (`prefer`), so the plan does it the way it was seen done.
+        """
+        goal = list(goal)
+        wanted, extra, prefer, seen = list(goal), [], {}, []
+        self.carried, self.own, self.ways = {}, set(), {}
+        for literal in goal:
+            parts = literal.split()
+            if len(parts) != 2 or not self.a_doing(parts[0]):
+                continue
+            verb, thing = parts
+            if self.able(thing, verb):
+                extra.append(Action(literal, frozenset(),
+                                    frozenset({literal}), frozenset()))
+                self.own.add(literal)
+            for kind, carrier, named, way, said in (
+                    self.learned.carriers(verb) if self.learned else ()):
+                if not self.is_a(thing, kind):
+                    continue
+                ride = next((one for one in sorted(self.things.kinds)
+                             if one != thing and self.is_a(one, carrier)),
+                            None)
+                if ride is None:
+                    ride = named
+                    self.note(ride, named)
+                    self.supposed.add(ride)
+                if not self.able(ride, verb):
+                    continue
+                aboard = f"at {thing} {ride}"
+                name = f"{verb} {thing} {ride}"
+                extra.append(Action(name, frozenset({aboard}),
+                                    frozenset({literal, f"{verb} {ride}"}),
+                                    frozenset()))
+                self.carried[name] = (thing, ride, verb, said)
+                wanted.append(aboard)
+                if way:
+                    doing, *by = way.split()
+                    prefer.setdefault("at", []).append(doing)
+                    # Done once, so it can be done, whatever VerbNet says
+                    # the verb's roles must be -- and offered first, so the
+                    # way it was seen done is the way tried first.
+                    for one in verbs.seen_done(doing, aboard, self.things):
+                        seen.append(one)
+                        self.ways[one.name] = by[0] if by else ""
         self._actions = L.applied(
-            verbs.useful(goal, self.things, per_verb=per_verb), self.learned)
+            seen + verbs.useful(wanted, self.things, per_verb=per_verb,
+                                prefer=prefer) + extra, self.learned)
         return self._actions
+
+    @staticmethod
+    def a_doing(predicate: str) -> bool:
+        """A doing, not a state: a verb VerbNet has frames for that no
+        verb brings about. `fly` and `swim` are; `open` is brought about,
+        so `open door` asks for a state."""
+        from research.v689 import change
+        return (predicate in change.frames()
+                and predicate not in verbs.brought_about())
+
+    def able(self, name: str, verb: str) -> bool:
+        if self.can is None:
+            return True
+        try:
+            return bool(self.can(self.things.kinds.get(name, name), verb))
+        except Exception:                          # noqa: BLE001
+            return False
+
+    def is_a(self, name: str, kind: str) -> bool:
+        """Whether a thing is of a kind something was learned about: the
+        word it was said as, or any of its senses or their ancestors in the
+        store -- so what was seen of one pig holds of pigs."""
+        said = self.things.kinds.get(name, name)
+        if kind in (said, name):
+            return True
+        senses = self.things.senses
+        if senses is None:
+            return False
+        try:
+            return any(one == kind or kind in senses.ancestors(one)
+                       for one in senses.denotes(said)[:verbs.Things.SENSES])
+        except Exception:                          # noqa: BLE001
+            return False
 
     def begin(self, objects: dict) -> frozenset:
         return frozenset()
@@ -206,6 +313,8 @@ class Open(Domain):
         if len(parts) == 3:
             return (f"{self.the(parts[1])} is {parts[0]} "
                     f"{self.the(parts[2])}")
+        if len(parts) == 2 and self.a_doing(parts[0]):
+            return f"{self.the(parts[1])} to {parts[0]}"
         if len(parts) == 2:
             return f"{self.the(parts[1])} is {parts[0]}"
         return fact
@@ -226,6 +335,17 @@ class Open(Domain):
         return self._said(action, lambda verb: verb)
 
     def _said(self, action: str, tense) -> str:
+        if action in self.carried:
+            thing, ride, verb, _ = self.carried[action]
+            if tense is past:
+                return (f"{self.the(ride)} {past(verb)}, carrying "
+                        f"{self.the(thing)}")
+            return f"have {self.the(ride)} {verb} with {self.the(thing)} on it"
+        if action in self.own:
+            verb, thing = action.split()
+            if tense is past:
+                return f"{self.the(thing)} {past(verb)}"
+            return f"let {self.the(thing)} {verb}"
         parts = action.split()
         if len(parts) == 1:
             return tense(parts[0])
@@ -236,7 +356,7 @@ class Open(Domain):
             rest = rest[1:]
         said = f"{tense(parts[0])} {self.the(rest[0])}"
         if len(rest) > 1:
-            said += " to " + self.the(rest[-1])
+            said += f" {self.ways.get(action) or 'to'} " + self.the(rest[-1])
         return said
 
     @property

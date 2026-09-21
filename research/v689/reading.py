@@ -253,6 +253,11 @@ class Reading:
     #: placed in normal form, who is new, the acts it thought likeliest --
     #: for the page, never compared
     heard: dict = field(default_factory=dict)
+    #: a claim put as a question -- `so pigs don't fly?` -- read as the yes
+    #: or no question that would confirm it: the claim as said, and whether
+    #: it said the thing holds. None for anything else
+    confirms: str | None = None
+    confirms_holds: bool = True
 
     @property
     def cells(self) -> list[tuple]:
@@ -269,7 +274,9 @@ class Reading:
                 "relative": (self.relative.as_dict() if self.relative
                              else None),
                 "when": self.when.as_dict() if self.when else None,
-                "goals": [one.as_dict() for one in self.goals]}
+                "goals": [one.as_dict() for one in self.goals],
+                "confirms": self.confirms,
+                "confirms_holds": self.confirms_holds}
 
 
 def _stops(word: str) -> bool:
@@ -857,7 +864,118 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         claims = parsed_claims(asked.text, lexicon)
         if len(claims) > 1 + len(found.more):
             return _claim_by_claim(claims, found, lexicon, names, said)
+    if whole and _confirming(said, tokens):
+        confirmed = _confirmed(asked.text, found, lexicon, names, said)
+        if confirmed is not None:
+            return confirmed
     return found
+
+
+def _confirming(said: str, tokens: list[str]) -> bool:
+    """A statement said as a question: `so pigs don't fly?`, `this pig took
+    a flight on a plane?`. The mark is the question mark, with none of a
+    question's own shape -- no auxiliary put first and no question word --
+    because those are questions already, and read as such."""
+    if not said.rstrip().endswith("?") or not tokens:
+        return False
+    return (tokens[0] not in AUX and tokens[0] not in MODALS
+            and not any(word in QUESTION_WORDS for word in tokens))
+
+
+def _confirmed(text: str, found: Reading, lexicon, names: frozenset,
+               said: str) -> Reading | None:
+    """Each claim of a statement said as a question, read as the yes or no
+    question that would confirm it. `so pigs don't fly, but this particular
+    pig took a flight on a plane?` is two: `do pigs fly`, which confirms
+    the first when the answer is no, and `did this particular pig fly on a
+    plane`, which confirms the second when it is yes."""
+    claims = parsed_claims(text, lexicon) or [text]
+    readings = []
+    for claim in claims:
+        asked = polar(claim, lexicon)
+        if asked is None:
+            return None
+        question, holds = asked
+        one = read(question, lexicon, names, whole=False)
+        one.confirms, one.confirms_holds = claim, holds
+        readings.append(one)
+    # Each keeps its own question as said: what is put to v688 is the
+    # question, and the turn keeps the utterance whole.
+    first = readings[0]
+    first.more = readings[1:]
+    first.heard = dict(found.heard, claims=claims,
+                       confirming=[polar(one, lexicon)[0] for one in claims])
+    return first
+
+
+def polar(claim: str, lexicon) -> tuple[str, bool] | None:
+    """(the yes or no question a claim answers, whether the claim says it
+    holds), from the parse: `pigs don't fly` -> (`do pigs fly`, False),
+    `the pig took a flight on a plane` -> (`did the pig fly on a plane`,
+    True). What comes before the subject is left off -- `so`, `but` -- and
+    a verb whose object is an act (`took a flight`, `had a swim`) is the
+    verb that act is the doing of (`change.event_verb`). None when the
+    parse has no verb and subject to turn round."""
+    from . import change
+    from .frames import DO
+
+    _, typed = pieces(claim)
+    words = [one for one in typed if any(ch.isalnum() for ch in one)]
+    analysis = _analysis(words, lexicon)
+    if not analysis:
+        return None
+    parsed = coordination.parse(words, analysis)
+    root = next((one for one in parsed if one.dep == "ROOT"), None)
+    subject = next((one for one in parsed if root is not None
+                    and one.head == root.index
+                    and one.dep in coordination.SUBJECTS), None)
+    if root is None or subject is None:
+        return None
+
+    def under(index: int) -> set:
+        found, grew = {index}, True
+        while grew:
+            grew = False
+            for one in parsed:
+                if (one.index not in found and one.head in found
+                        and one.head != one.index):
+                    found.add(one.index)
+                    grew = True
+        return found
+
+    who = under(subject.index)
+    said_who = [parsed[at].text for at in sorted(who)]
+    auxes = [one for one in parsed if one.head == root.index
+             and one.dep in coordination.AUXILIARIES]
+    negated = {one.index for one in parsed if one.head == root.index
+               and one.dep == "neg"}
+    verb, skip = "", set()
+    # `took a flight`: the doing its object names, in the verb's place.
+    for noun in (one for one in parsed if one.head == root.index
+                 and one.dep == "dobj"):
+        article = [one for one in parsed if one.head == noun.index
+                   and one.dep == "det" and one.text.lower() in ("a", "an")]
+        doing = change.event_verb(lexicon.lemma(noun.text.lower()))
+        if article and doing:
+            verb, skip = doing, {noun.index, article[0].index}
+        break
+    after = [one.text for one in parsed if one.index > root.index
+             and one.index not in who and one.index not in negated
+             and one.index not in skip]
+    if auxes:
+        between = [one.text for one in parsed
+                   if auxes[0].index < one.index < root.index
+                   and one.index not in who and one.index not in negated
+                   and one not in auxes]
+        out = ([auxes[0].text] + said_who + [one.text for one in auxes[1:]]
+               + between + [verb or root.text] + after)
+    elif root.text.lower() in COPULA:
+        out = [root.text] + said_who + after
+    else:
+        lemma = getattr(lexicon, "verb", lexicon.lemma)
+        out = ([DO.get(root.tag, "did")] + said_who
+               + [verb or lemma(root.text.lower())] + after)
+    return " ".join(out).lower(), not negated
 
 
 def parsed_claims(text: str, lexicon) -> list[str]:

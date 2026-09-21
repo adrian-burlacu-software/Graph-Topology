@@ -566,6 +566,45 @@ class ChangeTests(unittest.TestCase):
         self.assertEqual(outcome, "verified")
         self.assertIn("E2", text)
 
+    def test_being_carried_is_kept_as_experience(self):
+        """What a later layer learns from: a pig flew by being on a plane
+        that did, put there by `put`, and could not have by itself."""
+        session, _, _ = talk("i put my pig on a plane",
+                             "then the plane took off, carrying the pig, "
+                             "and flying")
+        self.assertEqual(
+            [(one["verb"], one["thing_sense"], one["carrier_sense"],
+              one["way"], one["own"]) for one in session.experience],
+            [("fly", "hog.n.03", "airplane.n.01", "put on", False)])
+
+    def test_a_claim_said_as_a_question_is_confirmed(self):
+        """`so pigs don't fly, but this particular pig took a flight on a
+        plane?` is two claims, each checked by the question that would
+        confirm it -- `do pigs fly`, right when it is no; `did this
+        particular pig fly on a plane`, right when it is yes -- and `took
+        a flight` is flying (`change.event_verb`)."""
+        _, turns, _ = talk("i put my pig on a plane",
+                           "then the plane took off, carrying the pig, "
+                           "and flying",
+                           "so pigs don't fly, but this particular pig took "
+                           "a flight on a plane?",
+                           outcomes=dict(KINDS, **{"do pigs fly": "denied"}))
+        last = turns[-1]
+        self.assertEqual(last.said, "so pigs don't fly, but this particular "
+                                    "pig took a flight on a plane?")
+        self.assertEqual(last.reading.heard["confirming"],
+                         ["do pigs fly",
+                          "did this particular pig fly on a plane"])
+        outcome, text = answer(last)
+        self.assertEqual(outcome, "verified")
+        self.assertEqual(text.count("right — "), 2)
+
+    def test_a_claim_confirmed_wrong_is_a_no(self):
+        _, turns, _ = talk("so pigs fly?",
+                           outcomes=dict(KINDS, **{"do pigs fly": "denied"}))
+        self.assertEqual(answer(turns[-1])[0], "denied")
+        self.assertIn("not so", answer(turns[-1])[1])
+
     def test_a_door_closed(self):
         _, turns, _ = talk("there is a door", "the door was open",
                            "i closed the door", "is the door open",
@@ -577,6 +616,23 @@ class ChangeTests(unittest.TestCase):
         _, turns, _ = talk("there is a dog", "the dog started barking",
                            "then it stopped barking", "is the dog barking")
         self.assertEqual(answer(turns[3])[0], "denied")
+
+
+class EventVerbTests(unittest.TestCase):
+    """`change.event_verb`: the doing a noun names, from WordNet."""
+
+    def test_an_act_is_the_doing_of_a_verb(self):
+        for noun, verb in (("flight", "fly"), ("walk", "walk"),
+                           ("decision", "decide"), ("ride", "ride")):
+            with self.subTest(noun=noun):
+                self.assertEqual(change.event_verb(noun), verb)
+
+    def test_a_thing_is_no_doing(self):
+        """No act or event sense (`seat`, `cake`), or one derived from no
+        verb (`football`): `took the football` is taking."""
+        for noun in ("seat", "cake", "football", "kitchen"):
+            with self.subTest(noun=noun):
+                self.assertEqual(change.event_verb(noun), "")
 
 
 class ParticipleTests(unittest.TestCase):

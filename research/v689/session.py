@@ -265,6 +265,9 @@ class Taught:
     def participle(self, word: str):
         return self.asker.participle(word)
 
+    def verb(self, word: str) -> str:
+        return self.asker.verb(word)
+
 
 #: Acts contributed by layers above this one, as callables taking the
 #: session and returning `Operator`s for the act executive.
@@ -378,6 +381,10 @@ class Session:
         self.relations = Relations(self.memory.log)
         #: what the part being acted on says about when
         self._when = When()
+        #: what the story showed about doing things, for a later layer to
+        #: learn from (`contributes`): one dict per thing seen, appended and
+        #: never rewritten, so a reader keeps its own place in it
+        self.experience: list = []
         self.turns: list[Turn] = []
         self._turn: Turn | None = None
         self._reader: GlossReader | None = None
@@ -452,7 +459,12 @@ class Session:
         grown = len(self.memory.growth)
         lexicon = Taught(self.asker, self.memory.kinds)
         reading = read(text, lexicon, self.discourse.names())
-        turn = Turn(self.discourse.turn, reading.said, reading.act, reading)
+        # The utterance as said: a claim put as a question is read as the
+        # question that checks it (`reading._confirmed`), and the turn is
+        # still what was said.
+        turn = Turn(self.discourse.turn,
+                    (reading.heard or {}).get("said") or reading.said,
+                    reading.act, reading)
         self._turn = turn
         acts = {"introduce": self._introduce, "tell": self._tell,
                 "ask": self._ask, "what": self._what, "name": self._name,
@@ -516,6 +528,8 @@ class Session:
                                "act": one.act, **fired.as_dict()})
             if index == 0:
                 first = (turn.resolution, turn.binding)
+            if one.confirms is not None:
+                turn.answer = self._confirmed(one, turn.answer)
             replies.append(dict(turn.answer))
             # What a bare `why` asks about: the last yes or no put.
             if one.act in ("ask", "generic") and turn.asked:
@@ -528,8 +542,15 @@ class Session:
         if len(parts) > 1:
             turn.resolution, turn.binding = first
             outcomes = [one.get("outcome") for one in replies]
+            together = ("noted" if "noted" in outcomes else outcomes[0])
+            if all(one.confirms is not None for one in parts):
+                # Claims put as one question are confirmed together: all of
+                # them right is a yes, any of them wrong is a no.
+                together = ("denied" if "denied" in outcomes else
+                            "verified" if set(outcomes) == {"verified"}
+                            else "unknown")
             turn.answer = {
-                "outcome": "noted" if "noted" in outcomes else outcomes[0],
+                "outcome": together,
                 "source": replies[0].get("source") or "conversation",
                 "text": "; ".join(one.get("text") for one in replies
                                   if one.get("text"))}
@@ -547,6 +568,21 @@ class Session:
         turn.memory = self.memory_view()
         self.turns.append(turn)
         return turn
+
+    @staticmethod
+    def _confirmed(reading: Reading, answer: dict) -> dict:
+        """A claim said as a question, answered: the yes or no to the
+        question that would confirm it, turned round when the claim was a
+        denial -- `pigs don't fly?` is right when `do pigs fly` is no. What
+        was asked stays in the text, so the page shows how it was checked.
+        """
+        outcome, text = answer.get("outcome"), answer.get("text", "")
+        if outcome not in ("verified", "denied"):
+            return dict(answer, text=f"“{reading.confirms}”: {text}")
+        right = (outcome == "verified") == reading.confirms_holds
+        return dict(answer, outcome="verified" if right else "denied",
+                    text=f"{'right' if right else 'not so'} — "
+                         f"“{reading.confirms}”: {text}")
 
     def _social(self, reading: Reading, turn: Turn) -> None:
         """`hello`, `thanks`, `what can you do` (`social.py`): nothing told,
@@ -1434,8 +1470,62 @@ class Session:
         text += self.story.told_note(when)
         notes = [self._carry(referent)] + [
             self._carry(one) for one in self._carried_by(referent)]
+        notes.append(self._carried_along(referent, relation, obj, holds,
+                                          said))
         carried = "; ".join(note for note in notes if note)
         return text + (f"; {carried}" if carried else "")
+
+    def _carried_along(self, carrier: Referent, relation: str, obj: str,
+                       holds: bool, said: str = "") -> str:
+        """E2 turned round, as the story tells it: the plane was flying, and
+        the pig was on it, so the pig was flying too -- carried along, and
+        the flying the plane's. Kept as experience (`self.experience`): a
+        thing of one kind doing something by being aboard one of another,
+        and the verb that put it aboard, which is how it was done.
+
+        Only a doing of the carrier's own, said of nothing else: `carrying
+        the pig` is a doing *to* the pig, and moves nothing along with it.
+        """
+        if relation != "capable_of" or not holds or len(obj.split()) != 1:
+            return ""
+        verb = self.asker.verb(obj) or obj
+        notes = []
+        for one in self.discourse.everyone():
+            if one.id == carrier.id:
+                continue
+            where = self.timeline.whereabouts(one.id, direct=True)
+            if not where:
+                continue
+            key, word = where[-1][0], where[-1][1]
+            if not (key == carrier.id or (self.discourse.by_id(key) is None
+                                          and word == carrier.kind)):
+                continue
+            placed = next(
+                (change for change in reversed(self.timeline.changes)
+                 if change.individual == one.id and change.kind == "location"
+                 and change.after and (change.place or change.place_word)
+                 == key), None)
+            occurrence = (self.timeline.occurrence(placed.occurrence)
+                          if placed is not None else None)
+            described = self.discourse.describe(one)
+            self.experience.append({
+                "kind": "carried", "verb": verb,
+                "thing": one.kind, "thing_sense": self._kind_node(one) or "",
+                "carrier": carrier.kind,
+                "carrier_sense": self._kind_node(carrier) or "",
+                # How it got aboard, as said: the verb and its preposition
+                # (`put on`), so it can be done, and said, the same way.
+                "way": " ".join(filter(None, (
+                    occurrence.verb, occurrence.preposition)))
+                if occurrence is not None else "",
+                "own": self.can(one.kind, verb),
+                "said": ([occurrence.said] if occurrence is not None
+                         else []) + ([said] if said else [])})
+            notes.append(
+                f"E2: {described} was on {self.discourse.describe(carrier)}, "
+                f"so it was carried along, doing “{obj}” as "
+                f"{self.discourse.describe(carrier)} did")
+        return "; ".join(notes)
 
     def _carry(self, referent: Referent) -> str:
         """E2, recomputed from what is told now.
@@ -1501,6 +1591,18 @@ class Session:
                     and carrier.id in self.memory.bound.get(
                         (one.id, fact.relation, fact.object), ())
                     for fact in self.memory.facts.get(one.id, []))]
+
+    def can(self, kind: str, verb: str) -> bool:
+        """Whether a thing of this kind can do it itself: v688 on the kind
+        first, because the raw walk climbs from a pig to `animal
+        capable_of fly` -- a crawled row about bats, which v689 never
+        trusts unjudged -- and the walk (`_does`) only for what v688 cannot
+        settle, a kind taught here."""
+        outcome = summary_of(self._run(f"can {article(kind)} {kind} "
+                                       f"{verb}"))[0]
+        if outcome in ("verified", "denied"):
+            return outcome == "verified"
+        return self._does(kind, verb)
 
     def _does(self, carrier: str, action: str,
               individual: str | None = None) -> bool:

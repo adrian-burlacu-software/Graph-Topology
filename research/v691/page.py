@@ -100,7 +100,49 @@ def scene_for(session) -> Scene:
     if key not in SCENES:
         from research.v691.openworld import Open, resolver
         SCENES[key] = Scene(Open(resolver(), store()))
-    return SCENES[key]
+    scene = SCENES[key]
+    if scene.open and getattr(scene.domain, "can", False) is None:
+        scene.domain.can = able(session)
+    return scene
+
+
+def able(session):
+    """Whether a thing of a kind can do something itself, asked of what the
+    conversation knows (`Session.can`: v688 on the kind, and v687's walk
+    for a kind taught here). A pig cannot fly; a plane can."""
+    judged = getattr(session, "can", None)
+    if judged is None:
+        return None
+    known: dict = {}
+
+    def can(kind: str, verb: str) -> bool:
+        if (kind, verb) not in known:
+            known[kind, verb] = bool(judged(kind, verb))
+        return known[kind, verb]
+    return can
+
+
+#: conversation -> how much of its session's experience has been learned.
+_ABSORBED: dict = {}
+
+
+def absorb(session) -> list:
+    """Learn what the story showed about doing things, into long-term
+    memory: v689 keeps it as experience (`Session.experience`), and this is
+    where it stops being about one pig and one plane. Returns what was new.
+    """
+    key = getattr(session, "conversation", "") or id(session)
+    seen = getattr(session, "experience", [])
+    fresh, _ABSORBED[key] = seen[_ABSORBED.get(key, 0):], len(seen)
+    learned, out = store(), []
+    for one in fresh:
+        if one.get("kind") == "carried" and learned.carry(
+                one["verb"], one["thing_sense"] or one["thing"],
+                one["carrier_sense"] or one["carrier"], one["carrier"],
+                one.get("way", ""), bool(one.get("own")),
+                " / ".join(one.get("said", ()))):
+            out.append(one)
+    return out
 
 
 def scene_ish(facts, scene) -> bool:
@@ -188,6 +230,10 @@ def hear(text: str, scene: Scene) -> Heard:
     said.names += [one for fact in facts for one in fact.split()[1:]
                    if one not in said.names]
     known = bool(scene.objects)
+    doing = getattr(scene.domain, "a_doing", None)
+    asked_for = [one for one in wants
+                 if one.split()[0] in scene.domain.goalish
+                 or (doing is not None and doing(one.split()[0]))]
     if LOOKED.search(plain) and known:
         said.act = "look"
         said.weight = ASK
@@ -204,7 +250,15 @@ def hear(text: str, scene: Scene) -> Heard:
     elif plain.startswith("what is on") and known:
         said.act = "upon"
         said.weight = ASK
-    elif (WANTED.search(plain) or _an_order(plain)) and any(
+    elif ((ASKING.match(plain) or plain.rstrip().endswith("?"))
+          and not REQUEST.match(plain)
+          and (WANTED.search(plain) or _an_order(plain)) and asked_for):
+        # `what steps are required to make a pig fly`, `how would I get the
+        # book to the kitchen`: a question about an order is asking what it
+        # would take, not asking for it done.
+        said.act = "how"
+        said.weight = ASK
+    elif ordered(plain) and any(
             one.split()[0] in scene.domain.goalish for one in wants):
         said.act = "want"
         said.weight = ORDER
@@ -220,6 +274,22 @@ def hear(text: str, scene: Scene) -> Heard:
 ASKING = re.compile(r"^(what|which|where|why|who|when|whose|how|is|are|was|"
                     r"were|can|could|does|do|did|will|would|should|may|"
                     r"might)\s")
+
+
+#: A question that is an order said politely: `can you put the book on the
+#: table` asks for it done, and is not asking what it would take.
+REQUEST = re.compile(r"^(can|could|would|will)\s+you\s")
+
+
+def ordered(plain: str) -> bool:
+    """Whether it is said as an order: a verb first (`put the book on the
+    table`), `please`, or `can you`. `i put the key in the drawer` has the
+    same verb and tells what happened -- taken for an order, it was done
+    instead of remembered, and v689 never heard the story."""
+    words = plain.split()
+    if words[:1] == ["please"]:
+        plain = " ".join(words[1:])
+    return bool(REQUEST.match(plain)) or _an_order(plain)
 
 
 def _an_order(plain: str) -> bool:
@@ -316,6 +386,8 @@ ACTS = {
              "what is in the scene", ()),
     "want": (lambda scene, heard: scene.want(heard), ORDER,
              "plan and act: means-ends over the world", ("world",)),
+    "how": (lambda scene, heard: scene.how(heard), ASK,
+            "what it would take: planned, not done", ()),
     "meddle": (lambda scene, heard: scene.meddle(heard), ORDER,
                "the scene changed without it acting", ()),
     "look": (lambda scene, heard: scene.look(), ASK,
@@ -346,6 +418,18 @@ def whole(memory) -> str:
     return getattr(turn, "said", "") or memory["reading"].said
 
 
+def recorded(scene: Scene, heard: Heard) -> bool:
+    """Whether a statement is only written down here, and answered by v689.
+
+    In the open world, `the pig is in a field` is something v689 has to
+    remember -- where the pig is today, against where it was yesterday (T3)
+    -- and an act here that answered it took it away from episodic memory
+    altogether. So in the open world a statement is noted, and the turn goes
+    on; a declared world (`use the blocks world`) still answers its own.
+    """
+    return heard.act == "tell" and not getattr(scene.domain, "says", None)
+
+
 def replies(session) -> list:
     """v691's acts, as operators for v689's act executive."""
     key = getattr(session, "conversation", "") or id(session)
@@ -353,14 +437,18 @@ def replies(session) -> list:
     def answering(name: str, handler, utility: float, rule: str,
                   effects=()) -> Operator:
         def proposes(memory) -> bool:
-            return heard_for(session, whole(memory)).act == name
+            heard = heard_for(session, whole(memory))
+            return heard.act == name and not recorded(scene_for(session),
+                                                      heard)
 
         def apply(memory):
             scene = scene_for(session)
+            absorb(session)
             heard = heard_for(session, whole(memory))
             _DONE[key] = getattr(memory.get("turn"), "number", None)
             text = handler(scene, heard)
-            planning = scene.planning() if name == "want" else {}
+            planning = (scene.planning() if name in ("want", "how")
+                        else {})
             memory["turn"].answer = {
                 "outcome": "acted", "source": "world", "act": name,
                 "text": text, "planning": planning,
@@ -386,9 +474,10 @@ def replies(session) -> list:
         things are.
         """
         scene = scene_for(session)
+        absorb(session)
         heard = heard_for(session, whole(memory))
         memory["noted"] = True
-        if heard.act or not scene.open:
+        if not scene.open or (heard.act and not recorded(scene, heard)):
             # Something here is going to act on it; it will record its own.
             return CONTINUE
         if scene_ish(heard.facts, scene):
