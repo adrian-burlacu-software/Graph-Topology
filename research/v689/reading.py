@@ -803,7 +803,7 @@ def _timed(found: Reading, fresh: frozenset, when: When) -> Reading:
 
 
 def read(text: str, lexicon, names: frozenset = frozenset(),
-         anchored: bool = True) -> Reading:
+         anchored: bool = True, whole: bool = True) -> Reading:
     """Read one utterance, by the encoder and nothing else.
 
     `lexicon` needs `subject(question)`, `lemma(word)` and `known(phrase)`;
@@ -853,7 +853,59 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
                   for name, chance in (guess.slots[:2] if guess else [])],
         "roles": [[word, role] for word, role in
                   zip(tokens, guess.stated if guess else [])]}
+    if whole and found.act == "tell" and not when.relation:
+        claims = parsed_claims(asked.text, lexicon)
+        if len(claims) > 1 + len(found.more):
+            return _claim_by_claim(claims, found, lexicon, names, said)
     return found
+
+
+def parsed_claims(text: str, lexicon) -> list[str]:
+    """The claims of a statement as the parse splits them, participles
+    included (`clauses.participles`): `the plane took off, carrying the pig,
+    and flying` is three. The first is said in its own order, so its time
+    words stay in front; each after it is filled in from the one before."""
+    _, typed = pieces(text)
+    words = [one for one in typed if any(ch.isalnum() for ch in one)]
+    analysis = _analysis(words, lexicon)
+    parts = (coordination.split(words, analysis, participial=True)
+             if analysis is not None else None)
+    if not parts or len(parts) < 2:
+        return []
+    later = {word.index for part in parts[1:]
+             for word in part.subject + part.aux + part.rest}
+    out, before = [], None
+    for part in parts:
+        if before is None:
+            whole = part
+            end = max(word.index for word in part.subject + part.aux
+                      + part.rest)
+            said = [words[at] for at in range(end + 1) if at not in later]
+        else:
+            whole = coordination.standalone(part, before, False)
+            said = whole.words(words)
+        out.append(" ".join(said))
+        before = whole
+    return out
+
+
+def _claim_by_claim(claims: list[str], found: Reading, lexicon,
+                    names: frozenset, said: str) -> Reading:
+    """A statement the encoder read as fewer claims than the parse finds,
+    read one claim at a time. The encoder reads one simple clause well and
+    was never taught a participle: `took off, carrying the pig, and flying`
+    came back as `took off the pig and flying carrying`. Each claim is read
+    whole, as if said alone, and the rest ride on the first."""
+    readings = [read(one, lexicon, names, whole=False) for one in claims]
+    first = readings[0]
+    first.more = [one for reading in readings[1:]
+                  for one in [reading] + list(reading.more)] + list(
+        first.more)
+    for one in [first] + first.more:
+        one.said = said
+    first = _timed(first, frozenset(), first.when or When())
+    first.heard = dict(found.heard, claims=claims)
+    return first
 
 
 @dataclass

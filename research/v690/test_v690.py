@@ -61,6 +61,25 @@ class MessageTests(unittest.TestCase):
                                       holds=False))
         self.assertEqual(found.claim, "the beagle can't swim")
 
+    def test_what_you_said_is_said_back_to_you(self):
+        """`I put my pig on a plane` is noted as `you put your pig on a
+        plane`, not `you put my pig on a plane`."""
+        found = messages.of_turn(turn(
+            "i put my pig on a plane", "tell", "noted", "noted",
+            mention="i", aux=None, rest="put my pig on a plane",
+            referent=None))
+        self.assertTrue(found.claim.endswith("put your pig on a plane"),
+                        found.claim)
+
+    def test_several_claims_noted_are_said_whole(self):
+        """Not only the first of them: `Got it: the plane took off` left
+        the pig and the flying out."""
+        said = "then the plane took off, carrying the pig, and flying"
+        noted = turn(said, "tell", "noted", "noted", mention="the plane",
+                     aux=None, rest="took off", referent=None)
+        noted["reading"]["more"] = [{"act": "tell"}, {"act": "tell"}]
+        self.assertEqual(messages.of_turn(noted).claim, said)
+
     def test_an_object_is_said_as_the_conversation_describes_it(self):
         found = messages.of_turn(turn(
             "the dog chased it", "tell", "noted", "noted", mention="the dog",

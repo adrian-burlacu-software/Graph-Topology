@@ -533,6 +533,39 @@ class ChangeTests(unittest.TestCase):
         self.assertIn("drawer", answer(turns[3])[1])
         self.assertEqual(answer(turns[4])[0], "denied")
 
+    def test_my_pig_put_on_a_plane_is_a_pig_and_is_on_it(self):
+        """`my pig` after the verb is an individual -- yours -- as `the key`
+        is, and put-9.1 puts it on the plane. Asked whether it was flying,
+        nothing told says so, but it was aboard something that flies (E2
+        turned round), and it is the pig told of, not a new one."""
+        session, turns, _ = talk("i put my pig on a plane",
+                                 "was my pig flying")
+        self.assertIn("T4", answer(turns[0])[1])
+        pigs = [one for one in session.discourse.referents
+                if one.kind == "pig"]
+        self.assertEqual(len(pigs), 1)
+        self.assertEqual(pigs[0].owner, session.discourse.me().id)
+        outcome, text = answer(turns[1])
+        self.assertEqual(outcome, "unknown")
+        self.assertIn("i put my pig on a plane", text)
+        self.assertIn("carried", text)
+
+    def test_carried_by_a_plane_told_flying(self):
+        """`took off, carrying the pig, and flying` is three claims -- the
+        encoder read it as one garbled one -- and with the plane told
+        flying, the pig on it was flying: carried (E2)."""
+        _, turns, _ = talk("i put my pig on a plane",
+                           "then the plane took off, carrying the pig, "
+                           "and flying",
+                           "was my pig flying")
+        self.assertEqual(turns[1].reading.heard["claims"],
+                         ["then the plane took off",
+                          "the plane was carrying the pig",
+                          "the plane was flying"])
+        outcome, text = answer(turns[2])
+        self.assertEqual(outcome, "verified")
+        self.assertIn("E2", text)
+
     def test_a_door_closed(self):
         _, turns, _ = talk("there is a door", "the door was open",
                            "i closed the door", "is the door open",
@@ -544,6 +577,47 @@ class ChangeTests(unittest.TestCase):
         _, turns, _ = talk("there is a dog", "the dog started barking",
                            "then it stopped barking", "is the dog barking")
         self.assertEqual(answer(turns[3])[0], "denied")
+
+
+class ParticipleTests(unittest.TestCase):
+    """`clauses.participles`, on parses written out by hand."""
+
+    @staticmethod
+    def claims(words: str, analysis) -> list[str]:
+        from research.v689 import clauses
+        typed = words.split()
+        parts = clauses.split(typed, analysis, participial=True)
+        out, before = [], None
+        for part in parts:
+            whole = (part if before is None
+                     else clauses.standalone(part, before, False))
+            out.append(" ".join(whole.words(typed)))
+            before = whole
+        return out
+
+    def test_an_adjunct_participle_is_a_claim_in_the_progressive(self):
+        self.assertEqual(
+            self.claims("the plane took off carrying the pig and flying",
+                        [("DT", "det", 1), ("NN", "nsubj", 2),
+                         ("VBD", "ROOT", 2), ("RP", "prt", 2),
+                         ("VBG", "xcomp", 2), ("DT", "det", 6),
+                         ("NN", "dobj", 4), ("CC", "cc", 4),
+                         ("VBG", "conj", 4)]),
+            ["the plane took off", "the plane was carrying the pig",
+             "the plane was flying"])
+        self.assertEqual(
+            self.claims("the cats sat sleeping",
+                        [("DT", "det", 1), ("NNS", "nsubj", 2),
+                         ("VBD", "ROOT", 2), ("VBG", "advcl", 2)]),
+            ["the cats sat", "the cats were sleeping"])
+
+    def test_a_complement_right_after_its_verb_is_one_doing(self):
+        """`started barking` is what T4 reads as begin-55.1, whole."""
+        self.assertEqual(
+            self.claims("the dog started barking",
+                        [("DT", "det", 1), ("NN", "nsubj", 2),
+                         ("VBD", "ROOT", 2), ("VBG", "xcomp", 2)]),
+            ["the dog started barking"])
 
 
 # -- event sourcing ----------------------------------------------------------

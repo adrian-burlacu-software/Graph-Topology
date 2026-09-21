@@ -2289,8 +2289,8 @@ class Session:
                 # rests on is what this one's does.
                 turn.answer = {
                     "outcome": outcome, "source": "kind",
-                    "text": (f"nothing was told of {described}, so it is as "
-                             f"{kind}: {headline}") + note}
+                    "text": (f"nothing you told me of {described} says, so "
+                             f"it is as {kind}: {headline}") + note}
             elif e1:
                 turn.answer = {
                     "outcome": "unknown", "source": "tendency",
@@ -2301,8 +2301,9 @@ class Session:
                 turn.answer = {
                     "outcome": outcome, "source": "kind",
                     "text": (f"{WORD.get(outcome, 'not settled')} — nothing "
-                             f"was told of {described}, so v687's walk passes "
-                             f"up to {referent.kind}, and {v688}") + note}
+                             f"you told me of {described} says, so v687's walk "
+                             f"passes up to {referent.kind}, and {v688}")
+                    + note}
             return ANSWERED
 
         # What each step reads, and what the ones that go on write: the

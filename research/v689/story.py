@@ -419,14 +419,15 @@ class Story:
                   accommodate: bool = False):
         """The individual a phrase names among those here. Never a new one,
         unless `accommodate`: told `Bill gave the football to Fred`, `the
-        football` is put down as the object after the verb would have been."""
+        football` is put down as the object after the verb would have been,
+        and told `I put my pig on a plane`, so is `my pig` -- yours."""
         from .reading import read_mention
         mention = read_mention(list(phrase), 0, self.session.lexicon(),
                                final_ok=True, names=self.discourse.names())
         if mention is None or mention.end != len(phrase):
             return None
         if accommodate and mention.form in ("definite", "indefinite",
-                                            "another"):
+                                            "another", "possessive"):
             return self.discourse.resolve(mention, exclude=set(exclude),
                                           weight=OBJECT_WEIGHT).referent
         return self._resolved(mention, exclude)
@@ -832,6 +833,29 @@ class Story:
         doing = {"future": "will do"}.get(
             tense, "was doing" if aspect == "progressive" else "did")
         kind = f"{article(referent.kind)} {referent.kind}"
+        verb = self.verb_of(reading.aux, reading.rest, aspect)
+        aboard = self._aboard(referent, verb)
+        if aboard:
+            carrier, told, flew = aboard
+            if flew is not None:
+                # The carrier was told doing it, and this one was aboard.
+                turn.answer = {
+                    "outcome": "verified", "source": "told",
+                    "text": f"yes — you told me “{told}” and “{flew.said}”: "
+                            f"{described} was on {carrier}, so it was carried "
+                            f"along, and that was {carrier}'s doing, not "
+                            f"{described}'s (E2), which says nothing of what "
+                            f"{kind} can do"}
+                return True
+            text = (f"not told — but you told me “{told}”, and {carrier} "
+                    f"can {verb}: if it did, {described} was carried along, "
+                    f"and that was {carrier}'s doing, not {described}'s "
+                    f"(E2). T6: what "
+                    f"{kind} does itself is a tendency of the kind; for "
+                    f"{kind} in general v688 answers “{question}” {outcome}")
+            turn.answer = {"outcome": "unknown", "source": "told",
+                           "text": text}
+            return True
         text = (f"not told — nothing you said of {described} answers "
                 f"“{_said(reading.said)}”. T6: what {kind} does is a "
                 f"tendency of the kind, and that one of them {doing} it is "
@@ -842,6 +866,45 @@ class Story:
         turn.answer = {"outcome": "unknown", "source": "tendency",
                        "text": text}
         return True
+
+    def _aboard(self, referent, verb: str):
+        """E2 turned round: (carrier, what was said, the carrier's doing)
+        when the last place the story put this one is something that does
+        `verb` -- a pig put on a plane goes where the plane goes, flying
+        included. The doing is the occurrence of the carrier doing `verb`
+        when the story told one, and None when it only can. None when it is
+        on nothing that does it."""
+        if not verb:
+            return None
+        where = self.timeline.whereabouts(referent.id, direct=True)
+        if not where or not where[-1][1]:
+            return None
+        key, word = where[-1][0], where[-1][1]
+        other = self.discourse.by_id(key) if key else None
+        if other is None:
+            # Put on `a plane` and then told of `the plane`: the one of that
+            # kind here, when there is exactly one.
+            same = [one for one in self.discourse.everyone()
+                    if one.id != referent.id and one.kind == word]
+            other = same[0] if len(same) == 1 else None
+        if not self.session._does(word, verb, other.id if other else None):
+            return None
+        said = next((change for change in reversed(self.timeline.changes)
+                     if change.individual == referent.id
+                     and change.kind == "location" and change.after
+                     and (change.place or change.place_word) == key), None)
+        occurrence = (self.timeline.occurrence(said.occurrence)
+                      if said is not None else None)
+        carrier = (self.discourse.describe(other) if other is not None
+                   else f"{article(word)} {word}")
+        flew = None
+        if other is not None:
+            done = self.timeline.identify({f"subject {other.id}",
+                                           f"is_a {verb}"})
+            flew = done[-1] if done else None
+        return carrier, (occurrence.said if occurrence is not None
+                         else f"{self.discourse.describe(referent)} was on "
+                              f"{carrier}"), flew
 
     def _judge_doing(self, verb: str):
         def judge(kind: str, relation: str, word: str) -> int:

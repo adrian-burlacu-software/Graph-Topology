@@ -78,11 +78,14 @@ class Clause:
     rest: list[Word] = field(default_factory=list)
     #: the word that joined it to the clause before: `and`, `but`, `or`
     joined_by: str = ""
+    #: a participle's `was`: `carrying the pig` is `was carrying the pig`
+    be: str = ""
 
     def words(self, typed: list[str]) -> list[str]:
         """The clause as words, spelled as they were typed."""
         return ([typed[word.index] for word in self.subject]
                 + [typed[word.index] for word in self.aux]
+                + ([self.be] if self.be else [])
                 + (["not"] if self.negated else [])
                 + [typed[word.index] for word in self.rest])
 
@@ -125,6 +128,69 @@ def predicates(parsed: list[Word]) -> list[int]:
     return sorted(found)
 
 
+#: What makes a participle a clause of its own time: `while running`,
+#: `after eating`. Those are when (`tense.py`), not another claim.
+MARKED = frozenset({"mark"})
+
+
+def participles(parsed: list[Word], found: list[int]) -> list[int]:
+    """Participles that say what the subject was doing as it did the rest:
+    `the plane took off carrying the pig and flying`, `the dog ran off,
+    chasing the cat`. Each is a claim of its own, the subject's, in the
+    progressive.
+
+    Only an adjunct: a `-ing` word hanging off a predicate with no subject,
+    auxiliary or marker of its own. As a verb's complement (`xcomp`) only
+    when something of that verb's comes between them -- `started barking`
+    is one doing, which T4 reads whole (begin-55.1); `took off carrying` is
+    two. A participle coordinated with one of these is one too.
+    """
+    tops, out = set(found), []
+    for word in parsed:
+        if (word.tag != "VBG" or word.head not in tops
+                or word.dep not in ("advcl", "xcomp")
+                or _children(parsed, word.index,
+                             SUBJECTS | AUXILIARIES | MARKED)):
+            continue
+        if word.dep == "xcomp" and not any(
+                one.head == word.head and word.head < one.index < word.index
+                and one.dep != "punct" for one in parsed):
+            continue
+        out.append(word.index)
+    grew = True
+    while grew:
+        grew = False
+        for word in parsed:
+            if (word.index not in out and word.dep == "conj"
+                    and word.head in out
+                    and not _children(parsed, word.index,
+                                      SUBJECTS | AUXILIARIES)
+                    and (word.verbal or not _children(parsed, word.index,
+                                                      MODIFIERS))):
+                out.append(word.index)
+                grew = True
+    return sorted(out)
+
+
+def _be(parsed: list[Word], root: int) -> str:
+    """The `be` a participle is said with: the tense of the verb it hangs
+    off, the number of that verb's subject."""
+    subject = next((word for word in parsed if word.head == root
+                    and word.dep in SUBJECTS), None)
+    plural = subject is not None and (
+        subject.tag in ("NNS", "NNPS")
+        or subject.text.lower() in ("they", "we", "you")
+        or any(one.dep == "conj" for one in parsed
+               if one.head == subject.index))
+    past = parsed[root].tag == "VBD" or any(
+        one.head == root and one.dep in AUXILIARIES
+        and one.tag == "VBD" for one in parsed)
+    if subject is not None and subject.text.lower() == "i":
+        return "was" if past else "am"
+    return ("were" if plural else "was") if past else \
+        ("are" if plural else "is")
+
+
 def _owner(parsed: list[Word], index: int, found: set) -> int | None:
     """The predicate a word belongs to: the first one above it."""
     seen: set = set()
@@ -145,17 +211,27 @@ def _under(parsed: list[Word], index: int, top: int, deps) -> bool:
     return False
 
 
-def split(words: list[str], analysis) -> list[Clause] | None:
+def split(words: list[str], analysis,
+          participial: bool = False) -> list[Clause] | None:
     """The clauses of a statement in order, or None if the parse has no verb
-    at its root to hang them on."""
+    at its root to hang them on. With `participial`, an adjunct participle
+    is a clause too (`participles`)."""
     if not analysis or len(analysis) != len(words):
         return None
     parsed = parse(words, analysis)
     found = predicates(parsed)
     if not found:
         return None
+    doing = participles(parsed, found) if participial else []
+    found = sorted(set(found) | set(doing))
     tops = set(found)
     clauses = {index: Clause() for index in found}
+    for index in doing:
+        # What it hangs off, up to the predicate that has a subject.
+        top = index
+        while top in doing:
+            top = parsed[top].head
+        clauses[index].be = _be(parsed, top)
     for word in parsed:
         top = _owner(parsed, word.index, tops)
         if top is None:
@@ -205,13 +281,14 @@ def standalone(clause: Clause, before: Clause, kind: bool) -> Clause:
     pronoun = (len(clause.subject) == 1
                and clause.subject[0].text in PRONOUNS)
     subject = before.subject if shared or (kind and pronoun) else clause.subject
-    aux = clause.aux if (clause.aux or not shared) else before.aux
+    aux = clause.aux if (clause.aux or not shared or clause.be) \
+        else before.aux
     negated = clause.negated or (shared and not clause.aux
                                  and clause.joined_by in ("or", "nor")
                                  and before.negated)
     return Clause(list(subject), list(aux), negated,
                   [_elided(word, before) for word in clause.rest],
-                  clause.joined_by)
+                  clause.joined_by, clause.be)
 
 
 def continues(clause: Clause, kind: bool) -> bool:

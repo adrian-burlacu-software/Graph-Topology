@@ -28,10 +28,38 @@
   header .sub { color: var(--muted); }
   header nav { margin-left: auto; display: flex; gap: 14px; }
   header nav a { color: var(--accent); text-decoration: none; }
-  main { display: grid; grid-template-columns: minmax(0, 1.15fr)
-         minmax(360px, .85fr); height: calc(100vh - 50px); }
+  main { --pane: 42%; display: grid;
+         grid-template-columns: minmax(0, 1fr) var(--pane) 46px;
+         height: calc(100vh - 50px); }
+  main.closed { grid-template-columns: minmax(0, 1fr) 0 46px; }
+  main.closed aside { display: none; }
+  main.dragging { user-select: none; cursor: col-resize; }
+  /* the rail: open the pane on a tab, close it, and size it */
+  #rail { grid-column: 3; grid-row: 1;
+          display: flex; flex-direction: column; align-items: center; gap: 4px;
+          padding: 10px 0; background: var(--panel);
+          border-left: 1px solid var(--line); }
+  #rail button { width: 34px; height: 34px; display: grid; place-items: center;
+                 background: none; color: var(--muted);
+                 border: 1px solid transparent; border-radius: 8px;
+                 cursor: pointer; font-size: 15px; padding: 0; }
+  #rail button:hover:not(:disabled) { color: var(--text);
+         border-color: var(--line); background: var(--panel2); }
+  #rail button.on { color: var(--accent); border-color: var(--accent);
+                    background: #211b30; }
+  #rail button:disabled { opacity: .35; cursor: default; }
+  #rail .gap { flex: 1; }
+  #rail .sep { width: 22px; border-top: 1px solid var(--line); margin: 4px 0; }
+  #rail .pct { color: var(--faint); font-size: 10.5px; }
+  #grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px;
+          cursor: col-resize; z-index: 2; }
+  #grip:hover, main.dragging #grip { background: linear-gradient(90deg,
+          transparent 3px, var(--accent) 3px, var(--accent) 5px,
+          transparent 5px); }
   @media (max-width: 1000px) {
-    main { grid-template-columns: 1fr; height: auto; }
+    main, main.closed { grid-template-columns: 1fr; height: auto; }
+    main.closed aside { display: flex; }
+    #rail, #grip { display: none; }
     #talk { height: auto !important; }
   }
   #talk { display: flex; flex-direction: column; min-width: 0;
@@ -141,6 +169,7 @@
          cursor: pointer; }
   /* memory */
   aside { display: flex; flex-direction: column; min-width: 0;
+          position: relative;
           height: calc(100vh - 50px); background: var(--panel); }
   .tabs { display: flex; border-bottom: 1px solid var(--line); }
   .tabs button { flex: 1; background: none; border: 0; color: var(--muted);
@@ -246,6 +275,7 @@
     </form>
   </section>
   <aside>
+    <div id="grip" title="drag to resize"></div>
     <div class="tabs">
       <button data-tab="episodic" class="on">episodic memory</button>
       <button data-tab="longterm">long-term memory</button>
@@ -255,6 +285,17 @@
     <div class="tab" id="tab-longterm" hidden></div>
     <div class="tab" id="tab-senses" hidden></div>
   </aside>
+  <nav id="rail" aria-label="memory pane">
+    <button type="button" data-open="episodic" title="episodic memory">&#9719;</button>
+    <button type="button" data-open="longterm" title="long-term memory">&#9635;</button>
+    <button type="button" data-open="senses" title="senses">&#9672;</button>
+    <div class="sep"></div>
+    <button type="button" id="wider" title="wider">&#8676;</button>
+    <span class="pct" id="pct"></span>
+    <button type="button" id="narrower" title="narrower">&#8677;</button>
+    <div class="gap"></div>
+    <button type="button" id="toggle" title="close the pane">&#8250;</button>
+  </nav>
 </main>
 <script>
 "use strict";
@@ -898,14 +939,102 @@ async function pin(word, sense) {
 }
 
 // -- tabs, examples, history ------------------------------------------------
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach(one =>
+    one.classList.toggle("on", one.dataset.tab === name));
+  ["episodic", "longterm", "senses"].forEach(tab =>
+    document.getElementById("tab-" + tab).hidden = tab !== name);
+  if (name === "longterm") renderLongterm();
+  syncRail();
+}
 document.querySelectorAll(".tabs button").forEach(button => {
+  button.addEventListener("click", () => showTab(button.dataset.tab));
+});
+
+// -- the pane: open or closed, and 30-60% of the page wide -------------------
+const PANE = { min: 30, max: 60, step: 5 };
+const pane = { open: true, width: 42 };
+try {
+  const kept = JSON.parse(localStorage.getItem("v690-pane") || "null");
+  if (kept && typeof kept.open === "boolean") pane.open = kept.open;
+  if (kept && Number.isFinite(kept.width)) pane.width = kept.width;
+} catch (_) { /* the default pane */ }
+
+function shownTab() {
+  const on = document.querySelector(".tabs button.on");
+  return on ? on.dataset.tab : "episodic";
+}
+function layPane() {
+  pane.width = Math.min(PANE.max, Math.max(PANE.min, Math.round(pane.width)));
+  const main = document.querySelector("main");
+  main.style.setProperty("--pane", pane.width + "%");
+  main.classList.toggle("closed", !pane.open);
+  syncRail();
+  try {
+    localStorage.setItem("v690-pane", JSON.stringify(pane));
+  } catch (_) { /* not kept */ }
+}
+function syncRail() {
+  const tab = shownTab();
+  document.querySelectorAll("#rail [data-open]").forEach(one =>
+    one.classList.toggle("on", pane.open && one.dataset.open === tab));
+  const toggle = document.getElementById("toggle");
+  toggle.innerHTML = pane.open ? "&#8250;" : "&#8249;";
+  toggle.title = pane.open ? "close the pane" : "open the pane";
+  document.getElementById("wider").disabled =
+    !pane.open || pane.width >= PANE.max;
+  document.getElementById("narrower").disabled =
+    !pane.open || pane.width <= PANE.min;
+  document.getElementById("pct").textContent =
+    pane.open ? pane.width + "%" : "";
+}
+// A tab's button opens the pane on it; the open tab's button closes it.
+document.querySelectorAll("#rail [data-open]").forEach(button => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".tabs button").forEach(one => one.classList.toggle("on", one === button));
-    ["episodic", "longterm", "senses"].forEach(tab =>
-      document.getElementById("tab-" + tab).hidden = tab !== button.dataset.tab);
-    if (button.dataset.tab === "longterm") renderLongterm();
+    const name = button.dataset.open;
+    if (pane.open && shownTab() === name) {
+      pane.open = false;
+    } else {
+      pane.open = true;
+      showTab(name);
+    }
+    layPane();
   });
 });
+document.getElementById("toggle").addEventListener("click", () => {
+  pane.open = !pane.open;
+  layPane();
+});
+document.getElementById("wider").addEventListener("click", () => {
+  pane.width = Math.floor(pane.width / PANE.step) * PANE.step + PANE.step;
+  layPane();
+});
+document.getElementById("narrower").addEventListener("click", () => {
+  pane.width = Math.ceil(pane.width / PANE.step) * PANE.step - PANE.step;
+  layPane();
+});
+document.getElementById("grip").addEventListener("pointerdown", event => {
+  const main = document.querySelector("main");
+  const grip = event.currentTarget;
+  const rail = document.getElementById("rail").getBoundingClientRect().width;
+  grip.setPointerCapture(event.pointerId);
+  main.classList.add("dragging");
+  const move = moved => {
+    const box = main.getBoundingClientRect();
+    pane.width = (box.right - rail - moved.clientX) / box.width * 100;
+    layPane();
+  };
+  const stop = () => {
+    main.classList.remove("dragging");
+    grip.removeEventListener("pointermove", move);
+    grip.removeEventListener("pointerup", stop);
+    grip.removeEventListener("pointercancel", stop);
+  };
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", stop);
+  grip.addEventListener("pointercancel", stop);
+});
+layPane();
 
 function renderMode() {
   const box = document.getElementById("mode");

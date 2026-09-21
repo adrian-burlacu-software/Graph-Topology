@@ -353,7 +353,9 @@ def trace(message: Message, read: Read, words: Words,
     framing = framing_for(framing, message.stance)
     need = required(message)
     found = Trace(read.stance, need["stance"])
-    said = read.lemmas_in("SUBJ", "CLAIM", "NEG")
+    # A claim's word read as quoted is still said: `and flying`, after v689
+    # quoted `fly` as stored, is read as a quote of it.
+    said = read.lemmas_in("SUBJ", "CLAIM", "NEG", "QUOTE")
     wanted: list = []
     if message.claim and need["stance"] in ("yes", "no", "unknown", "noted"):
         subject, rest = claimed(message, words)

@@ -87,6 +87,13 @@ NEGATED = {"can": "can't", "could": "couldn't", "does": "doesn't",
            "must": "mustn't", "might": "might not", "may": "may not"}
 
 
+#: Person, turned round for a reply: what you said of yourself is said of
+#: you, and what you said of me is said of me.
+SAID_BACK = {"my": "your", "mine": "yours", "me": "you",
+             "myself": "yourself", "your": "my", "yours": "mine",
+             "yourself": "myself"}
+
+
 @dataclass
 class Message:
     stance: str
@@ -168,6 +175,10 @@ def _claim(turn: dict, subject: str) -> str:
                 break
     if not subject or not (rest or aux):
         return ""
+    # The rest is in your words and the reply says it back to you: `I put my
+    # pig on a plane` is `you put your pig on a plane`.
+    rest = " ".join(SAID_BACK.get(word.lower(), word)
+                    for word in rest.split())
     if not reading.get("holds", True):
         aux = NEGATED.get(aux, f"{aux} not" if aux else "not")
     return " ".join(one for one in (subject, aux, rest) if one)
@@ -212,6 +223,11 @@ def of_turn(turn: dict) -> Message:
     if act in STATEMENTS or (act in POLAR and stance in ("yes", "no",
                                                          "unknown")):
         claim = _claim(turn, subject)
+    if act in STATEMENTS and stance == "noted" and reading.get("more"):
+        # Several claims noted at once -- `the plane took off, carrying the
+        # pig, and flying` -- are said as they were said, not as the first.
+        claim = " ".join(SAID_BACK.get(word.lower(), word)
+                         for word in (turn.get("said") or "").split())
     if act in STATEMENTS and not claim and stance == "noted":
         # `there is a beagle`, `my name is Adrian`: nothing is claimed of a
         # subject by an auxiliary and a rest, so what was said is the claim.
