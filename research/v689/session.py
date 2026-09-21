@@ -1489,6 +1489,11 @@ class Session:
         if relation != "capable_of" or not holds or len(obj.split()) != 1:
             return ""
         verb = self.asker.verb(obj) or obj
+        from . import change
+        if not change.moves(verb):
+            # What is carried shares a motion, and nothing else: a dog on a
+            # barking dog is not barking.
+            return ""
         notes = []
         for one in self.discourse.everyone():
             if one.id == carrier.id:
@@ -1603,6 +1608,18 @@ class Session:
         if outcome in ("verified", "denied"):
             return outcome == "verified"
         return self._does(kind, verb)
+
+    def smaller(self, kind: str, other: str) -> bool | None:
+        """Whether a thing of one kind is smaller than one of another, on
+        the scale people rated (v688's R31, THINGSplus): what says a pig
+        fits on a plane and a house does not. None when either is unrated
+        or the two are too close to call -- not known is not no."""
+        outcome = summary_of(self._run(
+            f"is {article(kind)} {kind} smaller than {article(other)} "
+            f"{other}"))[0]
+        if outcome in ("verified", "denied"):
+            return outcome == "verified"
+        return None
 
     def _does(self, carrier: str, action: str,
               individual: str | None = None) -> bool:

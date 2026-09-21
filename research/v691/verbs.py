@@ -254,6 +254,38 @@ def _role(value: str) -> str | None:
     return found.group(1) if found else None
 
 
+_PARTICIPLES: dict | None = None
+
+
+def participle(verb: str) -> str:
+    """A verb's past participle, from WordNet's own list of irregular forms
+    read the other way (`openworld.past`), preferring the one in `n`:
+    broken, not broke. Regular otherwise."""
+    global _PARTICIPLES
+    if _PARTICIPLES is None:
+        _PARTICIPLES = {}
+        try:
+            from nltk.corpus import wordnet
+            wordnet.ensure_loaded()
+            for form, lemmas in wordnet._exception_map["v"].items():
+                if form.endswith(("ing", "s")):
+                    continue
+                for lemma in lemmas:
+                    _PARTICIPLES.setdefault(lemma, set()).add(form)
+        except Exception:                          # noqa: BLE001
+            pass
+    forms = sorted(_PARTICIPLES.get(verb, ()), key=lambda one: (
+        not one.endswith(("n", "ne")), len(one)))
+    if forms:
+        return forms[0]
+    return verb + ("d" if verb.endswith("e") else "ed")
+
+
+def stated(verb: str) -> bool:
+    """Whether a verb names a state a thing can be left in (`change.py`)."""
+    return change.adjective(verb) or change.adjective(participle(verb))
+
+
 def _literals(predicate: str, roles: tuple, verb: str,
               known: frozenset = frozenset(), phase: str = "") -> list:
     """The facts one semantic predicate states, over `?Role` variables.
@@ -658,6 +690,23 @@ def ground(ability: Ability, things: Things,
 
     walk(0, {})
     return out
+
+
+def takes(verb: str, predicate: str, name: str, things: Things) -> bool:
+    """Whether a thing is what `verb` can bring to a `predicate` fact about
+    it: the role the fact is about, restricted as VerbNet restricts it. `a
+    car` can be put somewhere (put-9.1's Theme is +concrete), `an idea`
+    cannot. True when the verb has no such reading to say otherwise."""
+    readings = [(one, add.split()) for one in abilities().get(verb, ())
+                for add in one.adds if add.split()[0] == predicate]
+    if not readings:
+        return True
+    for one, parts in readings:
+        role = parts[1][1:] if len(parts) > 1 and parts[1][:1] == "?" \
+            else ""
+        if role and things.allows(name, dict(one.restricts).get(role, ())):
+            return True
+    return False
 
 
 def seen_done(verb: str, literal: str, things: Things) -> list:

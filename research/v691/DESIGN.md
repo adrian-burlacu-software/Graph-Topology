@@ -545,6 +545,31 @@ fly."* Four pieces, none of them about pigs or planes:
   a `world.Imagined`, which changes and announces nothing, and answered with
   the steps and where the way came from.
 
+**Then generalised past pigs, planes and flying.** What was seen is a fact
+about the *carrier* -- what is aboard it goes where it goes -- and the pig
+was only evidence. So for a doing `V X`:
+
+- only a **motion** is carried (`change.moves`: some frame of V says
+  `motion(E, subject)`): fly, sail, swim, travel, roll; never bark or eat,
+  in v689's E2 as well as here;
+- a **carrier** is one seen in experience, or any sense the store says does
+  V (`capable_of`) that is a vehicle or container by its own ancestors
+  (VerbNet's restriction words), best attested first, each judged by v688
+  (`Session.can`) before it is used -- the store's rows are candidates;
+- **X goes aboard** if the verb that loads it takes it (`verbs.takes`:
+  put-9.1's Theme is concrete, so an idea does not) and X is smaller than
+  the carrier on the scale people rated (`Session.smaller`, v688's R31).
+  Unrated or too close is *not known*, and said so.
+
+`make X V` asks X to do V (`OpenReader`, `Open.doings`) unless V names a
+state -- WordNet's adjective, `verbs.stated`, T4's own rule -- so *make a
+chair bark* is not VerbNet's *bark your shin*. A piano flies on the plane
+it learned about and sails on a boat it never saw; a sofa sails; a chair
+does not bark; a house's size against a plane is not known, and it says so.
+Errands unchanged at 12/12 reached, 8/12 sensible. Found on the way: in the
+open world a new thing with no kind beside it took the scene's first kind,
+which made a house a person.
+
 Two older faults surfaced on the way, both a v691 act taking a turn v689
 needed: *the pig is in a field* was answered by `tell` and never remembered
 (T3 then answered from yesterday), and *i put the key in the drawer* was

@@ -874,7 +874,7 @@ class Story:
         included. The doing is the occurrence of the carrier doing `verb`
         when the story told one, and None when it only can. None when it is
         on nothing that does it."""
-        if not verb:
+        if not verb or not changes.moves(verb):
             return None
         where = self.timeline.whereabouts(referent.id, direct=True)
         if not where or not where[-1][1]:

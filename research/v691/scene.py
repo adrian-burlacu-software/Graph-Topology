@@ -230,6 +230,11 @@ class Scene:
                 return kind
             if re.search(rf"\b{re.escape(kind)}\s+{re.escape(name)}\b", text):
                 return kind
+        if getattr(self.domain, "things", None) is not None:
+            # A world with nothing declared about it: a thing is what it was
+            # called, and the store says what that is. Falling back on the
+            # first kind here made a house a person.
+            return ""
         return self.domain.kinds[0] if self.domain.kinds else ""
 
     def told(self, name: str, kind: str) -> None:
@@ -451,12 +456,29 @@ class Scene:
                     and domain.a_doing(verb)):
                 continue
             thing = domain.the(rest[0])
-            ways = [said for name, (one, _, doing, said) in carried.items()
+            # The carrier the plan used, before any it could have.
+            used = {one.name for one in self.last_plan}
+            ways = [(said, fits) for name, (one, _, doing, said, fits)
+                    in sorted(carried.items(),
+                              key=lambda item: item[0] not in used)
                     if one == rest[0] and doing == verb]
             if ways:
-                seen = " and ".join(f"“{one}”" for one in ways[0].split(" / "))
-                why.append(f"{thing} cannot {verb} by itself, but I have "
-                           f"seen it done by being carried: {seen}")
+                said, fits = ways[0]
+                seen = " and ".join(f"“{one}”" for one in said.split(" / "))
+                if fits and not said:
+                    why.append(f"{thing} cannot {verb} by itself, but {fits}"
+                               f": what is aboard it goes where it goes")
+                elif fits:
+                    why.append(f"{thing} cannot {verb} by itself, but {fits}"
+                               f", so it fits, and I have seen what is "
+                               f"carried on one {verb} with it: {seen}")
+                else:
+                    why.append(f"{thing} cannot {verb} by itself, but I "
+                               f"have seen it done by being carried: {seen}")
+            elif getattr(domain, "refused", None):
+                why.append(f"{thing} cannot {verb} by itself, and nothing "
+                           f"that can will carry it: " + "; ".join(
+                               dict.fromkeys(domain.refused)))
             else:
                 why.append(f"{thing} cannot {verb} by itself, and I have "
                            f"not seen any other way for it to")
@@ -471,7 +493,8 @@ class Scene:
                                for part in one.name.split()[1:]})
             if needed:
                 said += (". You would need " + " and ".join(
-                    f"a {one}" for one in needed))
+                    f"{'an' if one[:1] in 'aeiou' else 'a'} {one}"
+                    for one in needed))
         said += (". " + "; ".join(why) if why else "")
         # Each sentence opened as one, outside what is quoted.
         return re.sub(r"(^|\. )([a-z])",

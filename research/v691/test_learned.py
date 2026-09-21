@@ -282,6 +282,55 @@ class CarriedTests(unittest.TestCase):
         self.assertIn("I could not see a way", said)
         self.assertIn("not seen any other way", said)
 
+    def open_world(self, can, fits) -> Scene:
+        scene = Scene(openworld.Open(openworld.resolver(), self.learned))
+        scene.domain.can, scene.domain.fits = can, fits
+        return scene
+
+    @needs_store
+    @needs_verbnet
+    def test_what_was_seen_is_about_the_carrier_not_the_pig(self):
+        """Anything put aboard a plane that fits on one flies with it: a
+        piano does, a house is bigger than a plane and does not."""
+        self.learned.carry("fly", "hog.n.03", "airplane.n.01", "plane",
+                           "put on", said="i put my pig on a plane")
+        scene = self.open_world(
+            lambda kind, verb: kind == "plane",
+            lambda kind, carrier: kind != "house")
+        said = page.say_to(scene, "what steps are required to make a piano "
+                                  "fly?")
+        self.assertEqual([one.name for one in scene.last_plan],
+                         ["put you piano plane", "fly piano plane"])
+        self.assertIn("a piano is smaller than a plane", said)
+        said = page.say_to(scene, "what steps are required to make a house "
+                                  "fly?")
+        self.assertIn("I could not see a way", said)
+        self.assertIn("a house is not smaller than a plane", said)
+
+    @needs_store
+    @needs_verbnet
+    def test_a_carrier_is_found_from_knowledge_for_any_motion(self):
+        """Nothing seen, nothing about sailing written: the store says what
+        sails, a vehicle among them, and the piano fits on it."""
+        scene = self.open_world(
+            lambda kind, verb: kind not in ("piano", "you"),
+            lambda kind, carrier: True)
+        page.say_to(scene, "what would it take to make a piano sail?")
+        self.assertTrue(scene.last_plan)
+        self.assertTrue(scene.last_plan[-1].name.startswith("sail piano "))
+
+    @needs_store
+    @needs_verbnet
+    def test_only_a_motion_is_carried(self):
+        """A chair on a barking dog is not barking: `bark` moves nothing,
+        and `make a chair bark` asks the chair to do it, not VerbNet's *bark
+        your shin*."""
+        scene = self.open_world(lambda kind, verb: kind == "dog",
+                                lambda kind, carrier: True)
+        said = page.say_to(scene, "what would it take to make a chair bark?")
+        self.assertIn("I could not see a way", said)
+        self.assertEqual(scene.last_plan, [])
+
     @needs_store
     @needs_verbnet
     def test_what_can_do_it_itself_just_does(self):

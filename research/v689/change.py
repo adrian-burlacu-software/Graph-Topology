@@ -470,6 +470,20 @@ def meaning(verb: str) -> frozenset:
     return frozenset(found)
 
 
+def moves(verb: str) -> bool:
+    """Whether doing it moves the one doing it: some frame of the verb says
+    `motion(E, <its subject>)`. Flying, swimming, sailing, rolling and going
+    do; barking, eating and sleeping do not. What is carried along shares a
+    motion (E2), and nothing else a carrier does."""
+    for frame, _ in frames().get(verb, ()):
+        positions = dict(frame.positions)
+        for predicate, negated, _, roles in frame.semantics:
+            if (predicate == "motion" and not negated and roles
+                    and positions.get(roles[0].lstrip("?")) == "subject"):
+                return True
+    return False
+
+
 def theme_subject(verb: str) -> bool:
     """Does VerbNet have a frame of this verb whose subject is the thing
     moved or changed: `the ball rolled`, `the vase broke`? Then a passive with

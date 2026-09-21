@@ -103,7 +103,24 @@ def scene_for(session) -> Scene:
     scene = SCENES[key]
     if scene.open and getattr(scene.domain, "can", False) is None:
         scene.domain.can = able(session)
+    if scene.open and getattr(scene.domain, "fits", False) is None:
+        scene.domain.fits = fitting(session)
     return scene
+
+
+def fitting(session):
+    """Whether a thing of one kind is smaller than one of another, asked of
+    what the conversation knows (`Session.smaller`: v688's R31)."""
+    smaller = getattr(session, "smaller", None)
+    if smaller is None:
+        return None
+    known: dict = {}
+
+    def fits(kind: str, carrier: str):
+        if (kind, carrier) not in known:
+            known[kind, carrier] = smaller(kind, carrier)
+        return known[kind, carrier]
+    return fits
 
 
 def able(session):

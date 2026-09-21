@@ -75,6 +75,9 @@ WANTINGS = (
                 r"(?:the |a |an )?(\w+)"), "at {0} {1}"),
 )
 
+#: `make X V`: what a thing is made to do.
+CAUSED = re.compile(r"\bmake\s+(?:the |a |an )?(\w+)\s+(\w+)")
+
 #: Words that are a verb or a filler rather than the name of a thing.
 NOT_A_THING = frozenset("""the a an and or is are was were be been it its
 this that there here what which where why who whose when how i you me
@@ -129,6 +132,35 @@ def past(verb: str) -> str:
 
 _RESOLVER = None
 
+_DOERS: dict = {}
+
+
+def doers(verb: str) -> list:
+    """Every sense the store says can do `verb`, best attested first."""
+    if verb not in _DOERS:
+        found: list = []
+        try:
+            import sqlite3
+
+            from research.v687 import build
+            connection = sqlite3.connect(
+                f"file:{build.DEFAULT_STORE}?mode=ro", uri=True)
+            try:
+                found = [row[0] for row in connection.execute(
+                    "SELECT concept, MAX(confidence) FROM facts WHERE "
+                    "relation = 'capable_of' AND object = ? "
+                    "GROUP BY concept ORDER BY MAX(confidence) DESC", (verb,))]
+            finally:
+                connection.close()
+        except Exception:                          # noqa: BLE001
+            found = []
+        _DOERS[verb] = found
+    return _DOERS[verb]
+
+
+def article(word: str) -> str:
+    return "an" if word[:1] in "aeiou" else "a"
+
 
 def resolver():
     """The store's taxonomy, opened once. It is what decides whether a
@@ -181,6 +213,17 @@ class Open(Domain):
         #: things the plan needs that nobody said were there: the plane a
         #: pig would have to be put on
         self.supposed: set = set()
+        #: why a carrier that does it was not a way: `a house is not
+        #: smaller than a plane`, for saying why there is no plan
+        self.refused: list = []
+        #: predicates asked for as something a thing does: `make a chair
+        #: bark` has the chair bark, and is not a state to leave it in,
+        #: whatever VerbNet's *bark your shin* says (`OpenReader`)
+        self.doings: set = set()
+        #: whether a thing of one kind is smaller than one of another:
+        #: `fits(kind, carrier)`, asked of what the conversation knows
+        #: (v688's R31) -- True, False, or None for not known
+        self.fits = None
 
     # -- what there is -----------------------------------------------------
     @property
@@ -211,15 +254,22 @@ class Open(Domain):
 
         - **by the thing itself**, if its kind can (`can`, asked of what the
           conversation knows): `fly bird` is one step;
-        - **by being carried**, if the thing's kind has been seen doing it
-          aboard something of another kind that does it (`Learned.carry`,
-          E2 as experience): `fly pig` needs the pig on a plane, and is the
-          plane's doing. What put it aboard in what was seen is tried first
-          (`prefer`), so the plan does it the way it was seen done.
+        - **by being carried**, when the doing is a motion (`change.moves`:
+          what is aboard a thing goes where it goes, E2) and there is a
+          carrier (`carriers`) that does it, that the thing can be put
+          aboard and fits on. `fly pig` needs the pig on a plane and is the
+          plane's doing; `sail piano` needs it on a ship. A carrier seen in
+          what the story showed (`Learned.carry`) is tried first, and the
+          way it was loaded then is the way it is loaded now (`prefer`).
         """
         goal = list(goal)
-        wanted, extra, prefer, seen = list(goal), [], {}, []
+        # A doing is done, not brought about: nothing that leaves a thing
+        # in a state of that name is asked for it.
+        wanted = [one for one in goal if not (
+            len(one.split()) == 2 and one.split()[0] in self.doings)]
+        extra, prefer, seen = [], {}, []
         self.carried, self.own, self.ways = {}, set(), {}
+        self.refused = []
         for literal in goal:
             parts = literal.split()
             if len(parts) != 2 or not self.a_doing(parts[0]):
@@ -229,25 +279,43 @@ class Open(Domain):
                 extra.append(Action(literal, frozenset(),
                                     frozenset({literal}), frozenset()))
                 self.own.add(literal)
-            for kind, carrier, named, way, said in (
-                    self.learned.carriers(verb) if self.learned else ()):
-                if not self.is_a(thing, kind):
+            for kind, carrier, named, way, said in self.carriers(verb):
+                # What was seen is a fact about the carrier: what is aboard
+                # it goes where it goes. The thing seen aboard is evidence,
+                # and anything else that can be put aboard it is carried the
+                # same way (`aboard`).
+                if not said and not self.able(named, verb):
+                    # A store row is a candidate: `pig bed capable_of fly`
+                    # is not a carrier, and v688 says so before size is
+                    # asked about at all.
                     continue
+                fits = ("" if kind and self.is_a(thing, kind)
+                        else self.aboard(thing, named, way))
+                if fits is None:
+                    continue
+                if not said:
+                    fits += f", and {article(named)} {named} can {verb}"
                 ride = next((one for one in sorted(self.things.kinds)
                              if one != thing and self.is_a(one, carrier)),
                             None)
                 if ride is None:
                     ride = named
+                    if not self.able(ride, verb):
+                        continue
                     self.note(ride, named)
                     self.supposed.add(ride)
-                if not self.able(ride, verb):
+                elif not self.able(ride, verb):
                     continue
                 aboard = f"at {thing} {ride}"
                 name = f"{verb} {thing} {ride}"
+                if name in self.carried:
+                    # The plane already offered is an aircraft too: the
+                    # first way found for it stands, with its reason.
+                    continue
                 extra.append(Action(name, frozenset({aboard}),
                                     frozenset({literal, f"{verb} {ride}"}),
                                     frozenset()))
-                self.carried[name] = (thing, ride, verb, said)
+                self.carried[name] = (thing, ride, verb, said, fits)
                 wanted.append(aboard)
                 if way:
                     doing, *by = way.split()
@@ -263,14 +331,82 @@ class Open(Domain):
                                 prefer=prefer) + extra, self.learned)
         return self._actions
 
-    @staticmethod
-    def a_doing(predicate: str) -> bool:
-        """A doing, not a state: a verb VerbNet has frames for that no
-        verb brings about. `fly` and `swim` are; `open` is brought about,
-        so `open door` asks for a state."""
+    #: How many carriers the store is asked about for one doing. Each is
+    #: two questions to v688 -- can it do it, and does the thing fit.
+    CARRIERS = 4
+
+    def carriers(self, verb: str) -> list:
+        """(kind seen aboard, carrier sense, its word, how it was loaded,
+        what was said) for everything that might carry a thing doing `verb`.
+
+        First what the story showed (`Learned.carry`). Then, for a motion
+        (`change.moves`), what the store says does it (`capable_of verb`)
+        that is a vehicle or a container -- VerbNet's own words for what
+        things ride in, read off the sense's own ancestors -- best attested
+        first. Whether each really can, and whether the thing fits, is asked
+        of v688 afterwards: the rows are candidates, not answers.
+        """
+        out = list(self.learned.carriers(verb)) if self.learned else []
         from research.v689 import change
-        return (predicate in change.frames()
-                and predicate not in verbs.brought_about())
+        if not change.moves(verb):
+            return out
+        seen = {one[1] for one in out}
+        for concept in doers(verb):
+            if len([one for one in out if not one[4]]) >= self.CARRIERS:
+                break
+            if concept in seen or not self.carries(concept):
+                continue
+            seen.add(concept)
+            out.append(("", concept,
+                        concept.split(".")[0].replace(" ", "-"), "", ""))
+        return out
+
+    def carries(self, concept: str) -> bool:
+        """Whether a sense is something things ride in or on: a vehicle or
+        a container, by its own ancestors in the store."""
+        senses = self.things.senses
+        if senses is None:
+            return False
+        try:
+            names = {concept.split(".")[0].replace(" ", "_")} | {
+                one.split(".")[0].replace(" ", "_")
+                for one in senses.ancestors(concept)}
+        except Exception:                          # noqa: BLE001
+            return False
+        return bool(names & (set(verbs.KINDS["vehicle"])
+                             | set(verbs.KINDS["container"])))
+
+    def aboard(self, thing: str, carrier: str, way: str) -> str | None:
+        """Whether a thing can be put aboard a carrier, and why: the verb
+        that put something aboard it must take the thing (`verbs.takes`:
+        put-9.1's Theme is concrete), and the thing must fit -- smaller than
+        the carrier, on the scale people rated. The reason as words, or
+        None where it cannot, or where its size is not known."""
+        doing = way.split()[0] if way else ""
+        kind = self.things.kinds.get(thing, thing)
+        a, one = f"{article(kind)} {kind}", f"{article(carrier)} {carrier}"
+        if doing and not verbs.takes(doing, "at", thing, self.things):
+            self.refused.append(f"{a} is not something one can {way} {one}")
+            return None
+        if self.fits is None:
+            return None
+        fits = self.fits(kind, carrier)
+        if fits is not True:
+            self.refused.append(f"{a} is not smaller than {one}"
+                                if fits is False else
+                                f"I do not know whether {a} fits on {one}")
+            return None
+        return f"{a} is smaller than {one}"
+
+    def a_doing(self, predicate: str) -> bool:
+        """A doing, not a state: a verb VerbNet has frames for that no
+        verb brings about (`fly`, `swim`; `open` is brought about, so `open
+        door` asks for a state), or one asked for as what a thing does
+        (`make a chair bark`)."""
+        from research.v689 import change
+        return predicate in self.doings or (
+            predicate in change.frames()
+            and predicate not in verbs.brought_about())
 
     def able(self, name: str, verb: str) -> bool:
         if self.can is None:
@@ -336,7 +472,7 @@ class Open(Domain):
 
     def _said(self, action: str, tense) -> str:
         if action in self.carried:
-            thing, ride, verb, _ = self.carried[action]
+            thing, ride, verb = self.carried[action][:3]
             if tense is past:
                 return (f"{self.the(ride)} {past(verb)}, carrying "
                         f"{self.the(thing)}")
@@ -442,4 +578,14 @@ class OpenReader:
         out = [fact for _, fact in sorted(found)]
         for fact in out:
             self.domain.seen.add(fact.split()[0])
+        if wanting:
+            # `make a pig fly`, `make a chair bark`: the thing is the one
+            # doing it, so it asks for a doing -- unless the word names a
+            # state (`make the door open`: WordNet's adjective, as T4 has
+            # it).
+            for match in CAUSED.finditer(plain):
+                thing, verb = match.group(1), match.group(2)
+                if (f"{verb} {thing}" in out and verb not in NOT_A_THING
+                        and not verbs.stated(verb)):
+                    self.domain.doings.add(verb)
         return out
