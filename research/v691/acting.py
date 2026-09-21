@@ -59,11 +59,14 @@ from research.v691 import world as W
 #: planner's taste -- there is no evaluation function and no backtracking
 #: across the choice.
 #:
-#: **Two signals survived, and the four obvious ones did not.** Written
-#: first were: prefer an action that achieves a goal fact, avoid one that
-#: undoes a goal fact, prefer one that frees a block the goal buries, prefer
-#: putting a block on the table. An exhaustive search over all sixteen
-#: subsets, on `world.SUITE` plus 20 sampled four-block problems, found the
+#: **Two signals survived; three obvious ones did not.** Written first were
+#: four local judgements: prefer an action that achieves a goal fact, avoid
+#: one that undoes a goal fact, prefer one that frees a block the goal
+#: buries, prefer putting a block on the table. Then the one that is not
+#: local: build the goal tower from the bottom. An exhaustive search over
+#: all sixteen
+#: subsets of the four, on `world.SUITE` plus 20 sampled four-block
+#: problems, found the
 #: goal-tower ordering on its own as good as any combination of them -- and
 #: then, held out on 97 sampled problems over three unseen seeds, `frees a
 #: goal block` beside it was better again. Solved / shortest / subgoals on
@@ -80,7 +83,7 @@ from research.v691 import world as W
 #: points, with the tower ordering alone it is worth six problems, so the
 #: subset search on its own would have thrown away the signal that solves
 #: the Sussman anomaly. And **`achieves a goal fact`, the most obvious
-#: signal of the four, is worth nothing at all** -- what matters is not
+#: of the local signals, is worth nothing at all** -- what matters is not
 #: which action helps now but the structure of the goal: build from the
 #: bottom, and clear what the goal has to sit on.
 #:
@@ -89,8 +92,9 @@ from research.v691 import world as W
 SIGNALS = {"frees a goal block": 0.5,
            "a level higher in the goal tower": -0.5}
 
-#: Whether an action may throw away what an open subgoal has achieved. Off
-#: only for `--ablate`, which is where the number in `SIGNALS` comes from.
+#: Whether an action may throw away what an open subgoal has achieved: see
+#: `operator_of`. Turned off only by `--ablate`, which is where the last
+#: line of the table in `SIGNALS` comes from.
 PROTECT = True
 
 #: A model run that has applied this many actions has not found a plan; it
