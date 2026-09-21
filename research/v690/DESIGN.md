@@ -834,6 +834,14 @@ and events, v690 generation, v691 world, actions, execution and monitoring.
   it **reaches 12/12 and is sensible on 8/12** -- the control is general,
   and choosing the verb a person would have chosen is a judgement about
   meaning, which is §8c's wall reached from the other side.
+- **That world is the default, and it learns.** A conversation starts in
+  it; `use the blocks world` is now the special case. What VerbNet cannot
+  say -- that a door cannot be open and closed, that you must be holding a
+  thing to put it down -- is learned at runtime, by being corrected and by
+  being told, and kept in `state/v691-learned.sqlite`. **Negative
+  preconditions come free with exclusion**: `needs` can only ask for a slot
+  to be present, and once `open` and `closed` are known to exclude, *the
+  door is closed* says *not already open* positively.
 - **It is on the page.** Ask `what worlds do you have`, `use the blocks
   world`, then describe and instruct; it plans, acts and says what it did,
   and `why` reads the means-ends subgoals back rather than generating an

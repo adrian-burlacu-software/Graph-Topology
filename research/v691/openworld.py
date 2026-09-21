@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import re
 
-from research.v691 import verbs
+from research.v691 import learned as L, verbs
 from research.v691.domains import Domain
 
 #: The shapes a fact is stated in, as (pattern, how to read the groups).
@@ -72,7 +72,8 @@ WANTINGS = (
 
 #: Words that are a verb or a filler rather than the name of a thing.
 NOT_A_THING = frozenset("""the a an and or is are was were be been it its
-this that there here what where why who how i you me my your please now
+this that there here what which where why who whose when how i you me
+my your please now
 actually then so to of in on at into onto with from for all some any thing
 things world worlds use using get put move take bring carry send place give
 hand pass make leave open close do does did can could would should""".split())
@@ -100,9 +101,13 @@ def resolver():
 class Open(Domain):
     """A domain whose every answer is worked out rather than declared."""
 
-    def __init__(self, resolver=None) -> None:
+    def __init__(self, resolver=None, learned=None) -> None:
         super().__init__(name="open")
         self.things = verbs.Things(resolver)
+        #: what has been worked out about acting that VerbNet does not say
+        #: -- which states exclude each other, what else has to be true --
+        #: kept between conversations (`learned.py`)
+        self.learned = learned
         #: every predicate seen, so `goalish` and `tellable` can answer
         self.seen: set = set()
 
@@ -126,7 +131,8 @@ class Open(Domain):
         return list(getattr(self, "_actions", ()))
 
     def toward(self, goal, per_verb: int = 8) -> list:
-        self._actions = verbs.useful(goal, self.things, per_verb=per_verb)
+        self._actions = L.applied(
+            verbs.useful(goal, self.things, per_verb=per_verb), self.learned)
         return self._actions
 
     def begin(self, objects: dict) -> frozenset:

@@ -82,6 +82,8 @@ class Heard:
     #: the facts a statement states (`openworld.WANTINGS`)
     wants: list = field(default_factory=list)
     domain: str = ""
+    #: what a sentence teaches about acting (`learned.teaching`)
+    taught: list = field(default_factory=list)
     trouble: str = ""
     #: how sure, so the act executive can rank it against v689's own acts
     weight: float = 0.0
@@ -295,6 +297,13 @@ class Scene:
                 facts |= {two.replace("?x", bits[1]) for two in
                           self.domain.starts.get(self.objects.get(bits[1]),
                                                  ())}
+        # Whatever is known to exclude the new state stops holding. This
+        # is what being taught an antonym buys: `open` arriving takes
+        # `closed` away, and nothing here knows which words those are.
+        learned = getattr(self.domain, "learned", None)
+        if learned is not None and len(parts) == 2:
+            for other in learned.excluded(parts[0]):
+                facts.discard(f"{other} {subject}")
         facts.add(fact)
         self.world.facts = frozenset(self._settled(facts))
 
@@ -353,9 +362,46 @@ class Scene:
         if not heard.facts:
             return "I did not catch what changed"
         self.introduce(heard.facts, heard.said.lower())
+        learnt = self.corrected(heard)
         for fact in heard.facts:
             self.put(fact)
-        return f"I see -- {self.look()}"
+        said = f"I see -- {self.look()}"
+        if learnt:
+            said += (". I did not know " + " and ".join(
+                f"a thing cannot be {one} and {other}"
+                for one, other in learnt) + "; I do now")
+        return said
+
+    def corrected(self, heard: Heard) -> list:
+        """What a correction teaches about which states exclude each other.
+
+        The scene holds `closed door`; the person says *the door is open
+        now*. Two states of one thing, one right after the other, the
+        second marked as a change: that is what incompatibility looks like
+        from the inside, and it is the only evidence for it there is. Two
+        facts holding at once is evidence they *do not* exclude and never
+        evidence that they do, so nothing is learned from co-occurrence.
+
+        Both have to be adjectives, asked of WordNet, because `mammal
+        whale` and `closed door` are the same shape and only one of them is
+        a state something can stop being in.
+        """
+        learned = getattr(self.domain, "learned", None)
+        if learned is None:
+            return []
+        from research.v689.change import adjective
+        found = []
+        for fact in heard.facts:
+            parts = fact.split()
+            if len(parts) != 2 or not adjective(parts[0]):
+                continue
+            for one in sorted(self.world.facts):
+                was = one.split()
+                if (len(was) == 2 and was[1] == parts[1]
+                        and was[0] != parts[0] and adjective(was[0])
+                        and learned.exclude(parts[0], was[0], heard.said)):
+                    found.append((parts[0], was[0]))
+        return found
 
     def look(self) -> str:
         """The scene, in the domain's own words.

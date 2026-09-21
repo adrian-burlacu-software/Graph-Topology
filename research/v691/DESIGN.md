@@ -368,7 +368,101 @@ patterns read a situation and four read an order, and that is deliberately
 not a grammar of English: v689's reader is that, and §9 says why they are
 not joined yet.
 
-## 9. What this does not do
+## 9. The open world is the default, and it learns
+
+Two things were still wrong with §8. You had to *ask* for the world with
+nothing declared about it, which made the general case the special one. And
+what it could not do was a fixed list -- the gaps in §10 were gaps for good,
+because nothing could tell it otherwise.
+
+### Starting there
+
+A conversation now starts in the open world. `use the blocks world` still
+gets a declared one, and that is the special case.
+
+The guard that made this safe before was *no world is open yet*, and that is
+gone, so the guard is now about the utterance. **This layer answers a turn
+only when what was said is about the world in front of it**, and the test is
+`scene_ish`: a fact says where something is, or says a thing is in a state
+(asked of WordNet, because `closed` is an adjective and `mammal` is not), or
+is about something already being talked about. `does a table have legs`
+reads perfectly well as `with legs table` and is v688's question, so `with`
+never introduces anything -- the holder has to be known already.
+
+One operator here does not answer. **`noting` fires first, records what the
+utterance said about the world, and returns CONTINUE**, so the cycle goes on
+and v689 answers the turn as it always did. That is what lets the open world
+be the default without taking anything away: the scene stays current whether
+or not this layer was the one to reply.
+
+### Learning what VerbNet cannot say
+
+`learned.py` is a sqlite file in `state/`, beside v689's memory and for the
+same reason -- it is what someone told a running server. Three things:
+
+```
+excludes   two states of a thing that cannot both hold
+requires   something else that has to be true to do a thing
+brings     an effect VerbNet did not mention
+```
+
+**Negative preconditions come free with exclusion**, which is why exclusion
+is worth learning first. `needs` is a list of slots that must be *present*,
+so *the door is not already open* cannot be said — but once `open` and
+`closed` are known to exclude each other, *the door is closed* says the same
+thing and is positive. One thing learned closes two of §10's gaps, and
+`learned.applied` folds it into the actions at grounding, where the facts
+are ground and the store is current.
+
+It is learned two ways.
+
+**By being corrected.** The scene holds `closed door`; the person says *the
+door is open now*. Two states of one thing, one right after the other, the
+second marked as a change — that is what incompatibility looks like from the
+inside. Both have to be adjectives, asked of WordNet, because `mammal whale`
+and `closed door` are the same shape and only one of them is a state
+something can stop being in.
+
+**By being told.** `a door cannot be open and closed`, `open and closed are
+opposites`, `you can only drop it if you are holding it`, `you must be
+holding it to put it down`, `it must be closed before you can open it`. A
+taught condition is over `?subject` and `?object` rather than over thematic
+roles, because a person says *you* and *it*, and which role those are is
+different for every verb.
+
+Nothing is inferred from co-occurrence: two facts holding at once is
+evidence that they *do not* exclude and never evidence that they do. So
+`forget` is a plain part of the interface — both a correction and a lesson
+can be wrong.
+
+```
+> the door is closed
+  all right: the door is closed
+> actually the door is open now
+  I see -- the door is open. I did not know a thing cannot be open and
+  closed; I do now
+> the window is closed
+> open the window
+  I open the window
+> what do you see
+  the door is open; the window is open
+```
+
+Learned of a door and used on a window, and still there next time the server
+starts. That is what makes it knowledge rather than a note about one thing.
+
+### The trap this cost
+
+`` written through a shell heredoc became a literal backspace, so
+`ASKING` — the pattern that decides an utterance is a question — could never
+match. Invisible in the file and in every `grep`. It shipped in the previous
+commit and did nothing, because no world was open by default; the moment one
+was, the agent started answering *does a table have legs* out of a scene and
+the probe moved by three. **This is the third time in this project, and the
+rule is already written down: use a file, never a heredoc, for anything
+containing an escape.** The repair was by line index with no escapes at all.
+
+## 10. What this does not do
 
 Said plainly, because the gap is the interesting part.
 
@@ -377,13 +471,14 @@ Said plainly, because the gap is the interesting part.
   a door must be unlocked before it opens: these are facts about bodies and
   rooms, true of every verb and therefore written on none of them. Some of
   it is derivable — being in one place is, above — and some is not.
-- **Antonymy is missing.** Opening a door does not retract `closed door`,
-  because nothing in the action model says they are opposites. WordNet knows
-  it; the store as built has no antonym table, so this is a data step and
-  not a hard problem.
-- **A negative precondition cannot be said.** `needs` is a list of slots
-  that must be present, so *the door is not already open* is dropped.
-  Opening an open door is a wasted action, not a wrong one.
+- **Antonymy and negative preconditions are no longer missing**, but they
+  are *learned* rather than known: until somebody says so, opening a door
+  does not retract `closed door` (§9). Nothing seeds them from WordNet,
+  which would be a data step and not a hard problem.
+- **The guard is a seam.** With the open world as the default, `scene_ish`
+  decides what this layer may answer, and a question form it does not
+  recognise is a turn taken from v688. The probe is the test that catches
+  it, and it has caught it twice.
 - **Nothing is inflected.** The narration says *I leave the book to the
   kitchen* because no morphology is available in the repository and a table
   of irregular verbs written here would be exactly the hand-written thing
@@ -393,14 +488,14 @@ Said plainly, because the gap is the interesting part.
   something, which is what it takes to show the planning is general. Joining
   it to v689's grammar is the work ToMi and StepGame showed is not free.
 
-## 10. What is next
+## 11. What is next
 
 
 - **a reason to prefer one verb over another**, per §8. This is the one
   that matters: reached is 12/12 and sensible is 8/12, and closing that is
   a knowledge problem of exactly the shape EntailmentBank left open.
-- **antonyms, and the axioms about bodies**, per §9 — both are data steps
-  rather than hard problems, and both make plans less silly.
+- **the axioms about bodies**, per §10 — that you must be where a thing
+  is to touch it. Antonymy is no longer on this list: §9 learns it.
 - **something that learns from a `Gap`**, per §6.
 - **plan quality**, per §2 — the first thing it needs and does not have is a
   notion of cost.

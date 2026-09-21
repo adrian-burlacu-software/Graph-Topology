@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import re
 
-from research.v687.executive import ANSWERED, Operator
+from research.v687.executive import ANSWERED, CONTINUE, Operator
 from research.v689 import session as v689
 from research.v691.domains import DOMAINS
 from research.v691.scene import Heard, Scene
@@ -58,6 +58,9 @@ SCENES: dict = {}
 SETUP = 210.0
 ORDER = 200.0
 ASK = 190.0
+#: Above everything, because it does not answer: it writes down what the
+#: utterance said about the world and lets the cycle go on.
+NOTING = 300.0
 
 WANTED = re.compile(r"\b(put|move|place|get|bring|take|make|build|set|"
                     r"deliver|fetch|carry|stack|send)\b")
@@ -70,11 +73,73 @@ WORLDS = re.compile(r"\b(what worlds|which worlds|what domains)\b")
 USING = re.compile(r"\buse the (\w+) world\b|\bswitch to (\w+)\b")
 
 
+#: What has been worked out about acting, shared by every conversation and
+#: kept on disk. One store, because `a door cannot be open and closed` is
+#: not true only of the conversation it was said in.
+_LEARNED = None
+
+
+def store():
+    global _LEARNED
+    if _LEARNED is None:
+        from research.v691.learned import Learned
+        _LEARNED = Learned()
+    return _LEARNED
+
+
 def scene_for(session) -> Scene:
+    """The scene this conversation is about.
+
+    **A conversation starts in the open world**, which is the one with
+    nothing declared about it: what can be done comes from what verbs mean
+    and what things are comes from the store. Saying `use the blocks world`
+    still gets a declared one, and that is now the special case rather than
+    the way in.
+    """
     key = getattr(session, "conversation", "") or id(session)
     if key not in SCENES:
-        SCENES[key] = Scene()
+        from research.v691.openworld import Open, resolver
+        SCENES[key] = Scene(Open(resolver(), store()))
     return SCENES[key]
+
+
+def scene_ish(facts, scene) -> bool:
+    """Whether these facts are about the world in front of it.
+
+    With the open world as the default this is the whole of the guard, and
+    it has to be strict in one direction: `a whale is a mammal` reads as
+    `mammal whale` and is v688's question, not a scene. A fact is the
+    scene's if it says where something is, if it says a thing is in a state
+    -- asked of WordNet, because `closed` is an adjective and `mammal` is
+    not -- or if it is about something already being talked about.
+    """
+    from research.v689.change import adjective
+    if not facts:
+        return False
+    if getattr(scene.domain, "says", None):
+        # A declared domain was read through its own `say` lines, so
+        # anything they matched is about it by construction. The guard is
+        # for the open world, where the patterns are English's and not any
+        # world's.
+        return True
+    for fact in facts:
+        parts = fact.split()
+        if len(parts) > 1 and parts[1] in scene.objects:
+            continue
+        if parts[0] == "at":
+            continue
+        if parts[0] == "with":
+            # `does a table have legs` reads as `with legs table`, and it is
+            # v688's question about a kind. A holder already being talked
+            # about is what makes it this scene's instead, so `with` alone
+            # never introduces anything.
+            if len(parts) > 2 and parts[2] in scene.objects:
+                continue
+            return False
+        if len(parts) == 2 and adjective(parts[0]):
+            continue
+        return False
+    return True
 
 
 def hear(text: str, scene: Scene) -> Heard:
@@ -100,6 +165,13 @@ def hear(text: str, scene: Scene) -> Heard:
     if not scene.open:
         # No world open: this layer has nothing to say, and says nothing.
         return said
+    from research.v691.learned import teaching
+    taught = teaching(plain)
+    if taught and getattr(scene.domain, "learned", None) is not None:
+        said.act = "learn"
+        said.weight = SETUP
+        said.taught = taught
+        return said
     facts = scene.reader.facts_in(plain)
     wants = facts
     try:
@@ -122,7 +194,8 @@ def hear(text: str, scene: Scene) -> Heard:
     elif plain.startswith("why") and scene.last_plan:
         said.act = "why"
         said.weight = ASK
-    elif MEDDLED.search(plain) and facts and known:
+    elif (MEDDLED.search(plain) and facts and known
+          and scene_ish(facts, scene)):
         said.act = "meddle"
         said.weight = ORDER
     elif plain.startswith(("where is", "where are")) and known:
@@ -135,8 +208,8 @@ def hear(text: str, scene: Scene) -> Heard:
             one.split()[0] in scene.domain.goalish for one in wants):
         said.act = "want"
         said.weight = ORDER
-    elif facts and (TOLD.search(plain) or not known
-                    or not ASKING.match(plain)):
+    elif (facts and not ASKING.match(plain)
+          and scene_ish(facts, scene)):
         said.act = "tell"
         said.weight = ORDER
     return said
@@ -144,8 +217,9 @@ def hear(text: str, scene: Scene) -> Heard:
 
 #: What a question or a query opens with. Everything else that states a fact
 #: states it, which is what makes `the door is closed` something told.
-ASKING = re.compile(r"^(what|where|why|who|when|how|is|are|was|were|can|"
-                    r"could|does|do|did|will|would|should|may|might)")
+ASKING = re.compile(r"^(what|which|where|why|who|when|whose|how|is|are|was|"
+                    r"were|can|could|does|do|did|will|would|should|may|"
+                    r"might)\s")
 
 
 def _an_order(plain: str) -> bool:
@@ -205,10 +279,37 @@ def which(scene: Scene, heard: Heard) -> str:
               "what things are comes from the store.")
 
 
+def taught(scene: Scene, heard: Heard) -> str:
+    """Learn what was said about acting, into long-term memory.
+
+    The two things `DESIGN.md` §9 said were missing and could not be read
+    off a verb, because they are facts about doors and hands rather than
+    about words: which states exclude each other, and what else has to be
+    true. Both are ordinary things to say while somebody is getting it
+    wrong, and both are kept until they are taken back.
+    """
+    learned = scene.domain.learned
+    said = []
+    for one in getattr(heard, "taught", ()):
+        if one[0] == "exclude" and learned.exclude(one[1], one[2],
+                                                   heard.said):
+            said.append(f"a thing cannot be {one[1]} and {one[2]}")
+        elif one[0] == "require" and learned.require(one[1], one[2],
+                                                     heard.said):
+            plain = one[2].replace("?subject", "you").replace(
+                "?object", "it")
+            said.append(f"to {one[1]} something, "
+                        f"{scene.domain.in_words(plain)}")
+    if not said:
+        return "I already knew that"
+    return "noted, and I will remember: " + "; ".join(said)
+
+
 #: act -> (handler, utility, what the operator's rule says, what it changes).
 #: One table, read by the page's operators and by the REPL, so a turn cannot
 #: mean two things depending on where it was said.
 ACTS = {
+    "learn": (taught, SETUP, "learn something about acting", ()),
     "use a world": (used, SETUP, "change the world talked of", ()),
     "which worlds": (which, SETUP, "the worlds it has", ()),
     "tell": (lambda scene, heard: scene.tell(heard), ORDER,
@@ -253,8 +354,31 @@ def replies(session) -> list:
         return Operator(name=name, apply=apply, proposes=proposes,
                         utility=utility, rule=rule, effects=effects)
 
-    return [answering(name, handler, utility, rule, effects)
-            for name, (handler, utility, rule, effects) in ACTS.items()]
+    def noting(memory):
+        """Record what an utterance says about the world, and go on.
+
+        This is the one operator here that does not answer. It returns
+        CONTINUE, so the cycle carries on and v689 answers the turn as it
+        always did -- which is what lets the open world be the default
+        without taking `a whale is a mammal` away from v688. The scene
+        stays current either way, so an order two turns later knows where
+        things are.
+        """
+        scene = scene_for(session)
+        heard = heard_for(session, memory["reading"].said)
+        memory["noted"] = True
+        if heard.act or not scene.open:
+            # Something here is going to act on it; it will record its own.
+            return CONTINUE
+        if scene_ish(heard.facts, scene):
+            scene.tell(heard)
+        return CONTINUE
+
+    return [Operator(name="noting", apply=noting, gives=("noted",),
+                     utility=NOTING, rule="what the utterance says is there",
+                     proposes=lambda memory: scene_for(session).open)] + [
+        answering(name, handler, utility, rule, effects)
+        for name, (handler, utility, rule, effects) in ACTS.items()]
 
 
 def say_to(scene: Scene, text: str) -> str:
