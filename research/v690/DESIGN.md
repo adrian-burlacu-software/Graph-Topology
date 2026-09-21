@@ -816,6 +816,17 @@ unseen seeds):
   undo what a goal beneath it has got. Worth 18 of the held-out 97, and it
   has to be asymmetric -- protecting goal facts too is what makes Sussman
   unsolvable.
+- **A surprise is an impasse**, not a branch: when the world is not what an
+  action was expected to leave, E2's mechanism opens a substate that works
+  out what to do. What that leaves behind is `acting.Gap` -- a prediction
+  the agent made itself, falsified by the world, with the action that made
+  it still in hand. It is the first learning signal in this project that is
+  not an external judgement of an answer. Nothing learns from it yet.
+- **You can talk to it** (`python -m research.v691`). Say what is on the
+  table and what you want; it plans, acts, and says what it did, and `why`
+  reads the means-ends subgoals back rather than generating an explanation
+  separately from the search. The reader is twelve phrasings on purpose --
+  a thin shell over a thick agent, so the demonstration is the planning.
 
 ## 9. Risks
 

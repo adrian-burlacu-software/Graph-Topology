@@ -164,17 +164,83 @@ Magnitudes are irrelevant — 0.25 and 2.0 give identical results — because
 means-ends reads an order, not a score. That is worth remembering before any
 of this is handed to utility learning.
 
-## 5. What is next
+## 5. A surprise is an impasse (v691b)
 
-- **v691b — perturb mid-execution.** The mechanism is already built and
-  already tested (`test_a_world_that_moves_underneath_is_a_surprise`): the
-  agent compares what it expected with what it sees and plans again. What is
-  not built is treating the surprise as an *impasse* rather than as a
-  re-plan, and learning from the prediction-versus-observation gap — the
-  first signal in this project that counterfactual credit could actually
-  learn from.
+When `look` finds the world is not what the action was expected to leave,
+it does not quietly plan again. It **names an impasse**, and nothing can be
+proposed until the subgoal `make sense of it` has run and handed back a
+plan: `noticed` writes down the difference, `plan again` replans from the
+world as it is now. That is E2's mechanism doing the job v691 was built
+for, and the reason it matters is not tidiness — it is that the gap between
+what was predicted and what was observed now has somewhere to live.
+
+`acting.Gap` is that gap: the action, what was expected and not found, what
+was found and not expected, and how far in it happened. **It is the first
+thing in this project a learner could be given.** Everywhere else the signal
+was whether an answer was right, judged from outside; this is a prediction
+the agent made itself, falsified by the world, with the action that made it
+still in hand. Nothing learns from it yet, and that is the next piece of
+work rather than an oversight.
+
+Two small things the mechanism needed, both recorded because they are
+traps:
+
+- The executive resolves each impasse **name** once per run, rightly — a
+  second unresolved impasse of the same name is the first one still
+  standing. Two surprises are not that, so they are numbered, and
+  `Surprises` maps every `surprise N` to the one substate.
+- `plan it` has to refuse to propose while a surprise is open, or the
+  impasse never happens and the substate is decoration.
+
+## 6. Talking to it (`talking.py`)
+
+The point of an agent is that you can give it a problem. `talking.py` is a
+conversation over a scene: you say what is on the table, you say what you
+want, and it plans, acts, and tells you what it did.
+
+```
+> there is a red block on a green block, and a blue block on the table
+> put the green block on the blue block and the red block on the green block
+  I took the red block off the green block and put it on the table, put the
+  green block on the blue block, then put the red block on the green block
+> why did you move the red block
+  I took the red block off the green block because I needed the green block
+  clear before I could pick up the green block
+```
+
+That second line is the Sussman anomaly said in English, and the third is
+worth more than it looks: **nothing generates an explanation.** The planner's
+means-ends subgoals are already named `achieve clear green for take green`,
+so `why` reads the goal stack back and puts it into words. An explanation
+that had to be invented separately from the search would be a story about
+the agent; this one is the search.
+
+Three deliberate limits:
+
+- **The reader is thin on purpose.** Twelve phrasings and a colour list.
+  v689's grammar is where the knowledge of language lives, and pointing it
+  at a new act is where ToMi and StepGame died; a thin shell over a thick
+  agent keeps the demonstration about the planning. Anything it cannot read
+  it refuses *by name* (`Heard.trouble`) rather than guessing.
+- **The acts are an `Executive`**, the same shape as v689's `say`, because
+  choosing what an utterance is for is the same kind of choice as choosing
+  what to do about a goal.
+- **A change between turns is not a surprise.** Say `actually the red block
+  is on the table now` and the agent simply plans from what it finds — it
+  was not expecting anything at the time. A surprise needs the world to move
+  *during* an action, so `--gremlin` puts something in the world that does
+  that, and the reply then says what it expected, what it found, and what it
+  did about it.
+
+## 7. What is next
+
+- **something that learns from a `Gap`**, per §5. It is the first signal
+  this project has had that is the agent's own prediction rather than an
+  external judgement.
 - **the chunk key**, per §2. A chunk keyed on the state is useless in a
   world; keyed on what the impasse turned on it might not be.
+- **more than one domain.** `world.py` is generic and only `blocks()` is
+  not; a second domain would say so rather than assert it.
 - **v691c — a real text environment** (ScienceWorld over ALFWorld: it is
   science, so the graph's knowledge is relevant). This is where the reader
   becomes load-bearing again, and §2's irreversibility stops being

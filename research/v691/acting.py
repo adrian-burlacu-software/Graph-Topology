@@ -1,16 +1,17 @@
-"""An agent that plans and then acts: v691a.
+"""An agent that plans and then acts.
 
 `DESIGN.md` (v690) §8c closed the executive as a *reasoner*. Three things
-were missing before it could be an *agent*, and this is the first of them
-built end to end, deliberately with no reader anywhere near it.
+were missing before it could be an *agent*, and all three are here,
+deliberately with no reader anywhere near them (`talking.py` is where one
+gets added, and it is kept thin on purpose):
 
     a world           facts that change only by acting, and are not undone
                       by giving up on a goal (`world.World`)
     planning          the executive's own means-ends analysis, run over a
                       model of the world rather than over what it knows
     execution         one action at a time against the real world, looking
-                      after each, and planning again when what it sees is
-                      not what it expected
+                      after each -- and a **surprise is an impasse**, so
+                      what to do about it is a substate and not a branch
 
 ## Working memory is nearly a world, and the difference is one method
 
@@ -19,7 +20,9 @@ preconditions are an `Operator`'s `needs`, its adds are that operator's
 `gives`, and `Executive` then plans over actions with no translation at all:
 `_means_ends` picking the most useful waiting operator and pushing a subgoal
 for the slots it lacks **is** goal-stack planning, which is what a STRIPS
-planner of the period did. Nothing in `executive.py` was changed.
+planner of the period did. One thing was added to `executive.py` and it is a
+pure read -- `pursuing()`, so an operator can decline to undo what a goal
+beneath it has got (see `operator_of`).
 
 Two things did have to be added here, and both are the same point from
 different sides -- *a world is not a belief*:
@@ -49,8 +52,8 @@ import time
 from dataclasses import dataclass, field
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Chunks,
-                                     Executive, Operator, Working, episode,
-                                     pursuing)
+                                     Executive, Operator, Subgoal, Working,
+                                     episode, pursuing)
 from research.v691 import world as W
 
 #: How the ground actions are ordered before the executive ever sees them,
@@ -278,6 +281,10 @@ class Search:
     subgoals: int = 0
     depth: int = 1
     answered: bool = False
+    #: the run itself. Kept because the means-ends subgoal names are the
+    #: only record of *what each action was for* -- `achieve clear red for
+    #: stack green red` -- and `talking.Table._why` reads them back.
+    trace: object = None
 
 
 def _tally(trace, at: int = 1) -> tuple:
@@ -305,11 +312,47 @@ def think(actions, facts, goal, chunks: Chunks | None = None) -> Search:
     trace = executive.run(memory)
     fired, subgoals, depth = _tally(trace)
     return Search(plan=tuple(memory.get("plan", ())), fired=fired,
-                  subgoals=subgoals, depth=depth,
+                  subgoals=subgoals, depth=depth, trace=trace,
                   answered=trace.answered_by is not None)
 
 
 # -- the agent: plan, act, look --------------------------------------------
+
+class Surprises(dict):
+    """Every surprise opens the same subgoal, whatever it is numbered.
+
+    The executive looks an impasse's name up here, and resolves each name
+    once per run. Surprises need a name apiece -- the second one is not the
+    first one still standing -- but they all want the same substate, so the
+    lookup is by prefix and the dict holds the one subgoal it ever returns.
+    """
+
+    def __init__(self, sense: Subgoal) -> None:
+        super().__init__(surprise=sense)
+        self.sense = sense
+
+    def get(self, name, default=None):
+        return (self.sense if str(name).startswith("surprise") else default)
+
+
+@dataclass
+class Gap:
+    """What an action was expected to leave, against what it did.
+
+    The first thing in this project a learner could be given: everywhere
+    else the signal was whether an answer was right, and this is a
+    prediction the agent made itself, falsified by the world, with the
+    action that made it still in hand. Nothing learns from it yet.
+    """
+
+    action: object
+    #: expected and not found
+    missing: frozenset
+    #: found and not expected
+    extra: frozenset
+    #: how many actions had been taken when it happened
+    after: int
+
 
 @dataclass
 class Attempt:
@@ -323,6 +366,10 @@ class Attempt:
     plans: int = 0
     surprises: int = 0
     search: Search = field(default_factory=Search)
+    #: a `Gap` for each surprise, in order -- the prediction against the
+    #: observation, which is the first thing in this project that
+    #: counterfactual credit could learn from
+    gaps: list = field(default_factory=list)
 
     @property
     def shortest(self) -> bool:
@@ -341,10 +388,18 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
     `act` outranks `plan it`, so a plan in hand is followed rather than
     re-derived. Each repeats, and each clears its own condition -- the trap
     every repeating operator in this project has fallen into once.
+
+    **A surprise is an impasse, not a flag.** When `look` finds the world
+    is not what the action was expected to leave, it does not quietly plan
+    again: it names the impasse, and nothing can be proposed until the
+    subgoal `make sense of it` has run and handed back a plan. That is E2's
+    mechanism doing the job v691 was built for, and it is the reason the
+    gap between prediction and observation is somewhere a trace can find it
+    rather than a branch inside a loop.
     """
     report = attempt if attempt is not None else Attempt()
 
-    def planned(memory):
+    def plan_from(memory) -> str:
         report.plans += 1
         found = think(problem.actions, real.facts, problem.goal, chunks)
         report.search = found
@@ -357,10 +412,12 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
     def acted(memory):
         plan = memory["plan"]
         action = plan.pop(0)
+        memory["did"] = action
         memory["expected"] = action.on(real.facts)
         if not real.do(action):
             # The world refused: it was not as the model had it.
-            memory["expected"] = None
+            memory["expected"] = frozenset(real.facts)
+            memory["refused"] = True
         else:
             report.acted += 1
         if not plan:
@@ -369,9 +426,19 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
 
     def looked(memory):
         expected = memory.pop("expected")
-        if expected is None or expected != real.facts:
-            report.surprises += 1
-            memory.pop("plan", None)
+        refused = memory.pop("refused", False)
+        if not refused and expected == real.facts:
+            return CONTINUE
+        report.surprises += 1
+        report.gaps.append(Gap(memory.get("did"),
+                               frozenset(expected) - real.facts,
+                               frozenset(real.facts) - frozenset(expected),
+                               report.acted))
+        memory.pop("plan", None)
+        # Numbered, because the executive resolves each impasse *name* once
+        # per run, and a second surprise is a second impasse rather than
+        # the first one still standing.
+        memory["impasse"] = f"surprise {report.surprises}"
         return CONTINUE
 
     def finished(memory):
@@ -379,7 +446,36 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
         memory["outcome"] = "solved"
         return ANSWERED
 
-    return Executive([
+    # What the impasse opens. `noticed` writes down the difference so the
+    # trace carries it; `plan again` replans from the world as it is now,
+    # and it is a different operator from `plan it` only so that a trace
+    # says which of the two a plan came from.
+    def noticed(memory):
+        memory["gap"] = report.gaps[-1] if report.gaps else None
+        return CONTINUE
+
+    def replanning(memory) -> bool:
+        """Plan, unless a plan is in hand or a surprise is still open: the
+        impasse is what decides what happens next, and this operator
+        standing in for it would make the impasse cosmetic."""
+        if dict.__contains__(memory, "plan"):
+            return False
+        named = dict.get(memory, "impasse")
+        return not named or named in dict.get(memory, "resolved", [])
+
+    sense = Subgoal(
+        goal="make sense of it",
+        executive=Executive([
+            Operator(name="noticed", apply=noticed,
+                     rule="what was expected, against what is",
+                     gives=("gap",)),
+            Operator(name="plan again", apply=plan_from, needs=("gap",),
+                     rule="means-ends again, from the world as it is now",
+                     gives=("plan",)),
+        ], name="surprise"),
+        returns=("plan",))
+
+    watching = Executive([
         Operator(name="done", apply=finished,
                  proposes=lambda memory: real.solved(problem.goal),
                  rule="the goal holds in the world", gives=("outcome",)),
@@ -392,12 +488,16 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
                  rule="do the next action of the plan",
                  needs=("plan",), gives=("expected",),
                  effects=(W.WORLD,), repeats=True),
-        Operator(name="plan it", apply=planned,
-                 proposes=lambda memory: not dict.__contains__(memory,
-                                                               "plan"),
+        Operator(name="plan it", apply=plan_from, proposes=replanning,
                  rule="means-ends, against a model of the world",
                  gives=("plan",), repeats=True),
-    ], name="agent")
+    ], name="agent", subgoals={"surprise": sense})
+    # After construction, because `Executive` copies what it is given into a
+    # plain dict -- rightly, since a caller's dict changing underneath it
+    # would change which impasses it can resolve mid-run. Here the mapping
+    # *is* the behaviour, so it is put back.
+    watching.subgoals = Surprises(sense)
+    return watching
 
 
 def solve(problem: W.Problem, chunks=None, optimal: bool = True) -> Attempt:

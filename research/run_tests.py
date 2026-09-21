@@ -58,7 +58,8 @@ SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
           "research.v689.test_babi", "research.v689.test_frames",
           "research.v689.test_reader", "research.v690.test_v690",
           "research.v690.test_entailment",
-          "research.v691.test_v691")
+          "research.v691.test_v691",
+          "research.v691.test_talking")
 
 COUNT = re.compile(r"^Ran (\d+) test")
 

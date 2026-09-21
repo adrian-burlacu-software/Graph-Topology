@@ -216,10 +216,45 @@ class AgentTests(unittest.TestCase):
 
         real = Meddled(problem.start)
         report = acting.Attempt(name=problem.name)
-        acting.agent(problem, real, None, report).run(Working(goal="solve"))
+        trace = acting.agent(problem, real, None, report).run(
+            Working(goal="solve"))
         self.assertTrue(real.meddled)
         self.assertGreaterEqual(report.surprises, 1)
         self.assertGreater(report.plans, 1)
+        self.assertTrue(report.solved)
+        # The surprise is an impasse, not a branch: it opens a substate.
+        opened = [one.goal for one in trace.subgoals]
+        self.assertIn("make sense of it", opened)
+        inner = [step.operator for step in trace.subgoals[0].fired]
+        self.assertEqual(inner, ["noticed", "plan again"])
+
+    def test_a_surprise_says_what_was_expected_and_what_is(self):
+        """The prediction against the observation, kept where something
+        could learn from it. Nothing learns from it yet."""
+        problem = next(one for one in W.SUITE if one.name == "three in a row")
+        real = problem.world()
+        report = acting.Attempt(name=problem.name)
+        executive = acting.agent(problem, real, None, report)
+
+        # Someone puts the first block back down the moment it is picked
+        # up. `Problem.actions` grounds the domain afresh each time, so the
+        # planner's action is an equal object and not the same one.
+        def meddle(action, real=real):
+            done = W.World.do(real, action)
+            if done and len(real.did) == 1:
+                block = action.name.split()[1]
+                real.facts = ((real.facts - {f"held {block}"})
+                              | {f"clear {block}", f"table {block}", "empty"})
+            return done
+
+        real.do = meddle
+        executive.run(Working(goal="solve"))
+        self.assertEqual(report.surprises, 1)
+        gap = report.gaps[0]
+        block = str(gap.action).split()[1]
+        self.assertIn(f"held {block}", gap.missing)
+        self.assertIn(f"table {block}", gap.extra)
+        self.assertEqual(gap.after, 1)
         self.assertTrue(report.solved)
 
 
