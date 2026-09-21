@@ -266,6 +266,25 @@ class Taught:
         return self.asker.participle(word)
 
 
+#: Acts contributed by layers above this one, as callables taking the
+#: session and returning `Operator`s for the act executive.
+#:
+#: v691's agent is an act like any other -- it reads an utterance, does
+#: something and answers -- but it is a *later* layer, and a later layer
+#: importing into an earlier one is how the cascades this executive replaced
+#: became impossible to follow. So it registers instead: `v691.page` calls
+#: `contributes` when it is imported, the operators join the conflict set on
+#: their own utility, and a turn's trace shows what they were chosen over.
+LAYERS: list = []
+
+
+def contributes(make) -> None:
+    """Register a later layer's acts. Idempotent, because a page that
+    imports two servers would otherwise register them twice."""
+    if make not in LAYERS:
+        LAYERS.append(make)
+
+
 @dataclass
 class Turn:
     number: int
@@ -461,7 +480,8 @@ class Session:
                         proposes=lambda memory:
                         memory["reading"].act not in acts
                         and memory["reading"].act != "question",
-                        effects=ACT_EFFECTS["generic"])],
+                        effects=ACT_EFFECTS["generic"])]
+            + [one for make in LAYERS for one in make(self)],
             name="act")
         # Several claims in one statement (`clauses.py`) are acted on in
         # order, and answered together. What the first one resolved to is

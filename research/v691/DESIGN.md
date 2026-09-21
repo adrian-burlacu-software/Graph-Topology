@@ -2,79 +2,94 @@
 
 v690 §8c closed the executive as a **reasoner**: E1–E6 built, ProofWriter
 answered to depth 5, EntailmentBank's remaining gap shown to be about
-meaning rather than about control. The conclusion there was that the
-architecture was finished and the capability was idle — there was nothing
-left for it to do that it was not already doing.
+meaning rather than control. The conclusion was that the architecture was
+finished and the capability idle.
 
 v691 is what it was idle *for*. An agent has to do three things the
-executive had never been asked to do:
+executive had never been asked to do — hold a world that changes only by
+acting, execute against it rather than return a plan nobody runs, and notice
+when what happened is not what it expected — and one thing the first version
+of this file did not do: **work anywhere but where it was fitted**.
 
-| | what was missing | where it is |
-|---|---|---|
-| a world | facts that change only by acting, and are not undone by giving up | `world.World`, `acting.Situation` |
-| execution | one action at a time against the world, not a plan nobody runs | `acting.agent` |
-| surprise | noticing that what happened is not what was expected | `acting.agent`'s `look` |
+## 1. A domain is a string
 
-**v691a is a blocks world with no reader anywhere in it.** That is
-deliberate, and it is the ProofWriter move: instrument before task. ToMi and
-StepGame died at the parser, so a domain where
-there is nothing to parse makes any failure the architecture's. It also
-makes the suite run in a tenth of a second, which is why there are
-twenty-four measured problems and three held-out seeds instead of an
-anecdote.
+The first version of v691 was a blocks world written in Python, and that hid
+the question it was supposed to answer. `world.blocks()` built ground
+actions with a loop; the planner's utility signals mentioned `stack` and
+`clear` by name; the conversation knew what a colour was. Every number was
+measured on blocks, so "the executive can plan" was a claim about the one
+domain everything had been tuned on.
 
-## 1. What was built, and what it comes to
-
-`world.py` is the domain: ground `Action`s with preconditions, adds and
-**deletes**; a `World` whose only mutator announces itself with `effect`; a
-fixed suite of ten problems, a sampler, and a breadth-first oracle that says
-what the shortest plan was.
-
-`acting.py` is the agent. The planner is **the executive itself** — nothing
-in `executive.py` was changed to make this work:
+Now a domain is a **string** (`domains.py`), and four things read it:
 
 ```
-an Action's preconditions   ->  an Operator's `needs`
-an Action's adds            ->  an Operator's `gives`
-_means_ends at an impasse   ->  goal-stack planning
+action stack ?x:block ?y:block
+  needs held ?x, clear ?y
+  adds  empty, clear ?x, on ?x ?y
+  dels  held ?x, clear ?y
+
+say    on     the {0} block is on the {1} block
+reads  on     {0} on {1}
+do     stack  put the {0} block on the {1} block
 ```
 
-Means-ends taking the most useful waiting operator and pushing a subgoal for
-the slots it lacks **is** what a STRIPS planner of the period did. The whole
-translation is `acting.operator_of`, which is fifteen lines.
+One text gives the planner its actions, the reader its phrasings and the
+narrator its words, because they are three views of the same thing. The
+`say` line is compiled **both ways**, so what it understands and what it
+says cannot drift apart. Argument types are not declared twice: `in` is a
+thing and then a place because the schema that needs it says so
+(`Domain.typing`).
 
-Measured on `world.SUITE` plus 20 sampled four-block problems (24 after the
-degenerate ones are dropped), with a breadth-first oracle for the optimum:
+Three domains ship — `blocks`, `errands` (fetch things between places) and
+`delivery` (parcels, vans, towns). Adding a fourth is writing one of these
+texts. Nothing in `world.py`, `acting.py`, `scene.py` or `page.py` names a
+predicate, an action or a kind of thing.
 
-```
-solved 21/24, of which 18 in the fewest actions;
-118 actions, 187 operators fired, 799 subgoals, deepest goal stack 9
-```
+## 2. The planner is the executive, unchanged
 
-and held out on 97 sampled problems over three unseen seeds, **78 solved,
-68 of them optimal**. The Sussman anomaly is solved in six, which is
-optimal. There is no backtracking anywhere: every problem is one forward
-pass, and the three that fail, fail because the first choice was the only
-one.
+An `Action`'s preconditions are an `Operator`'s `needs` and its adds are its
+`gives`, so `_means_ends` — taking the most useful waiting operator and
+pushing a subgoal for the slots it lacks — **is** goal-stack planning, which
+is what a STRIPS planner of the period did. The whole translation is
+`acting.operator_of`, fifteen lines, and nothing in `executive.py`'s cycle
+changed.
 
-## 2. The three things a world broke, and what each cost
+| domain | solved | shortest | actions | optimal | subgoals |
+|---|---|---|---|---|---|
+| blocks (10 fixed + 14 sampled) | 23/24 | 19 | 150 | 134 | 1157 |
+| blocks, held out (3 unseen seeds) | 76/97 | 67 | | | |
+| errands (30 sampled) | 30/30 | 1 | 398 | 218 | 1865 |
+| delivery (30 sampled) | 30/30 | 3 | 465 | 163 | 617 |
+
+The Sussman anomaly is solved in six, which is optimal. There is no
+backtracking anywhere: every problem is one forward pass.
+
+**Control transfers; plan quality does not.** Both new domains are solved
+outright, and almost none of those plans are the shortest — the agent drives
+a van to the wrong town and back before fetching the parcel. Blocks is
+nearly all optimal because almost every action there changes something that
+matters; `go` and `drive` can be repeated at no cost, and means-ends counts
+no cost. A planner that cared about length would need an evaluation
+function, which is a different thing from the control this was built to
+test, and is not smuggled in here.
+
+## 3. The three things a world broke, and what each cost
 
 ### `gives` only ever adds
 
-Nothing in the executive ever removes a slot, because knowing something does
-not stop you knowing something else. **Acting does.** `Executive.plan` is
-honest about what it is — *what could be, not what will* — and it is kept,
-unchanged, as the baseline `by_regression`, because the size of the gap is
-worth a number rather than an argument:
+Nothing in the executive removes a slot, because knowing something does not
+stop you knowing something else. **Acting does.** `Executive.plan` is honest
+about what it is — *what could be, not what will* — and is kept unchanged as
+the baseline `by_regression`, so the gap is a number:
 
 ```
 22 four-block problems: a plan for 22, executable to the end for 2,
 49 actions applied in total before one did not apply
 ```
 
-It also does not terminate in reasonable time past four blocks, and that is
-the same fact from the other side: with nothing ever becoming false, every
-action always *could* be added, so the regression has nothing to prune on.
+Past four blocks it does not return, which is the same fact from the other
+side: with nothing ever becoming false, every action always *could* be
+added, so the regression has nothing to prune on.
 
 ### `Working` un-does a failed subgoal, and a world does not
 
@@ -83,169 +98,166 @@ That is exactly right for belief and exactly wrong for a world: a subgoal
 that unstacked a block and then gave up has still unstacked it.
 `acting.Situation` is `Working` with that one difference — the facts are one
 set the whole goal stack shares, and `retract` reaches into every frame
-beneath. Everything else about `Working` is untouched and still does its
-job.
+beneath.
 
 **This is the irreversibility problem at its smallest.** Here it is honest
 because blocks can be put back, so `effect(..., undo)` can really undo. The
-moment the world contains anything that cannot — pouring, sending,
-deleting — planning against a model and executing against the world stop
-being the same activity, and only the split this file already makes
-(`think` searches a `Situation`; `agent` acts on a `World`) survives it.
-That is the v691c risk, and it is architectural, not incidental.
+moment a world contains anything that cannot — pouring, sending, deleting —
+planning against a model and executing against the world stop being the same
+activity, and only the split this code already makes (`think` searches a
+`Situation`; `agent` acts on a `World`) survives it.
 
 ### chunking is keyed on the wrong thing
 
-E6's chunk is keyed on (executive, slots wanted, slots in hand). In a world,
-"slots in hand" is the state, and the state is different after every action,
-so the key never comes round: **38 chunks learned, 1 hit, 784 misses**
-across the suite. Every plan is identical with and without, 21 solved and 18
-optimal either way, and the one hit saves 14 subgoals out of 799. Not a bug
-— the design says a chunk can only save search, never change an answer, and
-it holds exactly. But a chunk that fits a world would have to be keyed
-on *what the impasse turned on* rather than on everything that was true at
-the time, and that is a real piece of work that v691a has now motivated with
-a number instead of a hunch.
+An E6 chunk is keyed on (executive, slots wanted, slots in hand). In a
+world, "slots in hand" is the state, and the state differs after every
+action, so the key never comes round: **38 chunks learned, 1 hit, 784
+misses**, every plan identical with and without. Not a bug — the design says
+a chunk can only save search, never change an answer, and it holds exactly.
+But a chunk that fits a world would have to be keyed on *what the impasse
+turned on* rather than on everything that was true at the time.
 
-## 3. Goal protection: one read added to the executive
+## 4. What the utilities turned out to be, twice
 
-The failure that cost the most was textbook clobbering. A subgoal for
+Four obvious **local** signals were written first: prefer an action that
+achieves a goal fact, avoid one that undoes a goal fact, prefer one that
+frees a block the goal buries, prefer putting a block on the table. An
+exhaustive search over all sixteen subsets kept only a fifth that is not
+local — build the goal tower from the bottom — and, held out, `frees a goal
+block` beside it.
+
+Then all of them were replaced by three that name nothing:
+
+| | the general form of |
+|---|---|
+| a goal fact that others wait on | build from the bottom |
+| undoing what a goal's achiever needs | do not stack onto a block that has to move |
+| something an achiever will need | clear the block the goal has to sit on |
+
+All three are read off `needs`/`adds`/`deletes` alone. *Enabling* — one goal
+fact enabling another when something achieving the first produces something
+the second's achiever needs — reproduces the tower ordering exactly on
+blocks, and in `errands` puts being at the shop before having what is kept
+there. On the held-out 97 blocks problems:
+
+| | solved | shortest |
+|---|---|---|
+| as shipped, general | 76 | 67 |
+| the blocks-specific version | 78 | 68 |
+| without `undoing what a goal's achiever needs` | 70 | 61 |
+| without `a goal fact that others wait on` | 73 | 60 |
+| without `something an achiever will need` | 76 | 66 |
+| none (the domain's own order) | 56 | 47 |
+| as shipped, without goal protection | 58 | 51 |
+
+**Generality costs two problems of the 97.** That is the honest price: the
+fitted signals knew `clear` was special, and these only know that something
+is a precondition. What they buy is that the same numbers can be asked of
+`errands` and `delivery` — which the fitted ones could not have been asked
+of at all.
+
+Three things in that history are worth more than the winner.
+`frees a goal block` was measured *out* and then back *in*: with the other
+three it cost points, and beside the tower ordering alone it was worth six
+problems and the Sussman anomaly — so **ablate against the final feature
+set, not the first one**. `achieves a goal fact`, the most obvious signal of
+all, is worth nothing. And magnitudes are irrelevant — nine pairs of
+coefficients gave identical results — because means-ends reads a rank, not a
+score, which is worth remembering before any of this meets utility learning.
+
+## 5. Goal protection: one read added to the executive
+
+The failure that cost the most was textbook clobbering: a subgoal for
 `clear c, held b` gets `held b` by unstacking b, then goes after `clear c`,
 and on the way `drop b` looks like progress and throws away the block it is
 holding.
 
 The executive already knew which slots its open subgoals were achieving —
 `_PURSUING` — and only could not say so. `executive.pursuing()` is a pure
-read, changes no behaviour, and lets an operator decline to undo what a goal
-beneath it has got. It is worth **eighteen problems of the held-out 97**
-(60 → 78).
-
-The rule is asymmetric on purpose:
+read, changes no behaviour, and lets an operator decline. Worth **eighteen
+problems of the held-out 97** (58 → 76). The rule is asymmetric on purpose:
 
 > Never throw away the means. The ends may be undone and redone.
 
 Protecting *everything* pursued, goal facts included, is what makes the
 Sussman anomaly unsolvable — the only way to `on b c` there is to take
-`on a b` apart again. So a fact the goal itself asked for is not protected;
-a fact the search built as a step is.
+`on a b` apart again.
 
-## 4. What the utilities turned out to be
+## 6. A surprise is an impasse
 
-Four obvious local signals were written first — prefer an action that
-achieves a goal fact, avoid one that undoes a goal fact, prefer one that
-frees a block the goal buries, prefer putting a block on the table. An
-exhaustive search over all sixteen subsets found the **goal-tower ordering**
-(build from the bottom) on its own as good as any of them, and held out,
-`frees a goal block` beside it was better again. On the held-out 97:
-
-| | solved | shortest | subgoals |
-|---|---|---|---|
-| both, as shipped | 78 | 68 | 3052 |
-| the tower ordering alone | 72 | 65 | 2833 |
-| all five signals | 67 | 57 | 3686 |
-| none (the domain's generation order) | 58 | 49 | 4579 |
-| as shipped, without goal protection | 60 | 51 | 2731 |
-
-Two things in that table matter more than the winner.
-
-**`frees a goal block` was measured out and then back in.** With the other
-three it cost points; with the tower ordering alone it is worth six problems
-and it is what solves the Sussman anomaly. A subset search on the first
-feature set would have thrown away the signal that mattered — the same shape
-of mistake as v11's matrix, found the other way round.
-
-**`achieves a goal fact`, the most obvious of the four, is worth nothing at
-all.** What decides a blocks problem is not which action helps now but the
-structure of the goal: build from the bottom, and clear what the goal has to
-sit on. Both surviving signals are about the goal; none of the discarded
-ones were.
-
-Magnitudes are irrelevant — 0.25 and 2.0 give identical results — because
-means-ends reads an order, not a score. That is worth remembering before any
-of this is handed to utility learning.
-
-## 5. A surprise is an impasse (v691b)
-
-When `look` finds the world is not what the action was expected to leave,
-it does not quietly plan again. It **names an impasse**, and nothing can be
+When `look` finds the world is not what the action was expected to leave, it
+does not quietly plan again. It **names an impasse**, and nothing can be
 proposed until the subgoal `make sense of it` has run and handed back a
-plan: `noticed` writes down the difference, `plan again` replans from the
-world as it is now. That is E2's mechanism doing the job v691 was built
-for, and the reason it matters is not tidiness — it is that the gap between
-what was predicted and what was observed now has somewhere to live.
+plan. That is E2's mechanism doing the job v691 was built for, and it
+matters because the gap between prediction and observation now has somewhere
+to live.
 
 `acting.Gap` is that gap: the action, what was expected and not found, what
-was found and not expected, and how far in it happened. **It is the first
-thing in this project a learner could be given.** Everywhere else the signal
-was whether an answer was right, judged from outside; this is a prediction
-the agent made itself, falsified by the world, with the action that made it
-still in hand. Nothing learns from it yet, and that is the next piece of
-work rather than an oversight.
+was found and not expected, and how far in. **It is the first thing in this
+project a learner could be given** — everywhere else the signal was whether
+an answer was right, judged from outside; this is a prediction the agent
+made itself, falsified by the world. Nothing learns from it yet.
 
-Two small things the mechanism needed, both recorded because they are
-traps:
+Two traps, recorded: the executive resolves each impasse **name** once per
+run, rightly, so surprises are numbered and `Surprises` maps every
+`surprise N` to the one substate; and `plan it` has to refuse to propose
+while a surprise is open, or the impasse never happens and the substate is
+decoration.
 
-- The executive resolves each impasse **name** once per run, rightly — a
-  second unresolved impasse of the same name is the first one still
-  standing. Two surprises are not that, so they are numbered, and
-  `Surprises` maps every `surprise N` to the one substate.
-- `plan it` has to refuse to propose while a surprise is open, or the
-  impasse never happens and the substate is decoration.
-
-## 6. Talking to it (`talking.py`)
-
-The point of an agent is that you can give it a problem. `talking.py` is a
-conversation over a scene: you say what is on the table, you say what you
-want, and it plans, acts, and tells you what it did.
+## 7. Talking to it, and on the page
 
 ```
+> what worlds do you have
+> use the blocks world
 > there is a red block on a green block, and a blue block on the table
 > put the green block on the blue block and the red block on the green block
   I took the red block off the green block and put it on the table, put the
   green block on the blue block, then put the red block on the green block
 > why did you move the red block
-  I took the red block off the green block because I needed the green block
-  clear before I could pick up the green block
+  I took the red block off the green block because I could not pick up the
+  green block until nothing is on the green block
 ```
 
-That second line is the Sussman anomaly said in English, and the third is
-worth more than it looks: **nothing generates an explanation.** The planner's
-means-ends subgoals are already named `achieve clear green for take green`,
-so `why` reads the goal stack back and puts it into words. An explanation
-that had to be invented separately from the search would be a story about
-the agent; this one is the search.
+That works at a terminal (`python -m research.v691`) **and in a conversation
+on the v690 page**, over the same `Scene` and the same acts (`page.say_to`),
+so the two cannot behave differently.
 
-Three deliberate limits:
+**The agent is an act like any other.** `v689.session` grew a registration
+hook — `contributes`, because a later layer importing into an earlier one is
+how the cascades this executive replaced became impossible to follow — and
+v691's acts join the act executive's conflict set on their own utility. A
+turn's trace then shows what they were chosen over, and the runs nested
+inside a `want` turn are the planner's, so the goal stack, the means-ends
+subgoals and the actions taken are already on the page, because
+`Executive.run` records every run of an open episode (E3).
 
-- **The reader is thin on purpose.** Twelve phrasings and a colour list.
-  v689's grammar is where the knowledge of language lives, and pointing it
-  at a new act is where ToMi and StepGame died; a thin shell over a thick
-  agent keeps the demonstration about the planning. Anything it cannot read
-  it refuses *by name* (`Heard.trouble`) rather than guessing.
-- **The acts are an `Executive`**, the same shape as v689's `say`, because
-  choosing what an utterance is for is the same kind of choice as choosing
-  what to do about a goal.
-- **A change between turns is not a surprise.** Say `actually the red block
-  is on the table now` and the agent simply plans from what it finds — it
-  was not expecting anything at the time. A surprise needs the world to move
-  *during* an action, so `--gremlin` puts something in the world that does
-  that, and the reply then says what it expected, what it found, and what it
-  did about it.
+**Nothing is read until a world is opened.** `the dog is on the mat` parses
+perfectly well as `on dog mat`, and a layer that took it would break every
+question v687 to v690 answer. So the gate is explicit: ask for a world, and
+only then is an utterance that reads as facts of *that domain* this layer's.
+With a world open, `can a penguin fly` and `what is a whale` are answered
+exactly as before — 1179 tests pass and the probe is unchanged at 114/114.
 
-## 7. What is next
+`why` is worth one more line: **nothing generates it.** The planner's
+subgoals are already named `achieve clear green for take green`, so the
+answer is read off the goal stack. An explanation invented apart from the
+search would be a story about the agent; this one is the search.
 
-- **something that learns from a `Gap`**, per §5. It is the first signal
-  this project has had that is the agent's own prediction rather than an
-  external judgement.
-- **the chunk key**, per §2. A chunk keyed on the state is useless in a
-  world; keyed on what the impasse turned on it might not be.
-- **more than one domain.** `world.py` is generic and only `blocks()` is
-  not; a second domain would say so rather than assert it.
+## 8. What is next
+
+- **something that learns from a `Gap`**, per §6.
+- **plan quality**, per §2 — the first thing it needs and does not have is a
+  notion of cost.
+- **the chunk key**, per §3.
+- **a reader that is not the domains' own templates.** `scene.py` reads
+  `say` and `reads` lines, which is enough to demonstrate planning and is
+  not language. v689's grammar is where language lives; joining them is the
+  work ToMi and StepGame showed is not free.
 - **v691c — a real text environment** (ScienceWorld over ALFWorld: it is
-  science, so the graph's knowledge is relevant). This is where the reader
-  becomes load-bearing again, and §2's irreversibility stops being
-  theoretical.
+  science, so the graph's knowledge is relevant), where §3's irreversibility
+  stops being theoretical.
 
-Nothing here touches v687–v690. v691 is a layer: v687 knowledge, v688
+Nothing here changes v687–v690 except one pure read in `executive.py` and
+the registration hook in `session.py`. v691 is a layer: v687 knowledge, v688
 asking, v689 conversation and events, v690 generation, v691 world, actions,
 execution and monitoring.

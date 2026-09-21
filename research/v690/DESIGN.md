@@ -796,37 +796,41 @@ measured dead ends and the measurements are recorded above.
 **v691 is what it was idle for** -- an agent that plans and acts -- and it
 is a layer, not a rewrite: v687 knowledge, v688 asking, v689 conversation
 and events, v690 generation, v691 world, actions, execution and monitoring.
-`research/v691/DESIGN.md` has it in full. The short version, measured on a
-blocks world with no reader in it (24 problems, 97 more held out over three
-unseen seeds):
+`research/v691/DESIGN.md` has it in full. The short version:
 
+- **A domain is a string.** Actions, phrasings and narration all read from
+  one text (`v691/domains.py`), so adding a world is writing one. Three
+  ship: blocks, errands, delivery.
 - **`_means_ends` already is goal-stack planning.** An action's
   preconditions are an operator's `needs` and its adds are its `gives`; the
-  whole translation is fifteen lines and nothing in `executive.py` changed.
-  21/24 and 78/97 solved, most of them in the fewest possible actions, with
-  no backtracking anywhere. The Sussman anomaly is solved optimally.
-- **Three places where a world is not a belief**, each now with a number:
+  translation is fifteen lines and nothing in the cycle changed. blocks
+  23/24 and 76/97 held out with most plans optimal, Sussman solved in six;
+  errands 30/30 and delivery 30/30. **Control transfers, plan quality does
+  not** -- the new domains are solved outright and hardly ever shortest,
+  because means-ends counts no cost.
+- **Three places where a world is not a belief**, each with a number:
   `gives` only ever adds, so `Executive.plan`'s regression finds plans for
-  22 of 22 and can execute 2 of them; `Working` un-does a failed subgoal and
-  a world does not (`acting.Situation` is the one method that differs); and
-  an E6 chunk keyed on the state never sees that state again -- 38 learned,
-  one hit.
-- **One thing was added to `executive.py`**: `pursuing()`, a pure read of
-  the slots the open subgoals are achieving, so an operator can decline to
-  undo what a goal beneath it has got. Worth 18 of the held-out 97, and it
-  has to be asymmetric -- protecting goal facts too is what makes Sussman
-  unsolvable.
-- **A surprise is an impasse**, not a branch: when the world is not what an
-  action was expected to leave, E2's mechanism opens a substate that works
-  out what to do. What that leaves behind is `acting.Gap` -- a prediction
-  the agent made itself, falsified by the world, with the action that made
-  it still in hand. It is the first learning signal in this project that is
-  not an external judgement of an answer. Nothing learns from it yet.
-- **You can talk to it** (`python -m research.v691`). Say what is on the
-  table and what you want; it plans, acts, and says what it did, and `why`
-  reads the means-ends subgoals back rather than generating an explanation
-  separately from the search. The reader is twelve phrasings on purpose --
-  a thin shell over a thick agent, so the demonstration is the planning.
+  22 of 22 four-block problems and can execute 2; `Working` un-does a failed
+  subgoal and a world does not (`acting.Situation` is the one method that
+  differs); an E6 chunk keyed on the state never sees that state again --
+  38 learned, one hit.
+- **Two things were added to `executive.py`**, both small: `pursuing()`, a
+  pure read of the slots the open subgoals are achieving, so an operator can
+  decline to undo what a goal beneath it has got (worth 18 of the held-out
+  97, and it has to be asymmetric -- protecting goal facts too is what makes
+  Sussman unsolvable); and `session.contributes`, so a later layer can add
+  acts without an earlier one importing it.
+- **A surprise is an impasse**, not a branch: E2's mechanism opens a
+  substate that works out what to do. What it leaves behind is `acting.Gap`
+  -- a prediction the agent made itself, falsified by the world. The first
+  learning signal here that is not an external judgement of an answer.
+  Nothing learns from it yet.
+- **It is on the page.** Ask `what worlds do you have`, `use the blocks
+  world`, then describe and instruct; it plans, acts and says what it did,
+  and `why` reads the means-ends subgoals back rather than generating an
+  explanation. Until a world is opened the layer proposes nothing, so every
+  question v687 to v690 answer is untouched: 1179 tests pass and the probe
+  is unchanged at 114/114.
 
 ## 9. Risks
 

@@ -17,10 +17,17 @@ in four blocks, so a failure here is the architecture and not the parser.
 
 ## Facts are strings
 
-`on a b`, `clear a`, `table a`, `held a`, `empty`. A string rather than a
-tuple because a fact is going to *be a slot in working memory* (see
-`acting.Situation`), and the executive sorts its slot names when it keys a
-chunk -- a set mixing strings and tuples raises there rather than here.
+`on a b`, `at parcel london`, `carrying spanner`: a predicate and its
+arguments, separated by spaces. A string rather than a tuple because a fact
+is going to *be a slot in working memory* (see `acting.Situation`), and the
+executive sorts its slot names when it keys a chunk -- a set mixing strings
+and tuples raises there rather than here.
+
+## What is here, and what is not
+
+Nothing in this file names a predicate, a kind of thing or an action. A
+domain is a string read by `domains.py`; the problems over one are built in
+`problems.py`; what is here is only what a world *is*.
 
 ## Two worlds, on purpose
 
@@ -34,9 +41,7 @@ cannot pour it back.
 from __future__ import annotations
 
 import collections
-import itertools
-import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from research.v687.executive import effect
 
@@ -116,7 +121,12 @@ class World:
         return set(wanted) <= self.facts
 
     def towers(self) -> list:
-        """The blocks as stacks, bottom first -- how a person would read it."""
+        """Facts of the form `on X Y` as chains, bottom first.
+
+        The one thing here that knows a predicate by name, and it is only
+        a convenience for reading a stack back: a domain with no `on` gets
+        an empty list and says its state some other way.
+        """
         above = {}
         for fact in self.facts:
             parts = fact.split()
@@ -134,132 +144,25 @@ class World:
         return out
 
 
-# -- the blocks domain -----------------------------------------------------
-
-def start_of(towers) -> frozenset:
-    """The facts of a configuration given as stacks, bottom block first."""
-    facts = {"empty"}
-    for stack in towers:
-        facts.add(f"table {stack[0]}")
-        for lower, upper in zip(stack, stack[1:]):
-            facts.add(f"on {upper} {lower}")
-        facts.add(f"clear {stack[-1]}")
-    return frozenset(facts)
-
-
-def blocks(names) -> list:
-    """Every ground action over these blocks.
-
-    Four schemas, so 2n + 2n(n-1) actions: twenty for three blocks, fifty-six
-    for five. Grounding the whole domain up front is what a STRIPS planner
-    of the period did and what makes the operators need no binding; it is
-    also why this does not scale past a handful of blocks, which is fine,
-    because nothing here is a scaling claim.
-    """
-    out = []
-    for one in names:
-        out.append(Action(f"take {one}",
-                          frozenset({f"clear {one}", f"table {one}",
-                                     "empty"}),
-                          frozenset({f"held {one}"}),
-                          frozenset({f"clear {one}", f"table {one}",
-                                     "empty"})))
-        out.append(Action(f"drop {one}",
-                          frozenset({f"held {one}"}),
-                          frozenset({f"clear {one}", f"table {one}",
-                                     "empty"}),
-                          frozenset({f"held {one}"})))
-    for one, other in itertools.permutations(names, 2):
-        out.append(Action(f"stack {one} {other}",
-                          frozenset({f"held {one}", f"clear {other}"}),
-                          frozenset({"empty", f"clear {one}",
-                                     f"on {one} {other}"}),
-                          frozenset({f"held {one}", f"clear {other}"})))
-        out.append(Action(f"unstack {one} {other}",
-                          frozenset({f"clear {one}", f"on {one} {other}",
-                                     "empty"}),
-                          frozenset({f"held {one}", f"clear {other}"}),
-                          frozenset({f"clear {one}", f"on {one} {other}",
-                                     "empty"})))
-    return out
-
 
 @dataclass
 class Problem:
-    """A start, a goal, and the actions available."""
+    """A start, a goal, and the actions that can be taken.
+
+    The actions are carried rather than derived, because deriving them means
+    knowing the domain and a world does not. `problems.py` grounds a
+    `domains.Domain` over its objects and hands the result here.
+    """
 
     name: str
-    names: tuple
     start: frozenset
     goal: frozenset
-
-    @property
-    def actions(self) -> list:
-        return blocks(self.names)
+    actions: tuple = ()
+    #: what the objects are, as name -> kind, where anything cares
+    objects: dict = field(default_factory=dict)
 
     def world(self) -> World:
         return World(self.start)
-
-
-def problem(name: str, names, towers, goal) -> Problem:
-    return Problem(name, tuple(names), start_of(towers), frozenset(goal))
-
-
-#: The fixed suite. `sussman` is first because it is the reason this file
-#: exists: achieving `on a b` and then `on b c` in turn undoes the first, so
-#: a planner that finishes one goal before starting the next cannot solve it
-#: in fewer than the optimal six steps, and a careless one cannot solve it
-#: at all. Everything after it is a size ladder, so the numbers say where
-#: the method stops rather than only whether it works.
-SUITE = [
-    problem("one step", "ab", [["a"], ["b"]], ["on a b"]),
-    problem("undo a tower", "ab", [["a", "b"]], ["on a b"]),
-    problem("three in a row", "abc", [["a"], ["b"], ["c"]],
-            ["on a b", "on b c"]),
-    problem("sussman", "abc", [["c", "a"], ["b"]], ["on a b", "on b c"]),
-    problem("invert three", "abc", [["a", "b", "c"]],
-            ["on b c", "on a b"]),
-    problem("four apart", "abcd", [["a"], ["b"], ["c"], ["d"]],
-            ["on a b", "on b c", "on c d"]),
-    problem("four inverted", "abcd", [["a", "b", "c", "d"]],
-            ["on a b", "on b c", "on c d"]),
-    problem("two towers", "abcd", [["a", "b"], ["c", "d"]],
-            ["on b c", "on d a"]),
-    problem("five apart", "abcde", [[one] for one in "abcde"],
-            ["on a b", "on b c", "on c d", "on d e"]),
-    problem("five inverted", "abcde", [["a", "b", "c", "d", "e"]],
-            ["on a b", "on b c", "on c d", "on d e"]),
-]
-
-
-def sampled(count: int = 20, names: str = "abcd", seed: int = 0) -> list:
-    """Random start and goal configurations, for numbers the fixed suite
-    cannot give: it was chosen to be hard and so it says nothing about how
-    often a method works."""
-    rng = random.Random(seed)
-
-    def configuration() -> list:
-        order = list(names)
-        rng.shuffle(order)
-        towers, stack = [], [order[0]]
-        for one in order[1:]:
-            if rng.random() < 0.5:
-                stack.append(one)
-            else:
-                towers.append(stack)
-                stack = [one]
-        towers.append(stack)
-        return towers
-
-    out = []
-    for index in range(count):
-        start, want = configuration(), configuration()
-        goal = {f"on {upper} {lower}" for stack in want
-                for lower, upper in zip(stack, stack[1:])}
-        if not goal or start_of(start) >= goal:
-            continue
-        out.append(problem(f"sampled {index}", names, start, sorted(goal)))
-    return out
 
 
 # -- the oracle ------------------------------------------------------------

@@ -24,6 +24,11 @@ from .asker import Asker
 from .definitions import DefinitionMemory
 from .longterm import DEFAULT_PATH, DEFINITIONS_PATH, Archive, Keeper
 
+# Registers v691's acts with the session (`v691/page.py`): the
+# agent is an act like any other, and until a world is opened it
+# proposes nothing.
+from research.v691 import page as v691_page  # noqa: F401
+
 HERE = Path(__file__).resolve().parent
 
 #: What a v689 turn carries of v688's run. The whole run is every cycle's

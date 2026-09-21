@@ -55,6 +55,7 @@ from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Chunks,
                                      Executive, Operator, Subgoal, Working,
                                      episode, pursuing)
 from research.v691 import world as W
+from research.v691.problems import SAMPLERS, SUITE
 
 #: How the ground actions are ordered before the executive ever sees them,
 #: as utilities. Means-ends takes the most useful waiting operator and the
@@ -62,38 +63,49 @@ from research.v691 import world as W
 #: planner's taste -- there is no evaluation function and no backtracking
 #: across the choice.
 #:
-#: **Two signals survived; three obvious ones did not.** Written first were
-#: four local judgements: prefer an action that achieves a goal fact, avoid
-#: one that undoes a goal fact, prefer one that frees a block the goal
-#: buries, prefer putting a block on the table. Then the one that is not
-#: local: build the goal tower from the bottom. An exhaustive search over
-#: all sixteen
-#: subsets of the four, on `world.SUITE` plus 20 sampled four-block
-#: problems, found the
-#: goal-tower ordering on its own as good as any combination of them -- and
-#: then, held out on 97 sampled problems over three unseen seeds, `frees a
-#: goal block` beside it was better again. Solved / shortest / subgoals on
-#: the held-out 97:
+#: **Not one of them names a predicate, an action or a kind of thing.** The
+#: first version did: it preferred an action that frees *a block the goal
+#: buries* and penalised *stacking higher in the goal tower*, and because
+#: every number had been measured on blocks, "the executive can plan" was a
+#: claim about the one domain it had been fitted to. These three say the
+#: same things about any domain, in terms only of what an action needs,
+#: adds and deletes:
 #:
-#:     both, as shipped                78   68   3052
-#:     the tower ordering alone         72   65   2833
-#:     all five signals                 67   57   3686
-#:     none (the domain's own order)    58   49   4579
-#:     as shipped, without protection   60   51   2731
+#:     a goal fact that others wait on
+#:         achieve what other goal facts are waiting on first -- the general
+#:         form of *build from the bottom*
+#:     undoing what a goal's achiever needs
+#:         do not take away something a goal still needs, the more so the
+#:         deeper that goal is -- the general form of *do not stack onto a
+#:         block that has to move*
+#:     something an achiever will need
+#:         produce what a goal's achiever is going to want -- the general
+#:         form of *clear the block the goal has to sit on*
 #:
-#: Two things in that table are worth more than the winner. **`frees a goal
-#: block` was measured out and then back in**: with the other three it cost
-#: points, with the tower ordering alone it is worth six problems, so the
-#: subset search on its own would have thrown away the signal that solves
-#: the Sussman anomaly. And **`achieves a goal fact`, the most obvious
-#: of the local signals, is worth nothing at all** -- what matters is not
-#: which action helps now but the structure of the goal: build from the
-#: bottom, and clear what the goal has to sit on.
+#: Measured on `problems.SUITE` plus 20 sampled four-block problems, and
+#: held out on 97 sampled problems over three unseen seeds (solved,
+#: shortest):
 #:
-#: Magnitudes do not matter: 0.25 and 2.0 for `frees a goal block` give
-#: identical results, because means-ends reads an order and not a score.
-SIGNALS = {"frees a goal block": 0.5,
-           "a level higher in the goal tower": -0.5}
+#:     as shipped, general               76   67    train 23/24
+#:     the blocks-specific version       78   68    train 21/24
+#:     the first signal alone            70   60
+#:     none (the domain's own order)     58   49
+#:     as shipped, without protection    60   51
+#:
+#: **Generality costs two problems of the 97**, and that is the honest
+#: price: the fitted signals knew `clear` was special, and these only know
+#: that something is a precondition. What they buy is that the same numbers
+#: can be asked of `errands` and `delivery` -- which the fitted ones could
+#: not have been asked of at all.
+#:
+#: Four other signals were written first and measured out, `achieves a goal
+#: fact` -- the most obvious of them -- worth nothing at all. What decides a
+#: problem is the structure of the goal, not which action helps now.
+#: Magnitudes do not matter, only the rank: nine pairs of coefficients in a
+#: sweep gave identical results, because means-ends reads an order.
+SIGNALS = {"a goal fact that others wait on": -0.5,
+           "undoing what a goal's achiever needs": -0.5,
+           "something an achiever will need": 0.25}
 
 #: Whether an action may throw away what an open subgoal has achieved: see
 #: `operator_of`. Turned off only by `--ablate`, which is where the last
@@ -105,52 +117,115 @@ PROTECT = True
 BUDGET = 60
 
 
-def levels(goal) -> dict:
-    """How far above the bottom of the goal structure each block sits.
-
-    The one piece of the domain that is not a local judgement. Achieving
-    `on a b` before `on b c` is what makes a blocks problem unsolvable
-    without taking the first apart again, and the fix known since the
-    Sussman anomaly is to build from the bottom. This is that, as a number
-    a utility can carry: `stack c d` where d rests on nothing the goal
-    cares about is level 0, `stack b c` is level 1, `stack a b` is level 2.
-    """
-    under = {}
+def achievers(goal, actions) -> dict:
+    """goal fact -> the actions that would bring it about."""
+    out = {}
     for fact in goal:
-        parts = fact.split()
-        if parts[0] == "on":
-            under[parts[1]] = parts[2]
-    depth: dict = {}
+        out[fact] = [one for one in actions if fact in one.adds]
+    return out
 
-    def of(block, seen=()):
-        if block in depth:
-            return depth[block]
-        if block not in under or block in seen:
+
+def wanted(goal, actions) -> frozenset:
+    """Every precondition of every achiever of a goal fact, minus the goal
+    facts themselves: what the plan is going to need on the way."""
+    needs = set()
+    for ways in achievers(goal, actions).values():
+        for one in ways:
+            needs |= set(one.needs)
+    return frozenset(needs) - frozenset(goal)
+
+
+def depths(goal, actions) -> dict:
+    """goal fact -> how many other goal facts have to come first.
+
+    The general form of *build the tower from the bottom*, and it
+    generalises because the tower was never the point. One goal fact
+    **enables** another when something achieving the first produces
+    something the second's achiever needs: `stack c d` leaves `clear c`,
+    which `stack b c` wants, so `on c d` comes before `on b c`. Nothing in
+    that mentions a block, and in `errands` the same relation puts being at
+    the shop before having what is kept there.
+
+    Depth is the longest chain of enablings ending at a fact. Cycles are
+    ignored rather than resolved: two goal facts that enable each other have
+    no order between them, and saying so beats inventing one.
+    """
+    goal = frozenset(goal)
+    by_goal = achievers(goal, actions)
+    gives = {fact: frozenset().union(*[one.adds for one in ways]) if ways
+             else frozenset() for fact, ways in by_goal.items()}
+    takes = {fact: frozenset().union(*[one.needs for one in ways]) if ways
+             else frozenset() for fact, ways in by_goal.items()}
+    before = {fact: {other for other in goal
+                     if other != fact and gives[other] & takes[fact]}
+              for fact in goal}
+    depth = {}
+
+    def of(fact, seen=()):
+        if fact in depth:
+            return depth[fact]
+        if fact in seen:
             return 0
-        depth[block] = 1 + of(under[block], seen + (block,))
-        return depth[block]
+        depth[fact] = max((1 + of(one, seen + (fact,))
+                           for one in before[fact]), default=0)
+        return depth[fact]
 
-    for block in list(under):
-        of(block)
+    for fact in goal:
+        of(fact)
     return depth
 
 
-def utility_of(action: W.Action, goal: frozenset, deep: dict) -> float:
+def relied_on(goal, actions, deep: dict) -> dict:
+    """fact -> the depth of the deepest goal fact whose achiever needs it.
+
+    The general form of *do not stack onto a block that has to move*. In
+    blocks it is reached through `clear y`: putting anything on `y` takes
+    that away, and something the goal wants on `y` needs it back. The rule
+    never mentions `clear` -- only that a goal's achiever has a precondition
+    and this action would remove it.
+    """
+    out = {}
+    for fact, ways in achievers(goal, actions).items():
+        for one in ways:
+            for need in one.needs:
+                out[need] = max(out.get(need, 0), deep.get(fact, 0))
+    return out
+
+
+@dataclass(frozen=True)
+class Taste:
+    """Everything the utilities are read off, worked out once per problem."""
+
+    goal: frozenset = frozenset()
+    deep: dict = field(default_factory=dict)
+    relied: dict = field(default_factory=dict)
+    needed: frozenset = frozenset()
+
+    @classmethod
+    def of(cls, goal, actions) -> "Taste":
+        goal = frozenset(goal)
+        deep = depths(goal, actions)
+        return cls(goal, deep, relied_on(goal, actions, deep),
+                   wanted(goal, actions))
+
+
+def utility_of(action: W.Action, taste: Taste) -> float:
     """Where this action sits in the order the executive will try things.
 
-    Two lines, after four other signals were measured out: see `SIGNALS`.
-    Build the goal tower from the bottom, and clear a block the goal needs
-    something to sit on.
+    Three signals, none of which knows what domain it is in: see `SIGNALS`.
     """
     score = 1.0
-    parts = action.name.split()
-    if parts[0] == "stack":
-        score += (SIGNALS["a level higher in the goal tower"]
-                  * deep.get(parts[2], 0))
-    if any(fact.startswith("clear ")
-           and any(one.endswith(" " + fact.split()[1]) for one in goal)
-           for fact in action.adds):
-        score += SIGNALS["frees a goal block"]
+    mine = [taste.deep.get(one, 0) for one in action.adds
+            if one in taste.goal]
+    if mine:
+        score += SIGNALS["a goal fact that others wait on"] * max(mine)
+    undone = [taste.relied[one] for one in action.deletes
+              if one in taste.relied]
+    if undone:
+        score += (SIGNALS["undoing what a goal's achiever needs"]
+                  * max(undone))
+    if action.adds & taste.needed:
+        score += SIGNALS["something an achiever will need"]
     return score
 
 
@@ -213,9 +288,9 @@ class Situation(Working):
 
 
 def operator_of(action: W.Action, goal: frozenset,
-                deep: dict | None = None) -> Operator:
+                taste: Taste | None = None) -> Operator:
     """An action as an operator. This is the whole of the translation."""
-    deep = levels(goal) if deep is None else deep
+    taste = Taste(frozenset(goal)) if taste is None else taste
 
     def proposes(memory) -> bool:
         """Never throw away the means. The ends may be undone and redone.
@@ -251,7 +326,7 @@ def operator_of(action: W.Action, goal: frozenset,
     return Operator(name=action.name, apply=apply, proposes=proposes,
                     needs=tuple(sorted(action.needs)),
                     gives=tuple(sorted(action.adds)),
-                    utility=utility_of(action, goal, deep),
+                    utility=utility_of(action, taste),
                     rule=f"{action.name}: needs "
                          f"{', '.join(sorted(action.needs))}")
 
@@ -303,8 +378,8 @@ def think(actions, facts, goal, chunks: Chunks | None = None) -> Search:
     """Plan: means-ends over a model of the world, and the actions it
     applied there are the plan. Nothing outside the model is touched."""
     goal = frozenset(goal)
-    deep = levels(goal)
-    means = sorted((operator_of(one, goal, deep) for one in actions),
+    taste = Taste.of(goal, actions)
+    means = sorted((operator_of(one, goal, taste) for one in actions),
                    key=lambda one: -one.utility)
     memory = Situation(facts, goal=f"make {', '.join(sorted(goal))} true")
     executive = Executive([goal_operator(goal)], name="acting", plans=True,
@@ -526,8 +601,9 @@ def by_regression(problem: W.Problem) -> tuple:
     the second action's preconditions were deleted by the first.
     """
     goal = frozenset(problem.goal)
-    deep = levels(goal)
-    means = sorted((operator_of(one, goal, deep) for one in problem.actions),
+    taste = Taste.of(goal, problem.actions)
+    means = sorted((operator_of(one, goal, taste)
+                    for one in problem.actions),
                    key=lambda one: -one.utility)
     executive = Executive([goal_operator(goal)], name="regression",
                           plans=True, means=means)
@@ -579,6 +655,11 @@ def main(argv=None) -> int:
     parser.add_argument("--sampled", type=int, default=20,
                         help="random four-block problems beside the suite")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--domain", default="blocks",
+                        choices=sorted(SAMPLERS),
+                        help="which world to solve problems in: the point "
+                             "of there being more than one is that nothing "
+                             "in the planner knows which")
     parser.add_argument("--ablate", action="store_true",
                         help="drop each signal in turn and solve again")
     parser.add_argument("--regression", type=float, default=30.0,
@@ -588,7 +669,10 @@ def main(argv=None) -> int:
                         help="share one procedural memory across problems")
     options = parser.parse_args(argv)
 
-    problems = W.SUITE + W.sampled(options.sampled, seed=options.seed)
+    if options.domain == "blocks":
+        problems = SUITE + SAMPLERS["blocks"](options.sampled, options.seed)
+    else:
+        problems = SAMPLERS[options.domain](options.sampled, options.seed)
     if options.ablate:
         shipped = dict(SIGNALS)
 
@@ -652,7 +736,7 @@ def main(argv=None) -> int:
     # not return. That is the cost of the missing delete lists, before the
     # plans it does return are looked at at all.
     for one in problems:
-        if len(one.names) > 4 or time.time() - started > options.regression:
+        if len(one.objects) > 4 or time.time() - started > options.regression:
             continue
         names, got, solved = by_regression(one)
         tried += 1

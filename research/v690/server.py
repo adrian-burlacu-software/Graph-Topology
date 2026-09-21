@@ -30,6 +30,11 @@ from research.v689.longterm import DEFINITIONS_PATH, Archive, Keeper
 
 from .steps import steps_of
 
+# Registers v691's acts with the session (`v691/page.py`): the
+# agent is an act like any other, and until a world is opened it
+# proposes nothing.
+from research.v691 import page as v691_page  # noqa: F401
+
 HERE = Path(__file__).resolve().parent
 STATE = Path(__file__).resolve().parents[2] / "state"
 DEFAULT_PATH = STATE / "v690-memory.sqlite"
@@ -126,7 +131,15 @@ class Conversations:
         (`reply` -- `said` is what was said to it) and its steps."""
         turn = v689.trimmed(turn)
         reply = None
-        if self.speaker is not None:
+        spoken = (turn.get("answer") or {}).get("spoken")
+        if spoken:
+            # An answer that already is a sentence is not said again. v691's
+            # agent writes its reply from the plan it carried out, and the
+            # decoder is trained to paraphrase v689's verdicts -- given a
+            # story it was never shown, it would paraphrase it into one.
+            reply = {"text": spoken, "traced": True, "candidates": [],
+                     "source": "the agent's own words"}
+        elif self.speaker is not None:
             try:
                 reply = self.speaker.speak(turn).as_dict()
             except Exception as bad:            # noqa: BLE001
