@@ -101,7 +101,13 @@ def hear(text: str, scene: Scene) -> Heard:
         # No world open: this layer has nothing to say, and says nothing.
         return said
     facts = scene.reader.facts_in(plain)
+    wants = facts
+    try:
+        wants = scene.reader.facts_in(plain, wanting=True) or facts
+    except TypeError:
+        pass
     said.facts = facts
+    said.wants = wants
     # Every thing the scene knows of that the utterance mentions, in the
     # order said, plus anything a fact named. `where is the book` states no
     # fact, so the facts alone would leave it with nothing to answer about.
@@ -125,14 +131,36 @@ def hear(text: str, scene: Scene) -> Heard:
     elif plain.startswith("what is on") and known:
         said.act = "upon"
         said.weight = ASK
-    elif WANTED.search(plain) and any(
-            one.split()[0] in scene.domain.goalish for one in facts):
+    elif (WANTED.search(plain) or _an_order(plain)) and any(
+            one.split()[0] in scene.domain.goalish for one in wants):
         said.act = "want"
         said.weight = ORDER
-    elif facts and (TOLD.search(plain) or not known):
+    elif facts and (TOLD.search(plain) or not known
+                    or not ASKING.match(plain)):
         said.act = "tell"
         said.weight = ORDER
     return said
+
+
+#: What a question or a query opens with. Everything else that states a fact
+#: states it, which is what makes `the door is closed` something told.
+ASKING = re.compile(r"^(what|where|why|who|when|how|is|are|was|were|can|"
+                    r"could|does|do|did|will|would|should|may|might)")
+
+
+def _an_order(plain: str) -> bool:
+    """Whether it opens with a verb, asked of VerbNet rather than of a list.
+
+    `open the door` is an order and `put the book down` is an order, and
+    the only thing they have in common is that English puts a verb first.
+    Which words are verbs is what VerbNet is; keeping a list here would be
+    the hand-written domain coming back in through the reader.
+    """
+    first = plain.split()[0] if plain.split() else ""
+    if not first or first in ("the", "a", "an", "there"):
+        return False
+    from research.v689 import change
+    return first in change.frames()
 
 
 #: The last utterance read, per conversation. `proposes` runs every cycle
@@ -153,6 +181,12 @@ def heard_for(session, said: str) -> Heard:
 
 
 def used(scene: Scene, heard: Heard) -> str:
+    if heard.domain in ("open", "anything", "general", "real"):
+        from research.v691.openworld import Open, resolver
+        scene.__init__(Open(resolver()))
+        return ("all right -- a world with nothing declared about it. What "
+                "can be done comes from what verbs mean, and what a thing "
+                "is comes from the store. Tell me what is there.")
     if heard.domain not in DOMAINS:
         return (f"I do not have a {heard.domain} world. I have "
                 f"{', '.join(sorted(DOMAINS))}.")
@@ -164,8 +198,11 @@ def which(scene: Scene, heard: Heard) -> str:
     said = [f"{name} ({', '.join(domain.kinds)}; "
             f"{len(domain.schemas)} kinds of action)"
             for name, domain in sorted(DOMAINS.items())]
-    return ("I can work in any of these, and the planner is the same one in "
-            "each: " + "; ".join(said))
+    return ("I can work in any of these, and the planner is the same one "
+            "in each: " + "; ".join(said)
+            + ". There is also **open**, which has nothing declared about "
+              "it at all: what can be done comes from what verbs mean and "
+              "what things are comes from the store.")
 
 
 #: act -> (handler, utility, what the operator's rule says, what it changes).

@@ -11,6 +11,11 @@ acting, execute against it rather than return a plan nobody runs, and notice
 when what happened is not what it expected — and one thing the first version
 of this file did not do: **work anywhere but where it was fitted**.
 
+§1-§7 are that story told twice -- a blocks world, then three worlds
+declared as data. **§8 is where it stops being somebody's world at all**:
+the actions come from what verbs mean, and what may fill a role from what
+the store knows. If you read one section, read that one.
+
 ## 1. A domain is a string
 
 The first version of v691 was a blocks world written in Python, and that hid
@@ -243,16 +248,164 @@ subgoals are already named `achieve clear green for take green`, so the
 answer is read off the goal stack. An explanation invented apart from the
 search would be a story about the agent; this one is the search.
 
-## 8. What is next
+## 8. A world with nothing declared about it
 
+§1 was a half-step. A domain as data is better than a domain as code, but it
+is still a world somebody wrote, and "the executive can plan" was still a
+claim about the worlds I had written. `verbs.py` is the other half: **the
+actions come from the knowledge already in the repository.**
+
+### VerbNet is already a STRIPS domain
+
+VerbNet 3.3 writes the meaning of every frame as predicates over the phases
+of an event, and v689 has read it since T4 for what an occurrence *changed*
+(`v689/change.py`). Read forwards instead of backwards, those phases are a
+precondition and an effect:
+
+```
+put-9.1      path_rel(end(E), Theme, Destination, ch_of_loc)
+             -> adds   at ?Theme ?Destination
+carry-11.4   path_rel(start(E), Theme, Initial_Location, ch_of_loc) ...
+             -> needs  at ?Theme ?Initial_Location, at ?Agent ?Initial_Location
+                adds   at ?Theme ?Destination,      at ?Agent ?Destination
+murder-42.1  alive(start(E), Patient); !alive(result(E), Patient)
+             -> needs  alive ?Patient    deletes  alive ?Patient
+```
+
+`start` is what had to hold, `end` and `result` are what holds afterwards, a
+`!` is a delete. **4,569 verbs have frames; 2,749 of them yield at least one
+operator, 7,796 operators in all.** The rest change nothing a planner can
+bring about — they say that something happened, or how.
+
+Two things are read off the data rather than declared:
+
+- **A thing is in one place at a time** is *learned*. One frame that says a
+  thing is somewhere at the start and somewhere else at the end is saying
+  that the relation is a function of its first argument (`functional`). No
+  axiom was written; `carry` was read.
+- **Which verb to try first** is counted, not chosen: a verb in many VerbNet
+  classes is one English uses for many things (`take`, `go`, `put`), and one
+  in a single class is specialised (`ferry`, `barge`). Alphabetical order is
+  not a decision and this is (`central`).
+
+### What may fill a role is a question for the graph
+
+An operator that will melt anyone is a joke, so VerbNet's `SELRESTRS` are
+read too — `Agent +animate`, `Theme +concrete`, `Destination +location` —
+and a thing may fill a role only if the store's taxonomy says so
+(`Things.categories` over `senses.Ranges.ancestors`). **So what is possible
+is a question about knowledge**, and a fact about a thing changes what can
+be done with it.
+
+Two traps, both found by being wrong:
+
+- `<SELRESTRS logic="or">` is a *choice*: `bring`'s Destination is
+  `+animate` **or** `+location`, because you can bring a thing to a place or
+  to a person. Read as a conjunction it refuses every destination there is,
+  and a kitchen stopped being somewhere to go.
+- **Any** sense may satisfy a restriction, which is `senses.Ranges`' own
+  rule. Reading the first sense only makes a dog an andiron and a shop a
+  class in woodwork, because that is what the store's first sense for each
+  of them happens to be.
+
+### What it comes to
+
+`errands.py` is twelve everyday situations stated as facts and goals, with
+nothing between them and a plan written for them (`python -m
+research.v691.errands`):
+
+```
+reached 12/12, sensible 8/12
+```
+
+**Reached** is whether a plan was found and executed. **Sensible** is
+whether a person would have chosen those actions, judged against a list of
+verbs each errand will accept. They are different questions and the gap
+between them is the result:
+
+```
+open a door      yes  yes   open door
+break a vase     yes  yes   break vase
+kill the fly     yes  yes   kill john fly
+two errands      yes   no   leave book shop kitchen; take cup book kitchen shop
+fetch a book     yes   no   leave book shop kitchen
+```
+
+The control is general and it works. **The choice of verb is sometimes not
+the one anybody means** — a book that leaves the shop for the kitchen by
+itself satisfies `at book kitchen` and is not what was asked. That is the
+same wall as EntailmentBank (`v690/DESIGN.md` §8c): a judgement about
+meaning, not about control, reached this time from the other side.
+
+One thing was tried against it and **measured out**: preferring the reading
+of a verb whose roles carry restrictions the things satisfy — `carry` as
+carry-11.4 says an animate agent moves a concrete thing, `leave` as
+become-109.1 says a patient becomes a result, of anything. It took sensible
+from 8 to 7, which on twelve hand-judged errands is noise, so it is not
+shipped. What would settle it is a reason to prefer one verb over another
+for a purpose, and nothing in the store has one.
+
+### Talking to it
+
+`openworld.py` makes this a world you can open like any other, so
+`scene.py`, `page.py` and `talking.py` work on it unchanged:
+
+```
+> use the open world
+> john is in the kitchen and the book is in the shop
+  all right: the book is in the shop; the john is in the kitchen
+> get the book to the kitchen
+  I leave the book to the kitchen
+> why did you move the book
+  I leave the book to the kitchen because I could not do what you asked
+  until the book is in the kitchen
+```
+
+Nothing declares what a book, a kitchen or a shop is; nothing lists what may
+be wanted — **anything a verb brings about can be asked for**, so `open the
+door` is an order because VerbNet has verbs that make things open. Five
+patterns read a situation and four read an order, and that is deliberately
+not a grammar of English: v689's reader is that, and §9 says why they are
+not joined yet.
+
+## 9. What this does not do
+
+Said plainly, because the gap is the interesting part.
+
+- **VerbNet says what changes and not what else must be true.** That you
+  must be where a thing is to pick it up, that a hand holds one thing, that
+  a door must be unlocked before it opens: these are facts about bodies and
+  rooms, true of every verb and therefore written on none of them. Some of
+  it is derivable — being in one place is, above — and some is not.
+- **Antonymy is missing.** Opening a door does not retract `closed door`,
+  because nothing in the action model says they are opposites. WordNet knows
+  it; the store as built has no antonym table, so this is a data step and
+  not a hard problem.
+- **A negative precondition cannot be said.** `needs` is a list of slots
+  that must be present, so *the door is not already open* is dropped.
+  Opening an open door is a wasted action, not a wrong one.
+- **Nothing is inflected.** The narration says *I leave the book to the
+  kitchen* because no morphology is available in the repository and a table
+  of irregular verbs written here would be exactly the hand-written thing
+  this was built to avoid. UD_GUM has lemma-and-form pairs and would settle
+  it.
+- **The reader is nine patterns.** Enough to state a situation and ask for
+  something, which is what it takes to show the planning is general. Joining
+  it to v689's grammar is the work ToMi and StepGame showed is not free.
+
+## 10. What is next
+
+
+- **a reason to prefer one verb over another**, per §8. This is the one
+  that matters: reached is 12/12 and sensible is 8/12, and closing that is
+  a knowledge problem of exactly the shape EntailmentBank left open.
+- **antonyms, and the axioms about bodies**, per §9 — both are data steps
+  rather than hard problems, and both make plans less silly.
 - **something that learns from a `Gap`**, per §6.
 - **plan quality**, per §2 — the first thing it needs and does not have is a
   notion of cost.
 - **the chunk key**, per §3.
-- **a reader that is not the domains' own templates.** `scene.py` reads
-  `say` and `reads` lines, which is enough to demonstrate planning and is
-  not language. v689's grammar is where language lives; joining them is the
-  work ToMi and StepGame showed is not free.
+- **joining the reader to v689's grammar**, per §9.
 - **v691c — a real text environment** (ScienceWorld over ALFWorld: it is
   science, so the graph's knowledge is relevant), where §3's irreversibility
   stops being theoretical.

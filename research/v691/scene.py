@@ -78,6 +78,9 @@ class Heard:
     act: str = ""
     facts: list = field(default_factory=list)
     names: list = field(default_factory=list)
+    #: the facts an *order* states, where those are read differently from
+    #: the facts a statement states (`openworld.WANTINGS`)
+    wants: list = field(default_factory=list)
     domain: str = ""
     trouble: str = ""
     #: how sure, so the act executive can rank it against v689's own acts
@@ -179,7 +182,14 @@ class Scene:
         #: the page for everything v687 to v690 do. So a world is opened by
         #: asking for one, and `open` is what every act is gated on.
         self.domain = domain
-        self.reader = Reader(domain) if domain is not None else None
+        # A declared domain is read through its own `say` lines; a world
+        # with nothing declared about it brings its own reader
+        # (`openworld.OpenReader`), because there are no templates to read
+        # it by.
+        self.reader = None
+        if domain is not None:
+            own = getattr(domain, "reader", None)
+            self.reader = own() if own is not None else Reader(domain)
         self.objects: dict = dict(domain.always) if domain is not None else {}
         self.world = W.World(domain.begin(self.objects)
                              if domain is not None else ())
@@ -214,6 +224,18 @@ class Scene:
                 return kind
         return self.domain.kinds[0] if self.domain.kinds else ""
 
+    def told(self, name: str, kind: str) -> None:
+        """Tell the domain a thing exists, where it wants to know.
+
+        A declared domain does not: its things are whatever fills its
+        schemas. A world with nothing declared about it has to be told,
+        because what it can do is worked out *from* the things
+        (`openworld.Open.toward`).
+        """
+        note = getattr(self.domain, "note", None)
+        if note is not None:
+            note(name, kind)
+
     def introduce(self, facts: list, text: str) -> None:
         for fact in facts:
             parts = fact.split()
@@ -222,6 +244,7 @@ class Scene:
                     continue
                 self.objects[name] = self.kind_of(name, parts[0], position,
                                                   text)
+                self.told(name, self.objects[name])
                 self.world.facts = self.world.facts | frozenset(
                     one.replace("?x", name) for one in
                     self.domain.starts.get(self.objects[name], ()))
@@ -235,6 +258,7 @@ class Scene:
         for name, kind in self.reader.mentions(heard.said.lower()):
             if name not in self.objects:
                 self.objects[name] = kind
+                self.told(name, kind)
                 self.world.facts = self.world.facts | frozenset(
                     one.replace("?x", name)
                     for one in self.domain.starts.get(kind, ()))
@@ -296,12 +320,18 @@ class Scene:
         return facts
 
     def want(self, heard: Heard) -> str:
-        goal = [one for one in heard.facts
+        goal = [one for one in (heard.wants or heard.facts)
                 if one.split()[0] in self.domain.goalish]
         if not goal:
             return ("I understood that as a scene rather than as something "
                     "to do -- tell me where something should end up")
         self.introduce(goal, heard.said.lower())
+        # A world with nothing declared about it works out what can be done
+        # only once it knows what is wanted: 7,796 operators over the things
+        # in a conversation is not a search space (`verbs.useful`).
+        toward = getattr(self.domain, "toward", None)
+        if toward is not None:
+            toward(goal)
         problem = W.Problem("what you asked for", frozenset(self.world.facts),
                             frozenset(goal),
                             tuple(self.domain.ground(self.objects)),
@@ -384,9 +414,10 @@ class Scene:
                         " for ")
                     words = " and ".join(self.domain.in_words(one)
                                          for one in needed.split(", "))
+                    toward = ("do what you asked" if for_what == "done"
+                              else self.domain.doing(for_what))
                     return (f"I {self.domain.phrase(action.name)} because "
-                            f"I could not {self.domain.doing(for_what)} "
-                            f"until {words}")
+                            f"I could not {toward} until {words}")
         return (f"{self.narrate(self.last_plan)} -- that was the shortest "
                 f"way I found to what you asked for")
 

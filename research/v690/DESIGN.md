@@ -825,6 +825,15 @@ and events, v690 generation, v691 world, actions, execution and monitoring.
   -- a prediction the agent made itself, falsified by the world. The first
   learning signal here that is not an external judgement of an answer.
   Nothing learns from it yet.
+- **And then no domain at all.** `v691/verbs.py` reads VerbNet's event
+  phases forwards instead of backwards: `start` is a precondition and
+  `end`/`result` are effects, which turns 2,749 verbs into 7,796 planning
+  operators with nobody deciding which world they belong to. What may fill
+  a role is v687's taxonomy answering whether a thing is animate, concrete
+  or a place. On twelve everyday errands stated as English facts and goals
+  it **reaches 12/12 and is sensible on 8/12** -- the control is general,
+  and choosing the verb a person would have chosen is a judgement about
+  meaning, which is §8c's wall reached from the other side.
 - **It is on the page.** Ask `what worlds do you have`, `use the blocks
   world`, then describe and instruct; it plans, acts and says what it did,
   and `why` reads the means-ends subgoals back rather than generating an

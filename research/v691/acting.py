@@ -105,7 +105,8 @@ from research.v691.problems import SAMPLERS, SUITE
 #: sweep gave identical results, because means-ends reads an order.
 SIGNALS = {"a goal fact that others wait on": -0.5,
            "undoing what a goal's achiever needs": -0.5,
-           "something an achiever will need": 0.25}
+           "something an achiever will need": 0.25,
+           "an action that assumes nothing": -1.0}
 
 #: Whether an action may throw away what an open subgoal has achieved: see
 #: `operator_of`. Turned off only by `--ablate`, which is where the last
@@ -226,6 +227,13 @@ def utility_of(action: W.Action, taste: Taste) -> float:
                   * max(undone))
     if action.adds & taste.needed:
         score += SIGNALS["something an achiever will need"]
+    if not action.needs:
+        # An operator that applies in every state decides nothing. It is
+        # kept, because sometimes it is all there is, and tried last.
+        # `domains.py`'s worlds have no such action; `verbs.py` has many,
+        # because VerbNet writes one class's meaning on frames of differing
+        # completeness and the least complete says only where things end up.
+        score += SIGNALS["an action that assumes nothing"]
     return score
 
 
