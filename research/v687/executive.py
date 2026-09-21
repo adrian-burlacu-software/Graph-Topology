@@ -118,6 +118,19 @@ _PURSUING: ContextVar[frozenset] = ContextVar("pursuing",
                                               default=frozenset())
 
 
+def pursuing() -> frozenset:
+    """The slots the means-ends subgoals open now are achieving.
+
+    A read, and nothing more: it changes no behaviour here. It is exposed
+    because an operator cannot otherwise know that its action would take
+    away something a goal beneath it has already got -- the clobbering that
+    makes the Sussman anomaly hard, and which does not arise while `gives`
+    only ever adds. An operator that acts on a world can decline on it
+    (v691's `acting.operator_of`). Empty outside any means-ends subgoal.
+    """
+    return _PURSUING.get()
+
+
 #: (executive name, operator name) pairs never proposed while `suppressed`
 #: holds them.
 _SUPPRESSED: ContextVar[frozenset] = ContextVar("suppressed",

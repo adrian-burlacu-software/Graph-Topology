@@ -790,6 +790,33 @@ points; they are named in `entailment.SIGNALS` so nobody tries them twice.
 sweep, and any further work on making the full matrix safe. All three are
 measured dead ends and the measurements are recorded above.
 
+### 8d. What the idle capability was for: v691
+
+§8c's finding was that the executive is finished as a *reasoner* and idle.
+**v691 is what it was idle for** -- an agent that plans and acts -- and it
+is a layer, not a rewrite: v687 knowledge, v688 asking, v689 conversation
+and events, v690 generation, v691 world, actions, execution and monitoring.
+`research/v691/DESIGN.md` has it in full. The short version, measured on a
+blocks world with no reader in it (24 problems, 97 more held out over three
+unseen seeds):
+
+- **`_means_ends` already is goal-stack planning.** An action's
+  preconditions are an operator's `needs` and its adds are its `gives`; the
+  whole translation is fifteen lines and nothing in `executive.py` changed.
+  21/24 and 78/97 solved, most of them in the fewest possible actions, with
+  no backtracking anywhere. The Sussman anomaly is solved optimally.
+- **Three places where a world is not a belief**, each now with a number:
+  `gives` only ever adds, so `Executive.plan`'s regression finds plans for
+  22 of 22 and can execute 2 of them; `Working` un-does a failed subgoal and
+  a world does not (`acting.Situation` is the one method that differs); and
+  an E6 chunk keyed on the state never sees that state again -- 38 learned,
+  one hit.
+- **One thing was added to `executive.py`**: `pursuing()`, a pure read of
+  the slots the open subgoals are achieving, so an operator can decline to
+  undo what a goal beneath it has got. Worth 18 of the held-out 97, and it
+  has to be asymmetric -- protecting goal facts too is what makes Sussman
+  unsolvable.
+
 ## 9. Risks
 
 - **Speed.** A graph over 1.96M facts in Python is slow if built eagerly. The
