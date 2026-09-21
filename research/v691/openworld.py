@@ -68,6 +68,10 @@ WANTINGS = (
     (re.compile(r"\b(?:make|leave)\s+(?:the |a |an )?(\w+)\s+(\w+)"),
      "{1} {0}"),
     (re.compile(r"^\s*(\w+)\s+(?:the |a |an )?(\w+)\s*$"), "{0} {1}"),
+    # `get the cup to the shop and the book to the garden`: the second
+    # errand borrows the first one's verb, as English lets it.
+    (re.compile(r"\band\s+(?:the |a |an )?(\w+)\s+(?:to|into|onto)\s+"
+                r"(?:the |a |an )?(\w+)"), "at {0} {1}"),
 )
 
 #: Words that are a verb or a filler rather than the name of a thing.
@@ -77,6 +81,49 @@ my your please now
 actually then so to of in on at into onto with from for all some any thing
 things world worlds use using get put move take bring carry send place give
 hand pass make leave open close do does did can could would should""".split())
+
+
+_PAST: dict | None = None
+
+
+def past(verb: str) -> str:
+    """The past tense of a verb, from WordNet's own list of irregular forms.
+
+    WordNet keeps every irregular inflection it knows so that it can find
+    the lemma of `took`; read the other way, it says that the past of `take`
+    is `took`. Where it lists two -- `took` and `taken`, `went` and `gone`
+    -- the participle is the one ending in `n`. Everything it does not list
+    is regular. A table of irregular verbs written here would have been the
+    hand-written thing this module exists not to have.
+    """
+    global _PAST
+    if _PAST is None:
+        _PAST = {}
+        try:
+            from nltk.corpus import wordnet
+            wordnet.ensure_loaded()
+            for form, lemmas in wordnet._exception_map["v"].items():
+                if form.endswith("ing") or form.endswith("s"):
+                    continue
+                for lemma in lemmas:
+                    _PAST.setdefault(lemma, set()).add(form)
+        except Exception:                          # noqa: BLE001
+            pass
+    forms = sorted(_PAST.get(verb, ()), key=lambda one: (
+        one.endswith(("n", "ne")), len(one)))
+    if forms:
+        return forms[0]
+    if verb.endswith("e"):
+        return verb + "d"
+    if verb.endswith("y") and len(verb) > 1 and verb[-2] not in "aeiou":
+        return verb[:-1] + "ied"
+    if (len(verb) <= 4 and len(verb) >= 3 and verb[-1] in "td"
+            and verb[-2] in "aeiou" and verb[-3] not in "aeiou"):
+        # put, cut, set, hit, let, shut, rid: a short verb ending in a
+        # single vowel and a t or d keeps its form, and WordNet does not
+        # list it because there is nothing to undo.
+        return verb
+    return verb + "ed"
 
 
 _RESOLVER = None
@@ -110,6 +157,13 @@ class Open(Domain):
         self.learned = learned
         #: every predicate seen, so `goalish` and `tellable` can answer
         self.seen: set = set()
+        #: things named without an article -- `john`, not `the book` --
+        #: which is what the reader saw of the difference between a name
+        #: and a common noun
+        self.names: set = set()
+        #: things that have been the subject of an action someone did,
+        #: so narration does not say the doer twice
+        self.agents: set = set()
 
     # -- what there is -----------------------------------------------------
     @property
@@ -146,28 +200,44 @@ class Open(Domain):
         be -- which is what lets a word nobody has seen before be said."""
         parts = fact.split()
         if len(parts) == 3 and parts[0] == "at":
-            return f"the {parts[1]} is in the {parts[2]}"
+            return f"{self.the(parts[1])} is in {self.the(parts[2])}"
         if len(parts) == 3 and parts[0] == "with":
-            return f"the {parts[2]} has the {parts[1]}"
+            return f"{self.the(parts[2])} has {self.the(parts[1])}"
         if len(parts) == 3:
-            return f"the {parts[1]} is {parts[0]} the {parts[2]}"
+            return (f"{self.the(parts[1])} is {parts[0]} "
+                    f"{self.the(parts[2])}")
         if len(parts) == 2:
-            return f"the {parts[1]} is {parts[0]}"
+            return f"{self.the(parts[1])} is {parts[0]}"
         return fact
 
+    def the(self, name: str) -> str:
+        """A thing as it is said: `the book`, but `john`. A thing first
+        named with an article is a common noun and one named without is a
+        name, which is all the reader saw and all it needs."""
+        return name if name in self.names else f"the {name}"
+
     def phrase(self, action: str) -> str:
-        """What was done: the verb and the things it was done to, in the
-        order VerbNet puts its roles."""
-        parts = action.split()
-        if len(parts) == 1:
-            return parts[0]
-        said = f"{parts[0]} the {parts[1]}"
-        if len(parts) > 2:
-            said += " to the " + parts[-1]
-        return said
+        """What was done, in the past tense: the verb and the things it was
+        done to, in the order VerbNet puts its roles."""
+        return self._said(action, past)
 
     def doing(self, action: str) -> str:
-        return self.phrase(action)
+        """What is to be done, after `could`: the bare verb."""
+        return self._said(action, lambda verb: verb)
+
+    def _said(self, action: str, tense) -> str:
+        parts = action.split()
+        if len(parts) == 1:
+            return tense(parts[0])
+        rest = [one for one in parts[1:]]
+        # The doer is the subject and is not said again after the verb: `I
+        # took the book`, not `I took john the book`.
+        if len(rest) > 1 and rest[0] in self.agents:
+            rest = rest[1:]
+        said = f"{tense(parts[0])} {self.the(rest[0])}"
+        if len(rest) > 1:
+            said += " to " + self.the(rest[-1])
+        return said
 
     @property
     def goalish(self) -> tuple:                    # type: ignore[override]
@@ -204,6 +274,23 @@ class OpenReader:
     def __init__(self, domain: Open) -> None:
         self.domain = domain
 
+    def _names(self, plain: str) -> None:
+        """Which words were said with no article in front of them, where a
+        thing could have been named: those are names. A word said with one
+        anywhere is a common noun from then on."""
+        words = plain.replace(",", " ").split()
+        for index, word in enumerate(words):
+            if word in NOT_A_THING or not word.isalpha():
+                continue
+            before = words[index - 1] if index else ""
+            if before in ("the", "a", "an", "some", "my", "your", "his",
+                          "her", "their", "its"):
+                self.domain.names.discard(word)
+            elif index == 0 or before in ("and", ",", "to", "with"):
+                if word not in self.domain.things.kinds or \
+                        word in self.domain.names:
+                    self.domain.names.add(word)
+
     def mentions(self, text: str) -> list:
         """Every word that could be the name of a thing. Generous on
         purpose: a name it wrongly admits is a thing nothing can be done
@@ -213,6 +300,7 @@ class OpenReader:
 
     def facts_in(self, text: str, wanting: bool = False) -> list:
         plain = " ".join(text.lower().replace(",", " , ").split())
+        self._names(plain)
         found: list = []
         taken: list = []
         for pattern, shape in (WANTINGS if wanting else SAYINGS):

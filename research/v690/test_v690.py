@@ -366,6 +366,56 @@ class StepTests(unittest.TestCase):
         self.assertIn("the ask operator answered", lines["reasoned"].lower())
 
 
+class PlannedStepTests(unittest.TestCase):
+    """v691's planning, as a step of its own on the page."""
+
+    def acted(self, planning=None):
+        found = turn("get the book to the kitchen", "generic", "acted",
+                     "I took the book to the kitchen")
+        found["answer"]["source"] = "world"
+        found["answer"]["planning"] = planning or {}
+        found["trace"] = [{"claim": "get the book to the kitchen",
+                           "act": "generic", "fired": [
+                               {"operator": "noting", "rule": "",
+                                "outcome": "continue"},
+                               {"operator": "want", "rule": "",
+                                "outcome": "answered"}]}]
+        return found
+
+    def test_an_order_gets_a_planned_step(self):
+        found = self.acted({
+            "goal": ["the book is in the kitchen"], "offered": 215,
+            "verbs": 8, "plan": ["took the book to the kitchen"],
+            "actions": ["take john book kitchen"], "solved": True,
+            "fired": 3, "subgoals": 1, "deep": 2, "plans": 1,
+            "stack": {"goal": "make at book kitchen true", "fired": [],
+                      "subgoals": [], "more": 0}, "surprises": []})
+        said = {"text": "I took the book to the kitchen", "traced": True,
+                "candidates": [], "source": "the agent's own words"}
+        found_steps = steps.steps_of(found, said)
+        names = [one["step"] for one in found_steps]
+        self.assertIn("planned", names)
+        self.assertLess(names.index("reasoned"), names.index("planned"))
+        lines = {one["step"]: one["line"] for one in found_steps}
+        self.assertIn("215 actions were possible", lines["planned"])
+        self.assertIn("goal stack 2 deep", lines["planned"])
+        self.assertIn("own words", lines["said"])
+        self.assertIn("Not a verdict", lines["answered"])
+
+    def test_an_operator_that_went_on_did_not_have_nothing(self):
+        """`noting` writes down what was said and returns CONTINUE; the
+        account used to say it had nothing."""
+        lines = {one["step"]: one["line"]
+                 for one in steps.steps_of(self.acted())}
+        self.assertIn("noting went first", lines["reasoned"])
+        self.assertNotIn("noting had nothing", lines["reasoned"])
+
+    def test_a_turn_that_asked_for_nothing_has_no_planned_step(self):
+        found = turn("can it swim", "ask", "denied", "no")
+        self.assertNotIn("planned",
+                         [one["step"] for one in steps.steps_of(found)])
+
+
 class SocialTests(unittest.TestCase):
     def test_a_social_phrase_with_fillers_around_it(self):
         for said, act in (("hello", "greet"), ("oh hello there", "greet"),

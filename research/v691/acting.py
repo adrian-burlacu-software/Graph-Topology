@@ -318,7 +318,18 @@ def operator_of(action: W.Action, goal: frozenset,
         only way to `on b c` there is to take `on a b` apart again. So the
         rule is asymmetric on purpose: what the search built as a step is
         protected, what it was asked for is not.
+
+        **And never do what would change nothing.** An action whose every
+        effect already holds is not a step towards anything. In a declared
+        domain this never comes up, because every action there moves
+        something; in the open world it came up at once -- VerbNet has a
+        dozen readings of verbs that put a thing somewhere, several with no
+        preconditions at all, and after the cup was in the shop the planner
+        put it there five more times by five different verbs before it
+        turned to the book.
         """
+        if action.adds and action.adds <= memory.facts:
+            return False
         if not PROTECT:
             return True
         guarded = pursuing() - goal

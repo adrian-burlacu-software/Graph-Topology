@@ -198,6 +198,12 @@ class Scene:
         self.last: acting.Attempt | None = None
         self.last_plan: list = []
         self.last_reasons: list = []
+        #: what the last order asked for, and what the planner had to
+        #: choose from, so the page can show the search and not only the
+        #: answer
+        self.wanted: list = []
+        self.offered: int = 0
+        self.offered_names: list = []
 
     @property
     def open(self) -> bool:
@@ -291,8 +297,14 @@ class Scene:
                 # calls a placement, which is the same list an order may
                 # ask for, and that is not a coincidence.
                 facts.discard(one)
-            elif len(bits) > 2 and len(parts) > 2 and bits[2] == parts[2]:
-                # Something else was where this is going.
+            elif (len(bits) > 2 and len(parts) > 2 and bits[2] == parts[2]
+                  and 2 in self.domain.taken.values()):
+                # Something else was where this is going -- but only where
+                # the domain says a target holds one thing. `taken clear 2`
+                # is blocks saying that: whatever is on a block stops it
+                # being clear, so one block sits on another. A kitchen holds
+                # John and the cup at once, and applying this everywhere
+                # took John out of the kitchen when the cup came in.
                 facts.discard(one)
                 facts |= {two.replace("?x", bits[1]) for two in
                           self.domain.starts.get(self.objects.get(bits[1]),
@@ -341,10 +353,13 @@ class Scene:
         toward = getattr(self.domain, "toward", None)
         if toward is not None:
             toward(goal)
+        self.wanted = list(goal)
+        offered = self.domain.ground(self.objects)
+        self.offered = len(offered)
+        self.offered_names = [one.name for one in offered]
         problem = W.Problem("what you asked for", frozenset(self.world.facts),
                             frozenset(goal),
-                            tuple(self.domain.ground(self.objects)),
-                            dict(self.objects))
+                            tuple(offered), dict(self.objects))
         report = acting.Attempt(name=problem.name)
         before = len(self.world.did)
         acting.agent(problem, self.world, None, report).run(
@@ -353,10 +368,57 @@ class Scene:
         self.last_reasons = (reasons(report.search.trace)
                              if report.search.trace is not None else [])
         self.last_plan = list(self.world.did[before:])
+        agents = getattr(self.domain, "agents", None)
+        if agents is not None:
+            # Whoever filled the role VerbNet restricts to the animate is
+            # the doer, and narration says "I" for them rather than their
+            # name again.
+            # Only a *name* can be the doer here. The store's categories
+            # are the union over every sense a word has, and some sense of
+            # `cup` is animate enough to pass -- which made the cup the one
+            # doing the carrying, and the narration say "I left the kitchen".
+            names = getattr(self.domain, "names", set())
+            for one in self.last_plan:
+                parts = one.name.split()
+                if (len(parts) > 2 and parts[1] in names
+                        and "animate" in self.domain.things.categories(
+                            parts[1])):
+                    agents.add(parts[1])
         if not report.solved:
             return ("I could not see a way to do that. As it stands, "
                     + self.look())
         return self.story(report)
+
+    def planning(self) -> dict:
+        """The last plan, as the page shows it.
+
+        Small and curated on purpose. A turn's full `executed` is every run
+        of every executive -- thirty of them for an ordinary question --
+        and putting that on every turn would bloat the archive to show
+        nothing most of the time. This is the planner's own account: what
+        was wanted, what it had to choose from, the goal stack it pushed,
+        and what it did.
+        """
+        report = self.last
+        if report is None:
+            return {}
+        search = report.search
+        return {
+            "goal": [self.domain.in_words(one) for one in self.wanted],
+            "offered": self.offered,
+            "verbs": len({one.split()[0] for one in self.offered_names}),
+            "plan": [self.domain.phrase(one.name) for one in self.last_plan],
+            "actions": [one.name for one in self.last_plan],
+            "solved": report.solved,
+            "fired": search.fired, "subgoals": search.subgoals,
+            "deep": search.depth, "plans": report.plans,
+            "stack": _stack(search.trace) if search.trace is not None
+            else None,
+            "surprises": [{"action": str(gap.action),
+                           "expected": sorted(gap.missing),
+                           "found": sorted(gap.extra)}
+                          for gap in report.gaps],
+        }
 
     def meddle(self, heard: Heard) -> str:
         if not heard.facts:
@@ -499,6 +561,33 @@ class Scene:
 
     def _listed(self, facts) -> str:
         return ", ".join(self.domain.in_words(one) for one in sorted(facts))
+
+
+#: The most goals shown of one plan's stack. A plan in the open world can
+#: push a hundred subgoals, and a page that drew all of them would be a
+#: wall; the count is always right even where the tree is cut.
+SHOWN = 60
+
+
+def _stack(trace, budget=None) -> dict:
+    """A planner's run as a tree of goals: what each one wanted, what fired
+    in it, and what it pushed."""
+    if budget is None:
+        budget = [SHOWN]
+    budget[0] -= 1
+    out = {"goal": trace.goal,
+           "fired": [{"operator": one.operator, "outcome": one.outcome,
+                      "rule": one.rule,
+                      "candidates": len(one.candidates or ())}
+                     for one in trace.fired],
+           "answered": trace.answered_by,
+           "subgoals": [], "more": 0}
+    for inner in trace.subgoals:
+        if budget[0] <= 0:
+            out["more"] += 1
+            continue
+        out["subgoals"].append(_stack(inner, budget))
+    return out
 
 
 def reasons(trace) -> list:

@@ -8,6 +8,9 @@
     reasoned   the operators that fired, the rules a walk applied, what v688
                answered and how far it trusts it
     remembered what was written to memory: events, the trie, definitions
+    planned    where the turn was an order: what was wanted, how many
+               actions were possible, the goal stack the planner pushed and
+               what it did (v691)
     answered   the answer in v689's own terms, and the message a reply to it
                has to carry
     said       the replies the decoder wrote, each read back, and the one said
@@ -38,7 +41,8 @@ ACT_NAMES = {
 SOURCES = {"told": "what you told me", "taught": "what you taught me",
            "kind": "what its kind does", "tendency": "its kind's tendency",
            "conversation": "the conversation", "definition": "a definition",
-           "learned": "what you taught me before"}
+           "learned": "what you taught me before",
+           "world": "what I did in the world in front of me"}
 
 
 def _describe(turn: dict, referent: str | None) -> str:
@@ -125,9 +129,16 @@ def reasoned(turn: dict) -> dict:
     if answered:
         parts.append("the " + ", then the ".join(
             one["operator"] for one in answered) + " operator answered")
-    if fired and len(fired) > len(answered):
-        declined = [one["operator"] for one in fired
-                    if one["outcome"] != "answered"]
+    # An operator that went on (CONTINUE) did its work and let the cycle
+    # carry on -- v691's `noting` writes down what was said about the world
+    # and lets v689 answer. Calling that "had nothing" was wrong.
+    went_on = list(dict.fromkeys(one["operator"] for one in fired
+                                 if one["outcome"] == "continue"))
+    if went_on:
+        parts.append(", ".join(went_on) + " went first and let it go on")
+    declined = list(dict.fromkeys(one["operator"] for one in fired
+                                  if one["outcome"] == "declined"))
+    if declined:
         parts.append("after " + ", ".join(declined) + " had nothing")
     rules = sorted({step.get("rule") for step in walk.get("steps") or []
                     if step.get("rule")})
@@ -141,6 +152,36 @@ def reasoned(turn: dict) -> dict:
     return {"step": "reasoned", "line": line[:1].upper() + line[1:],
             "detail": {"fired": fired, "walk": walk, "run": run,
                        "asked": turn.get("asked")}}
+
+
+def planned(turn: dict) -> dict | None:
+    """The plan, where a turn was an order and the agent worked one out.
+
+    None on every other turn, so a conversation that never asks for
+    anything to be done reads exactly as it did.
+    """
+    found = (turn.get("answer") or {}).get("planning") or {}
+    if not found:
+        return None
+    wanted = ", ".join(found.get("goal") or []) or "nothing in particular"
+    plan = found.get("plan") or []
+    parts = [f"you asked for {wanted}"]
+    parts.append(f"{found.get('offered', 0)} actions were possible, over "
+                 f"{found.get('verbs', 0)} verbs")
+    if found.get("solved"):
+        parts.append(f"{len(plan)} action{'' if len(plan) == 1 else 's'} did "
+                     f"it, off a goal stack {found.get('deep', 1)} deep "
+                     f"({found.get('subgoals', 0)} subgoals, "
+                     f"{found.get('fired', 0)} operators fired)")
+    else:
+        parts.append("no plan reached it")
+    if found.get("surprises"):
+        parts.append(f"{len(found['surprises'])} surprise"
+                     f"{'' if len(found['surprises']) == 1 else 's'} on the "
+                     f"way, and it planned again")
+    line = "; ".join(parts) + "."
+    return {"step": "planned", "line": line[:1].upper() + line[1:],
+            "detail": found}
 
 
 def remembered(turn: dict) -> dict | None:
@@ -184,6 +225,13 @@ def answered(turn: dict, said: dict | None) -> dict:
     message = (said or {}).get("message") or {}
     stance = message.get("stance") or answer.get("outcome")
     source = SOURCES.get(answer.get("source"), answer.get("source") or "")
+    if answer.get("outcome") == "acted":
+        # Not a verdict about the world but something done in it, or said
+        # about the scene the agent is keeping.
+        return {"step": "answered",
+                "line": f"Not a verdict: this came from {source}.",
+                "detail": {"answer": answer, "message": message,
+                           "prompt": (said or {}).get("prompt")}}
     line = f"The answer is {stance}" + (f", from {source}" if source else "")
     if message.get("rules"):
         line += " (" + ", ".join(message["rules"]) + ")"
@@ -195,6 +243,14 @@ def answered(turn: dict, said: dict | None) -> dict:
 def spoken(said: dict | None) -> dict | None:
     if not said:
         return None
+    if said.get("source"):
+        # v691's reply is written from the plan it carried out, and is said
+        # as it stands: the decoder is trained to paraphrase v689's
+        # verdicts, and given a story it was never shown it would
+        # paraphrase it into one (`v690/server.py`, `_spoken`).
+        return {"step": "said", "line": "I said what I did, in my own words "
+                "-- written from the plan, not by the decoder.",
+                "detail": said}
     candidates = said.get("candidates") or []
     written = [one for one in candidates if not one.get("shortened_from")]
     traced = [one for one in candidates if one["trace"]["traced"]]
@@ -212,5 +268,6 @@ def spoken(said: dict | None) -> dict | None:
 
 def steps_of(turn: dict, said: dict | None = None) -> list[dict]:
     found = [heard(turn), read(turn), resolved(turn), reasoned(turn),
-             remembered(turn), answered(turn, said), spoken(said)]
+             planned(turn), remembered(turn), answered(turn, said),
+             spoken(said)]
     return [one for one in found if one is not None]

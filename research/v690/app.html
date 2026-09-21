@@ -114,6 +114,15 @@
           border-top: 1px solid #222a35; vertical-align: top; }
   table.plain th { color: var(--muted); font-weight: 500; border-top: 0; }
   .ok { color: var(--yes); } .bad { color: var(--warm); } .muted { color: var(--muted); }
+  /* v691's plan and its goal stack */
+  ol.plan { margin: 4px 0 8px 18px; padding: 0; }
+  ol.plan li { margin: 2px 0; }
+  details.goal { margin: 2px 0 2px 14px; border-left: 1px solid var(--muted); padding-left: 8px; }
+  details.goal > summary { cursor: pointer; list-style: none; }
+  details.goal > summary::-webkit-details-marker { display: none; }
+  details.goal > summary::before { content: "▸ "; color: var(--muted); }
+  details.goal[open] > summary::before { content: "▾ "; }
+  .goal-name { font-family: ui-monospace, monospace; font-size: 0.92em; }
   .rule { color: var(--rule); font-weight: 700; font-family: ui-monospace,
           Consolas, monospace; }
   code, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
@@ -313,8 +322,26 @@ async function getJSON(url) {
 
 // -- the conversation -------------------------------------------------------
 const STEP_NAMES = { heard: "heard", read: "read", resolved: "resolved",
-  reasoned: "reasoned", remembered: "remembered", answered: "answered",
-  said: "said" };
+  reasoned: "reasoned", planned: "planned", remembered: "remembered",
+  answered: "answered", said: "said" };
+
+// One goal of a plan's stack, and the goals beneath it: each a <details>,
+// so a hundred subgoals read as an outline rather than a wall. The top is
+// open; everything under it is closed until asked for.
+function goalTree(node, open) {
+  const box = el("details", "goal");
+  if (open) box.open = true;
+  const acted = (node.fired || []).filter(one => one.outcome !== "declined");
+  const head = el("summary");
+  add(head, el("span", "goal-name", node.goal || "(the goal)"),
+      el("span", "muted", acted.length
+        ? "  " + acted.map(one => one.operator).join(" → ")
+        : "  nothing fired"));
+  box.appendChild(head);
+  (node.subgoals || []).forEach(inner => box.appendChild(goalTree(inner, false)));
+  if (node.more) box.appendChild(el("div", "muted", `…and ${node.more} more`));
+  return box;
+}
 
 function wordChips(pairs, cls) {
   const box = el("div", "words");
@@ -395,6 +422,26 @@ function detailOf(step, turn) {
         ["lines", (run.lines || []).join(" · ")],
         ["content", run.content && run.content.text]]));
     }
+  } else if (step.step === "planned") {
+    // v691: what was wanted, what it had to choose from, the plan, and the
+    // goal stack the planner pushed to find it.
+    add(box, kv([["wanted", d.goal], ["possible", `${d.offered} actions over ${d.verbs} verbs`],
+        ["operators fired", String(d.fired)], ["subgoals pushed", String(d.subgoals)],
+        ["deepest stack", String(d.deep)], ["times planned", String(d.plans)]]));
+    if ((d.plan || []).length) {
+      const list = el("ol", "plan");
+      d.plan.forEach((one, i) => add(list, add(el("li"),
+        document.createTextNode(one + " "),
+        el("span", "muted mono", (d.actions || [])[i] || ""))));
+      add(box, el("div", "muted", "the plan, as it was carried out"), list);
+    }
+    (d.surprises || []).forEach(one => add(box, el("div", "bad",
+      `surprised after ${one.action}: expected ${(one.expected || []).join(", ") || "no change"}` +
+      `, found ${(one.found || []).join(", ") || "nothing"} — so it planned again`)));
+    if (d.stack) {
+      add(box, el("div", "muted", "the goal stack — each goal, what fired in it, and what it pushed"),
+          goalTree(d.stack, true));
+    }
   } else if (step.step === "remembered") {
     const list = el("ul", "log");
     (d.events || []).forEach(one => {
@@ -426,7 +473,8 @@ function detailOf(step, turn) {
              `reads as ${read.stance} (${Math.round((read.chance || 0) * 100)}%) — ${one.trace.why}`));
       box.appendChild(row);
     });
-    add(box, el("div", "muted", `written and read back in ${d.seconds}s`));
+    if (d.source) add(box, el("div", "muted", `said as it stands — ${d.source}`), el("div", "mono", d.text || ""));
+    else add(box, el("div", "muted", `written and read back in ${d.seconds}s`));
   }
   return box;
 }

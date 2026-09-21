@@ -453,7 +453,7 @@ starts. That is what makes it knowledge rather than a note about one thing.
 
 ### The trap this cost
 
-`` written through a shell heredoc became a literal backspace, so
+A regex word boundary (backslash-b) written through a shell heredoc became a literal backspace, so
 `ASKING` — the pattern that decides an utterance is a question — could never
 match. Invisible in the file and in every `grep`. It shipped in the previous
 commit and did nothing, because no world was open by default; the moment one
@@ -462,7 +462,63 @@ the probe moved by three. **This is the third time in this project, and the
 rule is already written down: use a file, never a heredoc, for anything
 containing an escape.** The repair was by line index with no escapes at all.
 
-## 10. What this does not do
+## 10. On the page, step by step
+
+`python -m research.v690` is the page, and it is the same page it was: text
+in, text out, v689 answering what it answers, the decoder writing those
+replies, every step behind a turn one click away. What is new is that an
+order is carried out, and the turn shows how.
+
+A turn that asked for something gets a step of its own, **planned**, between
+*reasoned* and *remembered*:
+
+```
+[reasoned] The want operator answered; noting went first and let it go on.
+[planned ] You asked for the cup is in the shop, the book is in the garden;
+           961 actions were possible, over 8 verbs; 2 actions did it, off a
+           goal stack 2 deep (1 subgoals, 2 operators fired).
+```
+
+Its details are what was wanted, what it had to choose from, the plan with
+each action as it was carried out, any surprise and what it did about it,
+and **the goal stack**: each goal, what fired in it, and what it pushed, as
+an outline you open a level at a time. A turn that asked for nothing has no
+such step and reads exactly as it did.
+
+What had to change to get there, each found by running the page rather than
+a harness:
+
+- **`executed` never reached the page.** `Turn.as_dict` has no key for it,
+  so no executive run of any layer has ever been visible. The planning is
+  put on the answer instead, curated (`Scene.planning`): a turn's full
+  `executed` is thirty runs for an ordinary question, and archiving that on
+  every turn would show nothing most of the time.
+- **v689 splits `A and B` into claims** and runs the act executive once per
+  claim, so the second goal of *get the cup to the shop and the book to the
+  garden* was lost, and the leftover claim, read alone, garbled the scene.
+  v691 now hears the **whole** utterance once per turn, and a later claim
+  of a turn it answered is `settled` with nothing. v689's merge of claim
+  answers keeps what a later layer put on the first (`LAYER_KEYS`).
+- **Never do what would change nothing.** After the cup was in the shop the
+  planner put it there five more times, by five verbs, before turning to
+  the book. An action whose every effect already holds does not propose.
+  Every measured number is unchanged by it: declared domains never had such
+  an action.
+- **A kitchen holds more than one thing.** Putting the cup there took John
+  out, because a blocks rule -- one block sits on another -- was applied to
+  every place. It applies now only where a domain says a target is taken
+  (`taken clear 2`).
+- **The narration.** Past tense comes from WordNet's own list of irregular
+  forms, read backwards (`took`, `went`, `left`); names are said without an
+  article because they were said without one; the doer is only ever a name,
+  because the store's categories are a union over senses and some sense of
+  `cup` is animate enough to carry things.
+- **The account said `noting` had nothing.** An operator that went on did
+  its work; *reasoned* now says so, *answered* says a scene reply is not a
+  verdict, and *said* says the reply is the agent's own words rather than
+  reporting a decoder that never ran.
+
+## 11. What this does not do
 
 Said plainly, because the gap is the interesting part.
 
@@ -488,7 +544,7 @@ Said plainly, because the gap is the interesting part.
   something, which is what it takes to show the planning is general. Joining
   it to v689's grammar is the work ToMi and StepGame showed is not free.
 
-## 11. What is next
+## 12. What is next
 
 
 - **a reason to prefer one verb over another**, per §8. This is the one

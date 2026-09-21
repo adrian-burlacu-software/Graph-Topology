@@ -278,6 +278,11 @@ class Taught:
 LAYERS: list = []
 
 
+#: Keys of an answer that belong to a later layer, kept when a turn's claims
+#: are merged into one answer.
+LAYER_KEYS = ("spoken", "planning", "act", "scene", "domain")
+
+
 def contributes(make) -> None:
     """Register a later layer's acts. Idempotent, because a page that
     imports two servers would otherwise register them twice."""
@@ -528,6 +533,13 @@ class Session:
                 "source": replies[0].get("source") or "conversation",
                 "text": "; ".join(one.get("text") for one in replies
                                   if one.get("text"))}
+            # What a later layer put on the answer (`contributes`) survives
+            # the merge: v691's reply as it is said and the plan behind it.
+            # Named, not copied wholesale, so none of v689's own keys start
+            # reaching a merged answer that never carried them before.
+            for key in LAYER_KEYS:
+                if key in replies[0]:
+                    turn.answer[key] = replies[0][key]
         self._when = When()
         self.memory.hidden = frozenset()
         turn.growth = [one.as_dict() for one in self.memory.growth[grown:]]

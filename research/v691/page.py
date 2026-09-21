@@ -329,20 +329,41 @@ ACTS = {
 }
 
 
+#: conversation -> the number of the last turn this layer answered.
+_DONE: dict = {}
+
+
+def whole(memory) -> str:
+    """What was said this turn, all of it.
+
+    v689 splits `get the cup to the shop and the book to the garden` into
+    two claims and runs the act executive once for each. An order is not
+    two orders: planned claim by claim, the second goal was lost and the
+    second claim, read on its own as `the book to the garden`, was taken
+    for a fact. So this layer hears the whole utterance, once.
+    """
+    turn = memory.get("turn")
+    return getattr(turn, "said", "") or memory["reading"].said
+
+
 def replies(session) -> list:
     """v691's acts, as operators for v689's act executive."""
+    key = getattr(session, "conversation", "") or id(session)
+
     def answering(name: str, handler, utility: float, rule: str,
                   effects=()) -> Operator:
         def proposes(memory) -> bool:
-            return heard_for(session, memory["reading"].said).act == name
+            return heard_for(session, whole(memory)).act == name
 
         def apply(memory):
             scene = scene_for(session)
-            heard = heard_for(session, memory["reading"].said)
+            heard = heard_for(session, whole(memory))
+            _DONE[key] = getattr(memory.get("turn"), "number", None)
             text = handler(scene, heard)
+            planning = scene.planning() if name == "want" else {}
             memory["turn"].answer = {
                 "outcome": "acted", "source": "world", "act": name,
-                "text": text,
+                "text": text, "planning": planning,
                 # Said as it stands: this is already English written from a
                 # plan, and the decoder is trained to paraphrase v689's
                 # verdicts, not to re-tell a story it was not given.
@@ -365,7 +386,7 @@ def replies(session) -> list:
         things are.
         """
         scene = scene_for(session)
-        heard = heard_for(session, memory["reading"].said)
+        heard = heard_for(session, whole(memory))
         memory["noted"] = True
         if heard.act or not scene.open:
             # Something here is going to act on it; it will record its own.
@@ -374,7 +395,23 @@ def replies(session) -> list:
             scene.tell(heard)
         return CONTINUE
 
-    return [Operator(name="noting", apply=noting, gives=("noted",),
+    def settled(memory):
+        """A later claim of a turn this layer has already answered whole.
+
+        It answers with nothing, so the merged reply is the one reply and
+        not the same plan told twice -- and so nothing else reads the
+        leftover claim as something new.
+        """
+        memory["turn"].answer = {"outcome": "acted", "source": "world",
+                                 "text": ""}
+        return ANSWERED
+
+    return [Operator(name="settled", apply=settled, utility=NOTING + 1,
+                     rule="the rest of an utterance already acted on",
+                     proposes=lambda memory: _DONE.get(key) is not None
+                     and _DONE.get(key) == getattr(memory.get("turn"),
+                                                   "number", None)),
+            Operator(name="noting", apply=noting, gives=("noted",),
                      utility=NOTING, rule="what the utterance says is there",
                      proposes=lambda memory: scene_for(session).open)] + [
         answering(name, handler, utility, rule, effects)
