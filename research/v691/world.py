@@ -44,6 +44,7 @@ import collections
 from dataclasses import dataclass, field
 
 from research.v687.executive import effect
+from research.v691 import quantities as Q
 
 #: The store name every operator that acts must declare in its `effects`.
 WORLD = "world"
@@ -71,18 +72,27 @@ class Action:
     #: can only ask for presence, sees each as a positive `not X` slot
     #: (`acting.negated`), which is the textbook compilation.
     forbids: frozenset = frozenset()
+    #: how it changes amounts, as (fluent, delta): giving mary two apples
+    #: is `(("with apple mary", 2), ("with apple you", -2))`. A count is not
+    #: a fact that becomes true, so it is not an add (`quantities.py`)
+    changes: tuple = ()
+    #: who does it, where one role is the doer: what an action on one thing
+    #: needs to know to be lifted to an amount (`quantities.lifted`)
+    doer: str = ""
 
     def holds_in(self, facts) -> bool:
-        return self.needs <= facts and not (self.forbids & facts)
+        return Q.satisfied(self.needs, facts) and not (self.forbids & facts)
 
     def on(self, facts: frozenset) -> frozenset:
         """The state this action leaves, without asking whether it applies.
 
         Deletes first, then adds: `stack a b` deletes `clear b` and adds
         `clear a`, and an action that deleted after adding would undo its
-        own work wherever the two sets touch.
+        own work wherever the two sets touch. Amounts last, from whatever
+        they were.
         """
-        return (facts - self.deletes) | self.adds
+        after = (facts - self.deletes) | self.adds
+        return Q.changed(after, self.changes) if self.changes else after
 
     def __str__(self) -> str:
         return self.name
@@ -124,7 +134,7 @@ class World:
         return True
 
     def solved(self, wanted) -> bool:
-        return set(wanted) <= self.facts
+        return Q.satisfied(wanted, self.facts)
 
     def announce(self, action: Action, before) -> None:
         effect(WORLD, action.name, lambda: setattr(self, "facts", before))
@@ -196,7 +206,7 @@ def shortest(problem: Problem, ceiling: int = 100000) -> list | None:
     """
     actions = problem.actions
     start = problem.start
-    if problem.goal <= start:
+    if Q.satisfied(problem.goal, start):
         return []
     seen = {start}
     queue = collections.deque([(start, [])])
@@ -208,7 +218,7 @@ def shortest(problem: Problem, ceiling: int = 100000) -> list | None:
             after = action.on(facts)
             if after in seen:
                 continue
-            if problem.goal <= after:
+            if Q.satisfied(problem.goal, after):
                 return path + [action]
             seen.add(after)
             queue.append((after, path + [action]))

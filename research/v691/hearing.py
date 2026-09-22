@@ -38,6 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from research.v689.clauses import Word
+from research.v691 import numbers, quantities as Q
 
 #: Prepositions that put a thing somewhere, for `is in/at/on the X`.
 PLACES = frozenset({"in", "at", "on", "inside", "within", "aboard", "into",
@@ -132,17 +133,38 @@ class Heard:
     #: the preposition each place of an order was said with: `into` for the
     #: garden in `carry the box into the garden`, so it is said back so
     preps: dict = field(default_factory=dict)
+    #: how counts changed, by what a statement says was done: `i gave 2
+    #: apples to mary` is `[("with apple you", -2), ("with apple mary", 2)]`
+    changes: list = field(default_factory=list)
+    #: a question about a count (`how many apples does mary have`), taken
+    #: apart: {kind, holders, where, compare, than, who, yesno, total}
+    count: dict | None = None
+    #: the kind of thing last counted, for `she gave 2 to john`
+    counted: str = ""
+    #: counts something was done to that could not be read as a change --
+    #: `3 balloons popped` -- as (kind, holder or ""): not to be trusted
+    #: any more, because a count stated after it would be a guess
+    unsure: list = field(default_factory=list)
+    #: what the parse tags as a proper noun: `john` in `give john 4
+    #: apples`, where no article or position says it is a name
+    names: list = field(default_factory=list)
 
 
-def hear(text: str, stated=None, it: str = "") -> Heard:
+def hear(text: str, stated=None, it: str = "", kind: str = "",
+         who: str = "") -> Heard:
     """Read one utterance. `stated(verb)` says whether a verb names a state
-    (`verbs.stated`), for `make X V`; `it` is what `it` refers to."""
+    (`verbs.stated`), for `make X V`; `it` is what `it` refers to; `kind`
+    is what a bare number counts (`she gave 2 to john`) and `who` is who
+    `he` or `she` is."""
     words = parse(text)
-    out = Heard()
+    out = Heard(counted=kind)
     if not words:
         return out
     name = {one.index: (it if one.text in ("it", "they") and it else
                         thing(words, one)) for one in words}
+    out.names = [one.text for one in words if one.tag in ("NNP", "NNPS")
+                 and one.text.isalpha()]
+    counts = _counts(words, kind)
     # A question states nothing: `what steps are required` is not news
     # about steps, and `does a table have legs` is v688's.
     question = (words[0].tag in ("WRB", "WP", "WDT")
@@ -170,6 +192,8 @@ def hear(text: str, stated=None, it: str = "") -> Heard:
         if verb.lemma in ("have", "hold") and subject is not None \
                 and not question:
             for held in children(words, verb.index, {"dobj"}):
+                if held.index in counts:
+                    continue
                 out.facts.append(f"with {name[held.index]} "
                                  f"{name[subject.index]}")
             continue
@@ -179,6 +203,8 @@ def hear(text: str, stated=None, it: str = "") -> Heard:
                 and verb.tag in ("VBD", "VBZ", "VBN")
                 and verb.lemma not in ("be", "have", "do")):
             out.done += _done(words, verb)
+    if counts or (question and _asks_how_many(words)):
+        _amounts(words, counts, name, question, out, who)
     return out
 
 
@@ -348,3 +374,393 @@ def _effects(lemma, obj, place, preposition, name) -> list:
     if handed and preposition == "to":
         return [f"with {what} {where}"]
     return [f"at {what} {where}"]
+
+
+# -- counts ----------------------------------------------------------------
+#
+# `mary has 3 apples`, `i gave 2 apples to mary`, `give mary 2 apples`, `how
+# many apples does mary have`. The same parse, read for how many: a noun with
+# a number on it is a count of a kind, and what a verb does to a count is
+# what VerbNet says it does to one of them (`change.effects`) -- so there is
+# no list here of verbs that give, take, lose or find.
+
+#: Who a pronoun is, as the scene keeps them: the person talking is `you`
+#: to the one listening, and the one listening is `me`.
+SPEAKER = frozenset({"i", "me", "my", "we", "us", "our", "mine"})
+LISTENER = frozenset({"you", "your", "yours"})
+THIRD = frozenset({"he", "she", "him", "her", "his", "hers", "they",
+                   "them", "their"})
+#: Two prepositions that together say where from: `out of the bowl`.
+SOURCES = frozenset({"out of", "off of", "away from", "down from",
+                     "out from"})
+FROM = "from"
+#: What makes a count a sum of several: `together`, `in total`.
+TOTAL = frozenset({"together", "altogether", "total", "combined",
+                   "overall", "both"})
+#: Comparatives that ask by how much, and which way.
+MORE = frozenset({"more", "greater", "bigger", "larger"})
+FEWER = frozenset({"fewer", "less", "smaller"})
+#: Where something is when a place is not said: whichever place the scene
+#: knows has some of that kind (`2 birds flew away`).
+SOMEWHERE = "?"
+
+
+def _subtree(words, index: int) -> list:
+    out, frontier = [index], [index]
+    while frontier:
+        at = frontier.pop()
+        for one in words:
+            if one.head == at and one.index != at and one.index not in out:
+                out.append(one.index)
+                frontier.append(one.index)
+    return sorted(out)
+
+
+def _kind(word) -> str:
+    """The kind a counted noun names: the noun WordNet knows it as, not
+    the tagger's lemma -- the transformer tags `pears` in `how many pears
+    does sam have` as a plural name and leaves it as it is."""
+    from research.v689.asker import _noun_lemma
+    return _noun_lemma(word.text, word.lemma) or word.lemma or word.text
+
+
+def _counts(words, kind: str = "") -> dict:
+    """noun index -> (how many, of what) for every counted noun: `3 apples`,
+    `a dozen eggs`, and a number standing where a noun would -- `she gave 2
+    to john` -- which counts whatever was counted last."""
+    out = {}
+    for noun in words:
+        if noun.tag.startswith("NN"):
+            parts = [one for one in words if one.head == noun.index
+                     and one.dep in ("nummod", "quantmod")
+                     and one.index != noun.index]
+            if not parts:
+                continue
+            indices = sorted({at for one in parts
+                              for at in _subtree(words, one.index)})
+            value = numbers.value(" ".join(words[at].text for at in indices))
+            if value is not None:
+                out[noun.index] = (value, _kind(noun))
+        elif (noun.tag == "CD" and kind and noun.dep in (
+                "dobj", "nsubj", "pobj", "attr", "conj")):
+            value = numbers.value(" ".join(
+                words[at].text for at in _subtree(words, noun.index)))
+            if value is not None:
+                out[noun.index] = (value, kind)
+    return out
+
+
+def _asks_how_many(words) -> bool:
+    """`how many`, `how much`, or `who has more`."""
+    for word in words:
+        if word.lemma in ("many", "much") and any(
+                one.lemma == "how" and one.head == word.index
+                for one in words):
+            return True
+    return any(word.tag == "JJR" for word in words) and (
+        words[0].tag in ("WP", "VBZ", "VBP", "VBD"))
+
+
+def _holder(words, word, name: dict, who: str) -> str:
+    if word is None:
+        return ""
+    if word.text in SPEAKER:
+        return "you"
+    if word.text in LISTENER:
+        return "me"
+    if word.text in THIRD:
+        return who
+    found = name.get(word.index, "")
+    if found and word.tag in ("NN", "NNS"):
+        # `the red box` and `the blue box` are two boxes: a holder of a
+        # count is told apart by what is said of it.
+        said = [one.text for one in words if one.head == word.index
+                and one.dep == "amod" and one.tag == "JJ"
+                and one.text.isalpha() and one.lemma not in ("many",
+                                                             "much")]
+        if said:
+            found = "-".join(said + [found])
+    return found
+
+
+def _does_something(verb: str, has_object: bool, preposition: str) -> bool:
+    """Whether VerbNet says the verb changes anything about what it is done
+    to, in a sentence of this shape: `pop`, `burst`, `paint`. Seeing and
+    counting change nothing, and leave a count as it was."""
+    from research.v689 import change
+    try:
+        found = change.effects(verb, has_object, preposition)
+    except Exception:                              # noqa: BLE001
+        return False
+    return bool(found)
+
+
+def _consumes(verb: str) -> bool:
+    """Whether doing it uses a thing up: VerbNet's `take_in` (eat-39.1,
+    drink), where nothing is said to go anywhere and the thing is gone."""
+    from research.v689 import change
+    return any(predicate == "take_in"
+               for frame, _ in change.frames().get(verb, ())
+               for predicate, *_ in frame.semantics)
+
+
+#: VerbNet's words for a thing ceasing to be what it was.
+CEASING = frozenset({"destroyed", "degradation_material_integrity",
+                     "disappear"})
+
+
+def _ceases(verb: str, found) -> bool:
+    """Whether doing it ends the thing: VerbNet says it is destroyed,
+    falls apart or disappears, or that it was alive and is not."""
+    from research.v689 import change
+    if any(one.word == "alive" and one.before and one.after is False
+           for one in found):
+        return True
+    return any(predicate in CEASING
+               for frame, _ in change.frames().get(verb, ())
+               for predicate, *_ in frame.semantics)
+
+
+def _moved(verb: str, dative: bool, preposition: str,
+           has_object: bool) -> dict:
+    """party -> +1 or -1: who gains and who loses one of what the verb
+    moves, as VerbNet says -- read, not listed. The parties are positions
+    (`subject`, `place`, and `from`: wherever it was); the caller puts
+    names to them."""
+    from research.v689 import change
+    try:
+        found = change.effects(verb, has_object, preposition)
+    except Exception:                              # noqa: BLE001
+        found = []
+    moved = "object" if has_object else "subject"
+    out: dict = {}
+    for one in found:
+        if one.kind != "location" or one.position != moved:
+            continue
+        if moved == "subject" and one.at == "subject":
+            continue
+        party = {"subject": "subject", "place": "place",
+                 "": "subject" if moved == "object" else "from"}.get(
+            one.at, "")
+        if not party:
+            continue
+        if one.before is True and one.after is False:
+            out[party] = -1
+        elif one.after is True and out.get(party) != -1:
+            out[party] = 1
+    if moved == "object" and out.get("place") == 1 and "subject" not in out:
+        # `peter handed 3 coins to kate`: VerbNet's hand says where they
+        # went and not where from. Of coins, from the one handing them --
+        # the rule plans keep (`quantities.lifted`).
+        out["subject"] = -1
+    if moved == "object" and dative and "place" not in out and \
+            out.get("subject") == -1:
+        # `mary gave john three apples`: VerbNet's give without a
+        # preposition says only that the apples left mary. The one in the
+        # dative is who has them now.
+        out["place"] = 1
+    if not out and moved == "object" and _consumes(verb):
+        out["subject"] = -1
+    if not out and _ceases(verb, found):
+        # `2 plates broke`, `3 fish died`: what stops being is not counted.
+        out["from"] = -1
+    if moved == "subject" and "from" not in out and change.moves(verb) \
+            and "place" not in out:
+        # `2 birds flew away`: a thing that moves itself leaves wherever
+        # it was.
+        out["from"] = -1
+    return out
+
+
+def _amounts(words, counts: dict, name: dict, question: bool, out: Heard,
+             who: str) -> None:
+    """What the utterance says about counts: amounts it states, how a
+    counted thing moved, an order to move some, or a question of how many.
+    The plain facts the rest of `hear` read off the same nouns -- `at eggs
+    basket` -- are taken back, because they said less."""
+    texts = {words[index].text for index in counts}
+    for index in sorted(counts):
+        out.counted = counts[index][1]
+    out.facts = [fact for fact in out.facts
+                 if not texts & set(fact.split()[1:])]
+    out.wants = [fact for fact in out.wants
+                 if not texts & set(fact.split()[1:])]
+    if question:
+        _how_many(words, counts, name, out, who)
+        return
+    for verb in words:
+        if not verb.tag.startswith("VB"):
+            continue
+        subject = next(iter(children(words, verb.index, SUBJECTS)), None)
+        if subject is not None and subject.dep == "expl":
+            subject = next((one for one in children(words, verb.index,
+                                                    {"attr"})
+                            if one.index in counts), None)
+        if children(words, verb.index, {"neg"}):
+            continue
+        objects = [one for one in children(words, verb.index, {"dobj"})
+                   if one.index in counts]
+        place, preposition = None, ""
+        # `there are 9 birds in the tree`: the place may hang off what is
+        # counted rather than off the verb, as `_stated` reads it too.
+        preps = children(words, verb.index, {"prep", "dative"})
+        if subject is not None and subject.index in counts:
+            preps += children(words, subject.index, {"prep"})
+        for prep in preps:
+            target = next(iter(children(words, prep.index, {"pobj"})), None)
+            said = prep.text
+            if target is None:
+                # `out of the bowl`, `off of the shelf`: the place hangs off
+                # a second preposition, and the two say where from.
+                inner = next(iter(children(words, prep.index, {"prep"})),
+                             None)
+                if inner is not None:
+                    target = next(iter(children(words, inner.index,
+                                                {"pobj"})), None)
+                    said = FROM if f"{prep.text} {inner.text}" in \
+                        SOURCES else inner.text
+            if target is not None and said not in ("than", "of"):
+                place, preposition = target, said
+        # `her mom gave her 4 books`: the one given to may be a pronoun.
+        dative = next((one for one in children(words, verb.index, {"dative"})
+                       if one.tag.startswith("NN") or one.tag == "PRP"),
+                      None)
+        if dative is not None and place is None:
+            place, preposition = dative, "to"
+        holder = _holder(words, subject, name, who)
+        where = _holder(words, place, name, who) if place is not None else ""
+        if verb.lemma in ("have", "hold", "own", "keep") \
+                and verb.tag != "VB":
+            if subject is not None and any(
+                    one.lemma in ("each", "every")
+                    for one in children(words, subject.index, {"det"})):
+                # `each box has 6 eggs` is not what one box has: it is a
+                # rate, and nothing here multiplies yet.
+                continue
+            for held in objects:
+                if holder:
+                    count, kind = counts[held.index]
+                    out.facts.append(Q.amount(f"with {kind} {holder}", count))
+            continue
+        if verb.lemma == "be":
+            if subject is not None and subject.index in counts and where \
+                    and preposition in PLACES:
+                count, kind = counts[subject.index]
+                out.facts.append(Q.amount(f"at {kind} {where}", count))
+            continue
+        order = ((subject is None and verb.dep == "ROOT"
+                  and verb.tag == "VB")
+                 or (subject is not None and subject.text == "you"
+                     and any(one.text in REQUESTS for one in children(
+                         words, verb.index, {"aux"}))))
+        if objects:
+            count, kind = counts[objects[0].index]
+            moved = _moved(verb.lemma, dative is not None, preposition, True)
+        elif subject is not None and subject.index in counts:
+            count, kind = counts[subject.index]
+            moved = _moved(verb.lemma, False, preposition, False)
+            holder = ""
+        else:
+            continue
+        if not moved:
+            if not order and _does_something(verb.lemma, bool(objects),
+                                             preposition):
+                # Something was done to them that is not a count moving:
+                # the count is not what it was known to be.
+                out.unsure.append((kind, holder))
+            continue
+        doer = "me" if order else holder
+        parties = {"subject": doer, "place": where, "from": SOMEWHERE}
+        changes = []
+        for party, sign in sorted(moved.items()):
+            named = parties.get(party, "")
+            if not named:
+                continue
+            # A place said with `in`, `on`, `into` holds things; a person
+            # said with `to` has them; wherever it was, was a place.
+            relation = ("at" if party == "from" or (
+                party == "place" and preposition not in ("to", ""))
+                else "with")
+            changes.append((f"{relation} {kind} {named}", sign * count))
+        if order:
+            gains = [(fluent, delta) for fluent, delta in changes
+                     if delta > 0 and fluent.split()[-1] != doer]
+            for fluent, delta in gains or changes:
+                out.wants.append(Q.condition(
+                    fluent, "+=" if delta > 0 else "-=", abs(delta)))
+            if out.wants:
+                out.order = True
+                if verb.lemma not in out.verbs:
+                    out.verbs.append(verb.lemma)
+        else:
+            out.changes += changes
+
+
+def _how_many(words, counts, name, out: Heard, who: str) -> None:
+    """`how many apples does mary have`, `how many are in the basket`, `how
+    many more does john have than mary`, `who has more apples`."""
+    kind, noun = "", None
+    for word in words:
+        if word.tag.startswith("NN") and any(
+                one.lemma in ("many", "much") and one.head == word.index
+                for one in words):
+            kind, noun = _kind(word), word
+            break
+    compare = ""
+    for word in words:
+        if word.text in MORE:
+            compare = "more"
+        elif word.text in FEWER:
+            compare = "fewer"
+        else:
+            continue
+        if noun is None and words[word.head].tag.startswith("NN"):
+            noun = words[word.head]
+            kind = _kind(noun)
+    if noun is None and out.counted:
+        # `how many are left`: whatever was counted last.
+        kind = out.counted
+    if not kind:
+        return
+    root = next((one for one in words if one.dep == "ROOT"), None)
+    if root is None:
+        return
+    subject = next(iter(children(words, root.index, SUBJECTS)), None)
+    holders, than, where = [], [], []
+    if subject is not None and subject.lemma in ("many", "much"):
+        subject = None
+    if subject is not None and (noun is None or subject.index != noun.index):
+        listed = [subject]
+        for two in words:
+            # `ann, bob and cal`: each joined to the one before it.
+            if two.dep == "conj" and two.head in {one.index
+                                                  for one in listed}:
+                listed.append(two)
+        for one in listed:
+            found = _holder(words, one, name, who)
+            if found:
+                holders.append(found)
+    for prep in children(words, root.index, {"prep"}):
+        if prep.text in PLACES:
+            for target in children(words, prep.index, {"pobj"}):
+                found = _holder(words, target, name, who)
+                if found:
+                    where.append(found)
+    for at, word in enumerate(words):
+        if word.text == "than" and at + 1 < len(words):
+            found = _holder(words, words[at + 1], name, who)
+            if found:
+                than.append(found)
+    asked_who = subject is not None and subject.tag == "WP"
+    if asked_who:
+        holders = [_holder(words, one, name, who) for one in words
+                   if (noun is None or one.index > noun.index)
+                   and one.tag in ("NNP", "NN", "PRP")
+                   and one.index != getattr(noun, "index", -1)]
+        holders = [one for one in holders if one]
+    yesno = words[0].lemma in ("do", "be", "have") and not asked_who
+    total = any(one.text in TOTAL for one in words) or (
+        any(one.text == "all" and one.head == root.index for one in words))
+    out.count = {"kind": kind, "holders": holders, "where": where,
+                 "compare": compare, "than": than, "who": asked_who,
+                 "yesno": yesno, "total": total or len(holders) > 1}

@@ -48,7 +48,8 @@ from dataclasses import dataclass, field
 
 from research.v687.executive import (ANSWERED, DECLINED, Executive, Operator,
                                      Working)
-from research.v691 import acting, lessons, world as W
+from research.v691 import acting, lessons, numbers, quantities as Q, \
+    world as W
 from research.v691.domains import DOMAINS
 
 #: Words that are never an object's name, however a pattern falls.
@@ -94,6 +95,20 @@ DROP = re.compile(r"\b(?:never mind|forget it|leave it|don't bother|"
 COPULA = r"(?:\s+(?:is|are|was|were|'s|'re))?"
 
 
+def _a_number(plain: str):
+    """The number an answer is, where it is only a number -- `five`, `5`,
+    `five apples`, `she has 5` -- or None."""
+    words = [one for one in plain.replace(",", " ").split()
+             if one not in ("i", "have", "has", "she", "he", "they", "we",
+                            "there", "are", "is", "about", "exactly",
+                            "only", "just")]
+    for size in range(len(words), 0, -1):
+        found = numbers.value(" ".join(words[:size]))
+        if found is not None:
+            return found
+    return None
+
+
 def names_of(domain) -> re.Pattern:
     """What an object may be called: a word, with `the`/`a` and the kind
     word optional round it. Built from the domain, so nothing here knows
@@ -116,6 +131,11 @@ class Heard:
     domain: str = ""
     #: what a sentence teaches about acting (`learned.teaching`)
     taught: list = field(default_factory=list)
+    #: how counts changed by what was said to have been done, and a
+    #: question of how many (`hearing.Heard`)
+    changes: list = field(default_factory=list)
+    count: dict | None = None
+    unsure: list = field(default_factory=list)
     trouble: str = ""
     #: how sure, so the act executive can rank it against v689's own acts
     weight: float = 0.0
@@ -254,6 +274,8 @@ class Scene:
                 is_a=getattr(domain, "is_a", None))
         #: what the last report taught, for the page to show
         self.taught: list = []
+        #: kinds whose counts were lost track of (`lost_track`)
+        self.lost: set = set()
         #: an order that could not be planned, and what was asked about it:
         #: {goal, said, asked, kind, thing}. The goal is **suspended**, not
         #: dropped -- the impasse's way out is a question to the person, and
@@ -326,7 +348,15 @@ class Scene:
         # What a fact says a thing *is* -- `closed` in `the door is closed`
         # -- is not a thing, however generously `mentions` reads.
         stated = {fact.split()[0] for fact in heard.facts}
-        for name, kind in self.reader.mentions(heard.said.lower()):
+        # `apples` in `mary has 3 apples` is the word for the kind, which is
+        # `apple`, and not a second thing.
+        counting = [found for fact in heard.facts
+                    if (found := Q.read(fact)) is not None]
+        # A count names its own things -- the kind and who has them -- and
+        # the words round it are a verb and a number, not more things.
+        mentioned = ([] if counting else
+                     self.reader.mentions(heard.said.lower()))
+        for name, kind in mentioned:
             if name not in self.objects and name not in stated:
                 self.objects[name] = kind
                 self.told(name, kind)
@@ -347,6 +377,15 @@ class Scene:
         makes unnecessary, which is the argument for a world being facts
         with actions over them rather than a picture.
         """
+        counted = Q.read(fact)
+        if counted is not None:
+            # A count said again is the count now: Mary had 3, and now she
+            # has 5. Nothing else about Mary gives way.
+            self.world.facts = frozenset(
+                {one for one in self.world.facts
+                 if not ((found := Q.read(one)) is not None
+                         and found.fluent == counted.fluent)} | {fact})
+            return
         parts = fact.split()
         subject = parts[1] if len(parts) > 1 else ""
         facts = set(self.world.facts)
@@ -403,12 +442,60 @@ class Scene:
                     facts.add(fact)
         return facts
 
+    def goalish(self, literal: str) -> bool:
+        """Whether a literal is something an order can ask for: a predicate
+        a verb brings about, or a count of one -- `with+=2 apple mary` asks
+        for what `with` is, twice."""
+        return Q.plain(literal).split()[0] in self.domain.goalish
+
+    def counted(self, goal: list, said: str) -> tuple:
+        """(the goal with every `2 more` said as what it comes to, a
+        question to ask first or None). Two more apples than nobody knows
+        is still two, at least; two fewer is not anything until the count is
+        known."""
+        out = []
+        for literal in goal:
+            found = Q.read(literal)
+            if (found is not None and found.holder == "me"
+                    and Q.known(self.world.facts, found.fluent) is None):
+                # `eat 2 pears`, told to me, when nobody said I have any:
+                # done with yours, on your behalf.
+                literal = Q.condition(f"with {found.kind} you", found.op,
+                                      found.value)
+            found = Q.resolved(literal, self.world.facts)
+            if found is not None:
+                out.append(found)
+                continue
+            fluent = Q.read(literal).fluent
+            self.pending = dict(self._asking(
+                "how many", fluent, Q.read(literal).holder,
+                self._how_many_question(fluent)), goal=list(goal),
+                said=said)
+            return out, self.pending["question"]
+        return out, None
+
+    def _how_many_question(self, fluent: str) -> str:
+        found = Q.read(Q.amount(fluent, 0))
+        kind, holder = found.kind, found.holder
+        plural = numbers.plural(kind)
+        if found.predicate == "at":
+            return f"how many {plural} are in {self.domain.the(holder)}?"
+        if holder == "you":
+            return f"how many {plural} do you have?"
+        if holder == "me":
+            return f"how many {plural} do I have?"
+        return f"how many {plural} does {self.domain.the(holder)} have?"
+
     def want(self, heard: Heard) -> str:
         goal = [one for one in (heard.wants or heard.facts)
-                if one.split()[0] in self.domain.goalish]
+                if self.goalish(one)]
         if not goal:
             return ("I understood that as a scene rather than as something "
                     "to do -- tell me where something should end up")
+        goal, asked = self.counted(goal, heard.said)
+        if asked is not None:
+            self.wanted, self.last_plan, self.steps = [], [], []
+            return "I will need to know that first. " + asked
         unplaced = self.unplaced(goal)
         self.introduce(goal, heard.said.lower())
         if unplaced:
@@ -429,7 +516,7 @@ class Scene:
         # in a conversation is not a search space (`verbs.useful`).
         toward = getattr(self.domain, "toward", None)
         if toward is not None:
-            toward(goal)
+            toward(goal, facts=self.world.facts)
         self.wanted = list(goal)
         offered = self.domain.ground(self.objects)
         self.offered = len(offered)
@@ -468,10 +555,13 @@ class Scene:
                         and "animate" in self.domain.things.categories(
                             parts[1])):
                     agents.add(parts[1])
+                if getattr(one, "doer", "") == "me":
+                    agents.add("me")
         if not report.solved:
             asked = self.missing(offered)
             if asked is not None:
-                self.pending = dict(asked, goal=list(goal), said=heard.said)
+                self.pending = dict(asked, goal=list(goal), said=heard.said,
+                                    **self._order_said())
                 return ("I could not see a way to do that yet"
                         + self.stopped(offered) + ". " + asked["question"])
             self.pending = None
@@ -500,16 +590,31 @@ class Scene:
         failed was the search, and a question would be asking the person
         to do the planner's job.
         """
+        counted = self._short()
+        if counted is not None:
+            return counted
         compiled, facts, _ = acting.negated(offered, self.world.facts)
-        reach = set(facts)
+        # A condition on a count is reached, on this optimistic reading, as
+        # soon as anything reachable moves the count its way.
+        counted = Q.conditions(set(self.wanted).union(
+            *[one.needs for one in compiled]))
+        reach = set(facts) | {one for one in counted
+                              if Q.holds(one, self.world.facts)}
         grown = True
         while grown:
             grown = False
             for one in compiled:
-                if one.needs <= reach and not one.adds <= reach:
-                    reach |= one.adds
+                if not one.needs <= reach:
+                    continue
+                more = set(one.adds) | {
+                    literal for literal in counted for fluent, delta in
+                    one.changes if Q.read(literal).fluent == fluent
+                    and Q.toward(delta, literal)}
+                if not more <= reach:
+                    reach |= more
                     grown = True
-        goal = [one for one in self.wanted if one not in self.world.facts]
+        goal = [one for one in self.wanted
+                if not Q.holds(one, self.world.facts)]
         if not goal or set(goal) <= reach:
             return None
         placed = {one.split()[1] for one in self.world.facts
@@ -527,7 +632,11 @@ class Scene:
             if literal in reach or literal in seen or depth > 6:
                 return
             seen.add(literal)
-            ways = [one for one in compiled if literal in one.adds]
+            found = Q.read(literal)
+            ways = [one for one in compiled if literal in one.adds
+                    or (found is not None and any(
+                        fluent == found.fluent and Q.toward(delta, literal)
+                        for fluent, delta in one.changes))]
             if not ways:
                 leaves.append((depth, literal))
                 return
@@ -541,6 +650,23 @@ class Scene:
         if not leaves:
             return None
         literal = sorted(leaves, key=lambda one: (-one[0], one[1]))[0][1]
+        found = Q.read(literal)
+        if found is not None:
+            # A count: not known, it is asked for; known and short, where
+            # more would come from is.
+            have = Q.known(self.world.facts, found.fluent)
+            if have is None:
+                return self._asking("how many", found.fluent, found.holder,
+                                    self._how_many_question(found.fluent))
+            words = Q.in_words(Q.amount(found.fluent, *have),
+                               self.domain.the)
+            short = found.value - have[0]
+            more = (f"the other {numbers.counted(short, found.kind)}"
+                    if short > 0 and not have[1] else "more")
+            return self._asking(
+                "how", literal, found.holder,
+                f"{words[:1].upper()}{words[1:]} -- where would {more} "
+                f"come from?")
         if literal.startswith(acting.NOT):
             fact = literal[len(acting.NOT):]
             thing = fact.split()[1] if len(fact.split()) > 1 else ""
@@ -557,6 +683,81 @@ class Scene:
         words = self.domain.in_words(literal)
         return self._asking("how", literal, thing,
                             f"how would I make it so that {words}?")
+
+    def _order_said(self) -> dict:
+        """How the order was said -- its verbs and prepositions -- to be
+        restored when it is tried again after an answer."""
+        out = {}
+        for name in ("said_verbs", "said_preps"):
+            if hasattr(self.domain, name):
+                value = getattr(self.domain, name)
+                out[name] = type(value)(value)
+        return out
+
+    def _short(self) -> dict | None:
+        """What a counted goal is short of, as a question, or None.
+
+        A plan only moves counts (`quantities.lifted`), so John can end up
+        with four more apples only if four are to be had from what a plan
+        may take from -- mine, yours, and what is nobody's
+        (`openworld.Open._mine`). A source whose count nobody said is asked
+        about; sources that are all known and too few are said to be, with
+        the question of where the rest would come from. The relaxed reading
+        below cannot say this: to it, giving one apple is a way toward
+        four.
+        """
+        mine = getattr(self.domain, "_mine", None)
+        if mine is None:
+            return None
+        things = self.domain.things
+        for literal in self.wanted:
+            found = Q.read(literal)
+            if found is None or Q.holds(literal, self.world.facts):
+                continue
+            have = Q.known(self.world.facts, found.fluent)
+            count = have[0] if have is not None else 0
+            need = found.value - count + (1 if found.op == ">" else 0)
+            if found.op not in (">=", ">", "=") or need <= 0:
+                continue
+            # The person asking may always have some: they are asked. I
+            # have what I was told I have.
+            sources = [holder for holder in ("me", "you")
+                       if holder != found.holder
+                       and (holder == "you" or holder in self.objects)]
+            for fact in self.world.facts:
+                one = Q.read(fact)
+                if (one is not None and one.op == "=" and one.kind == found.kind
+                        and one.holder != found.holder
+                        and one.holder not in sources
+                        and (one.holder in ("me", "you")
+                             or things.acts(one.holder) is False)):
+                    sources.append(one.holder)
+            known = {holder: Q.known(self.world.facts, self.settled(
+                f"with {found.kind} {holder}")) for holder in sources}
+            unknown = [holder for holder, have in known.items()
+                       if have is None]
+            available = sum((have[0] for have in known.values()
+                             if have is not None), 0)
+            if available >= need:
+                continue
+            if unknown:
+                holder = "you" if "you" in unknown else unknown[0]
+                return self._asking(
+                    "how many", f"with {found.kind} {holder}", holder,
+                    self._how_many_question(f"with {found.kind} {holder}"))
+            said = "; ".join(
+                Q.in_words(Q.amount(self.settled(
+                    f"with {found.kind} {holder}"), *have), self.domain.the)
+                for holder, have in known.items()) or (
+                f"there are no {numbers.plural(found.kind)} that I can "
+                f"use")
+            rest = need - available
+            return self._asking(
+                "how", literal, found.holder,
+                f"{said[:1].upper()}{said[1:]} -- where would "
+                f"{'the other ' if available else ''}"
+                f"{numbers.counted(rest, found.kind)} come from?")
+        return None
 
     def unplaced(self, goal: list) -> str:
         """A thing an order moves that nothing says is anywhere, in a world
@@ -593,6 +794,8 @@ class Scene:
         if pending["kind"] == "whether" and (YES.match(plain)
                                              or NO.match(plain)):
             return True
+        if pending["kind"] == "how many" and _a_number(plain) is not None:
+            return True
         return any(pending["thing"] in fact.split()[1:] for fact in facts)
 
     def resume(self, heard: Heard, taught: str = "") -> str:
@@ -616,14 +819,210 @@ class Scene:
         if pending["kind"] == "whether" and YES.match(plain):
             self.introduce([pending["asked"]], plain)
             self.put(pending["asked"])
+        elif pending["kind"] == "how many" and not heard.facts \
+                and _a_number(plain) is not None:
+            fact = Q.amount(pending["asked"], _a_number(plain))
+            self.introduce([fact], plain)
+            self.put(fact)
         elif heard.facts:
             self.tell(heard)
         again = Heard(said=pending["said"], wants=list(pending["goal"]),
                       facts=list(pending["goal"]))
+        # Tried again the way it was asked: the answer was said with no
+        # verb, and `give` should not become whichever verb comes first.
+        for name in ("said_verbs", "said_preps"):
+            if name in pending and hasattr(self.domain, name):
+                setattr(self.domain, name, pending[name])
         done = self.want(again)
         return (f"{taught}; " if taught else "") + ("then " + done
                                                     if self.last_plan
                                                     else done)
+
+    # -- counts --------------------------------------------------------------
+    def happened(self, changes: list) -> list:
+        """What a statement says was done to counts, done to the scene:
+        `i gave 2 apples to mary`. Each count is the one the scene already
+        keeps -- the basket's apples whether they were said to be *in* it or
+        *had* by it -- and `wherever they were` is the one place that has
+        some. Returns the facts it changed."""
+        done = []
+        for fluent, delta in changes:
+            fluent = self.settled(fluent)
+            if fluent is None:
+                continue
+            found = Q.read(Q.amount(fluent, 0))
+            for name in found.args:
+                if name not in self.objects:
+                    self.objects[name] = ""
+                    self.told(name, "")
+            if delta < 0 and Q.known(self.world.facts, fluent) is None:
+                # `the children ate 5 cookies`, when nobody said the
+                # children had any and the jar had 8: they came from
+                # somewhere, and maybe the jar. What a place holds of the
+                # kind is now a guess, and is forgotten rather than said.
+                # A person's count is theirs, and stays; so does anything
+                # this same event said.
+                touched = {self.settled(one) for one, _ in changes}
+                self.lost_track([
+                    (found.kind, one.holder) for fact in self.world.facts
+                    if (one := Q.read(fact)) is not None and one.op == "="
+                    and one.kind == found.kind and one.fluent not in touched
+                    and self.domain.things.acts(one.holder) is False])
+                continue
+            before = self.world.facts
+            self.world.facts = Q.changed(self.world.facts, ((fluent, delta),))
+            if self.world.facts != before:
+                done.append(fluent)
+                self.last_counted = fluent
+        return done
+
+    def lost_track(self, unsure: list) -> list:
+        """Forget counts something was done to that could not be read as a
+        change: `3 balloons popped`. A count stated afterwards would be the
+        old one, and a wrong number is worse than not knowing. Returns
+        what was forgotten."""
+        gone = []
+        for kind, holder in unsure:
+            for fact in sorted(self.world.facts):
+                found = Q.read(fact)
+                if (found is not None and found.op == "="
+                        and found.kind == kind
+                        and (not holder or found.holder == holder)):
+                    gone.append(fact)
+        self.world.facts = self.world.facts - frozenset(gone)
+        self.lost |= {Q.read(fact).kind for fact in gone}
+        return gone
+
+    def settled(self, fluent: str) -> str | None:
+        """The count a said one is, as the scene keeps it."""
+        found = Q.read(Q.amount(fluent, 0))
+        known = [one for fact in self.world.facts
+                 if (one := Q.read(fact)) is not None and one.op == "="
+                 and one.kind == found.kind]
+        if found.holder == "?":
+            places = [one.fluent for one in known]
+            return places[0] if len(set(places)) == 1 else None
+        if Q.known(self.world.facts, fluent) is not None:
+            return fluent
+        for one in known:
+            if one.holder == found.holder:
+                return one.fluent
+        return fluent
+
+    def knows_count(self, kind: str) -> bool:
+        """Whether anybody said how many of a kind there were -- including
+        a count since lost track of, which is then said to be lost rather
+        than left to v688 to guess at."""
+        return kind in self.lost or any(
+            (found := Q.read(fact)) is not None and found.kind == kind
+            for fact in self.world.facts)
+
+    def count(self, heard: Heard) -> str:
+        """How many, from the counts the scene keeps -- worked out, never
+        guessed: a count nobody said is said to be unknown."""
+        asked = heard.count or {}
+        kind = asked.get("kind", "")
+        facts = self.world.facts
+        plural = numbers.plural(kind)
+        if kind in self.lost and not any(
+                (found := Q.read(fact)) is not None and found.kind == kind
+                for fact in facts):
+            return (f"I have lost count of the {plural}: something was done "
+                    f"to them that I could not follow")
+
+        def of(holder: str):
+            fluent = self.settled(f"with {kind} {holder}")
+            have = Q.known(facts, fluent) if fluent else None
+            return have
+
+        def said(holder: str, have) -> str:
+            if have is None:
+                return (f"I do not know how many {plural} "
+                        f"{self._whose(holder)} {self._has(holder)}")
+            return Q.in_words(Q.amount(self.settled(
+                f"with {kind} {holder}"), *have), self.domain.the)
+
+        holders = list(asked.get("holders", ()))
+        than = list(asked.get("than", ()))
+        if asked.get("compare") and (than or len(holders) == 2):
+            one, other = (holders[0], than[0]) if than else holders[:2]
+            a, b = of(one), of(other)
+            if a is None or b is None or a[1] or b[1]:
+                missing = [said(name, have) for name, have in
+                           ((one, a), (other, b))]
+                return "; ".join(missing) + ", so I cannot compare them"
+            difference = a[0] - b[0]
+            if asked.get("who"):
+                if difference == 0:
+                    return (f"neither: {said(one, a)} and {said(other, b)}")
+                more, less = (one, other) if difference > 0 else (other, one)
+                word = "more" if asked["compare"] == "more" else "fewer"
+                winner = more if word == "more" else less
+                return (f"{self._name(winner)} -- {said(one, a)} and "
+                        f"{said(other, b)}")
+            if asked["compare"] == "fewer":
+                difference = -difference
+            word = asked["compare"]
+            if difference < 0:
+                word = "fewer" if word == "more" else "more"
+            answer = (f"{self._name(one)} {self._has(one)} "
+                      f"{numbers.said(abs(difference))} {word} "
+                      f"{numbers.plural(kind, abs(difference))} than "
+                      f"{self._name(other)}")
+            if asked.get("yesno"):
+                yes = (a[0] > b[0]) if asked["compare"] == "more" else                     (a[0] < b[0])
+                return ("yes" if yes else "no") + f": {said(one, a)} and "                     f"{said(other, b)}"
+            return answer if difference else (
+                f"none: {self._name(one)} and {self._name(other)} have "
+                f"the same, {numbers.counted(a[0], kind)} each")
+        if asked.get("where"):
+            place = asked["where"][0]
+            fluent = self.settled(f"at {kind} {place}")
+            have = Q.known(facts, fluent) if fluent else None
+            if have is None:
+                return (f"I do not know how many {plural} are in "
+                        f"{self.domain.the(place)}")
+            return Q.in_words(Q.amount(fluent, *have), self.domain.the)
+        if holders:
+            found = [(name, of(name)) for name in holders]
+            if len(found) == 1:
+                return said(*found[0])
+            if any(have is None for _, have in found):
+                return "; ".join(said(*one) for one in found)
+            total = sum((have[0] for _, have in found), 0)
+            least = any(have[1] for _, have in found)
+            return (f"{'at least ' if least else ''}"
+                    f"{numbers.counted(total, kind)} together: "
+                    + "; ".join(said(*one) for one in found))
+        # `how many are left`, `how many apples are there`: every count of
+        # the kind, and the one last changed first.
+        counts = sorted(
+            ((one.fluent, one.value, one.at_least) for fact in facts
+             if (one := Q.read(fact)) is not None and one.op == "="
+             and one.kind == kind),
+            key=lambda one: one[0] != getattr(self, "last_counted", ""))
+        if not counts:
+            return f"I do not know how many {plural} there are"
+        if len(counts) == 1 or not asked.get("total"):
+            fluent, value, least = counts[0]
+            return Q.in_words(Q.amount(fluent, value, least),
+                              self.domain.the)
+        total = sum((one[1] for one in counts), 0)
+        least = any(one[2] for one in counts)
+        return (f"{'at least ' if least else ''}"
+                f"{numbers.counted(total, kind)} in all: " + "; ".join(
+                    Q.in_words(Q.amount(*one), self.domain.the)
+                    for one in counts))
+
+    def _name(self, holder: str) -> str:
+        return {"you": "you", "me": "I"}.get(holder, self.domain.the(holder))
+
+    def _whose(self, holder: str) -> str:
+        return self._name(holder)
+
+    @staticmethod
+    def _has(holder: str) -> str:
+        return "have" if holder in ("you", "me") else "has"
 
     def stopped(self, offered: list) -> str:
         """What stands in the way, where something learned says: an action
@@ -767,11 +1166,12 @@ class Scene:
         """
         doing = getattr(self.domain, "a_doing", None)
         goal = [one for one in (heard.wants or heard.facts)
-                if one.split()[0] in self.domain.goalish
+                if self.goalish(one)
                 or (doing is not None and doing(one.split()[0]))]
         if not goal:
             return ("I did not catch what it should come to -- say what "
                     "should be true, or what something should do")
+        goal = [Q.resolved(one, self.world.facts) or one for one in goal]
         self.introduce(goal, heard.said.lower())
         things = getattr(self.domain, "things", None)
         if things is not None:
@@ -783,7 +1183,7 @@ class Scene:
             self.domain.agents.add("you")
         toward = getattr(self.domain, "toward", None)
         if toward is not None:
-            toward(goal)
+            toward(goal, facts=self.world.facts)
         self.wanted = list(goal)
         offered = self.domain.ground(self.objects)
         self.offered = len(offered)
@@ -948,7 +1348,8 @@ class Scene:
         read better and was blocks. This is what any domain can say.
         """
         said = [self.domain.in_words(one) for one in sorted(self.world.facts)
-                if one.split()[0] in self.domain.tellable()]
+                if one.split()[0] in self.domain.tellable()
+                or Q.is_amount(one)]
         return "; ".join(said) or "there is nothing here yet"
 
     def where(self, heard: Heard) -> str:

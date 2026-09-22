@@ -951,6 +951,119 @@ installed, ScienceWorld needs a JVM, and the standing preference is for
 small evaluations of a mechanism over benchmark harnesses. `hidden.py` is
 that world for now: rules the agent was not told, found by acting.
 
+## 10j. How many
+
+Arithmetic inside the open world, not beside it: *Mary has three apples*,
+*I gave two to her*, *give John four*, *how many more does Tom have than
+Sam*. A separate maths domain would have been one more toy with no people,
+no VerbNet and no lessons in it; the counts people talk about are counts
+*of things in the world*, and the only new thing is the number. The exact
+operations are their own module (`numbers.py`: `Fraction`, never a float,
+and nothing in it learned -- a planner should not learn from a surprise that
+seven eights are fifty-six), the way `verbs.py` holds what the open world
+asks of VerbNet.
+
+**An amount rides in the predicate** (`quantities.py`):
+
+    with=3 apple mary      mary has exactly 3 apples
+    with=2+ apple mary     at least 2 -- nobody said how many she had
+    at=9 bird tree         there are 9 birds in the tree
+    with>=5 apple mary     a condition: that she has at least 5
+    with+=2 apple mary     an order: that she have 2 more than now
+
+so the arguments are still things. Everything that reads a fact's things
+reads `apple mary`; everything that asks a fact's predicate sees `with=3`,
+which no verb brings about and no placement rule touches. **A count nobody
+said is not zero**, and a condition on one does not hold -- which is what
+makes the planner ask rather than assume. Counts are not negative, so given
+two apples by someone whose count is unknown, Mary has *at least* two.
+
+**Every verb that moves a thing moves an amount of them.** A ground action
+over one thing is lifted to `n` of a kind (`quantities.lifted`): what it
+needs and takes away of the kind becomes a condition and a decrease, what it
+brings about an increase. give-13.1 lifted is *the giver has at least n, n
+fewer after, the recipient n more*; there is no list of verbs that give,
+take, lose or eat. Two axioms make lifting honest, both general:
+
+- **amounts are conserved where the verb does not say where they came
+  from** -- put-9.1 says where apples end up and not where they were, and of
+  apples, they were the doer's;
+- **nothing comes from nowhere** -- a doer who gains with nobody losing is
+  buying or finding, which a statement can report (`scene.happened`) and a
+  plan cannot do. Things may be used up (eat-39.1's `take_in`).
+
+**The planner learned nothing new about search.** A condition on a count is
+a slot that is there exactly when it holds (`Situation.refresh`), so
+means-ends wants one like any fact. An action is offered as a way to a
+count only if its amount closes it from what is known, and of one action at
+several amounts only the smallest that does (`acting.smallest`) -- giving 4,
+5, 6 and 7 all make *at least 4*. One thing had to be added: **a budget of
+subgoals** (`SUBGOALS`, a pure read in `executive._means_ends`, like
+`pursuing` and `about`). Applying was bounded by `BUDGET` and wanting was
+not; counts made it unbounded -- to give John six Mary needs six, to have six
+she needs someone's three, and every holder at every amount is another way.
+
+**Whose things a plan may use.** Asked to give John four apples, handing
+over Mary's is a plan and not the one anybody meant. A counted action is
+done by me, or for you on your behalf, and takes only from me, from you, or
+from what is nobody's -- a basket, a shelf (`Open._mine`). **The order says
+how**: where the verb said can change the count asked about, only it may
+(John taking six from the basket himself is shorter and is not *give John
+six*); getting what it needs is anybody's way. Short of apples it asks --
+*You have 3 apples -- where would the other 1 apple come from?* -- and a
+count nobody said is asked for, and the answer resumes the order with the
+verb it was said with.
+
+**What VerbNet was being read wrong, found by this.** Three bugs in the
+reading of VerbNet itself, none of them about counting, all of which made
+plans worse before:
+
+- `equals(Agent, Source)` was not read, so every frame of give-13.1 was
+  dropped -- a Source with no place in the sentence. This is the old
+  *give the cup to mary is planned as take box mary cup*.
+- `path_rel` is not written in one order: give-13.1 has (Theme, Source) and
+  get-13.5.1 (Source, Theme). Read by position, getting a thing had the
+  source end up with it. What moves is the Theme, by role name, the rule
+  `change.py` already read by.
+- A subclass was offered before its class: give-13.1-1 is giving *for*
+  something, and it had Mary paying for the apples she was given. A class
+  now comes before its subclasses, and one action keeps each name.
+
+And two in the conversation: a name WordNet has as something else (*sam*,
+a surface-to-air missile) satisfies VerbNet's `+animate`, as it already
+counted as acting; and *bob has 5 pens* is not an order because VerbNet has
+*bob* as a verb -- an order opens with a verb *as the parse reads it*.
+
+**A count said is the scene's to answer.** In the open world a statement
+is noted and v689 answers it, for episodic memory (§10). A counted one is
+not: v689 read *mary has 3 apples* as `has_part 3 apples` and *there are 10
+apples in the basket* as a kind called `10 apple`, and taught both to
+long-term memory. So a statement with a count in it, or an event that moved
+one, is the `counted` act's, which takes it in once a turn and says what the
+counts are now.
+
+**Honest before right.** A problem is right when the answer states the
+expected number, and honest when it is right or says it does not know. The
+thing that must not happen is a stale count stated as fact, so a statement
+that does something to a counted thing that cannot be read as a move -- *3
+balloons popped* -- loses count of it (`lost_track`), and so does a place
+when something of its kind is taken from nobody-knows-where (*the children
+ate 5 cookies*, and the jar had 8). A distributive *each* is a rate and not
+one box's count, and is not stored.
+
+`sums.py`, three sets, each first run as written (right / honest):
+
+| set | first run | now |
+| --- | --- | --- |
+| development (24), written with it | -- | 24 / 24 |
+| held out (20), written after | 11 / 13 | 16 / 20 |
+| fresh (17), written after the held-out fixes | 10 / 12 | 13 / 17 |
+
+The first-run numbers are the ones that say how general it is. What still
+fails is known and honest: rates (*each box has 6*), *twice as many*,
+prices, and verbs VerbNet does not read as moving anything (*paid*,
+*burned*, *read 12 pages*).
+
 ## 11. What this does not do
 
 Said plainly, because the gap is the interesting part.
@@ -979,6 +1092,12 @@ Said plainly, because the gap is the interesting part.
 
 ## 12. What is next
 
+- **maths as a subject**, its own domain beside the open world: algebra,
+  and proofs, where the objects are numbers and expressions and not apples.
+  Adrian's plan, second half; §10j was the first.
+- **rates and ratios in the open world** -- *each box has 6 eggs*, *twice as
+  many*, prices -- which §10j reads honestly as unknown and does not yet
+  multiply.
 
 - **a verb preference keyed on what already holds**, per §10g: *put it
   down* when the book is in hand.
@@ -989,8 +1108,9 @@ Said plainly, because the gap is the interesting part.
   science, so the graph's knowledge is relevant), where §3's irreversibility
   stops being theoretical.
 
-Outside v691, this touches four places, each small: two pure reads in
-`executive.py` (`pursuing`, and asking memory what an impasse is `about`),
+Outside v691, this touches four places, each small: three pure reads in
+`executive.py` (`pursuing`, asking memory what an impasse is `about`, and
+whether its search is `spent`),
 the registration hook in `session.py`, and in v690 the read-back check
 (§10i) and the page server saying where learned memory is kept. v691 is a layer: v687 knowledge, v688
 asking, v689 conversation and events, v690 generation, v691 world, actions,

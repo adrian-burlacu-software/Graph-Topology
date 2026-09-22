@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import re
 
-from research.v691 import hearing, learned as L, verbs
+from research.v691 import hearing, learned as L, numbers, quantities as Q, \
+    verbs
 from research.v691.domains import Domain
 from research.v691.world import Action
 
@@ -231,6 +232,13 @@ class Open(Domain):
         #: `fits(kind, carrier)`, asked of what the conversation knows
         #: (v688's R31) -- True, False, or None for not known
         self.fits = None
+        #: the kind last counted and the person last named: what `she gave
+        #: 2 to john` counts, and who she is (`hearing.hear`)
+        self.counted = ""
+        self.person = ""
+        #: a counted action's name -> how it changes counts, for saying
+        #: it: whether the basket is where the apples went or came from
+        self.counts_moved: dict = {}
 
     # -- what there is -----------------------------------------------------
     @property
@@ -251,7 +259,7 @@ class Open(Domain):
         and kept here for the turn."""
         return list(getattr(self, "_actions", ()))
 
-    def toward(self, goal, per_verb: int = 8) -> list:
+    def toward(self, goal, per_verb: int = 8, facts=frozenset()) -> list:
         """The actions worth grounding for a goal, with its doings.
 
         A goal can ask for a state -- `open door`, `at book kitchen`, which
@@ -270,6 +278,8 @@ class Open(Domain):
           way it was loaded then is the way it is loaded now (`prefer`).
         """
         goal = list(goal)
+        counted = [one for one in goal if Q.read(one) is not None]
+        goal = [one for one in goal if Q.read(one) is None]
         # A doing is done, not brought about: nothing that leaves a thing
         # in a state of that name is asked for it.
         wanted = [one for one in goal if not (
@@ -356,8 +366,145 @@ class Open(Domain):
             wanted, L.applied(
                 seen + verbs.useful(wanted, self.things, per_verb=per_verb,
                                     prefer=prefer) + extra, self.learned),
-            per_verb, prefer)
+            per_verb, prefer) if wanted else []
+        if counted:
+            self._actions += self._counting(counted, facts, per_verb)
         return self._actions
+
+    #: Rounds of what counts need: giving 5 needs 5, and having 5 may need
+    #: taking some from the basket first.
+    ROUNDS = 2
+    #: Verbs per count. Give, pass, hand and leave move apples alike, and
+    #: each is another copy of every holder at every amount.
+    COUNTING_VERBS = 4
+
+    def _counting(self, wanted: list, facts, per_verb: int) -> list:
+        """Actions that move amounts toward counted goals: what VerbNet
+        says moves one thing, lifted to `n` of a kind (`quantities.lifted`)
+        at the amounts each goal is short of, and then again for what those
+        need.
+
+        Which verbs: the one the order was said with, the ones people were
+        seen using, and then the verbs that move a thing from one holder to
+        another -- give, take, get -- whichever relation each keeps it
+        under (`verbs.connecting`). The goal says where apples should end
+        up, and apples in a basket are got out of it by a verb the goal does
+        not name. Every reading of those verbs that moves a thing to a
+        holder is ground with the kind as the thing moved, not the two
+        `useful` offers of each: *take from* is neither take's most nor its
+        least committed reading, and it is the one that empties a basket.
+        """
+        chosen: list = list(self.said_verbs)
+        for literal in wanted:
+            if self.learned is not None:
+                chosen += self.learned.preferred(Q.read(literal).predicate)
+        chosen += verbs.connecting(Q.HOLDING, Q.HOLDING,
+                                   min(per_verb, self.COUNTING_VERBS))
+        chosen = list(dict.fromkeys(chosen))
+        out: list = []
+        names: set = set()
+        asked = list(wanted)
+        canon = Q.kept(facts)
+        for round in range(self.ROUNDS):
+            amounts = Q.amounts_for(asked, facts, [
+                Q.read(one).value for one in wanted
+                if Q.read(one).op in ("+=", "-=")])
+            fresh: list = []
+            for kind in sorted({Q.read(one).kind for one in asked}):
+                ground: list = []
+                for verb in chosen:
+                    for ability in verbs.abilities().get(verb, ()):
+                        theme = verbs.moved(ability, Q.HOLDING)
+                        if theme is not None:
+                            ground += verbs.ground(ability, self.things,
+                                                   {theme: kind})
+                for action in L.applied(ground, self.learned):
+                    if action.doer and self.things.acts(action.doer) is False:
+                        # A basket does not give John six apples: whoever
+                        # moves a count is somebody (`Things.acts`).
+                        continue
+                    for n in amounts:
+                        made = Q.lifted(action, kind, n, canon)
+                        if made is not None and not self._mine(made):
+                            continue
+                        if made is not None and made.name not in names:
+                            names.add(made.name)
+                            fresh.append(made)
+                            self.counts_moved[made.name] = made.changes
+            if round == 0:
+                fresh += self._consuming(wanted, amounts, names)
+            if round == 0 and self.said_verbs:
+                # **The order says how.** `give john 6 apples` is not
+                # answered by John taking six from the basket himself,
+                # however short that plan is: where the verb said can change
+                # the count asked about, only it may. Getting what it needs
+                # -- the apples to give -- is anybody's way.
+                goal = {Q.read(one).fluent for one in wanted}
+
+                def touches(one) -> bool:
+                    return any(fluent in goal for fluent, _ in one.changes)
+
+                said = [one for one in fresh if touches(one)
+                        and one.name.split()[0] in self.said_verbs]
+                if said:
+                    fresh = [one for one in fresh
+                             if not touches(one) or one in said]
+            # Whose to move, first: mine, then yours, then anyone else's.
+            # Asked to give John four apples, handing over Mary's is a plan
+            # and not the one anybody meant.
+            fresh.sort(key=lambda one: (one.doer != "me", one.doer != "you"))
+            out += fresh
+            asked = [one for one in Q.needed(fresh)
+                     if not Q.holds(one, facts)]
+            if not asked:
+                break
+        return out
+
+    def _consuming(self, wanted: list, amounts: list, names: set) -> list:
+        """`eat 2 pears`: a count used up by a verb VerbNet says takes a
+        thing in (`take_in`: eat-39.1, drink) -- where it goes is nowhere,
+        so no reading of the verb moves it and `lifted` has nothing to
+        lift. Done by me, or with yours on your behalf."""
+        out = []
+        for verb in self.said_verbs:
+            if not hearing._consumes(verb):
+                continue
+            for literal in wanted:
+                found = Q.read(literal)
+                if found is None or found.holder not in self.SELVES:
+                    continue
+                for n in amounts:
+                    name = f"{verb} {found.holder} {found.kind} #{Q._number(n)}"
+                    if name in names:
+                        continue
+                    names.add(name)
+                    fluent = f"{found.predicate} {found.kind} {found.holder}"
+                    made = Action(name, frozenset({Q.condition(fluent, ">=",
+                                                               n)}),
+                                  frozenset(), frozenset(),
+                                  changes=((fluent, -n),),
+                                  doer=found.holder)
+                    self.counts_moved[name] = made.changes
+                    out.append(made)
+        return out
+
+    #: Who a plan may act as, and whose things it may give away: the one
+    #: being asked, and the one asking, on their behalf.
+    SELVES = ("me", "you")
+
+    def _mine(self, action) -> bool:
+        """Whether a plan may move a count this way: done by me or for you,
+        and taking only from me, from you, or from what is nobody's -- a
+        basket, a shelf. Mary's apples are Mary's: giving them to John is
+        not a thing to do because it was asked, and taking them is worse."""
+        if action.doer and action.doer not in self.SELVES:
+            return False
+        for fluent, delta in action.changes:
+            holder = fluent.split()[-1]
+            if (delta < 0 and holder not in self.SELVES
+                    and self.things.acts(holder) is not False):
+                return False
+        return True
 
     def _with_remedies(self, wanted: list, actions: list, per_verb: int,
                        prefer: dict) -> list:
@@ -520,6 +667,9 @@ class Open(Domain):
         `at` is what `verbs.py` calls a place, and everything of two
         arguments reads the same way whatever the predicate turns out to
         be -- which is what lets a word nobody has seen before be said."""
+        counted = Q.in_words(fact, self.the)
+        if counted is not None:
+            return counted
         parts = fact.split()
         if len(parts) == 3 and parts[0] == "at":
             return f"{self.the(parts[1])} is in {self.the(parts[2])}"
@@ -538,7 +688,8 @@ class Open(Domain):
         """A thing as it is said: `the book`, but `john`. A thing first
         named with an article is a common noun and one named without is a
         name, which is all the reader saw and all it needs."""
-        return name if name in self.names else f"the {name}"
+        said = name.replace("-", " ")
+        return said if name in self.names else f"the {said}"
 
     def phrase(self, action: str) -> str:
         """What was done, in the past tense: the verb and the things it was
@@ -550,6 +701,9 @@ class Open(Domain):
         return self._said(action, lambda verb: verb)
 
     def _said(self, action: str, tense) -> str:
+        action, amount = Q.action_words(action)
+        if amount is not None:
+            return self._moved(action, amount, tense)
         if action in self.carried:
             thing, ride, verb = self.carried[action][:3]
             if tense is past:
@@ -578,6 +732,40 @@ class Open(Domain):
                      if parts[0] in self.said_verbs else None)
             said += (f" {self.ways.get(action) or asked or 'to'} "
                      + self.the(rest[-1]))
+        return said
+
+    def _moved(self, action: str, amount, tense) -> str:
+        """`gave 2 apples to mary`: an amount moved, said with its count.
+        The doer is the subject and is not said again after the verb."""
+        verb, *rest = action.split()
+        doer = rest[0] if len(rest) > 1 and (
+            rest[0] in self.names or rest[0] in ("you", "me")) else ""
+        if doer:
+            rest = rest[1:]
+        if not rest:
+            return tense(verb)
+        changes = dict(self.counts_moved.get(f"{action} #{amount}", ())) or             dict(self.counts_moved.get(
+                f"{action} #{Q._number(amount)}", ()))
+        count = numbers.counted(amount, rest[0])
+        if doer == "you" and any(delta < 0 and fluent.split()[-1] == "you"
+                                 for fluent, delta in changes.items()):
+            # Done for the person, with what is theirs.
+            count = (f"{numbers.said(amount)} of your "
+                     f"{numbers.plural(rest[0], amount)}")
+        said = f"{tense(verb)} {count}"
+        if doer not in ("", "you", "me"):
+            # Somebody else's, and they did it: I only saw to it.
+            said = (f"{'had' if tense is past else 'have'} "
+                    f"{self.the(doer)} {verb} {count}")
+        if len(rest) > 1:
+            other = rest[-1]
+            # Where the count went from or to, by which way it moved.
+            lost = any(delta < 0 and fluent.split()[-1] == other
+                       for fluent, delta in changes.items())
+            asked = (self.said_preps.get(other)
+                     if verb in self.said_verbs and not lost else None)
+            said += (f" {'from' if lost else asked or 'to'} "
+                     f"{self.the(other)}")
         return said
 
     @property
@@ -660,7 +848,61 @@ class OpenReader:
         fly`, `what would it take to get the book home` (`hearing.py`)."""
         if hearing.nlp() is None:
             return False
-        return hearing.hear(text, verbs.stated).asked
+        return self.heard(text).asked
+
+    #: The utterances last heard, with what they were heard in the light
+    #: of. The page reads one utterance several times -- as facts, as an
+    #: order, as a question -- and it must be the same utterance each time,
+    #: not one that has already taught itself what `she` is.
+    KEPT = 8
+
+    def heard(self, text: str) -> "hearing.Heard":
+        """One utterance, read once, with what was last counted and who was
+        last named as what a bare number and `she` refer to."""
+        kept = self.__dict__.setdefault("_heard", {})
+        if text not in kept:
+            if len(kept) >= self.KEPT:
+                kept.pop(next(iter(kept)))
+            found = hearing.hear(text, verbs.stated,
+                                 kind=self.domain.counted,
+                                 who=self.domain.person)
+            kept[text] = found
+            self._context(found)
+        return kept[text]
+
+    def _context(self, found) -> None:
+        """What this utterance leaves `she` and a bare number meaning."""
+        if found.counted:
+            self.domain.counted = found.counted
+        for name in found.names:
+            if name not in NOT_A_THING:
+                self.domain.names.add(name)
+        literals = list(found.facts) + [fluent for fluent, _ in
+                                        found.changes] + list(found.wants)
+        for literal in literals:
+            for name in literal.split()[1:]:
+                if name in ("you", "me") or name in hearing.PERSONS:
+                    continue
+                # `the farmer had 25 eggs. he sold 10`: a person is named
+                # by a name, or by a word whose first sense is someone.
+                if name in self.domain.names or (
+                        Q.read(literal) is not None
+                        and name == literal.split()[-1]
+                        and self.domain.things.acts(name)):
+                    self.domain.person = name
+        for literal in literals:
+            if Q.read(literal) is not None or len(literal.split()) == 3:
+                for name in literal.split()[2:]:
+                    if name in ("you", "me"):
+                        self.domain.names.add(name)
+
+    def counts(self, text: str) -> tuple:
+        """(how counts changed, a question of how many, counts no longer to
+        be trusted) in an utterance."""
+        if hearing.nlp() is None:
+            return [], None, []
+        found = self.heard(text)
+        return list(found.changes), found.count, list(found.unsure)
 
     def facts_in(self, text: str, wanting: bool = False) -> list:
         plain = " ".join(text.lower().replace(",", " , ").split())
@@ -669,18 +911,23 @@ class OpenReader:
             # Read off the parse, with VerbNet saying what an order's verb
             # does (`hearing.py`). The patterns below are what is left when
             # no parser is installed.
-            heard = hearing.hear(text, verbs.stated)
+            heard = self.heard(text)
             out = list(heard.wants if wanting else heard.facts)
             if wanting:
                 self.domain.doings |= heard.doings
                 self.domain.said_verbs = list(heard.verbs)
                 self.domain.said_preps.update(heard.preps)
                 out = [self._result(fact) for fact in out]
+            # `you` and `me` are not things -- except as who has a count: `i
+            # have five apples` is the person's.
             out = [fact for fact in dict.fromkeys(out)
                    if not any(one in NOT_A_THING
+                              and not (Q.read(fact) is not None
+                                       and one in ("you", "me"))
                               for one in fact.split()[1:])]
             for fact in out:
-                self.domain.seen.add(fact.split()[0])
+                if Q.read(fact) is None:
+                    self.domain.seen.add(fact.split()[0])
             return out
         found: list = []
         taken: list = []

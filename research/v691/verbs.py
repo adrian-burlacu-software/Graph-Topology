@@ -168,10 +168,13 @@ class Ability:
                             for word in literal.split())
 
         name = " ".join([self.verb] + [binding[one] for one in self.roles])
+        subject = next((role for role, where in self.positions
+                        if where == "subject"), None)
         return Action(name,
                       frozenset(fill(one) for one in self.needs),
                       frozenset(fill(one) for one in self.adds),
-                      frozenset(fill(one) for one in self.deletes))
+                      frozenset(fill(one) for one in self.deletes),
+                      doer=binding.get(subject, "") if subject else "")
 
     def says(self, binding: dict) -> str:
         """What doing it would be, in English: the verb and its roles in the
@@ -402,6 +405,13 @@ def _literals(predicate: str, roles: tuple, verb: str,
                 return []
             return [f"{verb} ?{one}"]
         one, other = _role(args[0]), _role(args[1])
+        if other in change.THEMES and one not in change.THEMES:
+            # VerbNet does not keep one order: give-13.1 writes
+            # path_rel(Theme, Source) and get-13.5.1 path_rel(Source,
+            # Theme). What moves is the Theme, whichever side it is on --
+            # the rule `change.py` reads by -- and read by position, getting
+            # a thing had the source end up with it.
+            one, other = other, one
         if one is None:
             return []
         return [f"{relation} ?{one} ?{other}"] if other else []
@@ -431,8 +441,27 @@ def _ability(verb: str, frame, wanted: dict) -> Ability | None:
     adds: list = []
     deletes: list = []
     known = frozenset(role for role, _ in frame.positions)
+    # `equals(Agent, Source)`: two of VerbNet's roles are one participant.
+    # give-13.1 says the Theme leaves the *Source* and that the Source is
+    # the Agent, and a Source with no place in the sentence dropped every
+    # frame of `give` -- which is why giving a cup to mary was planned as
+    # taking it. Read the way `change.meaning` reads it.
+    same = {}
+    for predicate, _, _, roles in frame.semantics:
+        if predicate == "equals" and len(roles) == 2:
+            one, other = _role(roles[0]), _role(roles[1])
+            if one in known and other and other not in known:
+                same[other] = one
+            elif other in known and one and one not in known:
+                same[one] = other
     for predicate, negated, phase, roles in frame.semantics:
-        for literal in _literals(predicate, roles, verb, known, phase):
+        found = _literals(predicate, roles, verb, known, phase)
+        if same:
+            found = [" ".join(f"?{same[word[1:]]}" if word[:1] == "?"
+                              and word[1:] in same else word
+                              for word in literal.split())
+                     for literal in found]
+        for literal in found:
             if phase in BEFORE:
                 (deletes if negated else needs).append(literal)
             elif phase in AFTER:
@@ -583,6 +612,11 @@ class Things:
         """
         logic, restricts = wanted if wanted else ("and", ())
         mine = self.categories(name)
+        if name in self.agents:
+            # A name is someone, whatever its word's senses are: WordNet's
+            # `sam` is a surface-to-air missile, and could not be given a
+            # pear. The same rule `acts` keeps.
+            mine = mine | {"animate", "human", "int_control"}
         positive = [kind for sign, kind in restricts
                     if sign == "+" and kind in KINDS and kind not in IGNORED]
         for sign, kind in restricts:
@@ -645,7 +679,12 @@ def useful(goal, things: Things, rounds: int = 2,
     # are tried last. Nothing domain-shaped decides this; it is a property
     # of the schema.
     def worth(one: Ability) -> tuple:
-        return (-len(one.needs), len(one.roles), one.verb)
+        # A class before its subclasses, whatever they commit to:
+        # give-13.1-1 is giving *for* something, a narrower reading of
+        # give-13.1, and offered first it had mary paying for the apples she
+        # was given.
+        return (one.klass.count("-"), -len(one.needs), len(one.roles),
+                one.verb)
 
     for predicate in by_add:
         by_add[predicate].sort(key=worth)
@@ -686,10 +725,73 @@ def useful(goal, things: Things, rounds: int = 2,
         if not fresh - wanted:
             break
         wanted |= fresh
-    out = []
+    out, named = [], set()
     for one in taken.values():
-        out.extend(ground(one, things))
+        for action in ground(one, things):
+            # Two readings of a verb can fill their roles in the same order
+            # and mean different things; an operator is known by its name,
+            # so the better-ranked reading keeps it.
+            if action.name not in named:
+                named.add(action.name)
+                out.append(action)
     return out
+
+
+_CONNECTING: dict = {}
+
+
+def connecting(before, after, limit: int = 2) -> list:
+    """Verbs that take a thing from one relation to another -- from being
+    `at` a place to being `with` someone is taking it -- most central first.
+    Either side may be several relations (`quantities.HOLDING`).
+
+    Which verbs are worth grounding was decided by the goal alone, and the
+    goal says where a thing should end up and not where it is. Apples in a
+    basket are got out of it by `get` and `take`, which are not among the
+    verbs most central to *having*; this is what finds them, read off what
+    each reading needs and brings about, with the same thing moved from one
+    holder to another.
+    """
+    before = frozenset([before] if isinstance(before, str) else before)
+    after = frozenset([after] if isinstance(after, str) else after)
+    key = (before, after, limit)
+    if key not in _CONNECTING:
+        found = set()
+        for verb, ways in abilities().items():
+            for one in ways:
+                # Moved by someone, not moving itself: `go` and `roll` take
+                # their subject from place to place, and carry nothing.
+                subject = {f"?{role}" for role, where in one.positions
+                           if where == "subject"}
+                moved = {tuple(literal.split()[1:]) for literal in one.adds
+                         if literal.split()[0] in after
+                         and len(literal.split()) == 3
+                         and literal.split()[1] not in subject}
+                if any(literal.split()[0] in before
+                       and len(literal.split()) == 3
+                       and any(literal.split()[1] == thing
+                               and literal.split()[2] != holder
+                               for thing, holder in moved)
+                       for literal in one.needs):
+                    found.add(verb)
+                    break
+        _CONNECTING[key] = sorted(found, key=lambda one: (
+            -central().get(one, 0), one))[:limit]
+    return list(_CONNECTING[key])
+
+
+def moved(ability: Ability, relations) -> str | None:
+    """The role a reading moves to a holder -- the Theme of give, take,
+    put -- or None when it moves nothing, or moves only its own subject
+    (`go`, `roll`)."""
+    subject = {role for role, where in ability.positions
+               if where == "subject"}
+    for literal in ability.adds:
+        parts = literal.split()
+        if (len(parts) == 3 and parts[0] in relations
+                and parts[1][:1] == "?" and parts[1][1:] not in subject):
+            return parts[1][1:]
+    return None
 
 
 _CENTRAL: dict | None = None
@@ -828,7 +930,8 @@ def ground(ability: Ability, things: Things,
                              for other in things.kinds
                              if other != parts[2]}
             out.append(Action(made.name, made.needs, made.adds,
-                              frozenset(gone) - made.adds))
+                              frozenset(gone) - made.adds,
+                              doer=made.doer))
             return
         role, allowed = choices[index]
         for name in allowed:

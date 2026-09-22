@@ -55,6 +55,7 @@ and `forget` is a plain part of the interface because both can be wrong.
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 import sqlite3
 import threading
@@ -473,10 +474,10 @@ def applied(actions: list, learned: "Learned | None", is_a=None) -> list:
             if filled and _holds(learned, "blocks", verb, literal, action,
                                  is_a):
                 forbids.add(filled)
-        out.append(type(action)(action.name, frozenset(needs),
-                                frozenset(adds),
-                                frozenset(deletes) - frozenset(adds),
-                                frozenset(forbids)))
+        out.append(dataclasses.replace(
+            action, needs=frozenset(needs), adds=frozenset(adds),
+            deletes=frozenset(deletes) - frozenset(adds),
+            forbids=frozenset(forbids)))
     return out
 
 

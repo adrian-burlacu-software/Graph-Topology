@@ -548,6 +548,12 @@ class Executive:
         slots something could give that are not already being pursued."""
         if not self.plans or not isinstance(memory, Working):
             return False
+        spent = getattr(memory, "spent", None)
+        if spent is not None and spent():
+            # Working memory that keeps a budget of search (a planner's
+            # model of a world, `v691.acting.Situation`) has used it: no
+            # more subgoals, and what is waiting stays waiting.
+            return False
         pursuing = _PURSUING.get()
         waiting = sorted((one for one in self.operators
                           if one.name not in fired),

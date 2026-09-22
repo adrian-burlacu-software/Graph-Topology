@@ -39,7 +39,7 @@ import re
 
 from research.v687.executive import ANSWERED, CONTINUE, Operator
 from research.v689 import session as v689
-from research.v691 import verbs
+from research.v691 import numbers, quantities as Q, verbs
 from research.v691.domains import DOMAINS
 from research.v691.scene import Heard, Scene
 
@@ -200,7 +200,9 @@ def scene_ish(facts, scene) -> bool:
         parts = fact.split()
         if len(parts) > 1 and parts[1] in scene.objects:
             continue
-        if parts[0] == "at":
+        if parts[0] == "at" or Q.is_amount(fact):
+            # Where something is, and how many somebody has: `mary has 3
+            # apples` is about Mary's apples, not about apples.
             continue
         if parts[0] == "with":
             # `does a table have legs` reads as `with legs table`, and it is
@@ -239,6 +241,12 @@ def hear(text: str, scene: Scene) -> Heard:
         said.act = "which worlds"
         said.weight = SETUP
         return said
+    if calculable(plain):
+        # `what is 17 times 4`: exact, and nobody else's -- a sum is not a
+        # question about the world, and v688 would guess at it.
+        said.act = "calculate"
+        said.weight = ASK
+        return said
     if not scene.open:
         # No world open: this layer has nothing to say, and says nothing.
         return said
@@ -257,6 +265,9 @@ def hear(text: str, scene: Scene) -> Heard:
         pass
     said.facts = facts
     said.wants = wants
+    counts = getattr(scene.reader, "counts", None)
+    if counts is not None:
+        said.changes, said.count, said.unsure = counts(text)
     # Every thing the scene knows of that the utterance mentions, in the
     # order said, plus anything a fact named. `where is the book` states no
     # fact, so the facts alone would leave it with nothing to answer about.
@@ -274,6 +285,12 @@ def hear(text: str, scene: Scene) -> Heard:
         said.weight = ASK
     elif plain.startswith("why") and scene.last_plan:
         said.act = "why"
+        said.weight = ASK
+    elif said.count and scene.knows_count(said.count.get("kind", "")):
+        # `how many apples does mary have`, when somebody said how many
+        # apples anybody had. Otherwise it is v688's -- `how many legs does
+        # a spider have` is a question about spiders.
+        said.act = "count"
         said.weight = ASK
     elif (getattr(scene.domain, "learned", None) is not None
           and not ASKING.match(plain) and correcting(plain, scene)):
@@ -294,6 +311,14 @@ def hear(text: str, scene: Scene) -> Heard:
         # which would take `the door is still closed` as news about the
         # door rather than as news about what was done to it.
         said.act = "failed"
+        said.weight = ORDER
+    elif (not ASKING.match(plain) and not ordered(plain)
+          and (said.changes or said.unsure
+               or any(Q.is_amount(one) for one in facts))):
+        # `mary has 3 apples`, `i gave 2 apples to mary`: counts, which are
+        # the scene's to keep. v689 read `has_part 3 apples` into long-term
+        # memory, and a kind called `10 apple`.
+        said.act = "counted"
         said.weight = ORDER
     elif (MEDDLED.search(plain) and facts and known
           and scene_ish(facts, scene)):
@@ -316,7 +341,7 @@ def hear(text: str, scene: Scene) -> Heard:
         said.act = "how"
         said.weight = ASK
     elif ordered(plain) and any(
-            one.split()[0] in scene.domain.goalish for one in wants) and (
+            scene.goalish(one) for one in wants) and (
             not REQUEST.match(_unpleased(plain))
             or _in_scene(wants, scene)):
         # `can you close the window` asks for it done when there is a
@@ -366,7 +391,9 @@ def _in_scene(wants: list, scene: Scene) -> bool:
 
 
 def _an_order(plain: str) -> bool:
-    """Whether it opens with a verb, asked of VerbNet rather than of a list.
+    """Whether it opens with a verb, asked of VerbNet rather than of a list
+    -- and of the parse, where there is one: `bob has 5 pens` opens with a
+    word VerbNet has as a verb, and it is somebody's name.
 
     `open the door` is an order and `put the book down` is an order, and
     the only thing they have in common is that English puts a verb first.
@@ -377,7 +404,15 @@ def _an_order(plain: str) -> bool:
     if not first or first in ("the", "a", "an", "there"):
         return False
     from research.v689 import change
-    return first in change.frames()
+    if first not in change.frames():
+        return False
+    from research.v691 import hearing
+    if hearing.nlp() is not None:
+        words = hearing.parse(plain)
+        if words and words[0].tag in ("NNP", "NNPS") and \
+                words[0].dep in ("nsubj", "nsubjpass"):
+            return False
+    return True
 
 
 #: The last utterance read, per conversation. `proposes` runs every cycle
@@ -481,6 +516,12 @@ ACTS = {
                ("world",)),
     "look": (lambda scene, heard: scene.look(), ASK,
              "the scene as it stands", ()),
+    "count": (lambda scene, heard: scene.count(heard), ASK,
+              "how many: worked out from the counts kept", ()),
+    "counted": (lambda scene, heard: counted(scene, heard), ORDER,
+                "counts told, or moved by what was done", ()),
+    "calculate": (lambda scene, heard: calculated(heard.said), ASK,
+                  "a sum, worked out exactly", ()),
     "where": (lambda scene, heard: scene.where(heard), ASK,
               "where one thing is", ()),
     "upon": (lambda scene, heard: scene.upon(heard), ASK,
@@ -492,6 +533,60 @@ ACTS = {
 
 #: conversation -> the number of the last turn this layer answered.
 _DONE: dict = {}
+
+
+#: What a sum is asked with, before `numbers.evaluate` is asked whether it
+#: is one: cheap, so the page does not try every utterance as arithmetic.
+SUMMING = re.compile(r"\d|\b(?:plus|minus|times|divided|multiplied|sum|"
+                     r"product|squared|cubed|square root|percent|add|"
+                     r"subtract|multiply|divide)\b")
+
+
+def counted(scene: Scene, heard: Heard) -> str:
+    """Take in what a statement says about counts -- how many somebody has,
+    and what was done that moved some -- and say what they are now. Once a
+    turn: the act answers the turn, and later claims of it are `settled`."""
+    amounts = [fact for fact in heard.facts if Q.is_amount(fact)]
+    scene.introduce(amounts, heard.said.lower())
+    for fact in amounts:
+        scene.put(fact)
+    touched = [Q.read(fact).fluent for fact in amounts]
+    touched += scene.happened(heard.changes)
+    gone = scene.lost_track(heard.unsure)
+    said = [scene.domain.in_words(Q.amount(one, *have))
+            for one in dict.fromkeys(touched)
+            if (have := Q.known(scene.world.facts, one)) is not None]
+    if said:
+        return "all right: " + "; ".join(said)
+    if gone:
+        return ("I do not know what that did to how many there are: I have "
+                "lost count")
+    return "all right"
+
+
+def calculable(plain: str) -> bool:
+    """Whether an utterance is a sum and nothing else: every word a number
+    or an operation (`numbers.evaluate`)."""
+    if not SUMMING.search(plain):
+        return False
+    try:
+        numbers.evaluate(plain)
+    except (numbers.NotArithmetic, ZeroDivisionError, OverflowError):
+        return False
+    return True
+
+
+def calculated(text: str) -> str:
+    """The answer to a sum: exact, with a decimal beside a fraction that
+    does not end."""
+    try:
+        found = numbers.evaluate(text)
+    except numbers.NotArithmetic as trouble:
+        return f"I could not work that out: {trouble}"
+    said = numbers.said(found)
+    if "/" in said:
+        said += f", about {float(found):.4g}"
+    return f"that is {said}"
 
 
 def whole(memory) -> str:

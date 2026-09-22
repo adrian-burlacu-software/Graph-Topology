@@ -48,13 +48,14 @@ stops being.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import time
 from dataclasses import dataclass, field
 
 from research.v687.executive import (ANSWERED, CONTINUE, DECLINED, Chunks,
                                      Executive, Operator, Subgoal, Working,
                                      episode, pursuing)
-from research.v691 import world as W
+from research.v691 import quantities as Q, world as W
 from research.v691.problems import SAMPLERS, SUITE
 
 #: How the ground actions are ordered before the executive ever sees them,
@@ -116,6 +117,11 @@ PROTECT = True
 #: A model run that has applied this many actions has not found a plan; it
 #: has wandered. Blocks problems here are solved in at most ten.
 BUDGET = 60
+#: And one that has pushed this many subgoals has not found one either.
+#: Applying is bounded by `BUDGET`; wanting is not, and counts made it
+#: unbounded -- to give John 6 Mary needs 6, to have 6 she needs someone's
+#: 3, and every holder at every amount is another way to each.
+SUBGOALS = 3000
 
 
 def achievers(goal, actions) -> dict:
@@ -252,13 +258,40 @@ class Situation(Working):
     read the top frame directly and must see what was just achieved.
     """
 
-    def __init__(self, facts=(), goal: str = "") -> None:
+    def __init__(self, facts=(), goal: str = "", conditions=()) -> None:
         super().__init__(goal=goal)
         self.facts = set(facts)
         #: the actions applied, in order: the plan, as it is being found
         self.did: list = []
+        #: what the goal and the actions ask of counts -- `with>=5 apple
+        #: mary` -- kept as slots that are there exactly when they hold, so
+        #: means-ends can want one like any other fact (`refresh`)
+        self.conditions = frozenset(conditions)
+        #: subgoals pushed so far: what `spent` weighs against `SUBGOALS`
+        self.pushed = 0
         for fact in self.facts:
             dict.__setitem__(self, fact, True)
+        self.refresh()
+
+    def push(self, goal: str, **slots) -> None:
+        self.pushed += 1
+        super().push(goal, **slots)
+
+    def spent(self) -> bool:
+        """Whether this search has wanted enough: the executive pushes no
+        more subgoals once it has (`Executive._means_ends`)."""
+        return self.pushed >= SUBGOALS
+
+    def refresh(self) -> None:
+        """Every condition on a count, true or not as the counts now are.
+        A count is not a fact an action adds, so what depends on one is
+        worked out again after each action rather than added by it."""
+        for literal in self.conditions:
+            if Q.holds(literal, self.facts):
+                if literal not in self.facts:
+                    self.assert_(literal)
+            elif literal in self.facts and not Q.is_amount(literal):
+                self.retract(literal)
 
     def __contains__(self, key) -> bool:
         return key in self.facts or Working.__contains__(self, key)
@@ -307,13 +340,28 @@ class Situation(Working):
             self.retract(fact)
         for fact in action.adds:
             self.assert_(fact)
+        if action.changes:
+            before = frozenset(self.facts)
+            after = Q.changed(before, action.changes)
+            for fact in before - after:
+                self.retract(fact)
+            for fact in after - before:
+                self.assert_(fact)
+            self.refresh()
         self.did.append(action)
 
 
 def operator_of(action: W.Action, goal: frozenset,
-                taste: Taste | None = None) -> Operator:
-    """An action as an operator. This is the whole of the translation."""
+                taste: Taste | None = None, promised=()) -> Operator:
+    """An action as an operator. This is the whole of the translation.
+
+    `promised` is what it is offered as a way to on a count: `give ... #2`
+    for `with=5 apple mary` when she has 3. The executive holds an operator
+    to what it `gives`, so an action that would not close its count -- the
+    plan having moved it since -- declines rather than half-does it.
+    """
     taste = Taste(frozenset(goal)) if taste is None else taste
+    promised = tuple(sorted(promised))
 
     def proposes(memory) -> bool:
         """Never throw away the means. The ends may be undone and redone.
@@ -352,14 +400,18 @@ def operator_of(action: W.Action, goal: frozenset,
                        for fact in action.deletes)
 
     def apply(memory):
-        if not action.needs <= memory.facts or len(memory.did) >= BUDGET:
+        if (not Q.satisfied(action.needs, memory.facts)
+                or len(memory.did) >= BUDGET):
+            return DECLINED
+        if promised and not Q.satisfied(
+                promised, action.on(frozenset(memory.facts))):
             return DECLINED
         memory.apply(action)
         return CONTINUE
 
     return Operator(name=action.name, apply=apply, proposes=proposes,
                     needs=tuple(sorted(action.needs)),
-                    gives=tuple(sorted(action.adds)),
+                    gives=tuple(sorted(action.adds)) + promised,
                     utility=utility_of(action, taste),
                     rule=f"{action.name}: needs "
                          f"{', '.join(sorted(action.needs))}")
@@ -436,10 +488,11 @@ def negated(actions, facts) -> tuple:
                                 if fact in forbidden}
         deletes = set(one.deletes) | {NOT + fact for fact in one.adds
                                       if fact in forbidden}
-        made = W.Action(one.name,
-                        frozenset(one.needs) | {NOT + fact for fact in
-                                                one.forbids},
-                        frozenset(adds), frozenset(deletes - adds))
+        made = dataclasses.replace(
+            one, needs=frozenset(one.needs) | {NOT + fact for fact in
+                                               one.forbids},
+            adds=frozenset(adds), deletes=frozenset(deletes - adds),
+            forbids=frozenset())
         out.append(made)
         back[made] = one
     facts = frozenset(facts) | {NOT + fact for fact in forbidden
@@ -459,7 +512,7 @@ def valid(plan, facts, goal) -> bool:
         if not one.holds_in(state):
             return False
         state = one.on(state)
-    return frozenset(goal) <= state
+    return Q.satisfied(goal, state)
 
 
 def shortened(plan, facts, goal, actions=()) -> list:
@@ -521,15 +574,60 @@ def shortened(plan, facts, goal, actions=()) -> list:
     return plan
 
 
+def promising(action, conditions, facts) -> tuple:
+    """The conditions on counts an action is a way to: those its change
+    would close from what is known now. Giving 2 apples is a way to Mary
+    having 5 when she has 3, and not when she has 1 -- then it is a step,
+    and something else has to be the rest."""
+    out = []
+    for fluent, delta in getattr(action, "changes", ()):
+        for literal in conditions:
+            found = Q.read(literal)
+            if found.fluent == fluent and Q.closes(delta, literal, facts):
+                out.append(literal)
+    return tuple(out)
+
+
+def smallest(actions, conditions, facts) -> dict:
+    """action -> the conditions it is offered as a way to, where of one
+    action at several amounts only the smallest that closes a count is:
+    giving 4 closes *at least 4* and so do giving 5, 6 and 7, and a search
+    offered all of them tries all of them."""
+    if not conditions:
+        return {}
+    best: dict = {}
+    offers: dict = {}
+    for one in actions:
+        offers[one] = promising(one, conditions, facts)
+        base, amount = Q.action_words(one.name)
+        for literal in offers[one]:
+            key = (base, literal)
+            if amount is not None and (key not in best
+                                       or amount < best[key][0]):
+                best[key] = (amount, one)
+    out = {}
+    for one, literals in offers.items():
+        base, amount = Q.action_words(one.name)
+        kept = tuple(literal for literal in literals
+                     if amount is None or best[(base, literal)][1] is one)
+        if kept:
+            out[one] = kept
+    return out
+
+
 def think(actions, facts, goal, chunks: Chunks | None = None) -> Search:
     """Plan: means-ends over a model of the world, and the actions it
     applied there are the plan. Nothing outside the model is touched."""
     actions, facts, back = negated(actions, facts)
     goal = frozenset(goal)
     taste = Taste.of(goal, actions)
-    means = sorted((operator_of(one, goal, taste) for one in actions),
+    counted = Q.conditions(set(goal).union(*[one.needs for one in actions]))
+    promised = smallest(actions, counted, facts)
+    means = sorted((operator_of(one, goal, taste, promised.get(one, ()))
+                    for one in actions),
                    key=lambda one: -one.utility)
-    memory = Situation(facts, goal=f"make {', '.join(sorted(goal))} true")
+    memory = Situation(facts, goal=f"make {', '.join(sorted(goal))} true",
+                       conditions=counted)
     executive = Executive([goal_operator(goal)], name="acting", plans=True,
                           means=means, chunks=chunks)
     trace = executive.run(memory)
