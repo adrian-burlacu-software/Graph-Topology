@@ -2,6 +2,7 @@
 #
 #   pip install -r research/v687/requirements.txt
 #   python -m spacy download en_core_web_sm
+#   python -m spacy download en_core_web_trf
 #
 # The server and reasoner are stdlib-only. spaCy is used for question parsing
 # and lemmatisation; without it V687 falls back to a regex parser and says so
@@ -14,3 +15,11 @@ spacy>=3.7
 #
 #   python -c "import nltk; nltk.download('wordnet')"
 nltk>=3.8
+
+# spaCy on the GPU. Every layer reads with one shared model
+# (`research/v687/language.load`): the transformer, en_core_web_trf, on the GPU
+# where there is one. thinc needs CuPy for that, and `[ctk]` brings the CUDA
+# libraries it loads (cuBLAS and the rest), so no system CUDA toolkit is needed.
+# Built for CUDA 12; without a GPU or without this, the model runs on the CPU,
+# and `SPACY_GPU=0` keeps it there anyway.
+cupy-cuda12x[ctk]>=14; platform_system != "Darwin"
