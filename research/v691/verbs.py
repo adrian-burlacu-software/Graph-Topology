@@ -286,6 +286,85 @@ def stated(verb: str) -> bool:
     return change.adjective(verb) or change.adjective(participle(verb))
 
 
+# -- states, their opposites, and the verbs that leave a thing in them -----
+
+_OPPOSITES: dict = {}
+
+
+def opposites(state: str) -> frozenset:
+    """States a thing cannot be in while it is in `state`, as WordNet and
+    English morphology say: `open` and `closed` are antonyms of one
+    another, and `unlocked` is `locked` with the prefix that negates it.
+
+    Only a word's *own* antonyms -- not those reached through a similar
+    adjective, which make `broken` the opposite of `proud`. The `un-` rule
+    asks that both words be ones WordNet knows, as an adjective or as the
+    participle of a verb it knows (`locked` is not a WordNet adjective, and
+    is plainly a state).
+    """
+    if state in _OPPOSITES:
+        return _OPPOSITES[state]
+    found: set = set()
+    try:
+        from nltk.corpus import wordnet
+        for synset in wordnet.synsets(state):
+            if synset.pos() not in ("a", "s"):
+                continue
+            for lemma in synset.lemmas():
+                if lemma.name() == state:
+                    found.update(one.name() for one in lemma.antonyms())
+    except Exception:                              # noqa: BLE001
+        pass
+    if state.startswith("un") and a_state(state[2:]):
+        found.add(state[2:])
+    elif a_state("un" + state):
+        found.add("un" + state)
+    found.discard(state)
+    _OPPOSITES[state] = frozenset(one for one in found if "_" not in one)
+    return _OPPOSITES[state]
+
+
+def a_state(word: str) -> bool:
+    """A word that names a state: a WordNet adjective, or the participle of
+    a verb VerbNet has (`locked`)."""
+    return change.adjective(word) or bool(maker(word))
+
+
+def maker(state: str) -> str:
+    """The verb that leaves a thing in `state`, or empty: `unlock` for
+    `unlocked`, `wrap` for `wrapped`, `open` for `open`. WordNet's
+    morphology finds the verb, and the verb's own participle has to give
+    the word back -- `lit` is `light`'s, `gone` is not a state `go` leaves
+    anything in that a planner could want."""
+    if not state:
+        return ""
+    try:
+        from nltk.corpus import wordnet
+        verb = wordnet.morphy(state, wordnet.VERB) or ""
+    except Exception:                              # noqa: BLE001
+        return ""
+    if not verb or verb not in change.frames():
+        return ""
+    if participle(verb) == state or (verb == state
+                                     and change.adjective(state)):
+        return verb
+    return ""
+
+
+def making(literal: str, things: "Things") -> list:
+    """Actions that leave a thing in a state no VerbNet frame brings about:
+    `unlock door` makes `unlocked door`. The verb is found from the word
+    (`maker`), and the thing is the one it is done to."""
+    parts = literal.split()
+    if len(parts) != 2:
+        return []
+    verb = maker(parts[0])
+    if not verb or parts[1] not in things.kinds:
+        return []
+    return [Action(f"{verb} {parts[1]}", frozenset(), frozenset({literal}),
+                   frozenset())]
+
+
 def _literals(predicate: str, roles: tuple, verb: str,
               known: frozenset = frozenset(), phase: str = "") -> list:
     """The facts one semantic predicate states, over `?Role` variables.
@@ -430,6 +509,37 @@ class Things:
         self.senses = senses
         self.kinds: dict = {}
         self._cache: dict = {}
+        #: things known to act whatever their word's senses say: names,
+        #: which WordNet reads as common nouns (`john` is a toilet there)
+        self.agents: set = set()
+
+    def acts(self, name: str):
+        """Whether a thing is one that acts: True, False, or None when
+        nothing says.
+
+        **Bodies, not words.** A book does not go from the shop to the
+        kitchen and does not take the cup there, though some sense of
+        `book` passes VerbNet's restriction to the animate -- `allows`
+        reads every sense, and has to, or a dog is an andiron. Who acts is
+        a question about the thing, and a thing is its most common sense:
+        WordNet orders a word's senses by how often they are used, and the
+        first sense of `man`, `dog`, `pig` and `fly` is a living thing and
+        of `book`, `cup` and `plane` is not.
+        """
+        if name in self.agents:
+            return True
+        kind = self.kinds.get(name, name)
+        try:
+            from nltk.corpus import wordnet
+            found = wordnet.synsets(kind.replace(" ", "_"), "n")
+        except Exception:                          # noqa: BLE001
+            return None
+        if not found:
+            return None
+        life = _LIVING()
+        first = found[0]
+        return first == life or life in set(
+            first.closure(lambda one: one.hypernyms()))
 
     def add(self, name: str, kind: str = "") -> None:
         self.kinds[name] = kind or name
@@ -641,6 +751,34 @@ def functional() -> frozenset:
     return _FUNCTIONAL
 
 
+_LIFE = None
+
+
+def _LIVING():
+    global _LIFE
+    if _LIFE is None:
+        from nltk.corpus import wordnet
+        _LIFE = wordnet.synset("living_thing.n.01")
+    return _LIFE
+
+
+#: VerbNet's restrictions that ask for something that acts.
+AGENTIVE = frozenset({"animate", "int_control", "human", "animal",
+                      "organization"})
+
+
+def _agentive(wanted) -> bool:
+    logic, restricts = wanted if wanted else ("and", ())
+    return any(sign == "+" and kind in AGENTIVE for sign, kind in restricts)
+
+
+def _moves_itself(ability: Ability, role: str) -> bool:
+    """Whether this reading has its `role` change place by itself: `go`'s
+    Theme is its subject, and it is the one that ends up somewhere."""
+    return any(literal.split()[:2] == ["at", f"?{role}"]
+               for literal in ability.adds)
+
+
 def ground(ability: Ability, things: Things,
            bound: dict | None = None) -> list:
     """Every way this ability can be filled from these things.
@@ -658,10 +796,22 @@ def ground(ability: Ability, things: Things,
     wanted = dict(ability.restricts)
     choices = []
     bound = bound or {}
+    # Who acts, where anything here does: then an agent's role, or a
+    # subject that moves itself, is filled by something that acts -- not
+    # by a book because some sense of `book` passes (`Things.acts`). With
+    # nothing here that acts, nothing is taken away: the door still opens.
+    acting = [name for name in things.kinds if things.acts(name)]
+    subject = next((role for role, where in ability.positions
+                    if where == "subject"), None)
     for role in ability.roles:
         allowed = ([bound[role]] if role in bound else
                    [name for name in things.kinds
                     if things.allows(name, wanted.get(role, ()))])
+        if acting and role not in bound and (
+                _agentive(wanted.get(role, ()))
+                or (role == subject and _moves_itself(ability, role))):
+            allowed = [name for name in allowed
+                       if things.acts(name) is not False]
         if not allowed:
             return []
         choices.append((role, allowed))
@@ -709,10 +859,16 @@ def takes(verb: str, predicate: str, name: str, things: Things) -> bool:
     return False
 
 
-def seen_done(verb: str, literal: str, things: Things) -> list:
+def seen_done(verb: str, literal: str, things: Things,
+              doer: str | None = None) -> list:
     """`verb`, ground so that it brings `literal` about, with the things in
     it bound whatever VerbNet restricts them to: the way a thing was seen
-    done (`put` the pig on the plane), for doing it again."""
+    done (`put` the pig on the plane), for doing it again.
+
+    `doer` fills the subject when the literal does not: whoever is asking
+    what it would take is the one who would do it. Without it, anything
+    VerbNet lets be an agent could be -- and a pig mentioned a turn earlier
+    is animate, so the pig put the piano on the plane."""
     wanted = literal.split()
     out: list = []
     for one in abilities().get(verb, ()):
@@ -727,6 +883,10 @@ def seen_done(verb: str, literal: str, things: Things) -> list:
                     break
                 bound[role] = name
             else:
+                subject = next((role for role, where in one.positions
+                                if where == "subject"), None)
+                if doer and subject and subject not in bound:
+                    bound[subject] = doer
                 out.extend(ground(one, things, bound))
     return out
 

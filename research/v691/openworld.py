@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import re
 
-from research.v691 import learned as L, verbs
+from research.v691 import hearing, learned as L, verbs
 from research.v691.domains import Domain
 from research.v691.world import Action
 
@@ -192,8 +192,10 @@ class Open(Domain):
         self.seen: set = set()
         #: things named without an article -- `john`, not `the book` --
         #: which is what the reader saw of the difference between a name
-        #: and a common noun
+        #: and a common noun. A name is someone: the same set is what
+        #: `Things.acts` reads, because WordNet makes `john` a toilet
         self.names: set = set()
+        self.things.agents = self.names
         #: things that have been the subject of an action someone did,
         #: so narration does not say the doer twice
         self.agents: set = set()
@@ -220,6 +222,11 @@ class Open(Domain):
         #: bark` has the chair bark, and is not a state to leave it in,
         #: whatever VerbNet's *bark your shin* says (`OpenReader`)
         self.doings: set = set()
+        #: the verbs the last order was said with: tried first
+        self.said_verbs: list = []
+        #: place -> the preposition a person put before it in an order:
+        #: said back the same way (`put the book on the table`, not `to`)
+        self.said_preps: dict = {}
         #: whether a thing of one kind is smaller than one of another:
         #: `fits(kind, carrier)`, asked of what the conversation knows
         #: (v688's R31) -- True, False, or None for not known
@@ -295,9 +302,14 @@ class Open(Domain):
                     continue
                 if not said:
                     fits += f", and {article(named)} {named} can {verb}"
-                ride = next((one for one in sorted(self.things.kinds)
-                             if one != thing and self.is_a(one, carrier)),
-                            None)
+                # The carrier by the word it was seen as first -- the plane,
+                # not a jet a previous answer happened to name -- then any
+                # thing here that is one.
+                ride = (named if named in self.things.kinds
+                        and named != thing else
+                        next((one for one in sorted(self.things.kinds)
+                              if one != thing and self.is_a(one, carrier)),
+                             None))
                 if ride is None:
                     ride = named
                     if not self.able(ride, verb):
@@ -323,13 +335,80 @@ class Open(Domain):
                     # Done once, so it can be done, whatever VerbNet says
                     # the verb's roles must be -- and offered first, so the
                     # way it was seen done is the way tried first.
-                    for one in verbs.seen_done(doing, aboard, self.things):
+                    doer = "you" if "you" in self.agents else None
+                    for one in verbs.seen_done(doing, aboard, self.things,
+                                               doer):
                         seen.append(one)
                         self.ways[one.name] = by[0] if by else ""
-        self._actions = L.applied(
-            seen + verbs.useful(wanted, self.things, per_verb=per_verb,
-                                prefer=prefer) + extra, self.learned)
+        # Which verb, of the several VerbNet has for a fact: the one the
+        # order was said with, then the ones people were seen using --
+        # before how central a verb is to VerbNet, which is what decided
+        # it before anything was seen.
+        for literal in wanted:
+            predicate = literal.split()[0]
+            ways = list(self.said_verbs)
+            if self.learned is not None:
+                ways += self.learned.preferred(predicate)
+            ways += prefer.get(predicate, [])
+            if ways:
+                prefer[predicate] = list(dict.fromkeys(ways))
+        self._actions = self._with_remedies(
+            wanted, L.applied(
+                seen + verbs.useful(wanted, self.things, per_verb=per_verb,
+                                    prefer=prefer) + extra, self.learned),
+            per_verb, prefer)
         return self._actions
+
+    def _with_remedies(self, wanted: list, actions: list, per_verb: int,
+                       prefer: dict) -> list:
+        """The actions, and what it takes to make them possible.
+
+        Two things VerbNet cannot supply. A state no frame brings about --
+        `unlocked door` -- is made by the verb WordNet derives it from
+        (`verbs.making`). And a state something has been learned to be
+        *blocked* by (`lessons.py`: a locked door does not open) has to be
+        undone before it, so the opposite state is wanted too: `unlocked`
+        for `locked`, which is the same derivation again. One round, so
+        the remedy of a remedy is not chased; that is the planner's job
+        once the actions exist.
+        """
+        more: list = []
+        for literal in wanted:
+            parts = literal.split()
+            # A doing is not a state, whatever WordNet's adjectives say:
+            # *fly* is one (slang for alert), and a pig is not made to fly
+            # by being left in it.
+            if (len(parts) == 2 and not self.a_doing(parts[0])
+                    and parts[0] not in verbs.brought_about()):
+                more += verbs.making(literal, self.things)
+        undo: list = []
+        for action in actions:
+            # A state a taught or learned requirement asks for is made the
+            # same way as one the goal asks for: `unlocked box`, by unlock.
+            for need in sorted(action.needs):
+                parts = need.split()
+                if (len(parts) == 2 and need not in wanted
+                        and need not in undo and not self.a_doing(parts[0])
+                        and parts[0] not in verbs.brought_about()
+                        and verbs.making(need, self.things)):
+                    undo.append(need)
+            for blocked in getattr(action, "forbids", ()):
+                parts = blocked.split()
+                if len(parts) != 2:
+                    continue
+                for other in sorted(verbs.opposites(parts[0])):
+                    one = f"{other} {parts[1]}"
+                    if one not in wanted and one not in undo:
+                        undo.append(one)
+        if undo:
+            actions = actions + L.applied(
+                verbs.useful(undo, self.things, per_verb=per_verb,
+                             prefer=prefer), self.learned)
+            for literal in undo:
+                more += verbs.making(literal, self.things)
+        names = {one.name for one in actions}
+        return actions + [one for one in L.applied(more, self.learned)
+                          if one.name not in names]
 
     #: How many carriers the store is asked about for one doing. Each is
     #: two questions to v688 -- can it do it, and does the thing fit.
@@ -492,7 +571,13 @@ class Open(Domain):
             rest = rest[1:]
         said = f"{tense(parts[0])} {self.the(rest[0])}"
         if len(rest) > 1:
-            said += f" {self.ways.get(action) or 'to'} " + self.the(rest[-1])
+            # The preposition it was asked with, where it is done with the
+            # verb it was asked with: `carried the box into the garden`,
+            # but `took the book to the table` when `put` was not the way.
+            asked = (self.said_preps.get(rest[-1])
+                     if parts[0] in self.said_verbs else None)
+            said += (f" {self.ways.get(action) or asked or 'to'} "
+                     + self.the(rest[-1]))
         return said
 
     @property
@@ -547,6 +632,22 @@ class OpenReader:
                         word in self.domain.names:
                     self.domain.names.add(word)
 
+    @staticmethod
+    def _result(fact: str) -> str:
+        """`unlock door` asked for is `unlocked door` wanted: an order whose
+        verb no frame brings about, and whose participle is a state
+        (WordNet's adjective), asks for the thing to be left in that state.
+        `fly pig` stays a doing -- *flown* is not a state."""
+        parts = fact.split()
+        if len(parts) != 2 or parts[0] in verbs.brought_about():
+            return fact
+        from research.v689 import change
+        state = verbs.participle(parts[0])
+        if (parts[0] in change.frames() and change.adjective(state)
+                and verbs.maker(state) == parts[0]):
+            return f"{state} {parts[1]}"
+        return fact
+
     def mentions(self, text: str) -> list:
         """Every word that could be the name of a thing. Generous on
         purpose: a name it wrongly admits is a thing nothing can be done
@@ -554,9 +655,33 @@ class OpenReader:
         return [(one, one) for one in re.findall(r"[a-z][a-z0-9-]*", text)
                 if one not in NOT_A_THING]
 
+    def asked(self, text: str) -> bool:
+        """Whether it asks what something would take: `how would a pig
+        fly`, `what would it take to get the book home` (`hearing.py`)."""
+        if hearing.nlp() is None:
+            return False
+        return hearing.hear(text, verbs.stated).asked
+
     def facts_in(self, text: str, wanting: bool = False) -> list:
         plain = " ".join(text.lower().replace(",", " , ").split())
         self._names(plain)
+        if hearing.nlp() is not None:
+            # Read off the parse, with VerbNet saying what an order's verb
+            # does (`hearing.py`). The patterns below are what is left when
+            # no parser is installed.
+            heard = hearing.hear(text, verbs.stated)
+            out = list(heard.wants if wanting else heard.facts)
+            if wanting:
+                self.domain.doings |= heard.doings
+                self.domain.said_verbs = list(heard.verbs)
+                self.domain.said_preps.update(heard.preps)
+                out = [self._result(fact) for fact in out]
+            out = [fact for fact in dict.fromkeys(out)
+                   if not any(one in NOT_A_THING
+                              for one in fact.split()[1:])]
+            for fact in out:
+                self.domain.seen.add(fact.split()[0])
+            return out
         found: list = []
         taken: list = []
         for pattern, shape in (WANTINGS if wanting else SAYINGS):
@@ -576,6 +701,8 @@ class OpenReader:
                 taken.append(span)
                 found.append((span[0], fact))
         out = [fact for _, fact in sorted(found)]
+        if wanting:
+            out = [self._result(fact) for fact in out]
         for fact in out:
             self.domain.seen.add(fact.split()[0])
         if wanting:

@@ -569,7 +569,12 @@ class Executive:
             goal = f"achieve {', '.join(missing)} for {one.name}"
             key = remembered = None
             if self.chunks is not None:
-                key = Chunks.key(self.name, missing, memory.keys())
+                # What the impasse is about, where working memory can say
+                # (`acting.Situation.about`): everything in hand otherwise.
+                about = getattr(memory, "about", None)
+                key = Chunks.key(self.name, missing,
+                                 about(missing) if about is not None
+                                 else memory.keys())
                 remembered = self.chunks.recall(key)
             token = _PURSUING.set(pursuing | set(missing))
             try:

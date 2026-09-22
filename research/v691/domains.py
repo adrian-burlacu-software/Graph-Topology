@@ -28,6 +28,7 @@ domain is writing one of these; nothing in `acting.py`, `world.py` or
     object <name> <kind>   a thing that is always there
     action <name> ?a:k ?b:k
       needs / adds / dels  comma-separated literals over the parameters
+      forbids              literals that must *not* hold
     say <literal>  <template>   how a fact reads, `{0}` per parameter
     do <action>    <template>   how an action reads, in the past tense
     doing <action> <template>   the same, in the present, for `why`
@@ -68,6 +69,7 @@ class Schema:
     needs: tuple
     adds: tuple
     deletes: tuple
+    forbids: tuple = ()
 
     def ground(self, binding: dict) -> Action:
         def fill(literal: str) -> str:
@@ -79,7 +81,8 @@ class Schema:
         return Action(name,
                       frozenset(fill(one) for one in self.needs),
                       frozenset(fill(one) for one in self.adds),
-                      frozenset(fill(one) for one in self.deletes))
+                      frozenset(fill(one) for one in self.deletes),
+                      frozenset(fill(one) for one in self.forbids))
 
 
 @dataclass
@@ -249,7 +252,8 @@ def parse(text: str) -> Domain:
                                   tuple(current["types"]),
                                   tuple(current.get("needs", ())),
                                   tuple(current.get("adds", ())),
-                                  tuple(current.get("dels", ()))))
+                                  tuple(current.get("dels", ())),
+                                  tuple(current.get("forbids", ()))))
 
     for raw in text.strip().splitlines():
         line = raw.strip()
@@ -302,7 +306,7 @@ def parse(text: str) -> Domain:
             current = {"name": name,
                        "params": [one.group(1) for one in found],
                        "types": [one.group(2) for one in found]}
-        elif head in ("needs", "adds", "dels"):
+        elif head in ("needs", "adds", "dels", "forbids"):
             if current is None:
                 raise ValueError(f"{line!r}: outside an action")
             current[head] = _literals(rest)

@@ -40,37 +40,47 @@ ROOT = HERE.parent
 
 #: Longest first. With fewer workers than modules the schedule matters, and
 #: starting the 89-second one last is how a 100-second run becomes 150.
-SUITES = ("research.v687.test_reasoning", "research.v688.test_v688",
-          "research.v687.test_v687", "research.v687.test_norms",
-          "research.v687.test_bridging", "research.v687.test_trie",
-          "research.v687.test_links", "research.v687.test_truth",
-          "research.v687.test_executive", "research.v687.test_rulebook",
-          "research.v687.test_within", "research.v687.test_shapes",
-          "research.v687.test_rated",
-          "research.v688.test_audit", "research.v688.test_counterfactual",
-          "research.v688.test_depth",
-          "research.v688.test_screen",
-          "research.v688.test_distil", "research.v688.test_content",
-          "research.v688.test_rephrase", "research.v688.test_retrieval",
-          "research.v689.test_v689", "research.v689.test_time",
-          "research.v689.test_people", "research.v689.test_relations",
-          "research.v689.test_kinds", "research.v689.test_goals",
-          "research.v689.test_babi", "research.v689.test_frames",
-          "research.v689.test_reader", "research.v690.test_v690",
-          "research.v690.test_entailment",
-          "research.v691.test_v691",
-          "research.v691.test_scene",
-          "research.v691.test_verbs",
-          "research.v691.test_learned")
+#: Only the order is kept here: *which* modules run is found on disk
+#: (`suites`), because a list kept by hand is how a new module goes unrun.
+FIRST = ("research.v687.test_reasoning", "research.v688.test_v688",
+         "research.v687.test_v687", "research.v687.test_norms",
+         "research.v687.test_bridging")
+
+#: Modules that share process-wide state -- the conversation layers register
+#: acts with v689's session (`session.contributes`) and keep scenes and
+#: episodic memory per conversation -- and so are also run **together, in
+#: one process**. Two bugs on master showed only that way: an open-world
+#: `tell` taking statements away from episodic memory, and `want` taking
+#: `i put the key in the drawer` for an order.
+TOGETHER = ("research.v689.test_time", "research.v691.")
+
+
+def suites() -> list:
+    """Every `test_*.py` under `research/v*`, longest-known first."""
+    found = sorted(
+        ".".join(path.relative_to(ROOT).with_suffix("").parts)
+        for path in HERE.glob("v*/test_*.py"))
+    return ([one for one in FIRST if one in found]
+            + [one for one in found if one not in FIRST])
+
+
+def together(modules: list) -> list:
+    return [one for one in modules
+            if any(one == want or (want.endswith(".") and
+                                   one.startswith(want))
+                   for want in TOGETHER)]
+
 
 COUNT = re.compile(r"^Ran (\d+) test")
 
 
-def run_one(module: str) -> tuple[str, int, int, float, str]:
-    """(module, tests, returncode, seconds, output)."""
+def run_one(module) -> tuple[str, int, int, float, str]:
+    """(module, tests, returncode, seconds, output). A tuple of modules is
+    run in one process, and reported as one line."""
     started = time.time()
+    names = list(module) if isinstance(module, tuple) else [module]
     done = subprocess.run(
-        [sys.executable, "-m", "unittest", module, "-q"],
+        [sys.executable, "-m", "unittest", *names, "-q"],
         capture_output=True, text=True, cwd=ROOT,
         encoding="utf-8", errors="replace")
     output = (done.stdout or "") + (done.stderr or "")
@@ -79,7 +89,9 @@ def run_one(module: str) -> tuple[str, int, int, float, str]:
         found = COUNT.match(line)
         if found:
             tests = int(found.group(1))
-    return module, tests, done.returncode, time.time() - started, output
+    label = (f"together: {len(names)} modules" if isinstance(module, tuple)
+             else module)
+    return label, tests, done.returncode, time.time() - started, output
 
 
 def main() -> int:
@@ -99,10 +111,13 @@ def main() -> int:
                         help="substring: run only matching modules")
     options = parser.parse_args()
 
-    wanted = [name for name in SUITES if options.only in name]
+    wanted = [name for name in suites() if options.only in name]
     if not wanted:
         print(f"no suite matches {options.only!r}")
         return 2
+    shared = together(wanted)
+    if len(shared) > 1:
+        wanted = wanted + [tuple(shared)]
 
     started = time.time()
     failed: list[tuple[str, str]] = []
@@ -110,9 +125,11 @@ def main() -> int:
     print(f"{len(wanted)} suite(s), {options.workers} at a time\n")
     with concurrent.futures.ThreadPoolExecutor(options.workers) as pool:
         for module, tests, code, seconds, output in pool.map(run_one, wanted):
-            total += tests
             mark = "ok  " if code == 0 else "FAIL"
             print(f"  {mark} {module:34} {tests:4} tests  {seconds:6.1f}s")
+            if not module.startswith("together"):
+                # The shared run is the same tests again: counted once.
+                total += tests
             if code != 0:
                 failed.append((module, output))
 

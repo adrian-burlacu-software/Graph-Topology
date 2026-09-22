@@ -862,6 +862,13 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
                   zip(tokens, guess.stated if guess else [])]}
     if whole and found.act == "tell" and not when.relation:
         claims = parsed_claims(asked.text, lexicon)
+        # A claim that is only the words that placed it in time --
+        # `following that`, which the transformer model reads as the phrase
+        # it is -- is not a claim: `place` has read it already.
+        placing = {word.lower() for word in when.words}
+        claims = [one for one in claims
+                  if not {word.lower().strip(",.") for word in one.split()}
+                  <= placing]
         if len(claims) > 1 + len(found.more):
             return _claim_by_claim(claims, found, lexicon, names, said)
     if whole and _confirming(said, tokens):

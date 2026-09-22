@@ -280,6 +280,24 @@ class RoundTripTests(unittest.TestCase):
                     self.traced(again, reply).source,
                     "says what was asked and answered, and it was not")
 
+    def test_saying_nothing_was_told_when_something_was_is_caught(self):
+        """`was my pig flying`: the answer rests on the kind, and on what
+        you told it about the pig. `You didn't tell me anything about it`
+        read back clean, and was false."""
+        pig = messages.of_turn(turn(
+            "was my pig flying", "ask", "unknown",
+            "not told — but you told me “i put my pig on a plane”, and a "
+            "plane can fly: if it did, the pig was carried along",
+            mention="my pig", aux="was", rest="flying", source="kind",
+            referent=None))
+        self.assertEqual(self.traced(
+            pig, "I don't know if your pig was flying. You didn't tell me "
+                 "anything about it.").source,
+            "says you told it nothing, and you told it")
+        self.assertNotEqual(self.traced(
+            pig, "I don't know if your pig was flying.").source,
+            "says you told it nothing, and you told it")
+
     def test_a_contraction_does_not_hide_who_told_it(self):
         """spaCy reads `You've` as one token, so a check looking for `you`
         beside the verb never saw it and `You've told me so` read back

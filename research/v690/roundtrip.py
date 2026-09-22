@@ -83,8 +83,8 @@ class Words:
 
     def __init__(self, nlp=None) -> None:
         if nlp is None:
-            import spacy
-            nlp = spacy.load("en_core_web_sm", disable=["ner"])
+            from research.v687.language import load
+            nlp = load()
         self.nlp = nlp
         self._seen: dict = {}
 
@@ -101,9 +101,13 @@ class Words:
         if not typed:
             found = ([], [], [], [])
         else:
-            doc = Doc(self.nlp.vocab, words=list(typed))
-            for _, component in self.nlp.pipeline:
-                doc = component(doc)
+            shared = getattr(self.nlp, "parse_words", None)
+            if shared is not None:
+                doc = shared(typed)
+            else:
+                doc = Doc(self.nlp.vocab, words=list(typed))
+                for _, component in self.nlp.pipeline:
+                    doc = component(doc)
             found = (typed, [token.tag_ for token in doc],
                      [token.dep_ for token in doc],
                      [token.lemma_.lower() for token in doc])
@@ -438,12 +442,33 @@ def trace(message: Message, read: Read, words: Words,
             if lemma in NARRATING:
                 found.source = "says what was asked and answered, and it was not"
                 break
+    # The other way round: `you didn't tell me anything about it`, when
+    # v689's own answer says what you did tell it -- `not told -- but you
+    # told me “i put my pig on a plane”`. A kind-sourced answer can still
+    # rest on something told, and saying nothing was is a claim, and false.
+    if not found.source and TOLD_YOU.search(message.found or ""):
+        lower = [one.lower() for one in read.words]
+        sentence = sentences_of(text or " ".join(read.words), len(read.words))
+        for at, lemma in enumerate(read.lemmas):
+            if lemma not in SAYING:
+                continue
+            before = {lower[one] for one in range(max(0, at - 3), at)
+                      if sentence[one] == sentence[at]}
+            # `you didn't tell me`: the negation sits between the teller
+            # and the telling, so the teller is looked for past it.
+            if (NEGATIONS | {"n't", "didn", "didn't"}) & before and                     "you" in before:
+                found.source = "says you told it nothing, and you told it"
+                break
     # The decoder stops at its longest reply, and what it wrote by then can
     # read back word for word: `... and what someone is like. I can even help`.
     if text and not re.search(r"[.!?…\"'”’)]\s*$", text.strip()):
         found.unfinished = "stops before its sentence ends"
     return found
 
+
+#: v689 saying, in its own answer, that something was told: `you told me
+#: “...”`, and not `nothing you told me`.
+TOLD_YOU = re.compile(r"(?<!nothing )\byou told me\b")
 
 #: The sources an answer rests on that are something you said.
 FROM_YOU = frozenset({"told", "taught", "learned", "conversation"})

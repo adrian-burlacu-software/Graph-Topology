@@ -576,6 +576,381 @@ needed: *the pig is in a field* was answered by `tell` and never remembered
 taken for an order and carried out. Now an open-world statement is only
 `noting`'s, and an order must be said as one (`page.ordered`).
 
+## 10c. What a surprise teaches
+
+§6 left `acting.Gap` as the first learning signal here that is not an
+external judgement -- a prediction the agent made and the world falsified --
+and nothing learned from it. `lessons.py` does.
+
+**What it learns.** Three kinds of thing, all over the action's positions so
+that what one door taught holds of every door:
+
+```
+requires   held every time it worked, and not when it failed
+blocks     held when it failed, and never when it worked
+brings     came about, about the things acted on, and nobody predicted it
+```
+
+**The evidence rule.** A failure is compared with every success of the same
+verb on record (`learned.tried`, kept across conversations). One candidate,
+and it is learned; more than one, and nothing is, and the failure waits for
+the next success. A version space with the hypothesis language cut down to
+one literal, which is what a single surprise can support. **A lesson learned
+by trying is taken back by the first success that contradicts it**; one a
+person taught is not, because a success that did not show it may just not
+have shown it. The one exception to "one candidate" is a person saying why
+-- *the door is still closed, it is locked* -- where what was revealed with
+the failure is the candidate set, filtered by the successes on record.
+
+**The thing changed is `?it`.** A lesson over name positions broke at once:
+VerbNet has `open door` and `open john door`, the door is in a different
+place in each, and a blocker learned from one missed the other. So the thing
+an action's one-place effects are about is `?it` wherever it is named
+(`learned.changed`), and a lesson about doors finds the door in every
+reading.
+
+**Negative preconditions, natively.** `Action.forbids`, checked by the
+world, and compiled for the planner into a positive `not X` slot -- true at
+the start where X is not, brought about by whatever deletes X
+(`acting.negated`). Means-ends then plans to *remove* a blocker exactly as it
+plans to bring about a need, and a domain string can say `forbids`.
+
+**Removing a blocker needs to know what removes it.** VerbNet has no frame
+in which `unlock` ends `locked`. Two derivations from WordNet, neither a
+list: the **opposite** of a state (`verbs.opposites`: a word's own antonyms,
+and the `un-` that negates -- `locked`/`unlocked`), and the **verb that
+leaves a thing in a state** (`verbs.maker`: `unlocked` is `unlock`'s
+participle). A learned blocker makes its opposite wanted, and the opposite
+is made by its verb. `unlock the door` asked for is `unlocked door` wanted,
+by the same derivation read the other way.
+
+**Measured, in a world with rules nobody told it** (`hidden.py`): `go` needs
+the destination lit, `fetch` cannot be done to a wrapped thing, and the
+model knows `light` and `unwrap` but not that they are ever needed. Four
+distracting properties (busy, quiet, red, old) vary at random. Over eight
+seeds, thirty problems each:
+
+| | solved, first 10 | solved, last 10 | surprises, last 10 |
+| --- | --- | --- | --- |
+| no learning | 1 or fewer | 0 | ~40 |
+| learning | 3 to 10 | **10, every seed** | **0, every seed** |
+
+Every seed learns exactly `go requires lit ?it` and `fetch blocks wrapped
+?it`, and nothing else -- no false lesson, no effect it was not shown. How
+long it takes depends on how soon the successes rule the distractors out.
+
+**On the page:**
+
+```
+> the door is closed
+> open the door
+  I opened the door
+> the door is still closed, it is locked
+  I see -- I could not open the door, because the door is locked. I did not
+  know that nothing locked can be opened, and I will remember it.
+> open the door
+  I unlocked the door, then opened the door
+> the gate is locked
+> open the gate
+  I unlocked the gate, then opened the gate
+```
+
+A report is read three ways -- a state *still* holds, what it should have
+brought about is denied, or *that did not work* -- and the world goes back to
+just before the step that failed, because everything after it was done in a
+world that was not so. When there is no reason and nothing to compare, it
+says it does not know why yet; that is where asking (§12) begins.
+
+## 10d. Asking when it is stuck
+
+An order it could not plan used to end the conversation about it: *I could
+not see a way to do that*. Now the order is **suspended**, what is missing
+is asked for, and the answer resumes it (`Scene.missing`, `Scene.resume`).
+
+**What is missing** is worked out the way a planner's heuristic is. First,
+what is reachable at all if nothing were ever undone -- a relaxed plan over
+the actions on offer, with negative preconditions compiled as in §10c. If
+the goal is reachable on that reading, what failed was the search, and no
+question is asked: that would be asking the person to do the planner's job.
+If it is not, back from the goal through whichever way of getting each fact
+leaves least unreached, to a fact nothing brings about. That fact is the
+question, and its shape says how to ask it:
+
+```
+a thing an order moves, that nothing places     where is the book?
+a state nothing it knows can bring about        is the box safe?
+a blocker nothing it knows can undo             the door is locked -- what
+                                                would change that?
+```
+
+**A fact not said is not known to be false.** In a world nobody declared,
+the planner's closed world is a convenience, not a belief, so a state is
+asked about before it is called impossible. *No* turns the question of
+whether into one of how; *never mind* drops the order.
+
+**Where a thing is, is asked first.** VerbNet has readings of `leave` and
+`send` with no precondition at all, and a plan built on one said it moved a
+book it had never found. So an order that moves a thing nobody has placed
+asks where it is before planning at all (`Scene.unplaced`).
+
+**Only what nothing known can do is asked.** A taught requirement --
+*you can only open it if it is unlocked* -- is a state `unlock` makes
+(§10c), so it is simply done: *I unlocked the box, then opened the box*.
+
+**The answer is still the conversation's.** *The book is in the garden*,
+said as an answer, resumes the order -- and v689 must still remember it, or
+episodic memory loses a statement (the bug `recorded` fixed in §10). So the
+`resume` act runs v689's own `tell` first and declares its effects (E4c):
+over HTTP, *was the book in the garden?* is answered *yes -- you told me*.
+
+```
+> john is in the kitchen
+> get the book to the kitchen
+  I will need to know where it is first. Where is the book?
+> the book is in the garden
+  then I left the book to the kitchen
+> you can only open it if it is safe
+> the box is closed
+> open the box
+  I could not see a way to do that yet. Is the box safe?
+> no
+  Then how would I make it so that the box is safe?
+> never mind
+  all right, I will leave it
+```
+
+Resuming can ask again -- the next thing missing -- which is how a plan is
+put together over several turns. The goal is held in the scene rather than
+in a live executive, because a turn is one run of the act executive and a
+suspended subgoal that outlived it would be state no trace could show.
+
+## 10e. One reader, off the parse
+
+§9 called the reader "nine patterns" and said joining it to v689's grammar
+was the work. The patterns had a list of the verbs that move things
+(`get|put|move|take|bring|carry|send|place`), so the planner could reach only
+as far as the list: `how would a pig fly?` was not read at all, and `the
+door is still closed` came out as a door in the state *still*.
+
+`hearing.py` reads the dependency parse instead, into v689's own `Word`
+type, and **an order's goal is what the sentence says, with VerbNet deciding
+the one thing a list decided before**:
+
+```
+be + place / state / participle      at book shop, closed door, locked door
+have / hold                          with book john
+there is X on Y                      at cup table
+V X  PREP Y                          at X Y -- any verb
+V X to Y, where VerbNet's Theme      with X Y  (give-13.1: the Theme leaves
+  leaves the Agent                   the Agent)
+V X                                  V X, or the state V leaves (unlocked)
+make X V / how would X V             a doing
+```
+
+**What it will not take**, each found by the probe or the shared test run
+and each a turn stolen from v689 or v688 when it was wrong:
+
+- a question states nothing (`what steps are required`, `does a table have
+  legs`);
+- a plan is asked for only by `how` on the verb itself with a modal -- *how
+  would*, *how can*, *how do I* -- or by *what would it take*: `how many
+  times did the dog bark` is v689's count, and `what do you need to bake a
+  cake` is v688's;
+- `can you V X` is a request only when what it names is in the scene: *can
+  you close the box* with a box here, and not *can you eat an apple*.
+
+**The parse is spaCy's transformer model**, the same one every layer now
+reads with (`v687.language.load`: loaded once per process, shared by every
+engine under one lock, on the GPU where there is one). The small one tagged
+`fly` in *how would a pig fly* as a noun and `mary` in *give the cup to mary*
+as a verb. The store's own fragments are still lemmatised by the small model
+(`language.lemmas_of`): matching a fact to a question is lemma overlap over
+thousands of fragments a turn, which is lookup, not reading, and on the
+transformer it cost one question 128 seconds. Moving v689 over took three
+fixes, each a place the small model's quirks had been relied on: a word
+looked up alone is lemmatised by WordNet's noun forms (`mice`, `wembles`);
+a claim that is only the words placing it in time (`following that`) is
+not a claim; and the ops a GPU model runs with are set per thread. The
+patterns remain only for when no parser is installed.
+
+Being able to ask `how would a piano fly?` on the page exposed two older
+faults in the same conversation: the pig named a turn earlier is animate, so
+VerbNet let *it* load the piano; and a jet an earlier answer had named was
+picked over the plane actually seen, by alphabetical order. Now whoever asks
+what it would take is who would do it (`seen_done`'s `doer`), and the
+carrier is the one seen, by its word, first.
+
+**Not fixed, and not the reader's:** *give the cup to mary* is read right
+(`with cup mary`) and planned wrong -- a VerbNet reading of `take` with a
+box as its agent. That is choosing the verb, §8's open problem.
+
+## 10f. What a lesson is about: scope, exceptions, widening
+
+§10c's lessons were about everything: a locked door taught that nothing
+locked opens, and one success against a lesson deleted it. Both are wrong
+the moment kinds differ. **If a wrapped hat can be picked up and a wrapped
+book cannot, comparing across everything hides the rule for good** -- the
+hat's success held `wrapped`, so `wrapped` is never the one candidate.
+
+So a lesson has a **scope** (a kind, or everything) and **exceptions**, and
+every try records the kind of thing it was about (`learned.tried.kind`):
+
+- **Compared across everything first**, as before. If that leaves other
+  than one candidate, **compared again within the failing thing's kind**,
+  and a lesson found that way holds of that kind.
+- **Widened** when a failure of another kind is explained by it: two kinds
+  are the evidence it was never about the kind.
+- **Narrowed, not dropped,** by a success of a kind no failure ever
+  supported: that kind becomes an exception. A success of a kind that *did*
+  support it refutes it, and it goes.
+
+Kinds come from wherever a domain can say: a declared domain's object
+types, the open world's words and their senses (`Open.is_a`). With nothing
+to say what kind a thing is, every lesson is about everything, as before.
+
+**Measured** (`hidden.py --kinds`: hats are garments, and the wrapping rule
+is not theirs), eight seeds:
+
+| | seeds ending with 0 surprises | wrong lessons kept |
+| --- | --- | --- |
+| compared across everything | 6 of 8 | 0 |
+| compared within kind too | **8 of 8** | 0 |
+
+In the two seeds where it matters, the global comparison never finds the
+rule. Within the kind, it is found and held of things only. (Measured with
+plans shortened, §10h. Before shortening the global comparison ended clean
+on 5 of 8 and in one seed settled on a coincidence -- `fetch` needs a
+*quiet* place -- which is the risk a one-candidate rule carries.)
+
+**What it costs, said plainly.** In three seeds the rule is learned of
+everything *before* any hat shows otherwise, and from then on hats are
+unwrapped for nothing (2 to 4 needless steps in the last ten problems). A
+lesson that is always planned around is never tested, so the exception is
+never found. That is exploration against exploitation, and the choice here
+is to generalise and pay in needless steps, not to fail again on purpose --
+because generalising is what was asked for (§10b: *any* object that fits on
+a plane can fly), and a door's lesson should hold of a window without the
+window being tried.
+
+## 10g. Choosing the verb: who acts, and what people say
+
+§8 left *sensible 8/12* as a knowledge problem, and the roadmap called it
+verb preference. **Measured first, it was mostly not about the verb.** A
+preference for `carry`, `take` or `go` left it at 8 (one version dropped it
+to 7), because the plans that were not sensible were wrong about *who
+acts*: the book went from the shop to the kitchen by itself, and the book
+took the cup there. VerbNet allows both, because `Things.allows` reads every
+sense of a word -- as it has to, or a dog is an andiron -- and some sense of
+`book` passes a restriction to the animate.
+
+**Who acts is a question about the thing, not the word.** `Things.acts`
+reads the thing's most common sense, which is WordNet's first (WordNet
+orders senses by use): a man, a dog, a pig and a fly are living things; a
+book, a cup and a plane are not. Where anything in the scene acts, an
+agent's role -- a restriction to the animate or to something with control --
+and a subject that moves *itself* are filled only by what acts. Where
+nothing does, nothing is taken away, and a door still opens by itself. A
+name is someone (the open world's `names`), because WordNet's `john` is a
+toilet. This is §11's first gap -- *facts about bodies, true of every verb
+and so written on none* -- closed for one fact by a derivation, not a list.
+
+**Then the verb, learned.** Three sources, in order:
+
+- the verb the order was said with (`carry the box into the garden` is
+  carried);
+- what people say they did: *sam went to the park* is a way `at` comes
+  about (`hearing.done`, VerbNet's location effect), kept in long-term
+  memory by every statement the page hears (`page.seen_done`);
+- corrections: *no, carry it* after a plan, weighted twice a sighting.
+
+| errands | sensible |
+| --- | --- |
+| before | 8/12 |
+| who acts | **10/12** |
+| who acts, and five sentences about other people doing other things | **11/12** |
+
+The five sentences (`errands.SEEN`) share no person, thing or place with the
+errands; only the verbs carry over. The one left is *put it down*, where
+the person is already holding the book and `put` is what anyone would say:
+a preference keyed only on the fact brought about cannot see that, and one
+keyed on what already holds is the next refinement.
+
+```
+> get the box to the garden
+  I took the box to the garden
+> no, carry it
+  All right -- next time I will carry it
+> get the cup to the garden
+  I carried the cup to the garden
+```
+
+## 10h. What a plan costs
+
+§2 said control transfers and plan quality does not: means-ends takes the
+first way to each subgoal, counts nothing, and `go` repeats. The fix is not
+a cost function inside the search. It is to **cut the plan it found, in the
+model, before acting on it** (`acting.shortened`). Three cuts, none of which
+knows a domain, and none of which can make a plan wrong, because every
+candidate is run in the model before it is kept:
+
+- a stretch that comes back to a state already passed through did nothing;
+- an action whose removal leaves the rest applicable and the goal reached
+  was not needed, tried last first;
+- a stretch that one available action takes from the same state to the same
+  state is a detour -- going home and then to the shop, where going to the
+  shop was on offer.
+
+| | shortest, before | shortest, after | steps, after (oracle) |
+| --- | --- | --- | --- |
+| blocks suite (10 solved) | 9 | **10** | 60 (60) |
+| blocks held out (67 solved) | 63 | **67** | 302 (302) |
+| errands (30) | 1 | **24** | 231 (218) |
+| delivery (30) | 3 | **14** | 237 (163) |
+
+Nothing that was solved stops being solved. Blocks plans are now all as
+short as the oracle's. What is left in delivery is **interleaving** -- one
+trip carrying two parcels -- which no cut of a found plan can make: the
+plan has to be found that way, and that is search with a cost, the one part
+of this item left.
+
+## 10i. Saying it, and remembering how
+
+**Narration keeps the person's preposition.** A place said in an order is
+said back with the preposition it was said with, when it is done with the
+verb it was asked with: *I carried the box into the garden*, not *to*. Done
+another way, it is *to*: *took the book on the table* is worse than saying
+nothing about it.
+
+**A reply may not say nothing was told when something was.** The decoder --
+a trained model, not to be retrained -- would answer *was my pig flying*
+with *you didn't tell me anything about it*, where v689's own answer quotes
+what was told. The read-back check (`v690/roundtrip.trace`) already refused
+*you told me* of what the store said; it now refuses the mirror image too,
+*you didn't tell me* when v689's answer says *you told me*, and the speaker
+takes the next candidate. Nothing about the model changed; what it may get
+away with did.
+
+**A chunk is keyed on what the impasse was about** (E6, §3). Keyed on every
+fact, a chunk in a world never came round again. The executive now asks
+working memory what an impasse is about where it can say
+(`Situation.about`: the facts about the things the missing facts are
+about), which is one read added to `executive.py`, like `pursuing`:
+
+| shared chunks | hits, keyed on the world | hits, keyed on the impasse | subgoals saved |
+| --- | --- | --- | --- |
+| blocks (46) | 6 | 26 | none |
+| errands (30) | 4 | 66 | 14% |
+| delivery (30) | 15 | 57 | 18% |
+
+Nothing solved changes. Blocks gains little, because there the whole tower
+decides how a block is cleared; more recalled chunks are also forgotten
+there, being tried and not fitting.
+
+**Not done: a text environment** (ScienceWorld/TextWorld). None is
+installed, ScienceWorld needs a JVM, and the standing preference is for
+small evaluations of a mechanism over benchmark harnesses. `hidden.py` is
+that world for now: rules the agent was not told, found by acting.
+
 ## 11. What this does not do
 
 Said plainly, because the gap is the interesting part.
@@ -605,21 +980,18 @@ Said plainly, because the gap is the interesting part.
 ## 12. What is next
 
 
-- **a reason to prefer one verb over another**, per §8. This is the one
-  that matters: reached is 12/12 and sensible is 8/12, and closing that is
-  a knowledge problem of exactly the shape EntailmentBank left open.
+- **a verb preference keyed on what already holds**, per §10g: *put it
+  down* when the book is in hand.
 - **the axioms about bodies**, per §10 — that you must be where a thing
   is to touch it. Antonymy is no longer on this list: §9 learns it.
-- **something that learns from a `Gap`**, per §6.
-- **plan quality**, per §2 — the first thing it needs and does not have is a
-  notion of cost.
-- **the chunk key**, per §3.
-- **joining the reader to v689's grammar**, per §9.
+- **plans found interleaved**, per §10h: cost inside the search.
 - **v691c — a real text environment** (ScienceWorld over ALFWorld: it is
   science, so the graph's knowledge is relevant), where §3's irreversibility
   stops being theoretical.
 
-Nothing here changes v687–v690 except one pure read in `executive.py` and
-the registration hook in `session.py`. v691 is a layer: v687 knowledge, v688
+Outside v691, this touches four places, each small: two pure reads in
+`executive.py` (`pursuing`, and asking memory what an impasse is `about`),
+the registration hook in `session.py`, and in v690 the read-back check
+(§10i) and the page server saying where learned memory is kept. v691 is a layer: v687 knowledge, v688
 asking, v689 conversation and events, v690 generation, v691 world, actions,
 execution and monitoring.

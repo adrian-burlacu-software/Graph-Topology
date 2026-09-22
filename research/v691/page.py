@@ -39,6 +39,7 @@ import re
 
 from research.v687.executive import ANSWERED, CONTINUE, Operator
 from research.v689 import session as v689
+from research.v691 import verbs
 from research.v691.domains import DOMAINS
 from research.v691.scene import Heard, Scene
 
@@ -77,13 +78,27 @@ USING = re.compile(r"\buse the (\w+) world\b|\bswitch to (\w+)\b")
 #: kept on disk. One store, because `a door cannot be open and closed` is
 #: not true only of the conversation it was said in.
 _LEARNED = None
+#: Where it is kept. **In memory unless the page server says otherwise**
+#: (`keep`): the v689 suites and the probe run sessions with this layer
+#: registered, and when the default was the file in `state/`, every test
+#: run taught the real store that `put` is how things are moved, five times.
+_KEPT_AT = None
+
+
+def keep(path) -> None:
+    """Keep what is learned at `path` from now on -- or, with None, in
+    memory. Called by the page server, and only when it keeps memory."""
+    global _LEARNED, _KEPT_AT
+    if _LEARNED is not None:
+        _LEARNED.close()
+    _LEARNED, _KEPT_AT = None, path
 
 
 def store():
     global _LEARNED
     if _LEARNED is None:
         from research.v691.learned import Learned
-        _LEARNED = Learned()
+        _LEARNED = Learned(_KEPT_AT)
     return _LEARNED
 
 
@@ -195,7 +210,10 @@ def scene_ish(facts, scene) -> bool:
             if len(parts) > 2 and parts[2] in scene.objects:
                 continue
             return False
-        if len(parts) == 2 and adjective(parts[0]):
+        if len(parts) == 2 and (adjective(parts[0])
+                                or verbs.a_state(parts[0])):
+            # A state: WordNet's adjective, or the participle of a verb --
+            # `locked` is plainly a state and is not one of WordNet's.
             continue
         return False
     return True
@@ -227,7 +245,7 @@ def hear(text: str, scene: Scene) -> Heard:
     from research.v691.learned import teaching
     taught = teaching(plain)
     if taught and getattr(scene.domain, "learned", None) is not None:
-        said.act = "learn"
+        said.act = "resume" if scene.pending is not None else "learn"
         said.weight = SETUP
         said.taught = taught
         return said
@@ -257,6 +275,26 @@ def hear(text: str, scene: Scene) -> Heard:
     elif plain.startswith("why") and scene.last_plan:
         said.act = "why"
         said.weight = ASK
+    elif (getattr(scene.domain, "learned", None) is not None
+          and not ASKING.match(plain) and correcting(plain, scene)):
+        # `no, carry it`: not an order -- how the last one should have
+        # been done (`corrected`).
+        said.act = "prefer"
+        said.trouble = correcting(plain, scene)
+        said.weight = ORDER + 1
+    elif (scene.pending is not None and not ASKING.match(plain)
+          and not ordered(plain) and scene.answers(plain, facts)):
+        # The answer to what it asked about an order it could not plan:
+        # taken in, and the order tried again (`Scene.resume`).
+        said.act = "resume"
+        said.weight = ORDER
+    elif (scene.steps and not ASKING.match(plain)
+          and scene.reported(plain) is not None):
+        # Something just done did not happen. Above `meddle` and `tell`,
+        # which would take `the door is still closed` as news about the
+        # door rather than as news about what was done to it.
+        said.act = "failed"
+        said.weight = ORDER
     elif (MEDDLED.search(plain) and facts and known
           and scene_ish(facts, scene)):
         said.act = "meddle"
@@ -269,14 +307,21 @@ def hear(text: str, scene: Scene) -> Heard:
         said.weight = ASK
     elif ((ASKING.match(plain) or plain.rstrip().endswith("?"))
           and not REQUEST.match(plain)
-          and (WANTED.search(plain) or _an_order(plain)) and asked_for):
+          and (WANTED.search(plain) or _an_order(plain)
+               or getattr(scene.reader, "asked", lambda _: False)(plain))
+          and asked_for):
         # `what steps are required to make a pig fly`, `how would I get the
         # book to the kitchen`: a question about an order is asking what it
         # would take, not asking for it done.
         said.act = "how"
         said.weight = ASK
     elif ordered(plain) and any(
-            one.split()[0] in scene.domain.goalish for one in wants):
+            one.split()[0] in scene.domain.goalish for one in wants) and (
+            not REQUEST.match(_unpleased(plain))
+            or _in_scene(wants, scene)):
+        # `can you close the window` asks for it done when there is a
+        # window here; `can you eat an apple`, with no apple, asks whether
+        # you can -- v688's question, and the probe's.
         said.act = "want"
         said.weight = ORDER
     elif (facts and not ASKING.match(plain)
@@ -307,6 +352,17 @@ def ordered(plain: str) -> bool:
     if words[:1] == ["please"]:
         plain = " ".join(words[1:])
     return bool(REQUEST.match(plain)) or _an_order(plain)
+
+
+def _unpleased(plain: str) -> str:
+    words = plain.split()
+    return " ".join(words[1:]) if words[:1] == ["please"] else plain
+
+
+def _in_scene(wants: list, scene: Scene) -> bool:
+    """Whether everything an order is about is already in the scene."""
+    things = {one for fact in wants for one in fact.split()[1:]}
+    return bool(things) and things <= set(scene.objects)
 
 
 def _an_order(plain: str) -> bool:
@@ -383,13 +439,20 @@ def taught(scene: Scene, heard: Heard) -> str:
             said.append(f"a thing cannot be {one[1]} and {one[2]}")
         elif one[0] == "require" and learned.require(one[1], one[2],
                                                      heard.said):
-            plain = one[2].replace("?subject", "you").replace(
-                "?object", "it")
             said.append(f"to {one[1]} something, "
-                        f"{scene.domain.in_words(plain)}")
+                        f"{said_over(scene, one[2])}")
     if not said:
         return "I already knew that"
     return "noted, and I will remember: " + "; ".join(said)
+
+
+def said_over(scene: Scene, literal: str) -> str:
+    """A literal over positions in words: `you` for the doer and `it` for
+    the thing, with no article in front of either."""
+    plain = literal.replace("?subject", "you").replace(
+        "?object", "it").replace("?it", "it")
+    words = scene.domain.in_words(plain)
+    return words.replace("the you", "you").replace("the it", "it")
 
 
 #: act -> (handler, utility, what the operator's rule says, what it changes).
@@ -407,6 +470,15 @@ ACTS = {
             "what it would take: planned, not done", ()),
     "meddle": (lambda scene, heard: scene.meddle(heard), ORDER,
                "the scene changed without it acting", ()),
+    "failed": (lambda scene, heard: scene.failed(heard), ORDER,
+               "what was done did not happen: learn why", ()),
+    "prefer": (lambda scene, heard: corrected(scene, heard), ORDER,
+               "how the last order should have been "
+               "done: learn the verb", ()),
+    "resume": (lambda scene, heard: scene.resume(
+                   heard, taught(scene, heard) if heard.taught else ""),
+               ORDER, "the answer to what it asked: try the order again",
+               ("world",)),
     "look": (lambda scene, heard: scene.look(), ASK,
              "the scene as it stands", ()),
     "where": (lambda scene, heard: scene.where(heard), ASK,
@@ -433,6 +505,57 @@ def whole(memory) -> str:
     """
     turn = memory.get("turn")
     return getattr(turn, "said", "") or memory["reading"].said
+
+
+def seen_done(scene: Scene, said: str) -> list:
+    """What a statement says somebody did, kept as the way that thing is
+    done: `sam went to the park` makes `go` a way to be somewhere. Every
+    statement, whoever answers the turn -- it is how the verbs people use
+    are learned (`learned.prefer`)."""
+    learned = getattr(scene.domain, "learned", None)
+    if learned is None or getattr(scene.domain, "says", None):
+        return []
+    from research.v691 import hearing
+    if hearing.nlp() is None:
+        return []
+    found = hearing.hear(said, verbs.stated).done
+    for predicate, verb in found:
+        learned.prefer(predicate, verb, said)
+    return found
+
+
+#: A correction of how something was done: `no, carry it`, `carry it next
+#: time`, `you should have carried it`.
+CORRECTING = re.compile(r"^(?:no\b|nope\b)|\b(?:instead|next time|"
+                        r"should have|should've)\b")
+
+
+def correcting(plain: str, scene: Scene) -> str:
+    """The verb a correction asks for, when it could have done what was
+    last asked -- or empty."""
+    if not scene.last_plan or not scene.wanted or not CORRECTING.search(
+            plain):
+        return ""
+    from research.v691 import hearing
+    wanted = {fact.split()[0] for fact in scene.wanted}
+    for word in hearing.parse(plain):
+        if not word.tag.startswith("VB") or word.lemma in (
+                "be", "have", "do", "should"):
+            continue
+        ways = verbs.abilities().get(word.lemma, ())
+        if any(literal.split()[0] in wanted for one in ways
+               for literal in one.adds):
+            return word.lemma
+    return ""
+
+
+def corrected(scene: Scene, heard: Heard) -> str:
+    """Learn the verb a correction asked for, as a strong preference: a
+    person saying *carry it* is worth more than having seen it once."""
+    verb = heard.trouble
+    for predicate in {fact.split()[0] for fact in scene.wanted}:
+        scene.domain.learned.prefer(predicate, verb, heard.said, 2.0)
+    return f"All right -- next time I will {verb} it"
 
 
 def recorded(scene: Scene, heard: Heard) -> bool:
@@ -464,11 +587,23 @@ def replies(session) -> list:
             heard = heard_for(session, whole(memory))
             _DONE[key] = getattr(memory.get("turn"), "number", None)
             text = handler(scene, heard)
-            planning = (scene.planning() if name in ("want", "how")
+            planning = (scene.planning() if name in ("want", "how",
+                                                      "resume")
                         else {})
+            noted = ""
+            if name == "resume":
+                # The answer may be a statement -- `the book is in the
+                # shop` -- and v689 has to remember it as it would have
+                # (episodic memory, T3), so its own handler runs first.
+                reading = memory["reading"]
+                own = getattr(session, f"_{reading.act}", None)
+                if reading.act in ("tell", "introduce") and own is not None:
+                    own(reading, memory["turn"])
+                    noted = (memory["turn"].answer or {}).get("text", "")
+                    planning = scene.planning()
             memory["turn"].answer = {
                 "outcome": "acted", "source": "world", "act": name,
-                "text": text, "planning": planning,
+                "text": text, "planning": planning, "noted": noted,
                 # Said as it stands: this is already English written from a
                 # plan, and the decoder is trained to paraphrase v689's
                 # verdicts, not to re-tell a story it was not given.
@@ -477,6 +612,11 @@ def replies(session) -> list:
                 "domain": scene.domain.name if scene.open else ""}
             return ANSWERED
 
+        if name == "resume":
+            # It may run v689's own `tell` (above), so it changes whatever
+            # that changes, and says so (E4c).
+            effects = tuple(dict.fromkeys(tuple(effects) + tuple(
+                v689.ACT_EFFECTS["tell"])))
         return Operator(name=name, apply=apply, proposes=proposes,
                         utility=utility, rule=rule, effects=effects)
 
@@ -494,6 +634,7 @@ def replies(session) -> list:
         absorb(session)
         heard = heard_for(session, whole(memory))
         memory["noted"] = True
+        seen_done(scene, whole(memory))
         if not scene.open or (heard.act and not recorded(scene, heard)):
             # Something here is going to act on it; it will record its own.
             return CONTINUE

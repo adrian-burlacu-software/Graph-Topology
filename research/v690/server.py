@@ -370,6 +370,9 @@ def main() -> None:
               f"words")
     Handler.service = service
     archive = None if options.no_memory else Archive(options.memory)
+    # What v691 learns about acting is kept on the same terms as the rest.
+    from research.v691.learned import DEFAULT_PATH as LEARNED_PATH
+    v691_page.keep(None if options.no_memory else LEARNED_PATH)
     definitions = DefinitionMemory(None if options.no_memory
                                    else options.definitions)
     Handler.conversations = Conversations(service, archive, definitions,

@@ -88,7 +88,7 @@ class TeachingTests(unittest.TestCase):
                 ("you must be holding it to put it down",
                  "put", "with ?object ?subject"),
                 ("it must be closed before you can open it",
-                 "open", "closed ?object")):
+                 "open", "closed ?it")):
             with self.subTest(said=said):
                 self.assertEqual(L.teaching(said), [("require", verb,
                                                      literal)])
@@ -136,10 +136,28 @@ class ApplyingTests(unittest.TestCase):
         one = L.applied([self.action("go john")], self.learned)[0]
         self.assertEqual(one.needs, frozenset())
 
-    def test_nothing_learned_changes_nothing(self):
+    def test_nothing_learned_demands_nothing(self):
+        """With nothing learned, nothing is added to what an action needs:
+        opening a door nobody said was closed does not wait to be told.
+        What WordNet says is the opposite of the state it brings about
+        stops holding -- an open door is not closed -- and that is all."""
         before = self.action("open door", adds=["open door"])
-        self.assertEqual(L.applied([before], self.learned)[0], before)
+        after = L.applied([before], self.learned)[0]
+        self.assertEqual(after.needs, before.needs)
+        self.assertEqual(after.forbids, frozenset())
+        self.assertIn("closed door", after.deletes)
         self.assertEqual(L.applied([before], None)[0], before)
+
+    def test_a_blocker_is_ground_on_the_thing_changed(self):
+        """A lesson learned by acting is about the thing the action
+        changes (`?it`), wherever a reading of the verb names it: the door
+        in `open door` and in VerbNet's `open john door` alike."""
+        self.learned.block("open", "locked ?it")
+        for name in ("open door", "open john door"):
+            with self.subTest(name=name):
+                one = L.applied([self.action(name, adds=["open door"])],
+                                self.learned)[0]
+                self.assertEqual(one.forbids, frozenset({"locked door"}))
 
 
 @needs_verbnet

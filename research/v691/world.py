@@ -65,9 +65,15 @@ class Action:
     needs: frozenset
     adds: frozenset
     deletes: frozenset
+    #: what must *not* hold: a negative precondition. `open door` is
+    #: forbidden while `locked door` holds. Nothing in VerbNet gives these
+    #: -- they are learned (`lessons.py`) -- and the planner, whose `needs`
+    #: can only ask for presence, sees each as a positive `not X` slot
+    #: (`acting.negated`), which is the textbook compilation.
+    forbids: frozenset = frozenset()
 
     def holds_in(self, facts) -> bool:
-        return self.needs <= facts
+        return self.needs <= facts and not (self.forbids & facts)
 
     def on(self, facts: frozenset) -> frozenset:
         """The state this action leaves, without asking whether it applies.

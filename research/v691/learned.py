@@ -21,6 +21,14 @@ running server, not something the repository builds.
     carries    a doing done by being carried: a pig flies on a plane that
                flies -- learned from what the story showed (E2), not from
                being told (`DESIGN.md` §10b)
+    blocks     a state that stops a thing being done: a door that is
+               locked does not open -- a negative precondition, learned
+               from a surprise (`lessons.py`)
+    tried      what held when an action was done, and whether it worked:
+               the evidence `lessons.py` compares, kept so a lesson can
+               be drawn from a failure and a success a conversation apart
+    prefers    which verb brings a fact about, the way people do it: seen
+               in what they said happened, and in their corrections
 
 **Negative preconditions come free with exclusion**, which is why exclusion
 is worth learning first. `needs` in the executive is a list of slots that
@@ -74,7 +82,21 @@ CREATE TABLE IF NOT EXISTS carries (
     named TEXT NOT NULL, way TEXT NOT NULL, own INTEGER NOT NULL,
     said TEXT NOT NULL,
     learned REAL NOT NULL, PRIMARY KEY (verb, thing, carrier));
+CREATE TABLE IF NOT EXISTS blocks (
+    verb TEXT NOT NULL, literal TEXT NOT NULL, said TEXT NOT NULL,
+    learned REAL NOT NULL, PRIMARY KEY (verb, literal));
+CREATE TABLE IF NOT EXISTS prefers (
+    predicate TEXT NOT NULL, verb TEXT NOT NULL, count REAL NOT NULL,
+    said TEXT NOT NULL, learned REAL NOT NULL,
+    PRIMARY KEY (predicate, verb));
+CREATE TABLE IF NOT EXISTS tried (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, verb TEXT NOT NULL,
+    context TEXT NOT NULL, worked INTEGER NOT NULL, learned REAL NOT NULL);
 """
+
+#: How many tries of one verb are kept, newest first: enough to compare,
+#: and a bound so a long-running server does not grow without limit.
+TRIED = 40
 
 
 class Learned:
@@ -93,7 +115,27 @@ class Learned:
             str(self.path) if self.path is not None else ":memory:",
             check_same_thread=False)
         self.connection.executescript(SCHEMA)
+        self._migrate()
         self.connection.commit()
+
+    #: Columns added after a table first shipped, so a store written by an
+    #: older server gains them rather than failing: what a lesson is scoped
+    #: to (a kind, or everything), the kinds it does not hold of, and the
+    #: kind of thing a try was about.
+    ADDED = {"requires": (("scope", "TEXT NOT NULL DEFAULT ''"),
+                          ("unless", "TEXT NOT NULL DEFAULT ''")),
+             "blocks": (("scope", "TEXT NOT NULL DEFAULT ''"),
+                        ("unless", "TEXT NOT NULL DEFAULT ''")),
+             "tried": (("kind", "TEXT NOT NULL DEFAULT ''"),)}
+
+    def _migrate(self) -> None:
+        for table, columns in self.ADDED.items():
+            have = {row[1] for row in self.connection.execute(
+                f"PRAGMA table_info({table})")}
+            for name, kind in columns:
+                if name not in have:
+                    self.connection.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
 
     # -- states that cannot both hold --------------------------------------
     def exclude(self, one: str, other: str, said: str = "") -> bool:
@@ -142,7 +184,8 @@ class Learned:
             return False
         with self.lock:
             self.connection.execute(
-                "INSERT OR REPLACE INTO requires VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO requires (verb, literal, said, "
+                "learned) VALUES (?, ?, ?, ?)",
                 (verb, literal, said, time.time()))
             self.connection.commit()
         return True
@@ -220,6 +263,123 @@ class Learned:
             return sorted(tuple(row) for row in self.connection.execute(
                 "SELECT verb, thing, carrier, way, said FROM carries"))
 
+    # -- what stops a thing being done -------------------------------------
+    def block(self, verb: str, literal: str, said: str = "") -> bool:
+        """Learn a negative precondition: while `literal` holds, `verb`
+        cannot be done. Over positions, like `require`."""
+        if not verb or not literal or literal in self.blockers(verb):
+            return False
+        with self.lock:
+            self.connection.execute(
+                "INSERT OR REPLACE INTO blocks (verb, literal, said, "
+                "learned) VALUES (?, ?, ?, ?)",
+                (verb, literal, said, time.time()))
+            self.connection.commit()
+        return True
+
+    def blockers(self, verb: str) -> list:
+        with self.lock:
+            return [row[0] for row in self.connection.execute(
+                "SELECT literal FROM blocks WHERE verb = ?", (verb,))]
+
+    def blockings(self) -> list:
+        with self.lock:
+            return sorted((row[0], row[1], row[2]) for row in
+                          self.connection.execute(
+                              "SELECT verb, literal, said FROM blocks"))
+
+    # -- the evidence ------------------------------------------------------
+    def tried_it(self, verb: str, context, worked: bool,
+                 kind: str = "") -> int:
+        """Record what held when `verb` was done and whether it worked, and
+        the kind of thing it was done to. Returns the row, so a success
+        later reported as a failure can be taken back (`untry`)."""
+        with self.lock:
+            row = self.connection.execute(
+                "INSERT INTO tried (verb, context, worked, learned, kind) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (verb, ";".join(sorted(context)), int(worked),
+                 time.time(), kind)).lastrowid
+            self.connection.execute(
+                "DELETE FROM tried WHERE verb = ? AND id NOT IN (SELECT id "
+                "FROM tried WHERE verb = ? ORDER BY id DESC LIMIT ?)",
+                (verb, verb, TRIED))
+            self.connection.commit()
+        return row
+
+    def untry(self, row: int) -> None:
+        with self.lock:
+            self.connection.execute("DELETE FROM tried WHERE id = ?", (row,))
+            self.connection.commit()
+
+    def tries(self, verb: str, kinds: bool = False) -> list:
+        """(context, worked) for every try of `verb` kept, oldest first --
+        (context, worked, kind) with `kinds`."""
+        with self.lock:
+            rows = self.connection.execute(
+                "SELECT context, worked, kind FROM tried WHERE verb = ? "
+                "ORDER BY id", (verb,)).fetchall()
+        out = [(frozenset(one for one in row[0].split(";") if one),
+                bool(row[1]), row[2]) for row in rows]
+        return out if kinds else [one[:2] for one in out]
+
+    # -- which verb, when several would do --------------------------------
+    def prefer(self, predicate: str, verb: str, said: str = "",
+               weight: float = 1.0) -> float:
+        """Count one more time `verb` was seen bringing `predicate` about,
+        or was asked for instead of what was done. Returns the count."""
+        if not predicate or not verb:
+            return 0.0
+        with self.lock:
+            row = self.connection.execute(
+                "SELECT count FROM prefers WHERE predicate = ? AND verb = ?",
+                (predicate, verb)).fetchone()
+            count = (row[0] if row else 0.0) + weight
+            self.connection.execute(
+                "INSERT OR REPLACE INTO prefers VALUES (?, ?, ?, ?, ?)",
+                (predicate, verb, count, said, time.time()))
+            self.connection.commit()
+        return count
+
+    def preferred(self, predicate: str) -> list:
+        """Verbs for `predicate`, most seen first; of two seen as often,
+        the one seen last."""
+        with self.lock:
+            return [row[0] for row in self.connection.execute(
+                "SELECT verb FROM prefers WHERE predicate = ? "
+                "ORDER BY count DESC, learned DESC", (predicate,))]
+
+    def preferences(self) -> list:
+        with self.lock:
+            return sorted(tuple(row) for row in self.connection.execute(
+                "SELECT predicate, verb, count, said FROM prefers"))
+
+    # -- where a lesson holds ----------------------------------------------
+    def scoped(self, table: str, verb: str, literal: str) -> tuple:
+        """(scope, unless) of a lesson: the kind it holds of ("" for
+        everything), and the kinds it does not."""
+        with self.lock:
+            row = self.connection.execute(
+                f"SELECT scope, unless FROM {table} WHERE verb = ? AND "
+                f"literal = ?", (verb, literal)).fetchone()
+        if row is None:
+            return ("", ())
+        return (row[0], tuple(one for one in row[1].split(",") if one))
+
+    def rescope(self, table: str, verb: str, literal: str, scope=None,
+                unless=None) -> None:
+        with self.lock:
+            if scope is not None:
+                self.connection.execute(
+                    f"UPDATE {table} SET scope = ? WHERE verb = ? AND "
+                    f"literal = ?", (scope, verb, literal))
+            if unless is not None:
+                self.connection.execute(
+                    f"UPDATE {table} SET unless = ? WHERE verb = ? AND "
+                    f"literal = ?", (",".join(sorted(set(unless))), verb,
+                                     literal))
+            self.connection.commit()
+
     # -- taking it back ----------------------------------------------------
     def forget(self, what: str, one: str, other: str = "") -> int:
         """Unlearn. Part of the interface and not an afterthought: being
@@ -239,6 +399,14 @@ class Learned:
                 done = self.connection.execute(
                     "DELETE FROM requires WHERE verb = ? AND literal = ?",
                     (one, other)).rowcount
+            elif what == "prefers":
+                done = self.connection.execute(
+                    "DELETE FROM prefers WHERE predicate = ? AND verb = ?",
+                    (one, other)).rowcount
+            elif what == "blocks":
+                done = self.connection.execute(
+                    "DELETE FROM blocks WHERE verb = ? AND literal = ?",
+                    (one, other)).rowcount
             else:
                 done = self.connection.execute(
                     "DELETE FROM brings WHERE verb = ? AND literal = ?",
@@ -251,13 +419,13 @@ class Learned:
             return {name: self.connection.execute(
                 f"SELECT COUNT(*) FROM {name}").fetchone()[0]
                 for name in ("excludes", "requires", "brings",
-                             "carries")}
+                             "carries", "blocks", "prefers")}
 
     def close(self) -> None:
         self.connection.close()
 
 
-def applied(actions: list, learned: "Learned | None") -> list:
+def applied(actions: list, learned: "Learned | None", is_a=None) -> list:
     """The actions, with what has been learned folded in.
 
     Done at grounding rather than in the schema, for two reasons. The
@@ -284,28 +452,82 @@ def applied(actions: list, learned: "Learned | None") -> list:
             for other in learned.excluded(parts[0]):
                 needs.add(f"{other} {parts[1]}")
                 deletes.add(f"{other} {parts[1]}")
+            # What WordNet says is the opposite stops holding -- unlocking
+            # a door ends its being locked -- but is not demanded first:
+            # nobody said the door was closed, and opening it should not
+            # wait on being told.
+            for other in _opposites(parts[0]):
+                deletes.add(f"{other} {parts[1]}")
         for literal in learned.required(verb):
-            filled = _fill(literal, action.name)
-            if filled:
+            filled = _fill(literal, action.name, action.adds)
+            if filled and _holds(learned, "requires", verb, literal,
+                                 action, is_a):
                 needs.add(filled)
         for literal, gone in learned.brought(verb):
-            filled = _fill(literal, action.name)
+            filled = _fill(literal, action.name, action.adds)
             if filled:
                 (deletes if gone else adds).add(filled)
+        forbids = set(getattr(action, "forbids", ()))
+        for literal in learned.blockers(verb):
+            filled = _fill(literal, action.name, action.adds)
+            if filled and _holds(learned, "blocks", verb, literal, action,
+                                 is_a):
+                forbids.add(filled)
         out.append(type(action)(action.name, frozenset(needs),
                                 frozenset(adds),
-                                frozenset(deletes) - frozenset(adds)))
+                                frozenset(deletes) - frozenset(adds),
+                                frozenset(forbids)))
     return out
 
 
-def _fill(literal: str, name: str) -> str:
-    """A learned literal over `?subject`/`?object`/`?place`, ground against
-    one action's name. Empty when the action has no such position, which is
-    how `you must be holding it` leaves an intransitive verb alone."""
+def _holds(learned, table: str, verb: str, literal: str, action,
+           is_a) -> bool:
+    """Whether a lesson holds of the thing this action changes: inside its
+    scope and outside its exceptions. Everything, when nothing can say what
+    kind a thing is."""
+    scope, unless = learned.scoped(table, verb, literal)
+    if is_a is None or not (scope or unless):
+        return True
+    thing = _fill(IT, action.name, action.adds)
+    if not thing:
+        return not scope
+    if scope and not is_a(thing, scope):
+        return False
+    return not any(is_a(thing, one) for one in unless)
+
+
+def _opposites(state: str) -> frozenset:
+    try:
+        from research.v691.verbs import opposites
+        return opposites(state)
+    except Exception:                              # noqa: BLE001
+        return frozenset()
+
+
+#: The thing an action changes, in a lesson learned from acting: found by
+#: what the action brings about rather than by where it is named, so a
+#: lesson about doors finds the door in every reading of `open`.
+IT = "?it"
+
+
+def changed(adds) -> str:
+    """The one thing an action's one-place effects are about, or empty:
+    `open door` changes the door, `fetch book shop` (`carrying book`) the
+    book. Empty when there are none or several."""
+    found = {literal.split()[1] for literal in adds
+             if len(literal.split()) == 2}
+    return next(iter(found)) if len(found) == 1 else ""
+
+
+def _fill(literal: str, name: str, adds=()) -> str:
+    """A learned literal over `?subject`/`?object`/`?place`/`?it`, ground
+    against one action. Empty when the action has no such position, which
+    is how `you must be holding it` leaves an intransitive verb alone."""
     parts = name.split()
     where = {"?subject": parts[1] if len(parts) > 1 else "",
              "?object": parts[2] if len(parts) > 2 else "",
-             "?place": parts[-1] if len(parts) > 3 else ""}
+             "?place": parts[-1] if len(parts) > 3 else "",
+             IT: changed(adds) or (parts[2] if len(parts) > 2 else "")}
     out = []
     for word in literal.split():
         if word.startswith("?"):
@@ -359,7 +581,9 @@ def condition(text: str) -> str:
         return "with ?object ?subject"
     found = IT_IS.search(plain)
     if found:
-        return f"{found.group(1)} ?object"
+        # `it` is the thing acted on, wherever a reading of the verb names
+        # it: `open box` has no object position and still opens the box.
+        return f"{found.group(1)} {IT}"
     found = THING_IS.search(plain)
     if found:
         return f"{found.group(2)} {found.group(1)}"

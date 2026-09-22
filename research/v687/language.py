@@ -20,8 +20,194 @@ import contextlib
 import contextvars
 import functools
 import re
+import os
+import threading
 from dataclasses import dataclass, field
 from typing import Any
+
+#: The spaCy model every layer parses with, v687 to v691: one model, so a
+#: sentence is read the same way wherever it is read. The transformer where
+#: it is installed -- it tags `fly` in *how would a pig fly* as a verb and
+#: `mary` in *give the cup to mary* as a name, where the small one does
+#: not -- and the small one where it is not. `SPACY_MODEL` overrides.
+MODELS = tuple(one for one in (os.environ.get("SPACY_MODEL", ""),
+                               "en_core_web_trf", "en_core_web_sm") if one)
+
+_LOADED: dict = {}
+_LOADING = threading.Lock()
+#: One parse at a time through a shared model: v688's engines answer in
+#: parallel threads and share it, and spaCy does not promise a pipeline is
+#: safe to run from two threads at once.
+_PARSING = threading.RLock()
+
+
+class _Step:
+    """One pipeline component, run under the shared lock. Use
+    `Shared.parse_words` instead where it will do: a step at a time is not
+    atomic across the pipeline."""
+
+    def __init__(self, component, ops=None, lock=None) -> None:
+        self.component = component
+        self.ops = ops
+        self.lock = lock or _PARSING
+
+    def __call__(self, doc):
+        with self.lock:
+            if self.ops is not None:
+                from thinc.api import set_current_ops
+                set_current_ops(self.ops)
+            return self.component(doc)
+
+    def __getattr__(self, name):
+        return getattr(self.component, name)
+
+
+#: How many parses a process keeps. The same sentence is parsed many times
+#: over -- by each of v688's engines, by v689's reader and again by its
+#: clause splitter, by v691 -- and a transformer makes each one cost.
+CACHED = 8192
+
+
+class Shared:
+    """A spaCy model loaded once per process and shared by everything that
+    parses. Before, every engine loaded its own -- five in v688's pool,
+    nineteen on a page run with `--workers 19` -- which the small model
+    made merely wasteful and the transformer would make impossible.
+
+    Parses are kept (`CACHED`), by text for `nlp(text)` and by the exact
+    words for `parse_words`. A `Doc` is only read here, never written."""
+
+    def __init__(self, nlp, name: str) -> None:
+        self._nlp = nlp
+        self.name = name
+        #: One lock per model: a lemma looked up in the small model does not
+        #: wait behind a sentence the transformer is reading.
+        self._lock = threading.RLock()
+        self._texts: dict = {}
+        self._words: dict = {}
+        from thinc.api import get_current_ops
+        #: The ops the model was loaded with. Which ops are current is
+        #: per thread, and v688's engines answer from threads that never
+        #: chose the GPU: run there, a GPU model was fed CPU arrays and
+        #: parses failed at random. Set again inside every locked parse.
+        self._ops = get_current_ops()
+
+    def _here(self) -> None:
+        from thinc.api import set_current_ops
+        set_current_ops(self._ops)
+
+    def __call__(self, text, *args, **kwargs):
+        if args or kwargs or not isinstance(text, str):
+            with self._lock:
+                self._here()
+                return self._nlp(text, *args, **kwargs)
+        found = self._texts.get(text)
+        if found is None:
+            with self._lock:
+                self._here()
+                found = self._nlp(text)
+            if len(self._texts) >= CACHED:
+                self._texts.clear()
+            self._texts[text] = found
+        return found
+
+    def parse_words(self, words):
+        """spaCy over words already split, token `i` being word `i`: the
+        whole pipeline run on a `Doc` built from them."""
+        key = tuple(words)
+        found = self._words.get(key)
+        if found is None:
+            from spacy.tokens import Doc
+            # The whole pipeline under one lock: a transformer's tagger and
+            # parser read its output through a shared listener, so steps of
+            # two parses interleaved would read each other's.
+            with self._lock:
+                self._here()
+                found = Doc(self._nlp.vocab, words=list(words))
+                for _, component in self._nlp.pipeline:
+                    found = component(found)
+            if len(self._words) >= CACHED:
+                self._words.clear()
+            self._words[key] = found
+        return found
+
+    def pipe(self, texts, *args, **kwargs):
+        with self._lock:
+            self._here()
+            return list(self._nlp.pipe(texts, *args, **kwargs))
+
+    @property
+    def pipeline(self):
+        return [(name, _Step(component, self._ops, self._lock))
+                for name, component in self._nlp.pipeline]
+
+    def __getattr__(self, name):
+        return getattr(self._nlp, name)
+
+
+#: What the store's own text is lemmatised with (`Parser.lemmas`). Matching
+#: a fact to a question is lemma overlap over thousands of short fragments a
+#: turn -- `fall into hole`, `attract butterfly` -- which is lookup, not
+#: reading: the transformer's gain is in reading a sentence someone said,
+#: and here it cost 128 seconds of parsing for one question on the page. The
+#: small model, whatever `MODELS` reads utterances with.
+LEMMA_MODEL = os.environ.get("SPACY_LEMMA_MODEL", "en_core_web_sm")
+
+#: Lemmas of the store's fragments, shared by every engine in a process.
+_LEMMAS: dict = {}
+LEMMAS_KEPT = 200_000
+
+
+def lemmas_of(text: str) -> list[str] | None:
+    """Content lemmas of a fragment of the store's text, by `LEMMA_MODEL`;
+    None when no model is installed."""
+    found = _LEMMAS.get(text)
+    if found is not None:
+        return found
+    nlp = load(LEMMA_MODEL) or load()
+    if nlp is None:
+        return None
+    found = [t.lemma_.lower() for t in nlp(text)
+             if not t.is_punct and not t.is_space
+             and t.lemma_.lower() not in STOP]
+    if len(_LEMMAS) >= LEMMAS_KEPT:
+        _LEMMAS.clear()
+    _LEMMAS[text] = found
+    return found
+
+
+def load(model: str | None = None) -> "Shared | None":
+    """The shared model: `model` if named, else the first of `MODELS` that
+    is installed. None when spaCy is not."""
+    wanted = (model,) if model else MODELS
+    with _LOADING:
+        for name in wanted:
+            if name in _LOADED:
+                return _LOADED[name]
+            try:
+                import spacy
+                if "trf" in name:
+                    # A transformer is worth a GPU where there is one;
+                    # `SPACY_GPU=0` keeps it on the CPU.
+                    if os.environ.get("SPACY_GPU", "1") != "0":
+                        try:
+                            spacy.prefer_gpu()
+                        except Exception:      # noqa: BLE001
+                            pass
+                    _LOADED[name] = Shared(spacy.load(name,
+                                                      disable=["ner"]), name)
+                    return _LOADED[name]
+                # Anything else on the CPU, whatever a transformer loaded
+                # before it chose: the small model's tiny calls cost a
+                # millisecond there and fifteen on a GPU.
+                from thinc.api import use_ops
+                with use_ops("numpy"):
+                    _LOADED[name] = Shared(spacy.load(name,
+                                                      disable=["ner"]), name)
+                return _LOADED[name]
+            except Exception:                  # noqa: BLE001
+                continue
+    return None
 
 #: Question cue -> relation. Ordered: the first phrase that matches wins, so
 #: longer and more specific cues are listed before general ones.
@@ -260,7 +446,7 @@ class Parser:
     #: prey` is three; past four it is a sentence, not a name.
     MAX_SUBJECT_TOKENS = 4
 
-    def __init__(self, model: str = "en_core_web_sm",
+    def __init__(self, model: str | None = None,
                  vocabulary: set[str] | None = None,
                  nouns: set[str] | None = None):
         self.nlp = None
@@ -275,12 +461,9 @@ class Parser:
         self.nouns = nouns or set()
         #: Set by `head_noun` when it refuses to substitute a later noun.
         self._blocked: str | None = None
-        try:
-            import spacy
-            self.nlp = spacy.load(model, disable=["ner"])
-            self.backend = f"encoder+spacy:{model}"
-        except Exception:                      # noqa: BLE001 - optional dependency
-            pass
+        self.nlp = load(model)
+        if self.nlp is not None:
+            self.backend = f"encoder+spacy:{self.nlp.name}"
 
     #: Tags a subject can wear. A question can be about a thing, an act or an
     #: exclamation -- `is running a sport`, `is hello a greeting` -- and
@@ -380,11 +563,13 @@ class Parser:
 
     # -- lemmatisation ----------------------------------------------------
     def lemmas(self, text: str) -> list[str]:
-        """Content lemmas, lowercased, stop words removed."""
+        """Content lemmas, lowercased, stop words removed -- by the model
+        kept for lemmatising (`lemmas_of`), not the one that reads what
+        people say."""
         if self.nlp is not None:
-            return [t.lemma_.lower() for t in self.nlp(text)
-                    if not t.is_punct and not t.is_space
-                    and t.lemma_.lower() not in STOP]
+            found = lemmas_of(text)
+            if found is not None:
+                return found
         return [w for w in re.findall(r"[a-z0-9']+", text.lower()) if w not in STOP]
 
     def head_noun(self, text: str, polar: bool = False) -> str | None:

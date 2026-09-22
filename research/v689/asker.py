@@ -8,6 +8,35 @@ kind -- because a test supplies a stand-in and the server supplies the loop.
 from __future__ import annotations
 
 
+def _noun_lemma(word: str, read: str = "") -> str:
+    """The noun a word alone is a form of, by WordNet: every form its
+    morphology offers (`flies` is a noun of its own and a form of `fly`,
+    `mice` only of `mouse`), and of those the one used most often, by
+    WordNet's own counts -- so `flies` is a fly, and `physics` stays
+    physics rather than becoming `physic`. Empty when WordNet has none."""
+    try:
+        from nltk.corpus import wordnet
+        forms = set(wordnet._morphy(word, wordnet.NOUN))
+    except Exception:                              # noqa: BLE001
+        return ""
+    if read and read != word:
+        try:
+            if wordnet.synsets(read, wordnet.NOUN):
+                forms.add(read)
+        except Exception:                          # noqa: BLE001
+            pass
+    if not forms:
+        return ""
+
+    def used(form: str) -> int:
+        return sum(lemma.count() for synset in wordnet.synsets(
+            form, wordnet.NOUN) for lemma in synset.lemmas()
+            if lemma.name().lower() == form)
+
+    return max(sorted(forms), key=lambda form: (used(form),
+                                                form == word)).lower()
+
+
 class Asker:
     """One v687 reasoner and parser, read through the questions v689 asks."""
 
@@ -29,7 +58,30 @@ class Asker:
         if nlp is None:
             return word
         read = nlp(word)
-        return read[0].lemma_.lower() if len(read) else word
+        if not len(read):
+            return word
+        token = read[0]
+        if token.tag_.startswith("NN") and word.islower():
+            # A word looked up alone, typed in lower case, read as a noun.
+            # Alone it has no context, and the transformer model tags
+            # `mice` as singular and `wembles` as a name, leaving both as
+            # they are. WordNet's noun forms first (`_noun_lemma`), and for
+            # a word WordNet does not have, spaCy's plural rules: `wembles`
+            # is `wemble`.
+            known = _noun_lemma(word, token.lemma_.lower())
+            if known:
+                return known
+            lemmatizer = (nlp.get_pipe("lemmatizer")
+                          if "lemmatizer" in nlp.pipe_names else None)
+            rule = getattr(lemmatizer, "rule_lemmatize", None)
+            if rule is not None and word.endswith("s"):
+                from spacy.tokens import Doc
+                alone = Doc(nlp.vocab, words=[word], pos=["NOUN"],
+                            tags=["NNS"])
+                found = rule(alone[0])
+                if found and found[0]:
+                    return found[0].lower()
+        return token.lemma_.lower()
 
     def progressive(self, word: str):
         """The verb in `it is flying`; None for `it is boring`.
@@ -104,6 +156,9 @@ class Asker:
         nlp = getattr(self.parser, "nlp", None)
         if nlp is None or not words:
             return None
+        shared = getattr(nlp, "parse_words", None)
+        if shared is not None:
+            return shared(words)
         from spacy.tokens import Doc
 
         doc = Doc(nlp.vocab, words=list(words))

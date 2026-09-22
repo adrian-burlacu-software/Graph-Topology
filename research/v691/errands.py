@@ -121,11 +121,35 @@ ERRANDS = [
 ]
 
 
-def work(errand: Errand, resolver=None, per_verb: int = 8) -> Errand:
+#: What people were heard saying they did, for `--seen`: other people,
+#: other things, other places than any errand -- the verbs are what carry
+#: over, and nothing else does.
+SEEN = ("sam went to the park", "the girl walked to school",
+        "he put the plate on the shelf", "mary took the cup to the office",
+        "tom carried the bag to the car")
+
+
+def preferences(sentences=SEEN) -> dict:
+    """predicate -> verbs, most seen first, from what people said they did
+    (`hearing.done`, the page's `seen_done`)."""
+    from collections import Counter
+
+    from research.v691 import hearing
+    counts: dict = {}
+    for said in sentences:
+        for predicate, verb in hearing.hear(said, verbs.stated).done:
+            counts.setdefault(predicate, Counter())[verb] += 1
+    return {predicate: [verb for verb, _ in found.most_common()]
+            for predicate, found in counts.items()}
+
+
+def work(errand: Errand, resolver=None, per_verb: int = 8,
+         prefer: dict | None = None) -> Errand:
     things = verbs.Things(resolver)
     for name, kind in errand.things.items():
         things.add(name, kind)
-    actions = verbs.useful(errand.goal, things, per_verb=per_verb)
+    actions = verbs.useful(errand.goal, things, per_verb=per_verb,
+                           prefer=prefer)
     problem = W.Problem(errand.name, frozenset(errand.start),
                         frozenset(errand.goal), tuple(actions),
                         dict(things.kinds))
@@ -139,8 +163,9 @@ def work(errand: Errand, resolver=None, per_verb: int = 8) -> Errand:
     return errand
 
 
-def measure(resolver=None, per_verb: int = 8) -> list:
-    return [work(Errand(**{**one.__dict__}), resolver, per_verb)
+def measure(resolver=None, per_verb: int = 8,
+            prefer: dict | None = None) -> list:
+    return [work(Errand(**{**one.__dict__}), resolver, per_verb, prefer)
             for one in ERRANDS]
 
 
@@ -149,6 +174,10 @@ def main(argv=None) -> int:
     parser.add_argument("--per-verb", type=int, default=8,
                         help="how many verbs per wanted predicate are "
                              "ground (`verbs.useful`)")
+    parser.add_argument("--seen", action="store_true",
+                        help="prefer the verbs people were heard using "
+                             "(`SEEN`, which shares nothing else with the "
+                             "errands)")
     parser.add_argument("--no-store", action="store_true",
                         help="without the taxonomy, so nothing restricts "
                              "which thing may fill which role")
@@ -160,7 +189,10 @@ def main(argv=None) -> int:
         resolver = of_store()
         if resolver is None:
             print("no store: run `python -m regenerate`")
-    rows = measure(resolver, options.per_verb)
+    prefer = preferences() if options.seen else None
+    if prefer:
+        print("seen:", prefer)
+    rows = measure(resolver, options.per_verb, prefer)
     print(f"{'errand':<16} {'offered':>8} {'reached':>8} {'sensible':>9}  "
           f"plan")
     print("-" * 92)

@@ -274,6 +274,21 @@ class Situation(Working):
         in some other arrangement of the blocks."""
         return set(dict.keys(self)) | self.facts
 
+    def about(self, missing) -> set:
+        """What an impasse over `missing` turned on: the facts about the
+        things those facts are about, and nothing else in the world.
+
+        A chunk is keyed on this (E6). Keyed on every fact, as `keys` is,
+        it never comes round again -- a world is different after every
+        action -- and 38 chunks were learned for one hit. `clear a` is
+        about block `a`; what else is true of `a` is what decides how it
+        was made clear, and where `d` is does not."""
+        things = {word for literal in missing
+                  for word in str(literal).split()[1:]}
+        return ({fact for fact in self.facts
+                 if things & set(fact.split()[1:])}
+                | {str(one) for one in missing})
+
     def assert_(self, fact: str) -> None:
         self.facts.add(fact)
         dict.__setitem__(self, fact, True)
@@ -393,9 +408,123 @@ def _tally(trace, at: int = 1) -> tuple:
     return fired, subgoals, depth
 
 
+#: How a negative precondition is a slot: `not locked door`.
+NOT = "not "
+
+
+def negated(actions, facts) -> tuple:
+    """Actions and facts with every negative precondition made positive.
+
+    `needs` can only ask for presence, so *the door is not locked* is the
+    slot `not locked door`: true at the start wherever `locked door` is
+    not, taken away by whatever locks it and brought about by whatever
+    unlocks it. That is the standard compilation of negative preconditions
+    into STRIPS, and it means means-ends can plan to *remove* a blocker the
+    same way it plans to bring about a need. Returns (actions, facts, back)
+    where `back` maps each compiled action to the one it stands for, so the
+    plan handed to the world is the world's own actions.
+    """
+    actions = list(actions)
+    forbidden = set()
+    for one in actions:
+        forbidden |= set(getattr(one, "forbids", ()))
+    if not forbidden:
+        return actions, frozenset(facts), {}
+    out, back = [], {}
+    for one in actions:
+        adds = set(one.adds) | {NOT + fact for fact in one.deletes
+                                if fact in forbidden}
+        deletes = set(one.deletes) | {NOT + fact for fact in one.adds
+                                      if fact in forbidden}
+        made = W.Action(one.name,
+                        frozenset(one.needs) | {NOT + fact for fact in
+                                                one.forbids},
+                        frozenset(adds), frozenset(deletes - adds))
+        out.append(made)
+        back[made] = one
+    facts = frozenset(facts) | {NOT + fact for fact in forbidden
+                                if fact not in facts}
+    return out, facts, back
+
+
+#: Whether a found plan is shortened before it is acted on (`shortened`).
+SHORTEN = True
+
+
+def valid(plan, facts, goal) -> bool:
+    """Whether a sequence of actions applies, one after another, from
+    `facts`, and leaves `goal` true."""
+    state = frozenset(facts)
+    for one in plan:
+        if not one.holds_in(state):
+            return False
+        state = one.on(state)
+    return frozenset(goal) <= state
+
+
+def shortened(plan, facts, goal, actions=()) -> list:
+    """A plan with what it did not need taken out -- checked in the model,
+    so what is left is as sound as what was found.
+
+    Means-ends counts nothing: it takes the first way to each subgoal it
+    finds, so in errands `go` repeats and a van drives somewhere and back
+    for nothing. Two cuts, both general. **A stretch that comes back to a
+    state already passed through did nothing**, and goes. Then **each action
+    is tried without**, last first, and dropped if the rest still applies
+    and still reaches the goal. Neither knows a domain, and neither can make
+    a plan wrong: every candidate is run in the model before it is kept.
+    """
+    plan = list(plan)
+    if not valid(plan, facts, goal):
+        return plan
+    cut = True
+    while cut:
+        cut = False
+        states = [frozenset(facts)]
+        for one in plan:
+            states.append(one.on(states[-1]))
+        first: dict = {}
+        for index, state in enumerate(states):
+            if state in first:
+                plan = plan[:first[state]] + plan[index:]
+                cut = True
+                break
+            first[state] = index
+    index = len(plan) - 1
+    while index >= 0:
+        trial = plan[:index] + plan[index + 1:]
+        if valid(trial, facts, goal):
+            plan = trial
+        index -= 1
+    # **A detour one action can make directly**: going home and then to the
+    # shop, where going to the shop was on offer all along. Any stretch
+    # that one available action takes from the same state to the same
+    # state is that action, longest stretch first.
+    cut = bool(actions)
+    while cut:
+        cut = False
+        states = [frozenset(facts)]
+        for one in plan:
+            states.append(one.on(states[-1]))
+        for start in range(len(plan)):
+            for end in range(len(plan), start + 1, -1):
+                direct = next((one for one in actions
+                               if one.holds_in(states[start])
+                               and one.on(states[start]) == states[end]),
+                              None)
+                if direct is not None:
+                    plan = plan[:start] + [direct] + plan[end:]
+                    cut = True
+                    break
+            if cut:
+                break
+    return plan
+
+
 def think(actions, facts, goal, chunks: Chunks | None = None) -> Search:
     """Plan: means-ends over a model of the world, and the actions it
     applied there are the plan. Nothing outside the model is touched."""
+    actions, facts, back = negated(actions, facts)
     goal = frozenset(goal)
     taste = Taste.of(goal, actions)
     means = sorted((operator_of(one, goal, taste) for one in actions),
@@ -405,7 +534,11 @@ def think(actions, facts, goal, chunks: Chunks | None = None) -> Search:
                           means=means, chunks=chunks)
     trace = executive.run(memory)
     fired, subgoals, depth = _tally(trace)
-    return Search(plan=tuple(memory.get("plan", ())), fired=fired,
+    found = list(memory.get("plan", ()))
+    if SHORTEN and found:
+        found = shortened(found, facts, goal, actions)
+    return Search(plan=tuple(back.get(one, one) for one in found),
+                  fired=fired,
                   subgoals=subgoals, depth=depth, trace=trace,
                   answered=trace.answered_by is not None)
 
@@ -436,7 +569,7 @@ class Gap:
     The first thing in this project a learner could be given: everywhere
     else the signal was whether an answer was right, and this is a
     prediction the agent made itself, falsified by the world, with the
-    action that made it still in hand. Nothing learns from it yet.
+    action that made it still in hand. `lessons.Learner` learns from it.
     """
 
     action: object
@@ -446,6 +579,10 @@ class Gap:
     extra: frozenset
     #: how many actions had been taken when it happened
     after: int
+    #: the world just before the action: what a learner compares
+    before: frozenset = frozenset()
+    #: whether the world refused the action outright
+    refused: bool = False
 
 
 @dataclass
@@ -464,6 +601,8 @@ class Attempt:
     #: observation, which is the first thing in this project that
     #: counterfactual credit could learn from
     gaps: list = field(default_factory=list)
+    #: what the surprises taught (`lessons.Lesson`), in order
+    lessons: list = field(default_factory=list)
 
     @property
     def shortest(self) -> bool:
@@ -472,7 +611,8 @@ class Attempt:
 
 
 def agent(problem: W.Problem, real: W.World, chunks=None,
-          attempt: Attempt | None = None, tries: int = 4) -> Executive:
+          attempt: Attempt | None = None, tries: int = 4,
+          learner=None) -> Executive:
     """The agent as an executive: plan, act, look, and plan again when what
     it saw is not what it expected.
 
@@ -495,7 +635,11 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
 
     def plan_from(memory) -> str:
         report.plans += 1
-        found = think(problem.actions, real.facts, problem.goal, chunks)
+        # What has been learned is folded in at every plan, not once: a
+        # lesson from a surprise in this very run changes the replan.
+        actions = (learner.applied(problem.actions) if learner is not None
+                   else problem.actions)
+        found = think(actions, real.facts, problem.goal, chunks)
         report.search = found
         if not found.plan or report.plans > tries:
             dict.__setitem__(memory, "plan", [])
@@ -507,6 +651,7 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
         plan = memory["plan"]
         action = plan.pop(0)
         memory["did"] = action
+        memory["before"] = real.facts
         memory["expected"] = action.on(real.facts)
         if not real.do(action):
             # The world refused: it was not as the model had it.
@@ -521,13 +666,18 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
     def looked(memory):
         expected = memory.pop("expected")
         refused = memory.pop("refused", False)
+        before = memory.pop("before", frozenset())
         if not refused and expected == real.facts:
+            if learner is not None:
+                learner.worked(memory.get("did"), before, real.facts)
             return CONTINUE
         report.surprises += 1
-        report.gaps.append(Gap(memory.get("did"),
-                               frozenset(expected) - real.facts,
-                               frozenset(real.facts) - frozenset(expected),
-                               report.acted))
+        gap = Gap(memory.get("did"), frozenset(expected) - real.facts,
+                  frozenset(real.facts) - frozenset(expected), report.acted,
+                  frozenset(before), refused)
+        report.gaps.append(gap)
+        if learner is not None:
+            report.lessons.extend(learner.failed(gap, real.facts))
         memory.pop("plan", None)
         # Numbered, because the executive resolves each impasse *name* once
         # per run, and a second surprise is a second impasse rather than
@@ -727,7 +877,7 @@ def main(argv=None) -> int:
 
     chunks = Chunks() if options.chunks else None
     print(f"{len(problems)} problems "
-          f"({len(W.SUITE)} fixed, {len(problems) - len(W.SUITE)} sampled)\n")
+          f"({len(SUITE)} fixed, {len(problems) - len(SUITE)} sampled)\n")
     print(f"{'problem':<18} {'plan':>5} {'best':>5} {'fired':>6} "
           f"{'subgoals':>9} {'deep':>5}  outcome")
     print("-" * 70)

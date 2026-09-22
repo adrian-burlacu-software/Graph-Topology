@@ -358,7 +358,9 @@ class SuiteTests(unittest.TestCase):
     def test_most_are_solved_and_most_of_those_are_shortest(self):
         self.assertEqual(self.report.total, 24)
         self.assertEqual(self.report.solved, 23)
-        self.assertEqual(self.report.shortest, 19)
+        # 19 before a found plan was shortened (`acting.shortened`): every
+        # solved plan is now as short as the oracle's.
+        self.assertEqual(self.report.shortest, 23)
 
     def test_the_search_never_runs_away(self):
         for row in self.report.rows:
@@ -366,16 +368,23 @@ class SuiteTests(unittest.TestCase):
                 self.assertLess(row.search.fired, 100)
                 self.assertLessEqual(row.search.depth, 12)
 
-    def test_chunking_buys_nothing_here(self):
-        """Recorded rather than asserted away. A chunk is keyed on the
-        impasse *and the state it arose in*, and in a world the state is
-        different after every action, so the key almost never comes round
-        again. A chunk that fits a world would have to be keyed on what the
-        impasse turned on rather than on everything true at the time."""
+    def test_a_chunk_is_keyed_on_what_the_impasse_was_about(self):
+        """Keyed on everything true at the time, a chunk never came round
+        again in a world -- the state is different after every action.
+        Keyed on the facts about the things the impasse wanted
+        (`Situation.about`), it does: in errands, where one fetch is much
+        like another, recalled chunks save search. Blocks, where the whole
+        tower matters, gains little, and that is recorded rather than
+        asserted away."""
         chunks = Chunks()
         acting.measure(self.problems, chunks)
-        self.assertGreater(chunks.misses, 100 * max(chunks.hits, 1))
-        self.assertLessEqual(chunks.hits, 5)
+        self.assertGreaterEqual(chunks.hits, 5)
+        found = Chunks()
+        chunked = acting.measure(P.errands(20, 0), found)
+        plain = acting.measure(P.errands(20, 0))
+        self.assertGreater(found.hits, 20)
+        self.assertLess(chunked.subgoals, plain.subgoals)
+        self.assertEqual(chunked.solved, plain.solved)
 
 
 class OtherDomainTests(unittest.TestCase):
@@ -394,13 +403,21 @@ class OtherDomainTests(unittest.TestCase):
         report = acting.measure(P.delivery(20, 0))
         self.assertEqual(report.solved, report.total)
 
-    def test_but_the_plans_are_long_where_moving_is_free(self):
-        """Blocks is nearly all optimal; these are not, because `go` and
-        `drive` can be repeated at no cost and means-ends counts no cost."""
+    def test_shortening_is_what_makes_the_plans_short(self):
+        """Means-ends counts no cost, so `go` and `drive` repeat: with the
+        found plan taken as it is, errands are hardly ever shortest. Cut
+        in the model (`acting.shortened`), most are, and blocks all are."""
         blocks = acting.measure(P.SUITE + P.sampled(20, seed=0))
         errands = acting.measure(P.errands(20, 0))
-        self.assertGreater(blocks.shortest / blocks.total, 0.75)
-        self.assertLess(errands.shortest / errands.total, 0.5)
+        self.assertEqual(blocks.shortest, blocks.solved)
+        self.assertGreater(errands.shortest / errands.total, 0.5)
+        acting.SHORTEN = False
+        try:
+            long = acting.measure(P.errands(20, 0))
+        finally:
+            acting.SHORTEN = True
+        self.assertLess(long.shortest / long.total, 0.5)
+        self.assertEqual(long.solved, errands.solved)
 
 
 if __name__ == "__main__":

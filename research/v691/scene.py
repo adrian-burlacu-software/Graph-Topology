@@ -35,6 +35,10 @@ the kinds come from the domain too.
     asking      what is on the red block; where is the book; what do you see
     why         why did you move the red block
     meddling    actually the red block is on the table now
+    reporting   the door is still closed, it is locked -- what it did did
+                not happen, and what the person said is why (`failed`)
+    asking      an order it cannot plan is not dropped: it asks for what is
+                missing, and the answer resumes it (`missing`, `resume`)
     changing    use the errands world; what worlds do you have
 """
 from __future__ import annotations
@@ -44,7 +48,7 @@ from dataclasses import dataclass, field
 
 from research.v687.executive import (ANSWERED, DECLINED, Executive, Operator,
                                      Working)
-from research.v691 import acting, world as W
+from research.v691 import acting, lessons, world as W
 from research.v691.domains import DOMAINS
 
 #: Words that are never an object's name, however a pattern falls.
@@ -53,6 +57,34 @@ in at it its this that there here what where why who how i you me my your
 please now actually then so put move place get take bring make build set
 tell say left right up down with from into onto for all some any thing
 things world worlds use using""".split())
+
+
+#: How English says something just done did not happen (`Scene.reported`).
+#: `the door did not open`, `the door is not open`: the thing and what it
+#: should have come to.
+DENIED = re.compile(r"\b(?:the |a |an )?(\w+)\s+(?:is not|is n't|isn't|"
+                    r"are not|aren't|did not|didn't|does not|doesn't|"
+                    r"would not|wouldn't|won't|will not|could not|"
+                    r"couldn't)\s+(?:be\s+)?(\w+)")
+#: `the door is still closed`: a state the action should have ended.
+STILL = re.compile(r"\bstill\b")
+#: `that did not work`, `it failed`.
+FAILED = re.compile(r"\b(?:that|it|this)\s+(?:did not|didn't|does not|"
+                    r"doesn't)\s+work\b|\b(?:that|it)\s+failed\b")
+
+
+def _participle(verb: str) -> str:
+    from research.v691.verbs import participle
+    return participle(verb)
+
+
+#: A yes, a no, and being told to leave it, to a question asked
+#: (`Scene.resume`).
+YES = re.compile(r"^(?:yes|yeah|yep|it is|they are|sure|correct|right)\b")
+NO = re.compile(r"^(?:no|nope|it is not|it isn't|it's not|they are not|"
+                r"they aren't|not)\b")
+DROP = re.compile(r"\b(?:never mind|forget it|leave it|don't bother|"
+                  r"stop)\b")
 
 
 #: A copula a person puts between a name and where it is. Optional, and
@@ -204,6 +236,29 @@ class Scene:
         self.wanted: list = []
         self.offered: int = 0
         self.offered_names: list = []
+        #: each action of the last order, with the world just before it:
+        #: what a report that one of them did not happen is checked against
+        self.steps: list = []
+        #: draws lessons from what happened when acting (`lessons.py`),
+        #: where there is somewhere to keep them
+        learned = getattr(domain, "learned", None)
+        self.learner = None
+        if learned is not None:
+            # What kind a thing is, where the domain can say: a lesson can
+            # then be about doors and survive a box that does not follow it.
+            things = getattr(domain, "things", None)
+            self.learner = lessons.Learner(
+                learned,
+                kind_of=(lambda name: things.kinds.get(name, name))
+                if things is not None else None,
+                is_a=getattr(domain, "is_a", None))
+        #: what the last report taught, for the page to show
+        self.taught: list = []
+        #: an order that could not be planned, and what was asked about it:
+        #: {goal, said, asked, kind, thing}. The goal is **suspended**, not
+        #: dropped -- the impasse's way out is a question to the person, and
+        #: the answer, when it comes, is a later turn (`resume`)
+        self.pending: dict | None = None
 
     @property
     def open(self) -> bool:
@@ -268,8 +323,11 @@ class Scene:
         # Things named with their kind but placed nowhere -- `a red block,
         # a green block and a blue block on the table` -- start wherever
         # the domain says a thing of that kind starts.
+        # What a fact says a thing *is* -- `closed` in `the door is closed`
+        # -- is not a thing, however generously `mentions` reads.
+        stated = {fact.split()[0] for fact in heard.facts}
         for name, kind in self.reader.mentions(heard.said.lower()):
-            if name not in self.objects:
+            if name not in self.objects and name not in stated:
                 self.objects[name] = kind
                 self.told(name, kind)
                 self.world.facts = self.world.facts | frozenset(
@@ -351,7 +409,21 @@ class Scene:
         if not goal:
             return ("I understood that as a scene rather than as something "
                     "to do -- tell me where something should end up")
+        unplaced = self.unplaced(goal)
         self.introduce(goal, heard.said.lower())
+        if unplaced:
+            # Moving a thing nobody has placed: VerbNet has readings of
+            # `leave` and `send` with no precondition at all, and a plan
+            # built on one says it moved a book it never found. Where the
+            # thing is, is the question.
+            self.wanted = list(goal)
+            self.last_plan, self.steps = [], []
+            self.pending = self._asking(
+                "where", f"at {unplaced} ?", unplaced,
+                f"where is {self.domain.the(unplaced)}?")
+            self.pending.update(goal=list(goal), said=heard.said)
+            return ("I will need to know where it is first. "
+                    + self.pending["question"])
         # A world with nothing declared about it works out what can be done
         # only once it knows what is wanted: 7,796 operators over the things
         # in a conversation is not a search space (`verbs.useful`).
@@ -362,17 +434,24 @@ class Scene:
         offered = self.domain.ground(self.objects)
         self.offered = len(offered)
         self.offered_names = [one.name for one in offered]
-        problem = W.Problem("what you asked for", frozenset(self.world.facts),
+        problem = W.Problem("what you asked for",
+                            frozenset(self.world.facts),
                             frozenset(goal),
                             tuple(offered), dict(self.objects))
         report = acting.Attempt(name=problem.name)
         before = len(self.world.did)
-        acting.agent(problem, self.world, None, report).run(
+        start = frozenset(self.world.facts)
+        acting.agent(problem, self.world, None, report,
+                     learner=self.learner).run(
             Working(goal=f"do: {heard.said}"))
         self.last = report
         self.last_reasons = (reasons(report.search.trace)
                              if report.search.trace is not None else [])
         self.last_plan = list(self.world.did[before:])
+        self.steps, facts = [], start
+        for one in self.last_plan:
+            self.steps.append((one, facts))
+            facts = one.on(facts)
         agents = getattr(self.domain, "agents", None)
         if agents is not None:
             # Whoever filled the role VerbNet restricts to the animate is
@@ -390,9 +469,291 @@ class Scene:
                             parts[1])):
                     agents.add(parts[1])
         if not report.solved:
-            return ("I could not see a way to do that. As it stands, "
+            asked = self.missing(offered)
+            if asked is not None:
+                self.pending = dict(asked, goal=list(goal), said=heard.said)
+                return ("I could not see a way to do that yet"
+                        + self.stopped(offered) + ". " + asked["question"])
+            self.pending = None
+            return ("I could not see a way to do that"
+                    + self.stopped(offered) + ". As it stands, "
                     + self.look())
+        self.pending = None
         return self.story(report)
+
+    # -- asking for what is missing ----------------------------------------
+    def missing(self, offered: list) -> dict | None:
+        """What stands between the world and the goal that nothing offered
+        can bring about, as a question: {question, asked, kind, thing}.
+
+        Worked out the way a planner's heuristic is: first what is
+        reachable at all if nothing were ever undone (a relaxed plan), and
+        if the goal is not, back from the goal through whichever way of
+        getting each fact leaves least unreached, to a fact nothing brings
+        about. That fact is what is missing, and **in a world nobody
+        declared, a fact not said is not known to be false** -- so a state
+        is asked about (`is the park lit?`) before it is called impossible,
+        a thing nobody placed is asked after (`where is the book?`), and a
+        blocker nothing undoes is put as a question of how.
+
+        None when the goal is reachable on that relaxed reading: then what
+        failed was the search, and a question would be asking the person
+        to do the planner's job.
+        """
+        compiled, facts, _ = acting.negated(offered, self.world.facts)
+        reach = set(facts)
+        grown = True
+        while grown:
+            grown = False
+            for one in compiled:
+                if one.needs <= reach and not one.adds <= reach:
+                    reach |= one.adds
+                    grown = True
+        goal = [one for one in self.wanted if one not in self.world.facts]
+        if not goal or set(goal) <= reach:
+            return None
+        placed = {one.split()[1] for one in self.world.facts
+                  if one.split()[0] == "at" and len(one.split()) == 3}
+        for literal in goal:
+            parts = literal.split()
+            if parts[0] == "at" and len(parts) == 3 and \
+                    parts[1] not in placed:
+                return self._asking("where", literal, parts[1],
+                                    f"where is {self.domain.the(parts[1])}?")
+        leaves: list = []
+        seen: set = set()
+
+        def back(literal: str, depth: int) -> None:
+            if literal in reach or literal in seen or depth > 6:
+                return
+            seen.add(literal)
+            ways = [one for one in compiled if literal in one.adds]
+            if not ways:
+                leaves.append((depth, literal))
+                return
+            best = min(ways, key=lambda one: (len(one.needs - reach),
+                                              one.name))
+            for need in sorted(best.needs - reach):
+                back(need, depth + 1)
+
+        for literal in sorted(set(goal) - reach):
+            back(literal, 0)
+        if not leaves:
+            return None
+        literal = sorted(leaves, key=lambda one: (-one[0], one[1]))[0][1]
+        if literal.startswith(acting.NOT):
+            fact = literal[len(acting.NOT):]
+            thing = fact.split()[1] if len(fact.split()) > 1 else ""
+            words = self.domain.in_words(fact)
+            return self._asking("how", literal, thing,
+                                f"{words[:1].upper()}{words[1:]} -- what "
+                                f"would change that?")
+        parts = literal.split()
+        thing = parts[1] if len(parts) > 1 else ""
+        if len(parts) == 2 and not getattr(self.domain, "a_doing",
+                                           lambda _: False)(parts[0]):
+            return self._asking("whether", literal, thing,
+                                f"is {self.domain.the(thing)} {parts[0]}?")
+        words = self.domain.in_words(literal)
+        return self._asking("how", literal, thing,
+                            f"how would I make it so that {words}?")
+
+    def unplaced(self, goal: list) -> str:
+        """A thing an order moves that nothing says is anywhere, in a world
+        with nothing declared about it -- or empty. A declared domain
+        places everything it has, and an agent is where it is."""
+        if getattr(self.domain, "things", None) is None:
+            return ""
+        placed = {one.split()[1] for one in self.world.facts
+                  if len(one.split()) == 3}
+        agents = getattr(self.domain, "agents", set())
+        for literal in goal:
+            parts = literal.split()
+            if (parts[0] == "at" and len(parts) == 3
+                    and parts[1] not in placed and parts[1] not in agents
+                    and parts[1] not in getattr(self.domain, "names",
+                                                set())):
+                return parts[1]
+        return ""
+
+    @staticmethod
+    def _asking(kind: str, literal: str, thing: str, question: str) -> dict:
+        return {"kind": kind, "asked": literal, "thing": thing,
+                "question": question[:1].upper() + question[1:]}
+
+    def answers(self, plain: str, facts: list, taught=()) -> bool:
+        """Whether an utterance is the answer to what was asked: a yes or
+        a no to a question of whether, anything said about the thing asked
+        after, something taught, or being told to drop it."""
+        pending = self.pending
+        if pending is None:
+            return False
+        if DROP.search(plain) or taught:
+            return True
+        if pending["kind"] == "whether" and (YES.match(plain)
+                                             or NO.match(plain)):
+            return True
+        return any(pending["thing"] in fact.split()[1:] for fact in facts)
+
+    def resume(self, heard: Heard, taught: str = "") -> str:
+        """The answer came: take it in, and try the suspended order again.
+        Trying again can ask again -- the next thing missing -- which is how
+        a plan is put together over several turns."""
+        pending = self.pending
+        if pending is None:
+            return "I was not waiting on anything"
+        plain = " ".join(heard.said.lower().split())
+        if DROP.search(plain):
+            self.pending = None
+            return "all right, I will leave it"
+        if pending["kind"] == "whether" and NO.match(plain):
+            # Said to be false: now it is a thing to bring about, and
+            # asking how is the question left.
+            words = self.domain.in_words(pending["asked"])
+            self.pending = dict(pending, kind="how", question=(
+                f"Then how would I make it so that {words}?"))
+            return self.pending["question"]
+        if pending["kind"] == "whether" and YES.match(plain):
+            self.introduce([pending["asked"]], plain)
+            self.put(pending["asked"])
+        elif heard.facts:
+            self.tell(heard)
+        again = Heard(said=pending["said"], wants=list(pending["goal"]),
+                      facts=list(pending["goal"]))
+        done = self.want(again)
+        return (f"{taught}; " if taught else "") + ("then " + done
+                                                    if self.last_plan
+                                                    else done)
+
+    def stopped(self, offered: list) -> str:
+        """What stands in the way, where something learned says: an action
+        that would have brought a wanted fact about is blocked by a state
+        that holds, and nothing on offer undoes it."""
+        said = []
+        for action in offered:
+            if not set(action.adds) & set(self.wanted):
+                continue
+            for fact in sorted(getattr(action, "forbids", ())):
+                if fact in self.world.facts:
+                    words = self.domain.in_words(fact)
+                    if words not in said:
+                        said.append(words)
+        if not said:
+            return ""
+        return (": " + " and ".join(said) + ", and I know of nothing I can "
+                "do about that")
+
+    # -- being told it did not work ----------------------------------------
+    def reported(self, plain: str) -> dict | None:
+        """Whether an utterance says something just done did not happen,
+        and if so, which step and what was said with it.
+
+        Three ways English says it: a state *still* holds that the action
+        should have ended (`the door is still closed`), what it should have
+        brought about is denied (`the door did not open`, `the door is not
+        open`), or plainly (`that did not work`). `it` is the thing last
+        acted on. Nothing here knows a door or a lock.
+        """
+        if not self.steps:
+            return None
+        last = self.steps[-1][0].name.split()
+        thing = last[1] if len(last) > 1 else ""
+        text = re.sub(r"\bit\b", thing, plain) if thing else plain
+        things = {one for action, _ in self.steps
+                  for one in action.name.split()[1:]}
+        denied = []
+        for found in DENIED.finditer(text):
+            if found.group(1) in things:
+                denied.append(f"{found.group(2)} {found.group(1)}")
+        rest = DENIED.sub(" ", text)
+        still = bool(STILL.search(rest))
+        rest = STILL.sub(" ", rest)
+        failed = bool(FAILED.search(text))
+        if not (denied or still or failed):
+            return None
+        facts = [one for one in self.reader.facts_in(rest)
+                 if set(one.split()[1:]) & things]
+        if not (denied or facts or failed):
+            return None
+        step = None
+        for index, (action, _) in enumerate(self.steps):
+            if set(action.adds) & set(denied):
+                step = index
+                break
+        if step is None and still:
+            about = {one for fact in facts for one in fact.split()[1:]}
+            step = next((index for index, (action, _) in
+                         enumerate(self.steps)
+                         if set(action.name.split()[1:]) & about), None)
+        if step is None and (failed or denied):
+            step = len(self.steps) - 1
+        if step is None:
+            return None
+        return {"step": step, "facts": facts, "denied": denied}
+
+    def failed(self, heard: Heard) -> str:
+        """Something done did not happen: put the world back to before it,
+        take in what was said, and learn what can be learned.
+
+        The world goes back to just before the step that failed, because
+        everything after it was done in a world that was not so. What the
+        person said with it is taken in, and whatever was not already
+        known then is **revealed** -- *it is locked* -- and handed to the
+        learner as the reason (`lessons.Learner.failed`).
+        """
+        plain = " ".join(heard.said.lower().replace(",", " , ").split())
+        found = self.reported(plain)
+        if found is None:
+            return "I did not catch what did not work"
+        action, before = self.steps[found["step"]]
+        for later, _ in self.steps[found["step"]:]:
+            # Done and believed done, and it was not: the successes they
+            # were recorded as go, or they would count both ways.
+            row = (self.learner.rows.pop(later.name, None)
+                   if self.learner is not None else None)
+            if row is not None:
+                self.learner.learned.untry(row)
+        self.world.facts = frozenset(before)
+        self.introduce(found["facts"], plain)
+        revealed = [one for one in found["facts"] if one not in before]
+        for fact in found["facts"]:
+            self.put(fact)
+        self.taught = []
+        if self.learner is not None:
+            gap = acting.Gap(action, frozenset(action.adds) - before,
+                             frozenset(revealed), found["step"],
+                             frozenset(before), True)
+            self.taught = self.learner.failed(gap, self.world.facts,
+                                              revealed, heard.said)
+        self.last_plan = [one for one, _ in self.steps[:found["step"]]]
+        self.steps = self.steps[:found["step"]]
+        said = f"I see -- I could not {self.domain.doing(action.name)}"
+        if revealed:
+            said += ", because " + " and ".join(
+                self.domain.in_words(one) for one in revealed)
+        lessons_said = [self.lesson(one) for one in self.taught]
+        lessons_said = [one for one in lessons_said if one]
+        if lessons_said:
+            said += ". I did not know " + "; ".join(lessons_said) + \
+                ", and I will remember it"
+        elif self.learner is not None and not revealed:
+            said += ". I do not know why yet"
+        return said + ". As it stands, " + self.look()
+
+    def lesson(self, one) -> str:
+        """A lesson in words, about any thing and not the one it was
+        learned from."""
+        parts = one.literal.split()
+        thing = "it" if len(parts) == 2 else "something"
+        state = " ".join(word for word in parts if not word.startswith("?"))
+        if one.kind == "blocks" and len(parts) == 2:
+            return f"that nothing {state} can be {_participle(one.verb)}"
+        if one.kind == "requires" and len(parts) == 2:
+            return (f"that a thing has to be {state} before it can be "
+                    f"{_participle(one.verb)}")
+        if one.kind in ("blocks", "requires"):
+            return f"what it takes to {one.verb} {thing}"
+        return ""
 
     def how(self, heard: Heard) -> str:
         """What it would take: planned, and not done.
@@ -413,9 +774,10 @@ class Scene:
                     "should be true, or what something should do")
         self.introduce(goal, heard.said.lower())
         things = getattr(self.domain, "things", None)
-        if things is not None and not any(
-                "animate" in things.categories(name)
-                for name in getattr(self.domain, "names", ())):
+        if things is not None:
+            # Whoever asks what it would take is who would do it -- always,
+            # not only when nobody else here could: a pig named a turn ago
+            # is animate, and was otherwise the one loading the piano.
             self.told("you", "person")
             self.domain.names.add("you")
             self.domain.agents.add("you")
