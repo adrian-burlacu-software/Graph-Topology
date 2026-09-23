@@ -919,9 +919,12 @@ class OpenReader:
                 self.domain.said_preps.update(heard.preps)
                 out = [self._result(fact) for fact in out]
             # `you` and `me` are not things -- except as who has a count: `i
-            # have five apples` is the person's.
+            # have five apples` is the person's. And a word the parse reads
+            # as a noun in a thing's place is a thing whatever else it can
+            # be: *open the can*.
             out = [fact for fact in dict.fromkeys(out)
                    if not any(one in NOT_A_THING
+                              and one not in heard.nouns
                               and not (Q.read(fact) is not None
                                        and one in ("you", "me"))
                               for one in fact.split()[1:])]

@@ -39,6 +39,9 @@ from research.v691 import page as v691_page  # noqa: F401
 from research.v692 import page as v692_page  # noqa: F401
 # And v693's designing (`v693/page.py`): a design goal is an act of v692's.
 from research.v693 import page as v693_page  # noqa: F401
+# And v694's designing in the open world (`v694/page.py`): an order that
+# takes a tool, a place or someone else, before v691's planner.
+from research.v694 import page as v694_page  # noqa: F401
 
 HERE = Path(__file__).resolve().parent
 STATE = Path(__file__).resolve().parents[2] / "state"

@@ -839,6 +839,18 @@ def _designer_proposer_check() -> str | None:
     return f"{len(model)} form models"
 
 
+def _open_designer_proposer_check() -> str | None:
+    path = LLM / "open-designer-proposer2" / "model.json"
+    if not path.exists():
+        return None
+    model = json.loads(path.read_text(encoding="utf-8"))
+    # `research/v694/proposer.py`: one model for each way (`ways.WAYS`).
+    if len(model) < 9:
+        raise Failed(f"llm/open-designer-proposer2 has {len(model)} way "
+                     f"models of 9: a partial run")
+    return f"{len(model)} way models"
+
+
 def steps() -> list[Step]:
     """Every artefact, in the order it can be built."""
     return [
@@ -1027,6 +1039,14 @@ def steps() -> list[Step]:
                                   "from goals made from objects",
              lambda: _run("research.v693.proposer", "train"),
              _designer_proposer_check, cost="a few minutes"),
+
+        # -- designing in the open world (research/v694) -------------------
+        Step("open-designer-proposer", "which way to a goal to try first, "
+                                       "taught from goals made from what "
+                                       "the store says things are for",
+             lambda: _run("research.v694.proposer", "train"),
+             _open_designer_proposer_check, needs=("store", "verbnet"),
+             cost="a few minutes"),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

@@ -49,6 +49,12 @@ SUBJECTS = frozenset({"nsubj", "nsubjpass", "expl"})
 ARTICLES = frozenset({"the", "a", "an", "some", "my", "your", "his", "her",
                       "their", "its", "our", "this", "that", "these",
                       "those"})
+#: Where a noun names a thing a verb acts on or a sentence is about.
+NAMING = frozenset({"dobj", "pobj", "nsubj", "nsubjpass", "conj", "attr"})
+#: Verbs that leave their object in the state an adjective after it names:
+#: *make the milk cold*, *keep the food cold*, *get the soup hot*. Said
+#: with no adjective, they are orders like any other.
+RESULTING = frozenset({"make", "keep", "get", "leave", "turn"})
 #: A clause that asks for something done rather than saying what is:
 #: `can you`, `could you`, `would you`, `will you`.
 REQUESTS = frozenset({"can", "could", "would", "will"})
@@ -148,6 +154,9 @@ class Heard:
     #: what the parse tags as a proper noun: `john` in `give john 4
     #: apples`, where no article or position says it is a name
     names: list = field(default_factory=list)
+    #: words the parse reads as a noun a thing is named by, where a verb
+    #: puts one: `can` in `open the can` is a tin, not the modal
+    nouns: set = field(default_factory=set)
 
 
 def hear(text: str, stated=None, it: str = "", kind: str = "",
@@ -164,6 +173,8 @@ def hear(text: str, stated=None, it: str = "", kind: str = "",
                         thing(words, one)) for one in words}
     out.names = [one.text for one in words if one.tag in ("NNP", "NNPS")
                  and one.text.isalpha()]
+    out.nouns = {one.text for one in words if one.tag in ("NN", "NNS")
+                 and one.dep in NAMING}
     counts = _counts(words, kind)
     # A question states nothing: `what steps are required` is not news
     # about steps, and `does a table have legs` is v688's.
@@ -291,17 +302,29 @@ def _asked_for(words, verb, subject, name, negated, question, auxiliaries,
             out.asked = out.asked or question
             out.order = out.order or not question
         return
-    if lemma == "make" and not causing:
-        # `make the door open`: the complement is the state.
+    if lemma in RESULTING and not causing:
+        # `make the door open`, `keep the food cold`: the complement is the
+        # state. The thing it is of is the verb's object -- or, as the
+        # parser reads `make the milk cold`, the adjective's own subject --
+        # and every thing joined to it: `the milk and the beer`.
         obj = next(iter(children(words, verb.index, {"dobj"})), None)
+        found = []
         for one in children(words, verb.index, {"ccomp", "xcomp", "oprd",
                                                 "acomp"}):
-            if obj is not None and one.tag.startswith("JJ"):
-                out.wants.append(f"{one.text} {name[obj.index]}")
-        if out.wants:
+            if not one.tag.startswith("JJ"):
+                continue
+            things = [obj] if obj is not None else children(
+                words, one.index, SUBJECTS)
+            for held in _joined(words, things):
+                if name.get(held.index):
+                    found.append(f"{one.text} {name[held.index]}")
+        out.wants += found
+        if found:
             out.order = out.order or not question
             out.asked = out.asked or question
-        return
+            out.verbs.append(lemma)
+        if found or lemma == "make":
+            return
     if not (request or imperative or asking):
         return
 
@@ -311,11 +334,15 @@ def _asked_for(words, verb, subject, name, negated, question, auxiliaries,
         target = next(iter(children(words, prep.index, {"pobj"})), None)
         if target is not None:
             place, preposition = target, prep.text
-    wanted = _effects(lemma, obj, place, preposition, name)
+    wanted = []
+    for one in _joined(words, [obj] if obj is not None else []):
+        wanted += _effects(lemma, one, place, preposition, name)
     if place is not None and name.get(place.index) and preposition:
         out.preps[name[place.index]] = preposition
     if not wanted and obj is not None and name.get(obj.index):
-        wanted = [f"{lemma} {name[obj.index]}"]
+        # `cut the rope and the string`: one order, a want for each.
+        wanted = [f"{lemma} {name[one.index]}"
+                  for one in _joined(words, [obj]) if name.get(one.index)]
     if not wanted and obj is None and subject is not None \
             and subject.text != "you" and name.get(subject.index):
         # `how would a pig fly`: something the subject does.
@@ -326,6 +353,19 @@ def _asked_for(words, verb, subject, name, negated, question, auxiliaries,
         out.verbs.append(lemma)
     out.order = out.order or request or (imperative and not asking)
     out.asked = out.asked or asking
+
+
+def _joined(words, things) -> list:
+    """The things and every thing joined to them by `and`: the milk and
+    the beer, the rope and the string."""
+    out = []
+    for one in things:
+        if one is None:
+            continue
+        out.append(one)
+        out += [other for other in children(words, one.index, {"conj"})
+                if other.tag.startswith("NN")]
+    return out
 
 
 def _how(words, verb) -> bool:

@@ -250,6 +250,11 @@ def hear(text: str, scene: Scene) -> Heard:
     if not scene.open:
         # No world open: this layer has nothing to say, and says nothing.
         return said
+    for act, recognise in ADDED.items():
+        if recognise(scene, text):
+            said.act = act
+            said.weight = ACTS[act][1]
+            return said
     from research.v691.learned import teaching
     taught = teaching(plain)
     if taught and getattr(scene.domain, "learned", None) is not None:
@@ -493,15 +498,61 @@ def said_over(scene: Scene, literal: str) -> str:
 #: act -> (handler, utility, what the operator's rule says, what it changes).
 #: One table, read by the page's operators and by the REPL, so a turn cannot
 #: mean two things depending on where it was said.
+#: Later layers that may take an act first, by act: each is `(scene,
+#: heard) -> text`, or "" to leave it to what is here. v694's designer
+#: takes an order that a tool, a place or someone else is the way to,
+#: and leaves getting a book to the kitchen to the planner.
+FIRST: dict = {}
+
+
+def contributes(act: str, handler) -> None:
+    """Let a later layer answer `act` before this one does (`FIRST`)."""
+    FIRST.setdefault(act, []).append(handler)
+
+
+#: Acts later layers add, by name: `recognise(scene, text) -> bool`, asked
+#: once a world is open and before this layer reads the utterance itself.
+#: v694 adds `teach`: *you can cut the rope with a saw*.
+ADDED: dict = {}
+
+
+#: What later layers learn from every utterance as it is noted, without
+#: answering it: `observe(scene, text)`. v694 learns a way from *i cut the
+#: rope with a saw*, which v689 still keeps as something that happened.
+OBSERVERS: list = []
+
+
+def observes(observe) -> None:
+    OBSERVERS.append(observe)
+
+
+def adds(act: str, recognise, handler, utility: float = SETUP,
+         rule: str = "", effects=()) -> None:
+    """Add an act of a later layer's, with its own way of recognising
+    it: it is proposed like any of these (`ACTS`)."""
+    ADDED[act] = recognise
+    ACTS[act] = (handler, utility, rule, tuple(effects))
+
+
+def _first(act: str, handler):
+    def answer(scene, heard):
+        for one in FIRST.get(act, ()):
+            said = one(scene, heard)
+            if said:
+                return said
+        return handler(scene, heard)
+    return answer
+
+
 ACTS = {
     "learn": (taught, SETUP, "learn something about acting", ()),
     "use a world": (used, SETUP, "change the world talked of", ()),
     "which worlds": (which, SETUP, "the worlds it has", ()),
     "tell": (lambda scene, heard: scene.tell(heard), ORDER,
              "what is in the scene", ()),
-    "want": (lambda scene, heard: scene.want(heard), ORDER,
+    "want": (_first("want", lambda scene, heard: scene.want(heard)), ORDER,
              "plan and act: means-ends over the world", ("world",)),
-    "how": (lambda scene, heard: scene.how(heard), ASK,
+    "how": (_first("how", lambda scene, heard: scene.how(heard)), ASK,
             "what it would take: planned, not done", ()),
     "meddle": (lambda scene, heard: scene.meddle(heard), ORDER,
                "the scene changed without it acting", ()),
@@ -526,7 +577,7 @@ ACTS = {
               "where one thing is", ()),
     "upon": (lambda scene, heard: scene.upon(heard), ASK,
              "what is on one thing", ()),
-    "why": (lambda scene, heard: scene.why(heard), ASK,
+    "why": (_first("why", lambda scene, heard: scene.why(heard)), ASK,
             "what the last thing done was for", ()),
 }
 
@@ -730,6 +781,8 @@ def replies(session) -> list:
         heard = heard_for(session, whole(memory))
         memory["noted"] = True
         seen_done(scene, whole(memory))
+        for observe in OBSERVERS:
+            observe(scene, whole(memory))
         if not scene.open or (heard.act and not recorded(scene, heard)):
             # Something here is going to act on it; it will record its own.
             return CONTINUE
