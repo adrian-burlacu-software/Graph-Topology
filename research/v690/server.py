@@ -34,6 +34,9 @@ from .steps import steps_of
 # agent is an act like any other, and until a world is opened it
 # proposes nothing.
 from research.v691 import page as v691_page  # noqa: F401
+# And v692's mathematics (`v692/page.py`): an act the encoder proposes when
+# an utterance asks something of mathematics, and R33 for the reasoner.
+from research.v692 import page as v692_page  # noqa: F401
 
 HERE = Path(__file__).resolve().parent
 STATE = Path(__file__).resolve().parents[2] / "state"

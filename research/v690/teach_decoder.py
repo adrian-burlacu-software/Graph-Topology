@@ -294,6 +294,11 @@ FRAMING_LEAST = 5
 
 READER_DATA = LLM / "reader-data"
 DECODER = LLM / "decoder"
+#: Other subjects' message and reply pairs, each in a folder of its own that
+#: nothing here writes to -- taught only when asked for (`--subject math`),
+#: so that a rebuild of the shipped decoder is the decoder that shipped.
+SUBJECT_DATA = {"math": LLM / "math-decoder-data"}
+SUBJECTS: list = []
 BASE = LLM / "SmolLM2-360M-Instruct"
 
 
@@ -626,9 +631,15 @@ def train(base: Path = BASE, out: Path = DECODER, epochs: int = 3,
 
     torch.manual_seed(seed)
     rng = random.Random(seed)
-    load = lambda name: [json.loads(raw) for raw in (DATA / f"{name}.jsonl")  # noqa: E731
-                         .read_text(encoding="utf-8").splitlines()
-                         if raw.strip()]
+    def load(name: str) -> list[dict]:
+        # And every other subject's pairs, each in its own folder beside
+        # this one (`research/v692/speaking.py`: mathematics).
+        paths = [DATA / f"{name}.jsonl"] + sorted(
+            one for folder in _subject_folders()
+            for one in folder.glob(f"{name}-*.jsonl"))
+        return [json.loads(raw) for path in paths
+                for raw in path.read_text(encoding="utf-8").splitlines()
+                if raw.strip()]
     rows, held = load("train"), load("valid")
     # Balanced by stance (`balanced`); what is held out stays as it was, so
     # losses compare with the decoder before.
@@ -724,9 +735,18 @@ def train(base: Path = BASE, out: Path = DECODER, epochs: int = 3,
     (out / "decoder.json").write_text(json.dumps({
         "base": str(base), "saying": SAYING, "train": len(rows),
         "valid": len(held), "epochs": epochs,
+        # What else it was taught to say (`SUBJECTS`): a layer that speaks
+        # for itself until a decoder knows its subject asks this.
+        "subjects": [folder.name.replace("-decoder-data", "")
+                     for folder in _subject_folders()],
         "framing": json.loads(framing_path.read_text(encoding="utf-8"))
         if framing_path.exists() else []}, indent=1), encoding="utf-8")
     print(f"saved to {out}")
+
+
+def _subject_folders() -> list:
+    return [SUBJECT_DATA[one] for one in SUBJECTS
+            if SUBJECT_DATA[one].exists()]
 
 
 # -- the decoder teaching itself ------------------------------------------------
@@ -779,7 +799,13 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path, default=REPLIES)
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--rate", type=float, default=1e-4)
+    parser.add_argument("--save", type=Path, default=DECODER,
+                        help="where the trained decoder goes")
+    parser.add_argument("--subject", action="append", default=[],
+                        choices=sorted(SUBJECT_DATA),
+                        help="also teach a subject's pairs (its folder)")
     options = parser.parse_args(argv)
+    SUBJECTS[:] = options.subject
     if options.what == "replies":
         replies(options.limit, options.batch, options.samples, options.out,
                 options.turns)
@@ -788,7 +814,7 @@ def main(argv=None) -> int:
     elif options.what == "bootstrap":
         bootstrap(options.samples, options.batch, limit=options.limit)
     else:
-        train(epochs=options.epochs, rate=options.rate)
+        train(out=options.save, epochs=options.epochs, rate=options.rate)
     return 0
 
 

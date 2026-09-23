@@ -18,7 +18,11 @@ from pathlib import Path
 
 from research.encoder import LLM
 
-MODEL = Path(os.environ.get("V690_DECODER_MODEL") or LLM / "decoder")
+#: The decoder taught to say mathematics as well (`research/v692`,
+#: `regenerate.py`'s `decoder-math`) where it exists, else the shipped one.
+MODEL = Path(os.environ.get("V690_DECODER_MODEL") or (
+    LLM / "decoder-maths" if (LLM / "decoder-maths" / "decoder.json").exists()
+    else LLM / "decoder"))
 
 #: The longest reply written, in tokens. At 96 what the page can do was cut
 #: off mid-sentence in every one of its four replies.

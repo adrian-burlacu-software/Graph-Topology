@@ -710,7 +710,7 @@ class Attempt:
 
 def agent(problem: W.Problem, real: W.World, chunks=None,
           attempt: Attempt | None = None, tries: int = 4,
-          learner=None) -> Executive:
+          learner=None, surprised=None) -> Executive:
     """The agent as an executive: plan, act, look, and plan again when what
     it saw is not what it expected.
 
@@ -765,7 +765,15 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
         expected = memory.pop("expected")
         refused = memory.pop("refused", False)
         before = memory.pop("before", frozenset())
-        if not refused and expected == real.facts:
+        # What counts as not what was expected. By default anything: a
+        # declared world changes only as its actions say. A world that
+        # works out what is true after each step -- an equation's facts,
+        # `v692/solving.py` -- says more than any model predicted, and there
+        # only an intended effect that did not come about is a surprise.
+        unexpected = (expected != real.facts if surprised is None else
+                      surprised(memory.get("did"), expected, before,
+                                real.facts))
+        if not refused and not unexpected:
             if learner is not None:
                 learner.worked(memory.get("did"), before, real.facts)
             return CONTINUE
@@ -784,6 +792,12 @@ def agent(problem: W.Problem, real: W.World, chunks=None,
         return CONTINUE
 
     def finished(memory):
+        # The step that reached the goal is looked at too: it worked, and a
+        # success is what a later failure is compared with. Without this the
+        # last action of every plan went unrecorded, and a goal reached in
+        # one step taught nothing.
+        if "expected" in memory:
+            looked(memory)
         report.solved = True
         memory["outcome"] = "solved"
         return ANSWERED

@@ -91,6 +91,13 @@ NEGATED = frozenset({"why", "subject occurrence", "object occurrence",
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 DATA = LLM / "reader-data"
+#: The mathematics records, in their own folder (`research/v692/corpus.py`).
+MATH_DATA = LLM / "math-data"
+#: Other subjects' records, each in its own folder, taught only when asked
+#: for (`--subject math`): the shipped readers were taught without them,
+#: and a rebuild of one must not quietly learn a subject it never had.
+SUBJECT_DATA = {"math": MATH_DATA}
+SUBJECTS: list = []
 
 
 class At(str):
@@ -550,7 +557,8 @@ HEAD_KINDS = {
     "place_insert": "word", "place_opening": "sentence",
     "place_next": "pointer",
     "relation": "sentence", "polar": "sentence", "parse": "word",
-    "stance": "sentence", "part": "word"}
+    "stance": "sentence", "part": "word",
+    "math_act": "sentence", "math_role": "word", "math_symbol": "word"}
 
 #: Which field of a record each head is taught from, for each reader. A
 #: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
@@ -563,7 +571,11 @@ FIELDS = {
               "place_op": "ops", "place_insert": "inserts",
               "place_opening": "opening", "place_next": "order"},
     "parse": {"relation": "relation", "polar": "polar", "parse": "parse"},
-    "reply": {"stance": "stance", "part": "parts"}}
+    "reply": {"stance": "stance", "part": "parts"},
+    # What an utterance asks of mathematics, each word's part in it, and
+    # the symbols each word stands for (`research/v692/corpus.py`).
+    "math": {"math_act": "act", "math_role": "roles",
+             "math_symbol": "symbols"}}
 
 
 def task_of(record: dict) -> str:
@@ -2538,7 +2550,7 @@ def social(store: str) -> None:
 #: differently. The older readers keep close to the shares they were
 #: taught at.
 SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
-          "reply": 0.08}
+          "reply": 0.08, "math": 0.12}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2555,6 +2567,8 @@ def taught_as(record: dict) -> tuple:
         return task, record["act"], record["slots"]
     if task == "reply":
         return task, record["stance"], "NEG" in record["parts"]
+    if task == "math":
+        return task, record["act"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
             and record.get("order") == sorted(record.get("order", ())))
@@ -2604,6 +2618,21 @@ def labels(rows=()) -> dict:
         from research.v690.roundtrip import PARTS
 
         said.update(stance=list(STANCE_LABELS), part=list(PARTS))
+    if any(task_of(row) == "math" for row in rows):
+        from research.v692.corpus import NONE as NO_MATH, ROLE_LABELS
+        from research.v692.curriculum import ACTS as MATH_ACTS
+
+        symbols = phrases("math", "symbols")
+        acts = [one.name for one in MATH_ACTS]
+        # And what else the records ask -- `answer`, a reply read back
+        # (`research/v692/speaking.py`).
+        acts += sorted({row["act"] for row in rows if task_of(row) == "math"}
+                       - set(acts) - {NO_MATH})
+        said.update(math_act=[NO_MATH] + acts,
+                    math_role=list(ROLE_LABELS),
+                    math_symbol=["DROP", "KEEP"] + [
+                        one for one in symbols if one not in ("", "DROP",
+                                                              "KEEP")])
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}
@@ -2613,7 +2642,13 @@ def _load(name: str) -> list[dict]:
     """The corpus's records for a split, and every other reader's taught
     beside it (`train-social.jsonl`, `train-reply.jsonl`)."""
     rows: list[dict] = []
-    for path in [DATA / f"{name}.jsonl"] + sorted(DATA.glob(f"{name}-*.jsonl")):
+    # A subject is taught from its own folder (`research/v692/corpus.py`),
+    # which nothing here writes to, and only when asked for.
+    extra = sorted(path for subject in SUBJECTS
+                   if SUBJECT_DATA[subject].exists()
+                   for path in SUBJECT_DATA[subject].glob(f"{name}-*.jsonl"))
+    for path in ([DATA / f"{name}.jsonl"] + sorted(DATA.glob(f"{name}-*.jsonl"))
+                 + extra):
         with open(path, encoding="utf-8") as handle:
             rows += [json.loads(line) for line in handle if line.strip()]
     return rows
@@ -2832,7 +2867,11 @@ def main(argv=None) -> int:
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--batch", type=int, default=128)
     parser.add_argument("--rate", type=float, default=5e-5)
+    parser.add_argument("--subject", action="append", default=[],
+                        choices=sorted(SUBJECT_DATA),
+                        help="also teach a subject's records (its folder)")
     options = parser.parse_args(argv)
+    SUBJECTS[:] = options.subject
     if options.what == "corpus":
         corpus(options.variants, options.processes, options.limit,
                options.external)

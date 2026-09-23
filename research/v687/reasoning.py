@@ -34,6 +34,19 @@ from .relevance import RULE_TEXT as V685_RULES
 from .server import V686_RULES, V687_RULES, IdentifyingEngine
 
 
+#: Layers later versions contribute, tried before this module's own:
+#: `make(engine, question, when) -> Operator`. Nothing here imports them --
+#: a later layer registers into an earlier one (`contributes`), as v691
+#: registers its acts with v689's session.
+LAYERS: list = []
+
+
+def contributes(make) -> None:
+    """Register a layer every question is tried as first (`LAYERS`)."""
+    if make not in LAYERS:
+        LAYERS.append(make)
+
+
 class ReasoningEngine(IdentifyingEngine):
     """v686's engine, with the reasoning the v686 audit found missing."""
 
@@ -170,6 +183,10 @@ class ReasoningEngine(IdentifyingEngine):
         ]
 
     def layers(self, question: str, when=lambda _: True) -> list[Operator]:
+        return [make(self, question, when) for make in LAYERS] +             self._own_layers(question, when)
+
+    def _own_layers(self, question: str, when=lambda _: True
+                    ) -> list[Operator]:
         """What a question is tried as before the norms and v684 read it:
         the first to answer ends it, and nothing answering is theirs to
         read. `when` is what every one of them needs to be proposed at all.

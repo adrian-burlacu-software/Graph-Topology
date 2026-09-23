@@ -29,6 +29,18 @@ from dataclasses import dataclass, field
 
 from .message import Message, of_turn, prompt
 
+#: Round trips later layers contribute for their own subjects:
+#: `check(message, text, read) -> Trace | None`. A subject whose answers are
+#: not words -- mathematics, `research/v692/speaking.py` -- is read back by
+#: what it means, and the first check that returns a trace decides.
+CHECKS: list = []
+
+
+def contributes(check) -> None:
+    if check not in CHECKS:
+        CHECKS.append(check)
+
+
 #: How many replies are written first, and how many more when none traces.
 FIRST = 4
 MORE = 6
@@ -111,7 +123,10 @@ class Speaker:
         found = []
         for text in texts:
             read = reading_of(text, self.words)
-            checked = trace(message, read, self.words, self.framing, text)
+            checked = next((found for found in (
+                check(message, text, read) for check in CHECKS)
+                if found is not None), None) or trace(
+                    message, read, self.words, self.framing, text)
             found.append(Candidate(text, checked.as_dict(), read.as_dict(),
                                    shortened_from))
         return found

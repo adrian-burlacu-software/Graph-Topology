@@ -34,8 +34,12 @@ from pathlib import Path
 LLM = Path(__file__).resolve().parents[1] / "llm"
 
 #: The fine-tuned encoder (another with `V689_READER_MODEL`), and the one it
-#: starts from.
-MODEL = Path(os.environ.get("V689_READER_MODEL") or LLM / "reader")
+#: starts from. The reader taught mathematics as well (`research/v692`,
+#: `regenerate.py`'s `reader-math`) is read with where it exists; the
+#: reader that shipped before it is left as it was.
+MODEL = Path(os.environ.get("V689_READER_MODEL") or (
+    LLM / "reader-maths2" if (LLM / "reader-maths2" / "labels.json").exists()
+    else LLM / "reader"))
 BASE = LLM / "MiniLM-L6-v2"
 
 #: How wide a pointer's query and key are.

@@ -765,6 +765,54 @@ def _decoder_final_check() -> str | None:
     return _model_check(LLM / "decoder", 600)()
 
 
+def _math_corpus_check() -> str | None:
+    path = LLM / "math-data" / "train-math.jsonl"
+    if not path.exists():
+        return None
+    rows = _lines(path)
+    # `research/v692/corpus.py` at its default 100,000: 70% across the
+    # curriculum's acts, the rest utterances with no mathematics to do, a
+    # tenth held out.
+    if rows < 80_000:
+        raise Failed(f"{rows} maths records against about 90,000: a --count "
+                     f"run. Delete llm/math-data and regenerate.")
+    return f"{rows} records"
+
+
+def _math_speaking_check() -> str | None:
+    pairs = LLM / "math-decoder-data" / "train-math.jsonl"
+    answers = LLM / "math-data" / "train-answer.jsonl"
+    if not pairs.exists() or not answers.exists():
+        return None
+    rows = _lines(pairs)
+    if rows < 6_000:
+        raise Failed(f"{rows} maths message/reply pairs against about 7,200 "
+                     f"(`speaking.py` at 8,000, a tenth held out)")
+    return f"{rows} pairs, {_lines(answers)} answers to read back"
+
+
+def _reader_math_check() -> str | None:
+    found = _reader_check(LLM / "reader-maths2")()
+    if found is None:
+        return None
+    labels = json.loads((LLM / "reader-maths2" / "labels.json").read_text(
+        encoding="utf-8"))
+    if "math_act" not in labels.get("heads", {}):
+        raise Failed("llm/reader-maths2 has no mathematics heads: it was "
+                     "trained without --subject math")
+    return found + ", and reads mathematics"
+
+
+def _decoder_math_check() -> str | None:
+    folder = LLM / "decoder-maths"
+    if not (folder / "config.json").exists():
+        return None
+    said = json.loads((folder / "decoder.json").read_text(encoding="utf-8"))
+    if "math" not in said.get("subjects", ()):
+        raise Failed("llm/decoder-maths was taught without --subject math")
+    return _model_check(folder, 600)()
+
+
 def steps() -> list[Step]:
     """Every artefact, in the order it can be built."""
     return [
@@ -910,6 +958,35 @@ def steps() -> list[Step]:
         Step("decoder", "SmolLM2 taught again on everything that traces",
              lambda: _run("research.v690.teach_decoder", "train"),
              _decoder_final_check, needs=("label-all", "smollm2"),
+             cost="an hour", gpu=True),
+
+        # -- mathematics as a subject (research/v692) ----------------------
+        # The shipped reader and decoder are taught without it; these are
+        # taught with it, into folders of their own, and are what the
+        # runtime reads with where they exist (`encoder.MODEL`,
+        # `decoder.MODEL`).
+        Step("math-corpus", "maths said in words, each word's part and "
+                            "symbols",
+             lambda: _run("research.v692.corpus"), _math_corpus_check,
+             needs=("reader-corpus",), cost="ten minutes"),
+        Step("math-speaking", "maths replies for the decoder, and to read "
+                              "back",
+             lambda: _run("research.v692.speaking"), _math_speaking_check,
+             needs=("math-corpus",), cost="five minutes"),
+        Step("reader-math", "the reader taught mathematics too",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "MiniLM-L6-v2"),
+                          "--out", str(LLM / "reader-maths2"),
+                          "--epochs", "10", "--subject", "math"),
+             _reader_math_check,
+             needs=("label-all", "reader-social", "minilm", "math-corpus",
+                    "math-speaking"), cost="an hour and a half", gpu=True),
+        Step("decoder-math", "the decoder taught to say mathematics too",
+             lambda: _run("research.v690.teach_decoder", "train",
+                          "--save", str(LLM / "decoder-maths"),
+                          "--subject", "math"),
+             _decoder_math_check,
+             needs=("label-all", "smollm2", "math-speaking"),
              cost="an hour", gpu=True),
 
         # -- measurement ----------------------------------------------------
