@@ -28,6 +28,17 @@ from research.v692.saying import DROP, KEEP
 from research.v692.symbols import Unreadable, parsed
 
 HEADS = ("math_act", "math_role", "math_symbol")
+#: act -> (the roles it reads, a function from (words, roles, labels) to
+#: its parts): how a later layer reads an act of its own (`contributes`).
+ASSEMBLERS: dict = {}
+
+
+def contributes(act: str, roles: tuple, assemble) -> None:
+    """Register how an act's parts are put together: v693 reads design
+    goals this way, and nothing here knows what one is."""
+    ASSEMBLERS[act] = (tuple(roles), assemble)
+
+
 #: How sure the encoder must be that something asks for mathematics.
 FLOOR = 0.6
 
@@ -138,11 +149,19 @@ def assembled(act: str, chance: float, said: list, roles: list,
     """What each word was read as, put together into the parts: the
     symbols of each part handed to sympy."""
     out = Reading(act, chance, said, roles, labels)
+    if act in ASSEMBLERS:
+        _, assemble = ASSEMBLERS[act]
+        try:
+            out.parts = assemble(said, roles, labels) or {}
+        except Unreadable as trouble:
+            out.trouble = str(trouble)
+        return out
+    theirs = {role for owned, _ in ASSEMBLERS.values() for role in owned}
     pieces: dict = {}
     kind_words = []
     measure = _measure(said, roles, labels)
     for word, role, label in zip(said, roles, labels):
-        if role == "O" or role in MEASURE_ROLES:
+        if role == "O" or role in MEASURE_ROLES or role in theirs:
             continue
         if role == "KIND":
             kind_words.append(word)

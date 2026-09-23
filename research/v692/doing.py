@@ -102,6 +102,12 @@ def _variable(expr, var=None):
     return free[0] if free else S.Symbol("x")
 
 
+def contributes(act: str, handler) -> None:
+    """Register a later layer's act: `handler(get, parts)` -> `Result`.
+    v693 adds `design` this way."""
+    HANDLERS[act] = handler
+
+
 def do(act: str, parts: dict, bound: dict | None = None) -> Result:
     """Do an act on its parts (`EXPR`, `VAR`, `A`, `B`, `LIST`, `KIND`,
     `OTHER`), with the variables said to be something (`bound`) put in."""

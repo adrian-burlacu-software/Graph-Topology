@@ -76,6 +76,14 @@ def words(text: str) -> list[str]:
             plain.append(char)
     out = []
     for one in "".join(plain).split():
+        # A minus typed against a number is a word of its own, as the
+        # encoder's tokenizer sees it anyway: `-3` is `-` `3` to it, and a
+        # word is labelled by its first piece, so `-3` would be read as
+        # the minus alone.
+        if len(one) > 1 and one[0] in "-\u2212" and (one[1].isdigit()
+                                                      or one[1] == "."):
+            out.append("-")
+            one = one[1:]
         # A full stop that ends a sentence is a word of its own, as it is
         # in what was taught; the one inside `3.14` is not. Without this a
         # reply the decoder wrote as `That's 166.03.` hands sympy
@@ -391,8 +399,9 @@ def record(act, template: str, rng) -> dict | None:
             for one in words(word):
                 out_words.append(one)
                 out_roles.append(role)
-                out_labels.append(label if one == words(word)[-1] else
-                                  DROP)
+                # A word that stands for itself does in every piece.
+                out_labels.append(label if one == words(word)[-1]
+                                  or label == KEEP else DROP)
         parts[role].append((name, value))
     if len(out_words) > 60:
         return None
@@ -486,7 +495,8 @@ def _value_said(value, speaker: Speaker) -> list:
     for word, label in zip(said.words, said.labels):
         pieces = words(word)
         for one in pieces:
-            out.append((one, "VALUE", label if one == pieces[-1] else DROP))
+            out.append((one, "VALUE", label if one == pieces[-1]
+                        or label == KEEP else DROP))
     return out
 
 

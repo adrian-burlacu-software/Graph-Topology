@@ -180,7 +180,8 @@ def reply_of(act: str, parts: dict, result: doing.Result, rng,
             for one in split(word):
                 words.append(one)
                 roles.append(role)
-                labels.append(label if one == split(word)[-1] else DROP)
+                labels.append(label if one == split(word)[-1]
+                              or label == KEEP else DROP)
 
     stance = result.stance
     if stance == "value":

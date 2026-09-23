@@ -791,16 +791,30 @@ def _math_speaking_check() -> str | None:
     return f"{rows} pairs, {_lines(answers)} answers to read back"
 
 
+def _design_corpus_check() -> str | None:
+    path = LLM / "design-data" / "train-design.jsonl"
+    if not path.exists():
+        return None
+    rows = _lines(path)
+    # `research/v693/stating.py` at its default 20,000 goals and 2,000
+    # near misses, a tenth held out.
+    if rows < 15_000:
+        raise Failed(f"{rows} design records against about 19,800: a "
+                     f"--count run. Delete llm/design-data and regenerate.")
+    return f"{rows} records"
+
+
 def _reader_math_check() -> str | None:
-    found = _reader_check(LLM / "reader-maths2")()
+    folder = LLM / "reader-design4"
+    found = _reader_check(folder)()
     if found is None:
         return None
-    labels = json.loads((LLM / "reader-maths2" / "labels.json").read_text(
-        encoding="utf-8"))
-    if "math_act" not in labels.get("heads", {}):
-        raise Failed("llm/reader-maths2 has no mathematics heads: it was "
-                     "trained without --subject math")
-    return found + ", and reads mathematics"
+    labels = json.loads((folder / "labels.json").read_text(encoding="utf-8"))
+    acts = labels.get("heads", {}).get("math_act", {}).get("labels", [])
+    if "design" not in acts:
+        raise Failed(f"{folder} does not read design goals: it was trained "
+                     f"without --subject math --subject design")
+    return found + ", and reads mathematics and design goals"
 
 
 def _decoder_math_check() -> str | None:
@@ -811,6 +825,18 @@ def _decoder_math_check() -> str | None:
     if "math" not in said.get("subjects", ()):
         raise Failed("llm/decoder-maths was taught without --subject math")
     return _model_check(folder, 600)()
+
+
+def _designer_proposer_check() -> str | None:
+    path = LLM / "designer-proposer" / "model.json"
+    if not path.exists():
+        return None
+    model = json.loads(path.read_text(encoding="utf-8"))
+    # `research/v693/proposer.py`: one model for each of the six forms.
+    if len(model) < 6:
+        raise Failed(f"llm/designer-proposer has {len(model)} form models "
+                     f"of 6: a partial run")
+    return f"{len(model)} form models"
 
 
 def steps() -> list[Step]:
@@ -973,14 +999,21 @@ def steps() -> list[Step]:
                               "back",
              lambda: _run("research.v692.speaking"), _math_speaking_check,
              needs=("math-corpus",), cost="five minutes"),
-        Step("reader-math", "the reader taught mathematics too",
+        Step("design-corpus", "design goals said in English, each word's "
+                              "part (research/v693)",
+             lambda: _run("research.v693.stating"), _design_corpus_check,
+             needs=("reader-corpus",), cost="five minutes"),
+        Step("reader-math", "the reader taught mathematics and design "
+                            "goals too",
              lambda: _run("research.v689.teach_reader", "train",
                           "--base", str(LLM / "MiniLM-L6-v2"),
-                          "--out", str(LLM / "reader-maths2"),
-                          "--epochs", "10", "--subject", "math"),
+                          "--out", str(LLM / "reader-design4"),
+                          "--epochs", "10", "--subject", "math",
+                          "--subject", "design"),
              _reader_math_check,
              needs=("label-all", "reader-social", "minilm", "math-corpus",
-                    "math-speaking"), cost="an hour and a half", gpu=True),
+                    "math-speaking", "design-corpus"),
+             cost="an hour and a half", gpu=True),
         Step("decoder-math", "the decoder taught to say mathematics too",
              lambda: _run("research.v690.teach_decoder", "train",
                           "--save", str(LLM / "decoder-maths"),
@@ -988,6 +1021,12 @@ def steps() -> list[Step]:
              _decoder_math_check,
              needs=("label-all", "smollm2", "math-speaking"),
              cost="an hour", gpu=True),
+
+        # -- designing (research/v693) -------------------------------------
+        Step("designer-proposer", "which design form to try first, taught "
+                                  "from goals made from objects",
+             lambda: _run("research.v693.proposer", "train"),
+             _designer_proposer_check, cost="a few minutes"),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

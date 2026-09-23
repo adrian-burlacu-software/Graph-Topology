@@ -425,6 +425,12 @@ class Speaker:
     def function(self, obj, style: str) -> Said:
         name, symbol = FUNCTIONS[obj.func]
         argument = obj.args[0]
+        if obj.func is S.exp and style != "spoken" and \
+                self.rng.random() < 0.5:
+            # As it is typed: `e^x`, `e^(2x)` -- one word, its own symbols.
+            inner = tight(argument)
+            return Said().add(f"e^{inner}" if isinstance(argument, S.Symbol)
+                              else f"e^({inner})", KEEP)
         if obj.func is S.log and len(obj.args) == 1 and style == "spoken":
             name = self.rng.choice(("log", "natural log", "the log of"))
         if style != "spoken":

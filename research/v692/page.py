@@ -32,6 +32,8 @@ from research.v692 import doing, reading, semantics  # noqa: F401 (R33)
 #: world up: reading an utterance as mathematics is the encoder's call, and
 #: it was taught to leave everything else alone.
 UTILITY = 205.0
+#: The longest value, written, that the decoder is left to say.
+LONGEST_SAID = 40
 
 @dataclass
 class Workspace:
@@ -108,7 +110,11 @@ def answered(session, utterance: str) -> dict | None:
         # is handed a sentence v690 reads as ordinary English, and says it
         # back in the wrong words. The page says those as they are.
         any(one in result.text for one in "&|~")
-        or (act == "measure" and read.act == "given"))
+        or (act == "measure" and read.act == "given")
+        # A value longer than any the decoder was taught to say: it drops
+        # parts of one (half of Binet's formula, once), and what it says
+        # cannot always be read back to be checked.
+        or len(result.text) > LONGEST_SAID)
     if said_plainly and result.stance == "value" and result.about:
         result.text = f"{result.about} is {result.text}"
     if not _decoder_says_mathematics() or result.stance == "unknown"             or said_plainly:
@@ -131,6 +137,9 @@ def _sentence(text: str) -> str:
         text += "."
     first = text.split(" ", 1)[0] if text else ""
     if len(first) == 1 and first.isalpha() and first not in ("a", "i"):
+        return text
+    if any(one in first for one in "()^*/"):
+        # Written mathematics, `sqrt(5) * ...`: not a word to open.
         return text
     return text[:1].upper() + text[1:]
 

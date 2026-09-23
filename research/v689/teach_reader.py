@@ -96,7 +96,7 @@ MATH_DATA = LLM / "math-data"
 #: Other subjects' records, each in its own folder, taught only when asked
 #: for (`--subject math`): the shipped readers were taught without them,
 #: and a rebuild of one must not quietly learn a subject it never had.
-SUBJECT_DATA = {"math": MATH_DATA}
+SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data"}
 SUBJECTS: list = []
 
 
@@ -2628,8 +2628,14 @@ def labels(rows=()) -> dict:
         # (`research/v692/speaking.py`).
         acts += sorted({row["act"] for row in rows if task_of(row) == "math"}
                        - set(acts) - {NO_MATH})
+        # And the parts other subjects' records name -- a design goal's
+        # kind, clauses and values (`research/v693/stating.py`) -- after
+        # mathematics' own, so that its labels keep their places.
+        roles = list(ROLE_LABELS) + sorted(
+            {role for row in rows if task_of(row) == "math"
+             for role in row.get("roles", ())} - set(ROLE_LABELS))
         said.update(math_act=[NO_MATH] + acts,
-                    math_role=list(ROLE_LABELS),
+                    math_role=roles,
                     math_symbol=["DROP", "KEEP"] + [
                         one for one in symbols if one not in ("", "DROP",
                                                               "KEEP")])
