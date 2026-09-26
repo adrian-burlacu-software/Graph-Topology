@@ -378,8 +378,98 @@ def request_of(found: Rephrased) -> str | None:
                 None)
 
 
+#: The addressee's own states, as WordNet files its verbs: what it has,
+#: knows, likes or perceives. `do you have a dog` asks about the one
+#: addressed; `can you cut bread with a knife` asks about anyone.
+OWN_STATES = frozenset({"verb.possession", "verb.cognition",
+                        "verb.emotion", "verb.perception"})
+
+#: What says a noun phrase is a particular one: `the capital of france`.
+DEFINITE = frozenset({"the", "my", "your", "his", "her", "its", "our",
+                      "their"})
+
+ADDRESSED_NOTE = "asked of me: what I have, know, like or perceive"
+CONCEALED_NOTE = ("knowing a particular thing is knowing what it is, so it "
+                  "is asked as that")
+
+
+def _lexname(verb: str) -> str:
+    try:
+        from nltk.corpus import wordnet
+        found = wordnet.synsets(verb, wordnet.VERB)
+        return found[0].lexname() if found else ""
+    except Exception:                              # noqa: BLE001
+        return ""
+
+
+def addressed(text: str) -> Rephrased | None:
+    """A question that puts one of the addressee's own states to it, read
+    off the parse: `you` is the subject, the verb's first sense is what one
+    has, knows, likes or perceives, and its object is a noun phrase, not a
+    clause.
+
+        do you have a dog                   kept as said, asked of me
+        have you ever seen a whale          kept as said, asked of me
+        do you know the capital of france   what is the capital of france
+        could you tell me the time          what is the time
+
+    The encoder learned from the teacher's `can you cut bread with a knife`
+    that `you` may be anyone and left out, and took `do you have a dog` as
+    `do a dog have`. It is a rule about who takes part, not about a word:
+    a state is had by someone, and here that someone is the one asked.
+    Knowing a particular thing -- `the capital of france` -- is knowing
+    what it is (a concealed question), and is asked as that. `do you know
+    if a dog can swim` has a clause for its object and stays the
+    encoder's."""
+    from research.v687 import language
+
+    parser = language.load()
+    if parser is None:
+        return None
+    doc = parser(" ".join(text.lower().split()))
+    root = next((token for token in doc if token.dep_ == "ROOT"), None)
+    if root is None or not root.tag_.startswith("VB"):
+        return None
+    subject = [child for child in root.children if child.dep_ == "nsubj"]
+    if [child.text for child in subject] != ["you"]:
+        return None
+    if not any(child.dep_ in ("aux", "auxpass") and child.i < subject[0].i
+               for child in root.children):
+        return None                              # a statement, not asked
+    if any(child.dep_ in ("ccomp", "xcomp") for child in root.children):
+        return None
+    objects = [child for child in root.children if child.dep_ == "dobj"]
+    if not objects:
+        return None
+    kind = _lexname(root.lemma_.lower())
+    told = kind == "verb.communication" and any(
+        child.dep_ == "dative" and child.text == "me"
+        for child in root.children)
+    if any(token.tag_ == "WRB" for token in doc) or (not told and any(
+            child.dep_ == "aux" and child.tag_ == "MD"
+            for child in root.children)):
+        # `where would you find a book`, `can you cut bread`: anyone's way
+        # of doing it, or what I can do -- the encoder's, as before. `could
+        # you tell me the time` is a request, and asks what the time is.
+        return None
+    if kind not in OWN_STATES and not told:
+        return None
+    thing = objects[0]
+    determiners = [child.text for child in thing.children
+                   if child.dep_ in ("det", "poss")]
+    if (kind == "verb.cognition" or told) and determiners and (
+            determiners[0] in DEFINITE):
+        phrase = doc[thing.left_edge.i:thing.right_edge.i + 1].text
+        be = "are" if thing.tag_ == "NNS" else "is"
+        return Rephrased(f"what {be} {phrase}", CONCEALED_NOTE)
+    if told:
+        return None
+    return Rephrased(" ".join(text.split()), ADDRESSED_NOTE)
+
+
 def rephrase(text: str) -> Rephrased:
-    """The question a request puts, as the encoder reads it."""
+    """The question a request puts, as the encoder reads it -- except one
+    put to the addressee about itself (`addressed`)."""
     from research import encoder
 
     said = " ".join((text or "").replace(chr(8217), "'").split())
@@ -387,6 +477,9 @@ def rephrase(text: str) -> Rephrased:
     words = asked_words(stripped)
     if not words:
         return Rephrased(stripped)
+    own = addressed(stripped)
+    if own is not None:
+        return own
     guess = encoder.read([word.lower() for word in words], heads=ASK_HEADS)
     return said_back(stripped, words, guess)
 

@@ -258,6 +258,10 @@ class Reading:
     #: it said the thing holds. None for anything else
     confirms: str | None = None
     confirms_holds: bool = True
+    #: `you have a cat`: the one talked to owns what is introduced
+    owner: str = ""
+    #: what the two taking part have or know, asked (`participants.py`)
+    owning: object = None
 
     @property
     def cells(self) -> list[tuple]:
@@ -269,6 +273,7 @@ class Reading:
                 "mention": self.mention.as_dict() if self.mention else None,
                 "aux": self.aux, "rest": " ".join(self.rest),
                 "holds": self.holds, "name": self.name, "owned": self.owned,
+                "owner": self.owner,
                 "object": self.obj.as_dict() if self.obj else None,
                 "more": [one.as_dict() for one in self.more],
                 "relative": (self.relative.as_dict() if self.relative
@@ -827,9 +832,13 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
     """
     from research.v688.rephrase import rephrase
 
-    from . import reader
+    from . import participants, reader
 
     said = (text or "").strip()
+    if whole:
+        own = _participants(said, participants.read(said))
+        if own is not None:
+            return own
     asked = rephrase(said)
     placed = reader.place(asked.text, lexicon, names, anchored)
     names = names | placed.fresh
@@ -876,6 +885,32 @@ def read(text: str, lexicon, names: frozenset = frozenset(),
         if confirmed is not None:
             return confirmed
     return found
+
+
+def _participants(said: str, found) -> Reading | None:
+    """What the two taking part have or know (`participants.py`): asked,
+    it is its own act; told of the one talked to -- `you have a cat` --
+    it introduces a cat that is mine."""
+    if found is None:
+        return None
+    owning, asked = found
+    who = "speaker" if owning.who == "speaker" else "addressee"
+    heard = {"said": said, "asked": "", "request": "", "why": False,
+             "placed": said, "fresh": [], "anchor": "", "relation": "",
+             "time": [], "acts": [["own" if asked else "introduce", 1.0]],
+             "slots": [], "roles": []}
+    if asked or owning.state:
+        # A state told of me -- `you like cake` -- is mine to keep, and
+        # the same act keeps it.
+        return Reading("own", Mention(who, text="i" if who == "speaker"
+                                      else "you"),
+                       said=said, owning=owning, heard=heard,
+                       when=When())
+    mention = Mention("indefinite", owning.kind,
+                      modifiers=list(owning.modifiers),
+                      text=f"a {owning.said}")
+    return Reading("introduce", mention, said=said, owner=who,
+                   heard=heard, when=When())
 
 
 def _confirming(said: str, tokens: list[str]) -> bool:

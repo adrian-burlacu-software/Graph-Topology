@@ -70,6 +70,12 @@ ADDRESSEE_KIND = "computer program"
 GENDERED = {"he": "male", "him": "male", "she": "female", "her": "female"}
 
 
+def objective(described: str) -> str:
+    """A description said after a preposition: `nothing you told me of me`,
+    not `of I`."""
+    return "me" if described == "I" else described
+
+
 @dataclass
 class Referent:
     """One individual, as attention sees it. What it *is* lives in memory."""
@@ -203,8 +209,14 @@ class Discourse:
         self.attend(referent, weight)
         return referent
 
-    def own(self, referent: Referent) -> None:
-        self._record("owned", {"id": referent.id, "owner": self.me().id})
+    def own(self, referent: Referent, owner: Referent | None = None
+            ) -> None:
+        """Whose it is: the one talking's, unless said to be another's."""
+        owner = owner or self.me()
+        self._record("owned", {"id": referent.id, "owner": owner.id})
+
+    def owned_by(self, owner: Referent) -> list[Referent]:
+        return [one for one in self.referents if one.owner == owner.id]
 
     def rename(self, referent: Referent, name: str) -> None:
         self._record("named", {"id": referent.id, "name": name})

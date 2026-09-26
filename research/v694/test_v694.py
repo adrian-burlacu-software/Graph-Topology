@@ -393,6 +393,43 @@ class AskingTests(unittest.TestCase):
 
 
 @needs_data
+class ExamplesTests(unittest.TestCase):
+    """Examples asked for (`examples.py`)."""
+
+    def read(self, text):
+        from research.v694 import examples
+        return examples.read(text)
+
+    def test_examples_asked_for(self):
+        wanted = self.read("do you have any tools for gardening")
+        self.assertEqual((wanted.kind, wanted.purpose, wanted.verb),
+                         ("tool", "gardening", "have"))
+        self.assertEqual(self.read("name three birds").many, 3)
+        self.assertEqual(self.read("do you know any jokes").kind, "joke")
+
+    def test_what_i_have_is_not_asking_for_examples(self):
+        for text in ("do you have any pets", "do you have a dog",
+                     "do dogs have fleas", "name the dog rex"):
+            self.assertIsNone(self.read(text), text)
+
+    def test_a_purpose_picks_among_the_kinds(self):
+        from research.v694 import examples
+        found = [name for name, _ in examples.examples(
+            self.read("do you know any tools for cutting"))]
+        self.assertIn("scissors", found)
+
+    def test_the_best_known_come_first_and_only_kinds_of_it(self):
+        from research.v694 import examples
+        found = [name for name, _ in examples.examples(
+            self.read("name some birds"))]
+        self.assertTrue({"robin", "duck", "owl"} & set(found), found)
+        found = [name for name, _ in examples.examples(
+            self.read("do you know any pets"))]
+        self.assertIn("dog", found)
+        self.assertNotIn("tenant", found)
+
+
+@needs_data
 class HearingTests(unittest.TestCase):
     """v691's reader, for what a designer is asked."""
 

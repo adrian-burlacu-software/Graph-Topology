@@ -14,6 +14,18 @@ class RephraseTests(unittest.TestCase):
     def said(self, text):
         return rephrase(text).text
 
+    def test_a_question_put_to_me_about_me_stays_mine(self):
+        # The encoder once read this as `do a dog have`.
+        for text in ("do you have a dog", "have you ever seen a whale",
+                     "do you know any jokes"):
+            self.assertEqual(self.said(text), text)
+
+    def test_knowing_a_particular_thing_is_asked_as_what_it_is(self):
+        self.assertEqual(self.said("do you know the capital of france"),
+                         "what is the capital of france")
+        self.assertEqual(self.said("could you tell me the time"),
+                         "what is the time")
+
     def test_an_embedded_question_is_the_question(self):
         self.assertEqual(self.said("do you know if a dog can swim"),
                          "can a dog swim")

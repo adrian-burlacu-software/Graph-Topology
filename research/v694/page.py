@@ -6,8 +6,9 @@ for two acts, before v691's own planner:
     want   *cut the rope*            designed, then done in the scene
     how    *how can I make the milk cold*   designed, and said, not done
 
-and adds two of its own: `teach` (a way or a recipe, taught or seen) and
-`recipe` (*do you have a recipe for cake* -- `asking.py`).
+and adds three of its own: `teach` (a way or a recipe, taught or seen),
+`recipe` (*do you have a recipe for cake* -- `asking.py`) and `examples`
+(*do you know any jokes* -- `examples.py`).
 
 It takes an order only when the way to it is one the planner could not
 have found: a tool, a place that keeps a thing so, something to give
@@ -25,7 +26,8 @@ from __future__ import annotations
 
 from research.v691 import page as v691_page
 from research.v691.openworld import past
-from research.v694 import asking, carrying, designing, teaching
+from research.v694 import (asking, carrying, designing, examples,
+                           teaching)
 from research.v694.goals import DOER, Goal
 
 #: The ways that are the designer's to carry out. The rest -- doing it
@@ -221,6 +223,21 @@ def _asks_recipe(scene, text: str) -> bool:
     return asked is not None and asking.knows(asked, _memory(scene))
 
 
+def _asks_examples(scene, text: str) -> bool:
+    """*Do you know any jokes*, *do you have any tools for gardening*:
+    examples asked for (`examples.read`) -- and, asked as what I have, only
+    when there are some to offer; that I have none is v689's to say."""
+    if not _goal_world(scene):
+        return False
+    wanted = examples.read(text)
+    return wanted is not None and bool(examples.answer(wanted))
+
+
+def some(scene, heard) -> str:
+    wanted = examples.read(heard.said)
+    return examples.answer(wanted) if wanted else ""
+
+
 def recipe(scene, heard) -> str:
     """What is known of making a thing: a recipe taught or seen, or only
     what the store says one can be made of."""
@@ -236,3 +253,5 @@ v691_page.adds("teach", _teaches, teach,
                rule="a way or a recipe, taught or seen done: kept")
 v691_page.adds("recipe", _asks_recipe, recipe, utility=v691_page.ASK,
                rule="how a thing is made: a recipe, or what it is made of")
+v691_page.adds("examples", _asks_examples, some, utility=v691_page.ASK,
+               rule="examples asked for: kinds of it that fit a purpose")

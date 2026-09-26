@@ -71,7 +71,8 @@ from research.v688.teacher import SETTLING_FLOOR
 
 from .definitions import DEFINED, GlossReader, question_for, says
 
-from .discourse import OBJECT_WEIGHT, Discourse, Referent, Resolution
+from .discourse import (ADDRESSEE_KIND, OBJECT_WEIGHT, Discourse, Referent,
+                        Resolution, objective)
 from .episodic import (CARRIED, DID_NOT, TOLD, EpisodicMemory, Knowledge,
                        name_of)
 from .events import KNOWLEDGE
@@ -350,7 +351,10 @@ ACT_EFFECTS = {"introduce": _EVERYTHING, "tell": _EVERYTHING,
                "generic": ("conversation", "definitions"),
                "what": ("conversation", "knowledge"),
                "name": ("conversation", "knowledge"),
-               "ask_name": ("conversation", "knowledge")}
+               "ask_name": ("conversation", "knowledge"),
+               # The program's kind is coined the first time it is spoken of
+               # (`Discourse.addressed`), and what it is told it has is kept.
+               "own": ("conversation", "knowledge")}
 
 
 class Session:
@@ -470,7 +474,7 @@ class Session:
                 "ask": self._ask, "what": self._what, "name": self._name,
                 "ask_name": self._ask_name, "teach": self._teach,
                 "compound": self._compound, "define": self._define,
-                "why": self._why}
+                "why": self._why, "own": self._own}
         # `hello`, `thanks`, `what can you do` (`social.py`).
         from .social import ACTS as SOCIAL
         acts.update({name: self._social for name in SOCIAL})
@@ -594,6 +598,12 @@ class Session:
                        "act": reading.act,
                        "text": answer(reading.act, list(
                            Answering(self).cells()))}
+        if reading.act == "identity":
+            # What I am, in my own words: the decoder turns `a computer
+            # program that reads what you say` into `you are` one.
+            turn.answer["spoken"] = (
+                "I am " + turn.answer["text"][0].lower()
+                + turn.answer["text"][1:] + ".")
 
     def _untold_anchor(self, reading: Reading) -> Reading | None:
         """The clause a statement is placed against, when nothing told is
@@ -974,7 +984,7 @@ class Session:
         turn.answer = {
             "outcome": "unknown", "source": "told",
             "text": (f"perhaps because {described} {be(referent)} {state} — "
-                     f"the last thing told of {described} before "
+                     f"the last thing told of {objective(described)} before "
                      f"“{occurrence.said}”, though the store does not say how "
                      f"it bears on it")}
         return True
@@ -1651,6 +1661,8 @@ class Session:
         referent = self._resolve(reading, turn)
         if reading.owned:
             self.discourse.own(referent)
+        elif reading.owner == "addressee":
+            self.discourse.own(referent, self.discourse.addressed())
         if reading.name:
             self.discourse.rename(referent, reading.name)
         for modifier in reading.mention.modifiers:
@@ -1658,8 +1670,13 @@ class Session:
                              reading.said)
         text = (f"noted: {self.discourse.describe(referent)}, placed under "
                 f"{self._kind_node(referent) or referent.kind}")
+        spoken = ""
         if reading.owned:
             text += ", yours"
+        elif reading.owner == "addressee":
+            text += ", mine"
+            # Mine, said in my own words (`_own`).
+            spoken = f"Noted: I have {reading.mention.text}."
         if reading.relative is not None:
             rest, other = self._bind(reading.relative, referent, turn)
             if rest is None:
@@ -1671,6 +1688,8 @@ class Session:
                     part=reading.relative)
         turn.answer = {"outcome": "noted", "source": "conversation",
                        "text": text}
+        if spoken and reading.relative is None:
+            turn.answer["spoken"] = spoken
 
     def _tell_each(self, reading: Reading, turn: Turn) -> None:
         """`Mary and Daniel went to the kitchen`, `then they went to the
@@ -1840,6 +1859,115 @@ class Session:
         return True
 
     # -- wh-questions about this conversation's individuals ----------------
+    def _own(self, reading: Reading, turn: Turn) -> None:
+        """What the two taking part have, or whom the program knows
+        (`participants.py`). I know what I have -- what I was told I have
+        -- so what I was not told of I do not have. What you have is only
+        what you told me, and the rest is not known.
+
+        Said in the program's own words (`spoken`): the decoder paraphrases
+        verdicts about the world, and turns `I have the cat` into `you
+        have the cat`."""
+        owning = reading.owning
+        me = owning.who == "addressee"
+        who = (self.discourse.addressed() if me else self.discourse.me())
+
+        def said(outcome: str, source: str, text: str, spoken: str) -> None:
+            turn.answer = {"outcome": outcome, "source": source,
+                           "text": text, "spoken": spoken}
+
+        if owning.state:
+            self._own_state(reading, who, said)
+            return
+
+        if owning.verb == "know":
+            wanted = owning.name.lower()
+            found = [one for one in self.discourse.referents
+                     if one.name.lower() == wanted]
+            name = owning.name.title()
+            if found:
+                said("verified", "conversation",
+                     f"yes — {self._names(found)}, who you told me about",
+                     f"Yes — you told me about {name}.")
+            else:
+                said("denied", "conversation",
+                     f"no — nobody called {name} has come up",
+                     f"No — nobody called {name} has come up.")
+            return
+        owned = self.discourse.owned_by(who)
+        whose = "I have" if me else "you have"
+        if not owning.kind:
+            if owned:
+                names = self._names(owned)
+                said("retrieved", "conversation", f"{whose} {names}",
+                     f"{whose.capitalize()} {names}.")
+            elif me:
+                said("retrieved", "conversation",
+                     "nothing — you have not told me I have anything",
+                     "Nothing — you haven't told me I have anything.")
+            else:
+                said("unknown", "conversation",
+                     "not told — you have not told me anything you have",
+                     "I don't know — you haven't told me anything you "
+                     "have.")
+            return
+        kinds = {one.id for one in self._individuals(owning.kind)}
+        found = [one for one in owned if one.id in kinds]
+        if found:
+            names = self._names(found)
+            said("verified", "told", f"yes — {whose} {names}",
+                 f"Yes, {whose} {names}.")
+        elif me:
+            said("denied", "conversation",
+                 f"no — I have no {owning.said}: I have what you told me I "
+                 f"have, and you told me of none",
+                 f"No, I don't have {owning.some()}.")
+        else:
+            said("unknown", "conversation",
+                 f"not told — you have not told me you have "
+                 f"{owning.some()}",
+                 f"I don't know — you haven't told me you have "
+                 f"{owning.some()}.")
+
+    #: What I say of a state of mine nobody told me of: I know my own
+    #: mind, and I perceive nothing but what I am told.
+    NOT_MINE = {
+        "verb.emotion": "I have no likes or wants of my own, and you "
+                        "haven't told me",
+        "verb.perception": "I don't see or hear anything: I only read what "
+                           "you tell me",
+    }
+
+    def _own_state(self, reading: Reading, me: Referent, said) -> None:
+        """`you like cake` kept as mine; `do you like cake`, `have you ever
+        seen a whale` answered from what was kept -- and, since these are
+        mine, what was not kept does not hold (`_own`)."""
+        owning = reading.owning
+        relation, target, _, _ = self._relation(
+            None, [owning.verb] + owning.thing.split(), ADDRESSEE_KIND, True)
+        relation = relation or "capable_of"
+        target = target or f"{owning.verb} {owning.thing}"
+        if not owning.asked:
+            self.memory.tell(me.id, relation, target, reading.said)
+            said("noted", "conversation",
+                 f"noted: {relation} “{target}” on me",
+                 f"Noted: I {owning.verb_said or owning.verb} "
+                 f"{owning.thing}.")
+            return
+        for fact in self.memory.facts.get(me.id, []):
+            if fact.relation == relation and self.asker.matcher(
+                    fact.object, target):
+                told = self.memory.said.get(
+                    (me.id, fact.relation, fact.object), "")
+                said("verified", "told", f"yes — you told me so: “{told}”",
+                     f"Yes — you told me so: “{told}”.")
+                return
+        why = self.NOT_MINE.get(owning.state, "you haven't told me so")
+        said("denied", "conversation",
+             f"no — nothing told of me says I {owning.verb} "
+             f"{owning.thing}; {why}",
+             f"No — {why}.")
+
     def _individuals(self, kind: str = "") -> list[Referent]:
         """The individuals here of a kind, found as a description is: by
         walking the episodic trie for `is_a kind`, which every kind above an
@@ -2045,7 +2173,7 @@ class Session:
             {"outcome": "retrieved", "source": "told",
              "text": "; ".join(found)} if found else
             {"outcome": "unknown", "source": "conversation",
-             "text": f"nothing was told of {described} that it would "
+             "text": f"nothing was told of {objective(described)} that it would "
                      f"{' '.join(reading.rest)}"})
 
     def _about(self, reading: Reading, turn: Turn) -> None:
@@ -2078,7 +2206,7 @@ class Session:
             # a thing says nothing of what this one cannot.
             text += (f"; nothing it cannot "
                      f"{reading.rest[0] if reading.rest else 'do'} was told "
-                     f"of {described}")
+                     f"of {objective(described)}")
         node = self._kind_node(referent)
         if (wanted is not None and reading.holds and node
                 and not self.memory.episodic_only(node)):
@@ -2408,19 +2536,19 @@ class Session:
                 # rests on is what this one's does.
                 turn.answer = {
                     "outcome": outcome, "source": "kind",
-                    "text": (f"nothing you told me of {described} says, so "
+                    "text": (f"nothing you told me of {objective(described)} says, so "
                              f"it is as {kind}: {headline}") + note}
             elif e1:
                 turn.answer = {
                     "outcome": "unknown", "source": "tendency",
-                    "text": (f"not known of {described} — E1: a quality does "
+                    "text": (f"not known of {objective(described)} — E1: a quality does "
                              f"not descend from {referent.kind} to one of "
                              f"them. For {kind} in general, {v688}") + note}
             else:
                 turn.answer = {
                     "outcome": outcome, "source": "kind",
                     "text": (f"{WORD.get(outcome, 'not settled')} — nothing "
-                             f"you told me of {described} says, so v687's walk "
+                             f"you told me of {objective(described)} says, so v687's walk "
                              f"passes up to {referent.kind}, and {v688}")
                     + note}
             return ANSWERED

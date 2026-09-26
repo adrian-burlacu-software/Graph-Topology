@@ -31,7 +31,7 @@ from research.v687.links import link
 from research.v688 import retrieval
 
 from . import change as changes
-from .discourse import OBJECT_WEIGHT
+from .discourse import OBJECT_WEIGHT, objective
 from .episodic import DID_NOT
 from .reading import ARTICLES, SEQUENCE, article, read, words
 from .tense import When, occurs, tense_of
@@ -856,7 +856,7 @@ class Story:
             turn.answer = {"outcome": "unknown", "source": "told",
                            "text": text}
             return True
-        text = (f"not told — nothing you said of {described} answers "
+        text = (f"not told — nothing you said of {objective(described)} answers "
                 f"“{_said(reading.said)}”. T6: what {kind} does is a "
                 f"tendency of the kind, and that one of them {doing} it is "
                 f"an occurrence, which was never told; for {kind} in general "
@@ -1109,7 +1109,7 @@ class Story:
         if not found:
             turn.answer = {"outcome": "unknown", "source": "conversation",
                            "text": f"never, as far as I was told — nothing was "
-                                   f"said of {described} that it would "
+                                   f"said of {objective(described)} that it would "
                                    f"{' '.join(reading.rest)} (T6)"}
             return
         turn.answer = {"outcome": "retrieved", "source": "told",
@@ -1137,7 +1137,7 @@ class Story:
         if not found:
             turn.answer = {"outcome": "unknown", "source": "conversation",
                            "text": f"not once, as far as I was told — nothing "
-                                   f"was said of {described} that it would "
+                                   f"was said of {objective(described)} that it would "
                                    f"{' '.join(reading.rest)} (T6)"}
             return
         count = len(found)
@@ -1244,7 +1244,7 @@ class Story:
             described = (self.discourse.describe(referent) if referent
                          else "anyone")
             turn.answer = {"outcome": "unknown", "source": "conversation",
-                           "text": f"nothing was told of {described} "
+                           "text": f"nothing was told of {objective(described)} "
                                    f"{where.rstrip(': ') or 'then'}"}
             return True
         turn.answer = {"outcome": "retrieved", "source": "told",
