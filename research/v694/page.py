@@ -6,6 +6,9 @@ for two acts, before v691's own planner:
     want   *cut the rope*            designed, then done in the scene
     how    *how can I make the milk cold*   designed, and said, not done
 
+and adds two of its own: `teach` (a way or a recipe, taught or seen) and
+`recipe` (*do you have a recipe for cake* -- `asking.py`).
+
 It takes an order only when the way to it is one the planner could not
 have found: a tool, a place that keeps a thing so, something to give
 someone, someone else to ask (`TAKES`). Getting the book to the kitchen
@@ -22,7 +25,7 @@ from __future__ import annotations
 
 from research.v691 import page as v691_page
 from research.v691.openworld import past
-from research.v694 import carrying, designing, teaching
+from research.v694 import asking, carrying, designing, teaching
 from research.v694.goals import DOER, Goal
 
 #: The ways that are the designer's to carry out. The rest -- doing it
@@ -208,9 +211,28 @@ def _goal_world(scene) -> bool:
     return scene.open and getattr(scene.domain, "things", None) is not None
 
 
+def _asks_recipe(scene, text: str) -> bool:
+    """*Do you have a recipe for cake*, *how do you make a torch*: how a
+    thing is made, asked (`asking.read`) -- and, when it is asked as how,
+    only when there is something to say, so the rest stay v689's."""
+    if not _goal_world(scene):
+        return False
+    asked = asking.read(text)
+    return asked is not None and asking.knows(asked, _memory(scene))
+
+
+def recipe(scene, heard) -> str:
+    """What is known of making a thing: a recipe taught or seen, or only
+    what the store says one can be made of."""
+    asked = asking.read(heard.said)
+    return asking.answer(asked, _memory(scene)) if asked else ""
+
+
 v691_page.contributes("want", want)
 v691_page.contributes("how", how)
 v691_page.contributes("why", why)
 v691_page.observes(observe)
 v691_page.adds("teach", _teaches, teach,
                rule="a way or a recipe, taught or seen done: kept")
+v691_page.adds("recipe", _asks_recipe, recipe, utility=v691_page.ASK,
+               rule="how a thing is made: a recipe, or what it is made of")

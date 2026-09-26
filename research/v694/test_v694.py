@@ -336,6 +336,63 @@ class TeachingTests(unittest.TestCase):
 
 
 @needs_data
+class AskingTests(unittest.TestCase):
+    """How a thing is made, asked for (`asking.py`)."""
+
+    def read(self, text):
+        from research.v694 import asking
+        return asking.read(text)
+
+    def test_a_recipe_asked_for_by_name(self):
+        for text in ("do you have any good recipes for cake?",
+                     "do you know a good cake recipe",
+                     "is there a recipe for cake"):
+            asked = self.read(text)
+            self.assertEqual((asked.product, asked.by_name), ("cake", True),
+                             text)
+        self.assertEqual(self.read("give me a recipe for making cookies")
+                         .product, "cookie")
+
+    def test_asked_as_how_one_is_made(self):
+        self.assertEqual(self.read("how do you make a cake").product, "cake")
+        self.assertEqual(self.read("how are cookies made").product,
+                         "cookie")
+        self.assertFalse(self.read("how do i bake bread").by_name)
+
+    def test_what_is_not_asking_for_a_recipe(self):
+        for text in ("how can i make the milk cold", "what is a recipe",
+                     "how do you make friends", "is there a recipe for "
+                     "success", "the recipe for soup is on the table",
+                     "you can make a torch from a stick and a cloth",
+                     "how do you open a jar",
+                     "what are the directions to the station"):
+            self.assertIsNone(self.read(text), text)
+
+    def test_the_store_says_what_it_can_be_made_of_not_how(self):
+        from research.v694 import asking
+        said = asking.answer(self.read("do you have a recipe for cake"))
+        self.assertTrue(said.startswith("No, I have no recipe"), said)
+        self.assertIn("flour", said)
+        self.assertNotIn("ingredients", said)
+
+    def test_a_taught_recipe_is_one_and_a_like_one_is_offered(self):
+        from research.v694 import asking
+        from research.v694.carrying import Remembered
+        memory = Remembered()
+        memory.learn_recipe("torch", ["stick", "cloth"], said="you told me")
+        said = asking.answer(self.read("is there a recipe for a torch"),
+                             memory)
+        self.assertTrue(said.startswith("Yes: a torch can be made from"),
+                        said)
+        said = asking.answer(self.read("how do you make a lamp"), memory)
+        self.assertIn("like a lamp", said)
+
+    def test_nothing_known_of_how_leaves_it_to_the_others(self):
+        from research.v694 import asking
+        self.assertFalse(asking.knows(self.read("how is a raft built")))
+
+
+@needs_data
 class HearingTests(unittest.TestCase):
     """v691's reader, for what a designer is asked."""
 
@@ -414,6 +471,16 @@ class PageTests(unittest.TestCase):
         said = say_to(scene, "how can i make the milk cold")
         self.assertTrue(said.startswith("I would"), said)
         self.assertNotIn("cold milk", scene.world.facts)
+
+    def test_a_recipe_asked_for_is_answered_on_the_page(self):
+        from research.v691.page import say_to
+        scene = self.scene()
+        said = say_to(scene, "do you have any good recipes for cake?")
+        self.assertTrue(said.startswith("No, I have no recipe for cake"),
+                        said)
+        say_to(scene, "you can make a torch from a stick and a cloth")
+        said = say_to(scene, "is there a recipe for a torch")
+        self.assertIn("stick", said)
 
     def test_moving_a_thing_is_still_the_planners(self):
         from research.v691.page import say_to
