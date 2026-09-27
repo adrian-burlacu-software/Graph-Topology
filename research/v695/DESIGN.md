@@ -82,10 +82,39 @@ can do (`can`). Train was looked at while building; **dev run once**:
 Chance is 50%. On train, the most confident quarter of decisions is right
 55–57%: the signal is real and weak. PIQA's wrong solutions were filtered
 to be as related to the goal as the right ones, so relatedness — which is
-what these sources measure — cannot choose. What would: the properties a
-goal requires (an ice pack needs cold, bedding soft and absorbent) matched
-to the properties of each material. That is a different mechanism, not a
-better score for this one.
+what these sources measure — cannot choose.
+
+### 5b. Matching requirements (`requiring.py`)
+
+The mechanism that should choose where relatedness cannot: what the goal
+requires of its means, and whether each solution's own words have it —
+the properties that the things serving the goal's doing *agree* on (at
+least two of them; people excluded — they attach things too), what the
+goal's things are made of, and WordNet antonyms against (hot water for a
+sunburn that wants cool). Evaluations said of more than 1% of concepts
+(`great`, `safe`) are not properties; every fit is bounded. Rarity as the
+weight was tried first and rewarded `hermaphroditic` and `accusative`.
+
+Asked alone it chooses half the items; summed with the others it is
+drowned, so the sources are also asked in turn (`--cascade`):
+requirements, then serving, then relatedness. **Dev, run once:**
+
+| | answered | right when answered | overall |
+|---|---|---|---|
+| require | 48.2% | 51.3% | 50.6% |
+| all, summed | 86.5% | 52.2% | 51.9% |
+| cascade | 86.6% | 52.3% | **52.0%** |
+
+On the 500 train items it was built on, `require` was right 58.4% and the
+cascade 55.0% — **none of it held on dev**. The weighting was fixed while
+looking at the first 40 of those items, and what it gained there was
+theirs. The mechanism is not what fails: the store's properties are.
+What serves a doing is found (hammers crush), but what those things are
+*like* is mostly evaluation and noise — the means of *attach* agree on
+`elastic` and `sore`, of *boil* on `cloudy` and `alkaline`. Rated physical
+norms (NEWTON, THINGSplus: hardness, sharpness, weight) cover some 1,800
+household objects and would be the honest next source for requirements;
+the store's free-listed properties are not enough.
 
 **Reaching a goal** (`held_out.py`): PIQA has almost none of these (77 of
 3,000 train goals parse as a doing with a place, most not movements), so

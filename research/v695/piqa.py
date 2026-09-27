@@ -20,9 +20,17 @@ share -- *paper strips* to *bedding* and *cage*, *jeans* to nothing -- by
              ways name -- a mortar and pestle crush, a ruler does not tie
     can      a way whose action nobody can do, as `can.py` reads it --
              a person does not fly -- counts against it
+    require  what the goal requires of its means, and whether the word
+             has it (`requiring.py`): water is what an ice pack is made
+             of; hot is against the cool a sunburn wants
 
 The side with more is chosen; with none on either, it abstains, and an
 abstention counts half, as a coin would.
+
+Summed, the sources drown each other: their scales are not the same, and
+what a goal requires is a stronger claim than what a word is related to.
+So they are also asked in turn (`--cascade`): the most specific that
+chooses at all decides -- requirements, then serving, then relatedness.
 
     python -m research.v695.piqa --split train --limit 500
     python -m research.v695.piqa --split valid --sources store,actions,can
@@ -42,7 +50,7 @@ from research.v695 import mined
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "piqa"
 
-SOURCES = ("store", "actions", "design", "can")
+SOURCES = ("store", "actions", "design", "can", "require")
 
 #: Words that say nothing of what is done: English's small words, and the
 #: ones PIQA's ways are phrased with.
@@ -161,6 +169,9 @@ def tie(word: str, context: set, sources) -> float:
     return sum(sorted(best.values(), reverse=True)[:MOST])
 
 
+#: What meeting the goal's requirements counts, against relatedness.
+REQUIRES = 1.0
+
 #: What a word serving the doing counts, against a row that only ties it
 #: to the context: serving is the stronger claim.
 SERVES = 2.0
@@ -227,6 +238,21 @@ def unable(text: str, sources) -> float:
     return against
 
 
+def required(item: Item, only_one, only_two, doing, sources) -> tuple:
+    """(fit of sol1's own words, of sol2's) to what the goal requires."""
+    if "require" not in sources:
+        return 0.0, 0.0
+    from research.v695 import requiring
+    shared = set(words(item.sol1)) & set(words(item.sol2))
+    nouns = [one for one in set(words(item.goal)) | shared
+             if K.first_sense(one) is not None]
+    props, things = requiring.requirements(nouns, doing)
+    if not props and not things:
+        return 0.0, 0.0
+    return (sum(requiring.fit(one, props, things) for one in only_one),
+            sum(requiring.fit(one, props, things) for one in only_two))
+
+
 def score(item: Item, sources=SOURCES) -> tuple:
     """(choice, score of sol1, score of sol2): 0 or 1, or None to abstain."""
     one, two = words(item.sol1), words(item.sol2)
@@ -238,6 +264,9 @@ def score(item: Item, sources=SOURCES) -> tuple:
                 for word in only_one) - unable(item.sol1, sources)
     second = sum(tie(word, context, sources) + serves(word, doing, sources)
                  for word in only_two) - unable(item.sol2, sources)
+    fit_one, fit_two = required(item, only_one, only_two, doing, sources)
+    first += REQUIRES * fit_one
+    second += REQUIRES * fit_two
     if abs(first - second) < 1e-9:
         return None, first, second
     return (0 if first > second else 1), first, second
@@ -269,10 +298,24 @@ class Result:
                 f"  overall {self.overall:6.1%}")
 
 
-def run(items: list, sources=SOURCES) -> Result:
+#: The order sources are asked in, most specific first.
+CASCADE = (("require",), ("design",), ("store", "actions"))
+
+
+def cascade(item: Item, order=CASCADE) -> tuple:
+    """The first source, in `order`, that chooses at all."""
+    for sources in order:
+        found = score(item, sources)
+        if found[0] is not None:
+            return found
+    return None, 0.0, 0.0
+
+
+def run(items: list, sources=SOURCES, cascaded: bool = False) -> Result:
     result = Result()
     for item in items:
-        choice, _, _ = score(item, sources)
+        choice, _, _ = (cascade(item) if cascaded
+                        else score(item, sources))
         result.total += 1
         if choice is None:
             continue
@@ -289,13 +332,19 @@ def main(argv=None) -> int:
     parser.add_argument("--sources", default=",".join(SOURCES))
     parser.add_argument("--ablate", action="store_true",
                         help="each source alone, then all of them")
+    parser.add_argument("--cascade", action="store_true",
+                        help="the most specific source that chooses")
     options = parser.parse_args(argv)
     items = load(options.split, options.limit)
     if options.ablate:
         for sources in (("store",), ("actions",), ("design",),
-                        ("store", "actions"), ("store", "actions", "design"),
-                        SOURCES):
+                        ("require",), ("store", "actions"),
+                        ("store", "actions", "design", "can"), SOURCES):
             print(run(items, sources).line("+".join(sources)), flush=True)
+        print(run(items, cascaded=True).line("cascade"), flush=True)
+        return 0
+    if options.cascade:
+        print(run(items, cascaded=True).line("cascade"))
         return 0
     sources = tuple(one for one in options.sources.split(",") if one)
     print(run(items, sources).line("+".join(sources)))

@@ -414,10 +414,13 @@ def rows_about(concept_word: str, relation: str) -> list:
     first: every sense of the word, since the store's senses are not
     WordNet's."""
     like = concept_word.replace("-", " ")
+    # A range, not LIKE, so the concept index is used: every noun sense of
+    # the word sorts between `word.n.` and `word.n/`.
     return connection().execute(
         "SELECT object, MAX(confidence) FROM facts WHERE relation = ? AND "
-        "(concept = ? OR concept LIKE ?) GROUP BY object ORDER BY "
-        "MAX(confidence) DESC", (relation, like, like + ".n.%")).fetchall()
+        "(concept = ? OR (concept >= ? AND concept < ?)) GROUP BY object "
+        "ORDER BY MAX(confidence) DESC",
+        (relation, like, like + ".n.", like + ".n/")).fetchall()
 
 
 # -- reading one row against a goal ----------------------------------------
