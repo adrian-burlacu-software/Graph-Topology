@@ -411,8 +411,11 @@ def helper_like(word: str) -> bool:
 def _unaided(goal: Goal, clause: Clause, facts) -> list:
     out = []
     kind = goal.kind_of(clause.patient)
+    # Who does it is whoever the goal's doer is: a person by default, and
+    # what anyone else can do is asked of what they are (`v695.can`).
+    doer = goal.kind_of(goal.doer)
     for verb in clause.verbs():
-        support = K.person_can(verb, kind)
+        support = K.person_can(verb, kind, doer)
         if support < SUPPORT / 2:
             # Nothing says a person does this with nothing but their
             # hands. VerbNet will not say it either way -- it has `cut`
@@ -431,7 +434,8 @@ def _unaided(goal: Goal, clause: Clause, facts) -> list:
                         frozenset({clause.literal}), frozenset())
         one.steps.append(step)
         one.said[step.name] = f"{verb} {goal_name(goal, clause.patient)}"
-        one.why = f"people {verb} {kind}s themselves"
+        one.why = (f"people {verb} {kind}s themselves" if doer == "person"
+                   else f"{doer}s {verb} {kind}s themselves")
         out.append(one)
     return out
 

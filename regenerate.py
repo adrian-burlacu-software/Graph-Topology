@@ -491,6 +491,62 @@ def _oewn_check() -> str | None:
     return f"{len(names)} files, {archive.stat().st_size // 1024 ** 2} MB"
 
 
+CONCEPTNET = DATA / "conceptnet-assertions-5.7.0.csv.gz"
+
+
+def _conceptnet_make() -> None:
+    _get("https://s3.amazonaws.com/conceptnet/downloads/2019/edges/"
+         "conceptnet-assertions-5.7.0.csv.gz", CONCEPTNET,
+         "conceptnet-assertions-5.7.0.csv.gz (475 MB)")
+
+
+def _conceptnet_check() -> str | None:
+    if not CONCEPTNET.exists():
+        return None
+    size = CONCEPTNET.stat().st_size // 1024 ** 2
+    if size < 400:
+        raise Failed(f"conceptnet assertions are only {size} MB")
+    return f"{size} MB"
+
+
+#: PIQA's splits and how many items each documents.
+PIQA = {"train": 16113, "valid": 1838}
+
+
+def _piqa_make() -> None:
+    for split in PIQA:
+        for name in (f"{split}.jsonl", f"{split}-labels.lst"):
+            _get(f"https://yonatanbisk.com/piqa/data/{name}",
+                 DATA / "piqa" / name, name)
+
+
+def _piqa_check() -> str | None:
+    if not (DATA / "piqa" / "valid-labels.lst").exists():
+        return None
+    for split, expected in PIQA.items():
+        for name in (f"{split}.jsonl", f"{split}-labels.lst"):
+            got = _lines(DATA / "piqa" / name)
+            if got != expected:
+                raise Failed(f"piqa {name}: {got} lines, documented "
+                             f"{expected}")
+    return f"{PIQA['train']} train, {PIQA['valid']} dev"
+
+
+def _actions_check() -> str | None:
+    import sqlite3
+    path = DATA / "v695_actions.sqlite"
+    if not path.exists():
+        return None
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        count = connection.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    finally:
+        connection.close()
+    if count != 126454:
+        raise Failed(f"v695 actions: {count} edges, documented 126454")
+    return f"{count} edges"
+
+
 def _store_check() -> str | None:
     from research.v687 import build
     if not build.DEFAULT_STORE.exists():
@@ -873,6 +929,10 @@ def steps() -> list[Step]:
              _babi_make, _babi_check, cost="seconds"),
         Step("genericskb", "GenericsKB-Best (39 MB)",
              _genericskb_make, _genericskb_check, cost="a minute"),
+        Step("conceptnet", "ConceptNet 5.7 assertions (475 MB)",
+             _conceptnet_make, _conceptnet_check, cost="a few minutes"),
+        Step("piqa", "PIQA train and dev with labels (6 MB), v695's benchmark",
+             _piqa_make, _piqa_check, cost="seconds"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually
@@ -910,6 +970,9 @@ def steps() -> list[Step]:
         Step("store", "the reasoning store, built from v633 + Ascent++",
              _store_make, _store_check, needs=("awa2", "xcslb"),
              cost="a few minutes"),
+        Step("actions", "ConceptNet's doings kept as said (v695)",
+             lambda: _run("research.v695.mined"), _actions_check,
+             needs=("conceptnet",), cost="a minute"),
 
         # -- base models ----------------------------------------------------
         Step("minilm", "MiniLM-L6-v2, the reader's base (87 MB)",

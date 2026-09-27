@@ -601,12 +601,20 @@ def serving(verb: str = "", state: str = "", patient: str = "",
     return out
 
 
-def person_can(verb: str, patient: str = "") -> float:
-    """How well the store attests that a person does `verb` to `patient`
-    with nothing but themselves: `people capable_of open door`, yes;
-    nothing about cutting rope bare-handed, no. 0 when it says nothing."""
+def person_can(verb: str, patient: str = "",
+               subject: str = "person") -> float:
+    """How well the store attests that one of `subject` -- a person unless
+    said otherwise -- does `verb` to `patient` with nothing but itself:
+    `people capable_of open door`, yes; nothing about cutting rope
+    bare-handed, no. 0 when it says nothing, and 0 when VerbNet's verb
+    admits no doer of that kind (`v695.can.admits`: a program cuts
+    nothing). Rows are read about the subject's kind and the one above it,
+    as `v695.can` reads them."""
+    from research.v695 import can
+    if not can.admits(subject, verb_of(verb) or verb)[0]:
+        return 0.0
     best = 0.0
-    for concept in PERSONS:
+    for concept in _subject_concepts(subject):
         for said, confidence in connection().execute(
                 "SELECT object, confidence FROM facts WHERE concept = ? AND "
                 "relation = 'capable_of'", (concept,)):
@@ -620,6 +628,18 @@ def person_can(verb: str, patient: str = "") -> float:
                 continue
             best = max(best, confidence * weight / 2)
     return best
+
+
+def _subject_concepts(subject: str) -> list:
+    """The store's concepts a subject's rows are kept under: its common
+    sense and the one above it, and both of a person's (`PERSONS`)."""
+    first = first_sense(subject)
+    if first is None:
+        return []
+    out = [first.name()] + [one.name() for one in first.hypernyms()]
+    if first.name() in PERSONS:
+        out = list(PERSONS) + [one for one in out if one not in PERSONS]
+    return out
 
 
 #: How many kinds of thing may be below a device before it is too general
