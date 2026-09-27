@@ -1,0 +1,125 @@
+"""The exact checks of the code world: does it type-check, what does it do.
+
+One persistent Node process (`tscheck.js`) runs TypeScript's compiler API
+in memory, so a check costs milliseconds and not a `tsc` start. Both
+answers are exact -- nothing here is a guess -- which is what makes code
+the world in which search can be seen working (`PLAN.md`).
+
+    checker().check(source)                    -> [errors]
+    checker().run(source, entry, cases)        -> [value or {"error"}]
+    checker().tests(source)                    -> None, or the failure
+"""
+from __future__ import annotations
+
+import itertools
+import json
+import os
+import shutil
+import subprocess
+import threading
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SCRIPT = HERE / "tscheck.js"
+
+
+class CheckerError(RuntimeError):
+    pass
+
+
+def _node_path() -> str:
+    """Where the global `typescript` package is."""
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    if npm is None:
+        return os.environ.get("NODE_PATH", "")
+    found = subprocess.run([npm, "root", "-g"], capture_output=True,
+                           text=True, shell=os.name == "nt")
+    return found.stdout.strip()
+
+
+class Checker:
+    def __init__(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            raise CheckerError("node is not installed")
+        env = dict(os.environ, NODE_PATH=_node_path())
+        self.process = subprocess.Popen(
+            [node, str(SCRIPT)], stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+            encoding="utf-8", env=env, bufsize=1)
+        self.lock = threading.Lock()
+        self.ids = itertools.count(1)
+        self.calls = 0
+
+    def _ask(self, request: dict) -> dict:
+        with self.lock:
+            request["id"] = next(self.ids)
+            self.calls += 1
+            self.process.stdin.write(json.dumps(request) + "\n")
+            self.process.stdin.flush()
+            line = self.process.stdout.readline()
+        if not line:
+            raise CheckerError("the checker stopped")
+        return json.loads(line)
+
+    def check(self, source: str) -> list:
+        """The type errors in a candidate; none means it type-checks."""
+        reply = self._ask({"op": "check", "source": source})
+        if "errors" not in reply:
+            raise CheckerError(reply.get("error", "no reply"))
+        return reply["errors"]
+
+    def run(self, source: str, entry: str, cases, timeout: int = 200
+            ) -> list:
+        """What `entry` returns on each case: {"value"} or {"error"}."""
+        reply = self._ask({"op": "run", "source": source, "entry": entry,
+                           "cases": [list(one) for one in cases],
+                           "timeout": timeout})
+        if not reply.get("ok"):
+            return [{"error": reply.get("error", "failed")}
+                    for _ in cases]
+        return reply["outputs"]
+
+    def values(self, params, cases, expressions, timeout: int = 50
+               ) -> list:
+        """For each expression, its value on each case -- {"value"} or
+        {"error"} -- as Node computes it."""
+        if not expressions:
+            return []
+        reply = self._ask({"op": "values", "params": list(params),
+                           "cases": [list(one) for one in cases],
+                           "expressions": list(expressions),
+                           "timeout": timeout})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["values"]
+
+    def signatures(self, receivers, globals_) -> list:
+        """The library as the compiler has it (`tscheck.js`)."""
+        reply = self._ask({"op": "signatures", "receivers": list(receivers),
+                           "globals": list(globals_)})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["signatures"]
+
+    def tests(self, source: str, timeout: int = 2000) -> str | None:
+        """Run a whole file (a candidate and its tests): None if it ran
+        through, else what stopped it."""
+        reply = self._ask({"op": "tests", "source": source,
+                           "timeout": timeout})
+        return None if reply.get("ok") else reply.get("error", "failed")
+
+    def close(self) -> None:
+        if self.process.poll() is None:
+            self.process.stdin.close()
+            self.process.wait(timeout=5)
+
+
+_CHECKER: Checker | None = None
+
+
+def checker() -> Checker:
+    global _CHECKER
+    if _CHECKER is None or _CHECKER.process.poll() is not None:
+        _CHECKER = Checker()
+    return _CHECKER

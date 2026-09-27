@@ -532,6 +532,21 @@ def _piqa_check() -> str | None:
     return f"{PIQA['train']} train, {PIQA['valid']} dev"
 
 
+#: MultiPL-E's TypeScript configs and how many tasks each documents.
+MULTIPL_E = {"humaneval-ts": 159, "mbpp-ts": 390}
+
+
+def _multipl_e_check() -> str | None:
+    folder = DATA / "multipl-e"
+    if not (folder / "mbpp-ts.jsonl").exists():
+        return None
+    for config, expected in MULTIPL_E.items():
+        got = _lines(folder / f"{config}.jsonl")
+        if got != expected:
+            raise Failed(f"multipl-e {config}: {got}, documented {expected}")
+    return ", ".join(f"{count} {name}" for name, count in MULTIPL_E.items())
+
+
 def _actions_check() -> str | None:
     import sqlite3
     path = DATA / "v695_actions.sqlite"
@@ -933,6 +948,9 @@ def steps() -> list[Step]:
              _conceptnet_make, _conceptnet_check, cost="a few minutes"),
         Step("piqa", "PIQA train and dev with labels (6 MB), v695's benchmark",
              _piqa_make, _piqa_check, cost="seconds"),
+        Step("multipl-e", "MultiPL-E HumanEval-TS and MBPP-TS, v696's",
+             lambda: _run("research.v696.tasks", "fetch"),
+             _multipl_e_check, cost="a minute"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually
