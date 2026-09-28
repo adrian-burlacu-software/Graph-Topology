@@ -61,7 +61,7 @@ class Op:
     """One thing the language can do: needs these types, gives that one."""
 
     name: str
-    #: method | property | function | operator
+    #: method | property | function | operator | ternary | form
     kind: str
     needs: tuple
     gives: str
@@ -70,6 +70,10 @@ class Op:
     spread: bool = False
 
     def said(self, args: list) -> str:
+        if self.kind == "ternary":
+            return f"({args[0]} ? {args[1]} : {args[2]})"
+        if self.kind == "form":
+            return f"{args[0]}.{self.name}({', '.join(args[1:])})"
         if self.kind == "operator":
             if len(args) == 1:
                 return f"({self.name}{args[0]})"
@@ -92,7 +96,8 @@ class Expr:
     """A node of a program: its type, and how it is built."""
 
     type: str
-    #: param | const | hole | apply
+    #: param | const | hole | apply | lambda (its parameters in `name`,
+    #: comma-separated, its body the one arg)
     kind: str
     name: str = ""
     value: object = None
@@ -112,6 +117,8 @@ class Expr:
             return json.dumps(self.value)
         if self.kind == "hole":
             return f"/*?{self.type}*/"
+        if self.kind == "lambda":
+            return f"({self.name}) => {self.args[0].source()}"
         return self.op.said([one.source() for one in self.args])
 
     @property
@@ -127,6 +134,98 @@ class Expr:
         for one in self.args:
             out += one.ops()
         return out
+
+
+@dataclass(frozen=True)
+class Form:
+    """A member that takes a callback, as the compiler declares it: the
+    callback is a hole whose scope is its parameters and whose type is its
+    result -- free (`U`) for `map`, boolean for a predicate. `PLAN.md`,
+    rung 2: forms are read, not written."""
+
+    name: str
+    receiver: str
+    #: the hole's scope: (name in the program, type), in order
+    scope: tuple
+    #: the hole's type: a type, or "U" for any
+    body: str
+    #: the member's other arguments after the callback: types, or "U"
+    extra: tuple
+    #: what it gives: a type, "U" or "U[]"
+    gives: str
+
+    def op(self, body: str) -> Op:
+        """The form with its free type settled."""
+        def settle(one):
+            return one.replace("U", body) if "U" in one else one
+        return Op(self.name, "form",
+                  (self.receiver, f"fn:{settle(self.body)}",
+                   *(settle(one) for one in self.extra)),
+                  settle(self.gives))
+
+    @property
+    def free(self) -> bool:
+        return self.body == "U"
+
+
+def lambda_(scope, body: Expr) -> Expr:
+    return Expr(f"fn:{body.type}", "lambda",
+                name=", ".join(name for name, _ in scope), args=(body,))
+
+
+#: What a callback parameter is called in a program, by what the library
+#: calls it: short, as people write them.
+SCOPE_NAMES = {"value": "x", "currentValue": "x", "previousValue": "acc",
+               "index": "i", "currentIndex": "i", "a": "a", "b": "b"}
+#: Callback parameters a hole does not read: the whole array again.
+UNREAD = frozenset({"array", "obj", "this"})
+
+
+def _split_top(text: str, sep: str = ",") -> list:
+    out, depth, part = [], 0, ""
+    for char in text:
+        if char in "<([{":
+            depth += 1
+        elif char in ">)]}":
+            depth -= 1
+        if char == sep and depth == 0:
+            out.append(part.strip())
+            part = ""
+        else:
+            part += char
+    if part.strip():
+        out.append(part.strip())
+    return out
+
+
+def callback(type_: str):
+    """(scope, result) of a callback's declared type, or None:
+    `(value: number, index: number, array: number[]) => U` ->
+    ([(value, number), (index, number)], "U")."""
+    text = type_.replace("| undefined", "").strip()
+    while text.startswith("(") and text.endswith(")") and \
+            text.count("=>") == 1 and text[1:].startswith("("):
+        text = text[1:-1].strip()
+    if "=>" not in text or not text.startswith("("):
+        return None
+    depth = 0
+    for index, char in enumerate(text):
+        depth += char == "("
+        depth -= char == ")"
+        if depth == 0:
+            break
+    params, result = text[1:index], text[index + 1:].strip()
+    if not result.startswith("=>"):
+        return None
+    result = result[2:].strip()
+    scope = []
+    for one in _split_top(params):
+        name, _, kind = one.partition(":")
+        name = name.strip()
+        if name in UNREAD:
+            continue
+        scope.append((SCOPE_NAMES.get(name, name), kind.strip()))
+    return scope, result
 
 
 def param(name: str, kind: str) -> Expr:
@@ -151,6 +250,8 @@ def _plain(type_: str) -> str:
 @dataclass
 class Library:
     ops: list = field(default_factory=list)
+    #: rung 2: the members that take a callback
+    forms: list = field(default_factory=list)
 
     def giving(self, type_: str) -> list:
         return [one for one in self.ops if one.gives == type_]
@@ -184,11 +285,22 @@ def library(types=TYPES) -> Library:
 
     for symbol, needs, gives in OPERATORS:
         add(Op(symbol, "operator", needs, gives))
+    # The language's own form: `c ? a : b`, for every type.
+    for kind in types:
+        add(Op("?:", "ternary", ("boolean", kind, kind), kind))
+    forms, seen_forms = [], set()
     receivers = [one for one in types]
     for signature in checker().signatures(receivers, GLOBALS):
-        # Generic members take a callback (rung 2); deprecated ones are
-        # what the language itself says not to write.
-        if signature["generic"] or signature.get("deprecated"):
+        if signature.get("deprecated"):
+            # What the language itself says not to write.
+            continue
+        form = _form(signature, wanted)
+        if form is not None:
+            if form not in seen_forms:
+                seen_forms.add(form)
+                forms.append(form)
+            continue
+        if signature["generic"]:
             continue
         gives = _plain(signature["returns"])
         receiver = signature["receiver"]
@@ -219,6 +331,42 @@ def library(types=TYPES) -> Library:
             else:
                 add(Op(signature["name"], "method", (receiver, *needs),
                        gives, spread))
-    found = Library(ops)
+    found = Library(ops, forms)
     _LIBRARY[key] = found
     return found
+
+
+def _form(signature: dict, wanted: set) -> "Form | None":
+    """A member whose first parameter is a callback, as a form: the
+    callback read into a hole. A type guard (`value is S`) is the same
+    member said narrower, and `void` callbacks give nothing to compose."""
+    receiver = signature["receiver"]
+    params = signature["params"]
+    if receiver is None or not params:
+        return None
+    read = callback(params[0]["type"])
+    if read is None:
+        return None
+    scope, result = read
+    if " is " in result or result == "void":
+        return None
+    if result == "unknown":
+        result = "boolean"
+    if not all(kind in wanted for _, kind in scope) and not all(
+            kind in wanted or kind == "U" for _, kind in scope):
+        return None
+    extra = []
+    for one in params[1:]:
+        if one["optional"]:
+            continue
+        kind = _plain(one["type"])
+        if not kind:
+            return None
+        extra.append(kind)
+    gives = _plain(signature["returns"]) or signature["returns"]
+    if result not in wanted and result != "U":
+        return None
+    if gives not in wanted and gives not in ("U", "U[]"):
+        return None
+    return Form(signature["name"], receiver, tuple(scope), result,
+                tuple(extra), gives)

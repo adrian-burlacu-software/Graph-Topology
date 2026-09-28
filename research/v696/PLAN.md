@@ -138,6 +138,75 @@ reached:
   the project's own declarations for rungs 4–5 — the same reader.
 - Every result carries **how it was found** (the route), at every rung.
 
+## Rung 2 — control forms (planned 2026-09-27, after Phases 0–3)
+
+**Forms are read, not written.** The compiler declares every callback a
+member takes — `map(callbackfn: (value: T, index: number, array: T[]) => U)`,
+`filter(predicate: (...) => unknown)`, `reduce(callbackfn: (previousValue:
+U, currentValue: T, ...) => U, initialValue: U)`, `sort(compareFn: (a: T, b:
+T) => number)`. A form is that member with its callback as a **hole**: the
+callback's parameters are the hole's scope, its result the hole's type (free
+where it is `U`, boolean where it is a predicate). The ternary `c ? a : b` is
+the language's own form, added as an operator. A lambda is a node of the
+tree (`kind="lambda"`), printed `(value, index) => body`.
+
+**Holes are subgoals, and the spec is pushed down into them** — the
+executive's goal stack doing decomposition, which is what makes this rung
+cognitive rather than a bigger enumeration:
+
+- *deduced* — where the form says how its output is made from the hole's:
+  `map` over a list of the output's length gives one sub-example per element
+  (`value, index → out[j]`); `filter` whose output is a subsequence gives a
+  boolean per element; a string output over a list of its length is `map`
+  then `join("")`. The sub-spec is solved by the same solver, recursively;
+  what was solved is kept like any solution (recognition, chunks, control).
+- *checked* — where it does not (`some`, `every`, `find`, `findIndex`,
+  `reduce`, `sort`): bodies of the hole's type are grown in the hole's scope
+  over every element of every example (the forward trie, deduplicated), the
+  ones consistent with what the examples already force kept (an `every`
+  that is true forces its body true on every element), and the whole form
+  checked.
+
+**Receivers come from the forward trie**: any list value grown so far — a
+parameter, `s.split("")`, `words.slice(1)` — so forms appear inside
+compositions, not only at the top.
+
+**Measured**: rung-2 generated tasks (a form with a random body inside a
+composition, answer known, dev and held apart); HumanEval-TS passing its own
+tests (5/151 at rung 1); rung-1 tasks must not get worse. Baseline = the
+rung-1 solver on the same tasks.
+
+## Reading and writing code: an encoder and a decoder (Adrian, 2026-09-27)
+
+*"We're going to need to understand code as well — that's why I suggested a
+decoder and encoder architecture for TypeScript."* The ladder's later rungs
+read code as much as they write it, so the architecture takes the English
+side's shape: an encoder reads, a decoder speaks, and each is checked by the
+other's round trip. Four layers, each doing only what it is sure of:
+
+1. **Structure — exact.** The compiler is the structural encoder: files,
+   syntax trees, types, symbols, the call graph, read into the same typed
+   trees the search builds (rung 4's world).
+2. **Behaviour — by running.** What code does is read by executing it on
+   inputs and taking features of the values (`Spec.features`, the forward
+   trie): a function's behaviour as predicates recognition can walk.
+3. **Meaning — a learned encoder** (MiniLM, as the English reader): code,
+   names, comments and English requests in one space, so *sum the even
+   numbers* lands near `xs.filter(...).reduce(...)`. Training pairs in reach:
+   `lib.d.ts`'s JSDoc (every member described in English), MultiPL-E's
+   prompts against their signatures, generated programs against their
+   behaviour.
+4. **Writing — a decoder as proposer.** A small model (SmolLM2-360M, trained
+   into a new `llm/` directory) proposes sketches — trees with holes — that
+   the search fills and the checker verifies. Never trusted directly: its
+   output is parsed back into a tree and checked, as the English decoder's
+   is read back. Printing the final program stays exact, from the tree.
+
+Measured as everything else: the encoder by retrieval (English request →
+the right library member or solved program, held out), the decoder by how
+much search its sketches save and how often a sketch leads to a verified
+program, against search without it.
+
 ## What is measured, beyond "solved"
 
 - **Route**: recognised, means-ends, from a chunk, repaired backward, last

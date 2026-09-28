@@ -39,6 +39,8 @@ CONFIGS = {
     "meet+recognition": S.Switches(meet=True, coarse=True,
                                    recognition=True),
     "meet+chunks": S.Switches(meet=True, coarse=True, chunks=True),
+    "meet+repair+forms": S.Switches(meet=True, coarse=True, repair=True,
+                                    forms=True),
     "all": S.Switches.all(),
 }
 
@@ -81,6 +83,13 @@ def generated(held: bool) -> tuple:
                 found.append(one)
             seed += 1
         test += found
+    return train, test
+
+
+def generated2(held: bool, count: int = 30) -> tuple:
+    """Rung 2's (training, test) tasks: a form in each."""
+    train = G.tasks2(count, 1)
+    test = G.tasks2(count, 1, start=G.HELD if held else DEV_TEST)
     return train, test
 
 
@@ -143,10 +152,15 @@ def main(argv=None) -> int:
     parser.add_argument("--configs", nargs="*", default=list(CONFIGS))
     parser.add_argument("--budget", type=int, default=5000)
     parser.add_argument("--out", default="")
+    parser.add_argument("--rung", type=int, default=1)
     options = parser.parse_args(argv)
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
+    elif options.rung == 2:
+        train, test = generated2(options.held)
+        print(f"rung 2 {'held' if options.held else 'dev'}: {len(train)} "
+              f"training, {len(test)} test tasks")
     else:
         train, test = generated(options.held)
         print(f"{'held' if options.held else 'dev'}: {len(train)} training, "

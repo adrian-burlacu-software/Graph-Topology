@@ -94,6 +94,61 @@ checked exactly before use.
 | errands | 21/60 | 845 → 672 (−20%) | 3718 → 2900 | 60 = 60 |
 | blocks | 4/48 | 420 → 404 | 2674 → 2662 | 34 = 34 |
 
+## Rung 2 — control forms (`forms.py`)
+
+**Forms are read**: 39 of them from the compiler's callback declarations
+(`map`, `filter`, `some`, `every`, `find`, `findIndex`, `sort`, `reduce`,
+`reduceRight`, with and without an initial value), each callback a hole whose
+scope and type are its declared parameters and result; the ternary added as
+the language's own form. **Holes are subgoals**: `map` and `filter` push the
+spec down one element at a time (and `map` then `join("")` for a string), and
+a child solver sharing the parent's memory fills the hole; the other forms are
+grown with small bodies, compete for budget in the same attention queue, and
+are checked whole — which also puts forms inside compositions
+(`xs.filter(...).length`).
+
+What the forms forced, all general:
+
+- **Functional dependence as promise.** `x % 2` resembles neither `true`
+  nor `false`, so attention ignored it; now a value the output is a function
+  of is promising, whatever its type (`search.determines`).
+- **A composition is as promising as its best part**, not the mean: `=== 0`
+  beside it costs nothing.
+- **A constant recurs; data varies.** Taking every example value as a
+  literal flooded the pool (a sub-spec's elements) and let outputs be
+  memorised (`s.replace("aB", "Ab")`); now only values in at least half the
+  examples, numbers and single characters, at most three.
+- **Subgoals after the cheap level; Occam among receivers**: deduction
+  waits until the first level is grown, and offers `xs` before
+  `xs.filter(...)`.
+- **The checker survives what it runs**: a heap cap, and a batch that kills
+  Node is halved until the one that does is alone.
+
+Examples it finds by deduction: `xs.filter((x, i) => ((x % 2) === 0))`,
+`s.split("").map((x, i) => x.toUpperCase().replace(x, x.toLowerCase()))
+.join("")` (swap case), `words.map((x, i) => x.length)`.
+
+**Measured** (budget 8,000; train 30 then test 30; the generated tasks now
+include the ternary, so rung-1 rows are not the table above):
+
+| | dev solved / general | **held solved / general** | held evaluated |
+|---|---|---|---|
+| rung 2: baseline | 9 / 9 | 8 / 6 | 166k |
+| rung 2: meet + repair | 16 / 15 | 13 / 8 | 197k |
+| rung 2: meet + repair + **forms** | 21 / 19 | **21 / 19** | **120k** |
+| rung 1: meet + repair | 30 / 26 | 27 / 21 | 51.6k |
+| rung 1: meet + repair + forms | 29 / 26 | 28 / 21 | 70.1k |
+
+**HumanEval-TS** (151, budget 8,000, judged by its own tests): meet +
+repair passes **6**; with forms **13**, 12 of those routes by deduction —
+the prompt's examples met for 68. The gap between 68 and 13 is still the
+examples: two or three do not pin a function down, which the meaning encoder
+(reading the prompt's English, `PLAN.md`) is for.
+
+On rung 2's held tasks forms more than double what generalises (8 → 19) for
+40% fewer candidates. On rung 1 they cost 37% more candidates and change
+nothing that matters: the one regression left.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

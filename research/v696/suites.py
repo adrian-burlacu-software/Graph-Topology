@@ -76,7 +76,21 @@ def _planning_recognition() -> dict:
     return {"headline": "; ".join(parts), "metrics": metrics}
 
 
+def _rung2() -> dict:
+    """Rung 2's dev test tasks, forms on."""
+    from research.v696 import experiment as E
+    train, test = E.generated2(held=False)
+    row = E.run("meet+repair+forms", train, test, budget=5000)
+    routes = dict(row.routes)
+    return {"headline": f"{row.solved}/{row.total} solved, {row.general} "
+                        f"general; routes {routes}",
+            "metrics": {"solved": row.solved, "general": row.general,
+                        "total": row.total, "evaluated": row.evaluated,
+                        "routes": routes}}
+
+
 bench.register("code-generated", _generated)
+bench.register("code-rung2", _rung2)
 bench.register("designer-recog", _designer_recognition)
 bench.register("planning-recog", _planning_recognition)
 bench.register("code-humaneval", _humaneval, slow=True)

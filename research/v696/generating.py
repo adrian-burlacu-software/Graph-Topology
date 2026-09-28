@@ -119,6 +119,99 @@ def task(seed: int, depth: int) -> Spec | None:
     return None
 
 
+#: Rung 2's signatures: something a form can go over.
+SHAPES2 = (
+    (("xs", "number[]"),),
+    (("words", "string[]"),),
+    (("s", "string"),),
+    (("xs", "number[]"), ("n", "number")),
+    (("words", "string[]"), ("t", "string")),
+)
+
+
+def _receiver(shape) -> P.Expr:
+    """What the form goes over: a list parameter, or a string's letters."""
+    for name, kind in shape:
+        if kind.endswith("[]"):
+            return P.param(name, kind)
+    name = shape[0][0]
+    split = next(op for op in P.library().ops
+                 if op.key == "method:split:string,string->string[]")
+    return P.apply(split, [P.param(name, "string"), P.const("", "string")])
+
+
+def task2(seed: int, depth: int = 1) -> Spec | None:
+    """A rung-2 task: a form over a list with a random body `depth` deep
+    in the hole's scope, perhaps with one operator after it."""
+    rng = random.Random(seed * 104729 + depth)
+    shape = rng.choice(SHAPES2)
+    names = [name for name, _ in shape]
+    lib = P.library()
+    receiver = _receiver(shape)
+    forms = [one for one in lib.forms if one.receiver == receiver.type]
+    for _ in range(40):
+        form = rng.choice(forms)
+        body_type = rng.choice(P.SCALARS) if form.free else form.body
+        op = form.op(body_type)
+        scope = [(name, body_type if kind == "U" else kind)
+                 for name, kind in form.scope]
+        pool = [P.param(name, kind) for name, kind in scope] + [
+            P.param(name, kind) for name, kind in shape] + [
+            P.const(value, kind) for value, kind in P.CONSTANTS]
+        body = _grow_typed(rng, pool, lib.ops, depth, body_type)
+        if body is None or not _uses(body, [scope[0][0]]):
+            continue
+        extra = []
+        for need in op.needs[2:]:
+            fitting = [one for one in pool if one.type == need
+                       and one.kind == "const"]
+            if not fitting:
+                break
+            extra.append(rng.choice(fitting))
+        if len(extra) != len(op.needs) - 2:
+            continue
+        answer = P.apply(op, [receiver, P.lambda_(scope, body), *extra])
+        if rng.random() < 0.5:
+            after = [one for one in lib.ops if one.needs == (answer.type,)
+                     or (len(one.needs) == 2 and one.needs[0] ==
+                         answer.type and one.needs[1] == "string")]
+            if after:
+                then = rng.choice(after)
+                args = [answer] + ([P.const("", "string")]
+                                   if len(then.needs) == 2 else [])
+                answer = P.apply(then, args)
+        if not _uses(answer, names):
+            continue
+        cases = [[_value(kind, rng) for _, kind in shape]
+                 for _ in range(SHOWN + HIDDEN)]
+        row = checker().values(names, cases, [answer.source()])[0]
+        if any("error" in one for one in row):
+            continue
+        outputs = [one["value"] for one in row]
+        if len({json.dumps(one) for one in outputs}) < 2:
+            continue
+        if any(all(json.dumps(case[index]) == json.dumps(out)
+                   for case, out in zip(cases, outputs))
+               for index in range(len(names))):
+            continue
+        pairs = list(zip(cases, outputs))
+        return Spec(f"gen2-{seed}-{depth}", list(shape), answer.type,
+                    pairs[:SHOWN], pairs[SHOWN:], answer=answer)
+    return None
+
+
+def tasks2(count: int, depth: int = 1, held: bool = False,
+           start: int | None = None) -> list:
+    out = []
+    seed = start if start is not None else (HELD if held else DEV)
+    while len(out) < count:
+        found = task2(seed, depth)
+        if found is not None:
+            out.append(found)
+        seed += 1
+    return out
+
+
 def tasks(count: int, depth: int, held: bool = False) -> list:
     """`count` tasks at one depth, from dev seeds or held ones."""
     out, seed = [], HELD if held else DEV

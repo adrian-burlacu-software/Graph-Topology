@@ -44,7 +44,8 @@ class Checker:
             raise CheckerError("node is not installed")
         env = dict(os.environ, NODE_PATH=_node_path())
         self.process = subprocess.Popen(
-            [node, str(SCRIPT)], stdin=subprocess.PIPE,
+            [node, "--max-old-space-size=1024", str(SCRIPT)],
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
             encoding="utf-8", env=env, bufsize=1)
         self.lock = threading.Lock()
@@ -86,13 +87,33 @@ class Checker:
         {"error"} -- as Node computes it."""
         if not expressions:
             return []
-        reply = self._ask({"op": "values", "params": list(params),
-                           "cases": [list(one) for one in cases],
-                           "expressions": list(expressions),
-                           "timeout": timeout})
+        try:
+            reply = self._ask({"op": "values", "params": list(params),
+                               "cases": [list(one) for one in cases],
+                               "expressions": list(expressions),
+                               "timeout": timeout})
+        except CheckerError:
+            # A candidate killed the process -- memory, most likely: a
+            # search runs arbitrary code. Start again and halve the batch
+            # until the one that does it is alone; it is an error, and
+            # the rest are what they are.
+            self.restart()
+            if len(expressions) == 1:
+                return [[{"error": "the checker stopped"} for _ in cases]]
+            middle = len(expressions) // 2
+            return (self.values(params, cases, expressions[:middle], timeout)
+                    + self.values(params, cases, expressions[middle:],
+                                  timeout))
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["values"]
+
+    def restart(self) -> None:
+        try:
+            self.process.kill()
+        except OSError:
+            pass
+        self.__init__()
 
     def signatures(self, receivers, globals_) -> list:
         """The library as the compiler has it (`tscheck.js`)."""

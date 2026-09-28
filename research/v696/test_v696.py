@@ -105,5 +105,49 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(rebuilt.source(), "t.trim().toUpperCase()")
 
 
+@needs_node
+class FormTests(unittest.TestCase):
+    """Rung 2: forms read from the compiler, holes as subgoals."""
+
+    def solve(self, spec, budget=12000):
+        from research.v696 import search as S
+        return S.Solver(S.Switches(meet=True, coarse=True, repair=True,
+                                   forms=True), budget=budget).solve(spec)
+
+    def test_forms_are_read_from_the_callbacks(self):
+        from research.v696 import program as P
+        forms = {(one.name, one.receiver, one.body)
+                 for one in P.library().forms}
+        self.assertIn(("map", "number[]", "U"), forms)
+        self.assertIn(("filter", "string[]", "boolean"), forms)
+        self.assertIn(("sort", "number[]", "number"), forms)
+
+    def test_a_map_is_deduced_element_by_element(self):
+        from research.v696.spec import Spec
+        got = self.solve(Spec("double", [("xs", "number[]")], "number[]",
+                              [([[1, 2, 3]], [2, 4, 6]), ([[5]], [10]),
+                               ([[0, -1]], [0, -2])]))
+        self.assertEqual(got.route, "deduced")
+        self.assertIn(".map(", got.program.source())
+
+    def test_a_filter_is_deduced_and_its_predicate_found(self):
+        from research.v696.spec import Spec
+        got = self.solve(Spec("evens", [("xs", "number[]")], "number[]",
+                              [([[1, 2, 3, 4]], [2, 4]), ([[5, 6]], [6]),
+                               ([[8, 1, 10]], [8, 10])]))
+        self.assertEqual(got.program.source(),
+                         "xs.filter((x, i) => ((x % 2) === 0))")
+
+    def test_the_answer_is_a_function_of_it(self):
+        from research.v696.search import determines
+        outputs = [False, True, False, True]
+        self.assertGreater(determines([{"value": 1}, {"value": 0},
+                                       {"value": 1}, {"value": 0}],
+                                      outputs), 0)
+        self.assertEqual(determines([{"value": 1}, {"value": 1},
+                                     {"value": 2}, {"value": 0}],
+                                    outputs), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

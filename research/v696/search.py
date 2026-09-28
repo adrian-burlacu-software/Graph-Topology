@@ -51,6 +51,8 @@ BATCH = 400
 DEPTH = 3
 #: How many candidates may be evaluated for one spec.
 BUDGET = 20000
+#: How many of a spec's recurring values are taken as its constants.
+LITERALS = 3
 
 
 @dataclass
@@ -61,10 +63,12 @@ class Switches:
     repair: bool = False
     learned: bool = False
     chunks: bool = False
+    #: rung 2: control forms, their holes as subgoals (`forms.py`)
+    forms: bool = False
 
     @classmethod
     def all(cls) -> "Switches":
-        return cls(True, True, True, True, True, True)
+        return cls(True, True, True, True, True, True, True)
 
     def label(self) -> str:
         on = [name for name, value in vars(self).items() if value]
@@ -75,9 +79,11 @@ class Switches:
 class Result:
     spec: str
     program: P.Expr | None = None
-    #: recognized | meet | repaired | means-ends | unsolved
+    #: recognized | deduced | meet | repaired | means-ends | unsolved
     route: str = "unsolved"
     evaluated: int = 0
+    #: holes solved as specs of their own (rung 2)
+    subgoals: int = 0
     seconds: float = 0.0
     #: meets the hidden examples too
     general: bool = False
@@ -127,9 +133,32 @@ def _relation(value, output) -> float:
 
 
 def relevance(row, outputs) -> float:
-    """Over every example: how far a value already resembles the answer."""
-    return sum(_relation(one["value"], out) for one, out in zip(row, outputs)
-               if "value" in one) / max(len(outputs), 1)
+    """Over every example: how far a value already resembles the answer --
+    and, whatever its type, whether the answer is a function of it."""
+    resembles = sum(_relation(one["value"], out) for one, out in
+                    zip(row, outputs) if "value" in one) / max(len(outputs),
+                                                               1)
+    return resembles + determines(row, outputs)
+
+
+def determines(row, outputs) -> float:
+    """Functional dependence: the output is fixed by this value -- equal
+    values never meet different outputs -- and the value varies with it.
+    `x % 2` determines `is x even` though it resembles neither `true` nor
+    `false`. The fewer distinct values, the more it has already done."""
+    if len({_key(out) for out in outputs}) < 2:
+        return 0.0
+    seen: dict = {}
+    for one, out in zip(row, outputs):
+        if "value" not in one:
+            return 0.0
+        key = _key(one["value"])
+        if seen.setdefault(key, _key(out)) != _key(out):
+            return 0.0
+    distinct = len(seen)
+    if distinct < 2:
+        return 0.0
+    return 1.5 * (len({_key(out) for out in outputs}) / distinct)
 
 
 def _near(row, outputs) -> int:
@@ -180,8 +209,16 @@ def _subtrees(expr: P.Expr):
         yield from _subtrees(one)
 
 
+def _has_lambda(expr: P.Expr) -> bool:
+    return expr.kind == "lambda" or any(_has_lambda(one)
+                                        for one in expr.args)
+
+
 def _chunk(expr: P.Expr):
-    """A subtree as an operator: its leaves become holes, in order."""
+    """A subtree as an operator: its leaves become holes, in order. Not one
+    with a lambda in it: a lambda's parameters are bound there, not free."""
+    if _has_lambda(expr):
+        return None
     holes = []
 
     def lift(one):
@@ -239,18 +276,31 @@ class Solver:
         pool = spec.inputs() + [P.const(value, kind)
                                 for value, kind in P.CONSTANTS]
         seen = {(one.type, one.source()) for one in pool}
-        # The spec's own literals: what its examples say in so many words.
+        # The spec's own constants: a value that recurs across its examples
+        # is the task's; one that varies is data. Numbers and single
+        # characters only -- a longer string taken from an output is the
+        # output memorised, not a constant of the program.
+        counts: dict = defaultdict(int)
         for args, output in spec.examples:
+            here = set()
             for value in list(args) + [output]:
                 if isinstance(value, bool) or not isinstance(value,
                                                              (int, str)):
                     continue
-                kind = "number" if isinstance(value, int) else "string"
-                if isinstance(value, str) and len(value) > 3:
+                if isinstance(value, str) and len(value) != 1:
                     continue
-                if (kind, json.dumps(value)) not in seen:
-                    seen.add((kind, json.dumps(value)))
-                    pool.append(P.const(value, kind))
+                kind = "number" if isinstance(value, int) else "string"
+                here.add((kind, json.dumps(value)))
+            for one in here:
+                counts[one] += 1
+        recurring = sorted((one for one, count in counts.items()
+                            if count * 2 >= len(spec.examples)
+                            and len(spec.examples) > 1),
+                           key=lambda one: -counts[one])[:LITERALS]
+        for kind, said in recurring:
+            if (kind, said) not in seen:
+                seen.add((kind, said))
+                pool.append(P.const(json.loads(said), kind))
         return pool
 
     def _evaluate(self, spec: Spec, exprs: list) -> list:
@@ -270,6 +320,7 @@ class Solver:
 
     def solve(self, spec: Spec) -> Result:
         started = time.time()
+        self._deduced = set()
         result = Result(spec.name)
         found = None
         if self.switches.recognition:
@@ -424,6 +475,21 @@ class Solver:
         if found is not None:
             result.route = "meet"
             return found
+        forward_forms = []
+        if self.switches.forms:
+            # Deduction pushes subgoals, and a subgoal is a search of its
+            # own: it waits until the first level -- cheap, and enough for
+            # much -- has been grown and checked (below, at level 2).
+            # Checked forms over what is in hand, grown with the first
+            # level: a form whose whole output meets the spec is found by
+            # the meet, one that does not may be composed further.
+            from research.v696 import forms as F
+            literals = [one for one in self._pool(spec)
+                        if one.kind == "const"]
+            for kind in list(kept):
+                if kind.endswith("[]"):
+                    for expr, _ in kept[kind][:4]:
+                        forward_forms += F.applied(spec, expr, literals)
 
         def combinations(op: P.Op, depth: int):
             """Argument tuples with at least one argument made at the last
@@ -448,13 +514,30 @@ class Solver:
 
         for depth in range(1, self.depth + 1):
             admitted["level"] = depth
+            if forward_forms and depth == 1 and not self.switches.coarse:
+                for start in range(0, len(forward_forms), BATCH):
+                    found = admit(forward_forms[start:start + BATCH])
+                    if found is not None:
+                        result.route = "meet"
+                        return found
+                forward_forms = []
+            if self.switches.forms and depth == 2:
+                # Lists made at the first level (`s.split("")`) are
+                # receivers too.
+                found = self._deduce(spec, kept, result)
+                if found is not None:
+                    result.route = "deduced"
+                    return found
             if self.switches.coarse:
                 # Attention across operators: every candidate of this
                 # level in one queue, the most promising first -- arguments
                 # that already resemble the answer, an operator that gives
                 # the wanted type, one the learned control prefers.
+                # Checked forms compete with every other candidate of the
+                # first level for the budget, by the same attention.
                 found = self._attend(spec, ops, steps, depth, combinations,
-                                     promise, admit, result)
+                                     promise, admit, result,
+                                     forward_forms if depth == 1 else ())
                 if found is not None:
                     result.route = "meet"
                     return found
@@ -498,8 +581,14 @@ class Solver:
     ATTENDED = 12
 
     def _attend(self, spec, ops, steps, depth, combinations, promise, admit,
-                result) -> P.Expr | None:
+                result, formed=()) -> P.Expr | None:
         queue = []
+        for count, expr in enumerate(formed):
+            # A form is as promising as what it goes over, and more if it
+            # gives the wanted type.
+            score = promise.get(expr.args[0].source(), 0.0) + (
+                1.0 if expr.type == spec.returns else 0.0)
+            queue.append((-score, len(ops), count, None, expr))
         features = spec.features() if self.switches.learned else ()
         for rank, op in enumerate(ops):
             if steps.get(op.gives, 99) > self.depth - depth:
@@ -509,21 +598,50 @@ class Solver:
                 bonus += 0.1 * self.memory.utility(op, features)
             count = 0
             for args in combinations(op, depth):
-                score = sum(promise.get(arg.source(), 0.0)
-                            for arg in args) / len(args)
+                # As promising as its most promising part: a constant
+                # beside it (`=== 0`) resembles nothing, and costs nothing.
+                score = max(promise.get(arg.source(), 0.0) for arg in args)
                 queue.append((-(score + bonus), rank, count, op, args))
                 count += 1
                 if count >= self.ATTENDED ** len(op.needs):
                     break
         queue.sort(key=lambda one: one[:3])
         for start in range(0, len(queue), BATCH):
-            batch = [self._build(op, args)
+            batch = [args if op is None else self._build(op, args)
                      for _, _, _, op, args in queue[start:start + BATCH]]
             found = admit(batch)
             if found is not None:
                 return found
             if result.evaluated >= self.budget:
                 return None
+        return None
+
+#: How many list receivers a level offers to deduction.
+    RECEIVERS = 6
+
+    def _deduce(self, spec, kept, result) -> P.Expr | None:
+        """Rung 2: push the spec into a form's hole over each list in hand,
+        those most like the output first (`forms.deduced`)."""
+        from research.v696 import forms as F
+        tried = self.__dict__.setdefault("_deduced", set())
+        offered = []
+        for kind in list(kept):
+            if not kind.endswith("[]"):
+                continue
+            for expr, row in kept[kind]:
+                if expr.source() in tried or any("error" in one
+                                                 for one in row):
+                    continue
+                offered.append((relevance(row, spec.outputs), expr, row))
+        # Occam first: the simplest receiver, then the most promising --
+        # `xs` before `xs.filter(...)`, which would stack a form on a form.
+        offered.sort(key=lambda one: (one[1].size, -one[0]))
+        for _, expr, row in offered[:self.RECEIVERS]:
+            tried.add(expr.source())
+            found = F.deduced(self, spec, expr,
+                              [one["value"] for one in row], result)
+            if found is not None:
+                return found
         return None
 
     def _repair(self, spec, result, near, kept) -> P.Expr | None:
@@ -574,7 +692,8 @@ def _rebind(program: P.Expr, old: Spec, new: Spec) -> P.Expr | None:
 
     def walk(one):
         if one.kind == "param":
-            return P.param(mapping[one.name], one.type)
+            # A lambda's own parameters are not the spec's: kept as named.
+            return P.param(mapping.get(one.name, one.name), one.type)
         return P.Expr(one.type, one.kind, one.name, one.value, one.op,
                       tuple(walk(arg) for arg in one.args))
 
