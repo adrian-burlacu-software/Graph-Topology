@@ -144,15 +144,17 @@ function signatures(receivers, globals) {
       const calls = member.getCallSignatures();
       const deprecated = property.getJsDocTags()
         .some((tag) => tag.name === "deprecated");
+      const doc = ts.displayPartsToString(
+        property.getDocumentationComment(checker));
       if (calls.length === 0) {
         out.push({ receiver: receivers[index], name: property.getName(),
-                   property: true, params: [], deprecated,
+                   property: true, params: [], deprecated, doc,
                    returns: checker.typeToString(member), generic: false });
         continue;
       }
       calls.forEach((signature) => out.push(Object.assign(
         { receiver: receivers[index], name: property.getName(),
-          property: false, deprecated }, describe(signature, declaration.name))));
+          property: false, deprecated, doc }, describe(signature, declaration.name))));
     }
   });
   const scope = checker.getSymbolsInScope(source, ts.SymbolFlags.Value);
@@ -167,7 +169,9 @@ function signatures(receivers, globals) {
         { receiver: null, deprecated: property !== null && property.getJsDocTags()
             .some((tag) => tag.name === "deprecated"),
           name: property === null ? symbol.getName()
-            : `Math.${property.getName()}`, property: false },
+            : `Math.${property.getName()}`, property: false,
+          doc: ts.displayPartsToString((property || symbol)
+            .getDocumentationComment(checker)) },
         describe(signature, source))));
     }
   }
@@ -215,6 +219,122 @@ function tests(source, timeout) {
   vm.runInContext(transpile(source), sandbox(), { timeout });
 }
 
+function programOf(name, text) {
+  const host = {
+    getSourceFile: (file) => file === name
+      ? ts.createSourceFile(name, text, ts.ScriptTarget.ES2020, true)
+      : libFile(path.basename(file)),
+    getDefaultLibFileName: () => "lib.es2020.d.ts",
+    writeFile: () => {},
+    getCurrentDirectory: () => "/",
+    getDirectories: () => [],
+    fileExists: (file) => file === name || libFile(path.basename(file)) !== undefined,
+    readFile: (file) => file === name ? text : undefined,
+    getCanonicalFileName: (file) => file,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+  };
+  return ts.createProgram([name], OPTIONS, host);
+}
+
+// What a function is made of, as the compiler resolves it: every member
+// called or read, named by the interface that declares it (`String.split`,
+// `Array.filter`, `Math.max` -- whatever the receiver was called), the
+// operators, and the statements. And what gives its result: the outermost
+// thing its last `return` returns. Nothing here knows what a member does.
+const READONLY = { ReadonlyArray: "Array", ReadonlySet: "Set",
+                   ReadonlyMap: "Map" };
+const OPERATOR = { "==": "===", "!=": "!==" };
+const STATEMENTS = {
+  ForStatement: "for", ForOfStatement: "for of", ForInStatement: "for in",
+  WhileStatement: "while", DoStatement: "while", IfStatement: "if",
+  SwitchStatement: "switch", TryStatement: "try",
+  ConditionalExpression: "?:", ArrowFunction: "=>",
+  FunctionExpression: "=>", ArrayLiteralExpression: "[]",
+  ObjectLiteralExpression: "{}", SpreadElement: "...",
+  TemplateExpression: "template", ElementAccessExpression: "[i]",
+  VariableDeclaration: "let", RegularExpressionLiteral: "regex",
+  BreakStatement: "break", ContinueStatement: "continue",
+};
+
+function structure(source, entry) {
+  const name = "read.ts";
+  const program = programOf(name, PRELUDE + source);
+  const checker = program.getTypeChecker();
+  const file = program.getSourceFile(name);
+  const uses = new Map();
+  const use = (word) => uses.set(word, (uses.get(word) || 0) + 1);
+  let root = null;
+
+  const memberName = (node) => {
+    const symbol = checker.getSymbolAtLocation(node.name || node);
+    const declaration = symbol && symbol.declarations && symbol.declarations[0];
+    if (!declaration) return null;
+    const owner = declaration.parent;
+    let where = owner && owner.name && owner.name.text;
+    if (!where) return null;
+    where = READONLY[where] || where;
+    if (where === "Math" || where === "MathConstructor") where = "Math";
+    return `${where.replace(/Constructor$/, "")}.${symbol.getName()}`;
+  };
+  const said = (node) => {
+    // What an expression is, at its outermost.
+    if (!node) return null;
+    while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+           || ts.isNonNullExpression(node)) node = node.expression;
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isPropertyAccessExpression(callee)) return memberName(callee);
+      if (ts.isIdentifier(callee)) return callee.text === entry
+        ? "recursion" : callee.text;
+      return "call";
+    }
+    if (ts.isNewExpression(node)) return `new ${node.expression.getText()}`;
+    if (ts.isPropertyAccessExpression(node)) return memberName(node);
+    if (ts.isBinaryExpression(node)) {
+      const token = ts.tokenToString(node.operatorToken.kind);
+      return OPERATOR[token] || token;
+    }
+    if (ts.isPrefixUnaryExpression(node))
+      return ts.tokenToString(node.operator);
+    if (ts.isIdentifier(node)) return "a name";
+    if (ts.isNumericLiteral(node) || ts.isStringLiteral(node)
+        || node.kind === ts.SyntaxKind.TrueKeyword
+        || node.kind === ts.SyntaxKind.FalseKeyword) return "a literal";
+    return STATEMENTS[ts.SyntaxKind[node.kind]] || ts.SyntaxKind[node.kind];
+  };
+
+  let target = null;
+  file.forEachChild(function find(node) {
+    if (ts.isFunctionDeclaration(node) && node.name
+        && node.name.text === entry) target = node;
+  });
+  if (!target || !target.body) return { uses: {}, root: null };
+  (function walk(node, inside) {
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)
+        || ts.isBinaryExpression(node) || ts.isPrefixUnaryExpression(node)) {
+      const word = said(node);
+      if (word && !(ts.isBinaryExpression(node)
+                    && node.operatorToken.kind === ts.SyntaxKind.EqualsToken))
+        use(word);
+    } else if (ts.isPropertyAccessExpression(node)
+               && !(node.parent && ts.isCallExpression(node.parent)
+                    && node.parent.expression === node)) {
+      const word = memberName(node);
+      if (word) use(word);
+    } else if (ts.isPostfixUnaryExpression(node)) {
+      use(ts.tokenToString(node.operator));
+    } else if (STATEMENTS[ts.SyntaxKind[node.kind]]) {
+      use(STATEMENTS[ts.SyntaxKind[node.kind]]);
+    }
+    if (ts.isReturnStatement(node) && !inside) root = said(node.expression);
+    const nested = inside || ts.isArrowFunction(node)
+      || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node);
+    node.forEachChild((child) => walk(child, nested));
+  })(target.body, false);
+  return { uses: Object.fromEntries(uses), root };
+}
+
 const lines = readline.createInterface({ input: process.stdin });
 lines.on("line", (line) => {
   let request;
@@ -239,6 +359,9 @@ lines.on("line", (line) => {
     } else if (request.op === "signatures") {
       reply.signatures = signatures(request.receivers || [],
                                     request.globals || []);
+      reply.ok = true;
+    } else if (request.op === "structure") {
+      Object.assign(reply, structure(request.source, request.entry));
       reply.ok = true;
     } else if (request.op === "tests") {
       tests(request.source, request.timeout || 2000);

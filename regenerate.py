@@ -922,6 +922,51 @@ def _open_designer_proposer_check() -> str | None:
     return f"{len(model)} way models"
 
 
+def _code_meaning_make() -> None:
+    """v696's reader of meaning is taught from: the library's JSDoc,
+    MBPP-TS solved by SmolLM3 (kept by the tests), HumanEval-TS solved the
+    same way to measure with, generated programs said in English (kept by
+    a round trip), then the records."""
+    for job in (("docs",), ("solutions",), ("solutions", "--held"),
+                ("described", "--count", "4000"), ("corpus",)):
+        _run("research.v696.teach_meaning", *job)
+
+
+def _code_meaning_check() -> str | None:
+    """SmolLM3 samples, so a rebuild is not the same corpus line for line:
+    what is checked is that every source is there in about its size."""
+    path = DATA / "code-meaning" / "corpus.jsonl"
+    if not path.exists():
+        return None
+    import json
+    counts: dict = {}
+    for line in path.open(encoding="utf-8"):
+        row = json.loads(line)
+        counts[row["source"]] = counts.get(row["source"], 0) + 1
+    least = {"docs": 150, "mbpp-ts": 350, "humaneval-ts": 150,
+             "generated": 3000}
+    for source, count in least.items():
+        if counts.get(source, 0) < count:
+            raise Failed(f"code-meaning: {counts.get(source, 0)} {source} "
+                         f"records, expected at least {count}")
+    return ", ".join(f"{count} {name}" for name, count in counts.items())
+
+
+def _meaning_check(out: Path) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "heads.bin").exists():
+            return None
+        import json
+        labels = json.loads((out / "labels.json").read_text(
+            encoding="utf-8"))
+        if len(labels.get("uses", ())) < 60:
+            raise Failed(f"{out.name}: {len(labels.get('uses', ()))} "
+                         f"things a program uses, expected at least 60")
+        return ", ".join(f"{len(names)} {head}"
+                         for head, names in labels.items())
+    return check
+
+
 def steps() -> list[Step]:
     """Every artefact, in the order it can be built."""
     return [
@@ -1128,6 +1173,23 @@ def steps() -> list[Step]:
              lambda: _run("research.v694.proposer", "train"),
              _open_designer_proposer_check, needs=("store", "verbnet"),
              cost="a few minutes"),
+
+        # -- reading code and English together (research/v696) ------------
+        Step("unixcoder", "UniXcoder-base, the reader of meaning's base "
+                          "(480 MB)",
+             _hf_make("microsoft/unixcoder-base", LLM / "unixcoder-base"),
+             _model_check(LLM / "unixcoder-base", 400), cost="a minute"),
+        Step("code-meaning", "English and code for the reader of meaning, "
+                             "every label read exactly",
+             _code_meaning_make, _code_meaning_check,
+             needs=("multipl-e", "smollm3"), cost="two hours", gpu=True),
+        Step("meaning", "the reader of meaning: English and code, one "
+                        "sequence, one structure",
+             lambda: _run("research.v696.reader", "train", "--base",
+                          "unixcoder-base", "--model", "meaning-unixcoder"),
+             _meaning_check(LLM / "meaning-unixcoder"),
+             needs=("code-meaning", "unixcoder"), cost="ten minutes",
+             gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

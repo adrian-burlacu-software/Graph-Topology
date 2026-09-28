@@ -31,6 +31,11 @@ class Spec:
     #: MultiPL-E's own tests, for an independent one
     tests: str = ""
     entry: str = "f"
+    #: what the request says in English, where it says anything
+    english: str = ""
+    #: what the reader of meaning (`reader.py`) expects of the program:
+    #: {"uses": {word: p}, "behaviour": {predicate: p}}
+    expected: dict | None = None
 
     @property
     def names(self) -> list:

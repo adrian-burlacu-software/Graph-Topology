@@ -176,36 +176,110 @@ composition, answer known, dev and held apart); HumanEval-TS passing its own
 tests (5/151 at rung 1); rung-1 tasks must not get worse. Baseline = the
 rung-1 solver on the same tasks.
 
-## Reading and writing code: an encoder and a decoder (Adrian, 2026-09-27)
+## Reading code and English together: one meaning (Adrian, 2026-09-27/28)
 
 *"We're going to need to understand code as well — that's why I suggested a
-decoder and encoder architecture for TypeScript."* The ladder's later rungs
-read code as much as they write it, so the architecture takes the English
-side's shape: an encoder reads, a decoder speaks, and each is checked by the
-other's round trip. Four layers, each doing only what it is sure of:
+decoder and encoder architecture for TypeScript."* And: *"english+code ->
+internal representation, I don't want you to focus on english or code in
+isolation"*; the readers *"should work together"*.
 
-1. **Structure — exact.** The compiler is the structural encoder: files,
-   syntax trees, types, symbols, the call graph, read into the same typed
-   trees the search builds (rung 4's world).
-2. **Behaviour — by running.** What code does is read by executing it on
-   inputs and taking features of the values (`Spec.features`, the forward
-   trie): a function's behaviour as predicates recognition can walk.
-3. **Meaning — a learned encoder** (MiniLM, as the English reader): code,
-   names, comments and English requests in one space, so *sum the even
-   numbers* lands near `xs.filter(...).reduce(...)`. Training pairs in reach:
-   `lib.d.ts`'s JSDoc (every member described in English), MultiPL-E's
-   prompts against their signatures, generated programs against their
-   behaviour.
-4. **Writing — a decoder as proposer.** A small model (SmolLM2-360M, trained
-   into a new `llm/` directory) proposes sketches — trees with holes — that
-   the search fills and the checker verifies. Never trusted directly: its
-   output is parsed back into a tree and checked, as the English decoder's
-   is read back. Printing the final program stays exact, from the tree.
+**One reader, one input, one meaning.** A task never comes as English alone
+or code alone: a request names a function, gives its signature, shows an
+example, points at code that is there. So the reader is **one encoder over
+one sequence** holding whatever of both is present — the English, the
+signature, the examples, a body — and it reads that sequence into **one
+structure**. It is never an English reader and a code reader joined later.
+Any part may be missing, and the reading must still come out: *sum the even
+numbers* alone, `function f(xs: number[]): number` alone, and both together
+give the same meaning, the last most surely.
 
-Measured as everything else: the encoder by retrieval (English request →
-the right library member or solved program, held out), the decoder by how
-much search its sketches save and how often a sketch leads to a verified
-program, against search without it.
+### The meaning is a structure, not a vector
+
+What the search, recognition and the checker can use and check:
+
+| part | what it is | e.g. *sum the even numbers* |
+|---|---|---|
+| `takes`, `returns` | the types | `number[] → number` |
+| `behaviour` | predicates of how the output stands to the input — what `Spec.features` reads off values, widened (sorted, reversed, a count of, a sum of, the largest of, unique, same items ...) | `a sum of a part of input 1` |
+| `uses` | what the program is made of: library members, operators, forms, constructs (a loop, a condition, recursion, a `Set`) | `filter`, `%`, `===`, `reduce`, `+` |
+| `root` | what gives the result | `reduce` |
+
+A vector is kept only as a key into the recognition trie (nearest solved
+thing) — never as the meaning, because nothing can check a vector.
+
+### How it is taught: code gives the English its labels
+
+The model sees English and code **in the same sequences** and learns one
+reading of both; the exact channels are its **teachers and checkers**, as
+the grammar was the English reader's (`research/encoder.py`), and are never
+asked at run time:
+
+- **Structure is read exactly** by the compiler from verified code
+  (`tscheck.js` `structure`: each call resolved to its declaring member by
+  the type checker, the operators, the statements).
+- **Behaviour is read exactly** by running: the predicates over every
+  input/output pair known (MultiPL-E's own tests are pairs).
+
+Every record is shown in several **views** of its one sequence — English +
+signature + examples, English + signature, signature + examples, English
+alone, code alone — with **the same target**. That is what makes the
+representation shared by construction rather than aligned afterwards.
+
+**Sources** (none hand-labelled):
+
+1. `lib.d.ts` — every member's JSDoc in English beside its declaration; the
+   member run on generated values for its behaviour.
+2. MBPP-TS (a train and a dev split) — English, signature, tests; behaviour
+   exact from the tests; `uses`/`root` where a verified solution exists.
+3. Verified solutions — SmolLM3 offline writes TypeScript for MBPP train;
+   kept only when the task's tests pass; the solver's own solutions too.
+4. Generated programs (rungs 1–2, any number) — the code known; English
+   written by SmolLM3 offline and **checked by a round trip**: from the
+   English alone SmolLM3 writes code again, and the description is kept only
+   when that code does what the program does on its examples and hidden
+   inputs.
+
+HumanEval-TS is never trained on: it is the held test.
+
+**The base model is measured, not assumed**: MiniLM-L6 (English only),
+ModernBERT-base (English and code in pretraining) and UniXcoder-base
+(pretrained on English–code pairs), each fine-tuned on the same corpus into
+its own new `llm/` directory, chosen on MBPP dev.
+
+### How the search uses it — and the round trip at run time
+
+- `uses` → promise in the attention queue: a member the reading expects is
+  grown first.
+- `behaviour` → a check on what the search finds: a program that meets the
+  examples is read back into behaviour **exactly, by running it** on the
+  examples and on fresh inputs of the parameter types; if that contradicts
+  what the English + code reading says, it is not the answer and the search
+  goes on. The 68 − 13 HumanEval gap is programs that met two or three
+  examples and meant something else; this is aimed at them.
+- `returns`/`takes` → given by a signature when there is one; read from the
+  English when there is not (Phase 4's page).
+
+### Measured (frozen before training)
+
+- **Reading**, held (HumanEval) and dev (MBPP): behaviour F1 against the
+  exact predicates; `uses` recall@10 against verified solutions.
+- **Together beats either alone** — the claim Adrian's design makes, tested:
+  the same model given English only, code only, and both; *both* must read
+  best, on held data. If it does not, the reading is not joint and is
+  reported so.
+- **Search**: HumanEval-TS passing its own tests with the meaning on
+  (baseline 13/151) and the candidates it costs; generated rung-1/2 held
+  must not get worse.
+
+### Writing — a decoder as proposer (after the meaning)
+
+A small model (SmolLM2-360M, into a new `llm/` directory) turns a meaning
+into sketches — trees with holes — that the search fills and the checker
+verifies; never trusted directly, its output parsed back into a tree and
+read back into a meaning. Printing the final program stays exact, from the
+tree; saying it in English goes through the English decoder from the same
+meaning. Measured by search saved and sketches that lead to a verified
+program.
 
 ## What is measured, beyond "solved"
 

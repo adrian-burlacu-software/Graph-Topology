@@ -53,6 +53,11 @@ DEPTH = 3
 BUDGET = 20000
 #: How many of a spec's recurring values are taken as its constants.
 LITERALS = 3
+#: What the reader of meaning must be this sure of before a program that
+#: meets the examples is refused for not showing it.
+STRONG = 0.95
+#: How much an operator the reader expects is worth in the attention queue.
+PRIOR = 1.0
 
 
 @dataclass
@@ -87,6 +92,9 @@ class Result:
     seconds: float = 0.0
     #: meets the hidden examples too
     general: bool = False
+    #: programs that met the examples and were refused: what they did
+    #: beyond them contradicted what the request means
+    rejected: int = 0
 
     @property
     def solved(self) -> bool:
@@ -352,7 +360,8 @@ class Solver:
         rows = self._evaluate(spec, candidates)
         result.evaluated += len(candidates)
         for expr, row in zip(candidates, rows):
-            if _matches(row, spec.outputs):
+            if _matches(row, spec.outputs) and self._accepts(spec, expr,
+                                                             result):
                 return expr
         return None
 
@@ -398,9 +407,42 @@ class Solver:
         rows = self._evaluate(spec, batch)
         result.evaluated += len(batch)
         for expr, row in zip(batch, rows):
-            if _matches(row, spec.outputs):
+            if _matches(row, spec.outputs) and self._accepts(spec, expr,
+                                                             result):
                 return expr
         return None
+
+    def _accepts(self, spec: Spec, program: P.Expr, result: Result) -> bool:
+        """The round trip: a program that meets the examples is read back
+        into behaviour exactly -- by running it on the examples and on
+        inputs varied from them (`meaning.probes`) -- and refused if it
+        lacks what the reading of the request is sure of."""
+        if not spec.expected:
+            return True
+        from research.v696 import meaning as M
+        sure = {one for one, p in spec.expected["behaviour"].items()
+                if p >= STRONG and M.checkable(one)}
+        if not sure:
+            return True
+        probes = self.__dict__.setdefault("_probes", {})
+        if spec.name not in probes:
+            probes[spec.name] = M.probes(spec.examples)
+        cases = probes[spec.name]
+        row = checker().values(spec.names, cases, [program.source()])[0]             if cases else []
+        pairs = list(spec.examples) + [
+            (case, one["value"]) for case, one in zip(cases, row)
+            if "error" not in one]
+        if sure <= M.behaviour(pairs):
+            return True
+        result.rejected += 1
+        return False
+
+    def _prior(self, spec: Spec, op) -> float:
+        """How much the reading of the request expects this operator."""
+        if not spec.expected:
+            return 0.0
+        from research.v696.meaning import word
+        return PRIOR * spec.expected["uses"].get(word(op), 0.0)
 
     # 2b, 2c, 2d
     def _reachable(self, ops, goal: str) -> dict:
@@ -441,7 +483,9 @@ class Solver:
                 kept[expr.type].append((expr, row))
                 if expr.type == goal:
                     if _matches(row, spec.outputs):
-                        return expr
+                        if self._accepts(spec, expr, result):
+                            return expr
+                        continue
                     hits = _near(row, spec.outputs)
                     if hits:
                         near.append((hits, expr))
@@ -587,13 +631,14 @@ class Solver:
             # A form is as promising as what it goes over, and more if it
             # gives the wanted type.
             score = promise.get(expr.args[0].source(), 0.0) + (
-                1.0 if expr.type == spec.returns else 0.0)
+                1.0 if expr.type == spec.returns else 0.0) + self._prior(
+                spec, expr.op)
             queue.append((-score, len(ops), count, None, expr))
         features = spec.features() if self.switches.learned else ()
         for rank, op in enumerate(ops):
             if steps.get(op.gives, 99) > self.depth - depth:
                 continue
-            bonus = 1.0 if op.gives == spec.returns else 0.0
+            bonus = (1.0 if op.gives == spec.returns else 0.0) +                 self._prior(spec, op)
             if self.switches.learned and self.memory.specs:
                 bonus += 0.1 * self.memory.utility(op, features)
             count = 0

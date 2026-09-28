@@ -149,6 +149,57 @@ On rung 2's held tasks forms more than double what generalises (8 → 19) for
 40% fewer candidates. On rung 1 they cost 37% more candidates and change
 nothing that matters: the one regression left.
 
+## Reading English and code together (`meaning.py`, `reader.py`)
+
+One encoder reads one sequence — the English, then whatever code there is
+(signature, examples, a body) — into one `Meaning`: the types, behaviour
+predicates, what the program uses, what gives its result. The exact
+channels teach and check it and are never asked at run time: the compiler
+reads what code uses (`tscheck.js` `structure`), running reads behaviour
+(MultiPL-E's tests are pairs). Every record is taught in several views of
+its one sequence with the same target (`teach_meaning.py`):
+
+- 200 `lib.d.ts` members with their JSDoc;
+- MBPP-TS, solved by SmolLM3 offline and kept by the tests (257/375);
+- 4,000 generated programs said in English by SmolLM3, kept when code
+  rewritten from the English alone behaves the same (1,290 kept);
+- HumanEval-TS never taught from (solved 99/158 the same way, to measure
+  `uses` with).
+
+**Bases, chosen on MBPP dev** (behaviour F1 / uses R@10, English +
+signature + examples): MiniLM 0.49 / 0.39, ModernBERT 0.65 / 0.61,
+**UniXcoder 0.67 / 0.61** → `llm/meaning-unixcoder`.
+
+**Together against either alone** (UniXcoder, HumanEval held):
+
+| view | returns | behaviour F1 | uses R@10 | root |
+|---|---|---|---|---|
+| English alone | 0.77 | 0.51 | 0.37 | 0.31 |
+| code alone (signature + examples) | 0.91 | 0.59 | 0.44 | 0.42 |
+| English + signature | 0.91 | 0.58 | **0.49** | 0.39 |
+| English + signature + examples | 0.91 | **0.60** | 0.48 | 0.41 |
+
+Together reads best, but by little over code alone: the examples carry
+most of the behaviour, and the English adds most to *what the program is
+made of*.
+
+**The round trip at search time**: a program that meets the examples is
+run on inputs varied from them and read back into behaviour; it is refused
+if it lacks what the reading is sure of. Two things learned on dev:
+facts about the output's range (a whole number, no repeats, can be empty,
+case) are true of a task's test inputs, not of its function — varied
+inputs break them for the right program — so only relations to the inputs
+and order are checked (`meaning.checkable`); and the reader is rarely sure
+of those, and often wrong when it is: only at 0.95 does it refuse no
+right program on dev, and there it is sure of one. The gate is sound and
+nearly idle.
+
+**HumanEval-TS** (151, budget 8,000, meet + repair + forms, held run once):
+passes its tests **13 → 16**, examples met 68 = 68, candidates 1.24M →
+1.22M, refused 0. The gain is all the reading's `uses` as promise in the
+attention queue: among programs that meet two or three examples, the one
+grown first is more often the one the English asked for.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

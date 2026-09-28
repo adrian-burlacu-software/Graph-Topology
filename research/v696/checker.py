@@ -123,6 +123,15 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["signatures"]
 
+    def structure(self, source: str, entry: str) -> dict:
+        """What `entry` is made of, as the compiler resolves it:
+        {"uses": {word: count}, "root": word} (`tscheck.js`)."""
+        reply = self._ask({"op": "structure", "source": source,
+                           "entry": entry})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return {"uses": reply["uses"], "root": reply["root"]}
+
     def tests(self, source: str, timeout: int = 2000) -> str | None:
         """Run a whole file (a candidate and its tests): None if it ran
         through, else what stopped it."""

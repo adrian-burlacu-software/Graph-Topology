@@ -16,6 +16,8 @@ is then measured on tasks it has not seen. Dev seeds may be looked at;
     python -m research.v696.experiment                 dev, every config
     python -m research.v696.experiment --held          held, once
     python -m research.v696.experiment --multipl-e     HumanEval-TS
+    ... --multipl-e --meaning meaning-unixcoder         each request read
+                                                        first (`reader.py`)
 """
 from __future__ import annotations
 
@@ -61,13 +63,16 @@ class Row:
     evaluated: int = 0
     seconds: float = 0.0
     routes: Counter = None
+    #: met the examples, refused by the round trip with the meaning
+    rejected: int = 0
 
     def line(self) -> str:
         routes = ", ".join(f"{name} {count}" for name, count in
                            sorted(self.routes.items()))
         return (f"{self.config:<18} solved {self.solved:>3}/{self.total:<3}"
                 f" general {self.general:>3}  evaluated "
-                f"{self.evaluated:>7}  {self.seconds:>6.0f}s  [{routes}]")
+                f"{self.evaluated:>7}  {self.seconds:>6.0f}s  [{routes}]"
+                + (f"  refused {self.rejected}" if self.rejected else ""))
 
 
 def generated(held: bool) -> tuple:
@@ -105,6 +110,7 @@ def run(config: str, train: list, test: list, budget: int) -> Row:
         row.solved += got.solved
         row.general += got.general if not spec.tests else _passes(spec, got)
         row.evaluated += got.evaluated
+        row.rejected += got.rejected
         row.routes[got.route] += 1
     row.seconds = time.time() - started
     return row
@@ -124,6 +130,7 @@ def multipl_e(config: str = "humaneval-ts") -> list:
     """HumanEval-TS tasks whose examples can be read, as specs: the
     examples the prompt shows to search with, its own tests to judge."""
     from research.v696 import tasks
+    from research.v696.teach_meaning import _english
     out = []
     for task in tasks.load(config):
         try:
@@ -134,7 +141,8 @@ def multipl_e(config: str = "humaneval-ts") -> list:
         if not examples:
             continue
         out.append(Spec(task.name, task.params, task.returns, examples,
-                        tests=task.tests, entry=task.entry))
+                        tests=task.tests, entry=task.entry,
+                        english=_english(task.prompt)))
     return out
 
 
@@ -153,6 +161,9 @@ def main(argv=None) -> int:
     parser.add_argument("--budget", type=int, default=5000)
     parser.add_argument("--out", default="")
     parser.add_argument("--rung", type=int, default=1)
+    parser.add_argument("--meaning", default="",
+                        help="a reader of meaning in llm/ to read each "
+                             "request with before searching")
     options = parser.parse_args(argv)
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
@@ -165,6 +176,9 @@ def main(argv=None) -> int:
         train, test = generated(options.held)
         print(f"{'held' if options.held else 'dev'}: {len(train)} training, "
               f"{len(test)} test tasks, depths {DEPTHS}")
+    if options.meaning:
+        from research.v696 import reader
+        reader.expect(test, reader.LLM / options.meaning)
     rows = []
     for config in options.configs:
         row = run(config, train, test, options.budget)

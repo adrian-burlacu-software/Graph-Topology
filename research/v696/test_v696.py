@@ -149,5 +149,59 @@ class FormTests(unittest.TestCase):
                                     outputs), 0)
 
 
+@needs_node
+class MeaningTests(unittest.TestCase):
+    """The exact channels the reader of meaning is taught and checked by."""
+
+    def test_structure_is_read_by_the_compiler(self):
+        from research.v696 import meaning as M
+        uses, root = M.structure(
+            "function f(xs: number[]): number { return xs.filter(x => "
+            "x % 2 == 0).reduce((a, x) => a + x, 0); }", "f")
+        self.assertEqual(root, "Array.reduce")
+        self.assertTrue({"Array.filter", "%", "===", "+"} <= uses)
+        uses, _ = M.structure("function g(n: number): number { return n "
+                              "< 2 ? n : g(n - 1) + g(n - 2); }", "g")
+        self.assertIn("recursion", uses)
+
+    def test_a_library_operator_is_named_as_the_compiler_names_it(self):
+        from research.v696 import meaning as M
+        from research.v696 import program as P
+        words = {M.word(op) for op in P.library().ops + P.library().forms}
+        self.assertTrue({"String.split", "Array.filter", "Math.max", "%",
+                         "Array.length"} <= words)
+
+    def test_behaviour_is_read_off_values(self):
+        from research.v696.meaning import behaviour
+        said = behaviour([([[3, 1, 2]], [1, 2, 3]), ([[5, 4]], [4, 5])])
+        self.assertTrue({"sorted", "reordered input 1",
+                         "as long as input 1"} <= said)
+        said = behaviour([([[1, 2, 3, 4]], 6), ([[5, 6]], 6),
+                          ([[8, 1]], 8)])
+        self.assertNotIn("the sum of input 1", said)
+        self.assertIn("the sum of input 1",
+                      behaviour([([[1, 2]], 3), ([[4]], 4)]))
+
+    def test_tests_are_pairs(self):
+        from research.v696.meaning import test_pairs, values_of
+        tests = ("  assert.deepEqual(candidate([1, 2], \"a,b\"),[2, 1]);\n"
+                 "  assert.deepEqual(candidate([], \")\"),[]);\n")
+        self.assertEqual(values_of(test_pairs(tests)),
+                         [([[1, 2], "a,b"], [2, 1]), ([[], ")"], [])])
+
+    def test_a_program_that_only_fits_its_examples_is_refused(self):
+        from research.v696.search import Result, Solver, Switches
+        from research.v696 import program as P
+        from research.v696.spec import Spec
+        spec = Spec("sort", [("xs", "number[]")], "number[]",
+                    [([[2, 1]], [1, 2]), ([[4, 3]], [3, 4])],
+                    expected={"uses": {}, "behaviour": {"sorted": 0.95}})
+        solver, result = Solver(Switches(meet=True)), Result("sort")
+        reverse = next(op for op in P.library().ops if op.name == "reverse")
+        fits = P.apply(reverse, [P.param("xs", "number[]")])
+        self.assertFalse(solver._accepts(spec, fits, result))
+        self.assertEqual(result.rejected, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
