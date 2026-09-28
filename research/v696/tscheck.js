@@ -257,6 +257,92 @@ const STATEMENTS = {
   BreakStatement: "break", ContinueStatement: "continue",
 };
 
+// A function whose body is one `return` as a typed tree, every node with
+// the type the compiler gives it (literal types widened): what is read back
+// into the search's own trees (`program.parse`). Anything else is
+// {"k": "other"} and the reading fails there.
+function tree(source, entry) {
+  const name = "tree.ts";
+  const program = programOf(name, PRELUDE + source);
+  const checker = program.getTypeChecker();
+  const file = program.getSourceFile(name);
+  let target = null;
+  file.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name
+        && node.name.text === entry) target = node;
+  });
+  if (!target || !target.body || target.body.statements.length !== 1
+      || !ts.isReturnStatement(target.body.statements[0])
+      || !target.body.statements[0].expression) return null;
+  const typeOf = (node) => checker.typeToString(
+    checker.getBaseTypeOfLiteralType(checker.getTypeAtLocation(node)));
+  const memberName = (node) => {
+    const symbol = checker.getSymbolAtLocation(node.name || node);
+    const declaration = symbol && symbol.declarations && symbol.declarations[0];
+    const owner = declaration && declaration.parent;
+    let where = owner && owner.name && owner.name.text;
+    if (!where) return null;
+    where = READONLY[where] || where;
+    return `${where.replace(/Constructor$/, "")}.${symbol.getName()}`;
+  };
+  const read = (node) => {
+    while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
+           || ts.isNonNullExpression(node)) node = node.expression;
+    const type = typeOf(node);
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const args = node.arguments.map(read);
+      if (ts.isPropertyAccessExpression(callee)) {
+        const member = memberName(callee);
+        if (callee.expression.getText() === "Math")
+          return { k: "call", member, recv: null, args, type };
+        return { k: "call", member, recv: read(callee.expression), args,
+                 type };
+      }
+      if (ts.isIdentifier(callee))
+        return { k: "call", member: callee.text, recv: null, args, type };
+    } else if (ts.isPropertyAccessExpression(node)) {
+      return { k: "prop", member: memberName(node),
+               recv: read(node.expression), type };
+    } else if (ts.isBinaryExpression(node)) {
+      const token = ts.tokenToString(node.operatorToken.kind);
+      return { k: "bin", op: OPERATOR[token] || token,
+               args: [read(node.left), read(node.right)], type };
+    } else if (ts.isPrefixUnaryExpression(node)) {
+      if (node.operator === ts.SyntaxKind.MinusToken
+          && ts.isNumericLiteral(node.operand))
+        return { k: "lit", value: -Number(node.operand.text), type };
+      return { k: "pre", op: ts.tokenToString(node.operator),
+               args: [read(node.operand)], type };
+    } else if (ts.isConditionalExpression(node)) {
+      return { k: "cond", args: [read(node.condition), read(node.whenTrue),
+                                 read(node.whenFalse)], type };
+    } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+      let body = node.body;
+      if (ts.isBlock(body)) {
+        if (body.statements.length !== 1 || !ts.isReturnStatement(
+            body.statements[0])) return { k: "other", text: node.getText() };
+        body = body.statements[0].expression;
+      }
+      return { k: "arrow", params: node.parameters.map((one) => one.name.getText()),
+               body: read(body), type };
+    } else if (ts.isIdentifier(node)) {
+      return { k: "id", name: node.text, type };
+    } else if (ts.isNumericLiteral(node)) {
+      return { k: "lit", value: Number(node.text), type };
+    } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      return { k: "lit", value: node.text, type };
+    } else if (node.kind === ts.SyntaxKind.TrueKeyword
+               || node.kind === ts.SyntaxKind.FalseKeyword) {
+      return { k: "lit", value: node.kind === ts.SyntaxKind.TrueKeyword, type };
+    } else if (ts.isSpreadElement(node)) {
+      return { k: "spread", args: [read(node.expression)], type };
+    }
+    return { k: "other", text: node.getText(), type };
+  };
+  return read(target.body.statements[0].expression);
+}
+
 function structure(source, entry) {
   const name = "read.ts";
   const program = programOf(name, PRELUDE + source);
@@ -359,6 +445,9 @@ lines.on("line", (line) => {
     } else if (request.op === "signatures") {
       reply.signatures = signatures(request.receivers || [],
                                     request.globals || []);
+      reply.ok = true;
+    } else if (request.op === "tree") {
+      reply.tree = tree(request.source, request.entry);
       reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));

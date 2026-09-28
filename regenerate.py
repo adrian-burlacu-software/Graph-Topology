@@ -967,6 +967,29 @@ def _meaning_check(out: Path) -> Callable[[], str | None]:
     return check
 
 
+def _sketches_check() -> str | None:
+    path = DATA / "code-meaning" / "sketches.jsonl"
+    if not path.exists():
+        return None
+    import json
+    counts: dict = {}
+    for line in path.open(encoding="utf-8"):
+        row = json.loads(line)
+        counts[row["source"]] = counts.get(row["source"], 0) + 1
+    if counts.get("generated", 0) < 3000 or counts.get("mbpp-ts", 0) < 50:
+        raise Failed(f"code-meaning sketches: {counts}, expected at least "
+                     f"3000 generated and 50 MBPP programs")
+    return ", ".join(f"{count} {name}" for name, count in counts.items())
+
+
+def _sketcher_check(out: Path) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "sketcher.json").exists():
+            return None
+        return _model_check(out, 600)()
+    return check
+
+
 def steps() -> list[Step]:
     """Every artefact, in the order it can be built."""
     return [
@@ -1189,6 +1212,20 @@ def steps() -> list[Step]:
                           "unixcoder-base", "--model", "meaning-unixcoder"),
              _meaning_check(LLM / "meaning-unixcoder"),
              needs=("code-meaning", "unixcoder"), cost="ten minutes",
+             gpu=True),
+        Step("sketches", "programs in the search's own language, for the "
+                         "decoder: MBPP solved as one expression by SmolLM3 "
+                         "(kept by tests and parsing), and the rest read back",
+             lambda: (_run("research.v696.teach_sketch", "expressions"),
+                      _run("research.v696.teach_sketch", "corpus")),
+             _sketches_check, needs=("meaning", "smollm3"),
+             cost="half an hour", gpu=True),
+        Step("sketcher", "the decoder: a request and its meaning to programs "
+                         "the search checks",
+             lambda: _run("research.v696.sketcher", "train", "--epochs", "2",
+                          "--model", "sketcher-e2"),
+             _sketcher_check(LLM / "sketcher-e2"),
+             needs=("sketches", "smollm2"), cost="fifteen minutes",
              gpu=True),
 
         # -- measurement ----------------------------------------------------

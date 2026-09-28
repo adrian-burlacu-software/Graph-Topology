@@ -43,6 +43,8 @@ CONFIGS = {
     "meet+chunks": S.Switches(meet=True, coarse=True, chunks=True),
     "meet+repair+forms": S.Switches(meet=True, coarse=True, repair=True,
                                     forms=True),
+    "meet+repair+forms+proposals": S.Switches(
+        meet=True, coarse=True, repair=True, forms=True, proposals=True),
     "all": S.Switches.all(),
 }
 
@@ -138,6 +140,12 @@ def multipl_e(config: str = "humaneval-ts") -> list:
                         for args, value in task.examples]
         except ValueError:
             continue
+        if not examples and config == "mbpp-ts":
+            # MBPP's prompts show none: its first test is its example.
+            # (HumanEval's are its own; a test is never shown there.)
+            from research.v696.meaning import test_pairs, values_of
+            examples = [tuple(one) for one in values_of(
+                test_pairs(task.tests))[:1]]
         if not examples:
             continue
         out.append(Spec(task.name, task.params, task.returns, examples,
@@ -164,6 +172,9 @@ def main(argv=None) -> int:
     parser.add_argument("--meaning", default="",
                         help="a reader of meaning in llm/ to read each "
                              "request with before searching")
+    parser.add_argument("--sketcher", default="",
+                        help="a decoder in llm/ to propose programs with "
+                             "(needs --meaning)")
     options = parser.parse_args(argv)
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
@@ -179,6 +190,10 @@ def main(argv=None) -> int:
     if options.meaning:
         from research.v696 import reader
         reader.expect(test, reader.LLM / options.meaning)
+    if options.sketcher:
+        from research.v696 import sketcher
+        sketcher.proposals(sketcher.Sketcher(sketcher.LLM / options.sketcher),
+                           test)
     rows = []
     for config in options.configs:
         row = run(config, train, test, options.budget)

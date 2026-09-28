@@ -123,6 +123,14 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["signatures"]
 
+    def tree(self, source: str, entry: str) -> dict | None:
+        """`entry`'s one returned expression as a typed tree, or None when
+        its body is more than one `return` (`tscheck.js`)."""
+        reply = self._ask({"op": "tree", "source": source, "entry": entry})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["tree"]
+
     def structure(self, source: str, entry: str) -> dict:
         """What `entry` is made of, as the compiler resolves it:
         {"uses": {word: count}, "root": word} (`tscheck.js`)."""

@@ -70,10 +70,12 @@ class Switches:
     chunks: bool = False
     #: rung 2: control forms, their holes as subgoals (`forms.py`)
     forms: bool = False
+    #: the decoder's programs as sketches (`sketcher.py`)
+    proposals: bool = False
 
     @classmethod
     def all(cls) -> "Switches":
-        return cls(True, True, True, True, True, True, True)
+        return cls(True, True, True, True, True, True, True, True)
 
     def label(self) -> str:
         on = [name for name, value in vars(self).items() if value]
@@ -519,6 +521,22 @@ class Solver:
         if found is not None:
             result.route = "meet"
             return found
+        if self.switches.proposals and spec.proposals:
+            # The decoder's programs, and every part of them, admitted
+            # like anything grown: one that meets the examples (and the
+            # round trip) is the answer; one that nearly does is a near
+            # miss for repair; its parts are in the forward trie for the
+            # search to compose with. What it got wrong is searched.
+            parts, seen = [], set()
+            for tree in spec.proposals:
+                for one in _subtrees(tree):
+                    if one.kind in ("apply", "param", "const")                             and one.source() not in seen:
+                        seen.add(one.source())
+                        parts.append(one)
+            found = admit(parts)
+            if found is not None:
+                result.route = "proposed"
+                return found
         forward_forms = []
         if self.switches.forms:
             # Deduction pushes subgoals, and a subgoal is a search of its

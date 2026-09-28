@@ -292,7 +292,7 @@ def expect(specs: list, model: Path) -> None:
     for spec, probs in zip(specs, reader.read([request(one)
                                                for one in specs])):
         spec.expected = {"uses": probs["uses"],
-                         "behaviour": probs["behaviour"]}
+                         "behaviour": probs["behaviour"], "probs": probs}
     del reader
 
 

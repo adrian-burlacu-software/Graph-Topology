@@ -200,6 +200,49 @@ passes its tests **13 → 16**, examples met 68 = 68, candidates 1.24M →
 attention queue: among programs that meet two or three examples, the one
 grown first is more often the one the English asked for.
 
+## Writing: the decoder as proposer (`parse.py`, `teach_sketch.py`, `sketcher.py`)
+
+**Code is read back into the search's trees** (`parse.py`, over the
+compiler's typed AST, `tscheck.js` `tree`): every node must be a library
+operator or form with the type the compiler gives it, callback parameters
+renamed to the form's own; anything else is not a program the search could
+have built, and is dropped. 997/1,000 generated programs read back exactly.
+
+**The decoder** (SmolLM2-360M → `llm/sketcher-e2`) is taught, from the
+request and the meaning the reader read in it, to write one expression in
+that language: 3,994 generated programs, 161 library members, and 77 MBPP
+programs SmolLM3 wrote as one expression and that passed the tests *and*
+parsed (repeated ×8 in training; the only ones people asked for). What it
+writes is never trusted: parsed or dropped, then admitted to the search as
+candidates — one that meets the examples is taken (and round-tripped), a
+near miss is repaired, its parts are in the forward trie to compose with.
+A proposal is a sketch: what it got right is kept, the rest is searched.
+
+The decoder alone (greedy + 8 samples), chosen on MBPP dev:
+
+| | MBPP dev (83): passes tests | HumanEval held (158): passes tests |
+|---|---|---|
+| 4 epochs, with meaning | 14 | 12 |
+| 4 epochs, without | 13 | 11 |
+| **2 epochs, with meaning** | **20** | 13 |
+| 2 epochs, without | 20 | 12 |
+
+**The meaning does not help the decoder** — a tie on dev. It already reads
+the request itself; a line summarising the reader's reading adds nothing it
+could not see. Reported as that.
+
+**HumanEval-TS with the search** (151, budget 8,000, held, run once):
+
+| | passes its tests | examples met | candidates |
+|---|---|---|---|
+| meet + repair + forms | 13 | 68 | 1.24M |
+| + the reading's `uses` as promise | 16 | 68 | 1.22M |
+| + the decoder's sketches | **21** | **78** | 1.34M |
+
+19 answers came straight from a proposal; the rest of the gain from
+proposals' parts repaired or composed. The decoder alone passes 12–13 of
+these; the search with it, 21 — neither alone does what both do.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

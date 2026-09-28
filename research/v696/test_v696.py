@@ -189,6 +189,22 @@ class MeaningTests(unittest.TestCase):
         self.assertEqual(values_of(test_pairs(tests)),
                          [([[1, 2], "a,b"], [2, 1]), ([[], ")"], [])])
 
+    def test_code_is_read_back_into_the_search_s_trees(self):
+        from research.v696.parse import parse
+        tree = parse("function f(xs: number[]): number { return xs.filter("
+                     "(n) => n % 2 === 0).reduce((a, b) => a + b, 0); }",
+                     "f", [("xs", "number[]")])
+        self.assertEqual(tree.source(), "xs.filter((x, i) => ((x % 2) === "
+                                        "0)).reduce((acc, x, i) => (acc + "
+                                        "x), 0)")
+        self.assertEqual(parse("function f(xs: number[]): number { return "
+                               "xs.pop() + 1; }", "f",
+                               [("xs", "number[]")]).source(),
+                         "(xs.pop() + 1)")
+        # a statement is not an expression the search could have built
+        self.assertIsNone(parse("function f(s: string): number { let n = "
+                                "0; return n; }", "f", [("s", "string")]))
+
     def test_a_program_that_only_fits_its_examples_is_refused(self):
         from research.v696.search import Result, Solver, Switches
         from research.v696 import program as P

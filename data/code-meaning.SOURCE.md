@@ -9,6 +9,8 @@ Made here, not downloaded: `python -m regenerate --only code-meaning`
 | `solutions.jsonl` | MBPP-TS solved by SmolLM3-3B (4 samples) | the task's own tests pass |
 | `solutions-held.jsonl` | HumanEval-TS solved the same way — **to measure with only, never taught from** | the task's own tests pass |
 | `described.jsonl` | generated programs (rungs 1–2, seeds from 5,000,000) said in English by SmolLM3 | code rewritten from the English alone does what the program does |
+| `expressions.jsonl` | MBPP-TS solved by SmolLM3 as one `return` expression, for the decoder (`teach_sketch.py`) | the tests pass **and** it parses into the search's tree (`parse.py`) — 77 of 375 |
+| `sketches.jsonl` | the decoder's records: request, the reader's meaning, the program printed the search's way | — |
 | `corpus.jsonl` | the records: English, signature, examples, body, and the `Meaning` read exactly (behaviour by running on the tests, structure by the compiler) | — |
 
 Sources: MultiPL-E (`data/multipl-e.SOURCE.md`), TypeScript's `lib.d.ts`

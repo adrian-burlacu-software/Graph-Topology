@@ -36,6 +36,8 @@ class Spec:
     #: what the reader of meaning (`reader.py`) expects of the program:
     #: {"uses": {word: p}, "behaviour": {predicate: p}}
     expected: dict | None = None
+    #: programs the decoder proposed, read back into trees (`sketcher.py`)
+    proposals: list = field(default_factory=list)
 
     @property
     def names(self) -> list:
