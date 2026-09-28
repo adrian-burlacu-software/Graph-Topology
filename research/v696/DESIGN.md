@@ -243,6 +243,61 @@ could not see. Reported as that.
 proposals' parts repaired or composed. The decoder alone passes 12–13 of
 these; the search with it, 21 — neither alone does what both do.
 
+## Rung 3 — decomposition: a body as steps
+
+Measured first (`needs.py`): of the teacher's verified programs, 74/99
+HumanEval and 153/257 MBPP use local variables and 56/133 a loop; 5 and 3
+use a helper function. People decompose inside a function, so rung 3 read
+the steps (`PLAN.md`).
+
+**Bodies are executed symbolically into one tree** (`tscheck.js` `tree`,
+`parse.py` `Module`) — a local name read is its value at that point:
+
+| statement | read as |
+|---|---|
+| `const w = ...` (a step) | a node shared where `w` is read |
+| a helper function | an operator carrying its body (`Op.body`), printed before, run as a prelude |
+| `if (c) return a; ... return b` | `c ? a : b` |
+| an `if` that assigns | a ternary per name it changes |
+| a loop carrying one value | `reduce`: the update its body, the value before it the start |
+| `for (let i = a; i < b; i++)` | a fold over `Array.from({ length: b - a }, (_, i) => a + i)` |
+| a loop that returns when it finds | `xs.some(c) ? R : rest`, the element in R being `xs.find(c)` |
+| `out.push(v)` in a loop | the fold's update `[...acc, v]` |
+
+Added to the library as the language's own: element access `xs[i]`, the
+range, the append, `!==` — kept out of the rung 1–2 generator (`P.LATER`),
+whose dev and held task sets are checked identical.
+
+**Reading is exact**: every verified program that reads is printed back
+from its tree and passes its task's own tests (`needs_exact.py`): 88/88
+MBPP, 33/33 HumanEval. What reads: MBPP 39 → **88**/257, HumanEval 14 →
+**33**/99. What still does not: `while` loops and loops carrying two
+values (a running maximum and a list) — tuples are beyond the library's
+types — and sets, maps and objects.
+
+**The decoder writes whole functions** (`sketcher-functions`, 2 epochs):
+MBPP's verified programs as written — loops, steps — are now teachable
+(127 train, from 57). Alone, MBPP dev passes 22/83 (single expressions 21)
+and meets the examples for 35 (28); HumanEval held 16 (13).
+
+**Rung-3 generated tasks** (a form over a counted range, dev):
+
+| | solved | general |
+|---|---|---|
+| baseline | 1 | 0 |
+| meet + repair | 3 | 2 |
+| meet + repair + forms | **17** | **14** |
+
+Deduction pushes map and filter over a range down per element (14 of 17).
+The rest are folds that iterate their accumulator without the element:
+only induction finds those (consecutive sizes pinning the step), which
+random examples rarely give — noted, not tuned for. Rungs 1–2 dev with
+the rung-3 library: 30/26 (was 29/26), 21/19 (unchanged), rung 1 at +15%
+candidates.
+
+**HumanEval-TS** (151, budget 8,000, held, once): 21 → **22** pass their
+tests, examples met 78 → 86, candidates 1.34M → 1.19M.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

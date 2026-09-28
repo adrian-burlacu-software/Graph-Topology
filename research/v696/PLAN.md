@@ -176,6 +176,55 @@ composition, answer known, dev and held apart); HumanEval-TS passing its own
 tests (5/151 at rung 1); rung-1 tasks must not get worse. Baseline = the
 rung-1 solver on the same tasks.
 
+## Rung 3 — decomposition: a body as steps (planned 2026-09-28)
+
+**Measured first** (`needs.py` over the teacher's verified
+programs, which are measured, never taught from):
+
+| | MBPP (257) | HumanEval (99) |
+|---|---|---|
+| local variables | 153 | 74 |
+| a loop | 133 | 56 |
+| one expression the library can build (rungs 1–2) | 39 | 14 |
+| types beyond the library's | 59 | 11 |
+| sets, maps, objects | 16 | 8 |
+| helper functions | 3 | 5 |
+| recursion | 2 | 0 |
+
+The ladder said rung 3 is "a function that needs helpers". The data says
+people decompose **inside** a function: an intermediate value named
+(`const sorted = ...`), a loop carrying state, and only rarely a separate
+function. They are one thing to the executive — **a subgoal whose result is
+named and used after** — so rung 3 takes all three, in the order the data
+ranks them:
+
+- **3a. Steps read.** `parse.py` reads a body of bindings and a return, and
+  a module of functions, into the tree: a binding is a shared node, a
+  helper is an operator carrying its own body (`Op` with a definition,
+  printed before the function, run as a prelude). The reader of rung 4 and
+  more natural programs for the decoder. Measured: how many verified
+  solutions read into the tree (39/257, 14/99 now).
+- **3b. Loops as the language's forms.** A loop is a form with holes, as
+  `map` was: `for (const x of xs)` with accumulators (initial values and an
+  update per accumulator: holes), a counting loop over `0..n`, a `while`
+  over a number with its step (the digit loop). They live in helpers, so
+  the main body stays an expression and a loop is a named subgoal. Holes
+  are grown as rung 2's checked forms, the accumulator's trajectory not
+  being in the examples.
+- **3c. Subgoals kept as operators.** A helper solved — a hole's body, a
+  loop, a function read from a verified program — is kept in memory as an
+  operator with its features (2f, now whole functions), offered to later
+  tasks, forgotten unused. Measured as transfer: helpers from MBPP train
+  offered to HumanEval.
+- **3d. Where sub-specs come from.** A subgoal needs its own examples:
+  from a form that pushes them down (rung 2), from a sketch whose hole's
+  place fixes them, and from the English, which names helpers the decoder
+  writes.
+
+**Measured**: verified programs read (3a); rung-3 generated tasks (a loop
+or a helper in the answer, dev and held apart); HumanEval passing its tests
+(21/151 after the decoder); rung 1–2 must not get worse.
+
 ## Reading code and English together: one meaning (Adrian, 2026-09-27/28)
 
 *"We're going to need to understand code as well — that's why I suggested a

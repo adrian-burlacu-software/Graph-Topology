@@ -201,9 +201,66 @@ class MeaningTests(unittest.TestCase):
                                "xs.pop() + 1; }", "f",
                                [("xs", "number[]")]).source(),
                          "(xs.pop() + 1)")
-        # a statement is not an expression the search could have built
-        self.assertIsNone(parse("function f(s: string): number { let n = "
-                                "0; return n; }", "f", [("s", "string")]))
+        # a step -- a name bound once -- is a shared node (rung 3a)
+        self.assertEqual(parse("function f(s: string): number { const w = "
+                               "s.split(\" \"); return w.length + w.length; "
+                               "}", "f", [("s", "string")]).source(),
+                         '(s.split(" ").length + s.split(" ").length)')
+        # a loop that changes a number as it goes is not a fold (yet)
+        self.assertIsNone(parse("function f(n: number): number { let s = 0; "
+                                "while (n > 0) { s += n % 10; n = Math.floor("
+                                "n / 10); } return s; }", "f",
+                                [("n", "number")]))
+
+    def test_statements_are_executed_into_one_tree(self):
+        """Rung 3b: guards are ternaries, a loop carrying one value is a
+        fold, a counting loop goes over a range, a loop that returns when
+        it finds is `some` and `find`, `push` is an append."""
+        from research.v696.parse import parse
+        xs = [("xs", "number[]")]
+        self.assertEqual(parse(
+            "function f(xs: number[]): number { if (xs.length === 0) return "
+            "-1; let t = 0; for (const x of xs) { if (x > 0) t += x; } "
+            "return t; }", "f", xs).source(),
+            "((xs.length === 0) ? -1 : xs.reduce((acc, x, i) => ((x > 0) ? "
+            "(acc + x) : acc), 0))")
+        self.assertEqual(parse(
+            "function f(n: number): number { let s = 0; for (let i = 1; i <= "
+            "n; i++) s += i; return s; }", "f", [("n", "number")]).source(),
+            "Array.from({ length: ((n + 1) - 1) }, (_, i) => (1 + i))"
+            ".reduce((acc, x, i) => (acc + x), 0)")
+        self.assertEqual(parse(
+            "function f(xs: number[]): number { for (const x of xs) { if (x "
+            "> 9) return x * 2; } return 0; }", "f", xs).source(),
+            "(xs.some((x, i) => (x > 9)) ? (xs.find((x, i) => (x > 9)) * 2)"
+            " : 0)")
+        self.assertEqual(parse(
+            "function f(xs: number[]): number[] { const out: number[] = []; "
+            "for (const x of xs) { if (x % 2 === 0) out.push(x * x); } "
+            "return out; }", "f", xs).source(),
+            "xs.reduce((acc, x, i) => (((x % 2) === 0) ? [...acc, (x * x)] "
+            ": acc), [])")
+        # two values carried (a running maximum and a list) is not one fold
+        self.assertIsNone(parse(
+            "function f(xs: number[]): number[] { let m = -Infinity; const "
+            "out: number[] = []; for (const x of xs) { m = Math.max(m, x); "
+            "out.push(m); } return out; }", "f", xs))
+
+    def test_a_helper_is_an_operator_carrying_its_body(self):
+        from research.v696 import program as P
+        from research.v696.checker import checker
+        from research.v696.parse import parse
+        tree = parse("function odd(n: number): boolean { return n % 2 !== 0; "
+                     "}\nfunction f(xs: number[]): number { const kept = "
+                     "xs.filter((x) => odd(x)); return kept.length; }", "f",
+                     [("xs", "number[]")])
+        self.assertEqual(tree.source(), "xs.filter((x, i) => odd(x)).length")
+        self.assertIn("function odd(n: number): boolean",
+                      P.prelude([tree]))
+        self.assertEqual(checker().values(["xs"], [[[1, 2, 3]]],
+                                          [tree.source()],
+                                          prelude=P.prelude([tree])),
+                         [[{"value": 2}]])
 
     def test_a_program_that_only_fits_its_examples_is_refused(self):
         from research.v696.search import Result, Solver, Switches

@@ -100,6 +100,13 @@ def generated2(held: bool, count: int = 30) -> tuple:
     return train, test
 
 
+def generated3(held: bool, count: int = 30) -> tuple:
+    """Rung 3's (training, test) tasks: a loop over a counted range."""
+    train = G.tasks3(count)
+    test = G.tasks3(count, start=G.HELD if held else DEV_TEST)
+    return train, test
+
+
 def run(config: str, train: list, test: list, budget: int) -> Row:
     solver = S.Solver(CONFIGS[config], budget=budget)
     for spec in train:
@@ -179,6 +186,10 @@ def main(argv=None) -> int:
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
+    elif options.rung == 3:
+        train, test = generated3(options.held)
+        print(f"rung 3 {'held' if options.held else 'dev'}: {len(train)} "
+              f"training, {len(test)} test tasks")
     elif options.rung == 2:
         train, test = generated2(options.held)
         print(f"rung 2 {'held' if options.held else 'dev'}: {len(train)} "

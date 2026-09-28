@@ -230,6 +230,12 @@ def word(op) -> str:
     and what the search grows are named alike."""
     if isinstance(op, P.Form):
         return f"{interface(op.receiver)}.{op.name}"
+    if op.kind == "range":
+        return "Array.from"
+    if op.kind == "index":
+        return "[i]"
+    if op.kind == "append":
+        return "[...]"
     if op.kind in ("method", "property"):
         return f"{interface(op.needs[0])}.{op.name}"
     if op.kind == "form":

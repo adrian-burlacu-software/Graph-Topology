@@ -59,7 +59,9 @@ class Spec:
         return f"function {self.entry}({said}): {self.returns}"
 
     def function(self, body: P.Expr) -> str:
-        return f"{self.signature()} {{\n  return {body.source()};\n}}\n"
+        """The program whole: the helpers it calls, then the function."""
+        return (P.prelude([body]) + f"{self.signature()} {{\n  return "
+                f"{body.source()};\n}}\n")
 
     def features(self) -> frozenset:
         """What the examples show, as predicates for the recognition trie:

@@ -53,6 +53,14 @@ OPERATORS = (
     ("-", ("number",), "number"),
 )
 
+#: Operators first needed to read what people write (rung 3). Kept apart
+#: so the generated tasks of rungs 1-2 stay the tasks they were.
+OPERATORS3 = (
+    ("===", ("boolean", "boolean"), "boolean"),
+    ("!==", ("number", "number"), "boolean"),
+    ("!==", ("string", "string"), "boolean"),
+)
+
 GLOBALS = ("parseInt", "parseFloat", "String", "Number", "Boolean", "Math")
 
 
@@ -61,17 +69,31 @@ class Op:
     """One thing the language can do: needs these types, gives that one."""
 
     name: str
-    #: method | property | function | operator | ternary | form
+    #: method | property | function | operator | ternary | form | helper
     kind: str
     needs: tuple
     gives: str
     #: a method's or property's receiver is `needs[0]`
     #: a rest parameter is spread from an array: `Math.max(...xs)`
     spread: bool = False
+    #: a helper's own definition (rung 3): its parameters' names and the
+    #: tree it returns -- a subgoal solved, named, and used as an operator
+    params: tuple = ()
+    body: object = None
 
     def said(self, args: list) -> str:
+        if self.kind == "range":
+            # the numbers from `a` up to `b`, as the language writes them
+            if args[0] == "0":
+                return f"Array.from({{ length: {args[1]} }}, (_, i) => i)"
+            return (f"Array.from({{ length: ({args[1]} - {args[0]}) }}, "
+                    f"(_, i) => ({args[0]} + i))")
         if self.kind == "ternary":
             return f"({args[0]} ? {args[1]} : {args[2]})"
+        if self.kind == "index":
+            return f"{args[0]}[{args[1]}]"
+        if self.kind == "append":
+            return f"[...{args[0]}, {args[1]}]"
         if self.kind == "form":
             return f"{args[0]}.{self.name}({', '.join(args[1:])})"
         if self.kind == "operator":
@@ -89,6 +111,56 @@ class Op:
     @property
     def key(self) -> str:
         return f"{self.kind}:{self.name}:{','.join(self.needs)}->{self.gives}"
+
+    def declaration(self) -> str:
+        """A helper as the function it is."""
+        said = ", ".join(f"{name}: {kind}"
+                         for name, kind in zip(self.params, self.needs))
+        return (f"function {self.name}({said}): {self.gives} {{\n"
+                f"  return {self.body.source()};\n}}\n")
+
+
+def helpers(exprs) -> list:
+    """The helpers these trees call, each after those it calls itself."""
+    out, seen = [], set()
+
+    def visit(expr) -> None:
+        for one in expr.args:
+            visit(one)
+        op = expr.op
+        if op is not None and op.kind == "helper" and op not in seen:
+            seen.add(op)
+            visit(op.body)
+            out.append(op)
+    for expr in exprs:
+        visit(expr)
+    return out
+
+
+def prelude(exprs) -> str:
+    """What must be declared before these trees can run: their helpers."""
+    return "".join(op.declaration() for op in helpers(exprs))
+
+
+#: The numbers from a up to (not including) b: what a counting loop goes
+#: over.
+RANGE = Op("from", "range", ("number", "number"), "number[]")
+
+#: The language's own element access: `xs[i]`, `s[i]` (rung 3).
+INDEX = tuple(Op("[]", "index", (kind, "number"), kind[:-2])
+              for kind in ("number[]", "string[]", "boolean[]")) + (
+    Op("[]", "index", ("string", "number"), "string"),)
+
+#: A list with one more at its end, as the language writes it: what
+#: `push` in a loop builds (rung 3).
+APPEND = tuple(Op("...", "append", (kind, kind[:-2]), kind)
+               for kind in ("number[]", "string[]", "boolean[]"))
+
+#: What rung 3 added to the library: the generator of rungs 1-2 leaves it
+#: out, so their tasks are unchanged.
+LATER = frozenset([RANGE.key] + [op.key for op in INDEX + APPEND] + [
+    Op(symbol, "operator", needs, gives).key
+    for symbol, needs, gives in OPERATORS3])
 
 
 @dataclass(frozen=True)
@@ -114,6 +186,8 @@ class Expr:
         if self.kind == "param":
             return self.name
         if self.kind == "const":
+            if self.value == "Infinity" and self.type == "number":
+                return "Infinity"
             return json.dumps(self.value)
         if self.kind == "hole":
             return f"/*?{self.type}*/"
@@ -283,8 +357,13 @@ def library(types=TYPES) -> Library:
             seen.add(op.key)
             ops.append(op)
 
-    for symbol, needs, gives in OPERATORS:
+    for symbol, needs, gives in OPERATORS + OPERATORS3:
         add(Op(symbol, "operator", needs, gives))
+    if "number" in wanted and "number[]" in wanted:
+        # A counting loop's numbers (rung 3): `Array.from` with a length.
+        add(RANGE)
+    for op in INDEX + APPEND:
+        add(op)
     # The language's own form: `c ? a : b`, for every type.
     for kind in types:
         add(Op("?:", "ternary", ("boolean", kind, kind), kind))

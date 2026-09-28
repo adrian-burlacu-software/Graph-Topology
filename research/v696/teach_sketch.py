@@ -35,6 +35,9 @@ from research.v696.parse import parse
 
 EXPRESSIONS = T.DATA / "expressions.jsonl"
 SKETCHES = T.DATA / "sketches.jsonl"
+#: Rung 3: whole functions as people write them -- steps, loops, helpers --
+#: each read into the tree (`parse.py`) and so kept only when it reads.
+FUNCTIONS = T.DATA / "sketches-functions.jsonl"
 
 ONE = ("Complete this TypeScript function. Its body must be a single "
        "`return` of one expression: use array and string methods (map, "
@@ -114,7 +117,15 @@ def prompt(english: str, code: str, meaning: str | None) -> str:
     return "\n".join(lines)
 
 
-def corpus(model: str = "meaning-unixcoder", seed: int = 696) -> None:
+def _function(signature: str, expression: str) -> str:
+    return f"{signature} {{\n  return {expression};\n}}"
+
+
+def corpus(model: str = "meaning-unixcoder", seed: int = 696,
+           functions: bool = False) -> None:
+    """The decoder's records. With `functions`, each target is a whole
+    function: the verified program as it was written where it reads into
+    the tree (steps, loops, helpers), else the tree printed as one."""
     from research.v696 import reader as R
     rng = random.Random(seed)
     records = R.load()
@@ -124,19 +135,33 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696) -> None:
             row = json.loads(line)
             if row["expression"]:
                 expressions[row["name"]] = row["expression"]
+    written = {}
+    if functions and T.SOLUTIONS.exists():
+        for line in T.SOLUTIONS.open(encoding="utf-8"):
+            row = json.loads(line)
+            if row["code"]:
+                written[row["name"]] = row["code"]
     rows = []
     for record in records:
-        target = None
+        targets = []
+        entry = re.search(r"function\s+(\w+)", record["signature"]).group(1) \
+            if record["signature"] else None
         if record["source"] == "mbpp-ts":
-            target = expressions.get(record["name"])
+            if record["name"] in expressions:
+                targets.append(_function(record["signature"],
+                                         expressions[record["name"]])
+                               if functions
+                               else expressions[record["name"]])
+            code = written.get(record["name"])
+            if code and parse(code, entry, _params(record["signature"])):
+                targets.append(code.strip())
         elif record["source"] in ("generated", "docs") and record["body"]:
-            params = _params(record["signature"])
-            entry = re.search(r"function\s+(\w+)", record["signature"]).group(1)
-            tree = parse(record["body"], entry, params)
-            target = None if tree is None else tree.source()
-        if target is None:
-            continue
-        rows.append((record, target))
+            tree = parse(record["body"], entry, _params(record["signature"]))
+            if tree is not None:
+                targets.append(_function(record["signature"], tree.source())
+                               if functions else tree.source())
+        for target in dict.fromkeys(targets):
+            rows.append((record, target))
     print(f"{len(rows)} records with a program in the tree language",
           flush=True)
     reader = R.Reader.load(R.LLM / model)
@@ -154,7 +179,8 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696) -> None:
         views.append(view)
         pairs.append(R.said(record, R.VIEWS[view]))
     readings = reader.read(pairs)
-    with SKETCHES.open("w", encoding="utf-8") as out:
+    with (FUNCTIONS if functions else SKETCHES).open(
+            "w", encoding="utf-8") as out:
         for (record, target), probs in zip(rows, readings):
             english, code = R.said(record, R.VIEWS[
                 "english+signature+examples" if record["english"]
@@ -169,17 +195,19 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696) -> None:
         count[key] = count.get(key, 0) + 1
     for key in sorted(count):
         print(f"  {key[0]:13} {key[1]:5} {count[key]}")
-    print(f"-> {SKETCHES}")
+    print(f"-> {FUNCTIONS if functions else SKETCHES}")
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("job", choices=("expressions", "corpus"))
+    parser.add_argument("--functions", action="store_true",
+                        help="whole functions as written (rung 3)")
     args = parser.parse_args(argv)
     if args.job == "expressions":
         expressions()
     else:
-        corpus()
+        corpus(functions=args.functions)
     return 0
 
 

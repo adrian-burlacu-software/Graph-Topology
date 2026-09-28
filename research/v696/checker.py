@@ -81,17 +81,18 @@ class Checker:
                     for _ in cases]
         return reply["outputs"]
 
-    def values(self, params, cases, expressions, timeout: int = 50
-               ) -> list:
+    def values(self, params, cases, expressions, timeout: int = 50,
+               prelude: str = "") -> list:
         """For each expression, its value on each case -- {"value"} or
-        {"error"} -- as Node computes it."""
+        {"error"} -- as Node computes it; `prelude` declares the helpers
+        they call."""
         if not expressions:
             return []
         try:
             reply = self._ask({"op": "values", "params": list(params),
                                "cases": [list(one) for one in cases],
                                "expressions": list(expressions),
-                               "timeout": timeout})
+                               "timeout": timeout, "prelude": prelude})
         except CheckerError:
             # A candidate killed the process -- memory, most likely: a
             # search runs arbitrary code. Start again and halve the batch
@@ -101,9 +102,10 @@ class Checker:
             if len(expressions) == 1:
                 return [[{"error": "the checker stopped"} for _ in cases]]
             middle = len(expressions) // 2
-            return (self.values(params, cases, expressions[:middle], timeout)
+            return (self.values(params, cases, expressions[:middle],
+                                timeout, prelude)
                     + self.values(params, cases, expressions[middle:],
-                                  timeout))
+                                  timeout, prelude))
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["values"]
@@ -123,10 +125,11 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["signatures"]
 
-    def tree(self, source: str, entry: str) -> dict | None:
-        """`entry`'s one returned expression as a typed tree, or None when
-        its body is more than one `return` (`tscheck.js`)."""
-        reply = self._ask({"op": "tree", "source": source, "entry": entry})
+    def tree(self, source: str) -> dict:
+        """Every function in `source` as steps -- its parameters, the names
+        it binds once, its return -- each node typed; {"unread": why} for
+        a function that is more than that (`tscheck.js`)."""
+        reply = self._ask({"op": "tree", "source": source})
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["tree"]

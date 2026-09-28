@@ -182,9 +182,11 @@ function signatures(receivers, globals) {
 // expression's value on each case, or its error. The candidates of a
 // search are evaluated here in batches, so what code does is always what
 // Node says it does, and never a copy of it.
-function values(params, cases, expressions, timeout) {
+function values(params, cases, expressions, timeout, prelude) {
   const context = sandbox();
   context.__cases = cases;
+  // The helpers the expressions call, declared first (rung 3).
+  if (prelude) vm.runInContext(transpile(prelude), context, { timeout });
   const out = [];
   for (const expression of expressions) {
     let compiled;
@@ -242,6 +244,8 @@ function programOf(name, text) {
 // `Array.filter`, `Math.max` -- whatever the receiver was called), the
 // operators, and the statements. And what gives its result: the outermost
 // thing its last `return` returns. Nothing here knows what a member does.
+class Unread extends Error {}
+
 const READONLY = { ReadonlyArray: "Array", ReadonlySet: "Set",
                    ReadonlyMap: "Map" };
 const OPERATOR = { "==": "===", "!=": "!==" };
@@ -261,19 +265,11 @@ const STATEMENTS = {
 // the type the compiler gives it (literal types widened): what is read back
 // into the search's own trees (`program.parse`). Anything else is
 // {"k": "other"} and the reading fails there.
-function tree(source, entry) {
+function tree(source) {
   const name = "tree.ts";
   const program = programOf(name, PRELUDE + source);
   const checker = program.getTypeChecker();
   const file = program.getSourceFile(name);
-  let target = null;
-  file.forEachChild((node) => {
-    if (ts.isFunctionDeclaration(node) && node.name
-        && node.name.text === entry) target = node;
-  });
-  if (!target || !target.body || target.body.statements.length !== 1
-      || !ts.isReturnStatement(target.body.statements[0])
-      || !target.body.statements[0].expression) return null;
   const typeOf = (node) => checker.typeToString(
     checker.getBaseTypeOfLiteralType(checker.getTypeAtLocation(node)));
   const memberName = (node) => {
@@ -285,6 +281,12 @@ function tree(source, entry) {
     where = READONLY[where] || where;
     return `${where.replace(/Constructor$/, "")}.${symbol.getName()}`;
   };
+  // The body is read by executing it symbolically: a local variable's
+  // name, read, is its value at that point (`env`), so steps, branches and
+  // loops all come out as one expression over the parameters.
+  let env = new Map();
+  const declared = new Map();
+  const copy = (value) => JSON.parse(JSON.stringify(value));
   const read = (node) => {
     while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node)
            || ts.isNonNullExpression(node)) node = node.expression;
@@ -318,15 +320,29 @@ function tree(source, entry) {
       return { k: "cond", args: [read(node.condition), read(node.whenTrue),
                                  read(node.whenFalse)], type };
     } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
-      let body = node.body;
-      if (ts.isBlock(body)) {
-        if (body.statements.length !== 1 || !ts.isReturnStatement(
-            body.statements[0])) return { k: "other", text: node.getText() };
-        body = body.statements[0].expression;
+      const params = node.parameters.map((one) => one.name.getText());
+      const outer = env;
+      env = new Map(env);
+      for (const one of params) env.delete(one);
+      try {
+        if (!ts.isBlock(node.body))
+          return { k: "arrow", params, body: read(node.body), type };
+        const out = run(node.body.statements, 0);
+        if (!out.ret) return { k: "other", text: node.getText(), type };
+        return { k: "arrow", params, body: out.ret, type };
+      } catch (error) {
+        if (!(error instanceof Unread)) throw error;
+        return { k: "other", text: error.message, type };
+      } finally {
+        env = outer;
       }
-      return { k: "arrow", params: node.parameters.map((one) => one.name.getText()),
-               body: read(body), type };
+    } else if (ts.isElementAccessExpression(node)) {
+      return { k: "index", args: [read(node.expression),
+                                  read(node.argumentExpression)], type };
     } else if (ts.isIdentifier(node)) {
+      if (env.has(node.text)) return copy(env.get(node.text));
+      if (node.text === "Infinity")
+        return { k: "lit", value: "Infinity", type: "number" };
       return { k: "id", name: node.text, type };
     } else if (ts.isNumericLiteral(node)) {
       return { k: "lit", value: Number(node.text), type };
@@ -340,7 +356,311 @@ function tree(source, entry) {
     }
     return { k: "other", text: node.getText(), type };
   };
-  return read(target.body.statements[0].expression);
+
+  const assigned = (body, bound) => {
+    let found = false;
+    (function walk(node) {
+      if ((ts.isBinaryExpression(node) && node.operatorToken.kind
+           >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind
+           <= ts.SyntaxKind.LastAssignment && ts.isIdentifier(node.left)
+           && node.left.text === bound)
+          || ((ts.isPrefixUnaryExpression(node)
+               || ts.isPostfixUnaryExpression(node))
+              && ts.isIdentifier(node.operand) && node.operand.text === bound
+              && (node.operator === ts.SyntaxKind.PlusPlusToken
+                  || node.operator === ts.SyntaxKind.MinusMinusToken))
+          // a list changed in place is a value changed
+          || (ts.isCallExpression(node)
+              && ts.isPropertyAccessExpression(node.expression)
+              && ts.isIdentifier(node.expression.expression)
+              && node.expression.expression.text === bound
+              && ["push", "pop", "shift", "unshift", "splice", "sort",
+                  "reverse", "fill", "copyWithin"].includes(
+                node.expression.name.text)))
+        found = true;
+      node.forEachChild(walk);
+    })(body);
+    return found;
+  };
+  const cond =(test, yes, no) => ({ k: "cond", args: [test, yes, no],
+                                      type: yes.type });
+  const one = { k: "lit", value: 1, type: "number" };
+
+  // An assignment changes what a name is from here on.
+  const assign = (expression) => {
+    if (ts.isBinaryExpression(expression) && ts.isIdentifier(expression.left)
+        && env.has(expression.left.text)) {
+      const name = expression.left.text;
+      const token = expression.operatorToken.kind;
+      const value = read(expression.right);
+      if (token === ts.SyntaxKind.EqualsToken) {
+        env.set(name, value);
+        return;
+      }
+      if (token >= ts.SyntaxKind.FirstCompoundAssignment
+          && token <= ts.SyntaxKind.LastCompoundAssignment) {
+        const op = ts.tokenToString(token).slice(0, -1);
+        env.set(name, { k: "bin", op, args: [copy(env.get(name)), value],
+                        type: declared.get(name) });
+        return;
+      }
+    }
+    if ((ts.isPrefixUnaryExpression(expression)
+         || ts.isPostfixUnaryExpression(expression))
+        && ts.isIdentifier(expression.operand)
+        && env.has(expression.operand.text)) {
+      const name = expression.operand.text;
+      const op = expression.operator === ts.SyntaxKind.PlusPlusToken ? "+"
+        : expression.operator === ts.SyntaxKind.MinusMinusToken ? "-" : null;
+      if (op) {
+        env.set(name, { k: "bin", op, args: [copy(env.get(name)), one],
+                        type: declared.get(name) });
+        return;
+      }
+    }
+    if (ts.isCallExpression(expression)
+        && ts.isPropertyAccessExpression(expression.expression)
+        && expression.expression.name.text === "push"
+        && ts.isIdentifier(expression.expression.expression)
+        && env.has(expression.expression.expression.text)
+        && expression.arguments.length === 1) {
+      const name = expression.expression.expression.text;
+      env.set(name, { k: "append", args: [copy(env.get(name)),
+                                          read(expression.arguments[0])],
+                      type: declared.get(name) });
+      return;
+    }
+    throw new Unread(ts.isCallExpression(expression)
+      ? `a call for its effect: ${expression.expression.getText()}`
+      : "an expression for its effect");
+  };
+
+  const returns = (node) => {
+    let found = false;
+    (function walk(one) {
+      if (ts.isReturnStatement(one)) found = true;
+      if (!ts.isFunctionLike(one)) one.forEachChild(walk);
+    })(node);
+    return found;
+  };
+  const replaced = (node, name, by) => {
+    if (Array.isArray(node)) return node.map((one) => replaced(one, name, by));
+    if (!node || typeof node !== "object") return node;
+    if (node.k === "id" && node.name === name) return copy(by);
+    if (node.k === "arrow" && node.params.includes(name)) return node;
+    const out = {};
+    for (const key of Object.keys(node)) out[key] = replaced(node[key], name, by);
+    return out;
+  };
+  // A loop that returns when it finds something: `for (x of xs) { if
+  // (c) return R; }` then the rest is `xs.some(c) ? R : rest`, with `x`
+  // in R the first one that does: `xs.find(c)`.
+  const search = (over, element, statement, statements, at) => {
+    let body = statement;
+    while (ts.isBlock(body) && body.statements.length === 1)
+      body = body.statements[0];
+    if (!ts.isIfStatement(body) || body.elseStatement)
+      throw new Unread("a loop that returns other than when it finds");
+    let then = body.thenStatement;
+    while (ts.isBlock(then) && then.statements.length === 1)
+      then = then.statements[0];
+    if (!ts.isReturnStatement(then) || !then.expression)
+      throw new Unread("a loop that returns other than when it finds");
+    const outer = env;
+    env = new Map(env);
+    env.delete(element);
+    const test = read(body.expression);
+    const value = read(then.expression);
+    env = outer;
+    const arrow = { k: "arrow", params: [element], body: test, type: "=>" };
+    const some = { k: "call", member: "Array.some", recv: over,
+                   args: [arrow], type: "boolean" };
+    const find = { k: "call", member: "Array.find", recv: copy(over),
+                   args: [copy(arrow)], type: over.type.replace(/\[\]$/, "") };
+    const rest = run(statements, at + 1);
+    if (!rest.ret) throw new Unread("no return after a loop that returns");
+    return { ret: cond(some, replaced(value, element, find), rest.ret) };
+  };
+
+  // A loop carrying one value is a fold: `reduce` over what it goes over,
+  // its body the update, the value before it the initial one.
+  const fold = (over, element, statement) => {
+    const carried = [...env.keys()].filter((name) =>
+      assigned(statement, name));
+    if (carried.length !== 1)
+      throw new Unread(`a loop carrying ${carried.length} values`);
+    const acc = carried[0];
+    const outer = env;
+    env = new Map(env);
+    env.set(acc, { k: "id", name: acc, type: declared.get(acc) });
+    env.delete(element);
+    let out;
+    try {
+      out = block(statement);
+    } finally {
+      const update = env.get(acc);
+      env = outer;
+      if (out && out.ret) throw new Unread("a return inside a loop");
+      env.set(acc, { k: "call", member: "Array.reduce", recv: over,
+                     args: [{ k: "arrow", params: [acc, element],
+                              body: update, type: "=>" },
+                            copy(outer.get(acc))],
+                     type: declared.get(acc) });
+    }
+  };
+  const over = (node) => {
+    const value = read(node);
+    if (value.type === "string")
+      return { k: "call", member: "String.split", recv: value,
+               args: [{ k: "lit", value: "", type: "string" }],
+               type: "string[]" };
+    return value;
+  };
+  const counting = (statement) => {
+    // for (let i = A; i < B; i++) -- or <= B, or i += 1
+    const list = statement.initializer;
+    if (!list || !ts.isVariableDeclarationList(list)
+        || list.declarations.length !== 1
+        || !list.declarations[0].initializer)
+      throw new Unread("a loop that does not count");
+    const name = list.declarations[0].name.getText();
+    const from = read(list.declarations[0].initializer);
+    const test = statement.condition;
+    if (!test || !ts.isBinaryExpression(test) || test.left.getText() !== name)
+      throw new Unread("a loop that does not count");
+    let to = read(test.right);
+    const token = test.operatorToken.kind;
+    if (token === ts.SyntaxKind.LessThanEqualsToken)
+      to = { k: "bin", op: "+", args: [to, one], type: "number" };
+    else if (token !== ts.SyntaxKind.LessThanToken)
+      throw new Unread("a loop that does not count up");
+    const step = statement.incrementor && statement.incrementor.getText()
+      .replace(/\s/g, "");
+    if (![`${name}++`, `++${name}`, `${name}+=1`].includes(step))
+      throw new Unread("a loop that does not count by one");
+    if (assigned(statement.statement, name))
+      throw new Unread("a counter changed inside its loop");
+    return [{ k: "range", args: [from, to], type: "number[]" }, name];
+  };
+
+  // Statements from `at` on: {ret} when every way through returns, else
+  // {} with `env` holding what the names are after them.
+  const run = (statements, at) => {
+    for (; at < statements.length; at++) {
+      const statement = statements[at];
+      if (ts.isReturnStatement(statement)) {
+        if (!statement.expression) throw new Unread("returns nothing");
+        return { ret: read(statement.expression) };
+      }
+      if (ts.isVariableStatement(statement)) {
+        for (const one of statement.declarationList.declarations) {
+          if (!one.initializer || !ts.isIdentifier(one.name))
+            throw new Unread("a declaration without a value");
+          declared.set(one.name.text, typeOf(one.name));
+          const init = one.initializer;
+          env.set(one.name.text, ts.isArrayLiteralExpression(init)
+            && init.elements.length === 0
+            ? { k: "lit", value: [], type: typeOf(one.name) }
+            : read(init));
+        }
+        continue;
+      }
+      if (ts.isExpressionStatement(statement)) {
+        assign(statement.expression);
+        continue;
+      }
+      if (ts.isBlock(statement)) {
+        const out = run(statement.statements, 0);
+        if (out.ret) return out;
+        continue;
+      }
+      if (ts.isIfStatement(statement)) {
+        const test = read(statement.expression);
+        const before = env;
+        env = new Map(before);
+        const yes = block(statement.thenStatement);
+        const afterYes = env;
+        env = new Map(before);
+        const no = statement.elseStatement ? block(statement.elseStatement)
+          : {};
+        const afterNo = env;
+        if (yes.ret && no.ret) return { ret: cond(test, yes.ret, no.ret) };
+        if (yes.ret || no.ret) {
+          // a guard: the rest is the other way through
+          env = yes.ret ? afterNo : afterYes;
+          const rest = run(statements, at + 1);
+          if (!rest.ret) throw new Unread("no return after a guard");
+          return { ret: yes.ret ? cond(test, yes.ret, rest.ret)
+                                : cond(test, rest.ret, no.ret) };
+        }
+        env = new Map(before);
+        for (const name of before.keys()) {
+          const a = afterYes.get(name), b = afterNo.get(name);
+          if (JSON.stringify(a) !== JSON.stringify(b))
+            env.set(name, cond(copy(test), a, b));
+        }
+        continue;
+      }
+      if (ts.isForOfStatement(statement)) {
+        const list = statement.initializer;
+        if (!ts.isVariableDeclarationList(list)
+            || list.declarations.length !== 1
+            || !ts.isIdentifier(list.declarations[0].name))
+          throw new Unread("a loop over something unpacked");
+        const element = list.declarations[0].name.text;
+        if (returns(statement.statement))
+          return search(over(statement.expression), element,
+                        statement.statement, statements, at);
+        fold(over(statement.expression), element, statement.statement);
+        continue;
+      }
+      if (ts.isForStatement(statement)) {
+        const [range, name] = counting(statement);
+        if (returns(statement.statement))
+          return search(range, name, statement.statement, statements, at);
+        fold(range, name, statement.statement);
+        continue;
+      }
+      throw new Unread(ts.SyntaxKind[statement.kind]);
+    }
+    return {};
+  };
+  const block = (statement) => ts.isBlock(statement)
+    ? run(statement.statements, 0) : run([statement], 0);
+
+  // A function: its parameters, and what it returns, read as one tree.
+  const steps = (declaration, body) => {
+    const params = declaration.parameters.map((one) => [one.name.getText(),
+      one.type ? checker.typeToString(checker.getTypeFromTypeNode(one.type))
+               : typeOf(one.name)]);
+    const signature = checker.getSignatureFromDeclaration(declaration);
+    const returns = checker.typeToString(signature.getReturnType());
+    env = new Map();
+    try {
+      if (!ts.isBlock(body)) return { params, returns, steps: [],
+                                      ret: read(body) };
+      const out = run(body.statements, 0);
+      if (!out.ret) return { params, returns, unread: "no return" };
+      return { params, returns, steps: [], ret: out.ret };
+    } catch (error) {
+      if (!(error instanceof Unread)) throw error;
+      return { params, returns, unread: error.message };
+    }
+  };
+  const functions = {};
+  file.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      functions[node.name.text] = steps(node, node.body);
+    } else if (ts.isVariableStatement(node)) {
+      for (const one of node.declarationList.declarations) {
+        const value = one.initializer;
+        if (ts.isIdentifier(one.name) && value && (ts.isArrowFunction(value)
+            || ts.isFunctionExpression(value)))
+          functions[one.name.text] = steps(value, value.body);
+      }
+    }
+  });
+  return functions;
 }
 
 function structure(source, entry) {
@@ -440,14 +760,15 @@ lines.on("line", (line) => {
       reply.ok = true;
     } else if (request.op === "values") {
       reply.values = values(request.params, request.cases,
-                            request.expressions, request.timeout || 50);
+                            request.expressions, request.timeout || 50,
+                            request.prelude || "");
       reply.ok = true;
     } else if (request.op === "signatures") {
       reply.signatures = signatures(request.receivers || [],
                                     request.globals || []);
       reply.ok = true;
     } else if (request.op === "tree") {
-      reply.tree = tree(request.source, request.entry);
+      reply.tree = tree(request.source);
       reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));

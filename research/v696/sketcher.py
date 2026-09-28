@@ -26,13 +26,17 @@ import time
 from pathlib import Path
 
 from research.v696 import program as P
-from research.v696.teach_sketch import SKETCHES, prompt, said_meaning
+from research.v696.teach_sketch import (FUNCTIONS, SKETCHES, prompt,
+                                        said_meaning)
 
 ROOT = Path(__file__).resolve().parents[2]
 LLM = ROOT / "llm"
 BASE = LLM / "SmolLM2-360M-Instruct"
 SAYING = ("You write TypeScript: one expression that the function "
           "returns, in the library's own words.")
+#: Rung 3: the decoder writes the whole function, steps and loops as
+#: people write them; what it writes is read into the tree all the same.
+SAYING_FUNCTIONS = "You write TypeScript: the whole function asked for."
 
 #: How many programs a request is given: sampled, plus one greedy.
 SAMPLES = 8
@@ -41,8 +45,9 @@ SAMPLES = 8
 REPEAT = {"mbpp-ts": 8}
 
 
-def _encoded(tokenizer, text: str, target: str | None = None):
-    turns = [{"role": "system", "content": SAYING},
+def _encoded(tokenizer, text: str, target: str | None = None,
+             saying: str = SAYING):
+    turns = [{"role": "system", "content": saying},
              {"role": "user", "content": text}]
     head = tokenizer.apply_chat_template(turns, tokenize=True,
                                          add_generation_prompt=True,
@@ -61,20 +66,25 @@ def _text(row: dict, meaning: bool) -> str:
 
 def train(out: Path, meaning: bool = True, epochs: int = 4,
           batch: int = 16, rate: float = 1e-4, longest: int = 448,
-          seed: int = 696) -> None:
+          seed: int = 696, functions: bool = False) -> None:
     import torch
     from transformers import (AutoModelForCausalLM, AutoTokenizer,
                               get_cosine_schedule_with_warmup)
     torch.manual_seed(seed)
     rng = random.Random(seed)
-    rows = [json.loads(line) for line in SKETCHES.open(encoding="utf-8")]
+    saying = SAYING_FUNCTIONS if functions else SAYING
+    if functions:
+        longest = max(longest, 768)
+    rows = [json.loads(line) for line in (FUNCTIONS if functions else
+                                          SKETCHES).open(encoding="utf-8")]
     tokenizer = AutoTokenizer.from_pretrained(str(BASE))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     # A request too long to read whole (a long example) is left out, not
     # cut: a cut request asks for something else.
     rows = [one for one in rows if len(_encoded(
-        tokenizer, _text(one, meaning), one["target"])[0]) <= longest]
+        tokenizer, _text(one, meaning), one["target"], saying)[0])
+        <= longest]
     train_rows = [one for one in rows if one["split"] == "train"
                   for _ in range(REPEAT.get(one["source"], 1))]
     held = [one for one in rows if one["split"] == "dev"]
@@ -88,7 +98,7 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
         ids, labels = [], []
         for one in chunk:
             tokens, start = _encoded(tokenizer, _text(one, meaning),
-                                     one["target"])
+                                     one["target"], saying)
             ids.append(tokens)
             labels.append([-100] * min(start, len(tokens)) + tokens[start:])
         width = max(map(len, ids))
@@ -146,7 +156,8 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
     model.save_pretrained(str(out), safe_serialization=True)
     tokenizer.save_pretrained(str(out))
     (out / "sketcher.json").write_text(json.dumps({
-        "base": BASE.name, "saying": SAYING, "meaning": meaning,
+        "base": BASE.name, "saying": saying, "meaning": meaning,
+        "functions": functions,
         "train": len(train_rows), "epochs": epochs}, indent=1),
         encoding="utf-8")
     print(f"-> {out}")
@@ -171,7 +182,11 @@ class Sketcher:
               longest: int = 160) -> list:
         """For each prompt, one greedy program and `samples` sampled."""
         torch = self.torch
-        heads = [_encoded(self.tokenizer, one)[0] for one in texts]
+        if self.settings.get("functions"):
+            longest = max(longest, 360)
+        heads = [_encoded(self.tokenizer, one,
+                          saying=self.settings["saying"])[0]
+                 for one in texts]
         width = max(map(len, heads))
         pad = self.tokenizer.pad_token_id
         ids = torch.tensor([[pad] * (width - len(one)) + one
@@ -215,11 +230,15 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8) -> None:
         for spec, written in zip(chunk, sketcher.write(texts[at:at + batch])):
             seen, trees = set(), []
             for text in written:
-                text = text.strip().rstrip(";")
-                if text.startswith("return "):
-                    text = text[len("return "):]
-                tree = parse(f"{spec.signature()} {{\n  return {text};\n}}\n",
-                             spec.entry, spec.params)
+                if "function " in text:
+                    # a whole function, steps and loops as written
+                    tree = parse(text, spec.entry, spec.params)
+                else:
+                    text = text.strip().rstrip(";")
+                    if text.startswith("return "):
+                        text = text[len("return "):]
+                    tree = parse(f"{spec.signature()} {{\n  return "
+                                 f"{text};\n}}\n", spec.entry, spec.params)
                 if tree is not None and tree.source() not in seen:
                     seen.add(tree.source())
                     trees.append(tree)
@@ -249,7 +268,8 @@ def evaluate(model: str, meaning_model: str = "meaning-unixcoder") -> dict:
         for spec in specs:
             parsed += bool(spec.proposals)
             rows = checker().values(spec.names, spec.cases,
-                                    [one.source() for one in spec.proposals]
+                                    [one.source() for one in spec.proposals],
+                                    prelude=P.prelude(spec.proposals)
                                     ) if spec.proposals else []
             meeting = [tree for tree, row in zip(spec.proposals, rows)
                        if _matches(row, spec.outputs)]
@@ -270,11 +290,14 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default="")
     parser.add_argument("--no-meaning", action="store_true")
     parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--functions", action="store_true",
+                        help="teach whole functions (rung 3)")
     args = parser.parse_args(argv)
     if args.job == "train":
         name = args.model or ("sketcher" if not args.no_meaning
                               else "sketcher-no-meaning")
-        train(LLM / name, meaning=not args.no_meaning, epochs=args.epochs)
+        train(LLM / name, meaning=not args.no_meaning, epochs=args.epochs,
+              functions=args.functions)
     else:
         evaluate(args.model or "sketcher")
     return 0

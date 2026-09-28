@@ -316,16 +316,18 @@ class Solver:
     def _evaluate(self, spec: Spec, exprs: list) -> list:
         rows = []
         for start in range(0, len(exprs), BATCH):
+            batch = exprs[start:start + BATCH]
             rows += checker().values(spec.names, spec.cases,
-                                     [one.source() for one in
-                                      exprs[start:start + BATCH]])
+                                     [one.source() for one in batch],
+                                     prelude=P.prelude(batch))
         return rows
 
     def _general(self, spec: Spec, program: P.Expr) -> bool:
         if not spec.hidden:
             return True
         row = checker().values(spec.names, [a for a, _ in spec.hidden],
-                               [program.source()])[0]
+                               [program.source()],
+                               prelude=P.prelude([program]))[0]
         return _matches(row, [o for _, o in spec.hidden])
 
     def solve(self, spec: Spec) -> Result:
@@ -430,7 +432,9 @@ class Solver:
         if spec.name not in probes:
             probes[spec.name] = M.probes(spec.examples)
         cases = probes[spec.name]
-        row = checker().values(spec.names, cases, [program.source()])[0]             if cases else []
+        row = checker().values(spec.names, cases, [program.source()],
+                               prelude=P.prelude([program]))[0] \
+            if cases else []
         pairs = list(spec.examples) + [
             (case, one["value"]) for case, one in zip(cases, row)
             if "error" not in one]
