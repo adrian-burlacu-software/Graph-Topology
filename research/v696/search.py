@@ -332,7 +332,7 @@ class Solver:
 
     def solve(self, spec: Spec) -> Result:
         started = time.time()
-        self._deduced = set()
+        self._deduced = {}
         result = Result(spec.name)
         found = None
         if self.switches.recognition:
@@ -640,6 +640,13 @@ class Solver:
             if found is not None:
                 result.route = "repaired"
                 return found
+        if self.switches.forms:
+            # The dearest subgoal last: a fold's step by induction, once
+            # growing and repairing have found nothing.
+            found = self._deduce(spec, kept, result, ("reduce",))
+            if found is not None:
+                result.route = "deduced"
+                return found
         return None
 
 #: How many of each argument's most promising are combined, per operator,
@@ -686,11 +693,15 @@ class Solver:
 #: How many list receivers a level offers to deduction.
     RECEIVERS = 6
 
-    def _deduce(self, spec, kept, result) -> P.Expr | None:
+    def _deduce(self, spec, kept, result, kinds=("map", "filter")
+                ) -> P.Expr | None:
         """Rung 2: push the spec into a form's hole over each list in hand,
-        those most like the output first (`forms.deduced`)."""
+        those most like the output first (`forms.deduced`). `kinds` are
+        the forms tried: element by element while the meet grows, folds by
+        induction (rung 3) only when it has found nothing."""
         from research.v696 import forms as F
-        tried = self.__dict__.setdefault("_deduced", set())
+        tried = self.__dict__.setdefault("_deduced", {}).setdefault(
+            kinds, set())
         offered = []
         for kind in list(kept):
             if not kind.endswith("[]"):
@@ -703,10 +714,12 @@ class Solver:
         # Occam first: the simplest receiver, then the most promising --
         # `xs` before `xs.filter(...)`, which would stack a form on a form.
         offered.sort(key=lambda one: (one[1].size, -one[0]))
-        for _, expr, row in offered[:self.RECEIVERS]:
+        chosen = offered[:self.RECEIVERS]
+        for _, expr, _ in chosen:
             tried.add(expr.source())
+        for _, expr, row in chosen:
             found = F.deduced(self, spec, expr,
-                              [one["value"] for one in row], result)
+                              [one["value"] for one in row], result, kinds)
             if found is not None:
                 return found
         return None

@@ -183,6 +183,9 @@ def main(argv=None) -> int:
                         help="a decoder in llm/ to propose programs with "
                              "(needs --meaning)")
     options = parser.parse_args(argv)
+    if options.rung == 4:
+        main4(options.held)
+        return 0
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
@@ -216,6 +219,48 @@ def main(argv=None) -> int:
                 out.write(json.dumps({**vars(row),
                                       "routes": dict(row.routes)}) + "\n")
     return 0
+
+
+
+# -- rung 4: editing a program that exists ---------------------------------
+
+def rung4(bugs_: list, budget: int = 8000) -> dict:
+    """Each bug repaired by edits (`editing.repair`), and solved from
+    scratch by the search on the same cases, both judged by its tests."""
+    from research.v696 import editing
+    routes, edits_made, tried = Counter(), Counter(), 0
+    scratch = scratch_ok = 0
+    solver = S.Solver(CONFIGS["meet+repair+forms"], budget=budget)
+    started = time.time()
+    for bug in bugs_:
+        fix = editing.repair(bug)
+        routes[fix.route] += 1
+        tried += fix.tried
+        if fix.route == "fixed":
+            edits_made[len(fix.edits)] += 1
+        spec = Spec(bug.name, bug.params, bug.returns,
+                    [(list(args), want) for args, want in
+                     zip(bug.cases, bug.wanted)],
+                    tests=bug.tests, entry=bug.entry)
+        got = solver.solve(spec)
+        scratch += got.solved
+        if got.solved:
+            scratch_ok += (_passes(spec, got) if bug.tests
+                           else True)
+    return {"bugs": len(bugs_), "routes": dict(routes),
+            "edits": dict(edits_made), "programs run": tried,
+            "scratch solved": scratch, "scratch passes tests": scratch_ok,
+            "seconds": round(time.time() - started)}
+
+
+def main4(held: bool) -> None:
+    from research.v696 import bugs
+    suites = {"generated": bugs.generated(held)}
+    if held:
+        suites["humanevalfix"] = bugs.humanevalfix()
+    for name, found in suites.items():
+        print(f"rung 4 {'held' if held else 'dev'} {name}:",
+              rung4(found), flush=True)
 
 
 if __name__ == "__main__":

@@ -536,6 +536,16 @@ def _piqa_check() -> str | None:
 MULTIPL_E = {"humaneval-ts": 159, "mbpp-ts": 390}
 
 
+def _humanevalfix_check() -> str | None:
+    path = DATA / "humanevalfix" / "js.jsonl"
+    if not path.exists():
+        return None
+    got = _lines(path)
+    if got != 164:
+        raise Failed(f"humanevalfix: {got} bugs, documented 164")
+    return "164 bugs"
+
+
 def _multipl_e_check() -> str | None:
     folder = DATA / "multipl-e"
     if not (folder / "mbpp-ts.jsonl").exists():
@@ -1032,6 +1042,10 @@ def steps() -> list[Step]:
         Step("multipl-e", "MultiPL-E HumanEval-TS and MBPP-TS, v696's",
              lambda: _run("research.v696.tasks", "fetch"),
              _multipl_e_check, cost="a minute"),
+        Step("humanevalfix", "HumanEvalPack's 164 human-written bugs "
+                             "(JavaScript), v696 rung 4's held benchmark",
+             lambda: _run("research.v696.bugs", "fetch"),
+             _humanevalfix_check, cost="seconds"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually

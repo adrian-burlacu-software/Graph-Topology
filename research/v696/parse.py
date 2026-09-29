@@ -11,6 +11,8 @@ from then on, or None where the code says something the library cannot.
 """
 from __future__ import annotations
 
+import dataclasses
+
 from research.v696 import program as P
 from research.v696.meaning import interface, word
 
@@ -22,7 +24,7 @@ class Unread(Exception):
 def _lookup() -> dict:
     lib = P.library()
     table: dict = {}
-    for op in lib.ops:
+    for op in lib.ops + lib.read_only:
         table.setdefault((word(op), op.kind), []).append(op)
     forms: dict = {}
     for form in lib.forms:
@@ -106,6 +108,17 @@ class Module:
         return op
 
     def read(self, node: dict, scope: dict) -> P.Expr:
+        expr = self._read(node, scope)
+        if "span" in node and expr.where is None:
+            where = {key: tuple(node[key]) for key in ("span", "opspan",
+                                                       "namespan")
+                     if key in node}
+            if "said" in node:
+                where["said"] = node["said"]
+            expr = dataclasses.replace(expr, where=where)
+        return expr
+
+    def _read(self, node: dict, scope: dict) -> P.Expr:
         node = _typed(node)
         kind = node["k"]
         if kind == "id":
@@ -141,6 +154,27 @@ class Module:
             return P.apply(_op("[...]", ("append",),
                                tuple(one.type for one in args),
                                node["type"]), args)
+        if kind == "tuple":
+            args = [self.read(one, scope) for one in node["args"]]
+            return P.apply(P.tuple_op([one.type for one in args]), args)
+        if kind == "while":
+            start = self.read(node["args"][0], scope)
+            inner = dict(scope)
+            inner[node["state"]] = P.param(node["state"], start.type)
+            state = [(node["state"], start.type)]
+            test = self.read(node["args"][1], inner)
+            update = self.read(node["args"][2], inner)
+            if test.type != "boolean" or update.type != start.type:
+                raise Unread("a loop whose state changes its type")
+            return P.apply(P.while_op(start.type),
+                           [start, P.lambda_(state, test),
+                            P.lambda_(state, update)])
+        if kind == "index" and node["args"][0]["k"] != "lit" and \
+                P.elements(_typed(node["args"][0]).get("type", "")):
+            tuple_, at = [self.read(one, scope) for one in node["args"]]
+            if at.kind != "const" or not P.elements(tuple_.type):
+                raise Unread("a tuple read at a place not fixed")
+            return P.apply(P.element_op(tuple_.type, at.value), [tuple_, at])
         if kind == "index":
             args = [self.read(one, scope) for one in node["args"]]
             return P.apply(_op("[i]", ("index",),

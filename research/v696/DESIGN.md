@@ -298,6 +298,80 @@ candidates.
 **HumanEval-TS** (151, budget 8,000, held, once): 21 → **22** pass their
 tests, examples met 78 → 86, candidates 1.34M → 1.19M.
 
+### Rung 3, finished (2026-09-29)
+
+- **Any loop is read.** Several values carried are a tuple (`state[1]`);
+  `while` and any `for` that does not simply count are the language's own
+  loop, printed as an exact expression
+  (`((c, u, s) => { while (c(s)) s = u(s); return s; })(test, update,
+  start)`); parameters are variables a loop may change.
+- **Early exits are values.** `return`, `break` and `continue` inside a
+  loop set flags the loop carries (stopped, skipped, returned and what);
+  every change after such a point is guarded by them, every loop's test
+  includes "not yet returned" (an outer return freezes an inner loop too —
+  found as an infinite loop, fixed as a rule), and the function returns
+  what was returned if anything was. The plain `some`/`find` reading of a
+  search loop is kept where nothing may have returned before it.
+- **Empty lists take the type they become** where the compiler next knows
+  it (`var result = []`); rest parameters one by one (`Math.max(a, b)`) are
+  readable but **not grown** — what is read is more than what the search
+  need make (`Library.read_only`); growing them cost rung 2's evens filter.
+- **Folds by induction** (`forms._induced`): examples whose lists differ by
+  one element at the end give rows of the step's own spec; the step is
+  tried over the loop's own scope first (the outer inputs change with it —
+  `acc * n` fits the rows of a factorial and is not its step). Induction is
+  the dearest subgoal and runs last, after the meet and repair.
+
+Reading stays exact (`needs_exact.py`): every verified program that reads
+passes its own tests from its tree — MBPP 88 → **123**/257, HumanEval 33
+→ **55**/99.
+
+| held, once (budget 8,000, meet + repair + forms) | solved / general |
+|---|---|
+| rung 1 | 28 / 21 (was 28 / 21) |
+| rung 2 | 22 / 18 (was 21 / 19) |
+| rung 3 | **21 / 17** |
+
+## Rung 4 — editing a program that exists (`editing.py`, `bugs.py`)
+
+The program is read with where every node came from (`Expr.where`: its
+span, its operator's or member's span, a name as written). An **edit**
+replaces one span's text, so it is made in the source — comments and
+layout untouched — and the edited file is what is run. The edits are
+general (operators and members with the same needs and gives, constants
+nudged or to small numbers or others the program says, any name the
+function declares of that type, sides swapped, unwrap, wrap), ranked by
+suspicion (a node whose values on the failing cases are never its values
+on the passing ones), one edit, then two. What no few edits fix — logic
+missing — is **searched with the program as the sketch** (its parts in the
+forward trie, itself a near miss) and the function written again
+(`rewritten`, reported apart from edits).
+
+Benchmarks: verified programs made wrong by one edit, **frozen**
+(`bugs-dev.jsonl` from MBPP, `bugs-held.jsonl` from HumanEval — the edits
+grew, the benchmark did not move with them); **HumanEvalFix** (164
+human-written bugs, JavaScript, typed by MultiPL-E's signature: 157; 79
+read). Judged by the bug's own tests (both test files for HumanEvalFix);
+against the search solving the same cases from scratch.
+
+| | fixed by edits | rewritten | unread | from scratch |
+|---|---|---|---|---|
+| generated, dev (40) | 30 (all one edit) | 7 | 0 | 21 |
+| generated, held (40) | **36** (one edit) | 1 | 0 | 15 |
+| **HumanEvalFix, held (157)** | **46** (43 one, 3 two) | **11** | 78 | 28 |
+
+HumanEvalFix: **57 of 157** fixed, 57 of the 79 that read (72%); the
+search from scratch passes 28. The 78 unread are the ceiling now —
+objects and Sets, `sort` in place, types beyond the library's. As in
+HumanEvalFix itself, the tests are given; a fix meets them, it is not a
+claim about unseen cases.
+
+**HumanEval-TS** (held, once, everything on: the reading's promise, the
+whole-function decoder, rung 3's library and reader): 22 → **24**/151 pass
+their tests; examples met 86 → 79, candidates 1.19M → 1.75M. More is
+tried per task (induction last, a larger library) and more of what meets
+the examples is right.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

@@ -138,6 +138,16 @@ class FormTests(unittest.TestCase):
         self.assertEqual(got.program.source(),
                          "xs.filter((x, i) => ((x % 2) === 0))")
 
+    def test_a_fold_is_found_by_induction(self):
+        """Rung 3: examples whose lists differ by one element at the end
+        give the fold's step as a subgoal."""
+        from research.v696.spec import Spec
+        got = self.solve(Spec("triangle", [("n", "number")], "number",
+                              [([3], 6), ([4], 10), ([6], 21), ([7], 28),
+                               ([0], 0)]))
+        self.assertEqual(got.route, "deduced")
+        self.assertIn(".reduce(", got.program.source())
+
     def test_the_answer_is_a_function_of_it(self):
         from research.v696.search import determines
         outputs = [False, True, False, True]
@@ -206,11 +216,10 @@ class MeaningTests(unittest.TestCase):
                                "s.split(\" \"); return w.length + w.length; "
                                "}", "f", [("s", "string")]).source(),
                          '(s.split(" ").length + s.split(" ").length)')
-        # a loop that changes a number as it goes is not a fold (yet)
-        self.assertIsNone(parse("function f(n: number): number { let s = 0; "
-                                "while (n > 0) { s += n % 10; n = Math.floor("
-                                "n / 10); } return s; }", "f",
-                                [("n", "number")]))
+        # what is beyond the library's types is not read: a Set
+        self.assertIsNone(parse("function f(xs: number[]): number { return "
+                                "new Set(xs).size; }", "f",
+                                [("xs", "number[]")]))
 
     def test_statements_are_executed_into_one_tree(self):
         """Rung 3b: guards are ternaries, a loop carrying one value is a
@@ -240,11 +249,43 @@ class MeaningTests(unittest.TestCase):
             "return out; }", "f", xs).source(),
             "xs.reduce((acc, x, i) => (((x % 2) === 0) ? [...acc, (x * x)] "
             ": acc), [])")
-        # two values carried (a running maximum and a list) is not one fold
-        self.assertIsNone(parse(
+
+    def test_any_loop_is_read_and_means_what_it_did(self):
+        """Rung 3, finished: several values carried are a tuple; `while`
+        and any `for` are the language's own loop; return, break and
+        continue inside a loop are carried as values. Checked by running
+        the tree against the source on the same inputs."""
+        from research.v696 import program as P
+        from research.v696.checker import checker
+        from research.v696.parse import parse
+        cases = {
             "function f(xs: number[]): number[] { let m = -Infinity; const "
             "out: number[] = []; for (const x of xs) { m = Math.max(m, x); "
-            "out.push(m); } return out; }", "f", xs))
+            "out.push(m); } return out; }": [[[1, 3, 2, 5]], [[4]], [[]]],
+            "function f(n: number): number { let s = 0; while (n > 0) { s "
+            "+= n % 10; n = Math.floor(n / 10); } return s; }":
+                [[1234], [0], [7]],
+            "function f(xs: number[]): number { let t = 0; for (const x of "
+            "xs) { if (x < 0) continue; if (x > 50) break; t += x; } return "
+            "t; }": [[[1, -2, 3, 60, 4]], [[5, 6]], [[]]],
+            "function f(l: number[], s: number[]): boolean { for (let i = 0; "
+            "i <= l.length - s.length; i++) { let j = 0; for (; j < "
+            "s.length; j++) { if (l[i + j] !== s[j]) break; } if (j === "
+            "s.length) return true; } return false; }":
+                [[[2, 4, 3, 5, 7], [4, 3]], [[2, 4, 3, 5, 7], [3, 7]],
+                 [[1], []]],
+        }
+        for source, inputs in cases.items():
+            params = [("xs", "number[]")] if "xs" in source.split("{")[0] \
+                else [("n", "number")] if "(n:" in source \
+                else [("l", "number[]"), ("s", "number[]")]
+            tree = parse(source, "f", params)
+            self.assertIsNotNone(tree, source)
+            names = [name for name, _ in params]
+            want = checker().run(source, "f", inputs)
+            got = checker().values(names, inputs, [tree.source()],
+                                   prelude=P.prelude([tree]))[0]
+            self.assertEqual(got, want, source)
 
     def test_a_helper_is_an_operator_carrying_its_body(self):
         from research.v696 import program as P
@@ -274,6 +315,42 @@ class MeaningTests(unittest.TestCase):
         fits = P.apply(reverse, [P.param("xs", "number[]")])
         self.assertFalse(solver._accepts(spec, fits, result))
         self.assertEqual(result.rejected, 1)
+
+
+@needs_node
+class EditingTests(unittest.TestCase):
+    """Rung 4: a program that exists is repaired by edits made in its
+    source, the rest of it untouched."""
+
+    def bug(self, source, cases, wanted):
+        from research.v696.editing import Bug
+        return Bug("t", source, "f", [("xs", "number[]"), ("t", "number")],
+                   "boolean", cases, wanted)
+
+    def test_a_missing_absolute_value_is_wrapped_in(self):
+        from research.v696.editing import repair
+        source = ("function f(xs: number[], t: number): boolean {\n"
+                  "  // any two closer than t\n"
+                  "  for (let i = 0; i < xs.length; i++)\n"
+                  "    for (let j = 0; j < xs.length; j++)\n"
+                  "      if (i != j && xs[i] - xs[j] < t) return true;\n"
+                  "  return false;\n}\n")
+        cases = [[[1, 5, 2.1], 0.5], [[1, 1.3], 0.5], [[3, 1], 1]]
+        fix = repair(self.bug(source, cases, [False, True, False]))
+        self.assertEqual(fix.route, "fixed")
+        self.assertEqual(len(fix.edits), 1)
+        self.assertIn("Math.abs(xs[i] - xs[j]) < t", fix.source)
+        # the comment and the layout are as they were
+        self.assertIn("  // any two closer than t\n", fix.source)
+
+    def test_a_wrong_operator_is_swapped(self):
+        from research.v696.editing import repair
+        source = ("function f(xs: number[], t: number): boolean {\n"
+                  "  return xs.every((x) => x > t);\n}\n")
+        cases = [[[3, 4], 3], [[5], 5], [[1, 9], 2]]
+        fix = repair(self.bug(source, cases, [True, True, False]))
+        self.assertEqual(fix.route, "fixed")
+        self.assertEqual(fix.source, source.replace("x > t", "x >= t"))
 
 
 if __name__ == "__main__":

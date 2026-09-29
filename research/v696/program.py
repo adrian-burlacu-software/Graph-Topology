@@ -94,6 +94,13 @@ class Op:
             return f"{args[0]}[{args[1]}]"
         if self.kind == "append":
             return f"[...{args[0]}, {args[1]}]"
+        if self.kind == "tuple":
+            return f"[{', '.join(args)}]"
+        if self.kind == "while":
+            # the language's own loop, as an expression: while the test
+            # holds of the state, the update makes the next one
+            return (f"((c, u, s) => {{ while (c(s)) s = u(s); return s; }})"
+                    f"({args[1]}, {args[2]}, {args[0]})")
         if self.kind == "form":
             return f"{args[0]}.{self.name}({', '.join(args[1:])})"
         if self.kind == "operator":
@@ -156,6 +163,40 @@ INDEX = tuple(Op("[]", "index", (kind, "number"), kind[:-2])
 APPEND = tuple(Op("...", "append", (kind, kind[:-2]), kind)
                for kind in ("number[]", "string[]", "boolean[]"))
 
+#: Rest parameters taken one by one: rung 3's too (`library`).
+REST_LATER: set = set()
+
+
+def later(op: Op) -> bool:
+    """Added at rung 3: the generator of rungs 1-2 leaves it out."""
+    return op.key in LATER or op.key in REST_LATER
+
+
+def tuple_of(types) -> str:
+    """The type of a tuple of these: what a loop carrying several values
+    carries (rung 3)."""
+    return f"[{', '.join(types)}]"
+
+
+def elements(type_: str) -> list:
+    """A tuple type's element types; [] for any other type."""
+    if not (type_.startswith("[") and type_.endswith("]")):
+        return []
+    return _split_top(type_[1:-1])
+
+
+def tuple_op(types) -> Op:
+    return Op("[,]", "tuple", tuple(types), tuple_of(types))
+
+
+def element_op(type_: str, at: int) -> Op:
+    return Op("[i]", "index", (type_, "number"), elements(type_)[at])
+
+
+def while_op(type_: str) -> Op:
+    return Op("while", "while", (type_, "fn:boolean", f"fn:{type_}"), type_)
+
+
 #: What rung 3 added to the library: the generator of rungs 1-2 leaves it
 #: out, so their tasks are unchanged.
 LATER = frozenset([RANGE.key] + [op.key for op in INDEX + APPEND] + [
@@ -175,6 +216,9 @@ class Expr:
     value: object = None
     op: Op | None = None
     args: tuple = ()
+    #: where it came from in a source that was read (rung 4): its span, and
+    #: an operator's or member's own -- not part of what the node is
+    where: dict | None = field(default=None, compare=False, repr=False)
 
     def source(self) -> str:
         return self.text
@@ -326,6 +370,10 @@ class Library:
     ops: list = field(default_factory=list)
     #: rung 2: the members that take a callback
     forms: list = field(default_factory=list)
+    #: what can be read but is not grown: the same member said another way
+    #: people write (`Math.max(a, b)` beside the search's `Math.max(...xs)`)
+    #: -- what is read is more than what the search need make
+    read_only: list = field(default_factory=list)
 
     def giving(self, type_: str) -> list:
         return [one for one in self.ops if one.gives == type_]
@@ -347,6 +395,7 @@ def library(types=TYPES) -> Library:
     from research.v696.checker import checker
     wanted = set(types)
     ops, seen = [], set()
+    read_only, read_seen = [], set()
 
     def add(op: Op) -> None:
         # A call with nothing to work on is a constant, or random
@@ -410,7 +459,22 @@ def library(types=TYPES) -> Library:
             else:
                 add(Op(signature["name"], "method", (receiver, *needs),
                        gives, spread))
-    found = Library(ops, forms)
+            if spread and needs and needs[-1].endswith("[]"):
+                # A rest parameter takes its values one by one as well as
+                # spread from a list: `Math.max(a, b)` (rung 3).
+                for times in (1, 2, 3):
+                    single = (*needs[:-1], *[needs[-1][:-2]] * times)
+                    op = (Op(signature["name"], "function", single, gives)
+                          if receiver is None else
+                          Op(signature["name"], "method",
+                             (receiver, *single), gives))
+                    if op.key not in seen and op.key not in read_seen \
+                            and all(one in wanted for one in op.needs) \
+                            and op.gives in wanted:
+                        REST_LATER.add(op.key)
+                        read_seen.add(op.key)
+                        read_only.append(op)
+    found = Library(ops, forms, read_only)
     _LIBRARY[key] = found
     return found
 

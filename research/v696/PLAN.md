@@ -225,6 +225,43 @@ ranks them:
 or a helper in the answer, dev and held apart); HumanEval passing its tests
 (21/151 after the decoder); rung 1–2 must not get worse.
 
+## Rung 4 — editing existing code (planned 2026-09-29)
+
+The world is a program that exists and is wrong; the goal is its failing
+tests passing, the rest still passing; the actions are **edits**, and the
+answer is the program as it was written with the least changed — not a
+program searched afresh and printed the search's way.
+
+**What rung 3 already gives**: the program read into the search's tree
+(`parse.py`), exactly, steps and loops and early exits included; a test
+file read into examples (`meaning.test_pairs`).
+
+**What rung 4 adds**:
+
+- **4a. Where each node came from.** The reader keeps every node's source
+  span; a node the reading made (a fold, a guard's ternary) keeps the spans
+  of the parts it was made from. An edit is a subtree replaced; the edited
+  source is the original with that span's text replaced, so the rest of the
+  file is untouched.
+- **4b. Where the fault is** (backward error-correction, 2d, on a program
+  that exists): each node's values on the passing and the failing cases,
+  by running; a node whose values separate them, and which the output
+  depends on (`search.determines`), is suspected first.
+- **4c. Edits as operators**, general, over the tree: a node replaced by
+  another of its type from the forward trie (repair as now), an operator by
+  its neighbours (`<` for `<=`, `+` for `-`: same needs and gives), a
+  constant nudged, arguments swapped, a wrapper removed or added. Ranked by
+  suspicion, fewest edits first (Occam), each checked on every case.
+- **4d. The edit is made in the source** (4a), and the edited file is what
+  is checked and returned.
+
+**Measured**: generated bugs (verified programs mutated by the edit
+operators' inverses — dev from MBPP, held from HumanEval), and
+**HumanEvalFix** (164 human-written bugs in HumanEval, JavaScript bodies
+typed by MultiPL-E's TypeScript signatures; independent, held): fixed,
+edits made, lines changed; against the search solving the tests from
+scratch.
+
 ## Reading code and English together: one meaning (Adrian, 2026-09-27/28)
 
 *"We're going to need to understand code as well — that's why I suggested a

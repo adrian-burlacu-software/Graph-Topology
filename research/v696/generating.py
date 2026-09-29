@@ -95,7 +95,7 @@ def task(seed: int, depth: int) -> Spec | None:
     lib = P.library()
     pool = [P.param(name, kind) for name, kind in shape] + [
         P.const(value, kind) for value, kind in P.CONSTANTS]
-    ops = [op for op in lib.ops if op.key not in P.LATER]
+    ops = [op for op in lib.ops if not P.later(op)]
     for _ in range(30):
         answer = _grow_typed(rng, pool, ops, depth,
                              rng.choice(P.TYPES))
@@ -159,7 +159,7 @@ def task2(seed: int, depth: int = 1) -> Spec | None:
             P.param(name, kind) for name, kind in shape] + [
             P.const(value, kind) for value, kind in P.CONSTANTS]
         body = _grow_typed(rng, pool, [op for op in lib.ops
-                                       if op.key not in P.LATER],
+                                       if not P.later(op)],
                            depth, body_type)
         if body is None or not _uses(body, [scope[0][0]]):
             continue
@@ -174,7 +174,7 @@ def task2(seed: int, depth: int = 1) -> Spec | None:
             continue
         answer = P.apply(op, [receiver, P.lambda_(scope, body), *extra])
         if rng.random() < 0.5:
-            after = [one for one in lib.ops if one.key not in P.LATER
+            after = [one for one in lib.ops if not P.later(one)
                      and (one.needs == (answer.type,)
                           or (len(one.needs) == 2 and one.needs[0] ==
                               answer.type and one.needs[1] == "string"))]

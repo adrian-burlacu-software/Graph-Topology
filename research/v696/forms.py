@@ -94,18 +94,81 @@ def _sub_spec(spec: Spec, scope, body_type: str, rows) -> Spec | None:
                 body_type, examples)
 
 
+def _induced(solver, spec: Spec, receiver: P.Expr, values: list,
+             form: P.Form, scope, result) -> P.Expr | None:
+    """A fold found by induction (rung 3): where two examples' lists
+    differ by one element at the end, the fold's answer for the shorter,
+    that element and its place give the answer for the longer -- a row of
+    the step's own spec. Two such rows and the step is a subgoal; the start
+    is the answer where the list is empty, or one of the constants."""
+    body_type = spec.returns
+    if len(form.extra) != 1 or form.body not in (body_type, "U") \
+            or form.gives not in (body_type, "U"):
+        return None
+    rows, empty = [], []
+    for (args_a, out_a), got_a in zip(spec.examples, values):
+        if got_a == []:
+            empty.append(out_a)
+        for (args_b, out_b), got_b in zip(spec.examples, values):
+            if isinstance(got_a, list) and isinstance(got_b, list) \
+                    and len(got_b) == len(got_a) + 1 \
+                    and got_b[:-1] == got_a:
+                rows.append(([out_a, got_b[-1], len(got_a)][:len(scope)]
+                             + list(args_b), out_b))
+    settled = _settled(scope, body_type)
+    op = form.op(body_type)
+    starts = [P.const(value, body_type) for value in empty[:1]] + [
+        P.const(value, kind) for value, kind in P.CONSTANTS
+        if kind == body_type]
+    # The step over the loop's own scope first: the outer inputs change
+    # with it from one example to the next (the longer list is often the
+    # larger input), so a step read off them fits the rows and not the
+    # loop. Only if that fails are they offered.
+    width = len(settled)
+    own = [(args[:width], out) for args, out in rows]
+    for pushed in (Spec(f"{spec.name}/step", list(settled), body_type,
+                        _unique(own)[:SUB_EXAMPLES]),
+                   _sub_spec(spec, settled, body_type, rows)):
+        if pushed is None or len(pushed.examples) < 2:
+            continue
+        found = _solve_hole(solver, pushed, result)
+        if found is None:
+            continue
+        tried = [P.apply(op, [receiver, P.lambda_(settled, found), start])
+                 for start in starts]
+        hit = solver._check(spec, tried, result)
+        if hit is not None:
+            return hit
+    return None
+
+
+def _unique(rows) -> list:
+    seen, out = set(), []
+    for args, out_ in rows:
+        key = _key([args, out_])
+        if key not in seen:
+            seen.add(key)
+            out.append((args, out_))
+    return out
+
+
 def deduced(solver, spec: Spec, receiver: P.Expr, values: list,
-            result) -> P.Expr | None:
+            result, kinds=("map", "filter", "reduce")) -> P.Expr | None:
     """Try every deduced form over one receiver, whose values on the
     examples are `values`: a sub-spec pushed down, a child solving it."""
     lib = P.library()
     element = _element_type(receiver.type)
     outputs = spec.outputs
     for form in lib.forms:
-        if form.receiver != receiver.type or form.name not in ("map",
-                                                             "filter"):
+        if form.receiver != receiver.type or form.name not in kinds:
             continue
         scope = _names(form, spec.params)
+        if form.name == "reduce":
+            found = _induced(solver, spec, receiver, values, form, scope,
+                             result)
+            if found is not None:
+                return found
+            continue
         if form.name == "map":
             targets = []
             if spec.returns.endswith("[]"):
