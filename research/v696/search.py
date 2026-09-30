@@ -53,6 +53,10 @@ DEPTH = 3
 BUDGET = 20000
 #: How many of a spec's recurring values are taken as its constants.
 LITERALS = 3
+#: How many near misses repair may check: its own allowance.
+REPAIRS = 20000
+#: How many candidates folds by induction may spend: their own allowance.
+INDUCTIONS = 12000
 #: What the reader of meaning must be this sure of before a program that
 #: meets the examples is refused for not showing it.
 STRONG = 0.95
@@ -642,8 +646,15 @@ class Solver:
                 return found
         if self.switches.forms:
             # The dearest subgoal last: a fold's step by induction, once
-            # growing and repairing have found nothing.
-            found = self._deduce(spec, kept, result, ("reduce",))
+            # growing and repairing have found nothing -- with its own
+            # allowance, declared, as repair has: the budget is spent by
+            # then.
+            budget = self.budget
+            self.budget = result.evaluated + INDUCTIONS
+            try:
+                found = self._deduce(spec, kept, result, ("reduce",))
+            finally:
+                self.budget = budget
             if found is not None:
                 result.route = "deduced"
                 return found
@@ -718,6 +729,8 @@ class Solver:
         for _, expr, _ in chosen:
             tried.add(expr.source())
         for _, expr, row in chosen:
+            if result.evaluated >= self.budget:
+                return None
             found = F.deduced(self, spec, expr,
                               [one["value"] for one in row], result, kinds)
             if found is not None:
@@ -728,16 +741,31 @@ class Solver:
         """Backward error-correction: for the nearest misses, replace one
         subtree at a time by a kept expression of its type."""
         near.sort(key=lambda one: -one[0])
+        # Its own allowance, declared: beyond what repairing what the
+        # search grows ever needs, and a bound on a near miss the search
+        # was given whole (a program read from a file: thousands of nodes,
+        # each subtree times each kept expression). Made as checked, not
+        # all at once.
+        spent = 0
         for _, expr in near[:5]:
-            paths = list(_paths(expr))
-            candidates = []
-            for path, sub in paths:
+            batch = []
+            for path, sub in _paths(expr):
                 for other, _ in kept.get(sub.type, [])[:150]:
-                    if other.source() != sub.source():
-                        candidates.append(_replace(expr, path, other))
-            for start in range(0, len(candidates), BATCH):
-                hit = self._check(spec, candidates[start:start + BATCH],
-                                  result)
+                    if other.source() == sub.source():
+                        continue
+                    batch.append(_replace(expr, path, other))
+                    if len(batch) < BATCH:
+                        continue
+                    hit = self._check(spec, batch, result)
+                    spent += len(batch)
+                    batch = []
+                    if hit is not None:
+                        return hit
+                    if spent >= REPAIRS:
+                        return None
+            if batch:
+                hit = self._check(spec, batch, result)
+                spent += len(batch)
                 if hit is not None:
                     return hit
         return None

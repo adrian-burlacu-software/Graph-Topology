@@ -96,6 +96,31 @@ class Op:
             return f"[...{args[0]}, {args[1]}]"
         if self.kind == "tuple":
             return f"[{', '.join(args)}]"
+        if self.kind == "opaque":
+            # its own text, the variables it reads filled in
+            parts = json.loads(self.name)
+            out = parts[0]
+            for arg, part in zip(args, parts[1:]):
+                out += f"({arg}){part}"
+            # in parentheses: `{ 1: 'One' }` after `=>` is otherwise a block
+            return f"({out})"
+        if self.kind == "let":
+            # a value bound once where it was made, lazily and remembered:
+            # worked out when first read, never twice ($-names shadow
+            # nothing a program says)
+            return (f"({args[1]})((() => {{ let $d = false, $x; return () "
+                    f"=> ($d ? $x : ($d = true, $x = {args[0]})); }})())")
+        if self.kind == "force":
+            return f"{args[0]}()"
+        if self.kind == "effect":
+            # the call made on a copy, and the copy as the call left it
+            copied = copy_of(self.needs[0], "c")
+            return (f"((c, ...a) => {{ c = {copied}; c.{self.name}(...a); "
+                    f"return c; }})({', '.join(args)})")
+        if self.kind == "setitem":
+            copied = copy_of(self.needs[0], "c")
+            return (f"((c, k, v) => {{ c = {copied}; c[k] = v; return c; }})"
+                    f"({', '.join(args)})")
         if self.kind == "while":
             # the language's own loop, as an expression: while the test
             # holds of the state, the update makes the next one
@@ -105,6 +130,9 @@ class Op:
             return f"{args[0]}.{self.name}({', '.join(args[1:])})"
         if self.kind == "operator":
             if len(args) == 1:
+                if self.name.isalpha():
+                    # typeof, void, delete: a word needs its space
+                    return f"({self.name} {args[0]})"
                 return f"({self.name}{args[0]})"
             return f"({args[0]} {self.name} {args[1]})"
         if self.kind == "property":
@@ -170,6 +198,30 @@ REST_LATER: set = set()
 def later(op: Op) -> bool:
     """Added at rung 3: the generator of rungs 1-2 leaves it out."""
     return op.key in LATER or op.key in REST_LATER
+
+
+def let_op(value_type: str, body_type: str) -> Op:
+    """A value bound once (rung 4, the reader): the value, and a function
+    of the binding giving the body."""
+    return Op("let", "let", (value_type, f"fn:{body_type}"), body_type)
+
+
+def force_op(value_type: str) -> Op:
+    """A read of a binding: its value, worked out the first time."""
+    return Op("()", "force", (f"lazy:{value_type}",), value_type)
+
+
+def copy_of(type_: str, said: str) -> str:
+    """A copy of a container, as the language makes one: what a change to
+    it is made on, so the value it was stays what it was."""
+    if type_.startswith("Set<") or type_ == "Set":
+        return f"new Set({said})"
+    if type_.startswith("Map<") or type_ == "Map":
+        return f"new Map({said})"
+    if type_.endswith("[]") or type_.startswith("[") \
+            or type_.startswith("Array<"):
+        return f"[...{said}]"
+    return f"({{...{said}}})"
 
 
 def tuple_of(types) -> str:

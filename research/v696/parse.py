@@ -12,6 +12,7 @@ from then on, or None where the code says something the library cannot.
 from __future__ import annotations
 
 import dataclasses
+import json
 
 from research.v696 import program as P
 from research.v696.meaning import interface, word
@@ -42,14 +43,27 @@ def _table() -> dict:
     return _TABLE
 
 
+def _vague(type_: str) -> bool:
+    """A type the compiler could not say: `any`, or nothing yet."""
+    return type_ is None or "any" in type_ or "never" in type_ \
+        or "unknown" in type_
+
+
 def _op(member: str, kinds, needs: tuple, gives: str,
-        spread: bool = False) -> P.Op:
+        spread: bool = False, made: str | None = None) -> P.Op:
+    """The library's operator for this, or -- where reading needs one
+    the search does not grow (`made`, the kind) -- one made here with the
+    compiler's types: it prints the same code, so it runs the same."""
     for kind in kinds:
         for op in _table()["ops"].get((member, kind), ()):
-            if op.needs == needs and op.gives == gives \
-                    and op.spread == spread:
+            if op.needs == needs and op.spread == spread and (
+                    op.gives == gives or _vague(gives)):
                 return op
-    raise Unread(f"{member}{needs}->{gives}")
+    if made is None or member is None:
+        raise Unread(f"{member}{needs}->{gives}")
+    name = member.split(".")[-1] if made in ("method", "property") \
+        else member
+    return P.Op(name, made, needs, gives, spread)
 
 
 
@@ -86,25 +100,37 @@ class Module:
             scope[bound] = self.read(node, scope)
         return self.read(read["ret"], scope)
 
-    def helper(self, name: str) -> P.Op:
-        if name in self.helpers:
-            return self.helpers[name]
-        if name in self.reading:
-            # calling itself: recursion is not a tree (rung 3b's loops)
-            raise Unread(f"{name} calls itself")
-        self.reading.add(name)
+    def helper(self, name: str, given: tuple) -> P.Op:
+        """A helper function as an operator, for the types it is called
+        with: a parameter the file leaves untyped (JavaScript) takes the
+        type of what it is given. Calling itself, it is a call to the
+        function being read (recursion)."""
         read = self.functions[name]
-        params = [(one, _typed({"type": kind})["type"])
-                  for one, kind in read.get("params", ())]
-        body = self.function(name, params)
+        declared = [(one, _typed({"type": kind})["type"])
+                    for one, kind in read.get("params", ())]
+        if len(declared) != len(given):
+            raise Unread(f"{name} called with {len(given)} of "
+                         f"{len(declared)}")
+        params = [(one, kind if not _vague(kind) else other)
+                  for (one, kind), other in zip(declared, given)]
+        key = (name, tuple(kind for _, kind in params))
+        if key in self.helpers:
+            return self.helpers[key]
         returns = _typed({"type": read["returns"]})["type"]
-        if body.type != returns:
+        if key in self.reading:
+            return P.Op(name, "recurse", key[1], returns)
+        self.reading.add(key)
+        try:
+            body = self.function(name, params)
+        finally:
+            self.reading.discard(key)
+        if body.type != returns and not _vague(returns) \
+                and not _vague(body.type):
             raise Unread(f"{name} returns {body.type}, said {returns}")
-        op = P.Op(name, "helper", tuple(kind for _, kind in params),
-                  returns, params=tuple(one for one, _ in params),
-                  body=body)
-        self.reading.discard(name)
-        self.helpers[name] = op
+        op = P.Op(name, "helper", key[1],
+                  body.type if _vague(returns) else returns,
+                  params=tuple(one for one, _ in params), body=body)
+        self.helpers[key] = op
         return op
 
     def read(self, node: dict, scope: dict) -> P.Expr:
@@ -137,16 +163,62 @@ class Module:
             args = [self.read(one, scope) for one in node["args"]]
             return P.apply(_op(node["op"], ("operator",),
                                tuple(one.type for one in args),
-                               node["type"]), args)
+                               node["type"], made="operator"), args)
         if kind == "cond":
             args = [self.read(one, scope) for one in node["args"]]
+            gives = node["type"] if not _vague(node["type"]) \
+                else args[1].type
             return P.apply(_op("?:", ("ternary",),
-                               tuple(one.type for one in args),
-                               node["type"]), args)
+                               tuple(one.type for one in args), gives,
+                               made="ternary"), args)
         if kind == "prop":
             receiver = self.read(node["recv"], scope)
             return P.apply(_op(node["member"], ("property",),
-                               (receiver.type,), node["type"]), [receiver])
+                               (receiver.type,), node["type"],
+                               made="property"), [receiver])
+        if kind == "opaque":
+            # what the tree does not model: its own text, its holes read
+            text, holes = node["text"], sorted(node["holes"],
+                                               key=lambda one: one["at"][0])
+            parts, at = [], 0
+            for hole in holes:
+                parts.append(text[at:hole["at"][0]])
+                at = hole["at"][1]
+            parts.append(text[at:])
+            args = [self.read(hole["value"], scope) for hole in holes]
+            return P.apply(P.Op(json.dumps(parts), "opaque",
+                                tuple(one.type for one in args),
+                                node["type"]), args)
+        if kind == "let":
+            value = self.read(node["value"], scope)
+            inner = dict(scope)
+            inner[node["key"]] = P.param(node["key"], f"lazy:{value.type}")
+            body = self.read(node["body"], inner)
+            return P.apply(P.let_op(value.type, body.type),
+                           [value, P.lambda_([(node["key"],
+                                               f"lazy:{value.type}")],
+                                             body)])
+        if kind == "ref":
+            if node["key"] not in scope:
+                raise Unread("a shared value read outside where it is bound")
+            binding = scope[node["key"]]
+            return P.apply(P.force_op(binding.type[len("lazy:"):]),
+                           [binding])
+        if kind == "inline":
+            # a helper made inside the function: its body, its parameters
+            # what it was given
+            fn = node["fn"]
+            args = [self.read(one, scope) for one in node["args"]]
+            if len(args) != len(fn["params"]):
+                raise Unread("a helper called with fewer or more")
+            inner = dict(scope)
+            inner.update(zip(fn["params"], args))
+            return self.read(fn["body"], inner)
+        if kind in ("effect", "setitem"):
+            args = [self.read(one, scope) for one in node["args"]]
+            name = node.get("member", "[]=")
+            return P.apply(P.Op(name, kind, tuple(one.type for one in args),
+                                args[0].type), args)
         if kind == "call":
             return self._call(node, scope)
         if kind == "append":
@@ -179,7 +251,11 @@ class Module:
             args = [self.read(one, scope) for one in node["args"]]
             return P.apply(_op("[i]", ("index",),
                                tuple(one.type for one in args),
-                               node["type"]), args)
+                               node["type"], made="index"), args)
+        if kind == "arrow":
+            # a callback given where no form takes it (`sort`'s comparator
+            # in a change made in place): as it was written
+            return self._lambda(node, scope)
         if kind == "range":
             args = [self.read(one, scope) for one in node["args"]]
             if tuple(one.type for one in args) != P.RANGE.needs:
@@ -194,13 +270,13 @@ class Module:
             args = [self.read(one["args"][0] if one["k"] == "spread"
                               else one, scope) for one in node["args"]]
             if member in self.functions:
-                op = self.helper(member)
-                if tuple(one.type for one in args) != op.needs:
-                    raise Unread(member)
+                op = self.helper(member, tuple(one.type for one in args))
                 return P.apply(op, args)
+            made = "function" if node.get("global") \
+                or (member or "").startswith("Math.") else None
             return P.apply(_op(member, ("function",),
                                tuple(one.type for one in args),
-                               node["type"], spread), args)
+                               node["type"], spread, made), args)
         receiver = self.read(node["recv"], scope)
         if node["args"] and node["args"][0]["k"] == "arrow":
             return self._form(node, receiver, scope)
@@ -209,7 +285,8 @@ class Module:
                           scope) for one in node["args"]]
         return P.apply(_op(member, ("method",),
                            (receiver.type, *(one.type for one in args)),
-                           node["type"], spread), [receiver, *args])
+                           node["type"], spread, made="method"),
+                       [receiver, *args])
 
     def _form(self, node: dict, receiver: P.Expr, scope: dict) -> P.Expr:
         """A member called with a callback: the callback's parameters
@@ -219,6 +296,7 @@ class Module:
         arrow = node["args"][0]
         outer = [(one.name, one.type) for one in scope.values()
                  if one.kind == "param"]
+        inside = "no form for this receiver"
         for form in _table()["forms"].get((node["member"], receiver.type),
                                           ()):
             names = _names(form, outer)
@@ -235,13 +313,47 @@ class Module:
                 op = form.op(body.type)
                 extra = [self.read(one, scope) for one in node["args"][1:]]
                 if tuple(one.type for one in extra) != op.needs[2:] \
-                        or op.gives != node["type"]:
+                        or (op.gives != node["type"]
+                            and not _vague(node["type"])):
                     continue
                 return P.apply(op, [receiver, P.lambda_(settled, body),
                                     *extra])
-            except Unread:
+            except Unread as reason:
+                inside = str(reason)
                 continue
-        raise Unread(node["member"])
+        if node["member"] is not None:
+            # No form of the library's: the callback as it was written, its
+            # parameters its own and typed as the compiler has them.
+            try:
+                return self._callback(node, receiver, scope, arrow)
+            except Unread as reason:
+                inside = f"{inside}; as written: {reason}"
+        # what stopped it inside, not only which member it was
+        raise Unread(f"{node['member']} on {receiver.type}: {inside}")
+
+    def _lambda(self, arrow: dict, scope: dict) -> P.Expr:
+        """A callback as it was written: its own parameters, typed as the
+        compiler has them, its body read with them."""
+        said = arrow["type"]
+        inside = said[said.index("(") + 1:said.index(")")] \
+            if "(" in said and ")" in said else ""
+        kinds = [part.partition(":")[2].strip()
+                 for part in P._split_top(inside)] if inside.strip() else []
+        if len(kinds) < len(arrow["params"]):
+            raise Unread("a callback's parameters untyped")
+        own = [(name, _typed({"type": kind})["type"])
+               for name, kind in zip(arrow["params"], kinds)]
+        inner = dict(scope)
+        inner.update({name: P.param(name, kind) for name, kind in own})
+        return P.lambda_(own, self.read(arrow["body"], inner))
+
+    def _callback(self, node, receiver, scope, arrow) -> P.Expr:
+        callback = self._lambda(arrow, scope)
+        extra = [self.read(one, scope) for one in node["args"][1:]]
+        op = P.Op(node["member"].split(".")[-1], "method",
+                  (receiver.type, callback.type,
+                   *(one.type for one in extra)), node["type"])
+        return P.apply(op, [receiver, callback, *extra])
 
 
 def module(source: str) -> Module | None:

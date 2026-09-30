@@ -372,6 +372,75 @@ their tests; examples met 86 → 79, candidates 1.19M → 1.75M. More is
 tried per task (induction last, a larger library) and more of what meets
 the examples is right.
 
+### The reader widened (2026-09-29)
+
+What stopped reading was, underneath, a handful of general things, each
+fixed as one:
+
+- **The library was a gate on reading.** Anything the compiler resolves —
+  a member, a global function (`isNaN`, `Number`), an operator on mixed
+  types (`acc + (x === y)`), an index into anything — is read as an
+  operator made there with the compiler's types when the library has none
+  (`parse._op(made=...)`): it prints the same code, so it runs the same.
+  The search does not grow them; what is read is more than what is grown.
+- **What the tree does not model is opaque, not unread**: an object or a
+  list written out, a regular expression, `new Set(...)`, a template, a
+  callback whose body cannot be read — kept as its own text, every
+  variable it reads from outside it a hole filled from the tree, printed
+  in parentheses (an object after `=>` is otherwise a block — found by the
+  exactness check).
+- **Change in place is a change to a copy**: `c[k] = v`, `s.add(x)`,
+  `l.sort(cmp)` on a local container read as the call made on a copy, the
+  copy as it leaves it — the container's value before stays what it was.
+- **Helpers as people write them**: typed by what they are given (a
+  JavaScript parameter has no type of its own), made inside the function
+  (inlined where called), calling themselves (a call to the function being
+  read); an empty or undeclared value (`let x;`) is `undefined`; a global
+  used as a value (`String`, `NaN`) is its name.
+
+- **Values are shared, not copied.** Executing a body symbolically copies
+  a variable's value wherever it is read; a program whose values are built
+  from values built from values (`minPath`: guards reading what guards
+  set) grew exponentially — one HumanEvalFix run held 40 GB and stalled.
+  Now a large value (over 12 nodes) read a second time is **bound once
+  where it was made** — the function's body, a loop's, a callback's
+  (`enterFrame`/`leaveFrame`: the innermost that did not inherit it) —
+  and every read refers to the binding; the same for a value kept as the
+  other side of a merged `if`. The binding is **lazy and remembers**
+  (`((b) => …)(thunk)`, read as `b()`): worked out when first read, once —
+  eagerly, a value a guard kept from being worked out (`grid[m - 1]` at
+  `m = 0`) would be. A program is read in about the size it was written
+  (largest HumanEvalFix tree: 12k characters); twenty guards building on
+  each other read and run as written (test).
+
+Reading stays exact (`needs_exact.py`): **212/257** MBPP and **88/99**
+HumanEval verified programs read and pass their tests from the tree (were
+123 and 55); HumanEvalFix bugs that read: 79 → **131**/157.
+
+**Budgets that mean what they say** (found by the runs, each a stall):
+a subgoal's child search spends the parent's remaining budget, not 6,000
+of its own (`forms._solve_hole`); the search's repair, which built every
+subtree-times-kept-expression candidate of a near miss at once (285,000
+full programs for a 1,900-node program read from a file), makes them as
+checked and has its own declared allowance (`REPAIRS` = 20,000);
+induction, which runs after the budget is spent, has one too
+(`INDUCTIONS` = 12,000); a candidate that times out on one case is failed
+without running the rest; a reported value past 100k characters is an
+error, JSON's losses kept (`$set`, `$map`, functions refused). Dev rungs
+1–3 unchanged (30/26, 22/20, 17/14) at fewer candidates.
+
+**Rung 4, held, once, after widening** (the measured phase):
+
+| | fixed by edits | rewritten | unread | from scratch |
+|---|---|---|---|---|
+| generated, held (40) | 36 (one edit) | 1 | 0 | 15 |
+| **HumanEvalFix (157)** | **64** (61 one, 3 two) | **17** | 26 | 28 |
+
+HumanEvalFix: **81 of 157** fixed (was 57), 81 of the 131 that read.
+Rungs 1–3 held: 28/21, 22/18, **22/18** (rung 3 was 21/17).
+HumanEval-TS (everything on): 24 → **25**/151 pass their tests, examples
+met 79 → 82, candidates 1.75M → 1.17M, time 2,912 s → 1,333 s.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

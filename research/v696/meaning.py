@@ -236,6 +236,8 @@ def word(op) -> str:
         return "[i]"
     if op.kind == "append":
         return "[...]"
+    if op.kind == "opaque":
+        return "opaque"
     if op.kind in ("method", "property"):
         return f"{interface(op.needs[0])}.{op.name}"
     if op.kind == "form":

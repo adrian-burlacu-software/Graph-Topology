@@ -240,7 +240,7 @@ def _suspect(bug: Bug, tree: P.Expr, found: list, passing: list) -> dict:
         checker().restart()
         return {id(one): 0.5 for one in found}
     for node, row in zip(closed, rows):
-        if any("error" in one for one in row):
+        if any("value" not in one for one in row):
             out[id(node)] = 0.5
             continue
         good = {json.dumps(v["value"]) for v, ok in zip(row, passing) if ok}

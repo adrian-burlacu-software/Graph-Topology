@@ -74,6 +74,40 @@ function transpile(source) {
   }).outputText;
 }
 
+// A value as it is reported: what JSON would lose is kept -- a Set's or a
+// Map's contents, an infinite number -- and what is not a value to compare
+// (a function) is said to be so, not dropped.
+function plain(value) {
+  if (value === undefined) return null;
+  if (typeof value === "number" && !isFinite(value)) return String(value);
+  if (typeof value === "function" || typeof value === "symbol")
+    throw new Error("not a value");
+  // by its tag: a value made in the sandbox has the sandbox's own Set
+  const tag = Object.prototype.toString.call(value);
+  if (tag === "[object Set]") return { $set: [...value].map(plain) };
+  if (tag === "[object Map]")
+    return { $map: [...value].map(([k, v]) => [plain(k), plain(v)]) };
+  if (Array.isArray(value)) return value.map(plain);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const key of Object.keys(value)) out[key] = plain(value[key]);
+    return out;
+  }
+  return value;
+}
+
+function reported(value) {
+  try {
+    const out = plain(value);
+    // a value past this is not one to compare: a runaway, said so
+    if (JSON.stringify(out).length > LARGEST_VALUE)
+      return { error: "a value too large" };
+    return { value: out };
+  } catch (error) {
+    return { error: String(error && error.message || error) };
+  }
+}
+
 function sandbox() {
   const context = { require, console: { log: () => {} }, module: {},
                     exports: {} };
@@ -89,7 +123,7 @@ function run(source, entry, cases, timeout) {
       context.__args = args;
       const value = vm.runInContext("__entry(...__args)", context,
                                     { timeout });
-      return { value: value === undefined ? null : value };
+      return reported(value);
     } catch (error) {
       return { error: String(error && error.message || error) };
     }
@@ -206,10 +240,17 @@ function values(params, cases, expressions, timeout, prelude) {
         const value = vm.runInContext(
           "__f(...JSON.parse(JSON.stringify(__cases[__i])))", context,
           { timeout });
-        row.push({ value: value === undefined ? null
-          : (typeof value === "number" && !isFinite(value) ? String(value) : value) });
+        row.push(reported(value));
       } catch (error) {
-        row.push({ error: String(error && error.message || error).slice(0, 80) });
+        const said = String(error && error.message || error).slice(0, 80);
+        row.push({ error: said });
+        if (/timed out/.test(said)) {
+          // One case run out of time is the candidate failing: the rest
+          // are not run (a search's loop that never ends would otherwise
+          // cost every case its timeout, batch after batch).
+          while (row.length < cases.length) row.push({ error: said });
+          break;
+        }
       }
     }
     out.push(row);
@@ -245,6 +286,16 @@ function programOf(name, text) {
 // operators, and the statements. And what gives its result: the outermost
 // thing its last `return` returns. Nothing here knows what a member does.
 class Unread extends Error {}
+
+// The largest tree node a reading copies, and the largest value reported,
+// in characters of JSON.
+const LARGEST = 5000000;
+const LARGEST_VALUE = 100000;
+
+// The methods that change what they are called on.
+const CHANGING = ["push", "pop", "shift", "unshift", "splice", "sort",
+                  "reverse", "fill", "copyWithin", "add", "delete", "set",
+                  "clear"];
 
 const READONLY = { ReadonlyArray: "Array", ReadonlySet: "Set",
                    ReadonlyMap: "Map" };
@@ -286,7 +337,73 @@ function tree(source) {
   // loops all come out as one expression over the parameters.
   let env = new Map();
   const declared = new Map();
-  const copy = (value) => JSON.parse(JSON.stringify(value));
+  // A value is copied wherever its name is read: a program whose values
+  // are built from values built from values grows as it is read (a guard
+  // reading a variable other guards set). Past this, it is not read as one
+  // expression -- said so, not read for an hour.
+  const copy = (value) => {
+    const text = JSON.stringify(value);
+    if (text.length > LARGEST)
+      throw new Unread("a value too large to copy where it is read");
+    return JSON.parse(text);
+  };
+
+  // A large value is not copied where its name is read: it is bound once,
+  // where it was made -- the function's body, a loop's body, a callback's
+  // -- and every read refers to the binding. The binding is lazy and
+  // remembers: its value is worked out when first read and not before (a
+  // value an `if` guards may not even be computable otherwise), and once.
+  // So a program is read in the size it was written.
+  // how many nodes make a value large enough to bind rather than copy
+  const SHARED = 12;
+  let frames = [];
+  let shares = 0;
+  const enterFrame = () => {
+    const frame = { defs: [], inherited: new Set(env.values()) };
+    frames.push(frame);
+    return frame;
+  };
+  const leaveFrame = (frame, result) => {
+    frames.splice(frames.indexOf(frame), 1);
+    let out = result;
+    for (const def of [...frame.defs].reverse())
+      out = { k: "let", key: def.key, value: def.value, body: out,
+              type: out.type };
+    return out;
+  };
+  const fetch = (name) => share(env.get(name));
+  // A value put inside another -- read by its name, or kept as the other
+  // side of a merged `if` -- is shared the same way: never copied whole
+  // more than once.
+  const share = (value) => {
+    const text = JSON.stringify(value);
+    if (!value || typeof value !== "object"
+        || (text.match(/"k":/g) || []).length <= SHARED)
+      return JSON.parse(text);
+    if (!value.$share && !value.$read) {
+      // read once: nothing to share yet -- it is where it is read. A
+      // second read binds it (so no value is ever more than twice over).
+      Object.defineProperty(value, "$read", { value: true,
+                                              enumerable: false });
+      return JSON.parse(text);
+    }
+    if (!value.$share) {
+      // made in the innermost frame that did not inherit it
+      let home = null;
+      for (let at = frames.length - 1; at >= 0; at--) {
+        if (!frames[at].inherited.has(value)) {
+          home = frames[at];
+          break;
+        }
+      }
+      if (!home) return copy(value);
+      const key = `$v${++shares}`;
+      home.defs.push({ key, value: JSON.parse(text) });
+      Object.defineProperty(value, "$share", { value: key,
+                                               enumerable: false });
+    }
+    return { k: "ref", key: value.$share, type: value.type };
+  };
   // Where each node came from (rung 4): its span in the source as given,
   // and for an operator or a member the span of the word itself -- what an
   // edit replaces. A value read from a name keeps the span it was made at.
@@ -328,8 +445,19 @@ function tree(source) {
         return { k: "call", member, recv: read(callee.expression), args,
                  type };
       }
-      if (ts.isIdentifier(callee))
-        return { k: "call", member: callee.text, recv: null, args, type };
+      if (ts.isIdentifier(callee)) {
+        const bound = env.get(callee.text);
+        if (bound && bound.k === "arrow")
+          // a helper made inside the function: its body in the call's place
+          return { k: "inline", fn: copy(bound), args, type };
+        const symbol = checker.getSymbolAtLocation(callee);
+        const where = symbol && symbol.declarations && symbol.declarations[0];
+        // what the language itself declares (`isNaN`, `Number`), as against
+        // a helper of this file
+        const global = !!(where && where.getSourceFile().fileName !== name);
+        return { k: "call", member: callee.text, recv: null, args, type,
+                 global };
+      }
     } else if (ts.isPropertyAccessExpression(node)) {
       return { k: "prop", member: memberName(node),
                recv: read(node.expression), type };
@@ -346,7 +474,8 @@ function tree(source) {
     } else if (ts.isConditionalExpression(node)) {
       return { k: "cond", args: [read(node.condition), read(node.whenTrue),
                                  read(node.whenFalse)], type };
-    } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+    } else if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)
+               || (ts.isFunctionDeclaration(node) && node.body)) {
       const params = node.parameters.map((one) => one.name.getText());
       const outer = env;
       const outerLoops = loops;
@@ -355,26 +484,35 @@ function tree(source) {
       env.delete(DONE);
       env.delete(RESULT);
       loops = [];
+      const frame = enterFrame();
       try {
         if (!ts.isBlock(node.body))
-          return { k: "arrow", params, body: read(node.body), type };
+          return { k: "arrow", params,
+                   body: leaveFrame(frame, read(node.body)), type };
         const out = run(node.body.statements, 0);
-        if (!out.ret) return { k: "other", text: node.getText(), type };
-        return { k: "arrow", params, body: out.ret, type };
+        if (out.ret)
+          return { k: "arrow", params, body: leaveFrame(frame, out.ret),
+                   type };
       } catch (error) {
         if (!(error instanceof Unread)) throw error;
-        return { k: "other", text: error.message, type };
       } finally {
+        if (frames.includes(frame)) frames.splice(frames.indexOf(frame), 1);
         env = outer;
         loops = outerLoops;
       }
+      return opaque(node, type);
     } else if (ts.isElementAccessExpression(node)) {
       return { k: "index", args: [read(node.expression),
                                   read(node.argumentExpression)], type };
     } else if (ts.isIdentifier(node)) {
-      if (env.has(node.text)) return copy(env.get(node.text));
+      if (env.has(node.text)) return fetch(node.text);
       if (node.text === "Infinity")
         return { k: "lit", value: "Infinity", type: "number" };
+      const symbol = checker.getSymbolAtLocation(node);
+      const where = symbol && symbol.declarations && symbol.declarations[0];
+      if (where && where.getSourceFile().fileName !== name)
+        // what the language declares, used as a value: `String`, `NaN`
+        return { k: "opaque", text: node.text, holes: [], type };
       return { k: "id", name: node.text, type };
     } else if (ts.isNumericLiteral(node)) {
       return { k: "lit", value: Number(node.text), type };
@@ -386,7 +524,38 @@ function tree(source) {
     } else if (ts.isSpreadElement(node)) {
       return { k: "spread", args: [read(node.expression)], type };
     }
-    return { k: "other", text: node.getText(), type };
+    return opaque(node, type);
+  };
+  // What the tree does not model -- a literal object or list, a regular
+  // expression, `new Set(...)`, a template -- is kept as its own text,
+  // exactly, with every variable it reads from outside it a hole, filled
+  // with what that variable is at this point (so it runs as it did).
+  const opaque = (node, type) => {
+    const base = node.getStart();
+    const holes = [];
+    (function walk(one) {
+      if (ts.isIdentifier(one)) {
+        const parent = one.parent;
+        const named = parent && ((ts.isPropertyAccessExpression(parent)
+                                  && parent.name === one)
+          || (ts.isPropertyAssignment(parent) && parent.name === one));
+        const symbol = !named && checker.getSymbolAtLocation(one);
+        const where = symbol && symbol.valueDeclaration;
+        if (where && (ts.isParameter(where) || ts.isVariableDeclaration(where)
+                      || ts.isFunctionDeclaration(where))
+            && !(where.getStart() >= node.getStart()
+                 && where.getEnd() <= node.getEnd())
+            && where.getSourceFile().fileName === name) {
+          if (ts.isShorthandPropertyAssignment(parent))
+            throw new Unread("a shorthand property");
+          holes.push({ at: [one.getStart() - base, one.getEnd() - base],
+                       value: read(one) });
+          return;
+        }
+      }
+      one.forEachChild(walk);
+    })(node);
+    return { k: "opaque", text: node.getText(), holes, type };
   };
 
   const assigned = (body, bound) => {
@@ -406,9 +575,14 @@ function tree(source) {
               && ts.isPropertyAccessExpression(node.expression)
               && ts.isIdentifier(node.expression.expression)
               && node.expression.expression.text === bound
-              && ["push", "pop", "shift", "unshift", "splice", "sort",
-                  "reverse", "fill", "copyWithin"].includes(
-                node.expression.name.text)))
+              && CHANGING.includes(node.expression.name.text))
+          // an element set is the container changed
+          || (ts.isBinaryExpression(node) && node.operatorToken.kind
+              >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind
+              <= ts.SyntaxKind.LastAssignment
+              && ts.isElementAccessExpression(node.left)
+              && ts.isIdentifier(node.left.expression)
+              && node.left.expression.text === bound))
         found = true;
       node.forEachChild(walk);
     })(body);
@@ -440,17 +614,38 @@ function tree(source) {
   const halted = () => {
     let out = truth(false);
     if (!loops.length) return out;
-    if (env.has(DONE)) out = or(out, copy(env.get(DONE)));
+    if (env.has(DONE)) out = or(out, fetch(DONE));
     const top = loops[loops.length - 1];
     for (const name of [top.stop, top.skip])
-      if (env.has(name)) out = or(out, copy(env.get(name)));
+      if (env.has(name)) out = or(out, fetch(name));
     return out;
   };
   const guarded = (name, value) =>
-    cond(halted(), copy(env.get(name)), value);
+    cond(halted(), fetch(name), value);
 
   // An assignment changes what a name is from here on.
   const assign = (expression) => {
+    if (ts.isBinaryExpression(expression)
+        && ts.isElementAccessExpression(expression.left)
+        && ts.isIdentifier(expression.left.expression)
+        && env.has(expression.left.expression.text)) {
+      // `c[k] = v`: the container with that element set
+      const name = expression.left.expression.text;
+      const token = expression.operatorToken.kind;
+      const key = read(expression.left.argumentExpression);
+      let value = read(expression.right);
+      if (token >= ts.SyntaxKind.FirstCompoundAssignment
+          && token <= ts.SyntaxKind.LastCompoundAssignment)
+        value = { k: "bin", op: ts.tokenToString(token).slice(0, -1),
+                  args: [read(expression.left), value],
+                  type: typeOf(expression.left) };
+      else if (token !== ts.SyntaxKind.EqualsToken)
+        throw new Unread("an element changed another way");
+      env.set(name, guarded(name, { k: "setitem",
+                                    args: [fetch(name), key, value],
+                                    type: declared.get(name) }));
+      return;
+    }
     if (ts.isBinaryExpression(expression) && ts.isIdentifier(expression.left)
         && env.has(expression.left.text)) {
       const name = expression.left.text;
@@ -468,7 +663,7 @@ function tree(source) {
           && token <= ts.SyntaxKind.LastCompoundAssignment) {
         const op = ts.tokenToString(token).slice(0, -1);
         env.set(name, guarded(name, { k: "bin", op,
-                                      args: [copy(env.get(name)), value],
+                                      args: [fetch(name), value],
                                       type: declared.get(name) }));
         return;
       }
@@ -482,7 +677,7 @@ function tree(source) {
         : expression.operator === ts.SyntaxKind.MinusMinusToken ? "-" : null;
       if (op) {
         env.set(name, guarded(name, { k: "bin", op,
-                                      args: [copy(env.get(name)), one],
+                                      args: [fetch(name), one],
                                       type: declared.get(name) }));
         return;
       }
@@ -495,9 +690,22 @@ function tree(source) {
         && expression.arguments.length === 1) {
       const name = expression.expression.expression.text;
       env.set(name, guarded(name, { k: "append",
-                                    args: [copy(env.get(name)),
+                                    args: [fetch(name),
                                            read(expression.arguments[0])],
                                     type: declared.get(name) }));
+      return;
+    }
+    if (ts.isCallExpression(expression)
+        && ts.isPropertyAccessExpression(expression.expression)
+        && ts.isIdentifier(expression.expression.expression)
+        && env.has(expression.expression.expression.text)
+        && CHANGING.includes(expression.expression.name.text)) {
+      // `c.sort()`, `s.add(x)`: the container as the call leaves it
+      const name = expression.expression.expression.text;
+      env.set(name, guarded(name, {
+        k: "effect", member: expression.expression.name.text,
+        args: [fetch(name), ...expression.arguments.map(read)],
+        type: declared.get(name) }));
       return;
     }
     throw new Unread(ts.isCallExpression(expression)
@@ -596,8 +804,8 @@ function tree(source) {
     return { frame, carried, type };
   };
   const packed = (carried, type) => carried.length === 1
-    ? copy(env.get(carried[0]))
-    : { k: "tuple", args: carried.map((name) => copy(env.get(name))), type };
+    ? fetch(carried[0])
+    : { k: "tuple", args: carried.map((name) => fetch(name)), type };
   const unpack = (carried, value) => {
     carried.forEach((name, at) => env.set(name, carried.length === 1
       ? copy(value)
@@ -629,10 +837,11 @@ function tree(source) {
     const start = packed(carried, type);
     const outer = env;
     env = new Map(env);
+    const body = enterFrame();
     unpack(carried, { k: "id", name: frame.state, type });
     env.delete(element);
     iterate(frame, statement, null);
-    const update = packed(carried, type);
+    const update = leaveFrame(body, packed(carried, type));
     env = outer;
     unpack(carried, { k: "call", member: "Array.reduce", recv: over,
                       args: [{ k: "arrow", params: [frame.state, element],
@@ -651,13 +860,14 @@ function tree(source) {
     unpack(carried, { k: "id", name: frame.state, type });
     let condition = test ? read(test) : truth(true);
     if (carried.includes(frame.stop))
-      condition = and(not(copy(env.get(frame.stop))), condition);
+      condition = and(not(fetch(frame.stop)), condition);
     // Once the function has returned, no loop runs -- not only one that
     // returns itself: an outer return freezes this loop's changes too.
     if (env.has(DONE))
-      condition = and(not(copy(env.get(DONE))), condition);
+      condition = and(not(fetch(DONE)), condition);
+    const body = enterFrame();
     iterate(frame, statement, step);
-    const update = packed(carried, type);
+    const update = leaveFrame(body, packed(carried, type));
     env = outer;
     unpack(carried, { k: "while", state: frame.state,
                       args: [start, condition, update], type });
@@ -722,8 +932,15 @@ function tree(source) {
     return found ? typeOf(found) : null;
   };
   const declare = (one) => {
-    if (!one.initializer || !ts.isIdentifier(one.name))
-      throw new Unread("a declaration without a value");
+    if (!ts.isIdentifier(one.name))
+      throw new Unread("a declaration unpacked");
+    if (!one.initializer) {
+      let type = becomes(one.name) || typeOf(one.name);
+      declared.set(one.name.text, type);
+      env.set(one.name.text, { k: "opaque", text: "undefined", holes: [],
+                               type });
+      return;
+    }
     let type = typeOf(one.name);
     if (/\bany\b|never/.test(type)) type = becomes(one.name) || type;
     declared.set(one.name.text, type);
@@ -754,7 +971,7 @@ function tree(source) {
           return {};
         }
         return { ret: env.has(DONE)
-          ? cond(copy(env.get(DONE)), copy(env.get(RESULT)), value) : value };
+          ? cond(fetch(DONE), fetch(RESULT), value) : value };
       }
       if (ts.isBreakStatement(statement)
           || ts.isContinueStatement(statement)) {
@@ -767,6 +984,10 @@ function tree(source) {
       }
       if (ts.isVariableStatement(statement)) {
         statement.declarationList.declarations.forEach(declare);
+        continue;
+      }
+      if (ts.isFunctionDeclaration(statement) && statement.name) {
+        env.set(statement.name.text, read(statement));
         continue;
       }
       if (ts.isExpressionStatement(statement)) {
@@ -801,7 +1022,7 @@ function tree(source) {
         for (const name of before.keys()) {
           const a = afterYes.get(name), b = afterNo.get(name);
           if (JSON.stringify(a) !== JSON.stringify(b))
-            env.set(name, cond(copy(test), a, b));
+            env.set(name, cond(copy(test), share(a), share(b)));
         }
         continue;
       }
@@ -875,10 +1096,12 @@ function tree(source) {
     if (early) {
       // Before anything has returned, what it would return is nothing yet:
       // an empty value of the type it returns.
-      const empty = returns === "number" ? lit(0, "number")
-        : returns === "string" ? lit("", "string")
-        : returns === "boolean" ? truth(false)
-        : returns.endsWith("[]") ? lit([], returns) : null;
+      const plain = returns.replace(/ \| undefined/g, "");
+      const empty = plain === "number" ? lit(0, "number")
+        : plain === "string" ? lit("", "string")
+        : plain === "boolean" ? truth(false)
+        : plain.endsWith("[]") ? lit([], plain)
+        : { k: "opaque", text: "undefined", holes: [], type: returns };
       if (!empty)
         return { params, returns, unread: `a loop that returns ${returns}` };
       env.set(DONE, truth(false));
@@ -899,11 +1122,14 @@ function tree(source) {
         }
         node.forEachChild(walk);
       })(body);
+      frames = [];
+      const frame = enterFrame();
       if (!ts.isBlock(body)) return { params, returns, steps: [], names,
-                                      ret: read(body) };
+                                      ret: leaveFrame(frame, read(body)) };
       const out = run(body.statements, 0);
       if (!out.ret) return { params, returns, unread: "no return" };
-      return { params, returns, steps: [], names, ret: out.ret };
+      return { params, returns, steps: [], names,
+               ret: leaveFrame(frame, out.ret) };
     } catch (error) {
       if (!(error instanceof Unread)) throw error;
       return { params, returns, unread: error.message };

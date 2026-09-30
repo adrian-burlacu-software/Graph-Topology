@@ -23,6 +23,18 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(rows[0][0], {"value": 3})
         self.assertIn("error", rows[1][0])
 
+    def test_what_json_would_lose_is_kept(self):
+        """A Set's or Map's contents are its value (JSON says `{}` for
+        both); a function is not a value to compare, and says so."""
+        from research.v696.checker import checker
+        rows = checker().values(["xs"], [[[1, 2, 2]]],
+                                ["new Set(xs)", "new Map([[1, 2]])",
+                                 "String", "1 / 0"])
+        self.assertEqual(rows[0][0], {"value": {"$set": [1, 2]}})
+        self.assertEqual(rows[1][0], {"value": {"$map": [[1, 2]]}})
+        self.assertIn("error", rows[2][0])
+        self.assertEqual(rows[3][0], {"value": "Infinity"})
+
 
 @needs_node
 class LibraryTests(unittest.TestCase):
@@ -216,10 +228,58 @@ class MeaningTests(unittest.TestCase):
                                "s.split(\" \"); return w.length + w.length; "
                                "}", "f", [("s", "string")]).source(),
                          '(s.split(" ").length + s.split(" ").length)')
-        # what is beyond the library's types is not read: a Set
-        self.assertIsNone(parse("function f(xs: number[]): number { return "
-                                "new Set(xs).size; }", "f",
-                                [("xs", "number[]")]))
+
+    def test_a_value_built_from_itself_is_bound_not_copied(self):
+        """Values built from values built from values (each guard reading
+        what the one before set) are bound once where they are made, not
+        copied where read: the tree is the size the program was written,
+        and runs as it did -- the bindings lazy, so what a guard kept from
+        being worked out is not worked out."""
+        from research.v696 import program as P
+        from research.v696.checker import checker
+        from research.v696.parse import parse
+        steps = "".join(f"  if (m > {k} && xs[m - 1] < m) m = m + xs[m - 1] "
+                        f"- 1;\n" for k in range(20))
+        source = ("function f(xs: number[]): number {\n  let m = xs.length;\n"
+                  + steps + "  return m;\n}\n")
+        tree = parse(source, "f", [("xs", "number[]")])
+        self.assertIsNotNone(tree)
+        self.assertLess(len(tree.source()), 40 * len(source))
+        inputs = [[[1, 2, 3]], [[5, 0, 1, 2]], [[]], [[9]]]
+        self.assertEqual(checker().values(["xs"], inputs, [tree.source()],
+                                          prelude=P.prelude([tree]))[0],
+                         checker().run(source, "f", inputs))
+
+    def test_what_the_tree_does_not_model_is_read_as_written(self):
+        """Widened reading: a Set, an object, a regular expression are
+        opaque -- their own text, their variables filled in; a container
+        changed in place is the change made on a copy; a helper typed by
+        what it is given, one made inside, one that calls itself. Each
+        checked by running the tree against the source."""
+        from research.v696 import program as P
+        from research.v696.checker import checker
+        from research.v696.parse import parse
+        cases = {
+            "function f(xs: number[]): number { return new Set(xs).size; }":
+                [[[1, 2, 2, 3]], [[]]],
+            "function f(xs: number[]): number { const seen = {}; let n = 0; "
+            "for (const x of xs) { if (!(x in seen)) n++; seen[x] = true; } "
+            "return n; }": [[[1, 2, 2, 3]], [[5, 5]]],
+            "function f(xs: number[]): number[] { const out = [...xs]; "
+            "out.sort((a, b) => b - a); return out; }": [[[3, 1, 2]], [[]]],
+            "function f(xs: number[]): number { const odd = (n) => n % 2 === "
+            "1; return xs.filter(odd).length; }": [[[1, 2, 3]], [[4]]],
+            "function fib(n) { return n < 2 ? n : fib(n - 1) + fib(n - 2); }\n"
+            "function f(xs: number[]): number[] { return xs.map((x) => "
+            "fib(x)); }": [[[0, 1, 5, 10]]],
+        }
+        for source, inputs in cases.items():
+            tree = parse(source, "f", [("xs", "number[]")])
+            self.assertIsNotNone(tree, source)
+            want = checker().run(source, "f", inputs)
+            got = checker().values(["xs"], inputs, [tree.source()],
+                                   prelude=P.prelude([tree]))[0]
+            self.assertEqual(got, want, source)
 
     def test_statements_are_executed_into_one_tree(self):
         """Rung 3b: guards are ternaries, a loop carrying one value is a

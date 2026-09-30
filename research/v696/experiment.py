@@ -247,6 +247,12 @@ def rung4(bugs_: list, budget: int = 8000) -> dict:
         if got.solved:
             scratch_ok += (_passes(spec, got) if bug.tests
                            else True)
+        # one line a bug, as it goes: a long run shows where it is
+        print(f"  {len(routes and bugs_[:sum(routes.values())]):>3}/"
+              f"{len(bugs_)} {bug.name[:40]:40} {fix.route:9} "
+              f"{len(fix.edits)} edit(s)  scratch "
+              f"{'solved' if got.solved else '-':6} "
+              f"({time.time() - started:.0f}s)", flush=True)
     return {"bugs": len(bugs_), "routes": dict(routes),
             "edits": dict(edits_made), "programs run": tried,
             "scratch solved": scratch, "scratch passes tests": scratch_ok,

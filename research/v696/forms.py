@@ -230,11 +230,16 @@ def _solve_hole(solver, sub: Spec | None, result) -> P.Expr | None:
     if sub is None:
         return None
     from research.v696.search import Solver, Switches
+    # A subgoal spends the search's budget, not a budget of its own: what
+    # a search may spend is what it spends, subgoals and all.
+    left = solver.budget - result.evaluated
+    if left <= 0:
+        return None
     child = Solver(Switches(meet=True, coarse=True, repair=True,
                             recognition=solver.switches.recognition,
                             learned=solver.switches.learned),
                    memory=solver.memory, depth=SUB_DEPTH,
-                   budget=SUB_BUDGET)
+                   budget=min(SUB_BUDGET, left))
     got = child.solve(sub)
     result.evaluated += got.evaluated
     result.subgoals = getattr(result, "subgoals", 0) + 1
