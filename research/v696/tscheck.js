@@ -262,6 +262,86 @@ function tests(source, timeout) {
   vm.runInContext(transpile(source), sandbox(), { timeout });
 }
 
+// A project: several files, one program, imports resolved among them.
+function programOfFiles(files) {
+  const texts = new Map(Object.entries(files).map(([file, text]) =>
+    [file, PRELUDE + text]));
+  const host = {
+    getSourceFile: (file) => texts.has(file)
+      ? ts.createSourceFile(file, texts.get(file), ts.ScriptTarget.ES2020, true)
+      : libFile(path.basename(file)),
+    getDefaultLibFileName: () => "lib.es2020.d.ts",
+    writeFile: () => {},
+    getCurrentDirectory: () => "/",
+    getDirectories: () => [],
+    fileExists: (file) => texts.has(file)
+      || libFile(path.basename(file)) !== undefined,
+    readFile: (file) => texts.get(file),
+    getCanonicalFileName: (file) => file,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+  };
+  return ts.createProgram([...texts.keys()],
+    Object.assign({}, OPTIONS, { moduleResolution:
+                                 ts.ModuleResolutionKind.NodeJs }), host);
+}
+
+// What the compiler says is wrong in a project, and where: each error's
+// file, span (in the file as given) and message.
+function diagnose(files) {
+  const program = programOfFiles(files);
+  const at = PRELUDE.length;
+  return ts.getPreEmitDiagnostics(program)
+    .filter((one) => one.file && one.file.fileName in files)
+    .map((one) => ({ file: one.file.fileName, code: one.code,
+                     start: one.start - at, end: one.start + one.length - at,
+                     message: ts.flattenDiagnosticMessageText(one.messageText,
+                                                              "\n") }));
+}
+
+// A project run: each file a CommonJS module, `require` finding the
+// project's own files; the file `main` run whole (its tests). The loader
+// runs inside the sandbox, as one script under its timeout: a module that
+// never ends (a helper made wrong) is stopped like any candidate, not run
+// by the checker itself where no timeout reaches.
+const LOADER = `
+(function (files, main) {
+  const cache = {};
+  const resolve = (from, spec) => {
+    const parts = from.split("/").slice(0, -1);
+    for (const part of spec.split("/")) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    const base = parts.join("/");
+    if (base in files) return base;
+    if (base + ".ts" in files) return base + ".ts";
+    throw new Error("no module " + spec + " from " + from);
+  };
+  const load = (file) => {
+    if (cache[file]) return cache[file].exports;
+    const module = { exports: {} };
+    cache[file] = module;
+    const wrapped = new Function("require", "module", "exports", files[file]);
+    wrapped((spec) => spec.startsWith(".") ? load(resolve(file, spec))
+                                          : require(spec),
+            module, module.exports);
+    return module.exports;
+  };
+  load(main);
+})(__files, __main);
+`;
+
+function project(files, main, timeout) {
+  const context = sandbox();
+  const transpiled = {};
+  for (const [file, text] of Object.entries(files))
+    transpiled[file] = transpile(text);
+  context.__files = transpiled;
+  context.__main = main;
+  vm.runInContext(LOADER, context, { timeout });
+}
+
 function programOf(name, text) {
   const host = {
     getSourceFile: (file) => file === name
@@ -316,11 +396,19 @@ const STATEMENTS = {
 // the type the compiler gives it (literal types widened): what is read back
 // into the search's own trees (`program.parse`). Anything else is
 // {"k": "other"} and the reading fails there.
-function tree(source) {
+function tree(source, files) {
+  // one file, its functions by name; or a project, its functions by
+  // "file#name", a call through an import resolved to where it is declared
   const name = "tree.ts";
-  const program = programOf(name, PRELUDE + source);
+  const inProject = !!files;
+  const program = inProject ? programOfFiles(files)
+    : programOf(name, PRELUDE + source);
   const checker = program.getTypeChecker();
-  const file = program.getSourceFile(name);
+  const ours = new Set(inProject ? Object.keys(files) : [name]);
+  const isOurs = (sourceFile) => ours.has(sourceFile.fileName);
+  const keyOf = (sourceFile, fname) => inProject
+    ? `${sourceFile.fileName}#${fname}` : fname;
+  let current = inProject ? null : name;
   const typeOf = (node) => checker.typeToString(
     checker.getBaseTypeOfLiteralType(checker.getTypeAtLocation(node)));
   const memberName = (node) => {
@@ -413,6 +501,7 @@ function tree(source) {
     const out = readNode(node);
     if (out && typeof out === "object" && !out.span) {
       out.span = span(node);
+      if (inProject) out.file = current;
       let inner = node;
       while (ts.isParenthesizedExpression(inner) || ts.isAsExpression(inner)
              || ts.isNonNullExpression(inner)) inner = inner.expression;
@@ -450,13 +539,17 @@ function tree(source) {
         if (bound && bound.k === "arrow")
           // a helper made inside the function: its body in the call's place
           return { k: "inline", fn: copy(bound), args, type };
-        const symbol = checker.getSymbolAtLocation(callee);
+        let symbol = checker.getSymbolAtLocation(callee);
+        // through an import, to where the function is declared
+        if (symbol && (symbol.flags & ts.SymbolFlags.Alias))
+          symbol = checker.getAliasedSymbol(symbol);
         const where = symbol && symbol.declarations && symbol.declarations[0];
         // what the language itself declares (`isNaN`, `Number`), as against
-        // a helper of this file
-        const global = !!(where && where.getSourceFile().fileName !== name);
-        return { k: "call", member: callee.text, recv: null, args, type,
-                 global };
+        // a helper of this file or project
+        const global = !!(where && !isOurs(where.getSourceFile()));
+        const member = where && !global && inProject
+          ? keyOf(where.getSourceFile(), symbol.getName()) : callee.text;
+        return { k: "call", member, recv: null, args, type, global };
       }
     } else if (ts.isPropertyAccessExpression(node)) {
       return { k: "prop", member: memberName(node),
@@ -510,7 +603,7 @@ function tree(source) {
         return { k: "lit", value: "Infinity", type: "number" };
       const symbol = checker.getSymbolAtLocation(node);
       const where = symbol && symbol.declarations && symbol.declarations[0];
-      if (where && where.getSourceFile().fileName !== name)
+      if (where && !isOurs(where.getSourceFile()))
         // what the language declares, used as a value: `String`, `NaN`
         return { k: "opaque", text: node.text, holes: [], type };
       return { k: "id", name: node.text, type };
@@ -545,7 +638,7 @@ function tree(source) {
                       || ts.isFunctionDeclaration(where))
             && !(where.getStart() >= node.getStart()
                  && where.getEnd() <= node.getEnd())
-            && where.getSourceFile().fileName === name) {
+            && isOurs(where.getSourceFile())) {
           if (ts.isShorthandPropertyAssignment(parent))
             throw new Unread("a shorthand property");
           holes.push({ at: [one.getStart() - base, one.getEnd() - base],
@@ -1136,18 +1229,22 @@ function tree(source) {
     }
   };
   const functions = {};
-  file.forEachChild((node) => {
-    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
-      functions[node.name.text] = steps(node, node.body);
-    } else if (ts.isVariableStatement(node)) {
-      for (const one of node.declarationList.declarations) {
-        const value = one.initializer;
-        if (ts.isIdentifier(one.name) && value && (ts.isArrowFunction(value)
-            || ts.isFunctionExpression(value)))
-          functions[one.name.text] = steps(value, value.body);
+  for (const file of program.getSourceFiles()) {
+    if (!isOurs(file)) continue;
+    current = file.fileName;
+    file.forEachChild((node) => {
+      if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+        functions[keyOf(file, node.name.text)] = steps(node, node.body);
+      } else if (ts.isVariableStatement(node)) {
+        for (const one of node.declarationList.declarations) {
+          const value = one.initializer;
+          if (ts.isIdentifier(one.name) && value && (ts.isArrowFunction(value)
+              || ts.isFunctionExpression(value)))
+            functions[keyOf(file, one.name.text)] = steps(value, value.body);
+        }
       }
-    }
-  });
+    });
+  }
   return functions;
 }
 
@@ -1256,7 +1353,13 @@ lines.on("line", (line) => {
                                     request.globals || []);
       reply.ok = true;
     } else if (request.op === "tree") {
-      reply.tree = tree(request.source);
+      reply.tree = tree(request.source, request.files);
+      reply.ok = true;
+    } else if (request.op === "diagnose") {
+      reply.errors = diagnose(request.files);
+      reply.ok = true;
+    } else if (request.op === "project") {
+      project(request.files, request.main, request.timeout || 2000);
       reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));

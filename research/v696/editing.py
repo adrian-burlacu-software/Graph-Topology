@@ -58,6 +58,9 @@ class Bug:
     tests: str = ""
     #: for a generated bug: the program it was before
     original: str = ""
+    #: in a project (rung 5): `source` is {file: text}, this the file the
+    #: function is in, `tests` the project's test file
+    file: str = ""
 
 
 @dataclass
@@ -68,8 +71,16 @@ class Edit:
     kind: str
     #: how much the site is suspected (higher first)
     suspicion: float = 0.0
+    #: in a project (rung 5): the file the span is in
+    file: str = ""
 
-    def apply(self, source: str) -> str:
+    def apply(self, source):
+        """The source edited: a text, or a project whose file this is."""
+        if isinstance(source, dict):
+            out = dict(source)
+            text = out[self.file]
+            out[self.file] = text[:self.start] + self.text + text[self.end:]
+            return out
         return source[:self.start] + self.text + source[self.end:]
 
 
@@ -120,10 +131,11 @@ def _numbers(value, others=()) -> list:
     return [one for one in dict.fromkeys(out) if one != value]
 
 
-def _declared(source: str, entry: str) -> dict:
-    """Every name each function declares, by type (`tscheck.js` `tree`)."""
-    from research.v696.parse import module
-    read = module(source)
+def _declared(source, entry: str) -> dict:
+    """Every name each function declares, by type (`tscheck.js` `tree`) --
+    of a file, or of every file of a project."""
+    from research.v696.parse import module, project
+    read = project(source) if isinstance(source, dict) else module(source)
     out: dict = {}
     if read is None:
         return out
@@ -145,74 +157,101 @@ def edits(tree: P.Expr, source: str, entry: str = "") -> list:
                            and isinstance(one.value, (int, float))
                            and not isinstance(one.value, bool)})
     out = []
+    here = {"source": source}
 
     def text(span) -> str:
-        return source[span[0]:span[1]]
+        return here["source"][span[0]:span[1]]
 
     for node in found:
         where = node.where
         start, end = where["span"]
-        if node.kind == "const":
-            value = node.value
-            if isinstance(value, bool):
-                news = [json.dumps(not value)]
-            elif isinstance(value, (int, float)):
-                news = [json.dumps(one) for one in _numbers(value,
-                                                             said_numbers)]
-            elif isinstance(value, str) and value:
-                news = ['""']
-            else:
-                news = []
-            out += [Edit(start, end, one, "constant") for one in news]
-            continue
-        if node.kind == "param" and where.get("said"):
-            out += [Edit(start, end, other, "name")
-                    for other in sorted(names.get(node.type, ()))
-                    if other != where["said"]]
-            continue
-        if node.kind != "apply" or node.op is None:
-            continue
-        op = node.op
-        if op.kind == "operator" and "opspan" in where:
-            a, b = where["opspan"]
-            if len(op.needs) == 1:
-                # a unary operator removed
-                out.append(Edit(a, b, "", "operator"))
-            out += [Edit(a, b, alt.name, "operator")
-                    for alt in _alternatives(op)]
-            left, right = node.args if len(node.args) == 2 else (None, None)
-            if left is not None and left.where and right.where \
-                    and op.name not in ("+", "*", "===", "!==", "&&", "||"):
-                (l0, l1), (r0, r1) = left.where["span"], right.where["span"]
-                if l1 <= r0:
-                    out.append(Edit(l0, r1, text((r0, r1)) + source[l1:r0]
-                                    + text((l0, l1)), "swap"))
-        if op.kind in ("method", "function", "property") \
-                and "namespan" in where:
-            a, b = where["namespan"]
-            out += [Edit(a, b, alt.name.split(".")[-1], "member")
-                    for alt in _alternatives(op)]
-        for part in node.args:
-            if part.type == node.type and part.where:
-                out.append(Edit(start, end, text(part.where["span"]),
-                                "unwrap"))
-        said = text((start, end))
-        if node.type == "number":
-            out += [Edit(start, end, f"Math.abs({said})", "wrap"),
-                    Edit(start, end, f"-({said})", "wrap")]
-        elif node.type == "boolean":
-            out.append(Edit(start, end, f"!({said})", "wrap"))
+        file = where.get("file", "")
+        # a project's node is in one of its files: that file's text
+        here["source"] = source[file] if isinstance(source, dict) else source
+        made = len(out)
+        _node_edits(node, where, start, end, out, text, here["source"],
+                    names, said_numbers)
+        for one in out[made:]:
+            one.file = file
     unique, seen = [], set()
     for one in out:
-        key = (one.start, one.end, one.text)
+        key = (one.file, one.start, one.end, one.text)
         if key not in seen and one.apply(source) != source:
             seen.add(key)
             unique.append(one)
     return unique
 
 
-def _passes(bug: Bug, source: str) -> list:
+def _node_edits(node, where, start, end, out, text, source, names,
+                said_numbers) -> None:
+    """Every single edit of one node, into `out`."""
+    if node.kind == "const":
+        value = node.value
+        if isinstance(value, bool):
+            news = [json.dumps(not value)]
+        elif isinstance(value, (int, float)):
+            news = [json.dumps(one) for one in _numbers(value,
+                                                         said_numbers)]
+        elif isinstance(value, str) and value:
+            news = ['""']
+        else:
+            news = []
+        out += [Edit(start, end, one, "constant") for one in news]
+        return
+    if node.kind == "param" and where.get("said"):
+        out += [Edit(start, end, other, "name")
+                for other in sorted(names.get(node.type, ()))
+                if other != where["said"]]
+        return
+    if node.kind != "apply" or node.op is None:
+        return
+    op = node.op
+    if op.kind == "operator" and "opspan" in where:
+        a, b = where["opspan"]
+        if len(op.needs) == 1:
+            # a unary operator removed
+            out.append(Edit(a, b, "", "operator"))
+        out += [Edit(a, b, alt.name, "operator")
+                for alt in _alternatives(op)]
+        left, right = node.args if len(node.args) == 2 else (None, None)
+        if left is not None and left.where and right.where \
+                and op.name not in ("+", "*", "===", "!==", "&&", "||"):
+            (l0, l1), (r0, r1) = left.where["span"], right.where["span"]
+            if l1 <= r0:
+                out.append(Edit(l0, r1, text((r0, r1)) + source[l1:r0]
+                                + text((l0, l1)), "swap"))
+    if op.kind in ("method", "function", "property") \
+            and "namespan" in where:
+        a, b = where["namespan"]
+        out += [Edit(a, b, alt.name.split(".")[-1], "member")
+                for alt in _alternatives(op)]
+    for part in node.args:
+        if part.type == node.type and part.where:
+            out.append(Edit(start, end, text(part.where["span"]),
+                            "unwrap"))
+    said = text((start, end))
+    if node.type == "number":
+        out += [Edit(start, end, f"Math.abs({said})", "wrap"),
+                Edit(start, end, f"-({said})", "wrap")]
+    elif node.type == "boolean":
+        out.append(Edit(start, end, f"!({said})", "wrap"))
+
+
+def flattened(files: dict, file: str) -> str:
+    """A project as one source to run `file`'s functions in: every other
+    file first, imports and exports gone (they only join the files)."""
+    import re
+    text = "".join(files[name] + "\n" for name in files
+                   if name != file and not name.endswith(".test.ts"))
+    text += files[file]
+    text = re.sub(r"^\s*import .*$", "", text, flags=re.M)
+    return re.sub(r"\bexport\s+(?=function|const)", "", text)
+
+
+def _passes(bug: Bug, source) -> list:
     """For each case, whether the program as edited gives what it must."""
+    if isinstance(source, dict):
+        source = flattened(source, bug.file)
     try:
         got = checker().run(source, bug.entry, bug.cases)
     except CheckerError:
@@ -252,6 +291,13 @@ def _suspect(bug: Bug, tree: P.Expr, found: list, passing: list) -> dict:
 
 def _judged(bug: Bug, source: str) -> bool:
     """The last word: the bug's own test file, when it has one."""
+    if isinstance(source, dict):
+        # a project: its own test file, run with the project
+        try:
+            return checker().project(source, bug.tests) is None
+        except CheckerError:
+            checker().restart()
+            return False
     if not bug.tests:
         return all(_passes(bug, source))
     try:
@@ -262,7 +308,11 @@ def _judged(bug: Bug, source: str) -> bool:
 
 
 def repair(bug: Bug, budget: int = BUDGET) -> Fix:
-    tree = parse(bug.source, bug.entry, bug.params)
+    if isinstance(bug.source, dict):
+        from research.v696.parse import parse_project
+        tree = parse_project(bug.source, bug.file, bug.entry, bug.params)
+    else:
+        tree = parse(bug.source, bug.entry, bug.params)
     if tree is None:
         return Fix(bug.name, "unread")
     passing = _passes(bug, bug.source)

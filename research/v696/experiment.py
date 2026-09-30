@@ -186,6 +186,10 @@ def main(argv=None) -> int:
     if options.rung == 4:
         main4(options.held)
         return 0
+    if options.rung == 5:
+        print(f"rung 5 {'held' if options.held else 'dev'}:",
+              rung5(options.held), flush=True)
+        return 0
     if options.multipl_e:
         train, test = generated(False)[0], multipl_e()
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
@@ -267,6 +271,38 @@ def main4(held: bool) -> None:
     for name, found in suites.items():
         print(f"rung 4 {'held' if held else 'dev'} {name}:",
               rung4(found), flush=True)
+
+
+
+# -- rung 5: projects -------------------------------------------------------
+
+def rung5(held: bool) -> dict:
+    """Each project task by its route (5b use, 5c fix, 5d change), and by
+    the baseline without the rung's mechanism, both judged by the
+    project's own tests. One line a task, as it goes."""
+    from research.v696 import changing as C, projects
+    found = projects.load(held)
+    out = {}
+    started = time.time()
+    for task in found:
+        if task.kind == "use":
+            mine, base = C.use(task), C.use(task, with_project=False)
+        elif task.kind == "bug":
+            mine, base = C.fix(task), C.use(task, with_project=False)
+        else:
+            mine, base = C.change(task), C.fix(task)
+        row = out.setdefault(task.kind, Counter())
+        row["tasks"] += 1
+        row["solved"] += mine.route == "solved"
+        row["baseline solved"] += base.route == "solved"
+        row["edits"] += len(mine.edits) if mine.route == "solved" else 0
+        row["impasses"] += mine.impasses
+        row["files touched"] += mine.files_touched
+        print(f"  {task.name:24} {mine.route:9} {len(mine.edits)} edit(s) "
+              f"{mine.impasses} impasse(s) {mine.files_touched} file(s)  "
+              f"baseline {base.route:9} ({time.time() - started:.0f}s)",
+              flush=True)
+    return {kind: dict(row) for kind, row in out.items()}
 
 
 if __name__ == "__main__":

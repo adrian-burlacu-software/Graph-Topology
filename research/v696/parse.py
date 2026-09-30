@@ -118,7 +118,7 @@ class Module:
             return self.helpers[key]
         returns = _typed({"type": read["returns"]})["type"]
         if key in self.reading:
-            return P.Op(name, "recurse", key[1], returns)
+            return P.Op(name.split("#")[-1], "recurse", key[1], returns)
         self.reading.add(key)
         try:
             body = self.function(name, params)
@@ -127,7 +127,8 @@ class Module:
         if body.type != returns and not _vague(returns) \
                 and not _vague(body.type):
             raise Unread(f"{name} returns {body.type}, said {returns}")
-        op = P.Op(name, "helper", key[1],
+        # in a project a function is "file#name"; it is called by its name
+        op = P.Op(name.split("#")[-1], "helper", key[1],
                   body.type if _vague(returns) else returns,
                   params=tuple(one for one, _ in params), body=body)
         self.helpers[key] = op
@@ -141,6 +142,9 @@ class Module:
                      if key in node}
             if "said" in node:
                 where["said"] = node["said"]
+            if "file" in node:
+                # in a project: which file the span is in
+                where["file"] = node["file"]
             expr = dataclasses.replace(expr, where=where)
         return expr
 
@@ -361,6 +365,29 @@ def module(source: str) -> Module | None:
     try:
         return Module(checker().tree(source))
     except CheckerError:
+        return None
+
+
+def project(files: dict) -> Module | None:
+    """A project read whole (rung 5): every file's functions, a call
+    through an import read as the function it names."""
+    from research.v696.checker import CheckerError, checker
+    try:
+        return Module(checker().tree("", files))
+    except CheckerError:
+        return None
+
+
+def parse_project(files: dict, file: str, entry: str, params
+                  ) -> P.Expr | None:
+    """`entry` of `file` in a project, as the search's tree: what it calls
+    in other files, operators carrying their bodies."""
+    read = project(files)
+    if read is None:
+        return None
+    try:
+        return read.function(f"{file}#{entry}", list(params))
+    except (Unread, KeyError, TypeError, IndexError):
         return None
 
 

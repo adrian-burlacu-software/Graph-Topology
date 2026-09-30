@@ -271,7 +271,7 @@ class Solver:
 
     # the pieces every route shares
     def _ops(self, spec: Spec) -> list:
-        ops = list(P.library().ops)
+        ops = list(P.library().ops) + list(spec.library)
         if self.switches.chunks:
             ops += [op for op, _ in self.memory.chunks.values()]
         if self.switches.learned and self.memory.specs:
@@ -538,7 +538,8 @@ class Solver:
             parts, seen = [], set()
             for tree in spec.proposals:
                 for one in _subtrees(tree):
-                    if one.kind in ("apply", "param", "const")                             and one.source() not in seen:
+                    if one.kind in ("apply", "param", "const") \
+                            and one.source() not in seen:
                         seen.add(one.source())
                         parts.append(one)
             found = admit(parts)

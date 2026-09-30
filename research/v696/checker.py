@@ -125,11 +125,12 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["signatures"]
 
-    def tree(self, source: str) -> dict:
+    def tree(self, source: str, files: dict | None = None) -> dict:
         """Every function in `source` as steps -- its parameters, the names
         it binds once, its return -- each node typed; {"unread": why} for
-        a function that is more than that (`tscheck.js`)."""
-        reply = self._ask({"op": "tree", "source": source})
+        a function that is more than that (`tscheck.js`). With `files`, a
+        project: every file's functions, by "file#name"."""
+        reply = self._ask({"op": "tree", "source": source, "files": files})
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["tree"]
@@ -142,6 +143,23 @@ class Checker:
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return {"uses": reply["uses"], "root": reply["root"]}
+
+    def diagnose(self, files: dict) -> list:
+        """What the compiler says is wrong in a project: [{file, start,
+        end, message, code}], spans in the files as given."""
+        reply = self._ask({"op": "diagnose", "files": files})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["errors"]
+
+    def project(self, files: dict, main: str, timeout: int = 2000
+                ) -> str | None:
+        """Run a project's file `main` (its tests), the project's own
+        imports resolved among its files: None if it ran through, else what
+        stopped it."""
+        reply = self._ask({"op": "project", "files": files, "main": main,
+                           "timeout": timeout})
+        return None if reply.get("ok") else reply.get("error", "failed")
 
     def tests(self, source: str, timeout: int = 2000) -> str | None:
         """Run a whole file (a candidate and its tests): None if it ran

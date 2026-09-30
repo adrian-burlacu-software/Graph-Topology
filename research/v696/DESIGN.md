@@ -441,6 +441,51 @@ Rungs 1–3 held: 28/21, 22/18, **22/18** (rung 3 was 21/17).
 HumanEval-TS (everything on): 24 → **25**/151 pass their tests, examples
 met 79 → 82, candidates 1.75M → 1.17M, time 2,912 s → 1,333 s.
 
+## Rung 5 — projects (`changing.py`, `projects.py`)
+
+- **5a. A project read whole.** The compiler over several files at once
+  (`tscheck.js` `programOfFiles`, imports resolved); a project's functions
+  keyed `file#name`, a call through an import read as the function it
+  names, an operator carrying its body; spans say which file. A project is
+  run as its files are (`project`: each file a CommonJS module, `require`
+  finding the project's own) — **inside the sandbox, under its timeout**:
+  run by the checker directly, a helper made into an endless loop hung it
+  (found when a benchmark build sat for 90 minutes). The compiler's errors
+  come with their places (`diagnose`).
+- **5b. The project's functions are the library**: every function the
+  other files declare is an operator the search grows (`Spec.library`),
+  read, not written; the answer written into the function's body, the
+  project's tests judging.
+- **5c. A fault in another file**: rung 4's edits over every function a
+  test reaches, each edit made in its own file (`Edit.file`); `main` run
+  with the project flattened to check, the project's tests to judge.
+- **5d. A change is a plan; the compiler's errors are its impasses.** The
+  first error is the top of the goal stack; the moves at its place are the
+  name it cannot find as a name the project exports — or that export under
+  the old name, at an import — and the arguments of the call it is in
+  reordered; a move is kept when the errors fall; when none are left, the
+  tests, and 5c for what still fails.
+
+Benchmark (`projects.py`, **frozen**, built before measuring): projects of
+2–3 modules assembled from verified programs (MBPP for dev, HumanEval for
+held) — `use` (a `main` whose answer composes two of them), `bug` (`main`
+as written, a helper made wrong by one edit), `change` (a helper renamed,
+or its two parameters swapped, `main` and a second function left calling
+it the old way). Every case is what the programs did on their own tests.
+
+| held, once (15 each) | rung 5 | baseline |
+|---|---|---|
+| use | **10** | 5 — the search without the project's functions |
+| bug | **13**, one edit each, in the faulty file | 5 — the search writing `main` again, around the fault |
+| change | **15** — 10 renames in one edit (the export under the old name), 5 swaps in two (one per caller), 20 impasses met | 0 — rung 4's repair, which has no new names and no compiler |
+
+Dev: use 11 (3), bug 11 (7), change 14 (0).
+
+Honest limits: the projects are small and the changes are two kinds —
+renames and swapped parameters, where the compiler says exactly where; a
+change whose breakage the types cannot see (a parameter's meaning
+changed, not its type) is left to 5c, which only has the tests.
+
 ## What is next
 
 Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as

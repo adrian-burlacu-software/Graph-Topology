@@ -163,8 +163,13 @@ def helpers(exprs) -> list:
         for one in expr.args:
             visit(one)
         op = expr.op
-        if op is not None and op.kind == "helper" and op not in seen:
-            seen.add(op)
+        if op is None or op.kind != "helper":
+            return
+        # known by what it is -- its body may hold a list, which a set
+        # cannot hash
+        key = (op.name, op.needs, op.gives, op.body.source())
+        if key not in seen:
+            seen.add(key)
             visit(op.body)
             out.append(op)
     for expr in exprs:

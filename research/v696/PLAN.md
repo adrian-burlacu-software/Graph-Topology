@@ -262,6 +262,47 @@ typed by MultiPL-E's TypeScript signatures; independent, held): fixed,
 edits made, lines changed; against the search solving the tests from
 scratch.
 
+## Rung 5 — projects (planned 2026-09-30)
+
+The world is a project: several files, each exporting functions others
+import, tests beside them. What rungs 1–4 do in one function is done
+across files, and a change is a plan whose steps the compiler checks.
+
+**What exists to build on**: the reader reads a file's functions, helpers
+as operators carrying their bodies (rung 3); edits in the source with
+spans (rung 4); v691's planner, where a step that fails is an impasse and
+a subgoal (`v691/acting.py`); the executive's goal stack.
+
+- **5a. A project read whole.** The compiler over several files at once
+  (imports and exports resolved, one type checker); every exported
+  function read into the tree, called across files as an operator with its
+  body; spans that say which file. Measured: exactness over projects, as
+  over functions.
+- **5b. The project's own declarations are the library.** An exported
+  function is an operator the search grows, as `lib.d.ts`'s members are:
+  read, not written (the ladder's promise for rungs 4–5). A task in a
+  project is solved with what the project already has.
+- **5c. Edits across files.** A failing test in one file, the fault in
+  another: suspicion over every function a test reaches (the call graph),
+  edits in whichever file the fault is in, the whole project checked.
+- **5d. A change is a plan.** A request that changes an API (a parameter
+  added, a function renamed, a result's type changed) is a goal; making
+  the change leaves the project not compiling, and **each error the
+  compiler reports is an impasse** — a subgoal on the stack (v691), met by
+  an edit at that place (5c's edits, or the search for what goes there);
+  done when it compiles and every test passes. Surprises are what they
+  are in v691: a step that breaks what worked.
+
+**Benchmarks, built before measuring and frozen**: projects assembled from
+verified programs (MBPP for dev, HumanEval for held) — 3–5 functions in
+their own modules, a main module importing them, the tasks' own tests
+beside each: (i) a new function whose answer uses the project's functions
+(5b); (ii) a helper made wrong by one edit, the test that fails being
+another module's (5c); (iii) an API change to a helper — a parameter added,
+renamed, reordered — with every caller to follow (5d). Measured: solved,
+edits, files touched, compiler impasses met; against rung 4's repair run
+per file, and the search from scratch.
+
 ## Reading code and English together: one meaning (Adrian, 2026-09-27/28)
 
 *"We're going to need to understand code as well — that's why I suggested a

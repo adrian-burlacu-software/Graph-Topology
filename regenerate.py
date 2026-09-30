@@ -992,6 +992,24 @@ def _sketches_check() -> str | None:
     return ", ".join(f"{count} {name}" for name, count in counts.items())
 
 
+def _projects_check() -> str | None:
+    """Rung 5's frozen project tasks: made once from the verified programs
+    (`research/v696/projects.py`); both sets, all three kinds."""
+    import json
+    counts = {}
+    for part in ("dev", "held"):
+        path = DATA / "code-meaning" / f"projects-{part}.jsonl"
+        if not path.exists():
+            return None
+        kinds = [json.loads(line)["kind"]
+                 for line in path.open(encoding="utf-8")]
+        if len(set(kinds)) != 3 or len(kinds) < 30:
+            raise Failed(f"projects-{part}: {len(kinds)} tasks of kinds "
+                         f"{sorted(set(kinds))}")
+        counts[part] = len(kinds)
+    return ", ".join(f"{count} {part}" for part, count in counts.items())
+
+
 def _sketches_check_functions() -> str | None:
     path = DATA / "code-meaning" / "sketches-functions.jsonl"
     if not path.exists():
@@ -1254,6 +1272,10 @@ def steps() -> list[Step]:
              _sketcher_check(LLM / "sketcher-e2"),
              needs=("sketches", "smollm2"), cost="fifteen minutes",
              gpu=True),
+        Step("projects", "rung 5's projects, assembled from verified "
+                         "programs: use, bug and change tasks, frozen",
+             lambda: _run("research.v696.projects"), _projects_check,
+             needs=("code-meaning",), cost="an hour"),
         Step("sketches-functions", "whole functions as written -- steps, "
                                    "loops, helpers -- that read into the "
                                    "search's tree (rung 3)",

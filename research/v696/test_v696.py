@@ -413,5 +413,60 @@ class EditingTests(unittest.TestCase):
         self.assertEqual(fix.source, source.replace("x > t", "x >= t"))
 
 
+@needs_node
+class ProjectTests(unittest.TestCase):
+    """Rung 5: a project read whole; a fault found in another file; an API
+    change followed by its callers, the compiler's errors the impasses."""
+
+    FILES = {
+        "/p/digits.ts": "export function digitSum(n: number): number {\n"
+                        "  let s = 0;\n  while (n > 0) { s += n % 10; "
+                        "n = Math.floor(n / 10); }\n  return s;\n}\n",
+        "/p/main.ts": 'import { digitSum } from "./digits";\n'
+                      "export function main(xs: number[]): number {\n"
+                      "  return Math.max(...xs.map((x) => digitSum(x)));\n"
+                      "}\n",
+        "/p/main.test.ts": 'import { main } from "./main";\n'
+                           "declare var require: any;\n"
+                           'const assert = require("node:assert");\n'
+                           "assert.deepEqual(main([19, 5, 100]), 10);\n"
+                           "assert.deepEqual(main([7]), 7);\n",
+    }
+
+    def task(self, files, kind):
+        from research.v696.projects import Task
+        return Task("t", kind, files, "/p/main.ts", "main",
+                    [["xs", "number[]"]], "number", [[[19, 5, 100]], [[7]]],
+                    [10, 7])
+
+    def test_a_project_is_read_whole(self):
+        from research.v696.checker import checker
+        from research.v696.parse import parse_project
+        tree = parse_project(self.FILES, "/p/main.ts", "main",
+                             [("xs", "number[]")])
+        self.assertIn("digitSum(x)", tree.source())
+        self.assertIsNone(checker().project(self.FILES, "/p/main.test.ts"))
+
+    def test_a_fault_in_another_file_is_fixed_there(self):
+        from research.v696.changing import fix
+        broken = dict(self.FILES)
+        broken["/p/digits.ts"] = broken["/p/digits.ts"].replace("n % 10",
+                                                                "n % 9")
+        done = fix(self.task(broken, "bug"))
+        self.assertEqual(done.route, "solved")
+        self.assertEqual(done.files["/p/main.ts"], self.FILES["/p/main.ts"])
+        self.assertIn("n % 10", done.files["/p/digits.ts"])
+
+    def test_a_renamed_export_is_followed(self):
+        from research.v696.changing import change
+        renamed = dict(self.FILES)
+        renamed["/p/digits.ts"] = renamed["/p/digits.ts"].replace(
+            "digitSum", "sumOfDigits")
+        done = change(self.task(renamed, "change"))
+        self.assertEqual(done.route, "solved")
+        self.assertEqual(done.impasses, 1)
+        self.assertEqual(len(done.edits), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
