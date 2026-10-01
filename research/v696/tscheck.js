@@ -230,8 +230,16 @@ function signatures(receivers, globals) {
 function values(params, cases, expressions, timeout, prelude) {
   const context = sandbox();
   context.__cases = cases;
-  // The helpers the expressions call, declared first (rung 3).
-  if (prelude) vm.runInContext(transpile(prelude), context, { timeout });
+  // The helpers the expressions call, declared first (rung 3). Helpers that
+  // do not compile or run are every expression failing, not the checker.
+  if (prelude) {
+    try {
+      vm.runInContext(transpile(prelude), context, { timeout });
+    } catch (error) {
+      const said = "helpers: " + String(error && error.message || error);
+      return expressions.map(() => cases.map(() => ({ error: said })));
+    }
+  }
   const out = [];
   for (const expression of expressions) {
     let compiled;

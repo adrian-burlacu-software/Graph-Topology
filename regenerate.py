@@ -1036,6 +1036,28 @@ def _sketches_check_functions2() -> str | None:
     return f"{mbpp} MBPP functions"
 
 
+def _requests_check() -> str | None:
+    path = DATA / "code-meaning" / "requests.jsonl"
+    if not path.exists():
+        return None
+    import json
+    rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+    if len(rows) < 600:
+        return None   # resumable: not finished (610 when first made)
+    return f"{len(rows)} requests, {sum(bool(r['code']) for r in rows)} kept"
+
+
+def _people_check() -> str | None:
+    path = DATA / "code-meaning" / "sketches-people.jsonl"
+    if not path.exists():
+        return None
+    count = sum(1 for _ in path.open(encoding="utf-8"))
+    if count < 450:
+        raise Failed(f"sketches-people: {count} records, expected 450+ "
+                     f"(479 when made)")
+    return f"{count} records"
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1317,6 +1339,26 @@ def steps() -> list[Step]:
              _sketcher_check(LLM / "sketcher-functions2"),
              needs=("sketches-functions2", "smollm2"),
              cost="half an hour", gpu=True),
+        Step("requests", "new requests in MultiPL-E's form, written and "
+                         "solved by SmolLM3 offline, kept when its solution "
+                         "meets their examples and reads",
+             lambda: _run("research.v696.teach_requests", "write",
+                          "--count", "610"),
+             _requests_check, needs=("multipl-e", "smollm3"),
+             cost="two hours", gpu=True),
+        Step("sketches-people", "the decoder's records as people write "
+                                "functions: those requests and MBPP's",
+             lambda: _run("research.v696.teach_requests", "corpus"),
+             _people_check, needs=("requests", "code-meaning"),
+             cost="five minutes"),
+        Step("sketcher-people", "a decoder taught those, no meaning line",
+             lambda: _run("research.v696.sketcher", "train", "--functions",
+                          "--no-meaning", "--epochs", "2", "--model",
+                          "sketcher-people", "--corpus",
+                          "sketches-people.jsonl"),
+             _sketcher_check(LLM / "sketcher-people"),
+             needs=("sketches-people", "smollm2"), cost="ten minutes",
+             gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

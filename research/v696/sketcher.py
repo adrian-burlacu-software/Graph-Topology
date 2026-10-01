@@ -46,6 +46,9 @@ SEED = 696
 #: dev; the untaught base model, level on dev and better on held, may have
 #: seen HumanEval -- `DESIGN.md`, "After rung 5").
 PROPOSER = "sketcher-functions2"
+#: The proposers together, each asked where those before it wrote nothing
+#: that meets the examples (`--sketcher proposers --rounds 2`).
+PROPOSERS = "sketcher-functions2,sketcher-people,SmolLM2-360M-Instruct"
 #: How often a source is repeated in training: MBPP's programs are the
 #: only ones asked for by people, and are few beside the generated.
 REPEAT = {"mbpp-ts": 8}
@@ -191,8 +194,9 @@ class Sketcher:
         self.model.eval()
 
     def write(self, texts: list, samples: int = SAMPLES,
-              longest: int = 160) -> list:
-        """For each prompt, one greedy program and `samples` sampled."""
+              longest: int = 160, greedy: bool = True) -> list:
+        """For each prompt, one greedy program (unless not `greedy`) and
+        `samples` sampled."""
         torch = self.torch
         if self.settings.get("functions"):
             longest = max(longest, 360)
@@ -207,14 +211,14 @@ class Sketcher:
                              for one in heads], device="cuda")
         out = [[] for _ in texts]
         with torch.no_grad():
-            greedy = self.model.generate(input_ids=ids, attention_mask=mask,
-                                         max_new_tokens=longest,
-                                         do_sample=False, pad_token_id=pad)
+            first = self.model.generate(
+                input_ids=ids, attention_mask=mask, max_new_tokens=longest,
+                do_sample=False, pad_token_id=pad) if greedy else None
             sampled = self.model.generate(
                 input_ids=ids, attention_mask=mask, max_new_tokens=longest,
                 do_sample=True, temperature=0.8, top_p=0.95,
                 num_return_sequences=samples, pad_token_id=pad)
-        for index, row in enumerate(greedy[:, width:]):
+        for index, row in enumerate(first[:, width:] if greedy else []):
             out[index].append(self.tokenizer.decode(
                 row, skip_special_tokens=True).strip())
         for index, row in enumerate(sampled[:, width:]):
@@ -223,11 +227,29 @@ class Sketcher:
         return out
 
 
-def proposals(sketcher: Sketcher, specs: list, batch: int = 8) -> None:
+def _meets(spec, tree) -> bool:
+    from research.v696.checker import CheckerError, checker
+    from research.v696.search import _matches
+    try:
+        row = checker().values(spec.names, spec.cases, [tree.source()],
+                               prelude=P.prelude([tree]))[0]
+    except CheckerError:
+        return False
+    return _matches(row, spec.outputs)
+
+
+def proposals(sketcher: Sketcher, specs: list, batch: int = 8,
+              rounds: int = 1, keep: bool = False) -> None:
     """Each spec's proposals, read back into trees: `Spec.proposals`,
     distinct, in the order written (greedy first). The meaning, where the
     sketcher was taught with one, is what the reader read
-    (`Spec.expected`, set by `reader.expect` first)."""
+    (`Spec.expected`, set by `reader.expect` first).
+
+    With `rounds` > 1 the decoder is asked again, `SAMPLES` more each
+    time, for the requests none of whose programs yet meets its examples:
+    what is easy is written once, what is hard is tried more. With `keep`,
+    what another decoder proposed is kept, and this one asked only where
+    none of it meets the examples."""
     from research.v696.parse import parse
     from research.v696.reader import request
     # sampled, but the same samples every time: a run can be run again
@@ -239,27 +261,62 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8) -> None:
         if sketcher.settings["meaning"]:
             meaning = said_meaning(spec.expected["probs"])
         texts.append(prompt(english, code, meaning))
-    for at in range(0, len(specs), batch):
-        chunk = specs[at:at + batch]
-        for spec, written in zip(chunk, sketcher.write(texts[at:at + batch])):
-            seen, trees, sources = set(), [], []
-            for text in written:
-                if "```" in text:
-                    # a reply in a code block: what is inside it
-                    inside = text.split("```")[1]
-                    text = inside.partition("\n")[2] or inside
-                if "function " not in text:
-                    text = text.strip().rstrip(";")
-                    if text.startswith("return "):
-                        text = text[len("return "):]
-                    text = f"{spec.signature()} {{\n  return {text};\n}}\n"
-                # a whole function, steps and loops as written
-                tree = parse(text, spec.entry, spec.params)
-                if tree is not None and tree.source() not in seen:
-                    seen.add(tree.source())
-                    trees.append(tree)
-                    sources.append(text)
-            spec.proposals, spec.sources = trees, sources
+        if not keep:
+            spec.proposals, spec.sources = [], []
+    todo = [one for one in range(len(specs))
+            if not (keep and any(_meets(specs[one], tree)
+                                 for tree in specs[one].proposals))]
+    for round_ in range(rounds):
+        for at in range(0, len(todo), batch):
+            chunk = todo[at:at + batch]
+            written_all = sketcher.write([texts[one] for one in chunk],
+                                         greedy=round_ == 0)
+            for index, written in zip(chunk, written_all):
+                _read(specs[index], written, parse)
+        todo = [one for one in todo
+                if not any(_meets(specs[one], tree)
+                           for tree in specs[one].proposals)]
+        if not todo:
+            break
+
+
+def _runs(spec, tree) -> bool:
+    """Whether the helpers a tree calls, printed, run at all."""
+    from research.v696.checker import CheckerError, checker
+    prelude = P.prelude([tree])
+    if not prelude:
+        return True
+    try:
+        row = checker().values(spec.names, spec.cases[:1], ["0"],
+                               prelude=prelude)[0]
+    except CheckerError:
+        return False
+    return not any(str(one.get("error", "")).startswith("helpers")
+                   for one in row)
+
+
+def _read(spec, written: list, parse) -> None:
+    """What the decoder wrote, read into trees, added to the spec's."""
+    seen = {one.source() for one in spec.proposals}
+    for text in written:
+        if "```" in text:
+            # a reply in a code block: what is inside it
+            inside = text.split("```")[1]
+            text = inside.partition("\n")[2] or inside
+        if "function " not in text:
+            text = text.strip().rstrip(";")
+            if text.startswith("return "):
+                text = text[len("return "):]
+            text = f"{spec.signature()} {{\n  return {text};\n}}\n"
+        # a whole function, steps and loops as written
+        tree = parse(text, spec.entry, spec.params)
+        if tree is not None and not _runs(spec, tree):
+            # its helpers, printed, do not run: not a program to offer
+            tree = None
+        if tree is not None and tree.source() not in seen:
+            seen.add(tree.source())
+            spec.proposals.append(tree)
+            spec.sources.append(text)
 
 
 def evaluate(model: str, meaning_model: str = "meaning-unixcoder") -> dict:

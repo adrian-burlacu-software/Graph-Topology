@@ -661,6 +661,46 @@ is not a claim about the architecture; 30 is the number chosen on dev. What
 either writes is only ever a candidate — read into a tree, checked on the
 examples, judged by the tests.
 
+### Toward a majority, with 360M proposers (2026-10-01)
+
+Adrian: get a majority a good solution, staying with 360M models (no larger
+model at run time). Everything above says the number is the proposers', so
+the work went there, measured on MBPP dev (two examples shown), the decoder
+alone (the first of its programs that meets the examples is right):
+
+| proposer | 8 programs | 32 |
+|---|---|---|
+| `sketcher-functions2` | 35 | 38 — its samples barely differ |
+| SmolLM2-360M-Instruct, untaught | 33 | 43 |
+| `sketcher-people` (below) | 34 | 40 |
+| all three, 8 each | **47** | |
+
+- **Asked as people ask** (the chat form) beats the request as a TypeScript
+  docstring to complete (15 of 83 at 8 programs).
+- **Asked again where nothing fits** (`proposals(rounds=...)`): what is easy
+  is written once, what is hard is tried more.
+- **Several proposers, each after the last** (`--sketcher a,b,c`): one is
+  asked only where those before it wrote nothing that meets the examples.
+  They are wrong in different places.
+- **`sketcher-people`**: the base model taught, with no meaning line, whole
+  functions as written — MBPP's verified solutions and **requests the teacher
+  wrote** (`teach_requests.py`: SmolLM3 offline writes a new request in
+  MultiPL-E's form from three MBPP train requests, then solves it; kept when
+  its solution meets the request's own examples and reads; nothing sharing a
+  name or eight words with HumanEval or MBPP dev). The teacher's run stopped
+  at its time limit: 610 requests, 256 kept.
+
+End to end on dev: **52** of 83 (was 34). Held, once (`--sketcher
+proposers --rounds 2`): **HumanEval-TS 30 → 55 / 151** (36%) — proposed 73
+(47 right), the search's own and repaired near misses 8 more. One run before
+it stopped on a proposal whose printed helpers did not compile; helpers that
+do not run are now a candidate failing (`tscheck.js` `values`), and such a
+proposal is not offered (`sketcher._runs`).
+
+Not a majority. 42 tasks get nothing that meets their examples; 26 get a
+proposal that meets them and is wrong. The base model's share of the 55
+carries the caveat above.
+
 ## What is next
 
 The ladder's five rungs are built. What the numbers say is weakest is not a

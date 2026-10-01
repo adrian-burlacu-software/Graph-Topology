@@ -192,6 +192,9 @@ def main(argv=None) -> int:
                         help="a decoder in llm/ to propose programs with "
                              "(needs --meaning); 'proposer' for the chosen "
                              "one (sketcher.PROPOSER)")
+    parser.add_argument("--rounds", type=int, default=1,
+                        help="ask the decoder again, up to this many times, "
+                             "where nothing it wrote meets the examples")
     options = parser.parse_args(argv)
     if options.rung == 4:
         main4(options.held)
@@ -220,9 +223,17 @@ def main(argv=None) -> int:
         reader.expect(test, reader.LLM / options.meaning)
     if options.sketcher:
         from research.v696 import sketcher
-        name = sketcher.PROPOSER if options.sketcher == "proposer" \
-            else options.sketcher
-        sketcher.proposals(sketcher.Sketcher(sketcher.LLM / name), test)
+        said = {"proposer": sketcher.PROPOSER,
+                "proposers": sketcher.PROPOSERS}.get(options.sketcher,
+                                                     options.sketcher)
+        # several decoders: each after the last, where it found nothing
+        for at, name in enumerate(said.split(",")):
+            model = sketcher.Sketcher(sketcher.LLM / name)
+            sketcher.proposals(model, test, rounds=options.rounds,
+                               keep=at > 0)
+            torch = model.torch
+            del model
+            torch.cuda.empty_cache()
     rows = []
     for config in options.configs:
         row = run(config, train, test, options.budget)
