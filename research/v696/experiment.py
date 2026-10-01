@@ -18,6 +18,9 @@ is then measured on tasks it has not seen. Dev seeds may be looked at;
     python -m research.v696.experiment --multipl-e     HumanEval-TS
     ... --multipl-e --meaning meaning-unixcoder         each request read
                                                         first (`reader.py`)
+    ... --sketcher proposer                             and the decoder's
+                                                        programs proposed
+                                                        (sketcher-functions2)
 """
 from __future__ import annotations
 
@@ -115,12 +118,18 @@ def run(config: str, train: list, test: list, budget: int) -> Row:
     started = time.time()
     for spec in test:
         got = solver.solve(spec)
+        general = got.general if not spec.tests else _passes(spec, got)
         row.total += 1
         row.solved += got.solved
-        row.general += got.general if not spec.tests else _passes(spec, got)
+        row.general += general
         row.evaluated += got.evaluated
         row.rejected += got.rejected
         row.routes[got.route] += 1
+        if spec.tests:
+            # one line a task, as it goes: a long run shows where it is
+            print(f"  {row.total:>3}/{len(test)} {spec.name[:44]:44} "
+                  f"{got.route:9} {'passes' if general else '-':6} "
+                  f"({time.time() - started:.0f}s)", flush=True)
     row.seconds = time.time() - started
     return row
 
@@ -181,7 +190,8 @@ def main(argv=None) -> int:
                              "request with before searching")
     parser.add_argument("--sketcher", default="",
                         help="a decoder in llm/ to propose programs with "
-                             "(needs --meaning)")
+                             "(needs --meaning); 'proposer' for the chosen "
+                             "one (sketcher.PROPOSER)")
     options = parser.parse_args(argv)
     if options.rung == 4:
         main4(options.held)
@@ -210,8 +220,9 @@ def main(argv=None) -> int:
         reader.expect(test, reader.LLM / options.meaning)
     if options.sketcher:
         from research.v696 import sketcher
-        sketcher.proposals(sketcher.Sketcher(sketcher.LLM / options.sketcher),
-                           test)
+        name = sketcher.PROPOSER if options.sketcher == "proposer" \
+            else options.sketcher
+        sketcher.proposals(sketcher.Sketcher(sketcher.LLM / name), test)
     rows = []
     for config in options.configs:
         row = run(config, train, test, options.budget)

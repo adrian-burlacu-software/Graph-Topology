@@ -1023,6 +1023,19 @@ def _sketches_check_functions() -> str | None:
     return f"{mbpp} MBPP functions"
 
 
+def _sketches_check_functions2() -> str | None:
+    path = DATA / "code-meaning" / "sketches-functions2.jsonl"
+    if not path.exists():
+        return None
+    import json
+    mbpp = sum(1 for line in path.open(encoding="utf-8")
+               if json.loads(line)["source"] == "mbpp-ts")
+    if mbpp < 250:
+        raise Failed(f"sketches-functions2: {mbpp} MBPP functions, expected "
+                     f"at least 250 (298 when made)")
+    return f"{mbpp} MBPP functions"
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1289,6 +1302,21 @@ def steps() -> list[Step]:
              _sketcher_check(LLM / "sketcher-functions"),
              needs=("sketches-functions", "smollm2"),
              cost="twenty-five minutes", gpu=True),
+        Step("sketches-functions2", "the same, made again once the reader "
+                                    "read more of what people write (nearly "
+                                    "twice the MBPP functions)",
+             lambda: _run("research.v696.teach_sketch", "corpus",
+                          "--functions", "--out",
+                          "sketches-functions2.jsonl"),
+             _sketches_check_functions2, needs=("sketches",),
+             cost="five minutes", gpu=True),
+        Step("sketcher-functions2", "the decoder taught from that corpus",
+             lambda: _run("research.v696.sketcher", "train", "--functions",
+                          "--epochs", "2", "--model", "sketcher-functions2",
+                          "--corpus", "sketches-functions2.jsonl"),
+             _sketcher_check(LLM / "sketcher-functions2"),
+             needs=("sketches-functions2", "smollm2"),
+             cost="half an hour", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

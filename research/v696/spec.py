@@ -38,6 +38,8 @@ class Spec:
     expected: dict | None = None
     #: programs the decoder proposed, read back into trees (`sketcher.py`)
     proposals: list = field(default_factory=list)
+    #: the text each proposal was read from, as the decoder wrote it
+    sources: list = field(default_factory=list)
     #: operators beyond the language's: a project's own functions (rung 5),
     #: grown by the search as the library's members are
     library: list = field(default_factory=list)

@@ -40,6 +40,12 @@ SAYING_FUNCTIONS = "You write TypeScript: the whole function asked for."
 
 #: How many programs a request is given: sampled, plus one greedy.
 SAMPLES = 8
+#: What the sampling starts from.
+SEED = 696
+#: The proposer: taught again from what the widened reader reads (chosen on
+#: dev; the untaught base model, level on dev and better on held, may have
+#: seen HumanEval -- `DESIGN.md`, "After rung 5").
+PROPOSER = "sketcher-functions2"
 #: How often a source is repeated in training: MBPP's programs are the
 #: only ones asked for by people, and are few beside the generated.
 REPEAT = {"mbpp-ts": 8}
@@ -66,7 +72,8 @@ def _text(row: dict, meaning: bool) -> str:
 
 def train(out: Path, meaning: bool = True, epochs: int = 4,
           batch: int = 16, rate: float = 1e-4, longest: int = 448,
-          seed: int = 696, functions: bool = False) -> None:
+          seed: int = 696, functions: bool = False,
+          corpus: Path | None = None) -> None:
     import torch
     from transformers import (AutoModelForCausalLM, AutoTokenizer,
                               get_cosine_schedule_with_warmup)
@@ -75,8 +82,8 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
     saying = SAYING_FUNCTIONS if functions else SAYING
     if functions:
         longest = max(longest, 768)
-    rows = [json.loads(line) for line in (FUNCTIONS if functions else
-                                          SKETCHES).open(encoding="utf-8")]
+    corpus = corpus or (FUNCTIONS if functions else SKETCHES)
+    rows = [json.loads(line) for line in corpus.open(encoding="utf-8")]
     tokenizer = AutoTokenizer.from_pretrained(str(BASE))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -157,7 +164,7 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
     tokenizer.save_pretrained(str(out))
     (out / "sketcher.json").write_text(json.dumps({
         "base": BASE.name, "saying": saying, "meaning": meaning,
-        "functions": functions,
+        "functions": functions, "corpus": corpus.name,
         "train": len(train_rows), "epochs": epochs}, indent=1),
         encoding="utf-8")
     print(f"-> {out}")
@@ -168,8 +175,13 @@ class Sketcher:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         self.torch = torch
-        self.settings = json.loads((path / "sketcher.json").read_text(
-            encoding="utf-8"))
+        # A model with no `sketcher.json` is one taught nothing here (the
+        # base model as it came): asked for the whole function, given no
+        # meaning line -- it was never taught to read one.
+        said = path / "sketcher.json"
+        self.settings = json.loads(said.read_text(encoding="utf-8")) \
+            if said.exists() else {"saying": SAYING_FUNCTIONS,
+                                   "meaning": False, "functions": True}
         self.tokenizer = AutoTokenizer.from_pretrained(str(path))
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
@@ -218,6 +230,8 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8) -> None:
     (`Spec.expected`, set by `reader.expect` first)."""
     from research.v696.parse import parse
     from research.v696.reader import request
+    # sampled, but the same samples every time: a run can be run again
+    sketcher.torch.manual_seed(SEED)
     texts = []
     for spec in specs:
         english, code = request(spec)
@@ -228,21 +242,24 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8) -> None:
     for at in range(0, len(specs), batch):
         chunk = specs[at:at + batch]
         for spec, written in zip(chunk, sketcher.write(texts[at:at + batch])):
-            seen, trees = set(), []
+            seen, trees, sources = set(), [], []
             for text in written:
-                if "function " in text:
-                    # a whole function, steps and loops as written
-                    tree = parse(text, spec.entry, spec.params)
-                else:
+                if "```" in text:
+                    # a reply in a code block: what is inside it
+                    inside = text.split("```")[1]
+                    text = inside.partition("\n")[2] or inside
+                if "function " not in text:
                     text = text.strip().rstrip(";")
                     if text.startswith("return "):
                         text = text[len("return "):]
-                    tree = parse(f"{spec.signature()} {{\n  return "
-                                 f"{text};\n}}\n", spec.entry, spec.params)
+                    text = f"{spec.signature()} {{\n  return {text};\n}}\n"
+                # a whole function, steps and loops as written
+                tree = parse(text, spec.entry, spec.params)
                 if tree is not None and tree.source() not in seen:
                     seen.add(tree.source())
                     trees.append(tree)
-            spec.proposals = trees
+                    sources.append(text)
+            spec.proposals, spec.sources = trees, sources
 
 
 def evaluate(model: str, meaning_model: str = "meaning-unixcoder") -> dict:
@@ -292,14 +309,18 @@ def main(argv=None) -> int:
     parser.add_argument("--epochs", type=int, default=4)
     parser.add_argument("--functions", action="store_true",
                         help="teach whole functions (rung 3)")
+    parser.add_argument("--corpus", default="",
+                        help="the corpus file's name in data/code-meaning, "
+                             "where it is not the first made")
     args = parser.parse_args(argv)
     if args.job == "train":
         name = args.model or ("sketcher" if not args.no_meaning
                               else "sketcher-no-meaning")
         train(LLM / name, meaning=not args.no_meaning, epochs=args.epochs,
-              functions=args.functions)
+              functions=args.functions,
+              corpus=FUNCTIONS.parent / args.corpus if args.corpus else None)
     else:
-        evaluate(args.model or "sketcher")
+        evaluate(args.model or PROPOSER)
     return 0
 
 

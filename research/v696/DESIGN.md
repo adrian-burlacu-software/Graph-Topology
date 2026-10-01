@@ -486,10 +486,188 @@ renames and swapped parameters, where the compiler says exactly where; a
 change whose breakage the types cannot see (a parameter's meaning
 changed, not its type) is left to 5c, which only has the tests.
 
+## After rung 5: the two weakest numbers (2026-09-30)
+
+### Every HumanEvalFix bug reads (26 did not)
+
+What stopped the 26 was JavaScript as people write it, and wrong programs
+being wrong. Each cause was one general thing:
+
+- **JavaScript read as TypeScript** (`tscheck.js` `completed`). What the
+  source leaves unsaid is said for it, from how it is used, *in the text the
+  compiler is given*: a helper's untyped parameter takes the type of what
+  it is first called with; a name assigned and never declared is declared
+  where its function begins; a list begun empty that the compiler never
+  settles (its elements set from its own) holds what is first pushed into
+  it, or what the function says it returns. Only text is added, and
+  `origin` maps every character back, so every span — and so every edit —
+  is still of the source as written. (Before, the compiler's types inside
+  such a helper were all `any`, and nothing in it resolved.)
+- **A function returns whether or not it says so.** Every function begins
+  not-returned (`DONE`, `RESULT`, as loops already had), callbacks and
+  helpers too; falling off the end returns `undefined` unless it had
+  returned; a guard inside a block whose rest goes on past it carries its
+  return (`returned`); a bare `return` returns nothing.
+- **A name nothing declares**, or a `let` read before its line, is its own
+  text: it fails in the tree as it failed in the source.
+- **What the language has had since** (`xs.at(-1)`): read with the
+  compiler's newer library; the library the search grows from is unchanged.
+- **Loops**: `for (k in o)` goes over `Object.keys(o)`; a test that is not
+  a truth (`while (n)`) is one by `!!`; a loop that changes nothing outside
+  itself is nothing in what the function returns.
+- **Changes**: `c[j][k] = v` at any depth (each container on the way a copy
+  with its own element set), `c[k]++`; a statement said for nothing
+  (`xs.filter(f);`) is dropped. One notion of what code changes (`writes`:
+  the name at the root of everything assigned, counted, deleted from or
+  changed in place) serves all of it.
+
+**Reading is checked on wrong programs too** (`needs_exact.py`): a bug's
+tree, printed back, must give on the bug's cases what its source gives — the
+same value, or fail where it fails. That check found five things that had
+been read *silently wrong*, some of them since rung 3:
+
+- `==` was read as `===`: `x == null` is true of what is undefined. Now
+  only between two of one plain kind.
+- **Two names, one list** (`let p = arr`, then `p[j] = …`, `return arr`):
+  read as one name when either is changed in place; refused if either is
+  then given another value.
+- **An `if` whose two ways changed a name alike lost the change** (the
+  merge kept the value from before the `if`).
+- **A loop's state was worked out once for every place of it read** (a
+  loop carrying three values ran three times, nested ones exponentially):
+  bound once. **Work done before a loop and read inside it** was done
+  every time round: bound where it was made, at its first read from inside.
+- Running a program stops at the first case that runs out of time (a
+  repair of a loop that never ends cost every case its timeout, for each
+  of 3,000 edits).
+
+| | before | now |
+|---|---|---|
+| HumanEvalFix bugs that read | 131 / 157 | **157 / 157**, all doing what their source does |
+| verified programs read exactly | 212 / 257 MBPP, 88 / 99 HumanEval | **222** / 257, **92** / 99 |
+| HumanEvalFix fixed (held, once) | 81 (64 edits, 17 rewritten) | **96** (76 edits — 73 one, 3 two — and 20 rewritten) |
+
+Of the 26: 10 fixed by edits, 5 rewritten, 11 read and not fixed. Two that
+were rewritten before are not now (the search wrote them; their trees
+changed). Generated bugs, held: 36 + 1 of 40, unchanged. Rung 5 dev:
+unchanged (11, 11, 14). Rungs 1–3 dev: the same to the candidate as the
+commit before.
+
+### A few examples are not the judge (HumanEval-TS: 25 of 151)
+
+Diagnosed on MBPP dev (83 tasks the decoder was not taught from; one
+example shown, as MBPP's prompts have none): 57 "solved", **18** right. Of
+the wrong ones most were a constant or a parameter — `false`, `2`, `n`. Two
+causes, both in how the search stops:
+
+1. **The forward trie keeps one expression per vector of values on the
+   examples.** With one example, `false` *is* every boolean expression
+   that gives false there: nothing else with that value is kept, grown or
+   offered.
+2. **The first thing that meets the examples was the answer**, and the
+   values the search begins with are tried first — before the decoder's
+   proposals. On 8 tasks the decoder had written a right program and a
+   constant was returned.
+
+So, where there is a reading of the request (**judged**, `search.py`):
+
+- two expressions are one only if they also do the same **beyond the
+  examples** (on `meaning.probes`, inputs varied from them);
+- what meets the examples is **kept with where it came from** and the
+  answer chosen by that (`RANK`): a program the decoder wrote for this
+  request; then one of its near misses **repaired by rung 4's edits**, the
+  examples its cases (only with two or more examples); then what the search
+  found — a part of a proposal, or grown; last a value it began with.
+  Reading the decoder's work is not stopped part-way; after it, the search
+  stops at the first program it finds.
+
+Without a reading (rungs 1–3, rung 4's rewriting) nothing changed.
+
+| MBPP dev, 83 tasks, same proposals | first that meets | judged |
+|---|---|---|
+| one example shown | 18 | **25** |
+| two shown | 29 | **34** |
+
+(With two shown, of 10 near misses edited to meet the examples 4 are right
+— two the search had no answer or a wrong one for — and one displaces a
+wrong program that happened to pass the tests.)
+
+**Measured on dev and left out** — each chose no better than "the first":
+ranking what meets the examples by how likely the reader of meaning finds
+what it is made of, by its behaviour beyond the examples, by whether it
+reads every parameter; looking further past the first program found (up to
+the whole budget); taking the behaviour most of the decoder's samples agree
+on; asking the decoder for 24 programs, not 8 (a right one on 26 tasks
+either way); edits to near misses with one example (1 of 12 right). The
+reader's `uses` order the search; they do not tell a right program from a
+wrong one that meets the examples.
+
+**HumanEval-TS, held — it did not carry.** Run once judged, then with each
+part switched off, the same (seeded) proposals:
+
+| HumanEval-TS, 151 tasks | pass their tests | meet the examples |
+|---|---|---|
+| the first that meets the examples (as it was) | 24 | 82 |
+| judged, near misses not repaired | 24 | 81 |
+| **judged** | **24** | 78 |
+
+(The 25 before was another draw of the decoder's samples; sampling is
+seeded now, `sketcher.SEED`, so a run can be run again.) Why dev's gain is
+not there: HumanEval's prompts show two or more varied examples for most
+tasks, so a constant seldom met them, and the decoder's right programs were
+already being returned — 18 of the 24 are whole proposals in every variant.
+Judging changes which *wrong* program is returned. By route, judged: whole
+proposals 17 right of 23; near misses repaired 2 of 13 (dev: 4 of 10); what
+the search finds from the examples alone 5 of 42.
+
+So the number is the decoder's: a right program is returned where it wrote
+one, and it writes one that meets the examples for 23 of 151 tasks.
+
+### The decoder had been taught the search's dialect
+
+`sketcher-functions` was taught at rung 3 from what the reader read then:
+127 MBPP functions beside 4,000 generated programs in the search's own
+dialect. The reader now reads nearly all of what people write — so the
+decoder need not write the dialect. Two ways to use that, measured on dev
+(the decoder alone: tasks where one of its programs is right / where the
+first that meets the examples is):
+
+| proposer | one example | two |
+|---|---|---|
+| `sketcher-functions` (as it was) | 26 / 24 | 26 / 26 |
+| `sketcher-functions2`: taught again from what the reader reads now (234 MBPP functions, `sketches-functions2.jsonl`) | 34 / 31 | 33 / 33 |
+| SmolLM2-360M-Instruct as it came, taught nothing | 35 / 33 | 37 / 36 |
+
+Teaching the base model the dialect had cost more than it gave: its loss
+on MBPP dev functions rises as it is taught (0.37 before, 0.56 after two
+epochs). End to end, judged, on dev: `sketcher-functions2` 34 / **40**, the
+base model 34 / 38 — so `sketcher-functions2` is the proposer
+(`sketcher.PROPOSER`, `--sketcher proposer`; Adrian's choice after the held
+runs below, 2026-10-01; a model directory with no `sketcher.json` is used
+as one taught nothing).
+
+**HumanEval-TS, held, once each: 24 → 30** with `sketcher-functions2`
+(proposed 36, 23 right; near misses repaired 15, 4 right; the search's own
+finds 3 of 33). With the base model, taught nothing (run once, not chosen):
+**38** (proposed 45, 30 right; repaired near misses 20, 3 right; the
+search's own 5 of 34).
+
+Dev could not tell those two proposers apart; held can, by 8. Either the
+base model is better at HumanEval's long docstring requests than one taught
+on MBPP's one-line ones, or it has seen HumanEval: it was trained on public
+code, HumanEval is the most copied benchmark there is, and MultiPL-E's
+TypeScript translations are public too. Nothing here can say which, so 38
+is not a claim about the architecture; 30 is the number chosen on dev. What
+either writes is only ever a candidate — read into a tree, checked on the
+examples, judged by the tests.
+
 ## What is next
 
-Rung 2 (control forms: map, filter, reduce, conditionals — callbacks as
-holes, their bodies subgoals) is what HumanEval needs, and where learned
-control and chunks should first have structure to learn from. Output needs
-no decoder at any rung: code is printed from the tree; the English around it
-("recognised from …, passes these examples") is the program's own words.
+The ladder's five rungs are built. What the numbers say is weakest is not a
+rung but the writer, and what it is taught: HumanEval-TS moved when the
+decoder was taught what people write rather than the search's dialect, and
+not when the search chose better among what met the examples. A proposer
+taught from more requests than MBPP's (its own verified programs, read back
+through the exact reader, are the obvious corpus), and a judge that knows
+more than where a program came from — which, measured here, the reader of
+meaning as it stands is not.

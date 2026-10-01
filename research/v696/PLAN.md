@@ -408,6 +408,22 @@ tree; saying it in English goes through the English decoder from the same
 meaning. Measured by search saved and sketches that lead to a verified
 program.
 
+## After rung 5 — the two weakest numbers (Adrian, 2026-09-30)
+
+"HumanEval-TS is at 25 of 151. 26 HumanEvalFix bugs still don't read."
+
+- **The 26**: list why each does not read, fix each cause as the general
+  thing it is, and hold the reader to a new check — a wrong program's tree
+  must do what its source does on the bug's cases (`needs_exact.py`). Held
+  HumanEvalFix once after.
+- **The 25**: diagnose on MBPP dev (the decoder was not taught from it),
+  where HumanEval may not be looked at: what does the search return when it
+  "solves" a task and fails its tests? Fix how the search stops and
+  chooses; measure every other idea on dev and keep only what the numbers
+  keep. Held HumanEval-TS once after.
+
+What was built and measured: `DESIGN.md`, "After rung 5".
+
 ## What is measured, beyond "solved"
 
 - **Route**: recognised, means-ends, from a chunk, repaired backward, last

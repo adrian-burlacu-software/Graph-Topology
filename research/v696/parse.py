@@ -72,7 +72,12 @@ def _typed(node: dict) -> dict:
     """The compiler's type as the library says it: `number | undefined`
     (what `pop()` gives) is a number, as `program._plain` reads it."""
     if "type" in node and "=>" not in node["type"]:
-        node["type"] = P._plain(node["type"]) or node["type"]
+        parts = P.elements(node["type"])
+        if parts:
+            # a tuple's places, each as the library says it
+            node["type"] = P.tuple_of(P._plain(one) or one for one in parts)
+        else:
+            node["type"] = P._plain(node["type"]) or node["type"]
     return node
 
 
@@ -319,6 +324,9 @@ class Module:
                 if tuple(one.type for one in extra) != op.needs[2:] \
                         or (op.gives != node["type"]
                             and not _vague(node["type"])):
+                    inside = (f"given {[one.type for one in extra]} for "
+                              f"{list(op.needs[2:])}, gives {op.gives} for "
+                              f"{node['type']}")
                     continue
                 return P.apply(op, [receiver, P.lambda_(settled, body),
                                     *extra])

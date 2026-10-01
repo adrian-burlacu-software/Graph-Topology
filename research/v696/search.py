@@ -29,6 +29,15 @@ is a switch, measured on and off against it:
 
 Every result says how it was found (`route`), what it cost, and whether
 it also meets the hidden examples.
+
+**Judged** (where the request has been read, `Spec.expected`): a few
+examples do not say which of the programs that meet them was asked for --
+a constant meets one example of anything. So the forward trie tells
+expressions apart by what they do beyond the examples too
+(`meaning.probes`), everything that meets the examples is kept with where
+it came from, and the answer is the best founded (`RANK`): what the decoder
+wrote for this request, then a near miss of its repaired by edits, then what
+the search found, and last a value it began with.
 """
 from __future__ import annotations
 
@@ -62,6 +71,14 @@ INDUCTIONS = 12000
 STRONG = 0.95
 #: How much an operator the reader expects is worth in the attention queue.
 PRIOR = 1.0
+#: Judged (`Solver._chosen`): how well founded a program that meets the
+#: examples is, by where it came from -- lower first. What the search
+#: finds itself (any other stage) is `FOUND`.
+RANK = {"proposed": 0, "edited": 1, "part": 2, "pool": 3}
+FOUND = 2
+#: How many proposals are repaired by edits, and what each may run.
+EDITED = 4
+EDITS = 400
 
 
 @dataclass
@@ -90,7 +107,8 @@ class Switches:
 class Result:
     spec: str
     program: P.Expr | None = None
-    #: recognized | deduced | meet | repaired | means-ends | unsolved
+    #: recognized | deduced | meet | repaired | means-ends | unsolved --
+    #: and with the decoder: proposed | edited | part
     route: str = "unsolved"
     evaluated: int = 0
     #: holes solved as specs of their own (rung 2)
@@ -268,6 +286,8 @@ class Solver:
         self.memory = memory if memory is not None else Memory()
         self.depth = depth
         self.budget = budget
+        #: judged: (program, where it came from, candidates so far)
+        self._hits, self._stage = [], "meet"
 
     # the pieces every route shares
     def _ops(self, spec: Spec) -> list:
@@ -317,11 +337,13 @@ class Solver:
                 pool.append(P.const(json.loads(said), kind))
         return pool
 
-    def _evaluate(self, spec: Spec, exprs: list) -> list:
+    def _evaluate(self, spec: Spec, exprs: list, beyond=()) -> list:
+        """Each expression's values on the examples' inputs -- and on
+        `beyond`, inputs no example gives an output for."""
         rows = []
         for start in range(0, len(exprs), BATCH):
             batch = exprs[start:start + BATCH]
-            rows += checker().values(spec.names, spec.cases,
+            rows += checker().values(spec.names, spec.cases + list(beyond),
                                      [one.source() for one in batch],
                                      prelude=P.prelude(batch))
         return rows
@@ -337,6 +359,7 @@ class Solver:
     def solve(self, spec: Spec) -> Result:
         started = time.time()
         self._deduced = {}
+        self._hits, self._stage = [], "recognized"
         result = Result(spec.name)
         found = None
         if self.switches.recognition:
@@ -346,9 +369,14 @@ class Solver:
         if found is None and self.switches.meet:
             found = self._meet(spec, result)
         elif found is None:
+            self._stage = "means-ends"
             found = self._means_ends(spec, result)
             if found is not None:
                 result.route = "means-ends"
+        if self._hits:
+            # judged: of everything that met the examples, the one the
+            # request most likely asked for
+            found, result.route = self._chosen(spec)
         result.program = found
         result.seconds = time.time() - started
         if found is not None:
@@ -420,7 +448,94 @@ class Solver:
                 return expr
         return None
 
+    def _judged(self, spec: Spec) -> bool:
+        """Whether there is a reading of the request to judge by. Without
+        one, the first program that meets the examples is the answer."""
+        return bool(spec.expected) and "uses" in spec.expected
+
+    def _beyond(self, spec: Spec) -> list:
+        """Inputs varied from the examples' (`meaning.probes`): what a
+        program does on them is part of what it is, though no example says
+        what it should do there."""
+        from research.v696 import meaning as M
+        probes = self.__dict__.setdefault("_probes", {})
+        if spec.name not in probes:
+            probes[spec.name] = M.probes(spec.examples)
+        return probes[spec.name]
+
     def _accepts(self, spec: Spec, program: P.Expr, result: Result) -> bool:
+        """Whether the search may stop on a program that meets the
+        examples. With no reading of the request: yes, if the round trip
+        does not refuse it. With one, the request is for a function of
+        its inputs and a few examples are not the judge of that -- a
+        constant meets one example of anything -- so what meets them is
+        kept (`_hits`) with where it came from, and the search goes on
+        until something better founded than it has is found (`_settled`);
+        the answer is chosen among them (`_chosen`)."""
+        if not self._shows(spec, program, result):
+            return False
+        if not self._judged(spec):
+            return True
+        # a parameter or a constant is what the search began with,
+        # wherever it turns up (inside a proposal too)
+        stage = "pool" if program.kind in ("param", "const") else self._stage
+        self._hits.append((program, stage, result.evaluated))
+        return self._settled()
+
+    def _found(self) -> bool:
+        """Judged, and something that meets the examples has been found
+        (not only a value the search began with)."""
+        return any(stage != "pool" for _, stage, _ in self._hits)
+
+    def _settled(self, reached: int | None = None) -> bool:
+        """Whether to stop looking. While the decoder's work is being read
+        (whole proposals, then those repaired, then their parts) nothing
+        stops part-way: at the end of each, if something founded at least
+        that well (`RANK` <= `reached`) meets the examples. After them, at
+        the first program the search finds."""
+        if reached is not None:
+            return any(RANK.get(stage, FOUND) <= reached
+                       for _, stage, _ in self._hits)
+        return self._stage not in ("pool", "proposed", "edited", "part")
+
+    def _chosen(self, spec: Spec) -> tuple:
+        """(program, route): of the programs that met the examples, the
+        best founded (`RANK`) -- one the decoder wrote for this request,
+        then one of its near misses repaired, then what the search found
+        from the examples alone, and last a value it began with. Among
+        equals, the first.
+
+        (Measured on MBPP dev and left out: ranking them by how likely the
+        reader of meaning finds what each is made of, or how it behaves
+        beyond the examples, or taking the behaviour most of the decoder's
+        samples agree on, chooses no better than the first.)"""
+        best = min(self._hits, key=lambda one: RANK.get(one[1], FOUND))
+        return best[0], best[1] if best[1] != "pool" else "meet"
+
+    def _edited(self, spec: Spec, result: Result) -> None:
+        """No proposal meets the examples: each is a program that exists
+        and is wrong, and is repaired as one (rung 4's edits, in its own
+        text), the examples its cases. Only with more than one example:
+        with one, an edit that fits it is rarely the fix (measured: 1 of
+        12 right; with two, 4 of 10)."""
+        from research.v696 import editing
+        from research.v696.parse import parse
+        for source in spec.sources[:EDITED]:
+            bug = editing.Bug(spec.name, source, spec.entry,
+                              list(spec.params), spec.returns,
+                              [list(one) for one in spec.cases],
+                              list(spec.outputs))
+            fix = editing.repair(bug, budget=EDITS, rewrite=False)
+            result.evaluated += fix.tried
+            if fix.route != "fixed":
+                continue
+            tree = parse(fix.source, spec.entry, spec.params)
+            if tree is not None:
+                self._check(spec, [tree], result)
+            if self._settled(RANK["edited"]):
+                return
+
+    def _shows(self, spec: Spec, program: P.Expr, result: Result) -> bool:
         """The round trip: a program that meets the examples is read back
         into behaviour exactly -- by running it on the examples and on
         inputs varied from them (`meaning.probes`) -- and refused if it
@@ -432,10 +547,7 @@ class Solver:
                 if p >= STRONG and M.checkable(one)}
         if not sure:
             return True
-        probes = self.__dict__.setdefault("_probes", {})
-        if spec.name not in probes:
-            probes[spec.name] = M.probes(spec.examples)
-        cases = probes[spec.name]
+        cases = self._beyond(spec)
         row = checker().values(spec.names, cases, [program.source()],
                                prelude=P.prelude([program]))[0] \
             if cases else []
@@ -480,15 +592,31 @@ class Solver:
         forward = C.Equivalence()
         kept: dict = defaultdict(list)          # type -> [(expr, row)]
         near = []
+        # Judged, two expressions are one only if they also do the same
+        # beyond the examples: a few examples tell few programs apart, and
+        # the first with their values would hide every other.
+        beyond = self._beyond(spec) if self._judged(spec) else []
+        shown = len(spec.cases)
+        self._stage = "pool"
 
         def admit(exprs: list) -> P.Expr | None:
-            rows = self._evaluate(spec, exprs)
+            rows = self._evaluate(spec, exprs, beyond)
             result.evaluated += len(exprs)
-            for expr, row in zip(exprs, rows):
+            for expr, whole in zip(exprs, rows):
+                row = whole[:shown]
                 if any("error" in one for one in row):
                     continue
-                signature = [expr.type] + [_key(one["value"]) for one in row]
+                signature = [expr.type] + [
+                    _key(one["value"]) if "value" in one else "!"
+                    for one in whole]
                 if not forward.admit(signature):
+                    # the same as something kept -- but what the decoder
+                    # wrote for this request is weighed as its own, though
+                    # a constant does the same wherever it was tried
+                    if self._stage == "proposed" and expr.type == goal \
+                            and _matches(row, spec.outputs) \
+                            and self._accepts(spec, expr, result):
+                        return expr
                     continue
                 kept[expr.type].append((expr, row))
                 if expr.type == goal:
@@ -530,22 +658,45 @@ class Solver:
             result.route = "meet"
             return found
         if self.switches.proposals and spec.proposals:
-            # The decoder's programs, and every part of them, admitted
-            # like anything grown: one that meets the examples (and the
-            # round trip) is the answer; one that nearly does is a near
-            # miss for repair; its parts are in the forward trie for the
-            # search to compose with. What it got wrong is searched.
-            parts, seen = [], set()
+            # The decoder's programs, admitted like anything grown. Whole
+            # first: one that meets the examples (and the round trip) is
+            # the answer. Then -- judged, and none did -- each repaired by
+            # edits, as a program that exists and is wrong. Then every
+            # part of them: a part may meet the examples itself, one that
+            # nearly does is a near miss for repair, and all are in the
+            # forward trie for the search to compose with. What the
+            # decoder got wrong is searched.
+            whole, parts, seen = [], [], set()
+            for tree in spec.proposals:
+                if tree.kind in ("apply", "param", "const") \
+                        and tree.source() not in seen:
+                    seen.add(tree.source())
+                    whole.append(tree)
             for tree in spec.proposals:
                 for one in _subtrees(tree):
                     if one.kind in ("apply", "param", "const") \
                             and one.source() not in seen:
                         seen.add(one.source())
                         parts.append(one)
-            found = admit(parts)
+            self._stage = "proposed"
+            found = admit(whole)
+            if found is None and self._settled(RANK["proposed"]):
+                return self._hits[-1][0]
+            if found is None and self._judged(spec) \
+                    and len(spec.examples) > 1 and spec.sources:
+                self._stage = "edited"
+                self._edited(spec, result)
+                if self._settled(RANK["edited"]):
+                    return self._hits[-1][0]
+            if found is None:
+                self._stage = "part"
+                found = admit(parts)
             if found is not None:
                 result.route = "proposed"
                 return found
+            if self._settled(FOUND):
+                return self._hits[-1][0]
+        self._stage = "meet"
         forward_forms = []
         if self.switches.forms:
             # Deduction pushes subgoals, and a subgoal is a search of its
@@ -595,7 +746,9 @@ class Solver:
             if self.switches.forms and depth == 2:
                 # Lists made at the first level (`s.split("")`) are
                 # receivers too.
+                self._stage = "deduced"
                 found = self._deduce(spec, kept, result)
+                self._stage = "meet"
                 if found is not None:
                     result.route = "deduced"
                     return found
@@ -640,7 +793,12 @@ class Solver:
                 return found
             if result.evaluated >= self.budget:
                 break
+        if self._found():
+            # judged, and something meets the examples: what repairing and
+            # induction look for has been found
+            return None
         if self.switches.repair and near:
+            self._stage = "repaired"
             found = self._repair(spec, result, near, kept)
             if found is not None:
                 result.route = "repaired"
@@ -652,6 +810,7 @@ class Solver:
             # then.
             budget = self.budget
             self.budget = result.evaluated + INDUCTIONS
+            self._stage = "deduced"
             try:
                 found = self._deduce(spec, kept, result, ("reduce",))
             finally:

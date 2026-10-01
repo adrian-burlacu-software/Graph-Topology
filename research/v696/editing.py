@@ -307,7 +307,8 @@ def _judged(bug: Bug, source: str) -> bool:
         return False
 
 
-def repair(bug: Bug, budget: int = BUDGET) -> Fix:
+def repair(bug: Bug, budget: int = BUDGET, rewrite: bool = True) -> Fix:
+    """`rewrite`: whether what no few edits fix is searched for again."""
     if isinstance(bug.source, dict):
         from research.v696.parse import parse_project
         tree = parse_project(bug.source, bug.file, bug.entry, bug.params)
@@ -341,7 +342,8 @@ def repair(bug: Bug, budget: int = BUDGET) -> Fix:
     for at, first in enumerate(top):
         for second in top[at + 1:]:
             if tried >= budget:
-                return _rewritten(bug, tree, tried)
+                return _rewritten(bug, tree, tried) if rewrite \
+                    else Fix(bug.name, "unfixed", tried=tried)
             if not (first.end <= second.start or second.end <= first.start):
                 continue
             later, earlier = sorted((first, second),
@@ -350,7 +352,8 @@ def repair(bug: Bug, budget: int = BUDGET) -> Fix:
             tried += 1
             if all(_passes(bug, edited)) and _judged(bug, edited):
                 return Fix(bug.name, "fixed", edited, [first, second], tried)
-    return _rewritten(bug, tree, tried)
+    return _rewritten(bug, tree, tried) if rewrite \
+        else Fix(bug.name, "unfixed", tried=tried)
 
 
 def _rewritten(bug: Bug, tree: P.Expr, tried: int) -> Fix:

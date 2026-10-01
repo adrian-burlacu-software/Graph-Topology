@@ -347,6 +347,74 @@ class MeaningTests(unittest.TestCase):
                                    prelude=P.prelude([tree]))[0]
             self.assertEqual(got, want, source)
 
+    def test_a_wrong_or_loose_program_is_read_as_it_is(self):
+        """What people's JavaScript leaves unsaid or gets wrong is read as
+        it runs: falling off the end, a helper's untyped parameter, a name
+        never declared, a list begun empty and never settled, two names
+        for one list, an element set at any depth, `== null`, a loop that
+        does nothing. Checked by running the tree against the source."""
+        from research.v696 import program as P
+        from research.v696.checker import checker
+        from research.v696.parse import parse
+        number, numbers = [("n", "number")], [("xs", "number[]")]
+        cases = [
+            # falls off the end where nothing in the loop returned
+            ("function f(n: number): number { for (let i = n - 1; i >= 0; "
+             "i--) if (n % i == 0) return i; }", number, [[12], [7], [0]]),
+            # a guard inside a block, the rest going on past it
+            ("function f(n: number): number { let z = 1; if (n > 2) { if (n "
+             "> 5) return 9; z = 2; } return z + n; }", number,
+             [[1], [4], [8]]),
+            # what the language has had since; a test that is a number
+            ("function f(xs: number[]): number { let t = 0; let k = "
+             "xs.length; while (k) { k -= 1; t += xs.at(-1) + k; } return t; "
+             "}", numbers, [[[1, 2, 3]], [[5]]]),
+            # a helper whose parameter says no type; a loop that does nothing
+            ("function f(xs: number[]): number { var twice = function (v) { "
+             "let d = 0; for (const c of v) { d += c; } return d * 2; }; for "
+             "(let i = 0; i < 3; i++) { let w = i; w += 1; } return "
+             "twice(xs); }", numbers, [[[1, 2, 3]], [[]]]),
+            # a name never declared; a list begun empty, sorted by swapping
+            ("function f(xs: number[]): number[] { p = []; for (let i = 0; i "
+             "< xs.length; i++) { if (xs[i] > 0) { p.push(xs[i]) } } for "
+             "(let j = 0; j < p.length; j++) { let ind = j; for (let k = j + "
+             "1; k < p.length; k++) { if (p[k] < p[ind]) { ind = k } } if "
+             "(ind > j) { let tmp = p[j]; p[j] = p[ind]; p[ind] = tmp } } "
+             "return p }", numbers, [[[3, -1, 2, 9, 1]], [[]]]),
+            # two names, one list: changed by one, returned by the other
+            ("function f(xs: number[]): number[] { let p = xs; for (let j = "
+             "0; j < p.length; j++) { p[j] = p[j] * 2; } return xs; }",
+             numbers, [[[1, 2, 3]], [[]]]),
+            # an element set two deep; the same change on both ways through
+            ("function f(n: number): number { const dp = Array.from({ "
+             "length: n + 1 }, () => new Array(n + 1).fill(0)); let c = 0; "
+             "for (let i = 1; i <= n; i++) { for (let j = 1; j <= n; j++) { "
+             "if (i === j) { c++; dp[i][j] = dp[i - 1][j - 1] + 1; } else { "
+             "c++; dp[i][j] = dp[i - 1][j]; } } } return dp[n][n] + c; }",
+             number, [[3], [1], [0]]),
+            # `== null` is true of what is undefined; keys gone over; `c[k]++`
+            ("function f(xs: number[]): number { var best; const seen: "
+             "{[key: string]: number} = {}; for (const x of xs) { if (best "
+             "== null) best = x; if (x in seen) seen[x]++; else seen[x] = "
+             "1; } let most = 0; for (let key in seen) { if (seen[key] > "
+             "most) most = seen[key]; } return best + most; }", numbers,
+             [[[4, 4, 5, 4]], [[7]]]),
+        ]
+        for source, params, inputs in cases:
+            tree = parse(source, "f", params)
+            self.assertIsNotNone(tree, source)
+            names = [name for name, _ in params]
+            want = checker().run(source, "f", inputs)
+            got = checker().values(names, inputs, [tree.source()],
+                                   prelude=P.prelude([tree]))[0]
+            self.assertEqual(got, want, source)
+        # a name nothing declares fails in the tree as it did in the source
+        tree = parse("function f(xs: number[]): number[] { return "
+                     "xs.filter(x > 1); }", "f", numbers)
+        self.assertIsNotNone(tree)
+        self.assertIn("error", checker().values(
+            ["xs"], [[[1, 2]]], [tree.source()])[0][0])
+
     def test_a_helper_is_an_operator_carrying_its_body(self):
         from research.v696 import program as P
         from research.v696.checker import checker
@@ -375,6 +443,33 @@ class MeaningTests(unittest.TestCase):
         fits = P.apply(reverse, [P.param("xs", "number[]")])
         self.assertFalse(solver._accepts(spec, fits, result))
         self.assertEqual(result.rejected, 1)
+
+    def test_a_few_examples_are_not_the_judge(self):
+        """One example is met by a constant. With a reading of the request
+        to judge by, a constant is the last thing chosen: a program the
+        decoder wrote that meets the example comes first, then one the
+        search found; without a reading, the first that meets it."""
+        from research.v696.parse import parse
+        from research.v696.search import Solver, Switches
+        from research.v696.spec import Spec
+        shown = [([[1, 2, 3]], False)]
+        params = [("xs", "number[]")]
+        switches = Switches(meet=True, coarse=True, proposals=True)
+        plain = Solver(switches, budget=800).solve(
+            Spec("any_negative", params, "boolean", shown))
+        self.assertEqual(plain.program.source(), "false")
+        wrote = parse("function f(xs: number[]): boolean { for (const x of "
+                      "xs) { if (x < 0) return true; } return false; }", "f",
+                      params)
+        reading = {"uses": {}, "behaviour": {}}
+        judged = Solver(switches, budget=800).solve(
+            Spec("any_negative", params, "boolean", shown, expected=reading,
+                 proposals=[wrote]))
+        self.assertEqual(judged.route, "proposed")
+        self.assertEqual(judged.program.source(), wrote.source())
+        alone = Solver(switches, budget=800).solve(
+            Spec("any_negative", params, "boolean", shown, expected=reading))
+        self.assertIn("xs", alone.program.source())
 
 
 @needs_node

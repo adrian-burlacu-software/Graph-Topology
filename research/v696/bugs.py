@@ -72,7 +72,12 @@ def humanevalfix() -> list:
                                                            task.params)]
         entry = row["entry_point"]
         said = ", ".join(f"{name}: {kind}" for name, kind in params)
-        source = (f"function {entry}({said}): {task.returns} {{\n"
+        # what the task declares before the function (a helper it calls)
+        # is part of the program
+        before = row["declaration"]
+        helpers = before[:max(before.rfind(f"const {entry} "), 0)].strip()
+        source = ((helpers + "\n\n" if helpers else "")
+                  + f"function {entry}({said}): {task.returns} {{\n"
                   + row["buggy_solution"])
         pairs = M.values_of(M.test_pairs(task.tests))
         if not pairs:

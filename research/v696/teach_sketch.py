@@ -122,10 +122,15 @@ def _function(signature: str, expression: str) -> str:
 
 
 def corpus(model: str = "meaning-unixcoder", seed: int = 696,
-           functions: bool = False) -> None:
+           functions: bool = False, out: Path | None = None) -> None:
     """The decoder's records. With `functions`, each target is a whole
     function: the verified program as it was written where it reads into
-    the tree (steps, loops, helpers), else the tree printed as one."""
+    the tree (steps, loops, helpers), else the tree printed as one.
+
+    What reads grows with the reader, and a decoder is taught from what
+    read when it was taught: a corpus made after the reader has widened
+    goes to its own file (`out`), for a decoder of its own."""
+    out = out or (FUNCTIONS if functions else SKETCHES)
     from research.v696 import reader as R
     rng = random.Random(seed)
     records = R.load()
@@ -179,13 +184,12 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696,
         views.append(view)
         pairs.append(R.said(record, R.VIEWS[view]))
     readings = reader.read(pairs)
-    with (FUNCTIONS if functions else SKETCHES).open(
-            "w", encoding="utf-8") as out:
+    with out.open("w", encoding="utf-8") as file:
         for (record, target), probs in zip(rows, readings):
             english, code = R.said(record, R.VIEWS[
                 "english+signature+examples" if record["english"]
                 else "signature+examples"])
-            out.write(json.dumps({
+            file.write(json.dumps({
                 "name": record["name"], "source": record["source"],
                 "split": record["split"], "english": english, "code": code,
                 "meaning": said_meaning(probs), "target": target}) + "\n")
@@ -195,7 +199,7 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696,
         count[key] = count.get(key, 0) + 1
     for key in sorted(count):
         print(f"  {key[0]:13} {key[1]:5} {count[key]}")
-    print(f"-> {FUNCTIONS if functions else SKETCHES}")
+    print(f"-> {out}")
 
 
 def main(argv=None) -> int:
@@ -203,11 +207,15 @@ def main(argv=None) -> int:
     parser.add_argument("job", choices=("expressions", "corpus"))
     parser.add_argument("--functions", action="store_true",
                         help="whole functions as written (rung 3)")
+    parser.add_argument("--out", default="",
+                        help="the corpus file's name in data/code-meaning "
+                             "(a corpus made with a wider reader)")
     args = parser.parse_args(argv)
     if args.job == "expressions":
         expressions()
     else:
-        corpus(functions=args.functions)
+        corpus(functions=args.functions,
+               out=T.DATA / args.out if args.out else None)
     return 0
 
 
