@@ -532,6 +532,31 @@ def _piqa_check() -> str | None:
     return f"{PIQA['train']} train, {PIQA['valid']} dev"
 
 
+#: MultiPL-E's TypeScript configs and how many tasks each documents.
+MULTIPL_E = {"humaneval-ts": 159, "mbpp-ts": 390}
+
+
+def _humanevalfix_check() -> str | None:
+    path = DATA / "humanevalfix" / "js.jsonl"
+    if not path.exists():
+        return None
+    got = _lines(path)
+    if got != 164:
+        raise Failed(f"humanevalfix: {got} bugs, documented 164")
+    return "164 bugs"
+
+
+def _multipl_e_check() -> str | None:
+    folder = DATA / "multipl-e"
+    if not (folder / "mbpp-ts.jsonl").exists():
+        return None
+    for config, expected in MULTIPL_E.items():
+        got = _lines(folder / f"{config}.jsonl")
+        if got != expected:
+            raise Failed(f"multipl-e {config}: {got}, documented {expected}")
+    return ", ".join(f"{count} {name}" for name, count in MULTIPL_E.items())
+
+
 def _actions_check() -> str | None:
     import sqlite3
     path = DATA / "v695_actions.sqlite"
@@ -907,6 +932,166 @@ def _open_designer_proposer_check() -> str | None:
     return f"{len(model)} way models"
 
 
+def _code_meaning_make() -> None:
+    """v696's reader of meaning is taught from: the library's JSDoc,
+    MBPP-TS solved by SmolLM3 (kept by the tests), HumanEval-TS solved the
+    same way to measure with, generated programs said in English (kept by
+    a round trip), then the records."""
+    for job in (("docs",), ("solutions",), ("solutions", "--held"),
+                ("described", "--count", "4000"), ("corpus",)):
+        _run("research.v696.teach_meaning", *job)
+
+
+def _code_meaning_check() -> str | None:
+    """SmolLM3 samples, so a rebuild is not the same corpus line for line:
+    what is checked is that every source is there in about its size."""
+    path = DATA / "code-meaning" / "corpus.jsonl"
+    if not path.exists():
+        return None
+    import json
+    counts: dict = {}
+    for line in path.open(encoding="utf-8"):
+        row = json.loads(line)
+        counts[row["source"]] = counts.get(row["source"], 0) + 1
+    least = {"docs": 150, "mbpp-ts": 350, "humaneval-ts": 150,
+             "generated": 3000}
+    for source, count in least.items():
+        if counts.get(source, 0) < count:
+            raise Failed(f"code-meaning: {counts.get(source, 0)} {source} "
+                         f"records, expected at least {count}")
+    return ", ".join(f"{count} {name}" for name, count in counts.items())
+
+
+def _meaning_check(out: Path) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "heads.bin").exists():
+            return None
+        import json
+        labels = json.loads((out / "labels.json").read_text(
+            encoding="utf-8"))
+        if len(labels.get("uses", ())) < 60:
+            raise Failed(f"{out.name}: {len(labels.get('uses', ()))} "
+                         f"things a program uses, expected at least 60")
+        return ", ".join(f"{len(names)} {head}"
+                         for head, names in labels.items())
+    return check
+
+
+def _sketches_check() -> str | None:
+    path = DATA / "code-meaning" / "sketches.jsonl"
+    if not path.exists():
+        return None
+    import json
+    counts: dict = {}
+    for line in path.open(encoding="utf-8"):
+        row = json.loads(line)
+        counts[row["source"]] = counts.get(row["source"], 0) + 1
+    if counts.get("generated", 0) < 3000 or counts.get("mbpp-ts", 0) < 50:
+        raise Failed(f"code-meaning sketches: {counts}, expected at least "
+                     f"3000 generated and 50 MBPP programs")
+    return ", ".join(f"{count} {name}" for name, count in counts.items())
+
+
+def _projects_check() -> str | None:
+    """Rung 5's frozen project tasks: made once from the verified programs
+    (`research/v696/projects.py`); both sets, all three kinds."""
+    import json
+    counts = {}
+    for part in ("dev", "held"):
+        path = DATA / "code-meaning" / f"projects-{part}.jsonl"
+        if not path.exists():
+            return None
+        kinds = [json.loads(line)["kind"]
+                 for line in path.open(encoding="utf-8")]
+        if len(set(kinds)) != 3 or len(kinds) < 30:
+            raise Failed(f"projects-{part}: {len(kinds)} tasks of kinds "
+                         f"{sorted(set(kinds))}")
+        counts[part] = len(kinds)
+    return ", ".join(f"{count} {part}" for part, count in counts.items())
+
+
+def _sketches_check_functions() -> str | None:
+    path = DATA / "code-meaning" / "sketches-functions.jsonl"
+    if not path.exists():
+        return None
+    import json
+    mbpp = sum(1 for line in path.open(encoding="utf-8")
+               if json.loads(line)["source"] == "mbpp-ts")
+    if mbpp < 100:
+        raise Failed(f"sketches-functions: {mbpp} MBPP functions, expected "
+                     f"at least 100")
+    return f"{mbpp} MBPP functions"
+
+
+def _sketches_check_functions2() -> str | None:
+    path = DATA / "code-meaning" / "sketches-functions2.jsonl"
+    if not path.exists():
+        return None
+    import json
+    mbpp = sum(1 for line in path.open(encoding="utf-8")
+               if json.loads(line)["source"] == "mbpp-ts")
+    if mbpp < 250:
+        raise Failed(f"sketches-functions2: {mbpp} MBPP functions, expected "
+                     f"at least 250 (298 when made)")
+    return f"{mbpp} MBPP functions"
+
+
+def _requests_check() -> str | None:
+    path = DATA / "code-meaning" / "requests.jsonl"
+    if not path.exists():
+        return None
+    import json
+    rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+    if len(rows) < 600:
+        return None   # resumable: not finished (610 when first made)
+    return f"{len(rows)} requests, {sum(bool(r['code']) for r in rows)} kept"
+
+
+def _people_check() -> str | None:
+    path = DATA / "code-meaning" / "sketches-people.jsonl"
+    if not path.exists():
+        return None
+    count = sum(1 for _ in path.open(encoding="utf-8"))
+    if count < 450:
+        raise Failed(f"sketches-people: {count} records, expected 450+ "
+                     f"(479 when made)")
+    return f"{count} records"
+
+
+def _risk_labels_check() -> str | None:
+    path = DATA / "code-meaning" / "risk.jsonl"
+    if not path.exists():
+        return None
+    import json
+    rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+    with_u = sum("U" in row["labels"] for row in rows)
+    if with_u < 580:
+        # resumable: U still being read (584 of 612 when first made -- the
+        # run stopped at its time limit; the rest are teacher's requests)
+        return None
+    if len(rows) < 4700:
+        raise Failed(f"risk: {len(rows)} labelled, expected 4700+ "
+                     f"(4772 when made)")
+    return f"{len(rows)} labelled, {with_u} with U"
+
+
+def _risk_estimators_check() -> str | None:
+    out = LLM / "risk-estimators"
+    if not (out / "risk.json").exists():
+        return None
+    if not (out / "heads.pt").exists():
+        raise Failed("risk-estimators: risk.json without heads.pt")
+    return "six heads"
+
+
+def _sketcher_check(out: Path) -> Callable[[], str | None]:
+    def check() -> str | None:
+        if not (out / "sketcher.json").exists():
+            return None
+        return _model_check(out, 600)()
+    return check
+
+
 def steps() -> list[Step]:
     """Every artefact, in the order it can be built."""
     return [
@@ -933,6 +1118,13 @@ def steps() -> list[Step]:
              _conceptnet_make, _conceptnet_check, cost="a few minutes"),
         Step("piqa", "PIQA train and dev with labels (6 MB), v695's benchmark",
              _piqa_make, _piqa_check, cost="seconds"),
+        Step("multipl-e", "MultiPL-E HumanEval-TS and MBPP-TS, v696's",
+             lambda: _run("research.v696.tasks", "fetch"),
+             _multipl_e_check, cost="a minute"),
+        Step("humanevalfix", "HumanEvalPack's 164 human-written bugs "
+                             "(JavaScript), v696 rung 4's held benchmark",
+             lambda: _run("research.v696.bugs", "fetch"),
+             _humanevalfix_check, cost="seconds"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually
@@ -1110,6 +1302,100 @@ def steps() -> list[Step]:
              lambda: _run("research.v694.proposer", "train"),
              _open_designer_proposer_check, needs=("store", "verbnet"),
              cost="a few minutes"),
+
+        # -- reading code and English together (research/v696) ------------
+        Step("unixcoder", "UniXcoder-base, the reader of meaning's base "
+                          "(480 MB)",
+             _hf_make("microsoft/unixcoder-base", LLM / "unixcoder-base"),
+             _model_check(LLM / "unixcoder-base", 400), cost="a minute"),
+        Step("code-meaning", "English and code for the reader of meaning, "
+                             "every label read exactly",
+             _code_meaning_make, _code_meaning_check,
+             needs=("multipl-e", "smollm3"), cost="two hours", gpu=True),
+        Step("meaning", "the reader of meaning: English and code, one "
+                        "sequence, one structure",
+             lambda: _run("research.v696.reader", "train", "--base",
+                          "unixcoder-base", "--model", "meaning-unixcoder"),
+             _meaning_check(LLM / "meaning-unixcoder"),
+             needs=("code-meaning", "unixcoder"), cost="ten minutes",
+             gpu=True),
+        Step("sketches", "programs in the search's own language, for the "
+                         "decoder: MBPP solved as one expression by SmolLM3 "
+                         "(kept by tests and parsing), and the rest read back",
+             lambda: (_run("research.v696.teach_sketch", "expressions"),
+                      _run("research.v696.teach_sketch", "corpus")),
+             _sketches_check, needs=("meaning", "smollm3"),
+             cost="half an hour", gpu=True),
+        Step("sketcher", "the decoder: a request and its meaning to programs "
+                         "the search checks",
+             lambda: _run("research.v696.sketcher", "train", "--epochs", "2",
+                          "--model", "sketcher-e2"),
+             _sketcher_check(LLM / "sketcher-e2"),
+             needs=("sketches", "smollm2"), cost="fifteen minutes",
+             gpu=True),
+        Step("projects", "rung 5's projects, assembled from verified "
+                         "programs: use, bug and change tasks, frozen",
+             lambda: _run("research.v696.projects"), _projects_check,
+             needs=("code-meaning",), cost="an hour"),
+        Step("sketches-functions", "whole functions as written -- steps, "
+                                   "loops, helpers -- that read into the "
+                                   "search's tree (rung 3)",
+             lambda: _run("research.v696.teach_sketch", "corpus",
+                          "--functions"),
+             _sketches_check_functions, needs=("sketches",),
+             cost="five minutes", gpu=True),
+        Step("sketcher-functions", "the decoder writing whole functions",
+             lambda: _run("research.v696.sketcher", "train", "--functions",
+                          "--epochs", "2", "--model", "sketcher-functions"),
+             _sketcher_check(LLM / "sketcher-functions"),
+             needs=("sketches-functions", "smollm2"),
+             cost="twenty-five minutes", gpu=True),
+        Step("sketches-functions2", "the same, made again once the reader "
+                                    "read more of what people write (nearly "
+                                    "twice the MBPP functions)",
+             lambda: _run("research.v696.teach_sketch", "corpus",
+                          "--functions", "--out",
+                          "sketches-functions2.jsonl"),
+             _sketches_check_functions2, needs=("sketches",),
+             cost="five minutes", gpu=True),
+        Step("sketcher-functions2", "the decoder taught from that corpus",
+             lambda: _run("research.v696.sketcher", "train", "--functions",
+                          "--epochs", "2", "--model", "sketcher-functions2",
+                          "--corpus", "sketches-functions2.jsonl"),
+             _sketcher_check(LLM / "sketcher-functions2"),
+             needs=("sketches-functions2", "smollm2"),
+             cost="half an hour", gpu=True),
+        Step("requests", "new requests in MultiPL-E's form, written and "
+                         "solved by SmolLM3 offline, kept when its solution "
+                         "meets their examples and reads",
+             lambda: _run("research.v696.teach_requests", "write",
+                          "--count", "610"),
+             _requests_check, needs=("multipl-e", "smollm3"),
+             cost="two hours", gpu=True),
+        Step("sketches-people", "the decoder's records as people write "
+                                "functions: those requests and MBPP's",
+             lambda: _run("research.v696.teach_requests", "corpus"),
+             _people_check, needs=("requests", "code-meaning"),
+             cost="five minutes"),
+        Step("sketcher-people", "a decoder taught those, no meaning line",
+             lambda: _run("research.v696.sketcher", "train", "--functions",
+                          "--no-meaning", "--epochs", "2", "--model",
+                          "sketcher-people", "--corpus",
+                          "sketches-people.jsonl"),
+             _sketcher_check(LLM / "sketcher-people"),
+             needs=("sketches-people", "smollm2"), cost="ten minutes",
+             gpu=True),
+        Step("risk-labels", "six risks of every request with a verified "
+                            "program: read off it, and U from the untaught "
+                            "base model's programs for it",
+             lambda: _run("research.v696.risk", "label"), _risk_labels_check,
+             needs=("code-meaning", "requests", "smollm2"),
+             cost="an hour and a half", gpu=True),
+        Step("risk-estimators", "six estimators, one per risk, reading the "
+                                "request with the reader of meaning",
+             lambda: _run("research.v696.risk", "train"),
+             _risk_estimators_check, needs=("risk-labels", "meaning"),
+             cost="a few minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

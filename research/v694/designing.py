@@ -184,15 +184,25 @@ class Designed:
     fitted: list = field(default_factory=list)
     tried: list = field(default_factory=list)
     explored: list = field(default_factory=list)
+    #: recognized (the shortcut was taken) | designed
+    route: str = "designed"
 
 
 def design_clause(goal: Goal, clause: Clause, facts, learner=None,
                   order=None, curiosity: float = CURIOSITY,
-                  rng=None) -> tuple:
+                  rng=None, recognized: str | None = None) -> tuple:
     """(Designed, the facts its way leaves) for one clause -- v693's
     loop: one plan per run of the agent, a way that failed leaves the
     table, curiosity and a last resort for what lessons hold back, and
-    Occam once something is found."""
+    Occam once something is found.
+
+    `recognized` is the way designs like this one ended in (`v696.
+    cognition.Recognizer`): tried first, and when it is the one that
+    checks, Occam's search for something simpler is not run -- the
+    unique-answer shortcut. Anything else is designed as before."""
+    if recognized:
+        order = [recognized] + [one for one in (order or ())
+                                if one != recognized]
     from research.v687.executive import Working
     ways = list(Ways.usable(features(goal, clause)))
     if order:
@@ -218,7 +228,9 @@ def design_clause(goal: Goal, clause: Clause, facts, learner=None,
             break
         failed = {name for name, ok in draft.fitted[before:] if not ok}
         left = [way for way in left if way.name not in failed]
-    if draft.best is not None:
+    shortcut = (recognized is not None and draft.best is not None
+                and draft.best[0].form == recognized)
+    if draft.best is not None and not shortcut:
         _simpler(draft, ways, learner)
     if draft.best is None:
         tried = {name for name, _ in draft.fitted}
@@ -229,7 +241,8 @@ def design_clause(goal: Goal, clause: Clause, facts, learner=None,
             if draft.best is not None:
                 break
     found = Designed(clause, draft.best[0] if draft.best else None,
-                     draft.fitted, draft.tried, explored)
+                     draft.fitted, draft.tried, explored,
+                     "recognized" if shortcut else "designed")
     return found, (draft.best[1] if draft.best else frozenset(facts))
 
 
@@ -268,17 +281,35 @@ class Design:
         return "; ".join(out)
 
 
+#: How many of what recognition reaches vote on the way it predicts.
+VOTERS = 5
+
+
 def design(goal: Goal, learner=None, order=None, curiosity=CURIOSITY,
-           rng=None) -> Design:
+           rng=None, recognizer=None) -> Design:
     """A way to every clause of the goal, each designed in the world the
-    ways before it leave."""
+    ways before it leave. With a `recognizer` (`v696.cognition`), the way
+    designs with the same features ended in is tried first and, if it
+    checks, taken; and what this design ends in is remembered."""
+    from collections import Counter
     facts = frozenset(goal.facts)
     out = Design(goal)
     for clause in goal.clauses:
         if clause.literal in facts:
             continue
         mine = order(goal, clause) if callable(order) else order
+        recognized = None
+        feats = features(goal, clause)
+        if recognizer is not None:
+            # The unique-answer shortcut: only when everything recognition
+            # reaches ended the same way, and more than once.
+            reached = recognizer.recognise(feats)[:VOTERS]
+            votes = Counter(reached)
+            if len(votes) == 1 and len(reached) >= 2:
+                recognized = next(iter(votes))
         found, facts = design_clause(goal, clause, facts, learner, mine,
-                                     curiosity, rng)
+                                     curiosity, rng, recognized)
+        if recognizer is not None and found.best is not None:
+            recognizer.remember(feats, found.best.form)
         out.parts.append(found)
     return out
