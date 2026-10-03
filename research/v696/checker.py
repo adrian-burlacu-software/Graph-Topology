@@ -163,10 +163,13 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["qualities"]
 
-    def diagnose(self, files: dict) -> list:
+    def diagnose(self, files: dict, strict: bool = False) -> list:
         """What the compiler says is wrong in a project: [{file, start,
-        end, message, code}], spans in the files as given."""
-        reply = self._ask({"op": "diagnose", "files": files})
+        end, message, code}], spans in the files as given. `strict`: also
+        what finds bugs -- paths returning nothing, values never used, code
+        never reached, cases falling through."""
+        reply = self._ask({"op": "diagnose", "files": files,
+                           "strict": strict})
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["errors"]

@@ -317,8 +317,15 @@ function programOfFiles(files, options) {
 
 // What the compiler says is wrong in a project, and where: each error's
 // file, span (in the file as given) and message.
-function diagnose(files) {
-  const program = programOfFiles(files);
+// `strict`: the checks that find bugs rather than type errors as well --
+// a path that returns nothing, a value never used, code never reached, a
+// case that falls through (v698, "find bugs").
+const STRICTER = { noImplicitReturns: true, noFallthroughCasesInSwitch: true,
+                   noUnusedLocals: true, noUnusedParameters: true,
+                   allowUnreachableCode: false };
+function diagnose(files, strict) {
+  const program = programOfFiles(files, strict
+    ? Object.assign({}, OPTIONS, STRICTER) : undefined);
   const at = PRELUDE.length;
   return ts.getPreEmitDiagnostics(program)
     .filter((one) => one.file && one.file.fileName in files)
@@ -1928,7 +1935,7 @@ lines.on("line", (line) => {
       reply.tree = tree(request.source, request.files);
       reply.ok = true;
     } else if (request.op === "diagnose") {
-      reply.errors = diagnose(request.files);
+      reply.errors = diagnose(request.files, !!request.strict);
       reply.ok = true;
     } else if (request.op === "project") {
       project(request.files, request.main, request.timeout || 2000);

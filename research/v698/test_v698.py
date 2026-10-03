@@ -58,30 +58,56 @@ class ProjectTests(unittest.TestCase):
         held.put({"src/lib/index.ts": None})
         self.assertNotIn("src/lib/index.ts", held.files)
 
-    def test_questions(self):
-        from research.v698.asking import answered, classify
-        held = self.held()
-        for text, kind in (("what is in the project", "overview"),
-                           # the project by any name, or its folder's
-                           ("what is the project?", "overview"),
-                           ("what does this project do", "overview"),
-                           ("tell me about t", None),
-                           ("describe the codebase", "overview"),
-                           ("what is a project", None),
-                           ("which files", "files"),
-                           ("where is digitSum", "where"),
-                           ("who calls digitSum", "callers"),
-                           ("what does main call", "calls"),
-                           ("what does twice do", "explain"),
-                           ("what is in src/main.ts", "in file"),
-                           ("does the project compile", "errors"),
-                           ("where is Mary", None),
-                           ("can it swim", None)):
-            self.assertEqual(classify(text, held)[0], kind, text)
-        said = answered("who calls digitSum", held)["spoken"]
+    def test_a_subject_and_an_aspect(self):
+        from research.v697.conversation import Workspace
+        from research.v698 import asking
+        held, space = self.held(), Workspace()
+        asking.FOCUS.clear()
+        for text, aspect, kind in (
+                ("what is in the project", "explain", "project"),
+                ("what is the project?", "explain", "project"),
+                ("describe the codebase", "explain", "project"),
+                ("Are there any bugs in this project?", "bugs", "project"),
+                ("can you find any bugs in the code?", "bugs", "project"),
+                ("which files", "files", "project"),
+                ("where is digitSum", "where", "function"),
+                ("who calls digitSum", "callers", "function"),
+                ("what does main call", "calls", "function"),
+                ("what does twice do", "explain", "function"),
+                ("how big is it", "size", "function"),
+                ("what is in src/main.ts", "explain", "file"),
+                ("does the project compile", "bugs", "project"),
+                # not about code: a subject of their own
+                ("what is a project", None, None),
+                ("do bugs have legs", None, None),
+                ("where is Mary", None, None),
+                ("can it swim", None, None)):
+            found, subject = asking.route(text, held, space, 3, "k")
+            self.assertEqual((found, subject and subject.kind),
+                             (aspect, kind), text)
+            if found:
+                asking.FOCUS["k"] = (subject, 3)
+        said = asking.answered("who calls digitSum", held, space, 4,
+                               "k")["spoken"]
         self.assertIn("main (src/main.ts)", said)
-        said = answered("what does main call", held)["spoken"]
+        said = asking.answered("what does main call", held, space, 5,
+                               "k")["spoken"]
         self.assertIn("digitSum (src/digits.ts)", said)
+
+    def test_gaps(self):
+        from research.v697.conversation import Workspace
+        from research.v698 import asking
+        held = self.held()
+        held.put({"src/bad.ts": "export function label(n: number): string "
+                                "{\n  return n;\n}\n"
+                                "function never(): number {\n  return 1;\n}\n"})
+        found = asking.answered("are there any bugs in the project", held,
+                                Workspace(), 1, "g")
+        looked = found["code"]["project"]["looked"]
+        self.assertEqual(looked["contradicted"][0]["where"], "src/bad.ts:2")
+        self.assertIn("never", [one["in"] for one in looked["unused"]])
+        self.assertTrue(any(one["question"].startswith("digitSum(")
+                            for one in looked["open"]))
 
 
 @needs_node

@@ -149,21 +149,37 @@ class Project:
         ends = {f"{one['file']}#{one['name']}" for one in self.find(name)}
         return [one for one in self.calls() if one["to"] in ends]
 
-    def diagnostics(self) -> list:
+    def diagnostics(self, strict: bool = False) -> list:
+        """What the compiler says is wrong, each with its file and line;
+        `strict`: also what finds bugs (`tscheck.js` `STRICTER`), each
+        marked `strict` where the plain compile does not say it."""
         if self._diagnostics is None:
+            self._diagnostics = {}
+        if strict not in self._diagnostics:
             from research.v696.checker import checker
             # what every runtime a project runs in has, said once: without
             # it, `console.log` is an error in every file that prints
             checked = {**self.checked(), ROOT + AMBIENT_FILE: AMBIENT}
-            found = [one for one in checker().diagnose(checked)
+            found = [one for one in checker().diagnose(checked, strict)
                      if not one["file"].endswith(AMBIENT_FILE)]
             for one in found:
                 one["file"] = one["file"][len(ROOT):] if one["file"].startswith(
                     ROOT) else one["file"]
                 text = self.files.get(one["file"], "")
                 one["line"] = text.count("\n", 0, one.get("start", 0)) + 1
-            self._diagnostics = found
-        return self._diagnostics
+            if strict:
+                plain = {(one["file"], one["start"], one["code"])
+                         for one in self.diagnostics()}
+                for one in found:
+                    one["strict"] = (one["file"], one["start"],
+                                     one["code"]) not in plain
+            self._diagnostics[strict] = found
+        return self._diagnostics[strict]
+
+    def at(self, path: str, line: int) -> dict | None:
+        """The function a line of a file is in."""
+        return next((one for one in (self.outline().get(path) or {}).get(
+            "functions", ()) if one["start"] <= line <= one["end"]), None)
 
     def summary(self) -> dict:
         functions = self.functions()

@@ -43,11 +43,16 @@ def replies(session) -> list:
         return ANSWERED
 
     def about(memory) -> bool:
-        held = Pj.project(_key(session))
-        return asking.classify(typed(memory), held)[0] is not None
+        key = _key(session)
+        return asking.route(typed(memory), Pj.project(key),
+                            conversation.workspace(key),
+                            v697_page._turn(memory), key)[0] is not None
 
     def answer(memory):
-        found = asking.answered(typed(memory), Pj.project(_key(session)))
+        key = _key(session)
+        found = asking.answered(typed(memory), Pj.project(key),
+                                conversation.workspace(key),
+                                v697_page._turn(memory), key)
         if found is None:
             return None
         memory["turn"].answer = found
@@ -57,10 +62,11 @@ def replies(session) -> list:
                      utility=PASTED,
                      rule="code pasted with a question about it: read by "
                           "the compiler, run, kept as the conversation's"),
-            Operator(name="the project", apply=answer, proposes=about,
+            Operator(name="about code", apply=answer, proposes=about,
                      utility=PROJECT,
-                     rule="a question about the project the editor sent: "
-                          "its outline, its calls, the compiler")]
+                     rule="a question about code -- the project, a file, a "
+                          "function, the conversation's code: a subject and "
+                          "an aspect, read apart")]
 
 
 v689.contributes(replies)
