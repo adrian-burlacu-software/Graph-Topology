@@ -36,6 +36,26 @@ STATE = ROOT / "state"
 #: where what the writers wrote is kept: a request asked again is answered
 #: from it (`sketcher.CACHE`)
 WRITTEN = STATE / "v697-written.jsonl"
+#: What later layers know of a request, for writing its code: callables
+#: from the request as read (`read`) to {"english": said to the writers,
+#: "library": operators offered to the search, "used": what was used}.
+#: v698's taught concepts register here (`knowledge.context`).
+CONTEXT: list = []
+
+
+def known_of(asked: dict) -> dict:
+    """Everything later layers know of a request, together."""
+    out = {"english": "", "library": [], "used": []}
+    for one in CONTEXT:
+        found = one(asked) or {}
+        if found.get("english"):
+            out["english"] = " ".join(filter(None, (out["english"],
+                                                    found["english"])))
+        out["library"] += list(found.get("library", ()))
+        out["used"] += list(found.get("used", ()))
+    return out
+
+
 #: the search's budget, as in v696's measurements
 BUDGET = 5000
 ROUNDS = 2
@@ -47,10 +67,14 @@ SIGNATURE = re.compile(
 ARROW = re.compile(r"\s*(===|==|=>|->|→|should return|returns|gives)\s*")
 CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\(")
 #: a request for code in plain words
+#: a request to make code: a word for making it, then what is made. *Can
+#: you find any bugs in the code* is a question about code, not a request
+#: for some: `can you` and `code` alone do not make one.
 ASKED = re.compile(
-    r"\b(write|make|create|implement|code|give me|show me|need|want|build|"
-    r"generate|i'd like|could you|can you)\b[^.?!]*"
-    r"\b(function|method|program|script|snippet|typescript|code)\b", re.I)
+    r"\b(write|make|create|implement|code up|give me|i (?:want|need|'d "
+    r"like)|we need|build|generate)\b[^.?!]*"
+    r"\b(function|method|program|script|snippet|typescript code|"
+    r"code (?:that|to|which|for))\b", re.I)
 #: a request to print, not to return: what it prints is what it does
 PRINTS = re.compile(r"\b(print(s|ed|ing)?|outputs?|displays?|console)\b",
                     re.I)
@@ -300,6 +324,9 @@ def solve(text: str) -> dict:
     if asked["missing"]:
         out["answer"] = {"status": "missing", "code": None}
         return out
+    known = known_of(asked)
+    if known.get("used"):
+        out["knowledge"] = known["used"]
     words = asked["from_words"]
     if asked["mode"] == "returns" and asked["signature"] \
             and not asked["params"] and words and not asked["examples"]:
@@ -316,7 +343,10 @@ def solve(text: str) -> dict:
                 asked["returns"],
                 [(list(one["args"]), one["value"])
                  for one in asked["examples"]],
-                entry=asked["entry"], english=asked["english"])
+                entry=asked["entry"],
+                english=" ".join(filter(None, (asked["english"],
+                                               known.get("english")))),
+                library=list(known.get("library", ())))
     tools = Tools.get()
 
     # the request read: what the reader of meaning expects of its program
@@ -458,7 +488,8 @@ def _open(asked: dict, text: str, out: dict, started: float) -> dict:
     tools = Tools.get()
     STATE.mkdir(exist_ok=True)
     sketcher.CACHE = WRITTEN
-    english = asked["english"]
+    english = " ".join(filter(None, (asked["english"],
+                                     known_of(asked).get("english"))))
     code = "\n".join([asked["signature"] or ""] + [
         one["said"] for one in asked["examples"]]).strip()
     request = f"open-{zlib.crc32(text.encode()):08x}"

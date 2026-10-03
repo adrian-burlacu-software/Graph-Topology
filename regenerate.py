@@ -1084,6 +1084,17 @@ def _risk_estimators_check() -> str | None:
     return "six heads"
 
 
+def _code_talk_check() -> str | None:
+    path = LLM / "code-talk-data" / "train-code.jsonl"
+    if not path.exists():
+        return None
+    count = sum(1 for _ in path.open(encoding="utf-8"))
+    if count < 12000:
+        raise Failed(f"code-talk: {count} records, expected 12000+ "
+                     f"(12974 when made)")
+    return f"{count} records"
+
+
 VSIX = ROOT / "tools" / "vscode-graph-topology"
 
 
@@ -1412,6 +1423,25 @@ def steps() -> list[Step]:
              cost="a few minutes", gpu=True),
 
         # -- the editor (v698) ------------------------------------------------
+        Step("code-talk", "messages about code for the reader: written and "
+                          "checked by SmolLM3, names of every shape, what is "
+                          "not code talk (research/v698)",
+             lambda: (_run("research.v698.teach_code_talk", "lists"),
+                      _run("research.v698.teach_code_talk", "write"),
+                      _run("research.v698.teach_code_talk", "check"),
+                      _run("research.v698.teach_code_talk", "corpus")),
+             _code_talk_check, needs=("multipl-e", "smollm3", "reader-corpus",
+                                      "math-corpus"),
+             cost="three hours", gpu=True),
+        Step("reader-code", "the shared reader taught code talk too",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-design4"),
+                          "--out", str(LLM / "reader-code7"),
+                          "--epochs", "4", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code7", 80),
+             needs=("code-talk", "reader-math"), cost="half an hour",
+             gpu=True),
         Step("vscode-extension", "the VS Code harness, packed as a .vsix "
                                  "(install: package.py --install)",
              _vsix_make, _vsix_check, cost="seconds"),

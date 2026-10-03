@@ -129,6 +129,15 @@ def answered(text: str, space: Workspace, turn: int) -> dict | None:
     kind, detail = classify(text, space, turn)
     if kind is None:
         return None
+    return respond(kind, detail, text, space, turn)
+
+
+def respond(kind: str, detail, text: str, space: Workspace,
+            turn: int) -> dict:
+    """What a turn of each kind does -- whoever read what kind it is (the
+    hand rules above, or v698's encoder)."""
+    if kind == "more" and not space.request:
+        kind, detail = "request", coding.read(text)
     if kind in ("request", "more"):
         request = text if kind == "request" else _merged(space.request,
                                                          detail, text)

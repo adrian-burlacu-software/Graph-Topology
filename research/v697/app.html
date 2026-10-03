@@ -361,6 +361,13 @@
          border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px;
          cursor: pointer; font-size: 12px; }
   .turnpick button.on { color: var(--text); border-color: var(--accent); }
+  /* what to ask next: chips that say it, or put it in the box to finish */
+  .next { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .next button { background: var(--panel2); color: var(--rule);
+         border: 1px solid #2a3a4d; border-radius: 999px; padding: 2px 10px;
+         font-size: 12px; cursor: pointer; }
+  .next button.fill { color: var(--warm); border-style: dashed; }
+  .next button:hover { border-color: var(--accent); color: var(--text); }
 </style>
 </head>
 <body>
@@ -480,7 +487,8 @@ async function getJSON(url) {
 // -- the conversation -------------------------------------------------------
 const STEP_NAMES = { heard: "heard", read: "read", resolved: "resolved",
   reasoned: "reasoned", planned: "planned", remembered: "remembered",
-  programmed: "programmed", looked: "looked", answered: "answered", said: "said" };
+  programmed: "programmed", looked: "looked", understood: "understood", kept: "kept",
+  answered: "answered", said: "said" };
 // In an editor (v698's VS Code harness the page is framed by): a code block
 // can be opened where it is, or handed to the editor to put in -- the editor
 // asks where, and nothing is written without that.
@@ -616,7 +624,7 @@ function detailOf(step, turn) {
     if ((d.events || []).length) add(box, el("div", "muted", "events recorded"), list);
     (d.learned || []).forEach(one => add(box, el("div", null,
       `definitions memory + ${one.concept}: “${one.gloss}”`)));
-  } else if (step.step === "programmed" || step.step === "looked") {
+  } else if (["programmed", "looked", "understood", "kept"].includes(step.step)) {
     box.appendChild(codePanel(d));
   } else if (step.step === "answered") {
     const m = d.message || {};
@@ -721,6 +729,29 @@ function renderTurn(turn, box) {
     badges.appendChild(all);
   }
   me.appendChild(badges);
+  const next = (answer.suggest || []);
+  if (next.length) {
+    const row = el("div", "next");
+    next.forEach(one => {
+      const chip = el("button", one.send ? "" : "fill", one.text);
+      chip.title = one.send ? "ask it" : "put it in the box, to finish and say";
+      chip.addEventListener("click", async () => {
+        if (one.send && !busy) {
+          busy = true;
+          await say(one.text);
+          busy = false;
+        } else if (!one.send) {
+          LINE.value = one.text;
+          fitLine();
+          LINE.focus();
+          const at = one.text.indexOf("?");
+          if (at >= 0) LINE.setSelectionRange(at, at + 1);
+        }
+      });
+      row.appendChild(chip);
+    });
+    me.appendChild(row);
+  }
   box.appendChild(me);
   // `?steps=1`: every turn shown with its steps open.
   if (new URLSearchParams(location.search).get("steps") === "1" &&
@@ -1297,6 +1328,29 @@ function codeAnswer(code) {
 
 function codePanel(code) {
   const box = el("div");
+  if (code.read) {
+    const r = code.read;
+    box.appendChild(panel("read", `the encoder: ${r.act} (${Math.round(r.chance * 100)}%)` +
+        (r.aspect !== "none" ? `, ${r.aspect}` : "") + (r.subject !== "none" ? ` of ${r.subject}` : ""), false, inside => {
+      add(inside, el("div", "muted", "what the message does, as the encoder weighed it"), bars(r.acts),
+          el("div", "muted", "each word's part"),
+          wordChips(r.words.map((w, i) => [w, r.roles[i]]), part => part === "O" ? "" : "p-SUBJ"),
+          kv([["aspect", `${r.aspect} (${Math.round(r["aspect chance"] * 100)}%)`],
+              ["subject", r.subject], ["spans", JSON.stringify(r.spans)]]));
+    }));
+  }
+  if (code.knowledge) {
+    const k = code.knowledge;
+    box.appendChild(panel("knowledge", Array.isArray(k) ? "what was taught, used here" : "kept, long-term", true, inside => {
+      if (Array.isArray(k)) {
+        k.forEach(one => add(inside, el("div", null,
+          `${one.concept}: one of ${one.members.join(", ")} — offered to the writers, and to the search as ${one.function}(x)`)));
+      } else {
+        inside.appendChild(jsonTree(k, "knowledge", true));
+      }
+    }));
+    if (!Array.isArray(k)) return box;
+  }
   const request = code.request || {};
   const answer = code.answer || {};
   if (answer.error) {

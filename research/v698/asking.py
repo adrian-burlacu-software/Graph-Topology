@@ -238,6 +238,69 @@ def answered(text: str, held, space, turn: int, key) -> dict | None:
     aspect, subject = route(text, held, space, turn, key)
     if aspect is None:
         return None
+    return about(aspect, subject, text, held, space, turn, key)
+
+
+# -- what the encoder read, resolved exactly ---------------------------------------
+
+def resolve(reading, held, space, turn: int, key) -> Subject | None:
+    """What the encoder's subject is: its kind as read, and what a phrase
+    it marked names -- a function of the project or the conversation's
+    code by name, a file by its path -- looked up, not read."""
+    entry = ((space.found or {}).get("answer") or {}).get("entry") \
+        if space is not None else None
+    phrase = (reading.spans.get("SUBJ") or [""])[0].strip()
+    if not phrase and reading.subject in ("named", "file") and \
+            len(getattr(reading, "known", ())) == 1:
+        # the encoder read a subject named but marked no words: the one word
+        # here known to be code -- found by lookup, not by reading -- is it
+        phrase = reading.known[0]
+    name = phrase.split("(")[0].strip(" ?.,!'\"`")
+    if reading.subject == "project" and held is not None:
+        return Subject("project", held.name or "the project")
+    if reading.subject in ("file", "named") and name:
+        if name == entry:
+            return Subject("code", name)
+        if held is not None and held.files:
+            path = _file(held, name)
+            if path:
+                return Subject("file", path, path)
+            found = held.find(name)
+            if found:
+                return Subject("function", found[0]["name"],
+                               found[0]["file"])
+        return Subject("unknown", name)
+    if reading.subject == "last" or reading.subject == "none":
+        recent = _focus(key, space, turn)
+        if recent is not None:
+            return recent
+        if held is not None and held.files:
+            return Subject("project", held.name or "the project")
+    return None
+
+
+def answered_read(reading, text: str, held, space, turn: int,
+                  key) -> dict | None:
+    """A question the encoder read (`reading.Reading`, act `ask`)."""
+    subject = resolve(reading, held, space, turn, key)
+    if subject is None:
+        return None
+    if subject.kind == "unknown":
+        said = (f"I don't know {subject.name}: it is not a function or "
+                f"file of the project, nor the code we were writing."
+                + ("" if held is not None else
+                   " (No project is read: Read the Project in the editor.)"))
+        return _reply("unknown", text, said, {"read": reading.json()},
+                      name=subject.name)
+    aspect = reading.aspect if reading.aspect != "none" else "explain"
+    found = about(aspect, subject, text, held, space, turn, key)
+    found["code"]["read"] = reading.json()
+    return found
+
+
+def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
+          key) -> dict:
+    """An aspect of a subject, answered -- however it was read."""
     if aspect not in CAN[subject.kind] or aspect == "capabilities":
         found = _capabilities(held, space, subject, aspect, text)
     elif subject.kind == "code":

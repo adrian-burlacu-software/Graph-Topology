@@ -36,8 +36,10 @@ LLM = Path(__file__).resolve().parents[1] / "llm"
 #: The fine-tuned encoder (another with `V689_READER_MODEL`), and the one it
 #: starts from. The reader taught mathematics and design goals as well
 #: (`research/v692`, `research/v693`, `regenerate.py`'s `reader-math`) is
-#: read with where it exists; the readers before it are left as they were.
-PREFERRED = ("reader-design4", "reader-maths2", "reader")
+#: read with where it exists -- and before it the one taught code talk too
+#: (`research/v698`, `reader-code7`); the readers before them are left as
+#: they were.
+PREFERRED = ("reader-code7", "reader-design4", "reader-maths2", "reader")
 MODEL = Path(os.environ.get("V689_READER_MODEL") or next(
     (LLM / name for name in PREFERRED
      if (LLM / name / "labels.json").exists()), LLM / "reader"))

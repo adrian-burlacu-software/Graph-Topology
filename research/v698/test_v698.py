@@ -111,6 +111,35 @@ class ProjectTests(unittest.TestCase):
 
 
 @needs_node
+class KnowledgeTests(unittest.TestCase):
+    """A concept taught is kept, found in a request that names it, told to
+    the writers, and offered to the search -- inside a lambda too."""
+
+    def test_taught_kept_and_used(self):
+        import tempfile
+        from pathlib import Path
+        from research.v696 import search as S
+        from research.v696.experiment import CONFIGS
+        from research.v696.spec import Spec
+        from research.v698 import knowledge as K
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "k.json"
+            K.teach("vowel", ["a", "e", "i", "o", "u"], "taught", path)
+            self.assertEqual(K.relevant("count the vowels in it", path),
+                             [("vowel", ["a", "e", "i", "o", "u"])])
+            self.assertEqual(K.relevant("count the words", path), [])
+            known = K.context({"english": "the vowels of a string"}, path)
+        self.assertIn("a vowel is one of a, e, i, o, u", known["english"])
+        self.assertEqual([op.name for op in known["library"]], ["isVowel"])
+        spec = Spec("v", [("s", "string")], "string[]",
+                    [(["hello"], ["e", "o"]), (["sky"], []),
+                     (["banana"], ["a", "a", "a"])], entry="vowelsOf",
+                    library=list(known["library"]))
+        got = S.Solver(CONFIGS["meet+repair+forms"], budget=8000).solve(spec)
+        self.assertIn("isVowel(x)", got.program.source())
+
+
+@needs_node
 class PastedTests(unittest.TestCase):
     def test_pasted_code_is_read_kept_and_run(self):
         from research.v697.conversation import Workspace, classify

@@ -45,6 +45,39 @@ without restarting the harness."
     conversation's code, so *what does it do*, a call, *what else* follow.
   - the everything view gains the project: the call graph drawn.
 
+## Code talk read by the encoder (Adrian, 2026-10-03: "natural language is read by an encoder, never routing tables")
+
+The structure stays (`asking.py`: a subject and an aspect, gaps); what
+reads text into it becomes the shared reader (`research/encoder.py`), taught
+code talk as a subject of its own beside mathematics and design:
+
+    code_act      none | ask | make | change | run | teach
+    code_aspect   none | explain | where | size | callers | calls | bugs |
+                  sure | why | others | risk | files | functions
+    code_subject  none | project | file | named | last
+    code_role     each word: the subject's phrase (SUBJ), or -- teaching --
+                  the concept (CONCEPT) and its members (MEMBER)
+
+- **Taught offline** (`teach_code_talk.py`): SmolLM3 writes messages for
+  each act, aspect and kind of subject with a placeholder where the subject
+  is named; the placeholder is filled with real names (MBPP / HumanEval
+  entries, v696's projects' files, project names the teacher lists) — the
+  labels known by construction. Real requests (MBPP's English) are `make`,
+  real examples (`name(args) == value`) `change`. Not code talk: v689's
+  reader corpus, and messages the teacher writes using *bug*, *error*,
+  *file*, *function*, *run* in their everyday senses.
+- **The reader**: `teach_reader train --subject math --subject design
+  --subject code` into a new `llm/reader-code`, chosen as the shared
+  reader only if the suite and v689's quick evaluation hold.
+- **At run time**: the encoder reads; what a SUBJ span names is resolved
+  exactly (the project's index, its files, the conversation's code); `last`
+  is whatever was talked about last. Below a floor of how sure, the turn is
+  not taken. The hand rules of `asking.route` are left only as a check.
+- **Teaching knowledge** (*a vowel is one of a, e, i, o, u*): the `teach`
+  act, its CONCEPT and MEMBER spans, kept long-term and used in writing code
+  (next).
+- Measured on held-out phrasings and names, against the hand rules.
+
 ## Measured / checked
 
 Server endpoints and the project act over HTTP, on a small project and on
