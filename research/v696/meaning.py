@@ -369,5 +369,62 @@ def probes(examples: list, most: int = 16) -> list:
                     seen.add(_key(fresh))
                     out.append(fresh)
     # spread over every example, not the first one's variants only
+    return _spread(out, most)
+
+
+def _spread(out: list, most: int) -> list:
     return out if len(out) <= most else [
         out[at * len(out) // most] for at in range(most)]
+
+
+def _edges(value) -> list:
+    """A value's edges, in its own domain: nothing, one, the least -- an
+    empty list or string, one element, zero and one (and minus one where
+    the example is negative)."""
+    if isinstance(value, bool):
+        return [not value]
+    if _number(value):
+        out = [0, 1] + ([-1] if value < 0 else [])
+        return [one for one in out if one != value]
+    if isinstance(value, str):
+        return [one for one in ("", value[:1]) if one != value]
+    if isinstance(value, list):
+        return [one for one in ([], value[:1]) if one != value]
+    return []
+
+
+def _fresh(examples: list, seen: set, out: list, fresh: list) -> None:
+    if _key(fresh) not in seen:
+        seen.add(_key(fresh))
+        out.append(fresh)
+
+
+def edge_probes(examples: list, most: int = 12) -> list:
+    """Inputs at their edges (`risk.py`, the S move: examples first): each
+    example's arguments with one of them at an edge of its domain."""
+    out, seen = [], {_key(list(args)) for args, _ in examples}
+    for args, _ in examples:
+        for at, value in enumerate(args):
+            for other in _edges(value):
+                fresh = list(args)
+                fresh[at] = other
+                _fresh(examples, seen, out, fresh)
+    return _spread(out, most)
+
+
+def pair_probes(examples: list, most: int = 12, edges: bool = False
+                ) -> list:
+    """Inputs with two arguments varied at once (the P move: a pairwise
+    matrix) -- each at its edges too, with `edges` (P×S: a decision table).
+    One argument varied alone does not show how two stand to each other."""
+    out, seen = [], {_key(list(args)) for args, _ in examples}
+    vary = _edges if edges else _variants
+    for args, _ in examples:
+        for one in range(len(args)):
+            for two in range(one + 1, len(args)):
+                for first in vary(args[one])[:2]:
+                    for second in vary(args[two])[:2]:
+                        fresh = list(args)
+                        fresh[one], fresh[two] = first, second
+                        _fresh(examples, seen, out, fresh)
+    return _spread(out, most)

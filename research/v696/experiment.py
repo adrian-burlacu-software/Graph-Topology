@@ -21,6 +21,12 @@ is then measured on tasks it has not seen. Dev seeds may be looked at;
     ... --sketcher proposer                             and the decoder's
                                                         programs proposed
                                                         (sketcher-functions2)
+    ... --risk estimators                               each request's six
+                                                        risks read first, and
+                                                        searched as the
+                                                        matrix says (`risk.py`)
+    ... --dev                                           MBPP dev instead (two
+                                                        examples shown)
 """
 from __future__ import annotations
 
@@ -70,6 +76,14 @@ class Row:
     routes: Counter = None
     #: met the examples, refused by the round trip with the meaning
     rejected: int = 0
+    #: judged: answers another program confirmed, and how many passed;
+    #: the same for those none did
+    confirmed: int = 0
+    confirmed_pass: int = 0
+    unconfirmed: int = 0
+    unconfirmed_pass: int = 0
+    #: high factors -> [passed, of] (`risk.ranked`)
+    ranked: dict = None
 
     def line(self) -> str:
         routes = ", ".join(f"{name} {count}" for name, count in
@@ -77,7 +91,13 @@ class Row:
         return (f"{self.config:<18} solved {self.solved:>3}/{self.total:<3}"
                 f" general {self.general:>3}  evaluated "
                 f"{self.evaluated:>7}  {self.seconds:>6.0f}s  [{routes}]"
-                + (f"  refused {self.rejected}" if self.rejected else ""))
+                + (f"  refused {self.rejected}" if self.rejected else "")
+                + (f"  confirmed {self.confirmed_pass}/{self.confirmed}"
+                   f" unconfirmed {self.unconfirmed_pass}/"
+                   f"{self.unconfirmed}" if self.confirmed
+                   or self.unconfirmed else "")
+                + (f"  by high factors {self.ranked}" if self.ranked
+                   else ""))
 
 
 def generated(held: bool) -> tuple:
@@ -114,23 +134,37 @@ def run(config: str, train: list, test: list, budget: int) -> Row:
     solver = S.Solver(CONFIGS[config], budget=budget)
     for spec in train:
         solver.solve(spec)
-    row = Row(config, routes=Counter())
+    row = Row(config, routes=Counter(), ranked={})
     started = time.time()
+    passed = []
     for spec in test:
         got = solver.solve(spec)
         general = got.general if not spec.tests else _passes(spec, got)
+        passed.append(general)
         row.total += 1
         row.solved += got.solved
         row.general += general
         row.evaluated += got.evaluated
         row.rejected += got.rejected
         row.routes[got.route] += 1
+        if got.solved and solver._judged(spec):
+            if got.confirmed:
+                row.confirmed += 1
+                row.confirmed_pass += general
+            else:
+                row.unconfirmed += 1
+                row.unconfirmed_pass += general
         if spec.tests:
             # one line a task, as it goes: a long run shows where it is
+            risk = ("" if spec.risk is None else " " + "".join(
+                f"{factor}{spec.risk[factor]}" for factor in "DPSUXB"))
             print(f"  {row.total:>3}/{len(test)} {spec.name[:44]:44} "
                   f"{got.route:9} {'passes' if general else '-':6} "
+                  f"{'confirmed' if got.confirmed else '':9}{risk} "
                   f"({time.time() - started:.0f}s)", flush=True)
     row.seconds = time.time() - started
+    from research.v696 import risk as R
+    row.ranked = R.ranked(test, passed)
     return row
 
 
@@ -144,9 +178,10 @@ def _literal(text: str):
     return row["value"]
 
 
-def multipl_e(config: str = "humaneval-ts") -> list:
+def multipl_e(config: str = "humaneval-ts", shown: int = 1) -> list:
     """HumanEval-TS tasks whose examples can be read, as specs: the
-    examples the prompt shows to search with, its own tests to judge."""
+    examples the prompt shows to search with, its own tests to judge.
+    MBPP's prompts show none: its first `shown` tests are its examples."""
     from research.v696 import tasks
     from research.v696.teach_meaning import _english
     out = []
@@ -161,7 +196,7 @@ def multipl_e(config: str = "humaneval-ts") -> list:
             # (HumanEval's are its own; a test is never shown there.)
             from research.v696.meaning import test_pairs, values_of
             examples = [tuple(one) for one in values_of(
-                test_pairs(task.tests))[:1]]
+                test_pairs(task.tests))[:shown]]
         if not examples:
             continue
         out.append(Spec(task.name, task.params, task.returns, examples,
@@ -195,6 +230,24 @@ def main(argv=None) -> int:
     parser.add_argument("--rounds", type=int, default=1,
                         help="ask the decoder again, up to this many times, "
                              "where nothing it wrote meets the examples")
+    parser.add_argument("--dev", action="store_true",
+                        help="MBPP dev (two examples shown) for "
+                             "--multipl-e: what may be looked at")
+    parser.add_argument("--risk", default="",
+                        choices=("", "estimators", "oracle"),
+                        help="each request's six risks -- read by the "
+                             "estimators, or its verified program's labels "
+                             "-- and its search as the matrix says")
+    parser.add_argument("--moves", default="",
+                        help="only these of the matrix's moves "
+                             "(comma-separated; risk.MOVES)")
+    parser.add_argument("--cache", default="",
+                        help="a file to keep what the decoders wrote in, "
+                             "so a run measured again asks them nothing "
+                             "it asked before (`sketcher.CACHE`)")
+    parser.add_argument("--part", default="",
+                        help="k/n: only the k-th of n equal runs of the "
+                             "test tasks -- a long run in parts")
     options = parser.parse_args(argv)
     if options.rung == 4:
         main4(options.held)
@@ -203,7 +256,13 @@ def main(argv=None) -> int:
         print(f"rung 5 {'held' if options.held else 'dev'}:",
               rung5(options.held), flush=True)
         return 0
-    if options.multipl_e:
+    if options.multipl_e and options.dev:
+        from research.v696.teach_meaning import split
+        train = generated(False)[0]
+        test = [one for one in multipl_e("mbpp-ts", shown=2)
+                if split(one.name) == "dev"]
+        print(f"MBPP dev: {len(test)} tasks, two examples shown")
+    elif options.multipl_e:
         train, test = generated(False)[0], multipl_e()
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
     elif options.rung == 3:
@@ -221,8 +280,28 @@ def main(argv=None) -> int:
     if options.meaning:
         from research.v696 import reader
         reader.expect(test, reader.LLM / options.meaning)
+    if options.part:
+        k, n = map(int, options.part.split("/"))
+        test = test[(k - 1) * len(test) // n:k * len(test) // n]
+        print(f"part {k} of {n}: {len(test)} tasks", flush=True)
+    if options.risk:
+        from research.v696 import risk as R
+        if options.risk == "oracle":
+            print(f"risk from labels: {R.oracle(test)} of {len(test)}")
+        else:
+            R.assess(test)
+        allowed = (frozenset(options.moves.split(",")) if options.moves
+                   else R.MOVES)
+        for spec in test:
+            spec.moves = R.moves(spec.risk, allowed)
+        corners = Counter(len(spec.moves.cells) for spec in test)
+        print(f"shaded corners per request: {dict(sorted(corners.items()))}",
+              flush=True)
     if options.sketcher:
+        from pathlib import Path
         from research.v696 import sketcher
+        if options.cache:
+            sketcher.CACHE = Path(options.cache)
         said = {"proposer": sketcher.PROPOSER,
                 "proposers": sketcher.PROPOSERS}.get(options.sketcher,
                                                      options.sketcher)

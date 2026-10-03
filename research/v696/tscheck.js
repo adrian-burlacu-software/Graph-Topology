@@ -1672,6 +1672,104 @@ function structure(source, entry) {
   return { uses: Object.fromEntries(uses), root };
 }
 
+// What a verified program's risks are made of (`risk.py`), read off its
+// syntax: the named values it keeps consistent, its decision points, and
+// what a wrong one costs whoever runs it. The whole source: helpers are
+// part of the program.
+const MUTATING = new Set(["push", "pop", "shift", "unshift", "splice", "sort",
+                          "reverse", "fill", "copyWithin", "set", "add",
+                          "delete", "clear"]);
+const PARSING = new Set(["parseInt", "parseFloat", "Number", "JSON.parse"]);
+
+function qualities(source, entry) {
+  const file = ts.createSourceFile("q.ts", source, ts.ScriptTarget.ES2022,
+                                   true);
+  const names = new Set();
+  const params = new Set();
+  const functions = new Map();     // name -> its declaration
+  let decisions = 0, unbounded = 0, mutates = 0, partial = 0, loops = 0;
+  const declare = (binding) => {
+    if (!binding) return;
+    if (ts.isIdentifier(binding)) names.add(binding.text);
+    else binding.elements && binding.elements.forEach(
+      (one) => one.name && declare(one.name));
+  };
+  const rootOf = (node) => {
+    while (ts.isPropertyAccessExpression(node)
+           || ts.isElementAccessExpression(node)
+           || ts.isParenthesizedExpression(node)) node = node.expression;
+    return ts.isIdentifier(node) ? node.text : null;
+  };
+  file.forEachChild(function top(node) {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      functions.set(node.name.text, node);
+      if (node.name.text === entry)
+        node.parameters.forEach((one) => ts.isIdentifier(one.name)
+                                && params.add(one.name.text));
+    } else if (ts.isVariableStatement(node)) {
+      node.declarationList.declarations.forEach((one) => {
+        if (one.initializer && ts.isIdentifier(one.name)
+            && (ts.isArrowFunction(one.initializer)
+                || ts.isFunctionExpression(one.initializer)))
+          functions.set(one.name.text, one.initializer);
+      });
+    }
+  });
+  (function walk(node, owner) {
+    if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node)
+        || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node)) {
+      // a helper is a named value the program keeps; the function asked
+      // for is not one of its own
+      if (node.name && ts.isIdentifier(node.name) && node.name.text !== entry)
+        names.add(node.name.text);
+      node.parameters.forEach((one) => declare(one.name));
+      const name = node.name && ts.isIdentifier(node.name) ? node.name.text
+        : (node.parent && ts.isVariableDeclaration(node.parent)
+           && ts.isIdentifier(node.parent.name) ? node.parent.name.text
+           : owner);
+      node.forEachChild((child) => walk(child, name));
+      return;
+    }
+    if (ts.isVariableDeclaration(node)) declare(node.name);
+    if (ts.isIfStatement(node) || ts.isConditionalExpression(node)
+        || ts.isCaseClause(node) || ts.isBreakStatement(node)
+        || ts.isContinueStatement(node)) decisions++;
+    if (ts.isBinaryExpression(node)) {
+      const kind = node.operatorToken.kind;
+      if (kind === ts.SyntaxKind.AmpersandAmpersandToken
+          || kind === ts.SyntaxKind.BarBarToken
+          || kind === ts.SyntaxKind.QuestionQuestionToken) decisions++;
+      if (kind === ts.SyntaxKind.SlashToken
+          || kind === ts.SyntaxKind.PercentToken) partial++;
+      if (kind >= ts.SyntaxKind.FirstAssignment
+          && kind <= ts.SyntaxKind.LastAssignment
+          && !ts.isIdentifier(node.left) && params.has(rootOf(node.left)))
+        mutates++;
+    }
+    if (ts.isWhileStatement(node) || ts.isDoStatement(node)) unbounded++;
+    if (ts.isForStatement(node) || ts.isForOfStatement(node)
+        || ts.isForInStatement(node) || ts.isWhileStatement(node)
+        || ts.isDoStatement(node)) loops++;
+    if (ts.isElementAccessExpression(node) || ts.isThrowStatement(node)
+        || ts.isNonNullExpression(node)) partial++;
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isIdentifier(callee)) {
+        if (callee.text === owner && functions.has(owner)) unbounded++;
+        if (PARSING.has(callee.text)) partial++;
+      } else if (ts.isPropertyAccessExpression(callee)) {
+        const said = callee.getText();
+        if (PARSING.has(said)) partial++;
+        if (MUTATING.has(callee.name.text)
+            && params.has(rootOf(callee.expression))) mutates++;
+      }
+    }
+    node.forEachChild((child) => walk(child, owner));
+  })(file, null);
+  return { names: names.size, decisions, unbounded, mutates, partial, loops,
+           found: functions.has(entry) };
+}
+
 const lines = readline.createInterface({ input: process.stdin });
 lines.on("line", (line) => {
   let request;
@@ -1709,6 +1807,9 @@ lines.on("line", (line) => {
       reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));
+      reply.ok = true;
+    } else if (request.op === "qualities") {
+      reply.qualities = qualities(request.source, request.entry);
       reply.ok = true;
     } else if (request.op === "tests") {
       tests(request.source, request.timeout || 2000);

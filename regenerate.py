@@ -1058,6 +1058,32 @@ def _people_check() -> str | None:
     return f"{count} records"
 
 
+def _risk_labels_check() -> str | None:
+    path = DATA / "code-meaning" / "risk.jsonl"
+    if not path.exists():
+        return None
+    import json
+    rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+    with_u = sum("U" in row["labels"] for row in rows)
+    if with_u < 580:
+        # resumable: U still being read (584 of 612 when first made -- the
+        # run stopped at its time limit; the rest are teacher's requests)
+        return None
+    if len(rows) < 4700:
+        raise Failed(f"risk: {len(rows)} labelled, expected 4700+ "
+                     f"(4772 when made)")
+    return f"{len(rows)} labelled, {with_u} with U"
+
+
+def _risk_estimators_check() -> str | None:
+    out = LLM / "risk-estimators"
+    if not (out / "risk.json").exists():
+        return None
+    if not (out / "heads.pt").exists():
+        raise Failed("risk-estimators: risk.json without heads.pt")
+    return "six heads"
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1359,6 +1385,17 @@ def steps() -> list[Step]:
              _sketcher_check(LLM / "sketcher-people"),
              needs=("sketches-people", "smollm2"), cost="ten minutes",
              gpu=True),
+        Step("risk-labels", "six risks of every request with a verified "
+                            "program: read off it, and U from the untaught "
+                            "base model's programs for it",
+             lambda: _run("research.v696.risk", "label"), _risk_labels_check,
+             needs=("code-meaning", "requests", "smollm2"),
+             cost="an hour and a half", gpu=True),
+        Step("risk-estimators", "six estimators, one per risk, reading the "
+                                "request with the reader of meaning",
+             lambda: _run("research.v696.risk", "train"),
+             _risk_estimators_check, needs=("risk-labels", "meaning"),
+             cost="a few minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

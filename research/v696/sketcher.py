@@ -23,6 +23,7 @@ import math
 import random
 import sys
 import time
+import zlib
 from pathlib import Path
 
 from research.v696 import program as P
@@ -178,6 +179,7 @@ class Sketcher:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         self.torch = torch
+        self.name = path.name
         # A model with no `sketcher.json` is one taught nothing here (the
         # base model as it came): asked for the whole function, given no
         # meaning line -- it was never taught to read one.
@@ -252,8 +254,6 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8,
     none of it meets the examples."""
     from research.v696.parse import parse
     from research.v696.reader import request
-    # sampled, but the same samples every time: a run can be run again
-    sketcher.torch.manual_seed(SEED)
     texts = []
     for spec in specs:
         english, code = request(spec)
@@ -263,21 +263,71 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8,
         texts.append(prompt(english, code, meaning))
         if not keep:
             spec.proposals, spec.sources = [], []
+    # The risk matrix (`Spec.moves`, `risk.py`): where a request is deep, or
+    # needs what the search's library lacks, or is open, it is asked once
+    # more where nothing met (`ask`, `readings`); where it is open or a
+    # wrong answer costly, every writer is asked, whatever met before it,
+    # so that programs written apart can be compared (`readings`,
+    # `four_eyes`) -- once each: what met is not asked again.
+    def allowed(spec) -> int:
+        more = spec.moves and ("ask" in spec.moves
+                               or "readings" in spec.moves)
+        return rounds + (1 if more else 0)
+
+    def always(spec) -> bool:
+        return bool(spec.moves) and ("readings" in spec.moves
+                                     or "four_eyes" in spec.moves)
+
+    def met(one) -> bool:
+        return any(_meets(specs[one], tree) for tree in specs[one].proposals)
+
     todo = [one for one in range(len(specs))
-            if not (keep and any(_meets(specs[one], tree)
-                                 for tree in specs[one].proposals))]
-    for round_ in range(rounds):
-        for at in range(0, len(todo), batch):
-            chunk = todo[at:at + batch]
-            written_all = sketcher.write([texts[one] for one in chunk],
-                                         greedy=round_ == 0)
-            for index, written in zip(chunk, written_all):
-                _read(specs[index], written, parse)
-        todo = [one for one in todo
-                if not any(_meets(specs[one], tree)
-                           for tree in specs[one].proposals)]
+            if always(specs[one]) or not (keep and met(one))]
+    for round_ in range(max([rounds] + [allowed(one) for one in specs])):
+        todo = [one for one in todo if round_ < allowed(specs[one])]
+        for one in todo:
+            # Each request sampled by a seed of its own and the round's:
+            # what it is written does not hang on which others are asked
+            # beside it (in a shared batch, asking one request again
+            # changed every other's samples).
+            # So it is the same every time, and kept (`CACHE`): a run
+            # measured again asks the decoder nothing it was asked before.
+            key = (f"{sketcher.name}|{specs[one].name}|{round_}|"
+                   f"{zlib.crc32(texts[one].encode())}")
+            written = _cached().get(key)
+            if written is None:
+                sketcher.torch.manual_seed(
+                    SEED + zlib.crc32(specs[one].name.encode()) + round_)
+                written = sketcher.write([texts[one]],
+                                         greedy=round_ == 0)[0]
+                _keep(key, written)
+            _read(specs[one], written, parse)
+        todo = [one for one in todo if not met(one)]
         if not todo:
             break
+
+
+#: Where what the decoders wrote is kept, by decoder, request, round and
+#: prompt (`proposals`); None keeps nothing. A file of the run's, never
+#: taught from.
+CACHE: Path | None = None
+_CACHED: dict = {}
+
+
+def _cached() -> dict:
+    if CACHE is not None and not _CACHED and CACHE.exists():
+        for line in CACHE.open(encoding="utf-8"):
+            row = json.loads(line)
+            _CACHED[row["key"]] = row["written"]
+    return _CACHED
+
+
+def _keep(key: str, written: list) -> None:
+    if CACHE is None:
+        return
+    _CACHED[key] = written
+    with CACHE.open("a", encoding="utf-8") as out:
+        out.write(json.dumps({"key": key, "written": written}) + "\n")
 
 
 def _runs(spec, tree) -> bool:

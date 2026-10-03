@@ -563,5 +563,80 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(len(done.edits), 1)
 
 
+class RiskMatrixTests(unittest.TestCase):
+    """The deck's matrix: a move per high factor and per pair of them; a
+    request in no shaded corner gets half the budget."""
+
+    def test_corners_and_moves(self):
+        from research.v696 import risk as R
+        calm = {f: 1 for f in R.FACTORS}
+        self.assertEqual(R.cells(calm), ())
+        self.assertEqual(R.moves(calm).budget, R.RELIEF)
+        self.assertFalse(R.moves(calm).on)
+        risky = dict(calm, X=2, B=3)
+        moves = R.moves(risky)
+        self.assertEqual(moves.cells, ("X", "B", "X×B"))
+        self.assertEqual(moves.on, {"ask", "four_eyes", "park", "strict"})
+        self.assertEqual(moves.budget, 1.0 + 3 * R.CORNER)
+        # one move measured without the rest
+        self.assertEqual(R.moves(risky, {"ask"}).on, {"ask"})
+
+    def test_edges_stay_in_their_domain(self):
+        from research.v696 import meaning as M
+        probes = M.edge_probes([([[3, 1], "ab", 5], 0)])
+        self.assertIn([[], "ab", 5], probes)
+        self.assertIn([[3, 1], "", 5], probes)
+        self.assertIn([[3, 1], "ab", 0], probes)
+        self.assertNotIn([[3, 1], "ab", -1], probes)
+
+
+@needs_node
+class RiskTests(unittest.TestCase):
+    """The labels read off a verified program, and the judge's four eyes."""
+
+    def test_qualities_of_a_program(self):
+        from research.v696 import risk as R
+        source = ("function f(xs: number[], t: number): number {\n"
+                  "  let i = 0;\n"
+                  "  while (i < xs.length && xs[i] < t) i++;\n"
+                  "  xs.push(t);\n"
+                  "  return i;\n}\n")
+        labels = R.static(source, "f", [("xs", "number[]"),
+                                        ("t", "number")], [[[[1], 2], 1]])
+        self.assertEqual(labels["B"], 3)        # a while: may not end
+        self.assertEqual(labels["P"], 1)        # xs, t, i: three pairs
+        self.assertEqual(labels["S"], 1)        # one &&
+        pure = R.static("function g(s: string): string {\n"
+                        "  return s.trim();\n}\n", "g", [("s", "string")],
+                        [[["a "], "a"]])
+        # one layer of operations: depth 0, as the deck's "one layer"
+        self.assertEqual((pure["D"], pure["B"], pure["X"]), (0, 0, 0))
+
+    def test_agreement_chooses_and_confirms(self):
+        from research.v696 import program as P
+        from research.v696 import risk as R
+        from research.v696.search import Solver
+        from research.v696.spec import Spec
+        plus = next(op for op in P.library().ops if op.name == "+"
+                    and op.needs == ("number", "number"))
+        times = next(op for op in P.library().ops if op.name == "*"
+                     and op.needs == ("number", "number"))
+        x, one, two = (P.param("x", "number"), P.const(1, "number"),
+                       P.const(2, "number"))
+        spec = Spec("t", [("x", "number")], "number", [([1], 2)],
+                    expected={"uses": {}, "behaviour": {}})
+        hits = [(P.apply(times, [x, two]), "proposed", 0),
+                (P.apply(plus, [x, one]), "proposed", 0),
+                (P.apply(plus, [one, x]), "proposed", 0)]
+        for moved, chosen, confirmed in ((None, "(x * 2)", False),
+                                         ({"U": 3}, "(x + 1)", True)):
+            solver = Solver()
+            spec.moves = R.moves(moved)
+            solver._moves, solver._spec = spec.moves or (), spec
+            solver._hits = list(hits)
+            program, _, sure = solver._chosen(spec)
+            self.assertEqual((program.source(), sure), (chosen, confirmed))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -424,6 +424,71 @@ program.
 
 What was built and measured: `DESIGN.md`, "After rung 5".
 
+## Risk first: six qualities of a task, and the work each combination needs (Adrian, 2026-10-02)
+
+From the sprint deck (`sprint-complexity-anon.md`): every task scored 0–3 on
+six factors, **high = 2 or more**, and a resolution matrix that names one
+move per high factor (its diagonal) and per pair of high factors. Here the
+task is a request (English, signature, examples) and the work is the
+search's. Six estimators, one per factor, read the request **before** any
+program is written; the matrix turns what they say into how this task is
+searched. The thresholds are the deck's and fixed; the units are chosen so
+they mean what the deck means.
+
+| | Factor | In a request for a function: the label, from a verified program | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|---|---|
+| **D** | Depth | layers of operations between the request and the answer: the depth of the verified program's tree as read (`parse.py`) | 1 | 2 | 3–4 | 5+, or unreadable |
+| **P** | Pairs | named values the program keeps consistent (parameters, variables, loop and callback parameters, helpers): N, as C(N, 2) | ≤ 1 pair | 2–6 | 7–15 | 16+ |
+| **S** | Semantics | rules to state: decision points (if, ?:, case, && / \|\|, break / continue) | none | 1 | 2–3 | 4+ |
+| **U** | Uncertainty | how open the request is: distinct behaviours (on probes) among programs written for it that meet its examples, the verified one included — written by the untaught base model, which was taught none of these | 1 | 2 | 3–4 | 5+ |
+| **X** | External | what the search's library lacks: every operation in it / operations made on the spot from the compiler's types / text the search cannot build (opaque) / no examples to verify by | none | on the spot | opaque | not verifiable |
+| **B** | Blast radius | what a wrong program costs whoever runs it | pure, bounded, total | may throw or give undefined (indexing, division, parsing) | mutates its arguments | unbounded: `while` or recursion |
+
+Labels come from verified programs (MBPP's and the teacher's requests for
+training, MBPP dev for choosing, HumanEval's verified solutions to measure
+the estimators once) — the deck's "judgement from the ticket and a look at
+the codebase" made measurable. The estimators see only the request.
+
+**The six estimators** (`risk.py`): the reader of meaning's encoder
+(`meaning-unixcoder`, frozen, read only) reads the request as it already
+does; each factor has its own head, trained on the records that have its
+label, chosen on MBPP dev, into a new `llm/risk-estimators/`. Measured each
+against the most common class: exact, within one, and high-vs-not.
+
+**The resolution matrix in the search.** One move per cell, each a
+mechanism the search has or gains here, general (nothing names a task):
+
+| Cell | Deck's move | In the search |
+|---|---|---|
+| D | Trace every layer | deeper: one more level, induction's allowance doubled; the writers asked again where nothing met |
+| P | Model the pairs | pairwise probes: inputs with two arguments varied at once, in the forward trie and the judge |
+| S | Examples first | edge probes (empty, zero, one, negative, boundary) — and the judge prefers a program that is total on them |
+| U | Clarify or spike | more readings: the writers asked again even where something met; the judge takes the behaviour most writers agree on |
+| X | Stub the boundary | the writers asked again where nothing met; the search's budget spent after them, not instead |
+| B | Make it reversible | four eyes: no stopping at the first program that meets the examples — a second, independent one must agree beyond them, else the answer is marked unconfirmed |
+| D×P, D×S, D×U, D×X, P×U, P×X, D×B, P×B | (deck) | the union of their diagonals' moves, and a larger budget: the deck's "its estimate leaves out the work" |
+| P×S | Decision table | edge × pairwise probes: each pair of arguments at their edges |
+| S×U | Domain workshop | the agreed behaviour judged on edge probes |
+| S×X | Golden files | the reader of meaning's sure behaviours enforced at a lower bar |
+| S×B | Dry run and diff | four eyes over edge probes |
+| U×X, U×B | Park it / decide on record | answered, but marked unconfirmed unless independent programs agree |
+| X×B | Fail loudly | a program that throws on any probe is refused |
+
+A task in no shaded corner is searched as now with half the budget (the
+deck's "ordinary review"); its budget goes to the tasks in many.
+
+**Measured** (dev may be looked at, held once):
+
+1. Each estimator against its baseline, MBPP dev; HumanEval held once.
+2. Risk ranks failure: solve rate by number of high factors (dev, held).
+3. The matrix's value apart from the estimators' errors: the search driven
+   by labels (oracle) and by the estimators, against the search as now,
+   same proposals, MBPP dev end to end. A move the numbers do not keep is
+   switched off and reported.
+4. Unconfirmed vs confirmed: how often each is right — what the risk
+   assessment buys even where solving does not move.
+5. Held HumanEval-TS once, `--sketcher proposers --rounds 2 --risk`.
+
 ## What is measured, beyond "solved"
 
 - **Route**: recognised, means-ends, from a chunk, repaired backward, last

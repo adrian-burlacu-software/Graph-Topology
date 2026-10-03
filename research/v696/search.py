@@ -38,6 +38,13 @@ expressions apart by what they do beyond the examples too
 it came from, and the answer is the best founded (`RANK`): what the decoder
 wrote for this request, then a near miss of its repaired by edits, then what
 the search found, and last a value it began with.
+
+**Risk first** (`risk.py`, `Spec.moves`): six estimators score the request
+before it is searched, and the resolution matrix says what its search does
+-- deeper and dearer where it is deep, probes at the edges and in pairs where
+its rules and values are many, the behaviour most programs agree on where it
+is open, four eyes where a wrong answer costs much (`_settled`, `_chosen`).
+A request in no shaded corner is searched with half the budget.
 """
 from __future__ import annotations
 
@@ -69,6 +76,9 @@ INDUCTIONS = 12000
 #: What the reader of meaning must be this sure of before a program that
 #: meets the examples is refused for not showing it.
 STRONG = 0.95
+#: ... and how sure, where the risk matrix asks for golden files (S×X:
+#: the request's own reading is the reference the program is held to)
+GOLDEN = 0.8
 #: How much an operator the reader expects is worth in the attention queue.
 PRIOR = 1.0
 #: Judged (`Solver._chosen`): how well founded a program that meets the
@@ -119,6 +129,9 @@ class Result:
     #: programs that met the examples and were refused: what they did
     #: beyond them contradicted what the request means
     rejected: int = 0
+    #: judged: a second program, written or found apart from the answer,
+    #: does what it does beyond the examples (`risk.py`, four eyes)
+    confirmed: bool = False
 
     @property
     def solved(self) -> bool:
@@ -286,6 +299,9 @@ class Solver:
         self.memory = memory if memory is not None else Memory()
         self.depth = depth
         self.budget = budget
+        self.inductions = INDUCTIONS
+        #: what the risk matrix says of the spec being solved (`risk.py`)
+        self._moves, self._behaving, self._spec = (), {}, None
         #: judged: (program, where it came from, candidates so far)
         self._hits, self._stage = [], "meet"
 
@@ -357,9 +373,27 @@ class Solver:
         return _matches(row, [o for _, o in spec.hidden])
 
     def solve(self, spec: Spec) -> Result:
+        """What the risk matrix says of this request (`Spec.moves`) holds
+        while it is searched: deeper, a budget of its own."""
+        moves = spec.moves
+        if not moves:
+            return self._solve(spec)
+        kept = self.depth, self.budget, self.inductions
+        if "deeper" in moves:
+            self.depth += 1
+            self.inductions *= 2
+        self.budget = int(self.budget * moves.budget)
+        try:
+            return self._solve(spec)
+        finally:
+            self.depth, self.budget, self.inductions = kept
+
+    def _solve(self, spec: Spec) -> Result:
         started = time.time()
         self._deduced = {}
         self._hits, self._stage = [], "recognized"
+        self._moves = spec.moves or ()
+        self._behaving, self._spec = {}, spec
         result = Result(spec.name)
         found = None
         if self.switches.recognition:
@@ -376,7 +410,7 @@ class Solver:
         if self._hits:
             # judged: of everything that met the examples, the one the
             # request most likely asked for
-            found, result.route = self._chosen(spec)
+            found, result.route, result.confirmed = self._chosen(spec)
         result.program = found
         result.seconds = time.time() - started
         if found is not None:
@@ -453,15 +487,65 @@ class Solver:
         one, the first program that meets the examples is the answer."""
         return bool(spec.expected) and "uses" in spec.expected
 
-    def _beyond(self, spec: Spec) -> list:
+    def _beyond(self, spec: Spec, moved: bool = True) -> list:
         """Inputs varied from the examples' (`meaning.probes`): what a
         program does on them is part of what it is, though no example says
-        what it should do there."""
+        what it should do there. Where the risk matrix asks (`moved`), more:
+        the arguments at their edges (S), two varied at once (P), the two at
+        their edges (P×S)."""
         from research.v696 import meaning as M
         probes = self.__dict__.setdefault("_probes", {})
         if spec.name not in probes:
             probes[spec.name] = M.probes(spec.examples)
-        return probes[spec.name]
+        if not moved or not self._moves:
+            return probes[spec.name]
+        key = (spec.name, "moved")
+        if key not in probes:
+            more = list(probes[spec.name])
+            if "edges" in self._moves:
+                more += M.edge_probes(spec.examples)
+            if "pairs" in self._moves:
+                more += M.pair_probes(spec.examples)
+            if "cross" in self._moves:
+                more += M.pair_probes(spec.examples, edges=True)
+            seen, probes[key] = set(), []
+            for one in more:
+                if _key(one) not in seen:
+                    seen.add(_key(one))
+                    probes[key].append(one)
+        return probes[key]
+
+    def _behaviour(self, spec: Spec, programs: list) -> dict:
+        """source -> what each program does beyond the examples, a value or
+        "!" where it throws, each run once."""
+        todo = [one for one in programs
+                if one.source() not in self._behaving]
+        cases = self._beyond(spec)
+        if todo and cases:
+            rows = self._evaluate(spec, todo, cases)
+            for one, row in zip(todo, rows):
+                self._behaving[one.source()] = tuple(
+                    _key(cell["value"]) if "value" in cell else "!"
+                    for cell in row[len(spec.cases):])
+        for one in todo:
+            self._behaving.setdefault(one.source(), ())
+        return {one.source(): self._behaving[one.source()]
+                for one in programs}
+
+    def _agreeing(self, spec: Spec, hits: list) -> dict:
+        """What the hits do beyond the examples -> the distinct programs
+        that do it (a value the search began with is no one's reading)."""
+        groups: dict = defaultdict(dict)
+        doing = self._behaviour(spec, [program for program, _, _ in hits])
+        for program, stage, _ in hits:
+            if stage != "pool":
+                groups[doing[program.source()]].setdefault(
+                    program.source(), (program, stage))
+        return groups
+
+    def _confirmed(self, spec: Spec) -> bool:
+        return any(len(group) >= 2
+                   for group in self._agreeing(spec, self._hits).values())
 
     def _accepts(self, spec: Spec, program: P.Expr, result: Result) -> bool:
         """Whether the search may stop on a program that meets the
@@ -476,6 +560,12 @@ class Solver:
             return False
         if not self._judged(spec):
             return True
+        if "strict" in self._moves and "!" in self._behaviour(
+                spec, [program])[program.source()]:
+            # fail loudly (X×B): one that throws beyond the examples is not
+            # an answer to something that costs this much when wrong
+            result.rejected += 1
+            return False
         # a parameter or a constant is what the search began with,
         # wherever it turns up (inside a proposal too)
         stage = "pool" if program.kind in ("param", "const") else self._stage
@@ -492,25 +582,56 @@ class Solver:
         (whole proposals, then those repaired, then their parts) nothing
         stops part-way: at the end of each, if something founded at least
         that well (`RANK` <= `reached`) meets the examples. After them, at
-        the first program the search finds."""
+        the first program the search finds.
+
+        Four eyes (the risk matrix, B: a wrong answer costs much): not until
+        two programs, apart, do the same beyond the examples."""
         if reached is not None:
-            return any(RANK.get(stage, FOUND) <= reached
+            done = any(RANK.get(stage, FOUND) <= reached
                        for _, stage, _ in self._hits)
-        return self._stage not in ("pool", "proposed", "edited", "part")
+        else:
+            done = self._stage not in ("pool", "proposed", "edited", "part")
+        if done and "four_eyes" in self._moves:
+            return self._confirmed(self._spec)
+        return done
 
     def _chosen(self, spec: Spec) -> tuple:
-        """(program, route): of the programs that met the examples, the
-        best founded (`RANK`) -- one the decoder wrote for this request,
-        then one of its near misses repaired, then what the search found
-        from the examples alone, and last a value it began with. Among
-        equals, the first.
+        """(program, route, confirmed): of the programs that met the
+        examples, the best founded (`RANK`) -- one the decoder wrote for
+        this request, then one of its near misses repaired, then what the
+        search found from the examples alone, and last a value it began
+        with. Among equals, the first. Confirmed where another program,
+        apart from it, does what it does beyond the examples.
 
-        (Measured on MBPP dev and left out: ranking them by how likely the
-        reader of meaning finds what each is made of, or how it behaves
-        beyond the examples, or taking the behaviour most of the decoder's
-        samples agree on, chooses no better than the first.)"""
-        best = min(self._hits, key=lambda one: RANK.get(one[1], FOUND))
-        return best[0], best[1] if best[1] != "pool" else "meet"
+        (Measured on MBPP dev and left out for every request: ranking them
+        by how likely the reader of meaning finds what each is made of, or
+        how it behaves beyond the examples, or taking the behaviour most of
+        the decoder's samples agree on, chooses no better than the first.)
+
+        Where the risk matrix asks: a program that throws on no probe over
+        one that does (S, examples first), and the behaviour most programs
+        agree on (U, clarify; B, four eyes)."""
+        hits = self._hits
+        moves = self._moves
+        if "total" in moves:
+            doing = self._behaviour(spec, [one[0] for one in hits])
+            total = [one for one in hits if "!" not in doing[
+                one[0].source()]]
+            hits = total or hits
+        groups = self._agreeing(spec, hits)
+
+        def rank(one):
+            return RANK.get(one[1], FOUND)
+
+        if groups and ("agree" in moves or "four_eyes" in moves):
+            group = max(groups.values(), key=lambda g: (
+                len(g), -min(rank(one) for one in g.values())))
+            best = min(group.values(), key=rank)
+        else:
+            best = min(hits, key=rank)
+        confirmed = any(best[0].source() in group and len(group) >= 2
+                        for group in groups.values())
+        return best[0], best[1] if best[1] != "pool" else "meet", confirmed
 
     def _edited(self, spec: Spec, result: Result) -> None:
         """No proposal meets the examples: each is a program that exists
@@ -543,11 +664,14 @@ class Solver:
         if not spec.expected:
             return True
         from research.v696 import meaning as M
+        bar = GOLDEN if "golden" in self._moves else STRONG
         sure = {one for one, p in spec.expected["behaviour"].items()
-                if p >= STRONG and M.checkable(one)}
+                if p >= bar and M.checkable(one)}
         if not sure:
             return True
-        cases = self._beyond(spec)
+        # the probes the reading was measured with: an edge (an empty
+        # input) is where "longer than its input" need not hold
+        cases = self._beyond(spec, moved=False)
         row = checker().values(spec.names, cases, [program.source()],
                                prelude=P.prelude([program]))[0] \
             if cases else []
@@ -809,7 +933,7 @@ class Solver:
             # allowance, declared, as repair has: the budget is spent by
             # then.
             budget = self.budget
-            self.budget = result.evaluated + INDUCTIONS
+            self.budget = result.evaluated + self.inductions
             self._stage = "deduced"
             try:
                 found = self._deduce(spec, kept, result, ("reduce",))

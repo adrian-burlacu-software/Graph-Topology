@@ -43,6 +43,10 @@ class Spec:
     #: operators beyond the language's: a project's own functions (rung 5),
     #: grown by the search as the library's members are
     library: list = field(default_factory=list)
+    #: its six risk scores, 0-3 (`risk.py`): {"D": .., "P": .., ...}
+    risk: dict | None = None
+    #: what the resolution matrix says its search does (`risk.moves`)
+    moves: object = None
 
     @property
     def names(self) -> list:

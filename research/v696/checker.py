@@ -144,6 +144,16 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return {"uses": reply["uses"], "root": reply["root"]}
 
+    def qualities(self, source: str, entry: str) -> dict:
+        """What a program's risks are made of, off its syntax: {names,
+        decisions, unbounded, mutates, partial, loops, found}
+        (`tscheck.js`, `risk.py`)."""
+        reply = self._ask({"op": "qualities", "source": source,
+                           "entry": entry})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["qualities"]
+
     def diagnose(self, files: dict) -> list:
         """What the compiler says is wrong in a project: [{file, start,
         end, message, code}], spans in the files as given."""

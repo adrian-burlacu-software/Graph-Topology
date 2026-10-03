@@ -701,6 +701,81 @@ Not a majority. 42 tasks get nothing that meets their examples; 26 get a
 proposal that meets them and is wrong. The base model's share of the 55
 carries the caveat above.
 
+## Risk first: six estimators and the resolution matrix (2026-10-02/03)
+
+Adrian's sprint deck, applied to a request (`PLAN.md`, "Risk first"):
+six factors scored 0–3, high = 2 or more, a move per high factor and per
+pair of them. Built: `risk.py` (labels, estimators, matrix), `tscheck.js`
+`qualities`, `meaning.edge_probes` / `pair_probes`, the moves in
+`search.py` (`_beyond`, `_settled`, `_chosen`, `solve`) and
+`sketcher.proposals`; `experiment.py --risk estimators|oracle --moves
+--dev --cache --part`.
+
+**Labels** (`data/code-meaning/risk.jsonl`): D, P, S, X, B read off 4,744
+verified programs; U from the untaught base model's 17 programs per request
+on 584 requests (MBPP, the teacher's, HumanEval) — the run stopped at its
+time limit with 28 of the teacher's requests unread (`label` resumes).
+Labelled risk ranks failure (MBPP dev, the search as it was): passes by high
+factors 0: 4/4, 1: 20/24, 2: 7/10, 3: 6/9, 4: 3/4.
+
+**The six estimators** (`llm/risk-estimators`, heads over
+`meaning-unixcoder` read only): high-vs-not, balanced (0.5 is chance):
+
+| | D | P | S | U | X | B |
+|---|---|---|---|---|---|---|
+| MBPP dev (chosen on) | 0.86 | 0.73 | 0.72 | — (none high) | 0.76 | 0.79 |
+| HumanEval held, once | **0.80** | 0.48 | 0.57 | 0.54 | 0.58 | 0.60 |
+
+Depth carries; the rest barely do — chosen on 51 dev requests, and
+HumanEval's docstrings are not MBPP's one-liners.
+
+**Proposals made reproducible.** Each request is now sampled with a seed of
+its own and the round's (`sketcher.proposals`): in a shared batch, asking
+one request again (a matrix move) changed every other's samples, and a first
+comparison moved ±5 tasks the matrix never touched. Per request it is about
+5× slower to write, so what was written is kept (`--cache`): a run measured
+again asks nothing it asked before. The baseline is unchanged by it: 52/83.
+
+**MBPP dev, end to end** (same proposals, `meet+repair+forms+proposals`,
+three 360M proposers, rounds 2):
+
+| risk from | passes | evaluated | confirmed right | unconfirmed right |
+|---|---|---|---|---|
+| none (as before) | 52 | 210k | 19/20 | 33/44 |
+| labels (oracle, 51 of 83) | **53** | 235k | 19/21 | 34/45 |
+| estimators | 52 | 426k | 22/24 | 30/41 |
+| estimators, no `budget` move | 52 | 260k | 22/24 | 30/40 |
+
+- The matrix's moves barely change what is solved: one task more with the
+  labels (`surface_Area`, from a proposal's part), none with the estimators,
+  which put far more requests in shaded corners (76 of 83 vs 47) and so
+  doubled the cost through the budget move for nothing. Dropped from the
+  held run.
+- What the risk assessment buys is knowing what to trust. **Confirmed**
+  answers (a second program, written or found apart, does the same beyond
+  the examples) are right 92–100% of the time; unconfirmed ones 73–77%.
+  And the estimators' scores rank failure over all 83 requests: passes by
+  high factors 0: 5/7, 1: 17/22, 2: 12/20, 3: 13/20, 4: 5/12, 5: 0/2.
+
+**HumanEval-TS held, once** (in two halves, `--part`, the proposals kept;
+the matrix without `budget`):
+
+| | passes | evaluated | confirmed right | unconfirmed right |
+|---|---|---|---|---|
+| as before (per-request seeds) | 51 / 151 | 657k | 10/16 | 41/92 |
+| risk first (estimators) | **54** / 151 | 757k | 14/25 | 40/86 |
+
+- +4 −1 (`circular_shift`, `sort_array`, `skjkasdkd`, `choose_num` gained;
+  `largest_prime_factor` lost to the search's own program chosen by
+  agreement), for 15% more candidates. The old 55 was with batch-shared
+  samples; with each request's own seed the same pipeline gives 51 —
+  sampling, not the search.
+- Risk ranks failure on held too: passes by estimated high factors 0: 3/8,
+  1: 23/46, 2: 14/55, 3: 11/31, 4+: 3/11.
+- Confirmation is a weaker signal on HumanEval than on MBPP (56% vs 47%
+  right; the second half 3/10): two 360M programs agreeing beyond a few
+  examples is weaker evidence where the requests are harder.
+
 ## What is next
 
 The ladder's five rungs are built. What the numbers say is weakest is not a
