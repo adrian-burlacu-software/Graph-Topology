@@ -480,7 +480,14 @@ async function getJSON(url) {
 // -- the conversation -------------------------------------------------------
 const STEP_NAMES = { heard: "heard", read: "read", resolved: "resolved",
   reasoned: "reasoned", planned: "planned", remembered: "remembered",
-  programmed: "programmed", answered: "answered", said: "said" };
+  programmed: "programmed", looked: "looked", answered: "answered", said: "said" };
+// In an editor (v698's VS Code harness the page is framed by): a code block
+// can be opened where it is, or handed to the editor to put in -- the editor
+// asks where, and nothing is written without that.
+const EMBEDDED = window.parent !== window;
+function toEditor(message) {
+  if (EMBEDDED) window.parent.postMessage({ source: "graph-topology", ...message }, "*");
+}
 
 // One goal of a plan's stack, and the goals beneath it: each a <details>,
 // so a hundred subgoals read as an outline rather than a wall. The top is
@@ -609,7 +616,7 @@ function detailOf(step, turn) {
     if ((d.events || []).length) add(box, el("div", "muted", "events recorded"), list);
     (d.learned || []).forEach(one => add(box, el("div", null,
       `definitions memory + ${one.concept}: “${one.gloss}”`)));
-  } else if (step.step === "programmed") {
+  } else if (step.step === "programmed" || step.step === "looked") {
     box.appendChild(codePanel(d));
   } else if (step.step === "answered") {
     const m = d.message || {};
@@ -686,7 +693,8 @@ function renderTurn(turn, box) {
   const code = codeAnswer(answer.code);
   if (code) me.appendChild(code);
   ((answer.code || {}).blocks || []).forEach(one => me.appendChild(codeBlock(one.code,
-    { title: one.title, kind: one.kind, small: true })));
+    { title: one.title, kind: one.kind, small: true, file: one.file, line: one.line,
+      closed: ((answer.code || {}).blocks || []).length > 1 })));
   const badges = el("div", "badges");
   add(badges, el("span", "chip stance s-" + stance, stance));
   if (said && said.text) {
@@ -1202,6 +1210,20 @@ function codeBlock(code, options) {
     fold.textContent = box.classList.contains("closed") ? "▸ open" : "▾ fold";
   });
   add(tools, copy, save, wrap, fold);
+  if (EMBEDDED) {
+    if (o.file) {
+      const go = el("button", null, "↗ open");
+      go.title = `open ${o.file}` + (o.line ? ` at line ${o.line}` : "");
+      go.addEventListener("click", () => toEditor({ type: "open", file: o.file, line: o.line || 1 }));
+      tools.insertBefore(go, copy);
+    }
+    if (lang === "ts" && !o.file) {
+      const put = el("button", null, "⇲ insert");
+      put.title = "put it in the editor: you choose where";
+      put.addEventListener("click", () => toEditor({ type: "insert", code }));
+      tools.insertBefore(put, copy);
+    }
+  }
   head.appendChild(tools);
   box.appendChild(head);
   const pre = el("pre");
@@ -1280,6 +1302,14 @@ function codePanel(code) {
   if (answer.error) {
     add(box, el("div", "error", answer.error));
     if (answer.trace) box.appendChild(codeBlock(answer.trace, { lang: "text", title: "traceback", closed: true }));
+  }
+  if (code.project) {
+    const f = code.project;
+    box.appendChild(panel("project", `asked: ${f.asked}` + (f.name ? ` — ${f.name}` : ""), true, inside => {
+      add(inside, kv([["said", f.said], ["taken as", f.asked]]));
+      inside.appendChild(jsonTree(f.looked, "what was looked up", true));
+    }));
+    return box;
   }
   if (code.followup) {
     const f = code.followup;
@@ -1422,7 +1452,8 @@ function codePanel(code) {
 }
 
 // -- everything a turn did: the inspector -------------------------------------
-const VIA_COLOURS = { walk: "#7cc4ff", memory: "#3fb27f", said: "#e0a84a", run: "#b48cff" };
+const VIA_COLOURS = { walk: "#7cc4ff", memory: "#3fb27f", said: "#e0a84a", run: "#b48cff",
+                      project: "#4fd18b" };
 let inspected = null;          // {sid, number}
 const turnsSeen = [];          // numbers of this conversation's turns, as rendered
 
@@ -1721,6 +1752,29 @@ async function inspect(number) {
   if (turn.memory) box.appendChild(panel("memory", "the conversation's memory after the turn", false,
     inside => inside.appendChild(jsonTree(turn.memory, "memory", true))));
   box.appendChild(rawPanel(turn));
+  try {
+    const held = await getJSON(`/api/project?sid=${encodeURIComponent(current.sid)}`);
+    box.appendChild(projectPanel(held));
+  } catch (_) { /* no project in this conversation, or a server without them */ }
+}
+
+// The project the editor sent: its size, and who calls whom -- the most
+// connected functions drawn (a whole project is too many to lay out).
+function projectPanel(held) {
+  const s = held.summary || {};
+  return panel("project", `${s.files} files, ${s.functions} functions, ${s.lines} lines`, false, inside => {
+    add(inside, kv([["name", s.name], ["most called", (s["most called"] || []).map(([end, n]) =>
+      `${end.split("#")[1]} (${n})`).join(", ")]]));
+    const graph = held.graph || { nodes: [], edges: [] };
+    const degree = {};
+    graph.edges.forEach(e => { degree[e.from] = (degree[e.from] || 0) + 1; degree[e.to] = (degree[e.to] || 0) + 1; });
+    const kept = new Set(Object.entries(degree).sort((a, b) => b[1] - a[1]).slice(0, 80).map(([id]) => id));
+    inside.appendChild(drawGraph({
+      nodes: graph.nodes.filter(n => kept.has(n.id)),
+      edges: graph.edges.filter(e => kept.has(e.from) && kept.has(e.to)) }));
+    add(inside, el("div", "muted", `${kept.size} of ${graph.nodes.length} functions drawn: those with the most calls in or out`));
+    inside.appendChild(jsonTree(held.outline || {}, "outline"));
+  });
 }
 
 // -- tabs, examples, history ------------------------------------------------

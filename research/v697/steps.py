@@ -23,7 +23,8 @@ STATUS = {
 
 def programmed(turn: dict) -> dict | None:
     code = (turn.get("answer") or {}).get("code")
-    if not code:
+    if not code or code.get("project"):
+        # nothing written: a question about a project is another step's
         return None
     answer = code.get("answer") or {}
     followup = code.get("followup")

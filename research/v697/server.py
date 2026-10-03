@@ -42,6 +42,10 @@ def _plain(value):
 class Conversations(v690.Conversations):
     """v690's conversations, each turn kept whole as well."""
 
+    #: how a turn is told step by step: a later server's account in place
+    #: of this one's (v698's adds the project)
+    STEPS = staticmethod(steps_of)
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.whole: dict = {}
@@ -51,7 +55,7 @@ class Conversations(v690.Conversations):
     def _spoken(self, turn: dict) -> dict:
         whole = _plain(turn)
         turn = super()._spoken(turn)
-        turn["steps"] = steps_of(turn, turn.get("reply"))
+        turn["steps"] = self.STEPS(turn, turn.get("reply"))
         whole["reply"], whole["steps"] = turn["reply"], turn["steps"]
         sid = getattr(self._current, "sid", None)
         if sid:
@@ -132,14 +136,18 @@ class Handler(v690.Handler):
             super().do_GET()
 
 
-def main() -> None:
+def main(handler=None, conversations=None, name: str = "v697",
+         description: str = "") -> None:
     from research.v687 import build
     from research.v688 import server as v688
     from research.v688.pool import DEFAULT_WORKERS
     from research.v689.definitions import DefinitionMemory
     from research.v689.longterm import DEFINITIONS_PATH, Archive
 
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    handler = handler or Handler
+    conversations = conversations or Conversations
+    parser = argparse.ArgumentParser(
+        description=description or __doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8697)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument("--cycles", type=int, default=8)
@@ -161,17 +169,17 @@ def main() -> None:
         from research.v690.speaking import Speaker
         nlp = getattr(service.pool.engines[0].parser, "nlp", None)
         speaker = Speaker(nlp)
-    Handler.service = service
+    handler.service = service
     archive = None if options.no_memory else Archive(options.memory)
     from research.v691.learned import DEFAULT_PATH as LEARNED_PATH
     v690.v691_page.keep(None if options.no_memory else LEARNED_PATH)
     definitions = DefinitionMemory(None if options.no_memory
                                    else options.definitions)
-    Handler.conversations = Conversations(service, archive, definitions,
+    handler.conversations = conversations(service, archive, definitions,
                                           speaker)
-    httpd = ThreadingHTTPServer(("127.0.0.1", options.port), Handler)
-    print(f"v697 on http://127.0.0.1:{options.port} (v690 at /v690, v689 at "
-          f"/v689, v688 at /v688)")
+    httpd = ThreadingHTTPServer(("127.0.0.1", options.port), handler)
+    print(f"{name} on http://127.0.0.1:{options.port} (v690 at /v690, v689 "
+          f"at /v689, v688 at /v688)", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

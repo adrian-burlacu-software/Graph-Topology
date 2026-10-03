@@ -144,6 +144,15 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return {"uses": reply["uses"], "root": reply["root"]}
 
+    def outline(self, files: dict) -> dict:
+        """A project's outline, off its syntax: {file: {functions: [{name,
+        kind, class, exported, start, end, params, returns, async, calls}],
+        imports: [{from, names, line}], lines}} (`tscheck.js`, v698)."""
+        reply = self._ask({"op": "outline", "files": files})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["outline"]
+
     def qualities(self, source: str, entry: str) -> dict:
         """What a program's risks are made of, off its syntax: {names,
         decisions, unbounded, mutates, partial, loops, found}

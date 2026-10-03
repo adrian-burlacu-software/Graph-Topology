@@ -235,9 +235,11 @@ def _explain(space: Workspace, text: str) -> dict:
             f"{entry} uses nothing the library declares")
     said += f", and its result comes from {root}." if root else "."
     if behaviour:
-        said += (f" Run on {len(pairs)} inputs (your examples and inputs "
-                 f"varied from them), its result is always: "
-                 f"{'; '.join(behaviour[:5])}.")
+        shown = ("your examples and inputs varied from them"
+                 if (space.request or {}).get("examples")
+                 else "inputs of its types")
+        said += (f" Run on {len(pairs)} inputs ({shown}), its result is "
+                 f"always: {'; '.join(behaviour[:5])}.")
     if printed:
         said += f" It prints: {' / '.join(dict.fromkeys(printed))}."
     runs = [{"call": f"{entry}({', '.join(map(_said, args))})",

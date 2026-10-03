@@ -1084,6 +1084,20 @@ def _risk_estimators_check() -> str | None:
     return "six heads"
 
 
+VSIX = ROOT / "tools" / "vscode-graph-topology"
+
+
+def _vsix_make() -> None:
+    subprocess.run([sys.executable, str(VSIX / "package.py")], check=True)
+
+
+def _vsix_check() -> str | None:
+    found = sorted((VSIX / "dist").glob("*.vsix"))
+    if not found:
+        return None
+    return f"{found[-1].name}, {found[-1].stat().st_size // 1024} KB"
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1396,6 +1410,11 @@ def steps() -> list[Step]:
              lambda: _run("research.v696.risk", "train"),
              _risk_estimators_check, needs=("risk-labels", "meaning"),
              cost="a few minutes", gpu=True),
+
+        # -- the editor (v698) ------------------------------------------------
+        Step("vscode-extension", "the VS Code harness, packed as a .vsix "
+                                 "(install: package.py --install)",
+             _vsix_make, _vsix_check, cost="seconds"),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

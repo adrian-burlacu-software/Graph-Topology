@@ -1780,6 +1780,92 @@ function qualities(source, entry) {
            found: functions.has(entry) };
 }
 
+// A project's outline, off its syntax (v698): each file's functions --
+// declared, bound to a name, a class's methods -- with their lines, their
+// parameters and result as written, what each calls by name; and what each
+// file imports from where. No type checker: it is read as fast as it is
+// parsed, and a file that does not compile is still outlined.
+function outline(files) {
+  const out = {};
+  for (const [file, text] of Object.entries(files)) {
+    const kind = /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX
+      : /\.(js|mjs|cjs)$/.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true,
+                                   kind);
+    const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+    const functions = [];
+    const imports = [];
+    const exported = new Set();
+    const isExported = (node) => !!(ts.getCombinedModifierFlags
+      && (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export));
+    const record = (name, node, kindName, owner, exportedHere) => {
+      const calls = new Set();
+      const body = node.body || node;
+      (function walk(n) {
+        if (ts.isCallExpression(n) || ts.isNewExpression(n)) {
+          const callee = n.expression;
+          if (ts.isIdentifier(callee)) calls.add(callee.text);
+          else if (ts.isPropertyAccessExpression(callee)) {
+            const said = callee.getText(sf);
+            calls.add(said.length <= 60 ? said : callee.name.text);
+          }
+        }
+        n.forEachChild(walk);
+      })(body);
+      functions.push({
+        name, kind: kindName, class: owner || null,
+        exported: exportedHere,
+        start: line(node.getStart(sf)), end: line(node.end),
+        params: (node.parameters || []).map((p) => [
+          p.name.getText(sf), p.type ? p.type.getText(sf) : null]),
+        returns: node.type ? node.type.getText(sf) : null,
+        async: !!(node.modifiers || []).some(
+          (m) => m.kind === ts.SyntaxKind.AsyncKeyword),
+        calls: [...calls].sort(),
+      });
+    };
+    sf.forEachChild(function top(node) {
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        record(node.name.text, node, "function", null, isExported(node));
+      } else if (ts.isVariableStatement(node)) {
+        for (const one of node.declarationList.declarations) {
+          const init = one.initializer;
+          if (init && ts.isIdentifier(one.name)
+              && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+            record(one.name.text, init, "function", null, isExported(node));
+        }
+      } else if (ts.isClassDeclaration(node) && node.name) {
+        for (const member of node.members) {
+          if ((ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member))
+              && member.body) {
+            const name = member.name ? member.name.getText(sf) : "constructor";
+            record(`${node.name.text}.${name}`, member, "method",
+                   node.name.text, isExported(node));
+          }
+        }
+      } else if (ts.isImportDeclaration(node)) {
+        const names = [];
+        const clause = node.importClause;
+        if (clause && clause.name) names.push(clause.name.text);
+        if (clause && clause.namedBindings) {
+          if (ts.isNamespaceImport(clause.namedBindings))
+            names.push(`* as ${clause.namedBindings.name.text}`);
+          else clause.namedBindings.elements.forEach(
+            (e) => names.push(e.name.text));
+        }
+        imports.push({ from: node.moduleSpecifier.text, names,
+                       line: line(node.getStart(sf)) });
+      } else if (ts.isExportDeclaration(node) && node.exportClause
+                 && ts.isNamedExports(node.exportClause)) {
+        node.exportClause.elements.forEach((e) => exported.add(e.name.text));
+      }
+    });
+    for (const one of functions) if (exported.has(one.name)) one.exported = true;
+    out[file] = { functions, imports, lines: sf.getLineStarts().length };
+  }
+  return out;
+}
+
 const lines = readline.createInterface({ input: process.stdin });
 lines.on("line", (line) => {
   let request;
@@ -1817,6 +1903,9 @@ lines.on("line", (line) => {
       reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));
+      reply.ok = true;
+    } else if (request.op === "outline") {
+      reply.outline = outline(request.files);
       reply.ok = true;
     } else if (request.op === "qualities") {
       reply.qualities = qualities(request.source, request.entry);
