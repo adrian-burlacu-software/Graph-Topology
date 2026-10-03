@@ -615,8 +615,10 @@ class Solver:
                        why="throws beyond the examples (fail loudly)")
             return False
         # a parameter or a constant is what the search began with,
-        # wherever it turns up (inside a proposal too)
-        stage = "pool" if program.kind in ("param", "const") else self._stage
+        # wherever it turns up (inside a proposal too) -- unless the
+        # function takes nothing: then a constant is all it can be
+        stage = ("pool" if program.kind in ("param", "const") and spec.params
+                 else self._stage)
         self._hits.append((program, stage, result.evaluated))
         self._note("meets", program=program.source(), stage=stage)
         return self._settled()

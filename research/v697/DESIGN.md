@@ -51,6 +51,42 @@ master after v696 was merged (`2c42f89`).
   `search._authors` counts who arrived at a behaviour apart. Before, three
   writers writing the same program counted as one.
 
+## Code in a conversation (2026-10-03, Adrian: "I was clarifying the code but it was not able to pick that up")
+
+- **A workspace per conversation** (`conversation.py`): the last request as
+  read and everything solving it came to. What is said next is classified:
+  a new request; **more of it** (an example or signature of the same
+  function, or *it should return "Hello World!"*), merged with what was
+  asked and solved again; **a call** (`hello_world()`, *run it on [4, 5]*),
+  run; **a question** — what it does, why that one, how sure, what else,
+  its risks — answered from the record and by running, never made up. A
+  question counts as about code only right after a code turn or where it
+  names the code: *can it swim* after code is still v689's.
+- **What it does** is read exactly: the compiler's structure (`uses`, the
+  root) and `meaning.behaviour` over the examples and inputs varied from
+  them — v696's teachers, not the learned reader.
+- **What else**: the other behaviours that met the examples, and the first
+  input where they part from the answer, offered as the question to settle
+  (`vowels("AEIOU") == ...`).
+- **In words alone** (*I want a program that prints out "Hello World"*):
+  every writer writes for the request as said; programs are run — on the
+  examples or on inputs of their types — and grouped by what they do; the
+  answer is what the most writers arrived at apart (confirmed by two). A
+  quoted string after *prints* / *returns* is an example from the words.
+  Writers' functions without types are read (`void` where nothing is
+  returned), and bare statements are a function of nothing (`main`).
+- **Printing is behaviour**: `tscheck.js` `run` keeps what a call prints.
+- **A function of nothing may be a constant**: the search set every
+  constant aside as "what it began with" (a constant meets one example of
+  anything) — but for a function with no parameters it is the program, and
+  setting it aside made `"Hello World!".split("").map(...).join("")` the
+  answer. Now `pool` only where the spec has parameters.
+
+Replayed over HTTP: the screenshot's conversation (hello world → the
+example → confirmed `return "Hello World!"` by two writers), words alone
+(printHelloWorld, confirmed), vowels → *what else* → `vowels("AEIOU")`
+gives 0 → `vowels("AEIOU") == 5` → re-solved, confirmed, gives 5.
+
 ## Code blocks
 
 Each its own section (`codeBlock` in `app.html`): a header (language, name,

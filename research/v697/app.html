@@ -96,6 +96,7 @@
   .s-unknown { background: var(--unknown); } .s-noted { background: var(--noted); }
   .s-which { background: var(--which); } .s-value { background: var(--value); }
   .s-social { background: var(--social); } .s-refused { background: var(--refused); }
+  .s-acted { background: var(--accent); }
   .traced { color: var(--yes); border-color: #2c5e47; }
   .untraced-chip { color: var(--warm); border-color: #6b5327; }
   .how { background: none; border: 0; color: var(--accent); cursor: pointer;
@@ -684,6 +685,8 @@ function renderTurn(turn, box) {
   me.appendChild(reply);
   const code = codeAnswer(answer.code);
   if (code) me.appendChild(code);
+  ((answer.code || {}).blocks || []).forEach(one => me.appendChild(codeBlock(one.code,
+    { title: one.title, kind: one.kind, small: true })));
   const badges = el("div", "badges");
   add(badges, el("span", "chip stance s-" + stance, stance));
   if (said && said.text) {
@@ -1254,6 +1257,7 @@ function bars(pairs) {
 const CODE_STATUS = {
   confirmed: ["confirmed", "good"], met: ["meets the examples", "warn"],
   unverified: ["unverified", "warn"], unsolved: ["unsolved", "badc"],
+  agreed: ["writers agree, unchecked", "warn"], about: ["about the answer", ""],
   missing: ["needs an example", "warn"], failed: ["failed", "badc"] };
 
 function codeAnswer(code) {
@@ -1262,6 +1266,8 @@ function codeAnswer(code) {
   const [text, cls] = CODE_STATUS[answer.status] || [answer.status, ""];
   const chips = [[text, cls]];
   if (answer.route) chips.push(["route: " + answer.route, ""]);
+  if ((answer.by || []).length) chips.push(["by " + answer.by.join(", "), ""]);
+  if (answer.mode === "prints") chips.push(["what it prints is checked", ""]);
   chips.push([answer.as === "written" ? "as a writer wrote it" : "printed from the search's tree", ""]);
   return codeBlock(answer.code, { title: answer.entry, kind: "answer", chips,
                                   answer: true, file: answer.entry + ".ts" });
@@ -1275,9 +1281,23 @@ function codePanel(code) {
     add(box, el("div", "error", answer.error));
     if (answer.trace) box.appendChild(codeBlock(answer.trace, { lang: "text", title: "traceback", closed: true }));
   }
+  if (code.followup) {
+    const f = code.followup;
+    box.appendChild(panel("follow-up", `asked: ${f.asked}`, true, inside => {
+      add(inside, kv([["said", f.said], ["taken as", f.asked]]));
+      inside.appendChild(jsonTree(f.looked, "what was looked up and run", true));
+    }));
+    return box;
+  }
+  if (code.continued) {
+    add(box, el("div", "note", "taken with what was asked before — the request as it now stands:"),
+        codeBlock(code.continued.asked, { lang: "text", title: "the request", small: true }));
+  }
   box.appendChild(panel("request", "what was asked, as read", true, inside => {
     add(inside, kv([["in English", request.english], ["calls", request.entry],
-                    ["made from the examples", (request.made || []).join(", ")],
+                    ["made", (request.made || []).join(", ")],
+                    ["what it does", request.mode === "prints" ? "prints" : "returns"],
+                    ["your words say", request.from_words ? request.from_words.said : ""],
                     ["missing", request.missing]]));
     if (request.signature) inside.appendChild(codeBlock(request.signature,
       { title: "signature", kind: (request.made || []).includes("signature") ? "inferred from the examples" : "as given", small: true }));
@@ -1340,6 +1360,24 @@ function codePanel(code) {
         }));
         inside.appendChild(part);
       });
+    }));
+  }
+  const open = code.open;
+  if (open) {
+    box.appendChild(panel("ran", `every program run: ${open.groups.length} different behaviour(s)` +
+        (open.signature ? ` · ${open.signature}` : ""), false, inside => {
+      add(inside, el("div", "muted", "run on: " + open.inputs.map(args =>
+        `(${args.map(one => JSON.stringify(one)).join(", ")})`).join("  ")));
+      const table = el("table", "plain");
+      add(table, add(el("tr"), el("th", null, "who"), el("th", null, "programs"),
+                     el("th", null, open.mode === "prints" ? "returned · printed" : "what it gave")));
+      open.groups.forEach((group, i) => add(table, add(el("tr"),
+        el("td", i === 0 ? "ok" : null, group.authors.join(", ") + (i === 0 ? " — the answer" : "")),
+        el("td", "muted", String(group.count)),
+        el("td", "mono muted", group.does.map(one => JSON.stringify(one)).join(" · ")))));
+      inside.appendChild(table);
+      open.groups.slice(0, 4).forEach((group, i) => inside.appendChild(codeBlock(group.programs[0],
+        { small: true, closed: i > 0, title: `behaviour ${i + 1}`, kind: "by " + group.authors.join(", ") })));
     }));
   }
   const search = code.search;

@@ -14,6 +14,8 @@ STATUS = {
     "met": "it meets the examples; nothing apart confirms it beyond them",
     "unsolved": "nothing written or searched meets the examples",
     "unverified": "there were no examples to check it by",
+    "agreed": "writers agree on what it does, with nothing given to check "
+              "it by",
     "missing": "the request does not say how it is called",
     "failed": "solving it failed",
 }
@@ -24,13 +26,22 @@ def programmed(turn: dict) -> dict | None:
     if not code:
         return None
     answer = code.get("answer") or {}
+    followup = code.get("followup")
+    if followup:
+        return {"step": "programmed",
+                "line": f"A question about {answer.get('entry')} "
+                        f"({followup['asked']}): answered from what was kept "
+                        f"of writing it, and by running it.",
+                "detail": code}
     written = sum(len(one["programs"]) for writer in code.get("writers", ())
                   for one in writer["rounds"])
     meeting = sum(sum(p["meets"] for p in one["programs"])
                   for writer in code.get("writers", ())
                   for one in writer["rounds"])
     search = code.get("search") or {}
-    line = (f"I wrote {written} program{'s' if written != 1 else ''} "
+    line = ("Taking it with what was asked before, " if code.get(
+        "continued") else "") + (
+            f"I wrote {written} program{'s' if written != 1 else ''} "
             f"({meeting} met the examples)"
             + (f", searched {search['evaluated']} candidates"
                if search else "")

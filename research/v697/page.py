@@ -1,10 +1,11 @@
 """Code on the page: v696 as an act of v689's conversation.
 
 Importing this registers one act with `v689.session` (`contributes`, as
-v691 and v692 do): it is proposed when an utterance asks for a function
-(`coding.read`), and it answers with what solving it came to
-(`coding.answered`) -- a sentence to say, and everything done for it under
-the answer's `code`.
+v691 and v692 do). It is proposed when an utterance asks for a function, or
+says more of the one asked for, or asks about it (`conversation.classify`),
+and it answers from the conversation's code workspace
+(`conversation.answered`) -- a sentence to say, and everything done for it
+under the answer's `code`.
 
 What is read is the utterance as typed (`said_as_typed`): v689's reading
 puts what was said into its own normal form, and a TypeScript signature or
@@ -16,7 +17,7 @@ import threading
 
 from research.v687.executive import ANSWERED, Operator
 from research.v689 import session as v689
-from research.v697 import coding
+from research.v697 import conversation
 
 #: Above mathematics (205): a request for code may hold `f(3) == 10`,
 #: which mathematics would otherwise try to work out.
@@ -37,29 +38,43 @@ def _typed(memory) -> str:
             or memory["reading"].said)
 
 
-#: utterance -> its reading, as `proposes` runs every cycle
-_READ: dict = {}
+def _turn(memory) -> int:
+    return getattr(memory.get("turn"), "number", 0) or 0
 
 
-def _asks(text: str) -> bool:
-    if text not in _READ:
-        _READ.clear()
-        _READ[text] = coding.read(text)
-    return bool(_READ[text]["asked"])
+#: (conversation, utterance, turn) -> what it is to the code: `proposes`
+#: runs every cycle, and reading it is done once
+_SEEN: dict = {}
+
+
+def _kind(session, memory):
+    key = (getattr(session, "conversation", "") or id(session),
+           _typed(memory), _turn(memory))
+    if key not in _SEEN:
+        _SEEN.clear()
+        space = conversation.workspace(key[0])
+        _SEEN[key] = conversation.classify(key[1], space, key[2])[0]
+    return _SEEN[key]
 
 
 def replies(session) -> list:
     def proposes(memory) -> bool:
-        return _asks(_typed(memory))
+        return _kind(session, memory) is not None
 
     def apply(memory):
-        memory["turn"].answer = coding.answered(_typed(memory))
+        space = conversation.workspace(
+            getattr(session, "conversation", "") or id(session))
+        answer = conversation.answered(_typed(memory), space, _turn(memory))
+        if answer is None:
+            return None
+        memory["turn"].answer = answer
         return ANSWERED
 
     return [Operator(name="programming", apply=apply, proposes=proposes,
                      utility=UTILITY,
-                     rule="a function asked for: written, searched, checked "
-                          "by its examples (v696)")]
+                     rule="code: a function asked for, more said of it, or "
+                          "a question about it -- written, searched, "
+                          "checked, kept (v696)")]
 
 
 v689.contributes(replies)

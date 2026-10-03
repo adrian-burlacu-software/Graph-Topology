@@ -48,8 +48,17 @@ ARROW = re.compile(r"\s*(===|==|=>|->|→|should return|returns|gives)\s*")
 CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\(")
 #: a request for code in plain words
 ASKED = re.compile(
-    r"\b(write|make|create|implement|code|give me|show me|need)\b[^.?!]*"
-    r"\b(function|method|program|typescript)\b", re.I)
+    r"\b(write|make|create|implement|code|give me|show me|need|want|build|"
+    r"generate|i'd like|could you|can you)\b[^.?!]*"
+    r"\b(function|method|program|script|snippet|typescript|code)\b", re.I)
+#: a request to print, not to return: what it prints is what it does
+PRINTS = re.compile(r"\b(print(s|ed|ing)?|outputs?|displays?|console)\b",
+                    re.I)
+#: what the request's own words say comes out: `prints out "Hello World"`
+QUOTED = re.compile(
+    r"\b(print(?:s|ed|ing)?|outputs?|displays?|logs?|says?|returns?|"
+    r"gives? back)\b(?:\s+out)?(?:\s+(?:the\s+)?(?:text|string|words?|"
+    r"message|line))?\s*:?\s*[\"\u201c']([^\"\u201d']+)[\"\u201d']", re.I)
 
 
 def _balanced(text: str, start: int, close: str) -> int:
@@ -175,6 +184,10 @@ def read(text: str) -> dict:
                      "", " ".join(english.split()), flags=re.I)
     out["english"] = english.strip(" ,;:.") + ("." if english.strip(
         " ,;:.") else "")
+    out["mode"] = "prints" if PRINTS.search(out["english"]) else "returns"
+    words = QUOTED.search(out["english"])
+    out["from_words"] = ({"value": words.group(2), "said": words.group(0)}
+                         if words else None)
     out["asked"] = bool(found or len(out["examples"]) >= 2
                         or ASKED.search(text)
                         or (out["examples"] and ASKED.search(english)))
@@ -184,10 +197,11 @@ def read(text: str) -> dict:
         said = ", ".join(f"{name}: {kind}" for name, kind in out["params"])
         out["signature"] = (f"function {out['entry']}({said}): "
                             f"{out['returns']}")
-    if out["signature"] is None and out["missing"] is None:
-        out["missing"] = ("how it is called: an example such as "
-                          "reverse(\"ab\") == \"ba\", or its TypeScript "
-                          "signature")
+    if out["signature"] is None and out["missing"] is None \
+            and len(out["english"].split()) < 3:
+        out["missing"] = ("what it should do, in words, or how it is "
+                          "called: an example such as reverse(\"ab\") == "
+                          "\"ba\", or its TypeScript signature")
     return out
 
 
@@ -283,9 +297,20 @@ def solve(text: str) -> dict:
     timings = {}
     asked = read(text)
     out = {"request": asked, "timings": timings}
-    if asked["signature"] is None:
+    if asked["missing"]:
         out["answer"] = {"status": "missing", "code": None}
         return out
+    words = asked["from_words"]
+    if asked["mode"] == "returns" and asked["signature"] \
+            and not asked["params"] and words and not asked["examples"]:
+        # `returns "Hello World!"` of a function that takes nothing: what
+        # the words say it returns is its example
+        asked["examples"].append({"args": [], "value": words["value"],
+                                  "said": words["said"]})
+        asked["made"].append("an example from your words")
+    if asked["mode"] == "prints" or not asked["signature"] \
+            or not asked["examples"]:
+        return _open(asked, text, out, started)
     name = f"chat-{asked['entry']}-{zlib.crc32(text.encode()):08x}"
     spec = Spec(name, [tuple(one) for one in asked["params"]],
                 asked["returns"],
@@ -370,6 +395,211 @@ def solve(text: str) -> dict:
     return _plain(out)
 
 
+# -- the open path: no examples to search by, or something printed -----------
+
+#: inputs a program is run on where no example gives any, by type
+DEFAULTS = {"number": [0, 1, 5, -3], "string": ["", "a", "hello world", "Abc"],
+            "boolean": [True, False], "number[]": [[], [1, 2, 3], [5, -1, 0]],
+            "string[]": [[], ["a", "b"], ["hello", "world"]],
+            "boolean[]": [[], [True, False]]}
+
+
+#: a function as people write it: types where they are given, a result type
+#: or not (then it gives nothing: `void`)
+WRITTEN_FUNCTION = re.compile(
+    r"function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?::\s*([^{]+?))?\s*\{")
+
+
+class _Signature:
+    """A written function's name, parameters and result, as SIGNATURE's
+    groups are read."""
+
+    def __init__(self, found) -> None:
+        self._groups = (found.group(1), found.group(2),
+                        (found.group(3) or "void").strip())
+
+    def group(self, at: int) -> str:
+        return self._groups[at - 1]
+
+
+def _function(text: str):
+    """The function a writer wrote, and its signature, or (text, None).
+    Statements written with no function around them -- a program that
+    prints, as people write one -- are taken as a function of nothing,
+    `main`."""
+    if "```" in text:
+        inside = text.split("```")[1]
+        text = inside.partition("\n")[2] or inside
+    text = text.strip()
+    found = WRITTEN_FUNCTION.search(text)
+    if found is None and text and not text.startswith(("//", "/*")):
+        text = "function main(): void {\n  " + text.replace(
+            "\n", "\n  ") + "\n}"
+        found = WRITTEN_FUNCTION.search(text)
+    return text, (_Signature(found) if found else None)
+
+
+def _norm(text: str) -> str:
+    return " ".join(re.sub(r"[^\w\s]", " ", str(text)).lower().split())
+
+
+def _open(asked: dict, text: str, out: dict, started: float) -> dict:
+    """Where there are no examples to search by, or what is asked is
+    printed: every writer writes for the request as said; each program is
+    run -- on the examples, or on inputs of its types -- and what it does is
+    what is compared. The answer is what the most writers arrived at apart
+    (confirmed by two), and what meets the examples where there are any,
+    the request's own words among them (`prints out "Hello World"`)."""
+    from research.v696 import meaning as M
+    from research.v696 import sketcher
+    from research.v696.checker import CheckerError, checker
+    from research.v696.teach_sketch import prompt, said_meaning
+    timings = out["timings"]
+    tools = Tools.get()
+    STATE.mkdir(exist_ok=True)
+    sketcher.CACHE = WRITTEN
+    english = asked["english"]
+    code = "\n".join([asked["signature"] or ""] + [
+        one["said"] for one in asked["examples"]]).strip()
+    request = f"open-{zlib.crc32(text.encode()):08x}"
+    probs = tools.reader.read([(english, code)])[0]
+    out["read"] = {"returns": _top(probs["returns"], 3),
+                   "uses": _top(probs["uses"]),
+                   "behaviour": _top(probs["behaviour"]),
+                   "root": _top(probs["root"], 3)}
+    timings["read"] = round(time.time() - started, 2)
+
+    words = asked["from_words"]
+    wanted = [(list(one["args"]), one["value"]) for one in asked["examples"]]
+
+    def meets(entry, params, rows) -> bool:
+        if asked["mode"] == "prints" and words and not wanted:
+            # what the words say is printed, by a function of nothing
+            return not params and _norm("\n".join(
+                rows[0].get("printed", []))) == _norm(words["value"])
+        if asked["mode"] == "prints":
+            return all(_norm("\n".join(row.get("printed", []))) == _norm(value)
+                       for row, (_, value) in zip(rows, wanted))
+        if words and not wanted:
+            return not params and "value" in rows[0] and \
+                _norm(rows[0]["value"]) == _norm(words["value"])
+        return all("value" in row and json.dumps(row["value"]) ==
+                   json.dumps(value) for row, (_, value) in zip(rows, wanted))
+
+    mark = time.time()
+    written, programs = [], []
+    names = sketcher.PROPOSERS.split(",")
+    for round_ in range(ROUNDS):
+        for name in names:
+            writer = tools.writer(name)
+            meaning = (said_meaning(probs) if writer.settings["meaning"]
+                       else None)
+            said = prompt(english, code, meaning)
+            key = (f"{name}|{request}|{round_}|"
+                   f"{zlib.crc32(said.encode())}")
+            texts = sketcher._cached().get(key)
+            if texts is None:
+                writer.torch.manual_seed(
+                    sketcher.SEED + zlib.crc32(request.encode()) + round_)
+                texts = writer.write([said], greedy=round_ == 0)[0]
+                sketcher._keep(key, texts)
+            row = {"writer": name, "round": round_, "programs": []}
+            for one in texts:
+                source, signature = _function(one)
+                entry = signature.group(1) if signature else None
+                record = {"text": source, "read": False, "program": None,
+                          "meets": False}
+                row["programs"].append(record)
+                if entry is None or (asked["entry"] and
+                                     entry != asked["entry"]):
+                    continue
+                from research.v696.tasks import _params
+                params = [kind for _, kind in _params(signature.group(2))]
+                programs.append({"writer": name, "text": source,
+                                 "entry": entry, "params": params,
+                                 "returns": signature.group(3).strip(),
+                                 "record": record})
+            written.append(row)
+        if round_ == 0 and not wanted and not words:
+            break
+    # one signature for the request: as given, or the most writers' types
+    shapes = {}
+    for one in programs:
+        # what it prints is what is compared: what it returns is no part
+        # of its shape then
+        shapes.setdefault((tuple(one["params"]), one["returns"] if
+                           asked["mode"] != "prints" else "void"),
+                          []).append(one)
+    if asked["params"] or asked["signature"]:
+        shape = (tuple(kind for _, kind in asked["params"]),
+                 asked["returns"] if asked["mode"] != "prints" else "void")
+    else:
+        shape = max(shapes, key=lambda k: (len({one["writer"] for one in
+                                                shapes[k]}),
+                                           len(shapes[k])), default=None)
+    candidates = shapes.get(shape, []) if shape else []
+    if wanted:
+        inputs = [args for args, _ in wanted] + M.probes(wanted)
+    elif shape and shape[0]:
+        inputs = [[DEFAULTS.get(kind, [None])[at % len(DEFAULTS.get(
+            kind, [None]))] for kind in shape[0]] for at in range(4)]
+    else:
+        inputs = [[]]
+    groups: dict = {}
+    for one in candidates:
+        try:
+            rows = checker().run(one["text"], one["entry"], inputs)
+        except CheckerError:
+            continue
+        if all("error" in row for row in rows):
+            continue
+        one["record"]["read"] = True
+        if (wanted or words) and not meets(one["entry"], one["params"],
+                                           rows[:max(len(wanted), 1)]):
+            continue
+        one["record"]["meets"] = bool(wanted or words)
+        does = tuple(json.dumps([row.get("value", "!") if "error" not in row
+                                 else "!", row.get("printed", [])])
+                     for row in rows)
+        group = groups.setdefault(does, {"authors": set(), "programs": [],
+                                         "does": [json.loads(d) for d in
+                                                  does]})
+        group["authors"].add(one["writer"])
+        group["programs"].append(one)
+    timings["write"] = round(time.time() - mark, 2)
+    ranked = sorted(groups.values(), key=lambda g: (-len(g["authors"]),
+                                                    -len(g["programs"])))
+    out["writers"] = [{"writer": name, "rounds": [
+        {"round": row["round"], "programs": row["programs"]}
+        for row in written if row["writer"] == name]} for name in names]
+    out["open"] = {
+        "inputs": inputs[:12], "mode": asked["mode"],
+        "signature": None if shape is None else
+        f"({', '.join(shape[0])}) => {shape[1]}",
+        "groups": [{"authors": sorted(g["authors"]),
+                    "programs": [one["text"] for one in g["programs"][:3]],
+                    "count": len(g["programs"]), "does": g["does"][:12]}
+                   for g in ranked]}
+    if not ranked:
+        out["answer"] = {"status": "unsolved", "code": None,
+                         "mode": asked["mode"]}
+    else:
+        best = ranked[0]
+        chosen = best["programs"][0]
+        chosen["record"]["program"] = "the answer"
+        agreed = len(best["authors"]) >= 2
+        status = (("confirmed" if agreed else "met") if wanted or words
+                  else ("agreed" if agreed else "unverified"))
+        out["answer"] = {"status": status, "code": chosen["text"],
+                         "entry": chosen["entry"], "as": "written",
+                         "route": "agreement", "program": "the answer",
+                         "examples": len(wanted) + bool(words and not wanted),
+                         "mode": asked["mode"],
+                         "by": sorted(best["authors"])}
+    timings["total"] = round(time.time() - started, 2)
+    return _plain(out)
+
+
 def _writers(spec, names: list, parse) -> list:
     """Every program each writer wrote for the request, round by round, as
     written -- and whether it read into a tree, ran, met the examples."""
@@ -426,6 +656,25 @@ def spoken(found: dict) -> str:
     status = answer["status"]
     if status == "missing":
         return f"Show me {asked['missing']}."
+    entry = answer.get("entry") or entry
+    if answer.get("route") == "agreement" and status != "unsolved":
+        by = answer.get("by") or []
+        shown = ("prints" if answer.get("mode") == "prints" else "gives")
+        checked = ("it meets your words" if asked.get("from_words")
+                   and not asked["examples"] else f"it meets your {examples}")
+        if status == "confirmed":
+            return (f"Here is {entry}: {checked}, and {len(by)} writers "
+                    f"arrived at it apart.")
+        if status == "met":
+            return (f"Here is {entry}: {checked}; one writer wrote it, "
+                    f"nothing apart confirms it -- check it.")
+        if status == "agreed":
+            return (f"Here is {entry}, as {len(by)} writers wrote it apart "
+                    f"(they agree on what it {shown}); give me an example "
+                    f"to check it by.")
+        return (f"Here is {entry}, as one writer wrote it, unchecked: give "
+                f"me an example call and what it should give, and I will "
+                f"check it.")
     if status == "confirmed":
         return (f"Here is {entry}: it meets your {examples}, and a second "
                 f"program, written apart, does the same beyond them.")
@@ -440,6 +689,9 @@ def spoken(found: dict) -> str:
         return f"Nothing I wrote for {entry} reads as a program."
     written = sum(len(r["programs"]) for w in found.get("writers", ())
                   for r in w["rounds"])
+    if answer.get("mode") == "prints" or "open" in found:
+        return (f"Nothing the writers wrote ({written} programs) does what "
+                f"you asked, run as it was written.")
     return (f"I could not write {entry} so that it meets your {examples}: "
             f"{written} programs were written and none met them, and the "
             f"search found nothing in "

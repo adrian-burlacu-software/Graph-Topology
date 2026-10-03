@@ -113,8 +113,15 @@ function reported(value) {
 }
 
 function sandbox() {
-  const context = { require, console: { log: () => {} }, module: {},
-                    exports: {} };
+  // what a program prints is kept, a line a call (`run` reports it):
+  // printing is something a program does
+  const context = { require, module: {}, exports: {}, __printed: [] };
+  const say = (...parts) => {
+    if (context.__printed.length < 200)
+      context.__printed.push(parts.map((one) => typeof one === "string"
+        ? one : JSON.stringify(one)).join(" "));
+  };
+  context.console = { log: say, info: say, warn: say, error: say };
   return vm.createContext(context);
 }
 
@@ -128,15 +135,18 @@ function run(source, entry, cases, timeout) {
   let out = null;
   return cases.map((args) => {
     if (out) return { error: out };
+    context.__printed = [];
+    const printed = (reply) => context.__printed.length
+      ? { ...reply, printed: context.__printed.slice() } : reply;
     try {
       context.__args = args;
       const value = vm.runInContext("__entry(...__args)", context,
                                     { timeout });
-      return reported(value);
+      return printed(reported(value));
     } catch (error) {
       const said = String(error && error.message || error);
       if (/timed out/.test(said)) out = said;
-      return { error: said };
+      return printed({ error: said });
     }
   });
 }

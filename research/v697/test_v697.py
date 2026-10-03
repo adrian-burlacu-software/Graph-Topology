@@ -43,11 +43,54 @@ class RequestTests(unittest.TestCase):
                      "is a dog an animal", "there is a beagle"):
             self.assertFalse(read(text)["asked"], text)
 
-    def test_a_request_without_a_call_asks_for_one(self):
-        from research.v697.coding import answered
-        said = answered("write a function that doubles a number")
-        self.assertEqual(said["code"]["answer"]["status"], "missing")
-        self.assertIn("example", said["spoken"])
+    def test_a_request_in_words_alone(self):
+        from research.v697.coding import read
+        said = read('I want a program that prints out "Hello World"')
+        self.assertTrue(said["asked"])
+        self.assertEqual(said["mode"], "prints")
+        self.assertEqual(said["from_words"]["value"], "Hello World")
+        self.assertIsNone(said["missing"])
+        self.assertIsNotNone(read("code it")["missing"])
+
+
+@needs_node
+class ConversationTests(unittest.TestCase):
+    """What is said after code is about it: more of it, a call, a question
+    -- and only where the turn before was code, or it names the code."""
+
+    def space(self):
+        from research.v697.conversation import Workspace
+        return Workspace(
+            request={"entry": "hello_world", "made": [], "examples": [],
+                     "english": "give me a hello world program.",
+                     "signature": "function hello_world(): string"},
+            found={"answer": {"entry": "hello_world",
+                              "code": "function hello_world(): string "
+                                      "{ return ''; }"}},
+            turn=1)
+
+    def test_what_follows_code(self):
+        from research.v697.conversation import classify
+        space = self.space()
+        for text, right_after, later in (
+                ('hello_world() === "Hello World!"', "more", "more"),
+                ('it should return "Hello World!"', "more", None),
+                ("what does it do", "question", None),
+                ("what does the function do", "question", "question"),
+                ("hello_world()", "call", "call"),
+                ("can it swim", None, None),
+                ("there is a beagle", None, None)):
+            self.assertEqual(classify(text, space, 2)[0], right_after, text)
+            self.assertEqual(classify(text, space, 6)[0], later, text)
+
+    def test_more_is_taken_with_what_was_asked(self):
+        from research.v697.coding import read
+        from research.v697.conversation import _merged
+        said = 'hello_world() === "Hello World!"'
+        merged = _merged(self.space().request, read(said), said)
+        self.assertEqual(merged.splitlines(), [
+            "give me a hello world program.",
+            "function hello_world(): string", said])
 
 
 class GraphTests(unittest.TestCase):
