@@ -302,8 +302,28 @@ class Solver:
         self.inductions = INDUCTIONS
         #: what the risk matrix says of the spec being solved (`risk.py`)
         self._moves, self._behaving, self._spec = (), {}, None
+        #: what the last solve did, as it happened (v697's page shows it):
+        #: [{"event", "at" (candidates evaluated by then), ...}]
+        self.events: list = []
+        self._result = None
         #: judged: (program, where it came from, candidates so far)
         self._hits, self._stage = [], "meet"
+
+    @property
+    def _stage(self) -> str:
+        return self.__stage
+
+    @_stage.setter
+    def _stage(self, stage: str) -> None:
+        # every change of stage is an event: the search's account of itself
+        if getattr(self, "_Solver__stage", None) != stage:
+            self._note("stage", stage=stage)
+        self.__stage = stage
+
+    def _note(self, event: str, **said) -> None:
+        """One thing the search did, kept for whoever asks what it did."""
+        self.events.append({"event": event, "at": getattr(
+            self._result, "evaluated", 0), **said})
 
     # the pieces every route shares
     def _ops(self, spec: Spec) -> list:
@@ -391,10 +411,14 @@ class Solver:
     def _solve(self, spec: Spec) -> Result:
         started = time.time()
         self._deduced = {}
+        result = Result(spec.name)
+        self.events, self._result = [], result
+        self._note("begin", spec=spec.name, depth=self.depth,
+                   budget=self.budget, proposals=len(spec.proposals),
+                   moves=sorted(getattr(spec.moves, "on", ()) or ()))
         self._hits, self._stage = [], "recognized"
         self._moves = spec.moves or ()
         self._behaving, self._spec = {}, spec
-        result = Result(spec.name)
         found = None
         if self.switches.recognition:
             found = self._recognised(spec, result)
@@ -413,6 +437,10 @@ class Solver:
             found, result.route, result.confirmed = self._chosen(spec)
         result.program = found
         result.seconds = time.time() - started
+        self._note("end", route=result.route,
+                   program=found.source() if found is not None else None,
+                   confirmed=result.confirmed, seconds=round(
+                       result.seconds, 2))
         if found is not None:
             result.general = self._general(spec, found)
             self.memory.remember(spec, found, self.switches)
@@ -543,8 +571,23 @@ class Solver:
                     program.source(), (program, stage))
         return groups
 
+    @staticmethod
+    def _authors(spec: Spec, group: dict) -> set:
+        """Who arrived at what a group does, apart: each decoder that wrote
+        one of its programs (`Spec.authors`), the search for one it found,
+        the edits for one they repaired. One program written by two
+        decoders is two pairs of eyes; two programs by one, one."""
+        out = set()
+        for source, (_, stage) in group.items():
+            if stage == "proposed":
+                out |= spec.authors.get(source) or {"a decoder"}
+            else:
+                out.add({"edited": "edits", "part": "a decoder's part"}.get(
+                    stage, "search"))
+        return out
+
     def _confirmed(self, spec: Spec) -> bool:
-        return any(len(group) >= 2
+        return any(len(self._authors(spec, group)) >= 2
                    for group in self._agreeing(spec, self._hits).values())
 
     def _accepts(self, spec: Spec, program: P.Expr, result: Result) -> bool:
@@ -557,19 +600,27 @@ class Solver:
         until something better founded than it has is found (`_settled`);
         the answer is chosen among them (`_chosen`)."""
         if not self._shows(spec, program, result):
+            self._note("refused", program=program.source(),
+                       why="lacks what the reading of the request is sure of")
             return False
         if not self._judged(spec):
+            self._note("meets", program=program.source(), stage=self._stage)
             return True
         if "strict" in self._moves and "!" in self._behaviour(
                 spec, [program])[program.source()]:
             # fail loudly (X×B): one that throws beyond the examples is not
             # an answer to something that costs this much when wrong
             result.rejected += 1
+            self._note("refused", program=program.source(),
+                       why="throws beyond the examples (fail loudly)")
             return False
         # a parameter or a constant is what the search began with,
-        # wherever it turns up (inside a proposal too)
-        stage = "pool" if program.kind in ("param", "const") else self._stage
+        # wherever it turns up (inside a proposal too) -- unless the
+        # function takes nothing: then a constant is all it can be
+        stage = ("pool" if program.kind in ("param", "const") and spec.params
+                 else self._stage)
         self._hits.append((program, stage, result.evaluated))
+        self._note("meets", program=program.source(), stage=stage)
         return self._settled()
 
     def _found(self) -> bool:
@@ -625,12 +676,28 @@ class Solver:
 
         if groups and ("agree" in moves or "four_eyes" in moves):
             group = max(groups.values(), key=lambda g: (
-                len(g), -min(rank(one) for one in g.values())))
+                len(self._authors(spec, g)),
+                -min(rank(one) for one in g.values())))
             best = min(group.values(), key=rank)
         else:
             best = min(hits, key=rank)
-        confirmed = any(best[0].source() in group and len(group) >= 2
+        confirmed = any(best[0].source() in group
+                        and len(self._authors(spec, group)) >= 2
                         for group in groups.values())
+        # how it was chosen: every behaviour beyond the examples, and who
+        # does it
+        self._note("chosen", program=best[0].source(), stage=best[1],
+                   confirmed=confirmed,
+                   by=("agreement" if groups and (
+                       "agree" in moves or "four_eyes" in moves)
+                       else "where it came from"),
+                   behaviours=[{"does": list(behaviour)[:16],
+                                "authors": sorted(self._authors(spec, group)),
+                                "programs": [{"program": source,
+                                              "stage": stage}
+                                             for source, (_, stage)
+                                             in group.items()]}
+                               for behaviour, group in groups.items()])
         return best[0], best[1] if best[1] != "pool" else "meet", confirmed
 
     def _edited(self, spec: Spec, result: Result) -> None:
@@ -860,6 +927,8 @@ class Solver:
 
         for depth in range(1, self.depth + 1):
             admitted["level"] = depth
+            self._note("level", depth=depth, kept={
+                kind: len(made) for kind, made in kept.items() if made})
             if forward_forms and depth == 1 and not self.switches.coarse:
                 for start in range(0, len(forward_forms), BATCH):
                     found = admit(forward_forms[start:start + BATCH])

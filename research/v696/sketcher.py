@@ -301,7 +301,7 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8,
                 written = sketcher.write([texts[one]],
                                          greedy=round_ == 0)[0]
                 _keep(key, written)
-            _read(specs[one], written, parse)
+            _read(specs[one], written, parse, sketcher.name)
         todo = [one for one in todo if not met(one)]
         if not todo:
             break
@@ -345,8 +345,10 @@ def _runs(spec, tree) -> bool:
                    for one in row)
 
 
-def _read(spec, written: list, parse) -> None:
-    """What the decoder wrote, read into trees, added to the spec's."""
+def _read(spec, written: list, parse, writer: str = "") -> None:
+    """What the decoder wrote, read into trees, added to the spec's -- and
+    who wrote each (`Spec.authors`): the same program from two writers is
+    two pairs of eyes, though it is one proposal."""
     seen = {one.source() for one in spec.proposals}
     for text in written:
         if "```" in text:
@@ -363,6 +365,8 @@ def _read(spec, written: list, parse) -> None:
         if tree is not None and not _runs(spec, tree):
             # its helpers, printed, do not run: not a program to offer
             tree = None
+        if tree is not None and writer:
+            spec.authors.setdefault(tree.source(), set()).add(writer)
         if tree is not None and tree.source() not in seen:
             seen.add(tree.source())
             spec.proposals.append(tree)

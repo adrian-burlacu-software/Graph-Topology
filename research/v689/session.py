@@ -284,7 +284,7 @@ LAYERS: list = []
 
 #: Keys of an answer that belong to a later layer, kept when a turn's claims
 #: are merged into one answer.
-LAYER_KEYS = ("spoken", "planning", "act", "scene", "domain")
+LAYER_KEYS = ("spoken", "planning", "act", "scene", "domain", "code")
 
 
 def contributes(make) -> None:
@@ -329,7 +329,11 @@ class Turn:
                 "asked": self.asked, "answer": self.answer, "run": self.run,
                 "walk": self.walk, "growth": self.growth,
                 "learned": self.learned,
-                "discourse": self.discourse, "memory": self.memory}
+                "discourse": self.discourse, "memory": self.memory,
+                # every executive run the turn took, with its conflict sets
+                # (E3): what a page that shows everything shows, and what
+                # the archive leaves out (`server.trimmed`)
+                "executed": self.executed}
 
 
 #: Procedural memory, shared by every session in this process (E6): what a

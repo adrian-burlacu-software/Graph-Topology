@@ -205,7 +205,8 @@ class StoreAsker(Asker):
 
 def trimmed(turn: dict) -> dict:
     """A turn as the page gets it and the archive keeps it: v688's run cut
-    down to its summary."""
+    down to its summary, the executive runs left out (v697 keeps them)."""
+    turn.pop("executed", None)
     summary = (turn.get("run") or {}).get("summary") or {}
     turn["run"] = ({key: summary.get(key) for key in SUMMARY_KEYS}
                    if turn.get("run") else None)

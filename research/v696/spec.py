@@ -40,6 +40,8 @@ class Spec:
     proposals: list = field(default_factory=list)
     #: the text each proposal was read from, as the decoder wrote it
     sources: list = field(default_factory=list)
+    #: program (as printed) -> the decoders that wrote it (`sketcher._read`)
+    authors: dict = field(default_factory=dict)
     #: operators beyond the language's: a project's own functions (rung 5),
     #: grown by the search as the library's members are
     library: list = field(default_factory=list)

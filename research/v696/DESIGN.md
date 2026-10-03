@@ -786,3 +786,8 @@ taught from more requests than MBPP's (its own verified programs, read back
 through the exact reader, are the obvious corpus), and a judge that knows
 more than where a program came from — which, measured here, the reader of
 meaning as it stands is not.
+
+**Later (v697, 2026-10-03)**: "confirmed" now counts who wrote a program, not
+distinct texts (`Spec.authors`, `search._authors`): one program written by
+two decoders confirms; two programs by one do not. The confirmed/unconfirmed
+numbers above were measured before it.

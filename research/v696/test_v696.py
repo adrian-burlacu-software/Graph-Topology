@@ -628,6 +628,9 @@ class RiskTests(unittest.TestCase):
         hits = [(P.apply(times, [x, two]), "proposed", 0),
                 (P.apply(plus, [x, one]), "proposed", 0),
                 (P.apply(plus, [one, x]), "proposed", 0)]
+        # who wrote them: agreement is between writers, not texts
+        spec.authors = {"(x * 2)": {"a"}, "(x + 1)": {"a"},
+                        "(1 + x)": {"b"}}
         for moved, chosen, confirmed in ((None, "(x * 2)", False),
                                          ({"U": 3}, "(x + 1)", True)):
             solver = Solver()
@@ -636,6 +639,16 @@ class RiskTests(unittest.TestCase):
             solver._hits = list(hits)
             program, _, sure = solver._chosen(spec)
             self.assertEqual((program.source(), sure), (chosen, confirmed))
+        # one program written by two writers is two pairs of eyes; two
+        # programs by one writer are one
+        spec.authors = {"(x * 2)": {"a", "b"}, "(x + 1)": {"c"},
+                        "(1 + x)": {"c"}}
+        solver = Solver()
+        spec.moves = R.moves({"U": 3})
+        solver._moves, solver._spec = spec.moves, spec
+        solver._hits = list(hits)
+        program, _, sure = solver._chosen(spec)
+        self.assertEqual((program.source(), sure), ("(x * 2)", True))
 
 
 if __name__ == "__main__":

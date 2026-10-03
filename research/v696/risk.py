@@ -281,9 +281,9 @@ class Features:
     """A request as the estimators see it: the reader of meaning's encoder
     (pooled), its heads' probabilities, and what is plain on the surface."""
 
-    def __init__(self, model: Path = LLM / READER) -> None:
+    def __init__(self, model: Path = LLM / READER, reader=None) -> None:
         from research.v696.reader import Reader
-        self.reader = Reader.load(model)
+        self.reader = reader or Reader.load(model)
         self.torch = self.reader.torch
 
     def __call__(self, requests: list, plain: list, batch: int = 32):
@@ -378,7 +378,7 @@ def baseline(train: list, truth: list) -> dict:
 class Estimators:
     """Six heads, one per factor, over `Features`."""
 
-    def __init__(self, path: Path = MODEL) -> None:
+    def __init__(self, path: Path = MODEL, features=None) -> None:
         import torch
         self.torch = torch
         saved = torch.load(str(path / "heads.pt"), map_location="cpu")
@@ -393,7 +393,8 @@ class Estimators:
             head.load_state_dict(saved["heads"][factor])
             head.eval()
             self.heads[factor] = head
-        self.features = Features(LLM / self.settings["reader"])
+        # the reader of meaning's encoder, shared where one is loaded
+        self.features = features or Features(LLM / self.settings["reader"])
 
     def __call__(self, requests: list, plain: list) -> list:
         torch = self.torch
