@@ -1796,9 +1796,34 @@ function outline(files) {
     const functions = [];
     const imports = [];
     const exported = new Set();
+    // What people wrote about it: a comment right above a declaration is
+    // its doc; one at the top of the file, apart from what follows by a
+    // blank line, is the file's.
+    const comments = (node) => (ts.getLeadingCommentRanges(text,
+      node.getFullStart()) || []).map((range) => ({ range,
+      said: text.slice(range.pos, range.end)
+        .replace(/^\/\*\*?|\*\/$/g, "").split(/\r?\n/)
+        .map((one) => one.replace(/^\s*(\/\/+|\*)\s?/, "").trim())
+        .filter(Boolean).join(" ") }));
+    const docOf = (node) => {
+      const found = comments(node);
+      const last = found[found.length - 1];
+      if (!last) return null;
+      const between = text.slice(last.range.end, node.getStart(sf));
+      return /\n\s*\n/.test(between) ? null : last.said;
+    };
+    let about = null;
+    const first = sf.statements[0];
+    if (first) {
+      const found = comments(first);
+      const apart = found.filter((one) => /\n\s*\n/.test(
+        text.slice(one.range.end, first.getStart(sf))));
+      if (apart.length) about = apart.map((one) => one.said).join(" ");
+    }
+    const entries = [];
     const isExported = (node) => !!(ts.getCombinedModifierFlags
       && (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export));
-    const record = (name, node, kindName, owner, exportedHere) => {
+    const record = (name, node, kindName, owner, exportedHere, docNode) => {
       const calls = new Set();
       const body = node.body || node;
       (function walk(n) {
@@ -1814,7 +1839,7 @@ function outline(files) {
       })(body);
       functions.push({
         name, kind: kindName, class: owner || null,
-        exported: exportedHere,
+        exported: exportedHere, doc: docOf(docNode || node),
         start: line(node.getStart(sf)), end: line(node.end),
         params: (node.parameters || []).map((p) => [
           p.name.getText(sf), p.type ? p.type.getText(sf) : null]),
@@ -1832,7 +1857,8 @@ function outline(files) {
           const init = one.initializer;
           if (init && ts.isIdentifier(one.name)
               && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
-            record(one.name.text, init, "function", null, isExported(node));
+            record(one.name.text, init, "function", null, isExported(node),
+                   node);
         }
       } else if (ts.isClassDeclaration(node) && node.name) {
         for (const member of node.members) {
@@ -1855,13 +1881,19 @@ function outline(files) {
         }
         imports.push({ from: node.moduleSpecifier.text, names,
                        line: line(node.getStart(sf)) });
+      } else if (ts.isExpressionStatement(node)
+                 && ts.isCallExpression(node.expression)) {
+        // a call at the top of a file: what running the file does
+        entries.push({ call: node.expression.expression.getText(sf),
+                       line: line(node.getStart(sf)) });
       } else if (ts.isExportDeclaration(node) && node.exportClause
                  && ts.isNamedExports(node.exportClause)) {
         node.exportClause.elements.forEach((e) => exported.add(e.name.text));
       }
     });
     for (const one of functions) if (exported.has(one.name)) one.exported = true;
-    out[file] = { functions, imports, lines: sf.getLineStarts().length };
+    out[file] = { functions, imports, about, runs: entries,
+                  lines: sf.getLineStarts().length };
   }
   return out;
 }

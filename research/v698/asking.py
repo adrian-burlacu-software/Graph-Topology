@@ -43,11 +43,12 @@ FILES = re.compile(r"\b(which|what) files\b|\blist (the )?files\b", re.I)
 ERRORS = re.compile(r"\b(compile|compiler|type errors?|diagnostics|"
                     r"errors? in the (project|code))\b|\bwhat(?:'s| is) "
                     r"(wrong|broken)\b", re.I)
-OVERVIEW = re.compile(r"\bwhat(?:'s| is) in (the|this|my) (project|workspace|"
-                      r"repo(sitory)?|code ?base)\b|\b(summari[sz]e|overview|"
-                      r"tell me about) (of )?(the|this|my) (project|"
-                      r"workspace|code ?base)\b|\bhow (big|large) is (the|"
-                      r"this|my) (project|code)\b", re.I)
+#: the project, by any of the names people give it
+PROJECT = r"(?:(?:the|this|my|our|your) (?:project|workspace|repo(?:sitory)?|code ?base|app(?:lication)?))"
+#: a question whose subject is the project: what it is, what it does, what
+#: is in it, how big, tell me / describe / summarise / explain it
+ABOUT = re.compile(r"\b(what|which|how|tell me|describe|summari[sz]e|"
+                   r"explain|overview|show me|walk me through)\b", re.I)
 #: pasted code with a question about it
 FENCE = re.compile(r"```[\w-]*\n(.*?)```", re.S)
 ABOUT_CODE = re.compile(r"\b(explain|what does|what is|describe|how does|"
@@ -74,9 +75,20 @@ def classify(text: str, held) -> tuple:
         return "files", None
     if ERRORS.search(text):
         return "errors", None
-    if OVERVIEW.search(text):
+    if ABOUT.search(text) and (re.search(rf"\b{PROJECT}\b", text, re.I)
+                               or _named(held, text)):
         return "overview", None
     return None, None
+
+
+def _named(held, text: str) -> bool:
+    """Whether the project is named by its folder's name (`hello-world`,
+    `hello world`)."""
+    name = (held.name or "").lower()
+    if len(name) < 3:
+        return False
+    said = re.sub(r"[\s_-]+", " ", text.lower())
+    return re.sub(r"[\s_-]+", " ", name) in said
 
 
 def _file(held, said: str) -> str | None:
@@ -123,14 +135,55 @@ def answered(text: str, held) -> dict | None:
 
 
 def _overview(held, text, _):
+    """What the project is: what its files say of themselves, what runs
+    when they are run, the functions nothing else calls (where it is
+    entered), the most called -- and how big it is. Read, not guessed:
+    the comments are the project's own words."""
     summary = held.summary()
+    outline = held.outline()
+    called = {one["to"] for one in held.calls()}
+    parts = [f"{held.name or 'The project'}: {summary['files']} files, "
+             f"{summary['functions']} functions, {summary['lines']} lines."]
+    said_of = [(path, read["about"]) for path, read in sorted(outline.items())
+               if read.get("about")]
+    for path, about in said_of[:6]:
+        parts.append(f"{path} says of itself: \u201c{about}\u201d")
+    runs = [(path, one) for path, read in sorted(outline.items())
+            for one in read.get("runs", ())]
+    for path, one in runs[:4]:
+        doc = next((f["doc"] for f in read_functions(outline, path)
+                    if f["name"] == one["call"] and f.get("doc")), None)
+        parts.append(f"Running {path} calls {one['call']}()"
+                     + (f": \u201c{doc.rstrip('.')}\u201d" if doc else "")
+                     + ".")
+    # run at the top of its file: called, by running it
+    ran = {(path, one["call"]) for path, one in runs}
+    entered = [one for one in held.functions()
+               if f"{one['file']}#{one['name']}" not in called
+               and (one["file"], one["name"]) not in ran
+               and one["exported"]]
+    if entered:
+        parts.append("Nothing in it calls " + ", ".join(
+            one["name"] for one in entered[:8]) + (" …" if len(entered) > 8
+                                                   else "")
+                     + ": that is where it is used from.")
     most = ", ".join(f"{end.split('#')[1]} ({count})"
-                     for end, count in summary["most called"][:5])
-    said = (f"The project{' ' + held.name if held.name else ''} has "
-            f"{summary['files']} files, {summary['lines']} lines and "
-            f"{summary['functions']} functions ({summary['exported']} "
-            f"exported)." + (f" Most called: {most}." if most else ""))
-    return _reply("overview", text, said, summary)
+                     for end, count in summary["most called"][:4])
+    if most:
+        parts.append(f"Most called: {most}.")
+    documented = [one for one in held.functions() if one.get("doc")]
+    return _reply("overview", text, " ".join(parts),
+                  {**summary, "files said": dict(said_of),
+                   "runs": [{"file": path, **one} for path, one in runs],
+                   "entered from": [f"{one['file']}#{one['name']}"
+                                    for one in entered],
+                   "documented": [{"function": one["name"],
+                                   "file": one["file"], "doc": one["doc"]}
+                                  for one in documented]})
+
+
+def read_functions(outline: dict, path: str) -> list:
+    return (outline.get(path) or {}).get("functions", [])
 
 
 def _files(held, text, _):

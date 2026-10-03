@@ -62,6 +62,12 @@ class ProjectTests(unittest.TestCase):
         from research.v698.asking import answered, classify
         held = self.held()
         for text, kind in (("what is in the project", "overview"),
+                           # the project by any name, or its folder's
+                           ("what is the project?", "overview"),
+                           ("what does this project do", "overview"),
+                           ("tell me about t", None),
+                           ("describe the codebase", "overview"),
+                           ("what is a project", None),
                            ("which files", "files"),
                            ("where is digitSum", "where"),
                            ("who calls digitSum", "callers"),

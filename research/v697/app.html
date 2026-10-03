@@ -1967,6 +1967,11 @@ const CODE_EXAMPLES = [
 ];
 
 (async () => {
+  // the server's own name in the heading: a later server serves this page
+  try {
+    const health = await getJSON("/api/health");
+    if (health.server) document.querySelector("header h1").textContent = health.server.toUpperCase();
+  } catch (_) { /* a server without /api/health: v697 */ }
   const { examples } = await getJSON("/api/examples");
   const row = document.getElementById("examples");
   examples.forEach(example => {
