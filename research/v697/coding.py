@@ -290,6 +290,132 @@ class Tools:
         return self.writers[name]
 
 
+# -- the ways of writing asked for (v698) ---------------------------------------
+
+class _Held:
+    """The ways of writing a request is held to (v698 `ways.py`: *use a
+    switch*, *make it recursive*), checked on each program as written --
+    its shape read once."""
+
+    def __init__(self, ways, before=None) -> None:
+        from research.v698 import ways as W
+        self.W, self.ways, self.shapes = W, list(ways or ()), {}
+        code, entry = before or (None, None)
+        self.before = self.shape(code, entry) if code and entry else None
+
+    def shape(self, text: str, entry: str) -> dict | None:
+        from research.v696.checker import CheckerError, checker
+        key = (text, entry)
+        if key not in self.shapes:
+            try:
+                self.shapes[key] = checker().shape(text, entry)
+            except CheckerError:
+                self.shapes[key] = None
+        return self.shapes[key]
+
+    def fits(self, text: str, entry: str) -> bool:
+        return self.W.fits(self.shape(text, entry), self.ways, self.before)
+
+    def missing(self, text: str, entry: str) -> list:
+        return self.W.missing(self.shape(text, entry), self.ways,
+                              self.before)
+
+    def said(self, ways=None) -> str:
+        return self.W.said(self.ways if ways is None else ways)
+
+    def told(self) -> str:
+        """What the writers are told of them."""
+        return f"(write it {self.said()})"
+
+    def rewritten(self, answer: str, entry: str, inputs: list, code: str,
+                  out: dict, also=()) -> str | None:
+        """The answer, rewritten the ways asked by the writers -- kept only
+        where it is so written and does what the answer does, on every
+        input (`inputs`: the examples and inputs varied from them). What
+        each writer wrote is kept in `out["rewritten"]`."""
+        from research.v696 import sketcher
+        from research.v696.checker import CheckerError, checker
+        from research.v696.teach_sketch import prompt
+
+        def does(source):
+            try:
+                rows = checker().run(source, entry, inputs)
+            except CheckerError:
+                return None
+            return [[row.get("value"), "error" in row, row.get("printed")]
+                    for row in rows]
+
+        want = does(answer)
+        tried = out.setdefault("rewritten", {"inputs": inputs[:12],
+                                             "programs": []})["programs"]
+        if want is None:
+            return None
+        best = [len(self.missing(answer, entry)), None]
+
+        def consider(source: str, by: str) -> bool:
+            """Kept: written every way asked and doing the same (True) --
+            or, written more of them and doing the same, the best yet."""
+            record = {"writer": by, "text": source,
+                      "ways missing": self.missing(source, entry)}
+            tried.append(record)
+            if len(record["ways missing"]) >= best[0]:
+                return False
+            record["same"] = does(source) == want
+            if not record["same"]:
+                return False
+            if not record["ways missing"]:
+                return True
+            best[:] = [len(record["ways missing"]), source]
+            return False
+
+        # first what needs no writer: the search's own printing of it
+        # (one line, ?:, no loops), and either, restyled the ways that are
+        # syntax alone (an arrow, a switch, ifs)
+        for base, how in [(answer, "restyled")] + [
+                (one, "printed") for one in also if one]:
+            text = base
+            for way in self.ways:
+                try:
+                    text = checker().restyle(text, entry, way) or text
+                except CheckerError:
+                    pass
+            for source, by in ((base, how), (text, "restyled")):
+                if source != answer and consider(source, by):
+                    return source
+        said = prompt(f"Rewrite this function {self.said()}, so that it "
+                      f"does exactly what it does:\n{answer}", code, None)
+        tools = Tools.get()
+        for name in sketcher.PROPOSERS.split(","):
+            key = f"{name}|rewrite|0|{zlib.crc32(said.encode())}"
+            texts = sketcher._cached().get(key)
+            if texts is None:
+                writer = tools.writer(name)
+                writer.torch.manual_seed(sketcher.SEED
+                                         + zlib.crc32(said.encode()))
+                texts = writer.write([said], greedy=True)[0]
+                sketcher._keep(key, texts)
+            for one in texts:
+                source, signature = _function(one)
+                if signature is None or signature.group(1) != entry:
+                    # an arrow, as written in its code block
+                    source = (one.split("```")[1].partition("\n")[2]
+                              if "```" in one else one).strip()
+                    shape = self.shape(source, entry)
+                    if not shape or shape["entry"] is None:
+                        continue
+                if consider(source, name):
+                    return source
+        # none written every way asked: the one written the most of them
+        # that does what the answer does
+        return best[1]
+
+    def json(self, text: str | None, entry: str | None) -> dict:
+        missing = self.missing(text, entry) if text and entry else \
+            list(self.ways)
+        return {"asked": self.ways, "said": self.said(),
+                "missing": missing, "missing said": self.said(missing)}
+
+
 # -- solving, everything kept --------------------------------------------------
 
 def _plain(value):
@@ -308,8 +434,10 @@ def _top(probs: dict, most: int = 10, floor: float = 0.05) -> list:
         probs.items(), key=lambda one: -one[1])[:most] if p >= floor]
 
 
-def solve(text: str) -> dict:
-    """Everything done for a request, and its answer (`code`)."""
+def solve(text: str, ways=(), before=None) -> dict:
+    """Everything done for a request, and its answer (`code`). `ways`: the
+    ways of writing it is held to (v698), `before`: (code, entry) of the
+    answer it changes, for the ways relative to it (`shorter`)."""
     from research.v696 import risk, sketcher
     from research.v696.experiment import CONFIGS
     from research.v696.parse import parse
@@ -321,6 +449,7 @@ def solve(text: str) -> dict:
     timings = {}
     asked = read(text)
     out = {"request": asked, "timings": timings}
+    held = _Held(ways, before) if ways else None
     if asked["missing"]:
         out["answer"] = {"status": "missing", "code": None}
         return out
@@ -337,15 +466,16 @@ def solve(text: str) -> dict:
         asked["made"].append("an example from your words")
     if asked["mode"] == "prints" or not asked["signature"] \
             or not asked["examples"]:
-        return _open(asked, text, out, started)
+        return _open(asked, text, out, started, held)
     name = f"chat-{asked['entry']}-{zlib.crc32(text.encode()):08x}"
     spec = Spec(name, [tuple(one) for one in asked["params"]],
                 asked["returns"],
                 [(list(one["args"]), one["value"])
                  for one in asked["examples"]],
                 entry=asked["entry"],
-                english=" ".join(filter(None, (asked["english"],
-                                               known.get("english")))),
+                english=" ".join(filter(None, (
+                    asked["english"], known.get("english"),
+                    held.told() if held else None))),
                 library=list(known.get("library", ())))
     tools = Tools.get()
 
@@ -395,6 +525,21 @@ def solve(text: str) -> dict:
     finally:
         spec.moves = searched
     out["writers"] = _writers(spec, names, parse)
+    fitting = {}
+    if held:
+        # each program as its writers wrote it: written the ways asked, or
+        # not -- the same tree may be written with a switch and with ifs
+        for writer in out["writers"]:
+            for round_ in writer["rounds"]:
+                for one in round_["programs"]:
+                    if not one["read"]:
+                        continue
+                    one["ways missing"] = held.missing(one["text"],
+                                                       spec.entry)
+                    if not one["ways missing"]:
+                        fitting.setdefault(one["program"], one["text"])
+        spec.shaped = (lambda program: program.source() in fitting
+                       or held.fits(spec.function(program), spec.entry))
     timings["write"] = round(time.time() - mark, 2)
 
     # the search: judged, the writers' programs admitted first
@@ -410,17 +555,36 @@ def solve(text: str) -> dict:
                          "confirmed": got.confirmed,
                          "events": _plain(solver.events)}
         if got.program is not None:
-            answer = _answer(spec, got.program, out["writers"])
+            answer = _answer(spec, got.program, out["writers"], fitting)
             answer.update(status="confirmed" if got.confirmed else "met",
                           route=got.route)
         else:
             answer = {"status": "unsolved", "code": None}
     elif spec.proposals:
         # nothing to check by: what the first writer wrote that runs
-        answer = _answer(spec, spec.proposals[0], out["writers"])
+        first = next((one for one in spec.proposals
+                      if one.source() in fitting), spec.proposals[0])
+        answer = _answer(spec, first, out["writers"], fitting)
         answer["status"] = "unverified"
     timings["search"] = round(time.time() - mark, 2)
     timings["total"] = round(time.time() - started, 2)
+    if held and answer.get("code") and held.missing(answer["code"],
+                                                    spec.entry):
+        # nothing that meets the examples was written the ways asked: the
+        # answer itself, rewritten so, where it then does what it did
+        from research.v696 import meaning as M
+        pairs = [(list(args), value) for args, value in spec.examples]
+        inputs = [args for args, _ in pairs] + (M.probes(pairs) if pairs
+                                                else [])
+        code = "\n".join([spec.signature()] + [
+            one["said"] for one in asked["examples"]])
+        better = held.rewritten(answer["code"], spec.entry, inputs or [[]],
+                                code, out, also=[answer.get("printed")])
+        if better:
+            answer.update(code=better, rewritten=answer["code"],
+                          **{"as": "rewritten"})
+    if held:
+        answer["ways"] = held.json(answer.get("code"), spec.entry)
     out["answer"] = answer
     return _plain(out)
 
@@ -473,7 +637,8 @@ def _norm(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", str(text)).lower().split())
 
 
-def _open(asked: dict, text: str, out: dict, started: float) -> dict:
+def _open(asked: dict, text: str, out: dict, started: float,
+          held: _Held | None = None) -> dict:
     """Where there are no examples to search by, or what is asked is
     printed: every writer writes for the request as said; each program is
     run -- on the examples, or on inputs of its types -- and what it does is
@@ -489,7 +654,8 @@ def _open(asked: dict, text: str, out: dict, started: float) -> dict:
     STATE.mkdir(exist_ok=True)
     sketcher.CACHE = WRITTEN
     english = " ".join(filter(None, (asked["english"],
-                                     known_of(asked).get("english"))))
+                                     known_of(asked).get("english"),
+                                     held.told() if held else None)))
     code = "\n".join([asked["signature"] or ""] + [
         one["said"] for one in asked["examples"]]).strip()
     request = f"open-{zlib.crc32(text.encode()):08x}"
@@ -589,6 +755,9 @@ def _open(asked: dict, text: str, out: dict, started: float) -> dict:
                                            rows[:max(len(wanted), 1)]):
             continue
         one["record"]["meets"] = bool(wanted or words)
+        if held:
+            one["record"]["ways missing"] = held.missing(one["text"],
+                                                         one["entry"])
         does = tuple(json.dumps([row.get("value", "!") if "error" not in row
                                  else "!", row.get("printed", [])])
                      for row in rows)
@@ -617,6 +786,15 @@ def _open(asked: dict, text: str, out: dict, started: float) -> dict:
     else:
         best = ranked[0]
         chosen = best["programs"][0]
+        if held:
+            # written the ways asked: the most agreed-on behaviour that
+            # has such a program, and that program
+            fit = [g for g in ranked if any(not one["record"].get(
+                "ways missing") for one in g["programs"])]
+            if fit:
+                best = fit[0]
+                chosen = next(one for one in best["programs"]
+                              if not one["record"].get("ways missing"))
         chosen["record"]["program"] = "the answer"
         agreed = len(best["authors"]) >= 2
         status = (("confirmed" if agreed else "met") if wanted or words
@@ -627,6 +805,15 @@ def _open(asked: dict, text: str, out: dict, started: float) -> dict:
                          "examples": len(wanted) + bool(words and not wanted),
                          "mode": asked["mode"],
                          "by": sorted(best["authors"])}
+        if held and held.missing(chosen["text"], chosen["entry"]):
+            better = held.rewritten(chosen["text"], chosen["entry"], inputs,
+                                    code, out)
+            if better:
+                out["answer"].update(code=better, rewritten=chosen["text"],
+                                     **{"as": "rewritten"})
+        if held:
+            out["answer"]["ways"] = held.json(out["answer"]["code"],
+                                              chosen["entry"])
     timings["total"] = round(time.time() - started, 2)
     return _plain(out)
 
@@ -663,12 +850,14 @@ def _writers(spec, names: list, parse) -> list:
     return out
 
 
-def _answer(spec, program, writers: list) -> dict:
+def _answer(spec, program, writers: list, fitting=None) -> dict:
     """The answer, whole: as a writer wrote it where it is one of theirs
-    (people's code reads better than the search's tree), and as the search
-    holds it -- printed exactly from its tree, helpers first."""
+    (people's code reads better than the search's tree) -- as written the
+    ways asked, where one was (`fitting`) -- and as the search holds it:
+    printed exactly from its tree, helpers first."""
     printed = spec.function(program)
-    written = next((one["text"] for writer in writers
+    written = (fitting or {}).get(program.source()) or next(
+        (one["text"] for writer in writers
                     for round_ in writer["rounds"]
                     for one in round_["programs"]
                     if one["program"] == program.source()), None)
@@ -679,7 +868,34 @@ def _answer(spec, program, writers: list) -> dict:
 
 
 def spoken(found: dict) -> str:
-    """What is said of it, in a sentence: the code is on the answer."""
+    """What is said of it, in a sentence or two: the code is on the
+    answer -- and, held to ways of writing it, whether it is so written."""
+    said = _spoken(found)
+    ways = (found.get("answer") or {}).get("ways")
+    if not ways or not (found["answer"].get("code")):
+        return said
+    from research.v698.ways import said as said_as
+    done = said_as([one for one in ways["asked"]
+                    if one not in ways["missing"]])
+    rewritten = found["answer"].get("as") == "rewritten"
+    if rewritten:
+        inputs = len(found["rewritten"]["inputs"])
+        how = (f"Rewritten {done}, as you asked: it does what it did on all "
+               f"{inputs} inputs tried")
+    else:
+        how = f"It is written {done}, as you asked"
+    if not ways["missing"]:
+        return f"{said} {how}."
+    tried = len((found.get("rewritten") or {}).get("programs", ()))
+    why = ("no program written that meets the examples is"
+           + (f", and none of {tried} rewrites of it that is does the same"
+              if tried else ""))
+    if done:
+        return f"{said} {how} -- but not {ways['missing said']}: {why}."
+    return f"{said} It is not written {ways['missing said']}: {why}."
+
+
+def _spoken(found: dict) -> str:
     asked, answer = found["request"], found["answer"]
     entry = asked.get("entry") or "it"
     count = len(asked["examples"])
@@ -729,11 +945,12 @@ def spoken(found: dict) -> str:
             f"{found.get('search', {}).get('evaluated', 0)} candidates.")
 
 
-def answered(text: str) -> dict:
+def answered(text: str, ways=(), before=None) -> dict:
     """The conversation's answer to a request for code: said in a
-    sentence, with everything done for it (`code`)."""
+    sentence, with everything done for it (`code`). `ways`, `before`: as
+    `solve` takes them."""
     try:
-        found = solve(text)
+        found = solve(text, ways, before)
     except Exception as bad:                       # noqa: BLE001
         import traceback
         found = {"request": read(text), "answer": {

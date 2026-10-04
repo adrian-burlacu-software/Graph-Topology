@@ -33,6 +33,9 @@ class Workspace:
     found: dict | None = None
     #: the conversation turn the code was last answered at
     turn: int = -10
+    #: the ways of writing asked for so far (v698 `ways.py`): *use a
+    #: switch*, then *make it recursive* -- the code is held to them all
+    ways: list | None = None
 
 
 WORKSPACES: dict = {}
@@ -133,15 +136,25 @@ def answered(text: str, space: Workspace, turn: int) -> dict | None:
 
 
 def respond(kind: str, detail, text: str, space: Workspace,
-            turn: int) -> dict:
+            turn: int, ways=()) -> dict:
     """What a turn of each kind does -- whoever read what kind it is (the
-    hand rules above, or v698's encoder)."""
+    hand rules above, or v698's encoder). `ways`: the ways of writing the
+    turn asks for (v698's encoder), added to those asked before."""
     if kind == "more" and not space.request:
         kind, detail = "request", coding.read(text)
     if kind in ("request", "more"):
         request = text if kind == "request" else _merged(space.request,
                                                          detail, text)
-        answer = coding.answered(request)
+        from research.v698 import ways as W
+        held = [] if kind == "request" else list(space.ways or ())
+        for one in ways or ():
+            held = W.merged(held, one)
+        before = None
+        if kind == "more":
+            before = (((space.found or {}).get("answer") or {}).get("code"),
+                      ((space.found or {}).get("answer") or {}).get("entry"))
+        answer = coding.answered(request, ways=held, before=before)
+        space.ways = held
         found = answer["code"]
         if kind == "more":
             found["continued"] = {"said": text, "asked": request}

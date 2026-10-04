@@ -669,6 +669,12 @@ class Solver:
             total = [one for one in hits if "!" not in doing[
                 one[0].source()]]
             hits = total or hits
+        if spec.shaped is not None:
+            # written the ways asked (`use a switch`): of what meets the
+            # examples, what is -- where anything is
+            shaped = [one for one in hits if spec.shaped(one[0])]
+            self._note("shaped", kept=len(shaped), of=len(hits))
+            hits = shaped or hits
         groups = self._agreeing(spec, hits)
 
         def rank(one):

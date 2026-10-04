@@ -210,6 +210,76 @@ TECHNIQUE_ASKS = {
     ("explain", "named"): ["is {n} recursive?", "does {n} use a loop?"],
     ("bugs", "named"): ["does {n} fail on empty input?"],
 }
+#: the way (`ways.WAYS`) each seed asks for -- a seed not here asks for
+#: none the code is checked against (`memoize it`, `fix it`)
+TECHNIQUE_WAYS = {
+    "make it recursive": "recursive",
+    "rewrite it iteratively instead of recursively": "iterative",
+    "use a loop instead of recursion": ("iterative", "loop"),
+    "use recursion instead of a loop": ("recursive", "no-loop"),
+    "use a switch statement": "switch",
+    "use if/else instead of the switch": "ifs",
+    "use a ternary": "ternary",
+    "use a for loop instead of map": "for",
+    "use map and filter instead of the loop": ("map", "filter",
+                                               "no-loop"),
+    "use reduce": "reduce", "use a while loop": "while",
+    "use a for...of loop": "for-of", "use forEach instead": "forEach",
+    "use a regex": "regex", "do it without a regex": "no-regex",
+    "use a Set instead of an array": "set",
+    "use a Map instead of an object": "map-object",
+    "use async/await instead of promises": "async",
+    "use an arrow function": "arrow",
+    "make it a function declaration": "declaration",
+    "use a class": "class",
+    "use string methods instead of a loop": "no-loop",
+    "use the spread operator": "spread", "use destructuring": "destructuring",
+    "use const instead of let": "const",
+    "use template literals": "template",
+    "make it shorter": "shorter", "make it a one-liner": "one-liner",
+    "make it tail recursive": "recursive",
+    "write a recursive function that reverses a string": "recursive",
+    "write an iterative fibonacci": "iterative",
+    "write a function that uses a switch to name the day of the week":
+        "switch",
+    "write a function that uses reduce to sum a list": "reduce",
+    "using a regex, write a function that finds all numbers in a string":
+        "regex",
+    "write a function with a while loop that counts the digits of n":
+        "while",
+}
+#: ways no seed above names, said again as changes
+MORE_TECHNIQUES = [
+    ("use a loop", "loop"), ("get rid of the loops", "no-loop"),
+    ("use map", "map"), ("use filter", "filter"),
+    ("write it as a for loop", "for"), ("don't use recursion", "iterative"),
+    ("put it on one line", "one-liner"), ("can you shorten it", "shorter"),
+    ("turn the if/else chain into a switch", "switch"),
+    ("replace the switch with a ternary", "ternary"),
+    # each way beside its negation, and beside words that look like it and
+    # are not it (`restructure` is not destructuring, `.map` is not a Map,
+    # `forget the class` is not a class) -- what the reader confused
+    ("no regex", "no-regex"), ("drop the regex", "no-regex"),
+    ("regex isn't needed here", "no-regex"),
+    ("use a regular expression to match it", "regex"),
+    ("no recursion please", "iterative"), ("avoid recursion", "iterative"),
+    ("no loops", "no-loop"), ("avoid the for loop", "no-loop"),
+    ("no switch, just ifs", "ifs"), ("forget the switch", "ifs"),
+    ("forget the class, just a function", "declaration"),
+    ("not a class, a plain function", "declaration"),
+    ("wrap it in a class", "class"), ("make it a class with a method", "class"),
+    ("restructure the code", "none"), ("add documentation", "none"),
+    ("clean up the structure of it", "none"), ("add a doc comment", "none"),
+    ("destructure the arguments", "destructuring"),
+    ("destructure the object it gets", "destructuring"),
+    ("use the map method on the array", "map"),
+    ("map over the items instead", "map"),
+    ("store them in a Map", "map-object"),
+    ("use a hash map (a Map object)", "map-object"),
+    ("make it more concise", "shorter"), ("trim it down", "shorter"),
+    ("use const everywhere", "const"), ("const, not let", "const"),
+]
+
 TECHNIQUE_MAKES = [
     "write a recursive function that reverses a string",
     "write an iterative fibonacci",
@@ -461,6 +531,37 @@ def jobs() -> list:
                     f"coding assistant: \"{seed}\". " + STYLE,
                     {"act": "make", "aspect": "none", "subject": "none",
                      "paraphrase": True, "seed": seed}))
+    # every way of writing (`ways.WAYS`), asked for in a request for new
+    # code and in a change, named as the code is checked against it
+    from research.v698.ways import WAYS
+    more = random.Random(SEED + 1)
+    for at, (seed, way) in enumerate(MORE_TECHNIQUES):
+        out.append((f"tech2|last|{at}", f"A coding assistant has just "
+                    f"written a function. Say this follow-up message in 12 "
+                    f"different ways, as the programmer would type it next, "
+                    f"short ones too, without naming the function: "
+                    f"\"{seed}\". " + STYLE,
+                    {"act": "change", "aspect": "none", "subject": "last",
+                     "paraphrase": True, "seed": seed, "way": way}))
+    for way, (_, said, _) in WAYS.items():
+        if way == "none":
+            continue
+        for at, (entry, english) in enumerate(more.sample(found["requests"],
+                                                          2)):
+            out.append((f"waymake|{way}|{at}", f"Write 12 different ways a "
+                        f"programmer might ask a coding assistant for this, "
+                        f"each one asking for it to be written {said}: "
+                        f"\"{english}\" " + STYLE,
+                        {"act": "make", "aspect": "none", "subject": "none",
+                         "way": way}))
+        entry, english = more.choice(found["requests"])
+        out.append((f"waychange|{way}", f"A coding assistant has just "
+                    f"written a function for this request: \"{english}\". "
+                    f"Write 12 different messages the person might type "
+                    f"next asking it to rewrite the function {said}, "
+                    f"without naming the function. " + STYLE,
+                    {"act": "change", "aspect": "none", "subject": "last",
+                     "way": way}))
     for word in EVERYDAY:
         out.append((f"none|{word}", f"Write 12 different everyday messages "
                     f"that have nothing to do with software, using the word "
@@ -575,6 +676,75 @@ def _picked(reply: str, options: list) -> str | None:
         return None
     at = LETTERS.index(found.group(1))
     return options[at][0] if at < len(options) else None
+
+
+#: each message's ways of writing, checked by the teacher one family at a
+#: time (`check_ways`)
+WAYS_CHECKED = DATA / "ways-checked.jsonl"
+
+
+def _code_not_words(line: str) -> bool:
+    """A line the teacher wrote that is code, not a message
+    (`function checklength() {`, `s[j] = temp;`): a fragment of what it
+    was asked about."""
+    return bool(re.search(r"[{};]|\bvar\b|\w\s*=\s*\w|\w\[\w+\]", line))
+
+
+def _family_choice(line: str, family: str) -> tuple:
+    """(prompt, options) asking which of a family's ways a message asks the
+    code to be written with -- or none of them."""
+    from research.v698.ways import WAYS
+    options = [(way, said) for way, (fam, said, _) in WAYS.items()
+               if fam == family]
+    options.append(("none", "none of these"))
+    return _choice(line, options, "Which does it ask the code to be "
+                   "written with?"), options
+
+
+def check_ways(batch: int = 24) -> dict:
+    """Each message a way of writing is known of (`way_of`), put back to the
+    teacher once for each family of its ways: which of the family's ways it
+    asks for, or none. Kept as it goes."""
+    from research.v696.teach_meaning import Teacher
+    from research.v698.ways import WAYS
+    done = set()
+    if WAYS_CHECKED.exists():
+        done = {(row["key"], row["line"], row["family"]) for row in
+                map(json.loads, WAYS_CHECKED.open(encoding="utf-8"))}
+    todo = []
+    for row in map(json.loads, WRITTEN.open(encoding="utf-8")):
+        ways = way_of(row["key"], row["meta"])
+        if not ways or "none" in ways:
+            continue
+        for line in dict.fromkeys(row["lines"]):
+            if _code_not_words(line):
+                continue
+            for way in ways:
+                family = WAYS[way][0]
+                if (row["key"], line, family) not in done:
+                    todo.append((row["key"], line, family, way))
+    print(f"{len(todo)} ways to check", flush=True)
+    if not todo:
+        return {}
+    teacher = Teacher()
+    agreed = total = 0
+    for at in range(0, len(todo), batch):
+        chunk = todo[at:at + batch]
+        asked = [_family_choice(line, family) for _, line, family, _
+                 in chunk]
+        replies = teacher.write([prompt for prompt, _ in asked], longest=3)
+        with WAYS_CHECKED.open("a", encoding="utf-8") as out:
+            for (key, line, family, way), (_, options), reply in zip(
+                    chunk, asked, replies):
+                picked = _picked(reply[0], options)
+                agreed += picked == way
+                total += 1
+                out.write(json.dumps({"key": key, "line": line,
+                                      "family": family, "way": way,
+                                      "picked": picked}) + "\n")
+        print(f"  {min(at + batch, len(todo))}/{len(todo)}: agreed {agreed} "
+              f"of {total}", flush=True)
+    return {"agreed": agreed, "checked": total}
 
 
 def check(batch: int = 24) -> dict:
@@ -699,12 +869,93 @@ def _swapped(said: list, roles: list, old: str, new: str) -> list | None:
     return out
 
 
-def record(words_, roles, act, aspect, subject, source) -> dict:
-    return {"task": "code", "words": words_, "roles": roles, "act": act,
-            "aspect": aspect, "subject": subject,
-            "tags": [""] * len(words_), "deps": [""] * len(words_),
-            "names": [], "said": " ".join(words_), "source": source,
-            "how": source}
+def record(words_, roles, act, aspect, subject, source,
+           ways=None) -> dict:
+    out = {"task": "code", "words": words_, "roles": roles, "act": act,
+           "aspect": aspect, "subject": subject,
+           "tags": [""] * len(words_), "deps": [""] * len(words_),
+           "names": [], "said": " ".join(words_), "source": source,
+           "how": source}
+    if ways is None and act not in ("make", "change"):
+        # a question, a call, teaching, what is not code talk: no way of
+        # writing is asked for
+        ways = []
+    if ways is not None:
+        # the set of ways asked for (`ways.WAYS`), "none" being none
+        out["ways"] = sorted(set(_listed(ways)) - {"none"})
+    return out
+
+
+def _listed(ways) -> list:
+    """A way (`switch`) or several (`("map", "filter", "no-loop")`)."""
+    if ways is None:
+        return []
+    return [ways] if isinstance(ways, str) else list(ways)
+
+
+#: what joins two asks in one message
+JOINS = (["and"], ["and", "also"], ["also"], ["and", "then"], ["plus"],
+         [",", "and"], [";", "also"], ["and", "make", "sure", "to"])
+
+
+def _together(rows: list, rng: random.Random, count: int) -> list:
+    """Messages asking for the ways of two at once: a request or a change,
+    then a change of `it` (`use a switch, and make it recursive`) -- the
+    ways of both, where no two of them are of one family (`recursive` and
+    `iterative`)."""
+    from research.v698.ways import WAYS
+    firsts = [one for one in rows if one["act"] in ("make", "change")
+              and one.get("ways")]
+    seconds = [one for one in rows if one["act"] == "change"
+               and "ways" in one and one["subject"] == "last"]
+    out = []
+    if not firsts or not seconds:
+        return out
+    for _ in range(count * 3):
+        if len(out) >= count:
+            break
+        a, b = rng.choice(firsts), rng.choice(seconds)
+        mine = {WAYS[one][0]: one for one in a["ways"]}
+        if any(mine.get(WAYS[one][0], one) != one for one in b["ways"]):
+            # the second takes back what the first asked (recursive, then
+            # iterative): not one message
+            continue
+        both = sorted(set(a["ways"]) | set(b["ways"]))
+        join = rng.choice(JOINS)
+        made = record(a["words"] + join + b["words"],
+                      a["roles"] + ["O"] * len(join) + b["roles"],
+                      a["act"], "none", a["subject"],
+                      f"together: {a['source']} + {b['source']}", both)
+        made["tags"] = a["tags"] + [""] * len(join) + b["tags"]
+        out.append(made)
+    return out
+
+
+def way_of(key: str, meta: dict) -> list | None:
+    """The ways of writing a message was written asking for (`ways.WAYS`):
+    as its job said, or as its seed does; None where that is not known
+    (a request or a change written freely), and the reader is not taught
+    any for it."""
+    if meta.get("way"):
+        return _listed(meta["way"])
+    if key.startswith("techmake|"):
+        return _listed(TECHNIQUE_WAYS.get(meta.get("seed", ""), "none"))
+    if key.startswith("tech|"):
+        return _listed(TECHNIQUE_WAYS.get(_unnamed(meta), "none"))
+    return None
+
+
+def _unnamed(meta: dict) -> str:
+    """A seed with its function named (`make insert_element recursive`)
+    as it was before the name was put in (`make it recursive`)."""
+    seed, name = meta.get("seed", ""), meta.get("name")
+    if not name:
+        return seed
+    for one in TECHNIQUES:
+        if re.sub(r"\b(it|that)\b", name, one, count=1) == seed \
+                or f"{one} in {name}" == seed:
+            return one
+    return seed
 
 
 def corpus(negatives: int = 4000) -> dict:
@@ -751,7 +1002,7 @@ def corpus(negatives: int = 4000) -> dict:
     lowered = {one.lower() for one in names}
 
     def swap(made, old: str, held: bool, act: str, aspect: str,
-             source: str, times: int = 2) -> None:
+             source: str, times: int = 2, way: str | None = None) -> None:
         """The same message naming functions of other shapes -- a name in
         camelCase, a name that is an English word -- held where either
         name is."""
@@ -760,8 +1011,32 @@ def corpus(negatives: int = 4000) -> dict:
             swapped = _swapped(said, roles, old, new)
             if swapped is not None:
                 put(record(swapped, roles, act, aspect, "named",
-                           source + " renamed"),
+                           source + " renamed", way),
                     held or _held("name|" + new))
+
+    checked_ways = {}
+    if WAYS_CHECKED.exists():
+        checked_ways = {(row["key"], row["line"], row["family"]):
+                        row["picked"] for row in
+                        map(json.loads, WAYS_CHECKED.open(encoding="utf-8"))}
+
+    def confirmed(key: str, line: str, meta: dict):
+        """The ways a message was written asking for, where the teacher,
+        choosing among each family's ways, chose them (`check_ways`) --
+        else None: not taught any. A seed is as it was written."""
+        from research.v698.ways import WAYS
+        ways = way_of(key, meta)
+        if not ways or "none" in ways or line == meta.get("seed"):
+            return ways
+        if _code_not_words(line):
+            return None
+        for way in ways:
+            picked = checked_ways.get((key, line, WAYS[way][0]))
+            # a for loop is a loop: `with a loop` chosen for it agrees
+            if picked != way and not (picked == "loop" and way in (
+                    "for", "while", "for-of")):
+                return None
+        return ways
 
     def keeps(key: str, line: str, meta: dict) -> bool:
         if key.startswith("techask|") and line != meta.get("seed"):
@@ -799,8 +1074,9 @@ def corpus(negatives: int = 4000) -> dict:
                 continue
             held = _held(line) or (meta.get("name") is not None
                                    and _held("name|" + meta["name"]))
+            ways = confirmed(row["key"], line, meta)
             rec = record(*made, meta["act"], meta["aspect"], meta["subject"],
-                         row["key"])
+                         row["key"], ways)
             if meta.get("word"):
                 # the everyday word that is also a function's name: marked
                 # as it would be where a project has that function
@@ -808,7 +1084,7 @@ def corpus(negatives: int = 4000) -> dict:
             put(rec, held)
             if meta.get("subject") == "named" and meta.get("name"):
                 swap(made, meta["name"], held, meta["act"], meta["aspect"],
-                     row["key"])
+                     row["key"], way=ways)
     for entry, english in found["requests"]:
         said = words(english)
         put(record(said, ["O"] * len(said), "make", "none", "none",
@@ -816,10 +1092,10 @@ def corpus(negatives: int = 4000) -> dict:
     for text in rng.sample(found["examples"], min(900, len(found["examples"]))):
         said = words(text)
         roles = ["B-SUBJ"] + ["O"] * (len(said) - 1)
-        put(record(said, roles, "change", "none", "named", "mbpp example"),
-            _held(text))
+        put(record(said, roles, "change", "none", "named", "mbpp example",
+                   []), _held(text))
         swap((said, roles), text.split("(")[0], _held(text), "change",
-             "none", "mbpp example")
+             "none", "mbpp example", way=[])
     for entry, args in rng.sample(found["calls"], min(500, len(found["calls"]))):
         said = words(f"{entry}({args})")
         roles = ["B-SUBJ"] + ["O"] * (len(said) - 1)
@@ -842,6 +1118,9 @@ def corpus(negatives: int = 4000) -> dict:
         said = [str(one).lower() for one in said]
         put(record(said, ["O"] * len(said), "none", "none", "none",
                    "not code"), _held(" ".join(said)))
+    # several ways in one message, each part from its own split
+    rows["train"] += _together(rows["train"], rng, 6000)
+    rows["valid"] += _together(rows["valid"], rng, 1200)
     DATA.mkdir(parents=True, exist_ok=True)
     stats = {}
     for part, made in rows.items():
@@ -863,7 +1142,8 @@ def corpus(negatives: int = 4000) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("job", choices=("lists", "write", "check", "corpus"))
+    parser.add_argument("job", choices=("lists", "write", "check",
+                                        "check-ways", "corpus"))
     parser.add_argument("--samples", type=int, default=2)
     args = parser.parse_args(argv)
     if args.job == "lists":
@@ -872,6 +1152,8 @@ def main(argv=None) -> int:
         write(samples=args.samples)
     elif args.job == "check":
         print(check())
+    elif args.job == "check-ways":
+        print(check_ways())
     else:
         corpus()
     return 0

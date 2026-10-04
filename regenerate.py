@@ -1089,9 +1089,9 @@ def _code_talk_check() -> str | None:
     if not path.exists():
         return None
     count = sum(1 for _ in path.open(encoding="utf-8"))
-    if count < 17000:
-        raise Failed(f"code-talk: {count} records, expected 17000+ "
-                     f"(17778 when made)")
+    if count < 24000:
+        raise Failed(f"code-talk: {count} records, expected 24000+ "
+                     f"(24678 when made)")
     return f"{count} records"
 
 
@@ -1429,6 +1429,7 @@ def steps() -> list[Step]:
              lambda: (_run("research.v698.teach_code_talk", "lists"),
                       _run("research.v698.teach_code_talk", "write"),
                       _run("research.v698.teach_code_talk", "check"),
+                      _run("research.v698.teach_code_talk", "check-ways"),
                       _run("research.v698.teach_code_talk", "corpus")),
              _code_talk_check, needs=("multipl-e", "smollm3", "reader-corpus",
                                       "math-corpus"),
@@ -1455,6 +1456,18 @@ def steps() -> list[Step]:
                           "--subject", "design", "--subject", "code"),
              _model_check(LLM / "reader-code9", 80),
              needs=("reader-code",), cost="fifteen minutes", gpu=True),
+        # which ways of writing a message asks for (research/v698/ways.py):
+        # a head over the reader of meaning, as the risk estimators are --
+        # the shared reader is not touched (taught it, v689 lost compound
+        # statements each time)
+        Step("ways-estimator", "which ways of writing code a message asks "
+                               "for, read over the reader of meaning",
+             lambda: _run("research.v698.asked_ways", "tune"),
+             lambda: (f"chosen {json.loads((LLM / 'ways-estimator' / 'ways.json').read_text(encoding='utf-8'))['chosen']}"
+                      if (LLM / "ways-estimator" / "ways.json").exists()
+                      else None),
+             needs=("code-talk", "meaning"), cost="ten minutes",
+             gpu=True),
         Step("vscode-extension", "the VS Code harness, packed as a .vsix "
                                  "(install: package.py --install)",
              _vsix_make, _vsix_check, cost="seconds"),

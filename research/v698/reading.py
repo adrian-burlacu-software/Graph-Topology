@@ -12,6 +12,11 @@ has four heads for it:
     code_role     each word: the subject's phrase (SUBJ), or -- teaching --
                   the concept (CONCEPT) and its members (MEMBER)
 
+and, of a request or a change, the set of ways of writing it asks for
+(`ways.py`: switch, recursive, iterative, map, filter, no-loop, ...) -- any
+number at once -- read by an encoder of its own (`asked_ways.py`: the
+reader of meaning, as the risk estimators read a request).
+
 Nothing here matches a word: what the encoder reads is taken as read, and
 what a SUBJ phrase *names* is resolved exactly afterwards (`asking.py`:
 the project's index, its files, the conversation's code). Below `FLOOR`
@@ -44,6 +49,8 @@ class Reading:
     acts: list = field(default_factory=list)
     #: the words known to be code here, as typed (`_known`)
     known: list = field(default_factory=list)
+    #: the ways of writing asked for (`ways.WAYS`), in the order said
+    ways: list = field(default_factory=list)
 
     def json(self) -> dict:
         return {"act": self.act, "chance": round(self.chance, 3),
@@ -51,7 +58,7 @@ class Reading:
                 "aspect chance": round(self.aspect_chance, 3),
                 "subject": self.subject, "words": self.words,
                 "roles": self.roles, "spans": self.spans,
-                "known": self.known,
+                "known": self.known, "ways": self.ways,
                 "acts": [[one, round(p, 3)] for one, p in self.acts[:4]]}
 
 
@@ -130,9 +137,14 @@ def read(text: str, known=()) -> Reading | None:
     roles = found["code_role"]
     typed = _typed(text, said)
     tags = _known(said, known)
+    ways = []
+    if act in ("make", "change") and chance >= FLOOR:
+        from research.v698 import asked_ways
+        # as it was taught: the words, lower case, as the reader reads them
+        ways = [one for one, _ in asked_ways.read(" ".join(said))]
     return Reading(act, chance, aspect, aspect_chance, subject, said, roles,
                    _spans(typed, roles), found["code_act"],
-                   [word for word, tag in zip(typed, tags) if tag])
+                   [word for word, tag in zip(typed, tags) if tag], ways)
 
 
 def code_talk(text: str, known=()) -> Reading | None:

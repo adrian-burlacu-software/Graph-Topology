@@ -144,6 +144,24 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return {"uses": reply["uses"], "root": reply["root"]}
 
+    def shape(self, source: str, entry: str) -> dict:
+        """How `source` is written, off its syntax: {uses, recursive, entry
+        (function / arrow / method / None), statements, lines}
+        (`tscheck.js`, v698 `ways.py`)."""
+        reply = self._ask({"op": "shape", "source": source, "entry": entry})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["shape"]
+
+    def restyle(self, source: str, entry: str, way: str) -> str | None:
+        """The same program written `way` (arrow, declaration, switch,
+        ifs) where that is syntax alone, else None (`tscheck.js`)."""
+        reply = self._ask({"op": "restyle", "source": source,
+                           "entry": entry, "way": way})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply.get("source")
+
     def outline(self, files: dict) -> dict:
         """A project's outline, off its syntax: {file: {functions: [{name,
         kind, class, exported, start, end, params, returns, async, calls}],

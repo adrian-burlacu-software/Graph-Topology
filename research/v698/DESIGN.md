@@ -167,9 +167,73 @@ request is what was typed.
   from `reader-code7` (2 epochs, `reader-code9`) the whole suite passes
   (1514). Held-out act 72.0% (code7) -> 98.0%, aspect 84.9% -> 88.7%;
   38 hand probes 22 -> 32.
-- **Still open**: the change is read, but nothing checks the rewrite does
-  it -- *use a switch statement* is said to the writers as words, and the
-  answer kept need not have a switch.
+- **Still open** (closed below): the change is read, but nothing checks
+  the rewrite does it.
+
+## Code written the ways asked (2026-10-04)
+
+Adrian: make it work with the technique asked for -- and a function can be
+asked several at once, across its lines.
+
+- **What a way is** (`ways.py`): 28 ways in families -- branch (switch,
+  ifs, ternary), recursion (recursive, iterative), loop (loop, no-loop,
+  for, while, for-of), map (.map, a Map), filter, reduce, forEach, regex
+  (regex, no-regex), set, async, form (arrow, declaration, class), length
+  (one-liner, shorter), template, spread, destructuring, const -- each a
+  test on the program's **shape** (`tscheck.js` `shape`, syntax only, the
+  whole source with its helpers: what it is written with, whether a
+  function calls itself, how the entry is bound, statements, lines). A way
+  the code is not checked against (*memoize it*) is not one.
+- **Held across a conversation** (`Workspace.ways`, `ways.merged`): a
+  change adds its ways; a later way of a family replaces the earlier
+  (*recursive* then *iterative*); others accumulate.
+- **Enforced**: the writers are told; the search chooses only among
+  programs that meet the examples *and* are written the ways asked
+  (`Spec.shaped`, `Solver._chosen`) -- one tree may be written with a
+  switch by one writer and ifs by another, so the check is on the text;
+  the answer shown is the text so written. Where none is: the answer
+  **restyled** where that is syntax alone (`tscheck.js` `restyle`: arrow
+  <> declaration, a conditional chain or guarded returns <> a switch <>
+  ifs), its printed form (one line, `?:`, no loops), then the writers asked
+  to rewrite it -- each kept only so written and doing the same on the
+  examples and inputs varied from them. Where nothing is, it says so, and
+  what it is and is not written (chips on the code: ✓ / ✗ per way).
+- **A switch is read** (`tscheck.js` `switched`, `branch`): the parser
+  reads it as the chain of ifs it means (grouped cases, `break`, a default
+  anywhere, `switch (true)`); a case running on into the next is not read.
+- **Which ways a message asks for, read by an encoder of its own**
+  (`asked_ways.py`, `llm/ways-estimator`): as the risk estimators read a
+  request -- the reader of meaning (`meaning-unixcoder`) -- but tuned, a
+  copy of it with a set head: one yes/no per way, any number at once;
+  within a family only the likeliest is read; each way's floor chosen so
+  that what is read of it is 85% precise on one held-out half.
+- **Why not the shared reader**: taught a `code_way` head, the shared
+  encoder moved and v689's compound statements broke each time
+  (`reader-code10`, `-12`; even `reader-design4` reads *cats meow and dogs
+  bark* as one claim -- v689's `compound` is thinly taught); frozen, with
+  heads of its own (`-11`, `-13`..`-15`), it read 57-71% of messages
+  exactly. Frozen features of the reader of meaning, as risk's: 40%. Its
+  own encoder, tuned: 87%.
+- **The labels**: the teacher's messages per way (seeds of both directions,
+  negations, look-alikes -- *restructure* is not destructuring, `.map` is
+  not a Map, *forget the class* is not a class; a request and a change per
+  way); two joined as one message (their ways together); each way of each
+  message put back to the teacher as a choice among its family's ways
+  (`check_ways`: 75% agreed) and dropped where it chose otherwise; code
+  fragments it wrote (`s[j] = temp;`) dropped.
+
+**`ways-estimator`, measured on the held-out half nothing was chosen by**
+(2,458 messages): precision 94.0%, recall 94.1%; of 818 asking for some
+way, 87.4% read exactly; of 351 asking for several, 85.5% exactly (96.2%
+precise); 98.7% of those asking for none read as none. Every way at least
+80% precise, both directions of every family: lowest regex 80.0%,
+map-object 80.0% (12 and 24 asked), declaration 80.6%, loop 81.8%.
+
+End to end (by hand, not the page): `day` with *use a switch* → a writer's
+switch; `total` *as an arrow function* → restyled, same on 7 inputs;
+*with a while loop and as an arrow function* and *recursively and as an
+arrow function* → both; `label(5) === "5"` with a switch → none written
+meets it, said so. The suite: 1,518, all pass.
 
 ## Knowledge from talking about code
 

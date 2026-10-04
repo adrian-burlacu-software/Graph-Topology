@@ -155,6 +155,68 @@ class PastedTests(unittest.TestCase):
         self.assertEqual(classify("twice([1, 2])", space, 1), ("call", "[1, 2]"))
 
 
+SWITCHED = ('function day(n: number): string {\n  switch (n) {\n'
+            '    case 0: return "Sun";\n    case 1: case 7: return "Mon";\n'
+            '    default: return "?";\n  }\n}\n')
+
+
+@needs_node
+class WaysTests(unittest.TestCase):
+    """Ways of writing (`ways.py`): a switch read as the chain it means,
+    each way checked on how code is written, restyled where that is syntax
+    alone, held across a conversation's changes."""
+
+    def test_a_switch_is_read_as_the_chain_it_means(self):
+        from research.v696.parse import parse
+        tree = parse(SWITCHED, "day", [("n", "number")])
+        self.assertEqual(tree.source(), '((n === 0) ? "Sun" : (((n === 1) || '
+                                        '(n === 7)) ? "Mon" : "?"))')
+        falls = ('function f(n: number): string {\n  let s = "";\n'
+                 '  switch (n) {\n    case 1: s = "a";\n    default: s += "b";'
+                 '\n  }\n  return s;\n}\n')
+        self.assertIsNone(parse(falls, "f", [("n", "number")]))
+
+    def test_each_way_is_checked_on_the_code(self):
+        from research.v696.checker import checker
+        from research.v698 import ways as W
+        shape = checker().shape(SWITCHED, "day")
+        self.assertTrue(W.fits(shape, ["switch", "iterative", "declaration"]))
+        self.assertEqual(W.missing(shape, ["switch", "recursive", "arrow"]),
+                         ["recursive", "arrow"])
+        fact = "const fact = (n: number): number => n < 2 ? 1 : n * fact(n - 1);"
+        shape = checker().shape(fact, "fact")
+        self.assertTrue(W.fits(shape, ["recursive", "arrow", "one-liner",
+                                       "ternary", "no-loop", "const"]))
+
+    def test_restyled_where_it_is_syntax_alone(self):
+        from research.v696.checker import checker
+        from research.v698 import ways as W
+        chained = ('function day(n: number): string {\n'
+                   '  return n === 0 ? "Sun" : n === 1 || n === 7 ? "Mon" '
+                   ': "?";\n}\n')
+        switched = checker().restyle(chained, "day", "switch")
+        self.assertIn("case 7:", switched)
+        rows = checker().run(switched, "day", [[0], [7], [3]])
+        self.assertEqual([row["value"] for row in rows], ["Sun", "Mon", "?"])
+        ifs = checker().restyle(SWITCHED, "day", "ifs")
+        self.assertTrue(W.fits(checker().shape(ifs, "day"), ["ifs"]))
+        arrow = checker().restyle(SWITCHED, "day", "arrow")
+        self.assertTrue(W.fits(checker().shape(arrow, "day"),
+                               ["arrow", "switch"]))
+        self.assertIsNone(checker().restyle(
+            "function f(n: number): number {\n  return n + 1;\n}\n", "f",
+            "switch"))
+
+    def test_ways_held_across_changes(self):
+        from research.v698 import ways as W
+        held = W.merged([], "switch")
+        held = W.merged(held, "recursive")
+        self.assertEqual(W.merged(held, "iterative"), ["switch", "iterative"])
+        self.assertEqual(W.merged(held, "none"), held)
+        self.assertEqual(W.said(["switch", "reduce"]),
+                         "with a switch statement and with .reduce")
+
+
 @needs_node
 class ExtensionTests(unittest.TestCase):
     def test_the_extension_parses_and_its_library_holds(self):

@@ -84,10 +84,10 @@ def _act(read, text: str, session, memory) -> dict | None:
     turn = v697_page._turn(memory)
     if read.act == "make":
         return conversation.respond("request", coding.read(text), text,
-                                    space, turn)
+                                    space, turn, ways=read.ways)
     if read.act == "change":
         return conversation.respond("more", coding.read(text), text, space,
-                                    turn)
+                                    turn, ways=read.ways)
     if read.act == "teach":
         return knowledge.taught(read, text)
     if read.act == "run":
