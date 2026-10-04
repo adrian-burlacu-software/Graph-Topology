@@ -536,6 +536,10 @@ class Solver:
                 more += M.pair_probes(spec.examples)
             if "cross" in self._moves:
                 more += M.pair_probes(spec.examples, edges=True)
+            if "wide" in self._moves:
+                # values of its types far from the examples (a
+                # conversation's code: `day(7)` where `day(0)` is given)
+                more += M.wide_probes([kind for _, kind in spec.params])
             seen, probes[key] = set(), []
             for one in more:
                 if _key(one) not in seen:
@@ -549,11 +553,16 @@ class Solver:
         todo = [one for one in programs
                 if one.source() not in self._behaving]
         cases = self._beyond(spec)
+        # nothing given back where the type promises something is no more
+        # an answer than a throw (`day(7)` of a switch with no default)
+        promised = spec.returns not in ("void", "undefined") and \
+            "undefined" not in spec.returns
         if todo and cases:
             rows = self._evaluate(spec, todo, cases)
             for one, row in zip(todo, rows):
                 self._behaving[one.source()] = tuple(
-                    _key(cell["value"]) if "value" in cell else "!"
+                    _key(cell["value"]) if "value" in cell and not (
+                        promised and cell["value"] is None) else "!"
                     for cell in row[len(spec.cases):])
         for one in todo:
             self._behaving.setdefault(one.source(), ())

@@ -207,6 +207,29 @@ class WaysTests(unittest.TestCase):
             "function f(n: number): number {\n  return n + 1;\n}\n", "f",
             "switch"))
 
+    def test_a_function_written_out_is_the_persons_own(self):
+        from research.v697 import coding
+        asked = coding.read("what about\n" + SWITCHED)
+        self.assertEqual(asked["yours"], SWITCHED.strip())
+        self.assertEqual((asked["entry"], asked["english"], asked["examples"]),
+                         ("day", "what about.", []))
+
+    def test_guarded_returns_falling_off_restyled_as_they_are(self):
+        from research.v696.checker import checker
+        guarded = ('function day(n: number): string {\n'
+                   '  if (n === 0) return "Sun";\n'
+                   '  if (n === 6) return "Sat";\n}\n')
+        switched = checker().restyle(guarded, "day", "switch")
+        self.assertNotIn("default", switched)
+        rows = checker().run(switched, "day", [[0], [6], [9]])
+        self.assertEqual([row.get("value") for row in rows],
+                         ["Sun", "Sat", None])
+
+    def test_values_far_from_the_examples(self):
+        from research.v696 import meaning as M
+        self.assertIn([7], M.wide_probes(["number"]))
+        self.assertEqual(M.wide_probes(["Map<string, number>"]), [])
+
     def test_ways_held_across_changes(self):
         from research.v698 import ways as W
         held = W.merged([], "switch")

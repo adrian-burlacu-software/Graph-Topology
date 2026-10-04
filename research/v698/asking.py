@@ -734,13 +734,38 @@ def _code_gaps(space, text: str) -> dict:
                             row.get("value"))})
         edges = (M.edge_probes(pairs) + M.probes(pairs)) if pairs else \
             (found.get("open") or {}).get("inputs") or []
+        # and inputs of its types, far from the examples too: what is
+        # varied from `day(0)` is `day(1)`, and `day(7)` is the gap
+        for args in M.wide_probes([kind for _, kind in
+                                   request.get("params") or ()]):
+            if args not in edges:
+                edges.append(args)
         rows = checker().run(code, entry, edges) if edges else []
+        returns = request.get("returns") or ""
+        # a type that promises a value: nothing given back breaks it
+        promised = returns and returns not in ("void", "undefined") and \
+            "undefined" not in returns
         for args, row in zip(edges, rows):
             if "error" in row:
                 contradicted.append({
                     "where": f"{entry}({', '.join(map(json.dumps, args))})",
                     "promise": "to give a result for any input of its types",
                     "found": f"throws: {row['error']}"})
+            elif promised and row.get("value") is None:
+                contradicted.append({
+                    "where": f"{entry}({', '.join(map(json.dumps, args))})",
+                    "promise": f"its type: a {returns}",
+                    "found": "gives nothing (undefined)"})
+        # and what the compiler, strict, finds of it
+        try:
+            said = checker().diagnose({"/answer.ts": code}, strict=True)
+        except Exception:                           # noqa: BLE001
+            said = []
+        for one in said:
+            line = code[:one.get("start", 0)].count("\n") + 1
+            contradicted.append({
+                "where": f"line {line}", "promise": "the compiler, strict",
+                "found": one.get("message", "").rstrip(".")})
     others = C._others(space, text)["code"]["followup"]["looked"].get(
         "others") or []
     for one in others:

@@ -153,7 +153,10 @@ def respond(kind: str, detail, text: str, space: Workspace,
         if kind == "more":
             before = (((space.found or {}).get("answer") or {}).get("code"),
                       ((space.found or {}).get("answer") or {}).get("entry"))
-        answer = coding.answered(request, ways=held, before=before)
+        # a function the person wrote for it, this turn: tried with the rest
+        yours = detail.get("yours") if isinstance(detail, dict) else None
+        answer = coding.answered(request, ways=held, before=before,
+                                 yours=yours)
         space.ways = held
         found = answer["code"]
         if kind == "more":
@@ -163,11 +166,41 @@ def respond(kind: str, detail, text: str, space: Workspace,
                 + answer["spoken"][:1].lower() + answer["spoken"][1:])
         space.request, space.found, space.turn = (found["request"], found,
                                                   turn)
+        answer["suggest"] = _settle(found)
         return answer
     space.turn = turn
     if kind == "call":
         return _call(space, detail, text)
     return _question(space, detail, text)
+
+
+def _settle(found: dict) -> list:
+    """What to ask next of an answer nothing confirms: the example that
+    would settle it, at inputs of its types no example covers -- where it
+    gives nothing or throws first, then far from the examples (`day(7) ==
+    ?` where only `day(0)` was given) -- and whether it has bugs."""
+    from research.v696 import meaning as M
+    from research.v696.checker import CheckerError, checker
+    answer = found.get("answer") or {}
+    code, entry = answer.get("code"), answer.get("entry")
+    out = [{"text": "are there any bugs in it", "send": True}]
+    if not code or not entry or answer.get("status") == "confirmed":
+        return out
+    request = found.get("request") or {}
+    given = [list(one["args"]) for one in request.get("examples") or ()]
+    probes = [args for args in M.wide_probes(
+        [kind for _, kind in request.get("params") or ()])
+        if args not in given]
+    try:
+        rows = checker().run(code, entry, probes) if probes else []
+    except CheckerError:
+        rows = []
+    ranked = sorted(zip(probes, rows), key=lambda one: (
+        "error" not in one[1] and one[1].get("value") is not None,
+        -sum(abs(x) for x in one[0] if isinstance(x, (int, float)))))
+    asks = [{"text": f"{entry}({', '.join(map(json.dumps, args))}) == ?",
+             "send": False} for args, _ in ranked[:2]]
+    return asks + out
 
 
 # -- what is said of the code it answered -------------------------------------

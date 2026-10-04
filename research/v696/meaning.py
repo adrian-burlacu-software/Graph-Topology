@@ -399,6 +399,26 @@ def _fresh(examples: list, seen: set, out: list, fresh: list) -> None:
         out.append(fresh)
 
 
+#: values of each type far from any example: what is varied from `day(0)` is
+#: `day(1)`, and `day(7)`, `day(-1)` are where it may give nothing
+WIDE = {"number": [0, 1, 5, -3, 100, -1, 7],
+        "string": ["", "a", "hello world", "Abc", "  x  "],
+        "boolean": [True, False],
+        "number[]": [[], [1, 2, 3], [5, -1, 0], [7]],
+        "string[]": [[], ["a", "b"], ["hello", "world"], [""]],
+        "boolean[]": [[], [True, False]]}
+
+
+def wide_probes(kinds: list) -> list:
+    """Inputs of the parameters' types far from the examples, position by
+    position (`WIDE`); none where a type is not one of them."""
+    values = [WIDE.get(kind) for kind in kinds]
+    if not kinds or any(one is None for one in values):
+        return []
+    return [[one[at % len(one)] for one in values]
+            for at in range(max(len(one) for one in values))]
+
+
 def edge_probes(examples: list, most: int = 12) -> list:
     """Inputs at their edges (`risk.py`, the S move: examples first): each
     example's arguments with one of them at an edge of its domain."""

@@ -1888,6 +1888,11 @@ function restyle(source, entry, way) {
         && statements[at].expression) {
       chain = { arms, otherwise: statements[at].expression.getText(),
                 first: statements[0], last: statements[at] };
+    } else if (arms.length && at === statements.length) {
+      // guarded returns and nothing after them: it falls off the end
+      // where none holds, written as it was (no default, no last return)
+      chain = { arms, otherwise: null, first: statements[0],
+                last: statements[at - 1] };
     } else if (statements.length && !arms.length) {
       const last = statements[statements.length - 1];
       if (ts.isReturnStatement(last) && last.expression) {
@@ -1925,7 +1930,8 @@ function restyle(source, entry, way) {
   if (way === "ifs") {
     text = chain.arms.map(([test, value]) =>
       `if (${bare(test).getText()}) return ${value};`).concat(
-      [`return ${chain.otherwise};`]).join("\n");
+      chain.otherwise === null ? [] : [`return ${chain.otherwise};`])
+      .join("\n");
   } else {
     const tests = chain.arms.map(([test]) => compared(test));
     if (tests.some((one) => !one) || new Set(tests.map((one) => one.on))
@@ -1933,7 +1939,8 @@ function restyle(source, entry, way) {
       return null;
     text = `switch (${tests[0].on}) {\n` + chain.arms.map(([, value], at) =>
       indent(tests[at].values.map((v) => `case ${v}:`)) + ` return ${value};`)
-      .join("\n") + `\n  default: return ${chain.otherwise};\n}`;
+      .join("\n") + (chain.otherwise === null ? ""
+        : `\n  default: return ${chain.otherwise};`) + "\n}";
   }
   if (chain.expression)
     return replace(target.body, `{\n${indent(text.split("\n"))}\n}`);

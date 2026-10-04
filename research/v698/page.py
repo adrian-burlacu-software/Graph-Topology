@@ -83,7 +83,15 @@ def _act(read, text: str, session, memory) -> dict | None:
     held = Pj.project(key)
     turn = v697_page._turn(memory)
     if read.act == "make":
-        return conversation.respond("request", coding.read(text), text,
+        asked = coding.read(text)
+        if asked.get("yours") and space.request and \
+                asked.get("entry") == space.request.get("entry"):
+            # the conversation's own function, written out by the person
+            # (`what about function day(n) {...}`): more of what was asked
+            # -- its examples kept -- not a new request
+            return conversation.respond("more", asked, text, space, turn,
+                                        ways=read.ways)
+        return conversation.respond("request", asked, text,
                                     space, turn, ways=read.ways)
     if read.act == "change":
         return conversation.respond("more", coding.read(text), text, space,

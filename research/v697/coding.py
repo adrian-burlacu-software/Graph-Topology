@@ -173,16 +173,27 @@ def read(text: str) -> dict:
            "examples": [], "signature": None, "made": [], "missing": None}
     spans = []
     found = SIGNATURE.search(text)
+    yours = None
     if found:
         from research.v696.tasks import _params
         out["entry"] = found.group(1)
         out["params"] = [list(one) for one in _params(found.group(2))]
         out["returns"] = found.group(3).strip()
         spans.append(found.span())
+        # a whole function, body and all: the person's own code (`what
+        # about function day(n) { ... }`) -- a program to try, not words
+        body = re.match(r"\s*\{", text[found.end():])
+        if body:
+            close = _balanced(text, found.end() + body.end(), "}")
+            if close > 0:
+                yours = (found.start(), close + 1)
+                out["yours"] = text[found.start():close + 1]
+                spans[-1] = yours
     for call in CALL.finditer(text):
         name = call.group(1)
         if text[:call.start()].rstrip().endswith("function") or \
-                (out["entry"] and name != out["entry"]):
+                (out["entry"] and name != out["entry"]) or \
+                (yours and yours[0] <= call.start() < yours[1]):
             continue
         close = _balanced(text, call.end(), ")")
         if close < 0:
@@ -434,10 +445,11 @@ def _top(probs: dict, most: int = 10, floor: float = 0.05) -> list:
         probs.items(), key=lambda one: -one[1])[:most] if p >= floor]
 
 
-def solve(text: str, ways=(), before=None) -> dict:
+def solve(text: str, ways=(), before=None, yours=None) -> dict:
     """Everything done for a request, and its answer (`code`). `ways`: the
     ways of writing it is held to (v698), `before`: (code, entry) of the
-    answer it changes, for the ways relative to it (`shorter`)."""
+    answer it changes, for the ways relative to it (`shorter`); `yours`: a
+    function the person wrote for it -- tried as one more writer's."""
     from research.v696 import risk, sketcher
     from research.v696.experiment import CONFIGS
     from research.v696.parse import parse
@@ -448,6 +460,9 @@ def solve(text: str, ways=(), before=None) -> dict:
     started = time.time()
     timings = {}
     asked = read(text)
+    yours = yours or asked.get("yours")
+    if yours:
+        asked["yours"] = yours
     out = {"request": asked, "timings": timings}
     held = _Held(ways, before) if ways else None
     if asked["missing"]:
@@ -496,6 +511,12 @@ def solve(text: str, ways=(), before=None) -> dict:
         [said_as(spec)], [_surface(spec.english, spec.params, spec.returns,
                                    spec.examples)])[0]
     spec.moves = risk.moves(spec.risk, risk.MOVES - {"budget"})
+    # in a conversation, a program that gives nothing (or throws) beyond the
+    # examples is not chosen over one that answers there: `day` without a
+    # default over `day(n % 7)`, whatever the risks say -- tried on values
+    # of its types far from the examples too (`day(7)`)
+    spec.moves = dataclasses.replace(spec.moves,
+                                     on=spec.moves.on | {"total", "wide"})
     out["risk"] = {"scores": spec.risk,
                    "names": risk.NAMES, "high": risk.HIGH,
                    "cells": list(spec.moves.cells),
@@ -525,6 +546,19 @@ def solve(text: str, ways=(), before=None) -> dict:
     finally:
         spec.moves = searched
     out["writers"] = _writers(spec, names, parse)
+    if yours:
+        # the person's own: one more writer, `you` -- checked as theirs are
+        mine = Spec(spec.name, spec.params, spec.returns, spec.examples,
+                    entry=spec.entry)
+        sketcher._read(mine, [yours], parse)
+        tree = mine.proposals[0] if mine.proposals else None
+        sketcher._read(spec, [yours], parse, writer="you")
+        out["writers"].append({"writer": "you", "rounds": [{
+            "round": 0, "programs": [{
+                "text": yours, "read": tree is not None,
+                "program": tree.source() if tree is not None else None,
+                "meets": bool(tree is not None and spec.examples
+                              and sketcher._meets(spec, tree))}]}]})
     fitting = {}
     if held:
         # each program as its writers wrote it: written the ways asked, or
@@ -719,6 +753,20 @@ def _open(asked: dict, text: str, out: dict, started: float,
             written.append(row)
         if round_ == 0 and not wanted and not words:
             break
+    if asked.get("yours"):
+        # the person's own: one more writer, `you`
+        source, signature = _function(asked["yours"])
+        record = {"text": source, "read": False, "program": None,
+                  "meets": False}
+        written.append({"writer": "you", "round": 0, "programs": [record]})
+        if signature is not None:
+            from research.v696.tasks import _params
+            programs.append({"writer": "you", "text": source,
+                             "entry": signature.group(1),
+                             "params": [kind for _, kind in
+                                        _params(signature.group(2))],
+                             "returns": signature.group(3).strip(),
+                             "record": record})
     # one signature for the request: as given, or the most writers' types
     shapes = {}
     for one in programs:
@@ -771,7 +819,8 @@ def _open(asked: dict, text: str, out: dict, started: float,
                                                     -len(g["programs"])))
     out["writers"] = [{"writer": name, "rounds": [
         {"round": row["round"], "programs": row["programs"]}
-        for row in written if row["writer"] == name]} for name in names]
+        for row in written if row["writer"] == name]}
+        for name in names + (["you"] if asked.get("yours") else [])]
     out["open"] = {
         "inputs": inputs[:12], "mode": asked["mode"],
         "signature": None if shape is None else
@@ -868,6 +917,26 @@ def _answer(spec, program, writers: list, fitting=None) -> dict:
 
 
 def spoken(found: dict) -> str:
+    """What is said of it -- and, where the person wrote a version of their
+    own, what became of it."""
+    said = _ways_said(found)
+    mine = next((one for writer in found.get("writers", ())
+                 if writer["writer"] == "you" for round_ in writer["rounds"]
+                 for one in round_["programs"]), None)
+    if mine is None or not (found.get("answer") or {}).get("code"):
+        return said
+    if found["answer"]["code"] == mine["text"]:
+        return f"{said} It is the version you wrote."
+    if not mine["read"]:
+        return (f"{said} Yours I could not read as a program of its "
+                f"signature.")
+    if found["request"].get("examples") and not mine["meets"]:
+        return f"{said} Yours does not meet the examples."
+    return (f"{said} Yours was weighed with the writers' programs; this one "
+            f"was chosen over it (ask what else was written to see both).")
+
+
+def _ways_said(found: dict) -> str:
     """What is said of it, in a sentence or two: the code is on the
     answer -- and, held to ways of writing it, whether it is so written."""
     said = _spoken(found)
@@ -945,12 +1014,12 @@ def _spoken(found: dict) -> str:
             f"{found.get('search', {}).get('evaluated', 0)} candidates.")
 
 
-def answered(text: str, ways=(), before=None) -> dict:
+def answered(text: str, ways=(), before=None, yours=None) -> dict:
     """The conversation's answer to a request for code: said in a
-    sentence, with everything done for it (`code`). `ways`, `before`: as
-    `solve` takes them."""
+    sentence, with everything done for it (`code`). `ways`, `before`,
+    `yours`: as `solve` takes them."""
     try:
-        found = solve(text, ways, before)
+        found = solve(text, ways, before, yours)
     except Exception as bad:                       # noqa: BLE001
         import traceback
         found = {"request": read(text), "answer": {
