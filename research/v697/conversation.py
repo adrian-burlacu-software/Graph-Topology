@@ -33,6 +33,9 @@ class Workspace:
     found: dict | None = None
     #: the conversation turn the code was last answered at
     turn: int = -10
+    #: the ways of writing asked for so far (v698 `ways.py`): *use a
+    #: switch*, then *make it recursive* -- the code is held to them all
+    ways: list | None = None
 
 
 WORKSPACES: dict = {}
@@ -129,10 +132,32 @@ def answered(text: str, space: Workspace, turn: int) -> dict | None:
     kind, detail = classify(text, space, turn)
     if kind is None:
         return None
+    return respond(kind, detail, text, space, turn)
+
+
+def respond(kind: str, detail, text: str, space: Workspace,
+            turn: int, ways=()) -> dict:
+    """What a turn of each kind does -- whoever read what kind it is (the
+    hand rules above, or v698's encoder). `ways`: the ways of writing the
+    turn asks for (v698's encoder), added to those asked before."""
+    if kind == "more" and not space.request:
+        kind, detail = "request", coding.read(text)
     if kind in ("request", "more"):
         request = text if kind == "request" else _merged(space.request,
                                                          detail, text)
-        answer = coding.answered(request)
+        from research.v698 import ways as W
+        held = [] if kind == "request" else list(space.ways or ())
+        for one in ways or ():
+            held = W.merged(held, one)
+        before = None
+        if kind == "more":
+            before = (((space.found or {}).get("answer") or {}).get("code"),
+                      ((space.found or {}).get("answer") or {}).get("entry"))
+        # a function the person wrote for it, this turn: tried with the rest
+        yours = detail.get("yours") if isinstance(detail, dict) else None
+        answer = coding.answered(request, ways=held, before=before,
+                                 yours=yours)
+        space.ways = held
         found = answer["code"]
         if kind == "more":
             found["continued"] = {"said": text, "asked": request}
@@ -141,11 +166,41 @@ def answered(text: str, space: Workspace, turn: int) -> dict | None:
                 + answer["spoken"][:1].lower() + answer["spoken"][1:])
         space.request, space.found, space.turn = (found["request"], found,
                                                   turn)
+        answer["suggest"] = _settle(found)
         return answer
     space.turn = turn
     if kind == "call":
         return _call(space, detail, text)
     return _question(space, detail, text)
+
+
+def _settle(found: dict) -> list:
+    """What to ask next of an answer nothing confirms: the example that
+    would settle it, at inputs of its types no example covers -- where it
+    gives nothing or throws first, then far from the examples (`day(7) ==
+    ?` where only `day(0)` was given) -- and whether it has bugs."""
+    from research.v696 import meaning as M
+    from research.v696.checker import CheckerError, checker
+    answer = found.get("answer") or {}
+    code, entry = answer.get("code"), answer.get("entry")
+    out = [{"text": "are there any bugs in it", "send": True}]
+    if not code or not entry or answer.get("status") == "confirmed":
+        return out
+    request = found.get("request") or {}
+    given = [list(one["args"]) for one in request.get("examples") or ()]
+    probes = [args for args in M.wide_probes(
+        [kind for _, kind in request.get("params") or ()])
+        if args not in given]
+    try:
+        rows = checker().run(code, entry, probes) if probes else []
+    except CheckerError:
+        rows = []
+    ranked = sorted(zip(probes, rows), key=lambda one: (
+        "error" not in one[1] and one[1].get("value") is not None,
+        -sum(abs(x) for x in one[0] if isinstance(x, (int, float)))))
+    asks = [{"text": f"{entry}({', '.join(map(json.dumps, args))}) == ?",
+             "send": False} for args, _ in ranked[:2]]
+    return asks + out
 
 
 # -- what is said of the code it answered -------------------------------------
@@ -235,9 +290,11 @@ def _explain(space: Workspace, text: str) -> dict:
             f"{entry} uses nothing the library declares")
     said += f", and its result comes from {root}." if root else "."
     if behaviour:
-        said += (f" Run on {len(pairs)} inputs (your examples and inputs "
-                 f"varied from them), its result is always: "
-                 f"{'; '.join(behaviour[:5])}.")
+        shown = ("your examples and inputs varied from them"
+                 if (space.request or {}).get("examples")
+                 else "inputs of its types")
+        said += (f" Run on {len(pairs)} inputs ({shown}), its result is "
+                 f"always: {'; '.join(behaviour[:5])}.")
     if printed:
         said += f" It prints: {' / '.join(dict.fromkeys(printed))}."
     runs = [{"call": f"{entry}({', '.join(map(_said, args))})",

@@ -361,6 +361,13 @@
          border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px;
          cursor: pointer; font-size: 12px; }
   .turnpick button.on { color: var(--text); border-color: var(--accent); }
+  /* what to ask next: chips that say it, or put it in the box to finish */
+  .next { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .next button { background: var(--panel2); color: var(--rule);
+         border: 1px solid #2a3a4d; border-radius: 999px; padding: 2px 10px;
+         font-size: 12px; cursor: pointer; }
+  .next button.fill { color: var(--warm); border-style: dashed; }
+  .next button:hover { border-color: var(--accent); color: var(--text); }
 </style>
 </head>
 <body>
@@ -480,7 +487,15 @@ async function getJSON(url) {
 // -- the conversation -------------------------------------------------------
 const STEP_NAMES = { heard: "heard", read: "read", resolved: "resolved",
   reasoned: "reasoned", planned: "planned", remembered: "remembered",
-  programmed: "programmed", answered: "answered", said: "said" };
+  programmed: "programmed", looked: "looked", understood: "understood", kept: "kept",
+  answered: "answered", said: "said" };
+// In an editor (v698's VS Code harness the page is framed by): a code block
+// can be opened where it is, or handed to the editor to put in -- the editor
+// asks where, and nothing is written without that.
+const EMBEDDED = window.parent !== window;
+function toEditor(message) {
+  if (EMBEDDED) window.parent.postMessage({ source: "graph-topology", ...message }, "*");
+}
 
 // One goal of a plan's stack, and the goals beneath it: each a <details>,
 // so a hundred subgoals read as an outline rather than a wall. The top is
@@ -609,7 +624,7 @@ function detailOf(step, turn) {
     if ((d.events || []).length) add(box, el("div", "muted", "events recorded"), list);
     (d.learned || []).forEach(one => add(box, el("div", null,
       `definitions memory + ${one.concept}: “${one.gloss}”`)));
-  } else if (step.step === "programmed") {
+  } else if (["programmed", "looked", "understood", "kept"].includes(step.step)) {
     box.appendChild(codePanel(d));
   } else if (step.step === "answered") {
     const m = d.message || {};
@@ -664,8 +679,11 @@ function codeIsh(text) {
 }
 function renderTurn(turn, box) {
   box.textContent = "";
+  // What was typed this turn: the request's own text keeps its lines, but a
+  // turn that continues or asks about an earlier request carries that one.
   const typed = ((turn.answer || {}).code || {}).request;
-  const typedText = typed ? typed.said : turn.said;
+  const flat = text => String(text || "").replace(/\s+/g, " ").trim();
+  const typedText = typed && flat(typed.said) === flat(turn.said) ? typed.said : turn.said;
   box.appendChild(el("div", "you" + (codeIsh(typedText) ? " code-ish" : ""), typedText));
   if (turn.number != null && !turnsSeen.includes(turn.number)) turnsSeen.push(turn.number);
   const me = el("div", "me");
@@ -686,7 +704,8 @@ function renderTurn(turn, box) {
   const code = codeAnswer(answer.code);
   if (code) me.appendChild(code);
   ((answer.code || {}).blocks || []).forEach(one => me.appendChild(codeBlock(one.code,
-    { title: one.title, kind: one.kind, small: true })));
+    { title: one.title, kind: one.kind, small: true, file: one.file, line: one.line,
+      closed: ((answer.code || {}).blocks || []).length > 1 })));
   const badges = el("div", "badges");
   add(badges, el("span", "chip stance s-" + stance, stance));
   if (said && said.text) {
@@ -713,6 +732,29 @@ function renderTurn(turn, box) {
     badges.appendChild(all);
   }
   me.appendChild(badges);
+  const next = (answer.suggest || []);
+  if (next.length) {
+    const row = el("div", "next");
+    next.forEach(one => {
+      const chip = el("button", one.send ? "" : "fill", one.text);
+      chip.title = one.send ? "ask it" : "put it in the box, to finish and say";
+      chip.addEventListener("click", async () => {
+        if (one.send && !busy) {
+          busy = true;
+          await say(one.text);
+          busy = false;
+        } else if (!one.send) {
+          LINE.value = one.text;
+          fitLine();
+          LINE.focus();
+          const at = one.text.indexOf("?");
+          if (at >= 0) LINE.setSelectionRange(at, at + 1);
+        }
+      });
+      row.appendChild(chip);
+    });
+    me.appendChild(row);
+  }
   box.appendChild(me);
   // `?steps=1`: every turn shown with its steps open.
   if (new URLSearchParams(location.search).get("steps") === "1" &&
@@ -1202,6 +1244,20 @@ function codeBlock(code, options) {
     fold.textContent = box.classList.contains("closed") ? "▸ open" : "▾ fold";
   });
   add(tools, copy, save, wrap, fold);
+  if (EMBEDDED) {
+    if (o.file) {
+      const go = el("button", null, "↗ open");
+      go.title = `open ${o.file}` + (o.line ? ` at line ${o.line}` : "");
+      go.addEventListener("click", () => toEditor({ type: "open", file: o.file, line: o.line || 1 }));
+      tools.insertBefore(go, copy);
+    }
+    if (lang === "ts" && !o.file) {
+      const put = el("button", null, "⇲ insert");
+      put.title = "put it in the editor: you choose where";
+      put.addEventListener("click", () => toEditor({ type: "insert", code }));
+      tools.insertBefore(put, copy);
+    }
+  }
   head.appendChild(tools);
   box.appendChild(head);
   const pre = el("pre");
@@ -1268,18 +1324,56 @@ function codeAnswer(code) {
   if (answer.route) chips.push(["route: " + answer.route, ""]);
   if ((answer.by || []).length) chips.push(["by " + answer.by.join(", "), ""]);
   if (answer.mode === "prints") chips.push(["what it prints is checked", ""]);
-  chips.push([answer.as === "written" ? "as a writer wrote it" : "printed from the search's tree", ""]);
+  chips.push([answer.as === "written" ? "as a writer wrote it"
+    : answer.as === "rewritten" ? "rewritten, doing the same"
+    : "printed from the search's tree", ""]);
+  // the ways of writing asked for (v698): each, held or not
+  const ways = answer.ways;
+  if (ways) (ways.asked || []).forEach(way => chips.push(
+    (ways.missing || []).includes(way) ? ["✗ not " + way, "badc"] : ["✓ " + way, "good"]));
   return codeBlock(answer.code, { title: answer.entry, kind: "answer", chips,
                                   answer: true, file: answer.entry + ".ts" });
 }
 
 function codePanel(code) {
   const box = el("div");
+  if (code.read) {
+    const r = code.read;
+    box.appendChild(panel("read", `the encoder: ${r.act} (${Math.round(r.chance * 100)}%)` +
+        (r.aspect !== "none" ? `, ${r.aspect}` : "") + (r.subject !== "none" ? ` of ${r.subject}` : "") +
+        ((r.ways || []).length ? `, written: ${r.ways.join(" + ")}` : ""), false, inside => {
+      add(inside, el("div", "muted", "what the message does, as the encoder weighed it"), bars(r.acts),
+          el("div", "muted", "each word's part"),
+          wordChips(r.words.map((w, i) => [w, r.roles[i]]), part => part === "O" ? "" : "p-SUBJ"),
+          kv([["aspect", `${r.aspect} (${Math.round(r["aspect chance"] * 100)}%)`],
+              ["subject", r.subject], ["spans", JSON.stringify(r.spans)]]));
+    }));
+  }
+  if (code.knowledge) {
+    const k = code.knowledge;
+    box.appendChild(panel("knowledge", Array.isArray(k) ? "what was taught, used here" : "kept, long-term", true, inside => {
+      if (Array.isArray(k)) {
+        k.forEach(one => add(inside, el("div", null,
+          `${one.concept}: one of ${one.members.join(", ")} — offered to the writers, and to the search as ${one.function}(x)`)));
+      } else {
+        inside.appendChild(jsonTree(k, "knowledge", true));
+      }
+    }));
+    if (!Array.isArray(k)) return box;
+  }
   const request = code.request || {};
   const answer = code.answer || {};
   if (answer.error) {
     add(box, el("div", "error", answer.error));
     if (answer.trace) box.appendChild(codeBlock(answer.trace, { lang: "text", title: "traceback", closed: true }));
+  }
+  if (code.project) {
+    const f = code.project;
+    box.appendChild(panel("project", `asked: ${f.asked}` + (f.name ? ` — ${f.name}` : ""), true, inside => {
+      add(inside, kv([["said", f.said], ["taken as", f.asked]]));
+      inside.appendChild(jsonTree(f.looked, "what was looked up", true));
+    }));
+    return box;
   }
   if (code.followup) {
     const f = code.followup;
@@ -1422,7 +1516,8 @@ function codePanel(code) {
 }
 
 // -- everything a turn did: the inspector -------------------------------------
-const VIA_COLOURS = { walk: "#7cc4ff", memory: "#3fb27f", said: "#e0a84a", run: "#b48cff" };
+const VIA_COLOURS = { walk: "#7cc4ff", memory: "#3fb27f", said: "#e0a84a", run: "#b48cff",
+                      project: "#4fd18b" };
 let inspected = null;          // {sid, number}
 const turnsSeen = [];          // numbers of this conversation's turns, as rendered
 
@@ -1721,6 +1816,29 @@ async function inspect(number) {
   if (turn.memory) box.appendChild(panel("memory", "the conversation's memory after the turn", false,
     inside => inside.appendChild(jsonTree(turn.memory, "memory", true))));
   box.appendChild(rawPanel(turn));
+  try {
+    const held = await getJSON(`/api/project?sid=${encodeURIComponent(current.sid)}`);
+    box.appendChild(projectPanel(held));
+  } catch (_) { /* no project in this conversation, or a server without them */ }
+}
+
+// The project the editor sent: its size, and who calls whom -- the most
+// connected functions drawn (a whole project is too many to lay out).
+function projectPanel(held) {
+  const s = held.summary || {};
+  return panel("project", `${s.files} files, ${s.functions} functions, ${s.lines} lines`, false, inside => {
+    add(inside, kv([["name", s.name], ["most called", (s["most called"] || []).map(([end, n]) =>
+      `${end.split("#")[1]} (${n})`).join(", ")]]));
+    const graph = held.graph || { nodes: [], edges: [] };
+    const degree = {};
+    graph.edges.forEach(e => { degree[e.from] = (degree[e.from] || 0) + 1; degree[e.to] = (degree[e.to] || 0) + 1; });
+    const kept = new Set(Object.entries(degree).sort((a, b) => b[1] - a[1]).slice(0, 80).map(([id]) => id));
+    inside.appendChild(drawGraph({
+      nodes: graph.nodes.filter(n => kept.has(n.id)),
+      edges: graph.edges.filter(e => kept.has(e.from) && kept.has(e.to)) }));
+    add(inside, el("div", "muted", `${kept.size} of ${graph.nodes.length} functions drawn: those with the most calls in or out`));
+    inside.appendChild(jsonTree(held.outline || {}, "outline"));
+  });
 }
 
 // -- tabs, examples, history ------------------------------------------------
@@ -1913,6 +2031,11 @@ const CODE_EXAMPLES = [
 ];
 
 (async () => {
+  // the server's own name in the heading: a later server serves this page
+  try {
+    const health = await getJSON("/api/health");
+    if (health.server) document.querySelector("header h1").textContent = health.server.toUpperCase();
+  } catch (_) { /* a server without /api/health: v697 */ }
   const { examples } = await getJSON("/api/examples");
   const row = document.getElementById("examples");
   examples.forEach(example => {

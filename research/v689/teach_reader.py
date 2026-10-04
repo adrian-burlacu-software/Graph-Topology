@@ -96,7 +96,8 @@ MATH_DATA = LLM / "math-data"
 #: Other subjects' records, each in its own folder, taught only when asked
 #: for (`--subject math`): the shipped readers were taught without them,
 #: and a rebuild of one must not quietly learn a subject it never had.
-SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data"}
+SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data",
+                "code": LLM / "code-talk-data"}
 SUBJECTS: list = []
 
 
@@ -558,7 +559,9 @@ HEAD_KINDS = {
     "place_next": "pointer",
     "relation": "sentence", "polar": "sentence", "parse": "word",
     "stance": "sentence", "part": "word",
-    "math_act": "sentence", "math_role": "word", "math_symbol": "word"}
+    "math_act": "sentence", "math_role": "word", "math_symbol": "word",
+    "code_act": "sentence", "code_aspect": "sentence",
+    "code_subject": "sentence", "code_role": "word"}
 
 #: Which field of a record each head is taught from, for each reader. A
 #: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
@@ -575,7 +578,12 @@ FIELDS = {
     # What an utterance asks of mathematics, each word's part in it, and
     # the symbols each word stands for (`research/v692/corpus.py`).
     "math": {"math_act": "act", "math_role": "roles",
-             "math_symbol": "symbols"}}
+             "math_symbol": "symbols"},
+    # What a message about code does, what it asks, of what, and which of
+    # its words name that -- or, teaching, the concept and its members
+    # (`research/v698/teach_code_talk.py`).
+    "code": {"code_act": "act", "code_aspect": "aspect",
+             "code_subject": "subject", "code_role": "roles"}}
 
 
 def task_of(record: dict) -> str:
@@ -2550,7 +2558,7 @@ def social(store: str) -> None:
 #: differently. The older readers keep close to the shares they were
 #: taught at.
 SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
-          "reply": 0.08, "math": 0.12}
+          "reply": 0.08, "math": 0.12, "code": 0.12}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2569,6 +2577,8 @@ def taught_as(record: dict) -> tuple:
         return task, record["stance"], "NEG" in record["parts"]
     if task == "math":
         return task, record["act"]
+    if task == "code":
+        return task, record["act"], record["aspect"], record["subject"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
             and record.get("order") == sorted(record.get("order", ())))
@@ -2639,6 +2649,14 @@ def labels(rows=()) -> dict:
                     math_symbol=["DROP", "KEEP"] + [
                         one for one in symbols if one not in ("", "DROP",
                                                               "KEEP")])
+    if any(task_of(row) == "code" for row in rows):
+        # Code talk (`research/v698/teach_code_talk.py`): its labels as it
+        # declares them, "none" first.
+        from research.v698.teach_code_talk import (ACTS as CODE_ACTS,
+                                                   ASPECTS, ROLES as CODE_ROLES,
+                                                   SUBJECTS)
+        said.update(code_act=list(CODE_ACTS), code_aspect=list(ASPECTS),
+                    code_subject=list(SUBJECTS), code_role=list(CODE_ROLES))
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}
@@ -2801,6 +2819,36 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
     tokenizer = AutoTokenizer.from_pretrained(str(base))
     encoder = AutoModel.from_pretrained(str(base))
     net = Heads(encoder, spec).to(device)
+    if (base / "heads.pt").exists() and (base / "labels.json").exists():
+        # A reader taught a new subject keeps what it already reads: every
+        # head the base was taught, where it says the same labels, starts as
+        # it was -- only a new subject's heads start from nothing. (Started
+        # from nothing, v689's heads had 4 epochs to relearn what they were
+        # taught in 10, and each retraining lost a few compound statements.)
+        before = json.loads((base / "labels.json").read_text(encoding="utf-8"))
+        same = {name for name, head in spec["heads"].items()
+                if before.get("heads", {}).get(name, {}).get("labels")
+                == head["labels"]}
+        saved = torch.load(base / "heads.pt", map_location="cpu")
+        kept = {key: value for key, value in saved.items()
+                if key.split(".")[0] in ("sentence", "word", "query", "key")
+                and key.split(".")[1] in same}
+        net.load_state_dict(kept, strict=False)
+        # what spaCy's tags and dependencies were learned to mean, each
+        # moved to where it is in the new vocabulary (`CODE` is new)
+        with torch.no_grad():
+            for name in ("tags", "deps"):
+                old = before.get(name) or []
+                weight = saved.get(f"{name}.weight")
+                if weight is None:
+                    continue
+                layer = getattr(net, name)
+                for at, label in enumerate(spec[name]):
+                    if label in old:
+                        layer.weight[at] = weight[old.index(label)].to(
+                            layer.weight.device)
+        print(f"kept from {base.name}: {sorted(same)}, and the tags' and "
+              f"dependencies' embeddings", flush=True)
     optimiser = torch.optim.AdamW(net.parameters(), lr=rate,
                                   weight_decay=0.01)
     steps = epochs * ((len(rows) + batch - 1) // batch)

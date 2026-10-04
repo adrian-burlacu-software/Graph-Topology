@@ -317,8 +317,15 @@ function programOfFiles(files, options) {
 
 // What the compiler says is wrong in a project, and where: each error's
 // file, span (in the file as given) and message.
-function diagnose(files) {
-  const program = programOfFiles(files);
+// `strict`: the checks that find bugs rather than type errors as well --
+// a path that returns nothing, a value never used, code never reached, a
+// case that falls through (v698, "find bugs").
+const STRICTER = { noImplicitReturns: true, noFallthroughCasesInSwitch: true,
+                   noUnusedLocals: true, noUnusedParameters: true,
+                   allowUnreachableCode: false };
+function diagnose(files, strict) {
+  const program = programOfFiles(files, strict
+    ? Object.assign({}, OPTIONS, STRICTER) : undefined);
   const at = PRELUDE.length;
   return ts.getPreEmitDiagnostics(program)
     .filter((one) => one.file && one.file.fileName in files)
@@ -1396,8 +1403,88 @@ function tree(source, files) {
       if (ts.isIfStatement(one) && one.elseStatement
           && lands(one.thenStatement) && lands(one.elseStatement))
         return true;
+      if (ts.isSwitchStatement(one)) {
+        const { cases, fallback } = switched(one);
+        if (fallback && [...cases, fallback].every((group) =>
+          always(group.body, 0)))
+          return true;
+      }
     }
     return false;
+  };
+  // A switch's clauses as groups: the values that share a body (`case 1:
+  // case 2: ...`), the body without the `break` that ends it, and the
+  // default apart. A case that runs on into the next, or a `break` part
+  // way through one, is not read.
+  const switched = (statement) => {
+    const cases = [];
+    let fallback = null, values = [], isDefault = false;
+    const clauses = statement.caseBlock.clauses;
+    clauses.forEach((clause, at) => {
+      if (ts.isDefaultClause(clause)) isDefault = true;
+      else values.push(clause.expression);
+      const last = at === clauses.length - 1;
+      if (!clause.statements.length && !last) return;
+      let body = [...clause.statements];
+      if (body.length === 1 && ts.isBlock(body[0]))
+        body = [...body[0].statements];
+      const end = body[body.length - 1];
+      if (end && ts.isBreakStatement(end) && !end.label) body.pop();
+      else if (!last && !always(body, 0))
+        throw new Unread("a case that runs on into the next");
+      (function walk(node) {
+        if (ts.isFunctionLike(node) || ts.isIterationStatement(node, false)
+            || ts.isSwitchStatement(node))
+          return;
+        if (ts.isBreakStatement(node))
+          throw new Unread("a break part way through a case");
+        node.forEachChild(walk);
+      })({ forEachChild: (visit) => body.forEach(visit) });
+      const group = { values, body };
+      if (isDefault) fallback = group;
+      else cases.push(group);
+      values = [];
+      isDefault = false;
+    });
+    return { cases, fallback };
+  };
+  // Two ways through, on a test: what each gives, and what the rest of
+  // `statements` (from `at + 1`) gives after them. {ret} where it returns,
+  // the result of the rest where one way returns (a guard), null where
+  // neither does (`env` then holds both ways' changes, under the test).
+  const branch = (test, yes_, no_, statements, at) => {
+    const before = env;
+    env = new Map(before);
+    const yes = yes_();
+    const afterYes = env;
+    env = new Map(before);
+    const no = no_();
+    const afterNo = env;
+    if (yes.ret && no.ret) return { ret: cond(test, yes.ret, no.ret) };
+    if (yes.ret || no.ret) {
+      // a guard: the rest is the other way through
+      env = yes.ret ? afterNo : afterYes;
+      if (always(statements, at + 1)) {
+        const rest = run(statements, at + 1);
+        if (!rest.ret) throw new Unread("no return after a guard");
+        return { ret: yes.ret ? cond(test, yes.ret, rest.ret)
+                              : cond(test, rest.ret, no.ret) };
+      }
+      // the rest does not return on every way through (it falls out
+      // of this block): the guard's return is carried, and the rest
+      // read knowing it
+      returned(yes.ret ? truthy(copy(test)) : not(copy(test)),
+               yes.ret || no.ret);
+      return run(statements, at + 1);
+    }
+    env = new Map(before);
+    for (const name of before.keys()) {
+      const a = afterYes.get(name), b = afterNo.get(name);
+      // changed the same on both ways through is changed
+      if (JSON.stringify(a) === JSON.stringify(b)) env.set(name, a);
+      else env.set(name, cond(copy(test), share(a), share(b)));
+    }
+    return null;
   };
   // Statements from `at` on: {ret} when every way through returns, else
   // {} with `env` holding what the names are after them.
@@ -1449,39 +1536,35 @@ function tree(source, files) {
         continue;
       }
       if (ts.isIfStatement(statement)) {
-        const test = read(statement.expression);
-        const before = env;
-        env = new Map(before);
-        const yes = block(statement.thenStatement);
-        const afterYes = env;
-        env = new Map(before);
-        const no = statement.elseStatement ? block(statement.elseStatement)
-          : {};
-        const afterNo = env;
-        if (yes.ret && no.ret) return { ret: cond(test, yes.ret, no.ret) };
-        if (yes.ret || no.ret) {
-          // a guard: the rest is the other way through
-          env = yes.ret ? afterNo : afterYes;
-          if (always(statements, at + 1)) {
-            const rest = run(statements, at + 1);
-            if (!rest.ret) throw new Unread("no return after a guard");
-            return { ret: yes.ret ? cond(test, yes.ret, rest.ret)
-                                  : cond(test, rest.ret, no.ret) };
-          }
-          // the rest does not return on every way through (it falls out
-          // of this block): the guard's return is carried, and the rest
-          // read knowing it
-          returned(yes.ret ? truthy(copy(test)) : not(copy(test)),
-                   yes.ret || no.ret);
-          return run(statements, at + 1);
+        const out = branch(read(statement.expression),
+          () => block(statement.thenStatement),
+          () => statement.elseStatement ? block(statement.elseStatement)
+            : {}, statements, at);
+        if (out) return out;
+        continue;
+      }
+      if (ts.isSwitchStatement(statement)) {
+        // a switch is the chain of ifs it means: each case's values tested
+        // against what is switched on, in order, the default last
+        const { cases, fallback } = switched(statement);
+        const on = read(statement.expression);
+        const test = (group) => group.values.map((value) => ({
+          k: "bin", op: "===", args: [copy(on), read(value)],
+          type: "boolean" })).reduce(or);
+        const chain = (from) => {
+          if (from === cases.length)
+            return fallback ? run(fallback.body, 0) : {};
+          return branch(test(cases[from]), () => run(cases[from].body, 0),
+                        () => chain(from + 1), [], 0) || {};
+        };
+        if (!cases.length) {
+          const out = chain(0);
+          if (out.ret) return out;
+          continue;
         }
-        env = new Map(before);
-        for (const name of before.keys()) {
-          const a = afterYes.get(name), b = afterNo.get(name);
-          // changed the same on both ways through is changed
-          if (JSON.stringify(a) === JSON.stringify(b)) env.set(name, a);
-          else env.set(name, cond(copy(test), share(a), share(b)));
-        }
+        const out = branch(test(cases[0]), () => run(cases[0].body, 0),
+                           () => chain(1), statements, at);
+        if (out) return out;
         continue;
       }
       if (ts.isForOfStatement(statement)) {
@@ -1602,6 +1685,267 @@ function tree(source, files) {
     });
   }
   return functions;
+}
+
+// How a program is written, off its syntax alone (v698 `ways.py`): what it
+// is written with, all its functions together (`switch`, `for of`,
+// `.reduce`, `new Set`, `regex`, `await`, `class`, `let` ...), whether a
+// function calls itself, how `entry` is bound (a declaration or an arrow),
+// how many statements its body has and how many lines it takes.
+function shape(source, entry) {
+  const file = ts.createSourceFile("shape.ts", source, ts.ScriptTarget.ES2022,
+                                   true);
+  const uses = new Set();
+  let recursive = false, kind = null, statements = 0, lines = 0;
+  const named = (node) => {
+    if ((ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node))
+        && node.name) return node.name.getText();
+    if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node))
+        && node.parent && ts.isVariableDeclaration(node.parent)
+        && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
+    return null;
+  };
+  const measure = (node) => {
+    const body = node.body;
+    // one statement that is a return (or a body that is an expression):
+    // what is written as one line, however it is wrapped
+    statements = body && ts.isBlock(body) ? (body.statements.length === 1
+      && ts.isReturnStatement(body.statements[0]) ? 1
+      : Math.max(body.statements.length, 2)) : 1;
+    const start = file.getLineAndCharacterOfPosition(node.getStart()).line;
+    const end = file.getLineAndCharacterOfPosition(node.getEnd()).line;
+    lines = end - start + 1;
+  };
+  (function walk(node, owners) {
+    const kindName = ts.SyntaxKind[node.kind];
+    // a declaration is `const`, `let` or `var` by its list, below
+    if (STATEMENTS[kindName] && kindName !== "VariableDeclaration")
+      uses.add(STATEMENTS[kindName]);
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node))
+      uses.add("class");
+    if (ts.isAwaitExpression(node)) uses.add("await");
+    if (ts.isYieldExpression(node)) uses.add("yield");
+    if (ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node))
+      uses.add("destructuring");
+    if (ts.isNoSubstitutionTemplateLiteral(node)) uses.add("template");
+    if (ts.isVariableDeclarationList(node)) {
+      const flags = node.flags;
+      uses.add(flags & ts.NodeFlags.Const ? "const"
+        : flags & ts.NodeFlags.Let ? "let" : "var");
+    }
+    if (ts.isNewExpression(node)) uses.add(`new ${node.expression.getText()}`);
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      if (ts.isPropertyAccessExpression(callee))
+        uses.add(`.${callee.name.text}`);
+      else if (ts.isIdentifier(callee) && owners.includes(callee.text))
+        recursive = true;
+    }
+    let inner = owners;
+    if (ts.isFunctionLike(node)) {
+      if (node.modifiers && node.modifiers.some((one) =>
+        one.kind === ts.SyntaxKind.AsyncKeyword)) uses.add("async");
+      if (node.asteriskToken) uses.add("yield");
+      const name = named(node);
+      if (name) {
+        inner = owners.concat([name]);
+        if (name === entry && kind === null) {
+          kind = ts.isFunctionDeclaration(node) ? "function"
+            : ts.isMethodDeclaration(node) ? "method" : "arrow";
+          measure(node);
+        }
+      }
+    }
+    node.forEachChild((child) => walk(child, inner));
+  })(file, []);
+  return { uses: [...uses].sort(), recursive, entry: kind, statements,
+           lines };
+}
+
+// The same program written another way, where that is a matter of syntax
+// alone (v698 `ways.py`): `entry` as an arrow function or a declaration; a
+// return of a conditional chain, or a chain of guarded returns, as if/else
+// or -- where every test compares one thing to a value -- as a switch; a
+// switch as ifs. null where the way cannot be had so.
+function restyle(source, entry, way) {
+  const file = ts.createSourceFile("restyle.ts", source,
+                                   ts.ScriptTarget.ES2022, true);
+  let target = null, statement = null;
+  file.statements.forEach((one) => {
+    if (ts.isFunctionDeclaration(one) && one.name
+        && one.name.text === entry) { target = one; statement = one; }
+    if (ts.isVariableStatement(one)) {
+      one.declarationList.declarations.forEach((declaration) => {
+        if (ts.isIdentifier(declaration.name)
+            && declaration.name.text === entry && declaration.initializer
+            && (ts.isArrowFunction(declaration.initializer)
+                || ts.isFunctionExpression(declaration.initializer))) {
+          target = declaration.initializer;
+          statement = one;
+        }
+      });
+    }
+  });
+  if (!target || !target.body) return null;
+  // text put where a node was, its lines at the node's indentation
+  const placed = (node, text) => {
+    const begins = source.lastIndexOf("\n", node.getStart() - 1) + 1;
+    const lead = /^[ \t]*/.exec(source.slice(begins, node.getStart()))[0];
+    return text.split("\n").map((line, at) => at && line ? lead + line
+      : line).join("\n");
+  };
+  const replace = (node, text) => source.slice(0, node.getStart())
+    + placed(node, text) + source.slice(node.getEnd());
+  const isAsync = target.modifiers && target.modifiers.some((one) =>
+    one.kind === ts.SyntaxKind.AsyncKeyword);
+  const params = target.parameters.map((one) => one.getText()).join(", ");
+  const types = target.typeParameters
+    ? `<${target.typeParameters.map((one) => one.getText()).join(", ")}>`
+    : "";
+  const result = target.type ? `: ${target.type.getText()}` : "";
+  const block = ts.isBlock(target.body);
+  const inner = block ? target.body.statements.map((one) => one.getText())
+    : [`return ${target.body.getText()};`];
+  const indent = (lines) => lines.map((line) => "  " + line).join("\n");
+  if (way === "arrow") {
+    if (!ts.isFunctionDeclaration(target)) return null;
+    const single = block && target.body.statements.length === 1
+      && ts.isReturnStatement(target.body.statements[0])
+      && target.body.statements[0].expression;
+    let body = single ? target.body.statements[0].expression.getText()
+      : `{\n${indent(inner)}\n}`;
+    if (single && body.startsWith("{")) body = `(${body})`;
+    return replace(statement, `const ${entry} = ${isAsync ? "async " : ""}`
+      + `${types}(${params})${result} => ${body};`);
+  }
+  if (way === "declaration") {
+    if (ts.isFunctionDeclaration(target)) return null;
+    return replace(statement, `${isAsync ? "async " : ""}function ${entry}`
+      + `${types}(${params})${result} {\n${indent(inner)}\n}`);
+  }
+  if (way !== "switch" && way !== "ifs") return null;
+  const bare = (node) => {
+    while (ts.isParenthesizedExpression(node)) node = node.expression;
+    return node;
+  };
+  // the value each test compares (`n === 1`, `1 === n`, `n === 1 || n ===
+  // 2`), and to what -- or null
+  const compared = (test) => {
+    test = bare(test);
+    if (ts.isBinaryExpression(test)) {
+      const op = test.operatorToken.kind;
+      if (op === ts.SyntaxKind.BarBarToken) {
+        const a = compared(test.left), b = compared(test.right);
+        return a && b && a.on === b.on
+          ? { on: a.on, values: a.values.concat(b.values) } : null;
+      }
+      if (op === ts.SyntaxKind.EqualsEqualsEqualsToken) {
+        const literal = (node) => ts.isLiteralExpression(bare(node))
+          || ts.isPrefixUnaryExpression(bare(node))
+          || bare(node).kind === ts.SyntaxKind.TrueKeyword
+          || bare(node).kind === ts.SyntaxKind.FalseKeyword;
+        if (literal(test.right) && !literal(test.left))
+          return { on: bare(test.left).getText(),
+                   values: [bare(test.right).getText()] };
+        if (literal(test.left) && !literal(test.right))
+          return { on: bare(test.right).getText(),
+                   values: [bare(test.left).getText()] };
+      }
+    }
+    return null;
+  };
+  // a chain: [[test, what it returns]...] and what is returned otherwise,
+  // with the statements it is made of
+  let chain = null;
+  const statements = block ? [...target.body.statements] : null;
+  const fromReturn = (expression) => {
+    const arms = [];
+    let node = bare(expression);
+    while (ts.isConditionalExpression(node)) {
+      arms.push([node.condition, node.whenTrue.getText()]);
+      node = bare(node.whenFalse);
+    }
+    return arms.length ? { arms, otherwise: node.getText() } : null;
+  };
+  if (!block) {
+    const found = fromReturn(target.body);
+    if (found) chain = { ...found, from: target.body, expression: true };
+  } else {
+    // `if (t) return a; if (u) return b; return c;` -- or a ternary return
+    const arms = [];
+    let at = 0;
+    for (; at < statements.length; at++) {
+      const one = statements[at];
+      if (!ts.isIfStatement(one) || one.elseStatement) break;
+      let then = one.thenStatement;
+      if (ts.isBlock(then) && then.statements.length === 1)
+        then = then.statements[0];
+      if (!ts.isReturnStatement(then) || !then.expression) break;
+      arms.push([one.expression, then.expression.getText()]);
+    }
+    if (arms.length && at === statements.length - 1
+        && ts.isReturnStatement(statements[at])
+        && statements[at].expression) {
+      chain = { arms, otherwise: statements[at].expression.getText(),
+                first: statements[0], last: statements[at] };
+    } else if (arms.length && at === statements.length) {
+      // guarded returns and nothing after them: it falls off the end
+      // where none holds, written as it was (no default, no last return)
+      chain = { arms, otherwise: null, first: statements[0],
+                last: statements[at - 1] };
+    } else if (statements.length && !arms.length) {
+      const last = statements[statements.length - 1];
+      if (ts.isReturnStatement(last) && last.expression) {
+        const found = fromReturn(last.expression);
+        if (found) chain = { ...found, first: last, last };
+      }
+    }
+    // a switch, as ifs
+    if (!chain && way === "ifs") {
+      const one = statements.find((s) => ts.isSwitchStatement(s));
+      if (!one) return null;
+      const on = one.expression.getText();
+      const lines = [];
+      let values = [];
+      for (const clause of one.caseBlock.clauses) {
+        if (ts.isDefaultClause(clause)) {
+          lines.push(...clause.statements.filter((s) =>
+            !ts.isBreakStatement(s)).map((s) => s.getText()));
+          continue;
+        }
+        values.push(`${on} === ${clause.expression.getText()}`);
+        if (!clause.statements.length) continue;
+        const body = clause.statements.filter((s) => !ts.isBreakStatement(s));
+        const last = body[body.length - 1];
+        if (!last || !ts.isReturnStatement(last)) return null;
+        lines.push(`if (${values.join(" || ")}) {\n${indent(
+          body.map((s) => s.getText()))}\n}`);
+        values = [];
+      }
+      return replace(one, lines.join("\n"));
+    }
+  }
+  if (!chain) return null;
+  let text;
+  if (way === "ifs") {
+    text = chain.arms.map(([test, value]) =>
+      `if (${bare(test).getText()}) return ${value};`).concat(
+      chain.otherwise === null ? [] : [`return ${chain.otherwise};`])
+      .join("\n");
+  } else {
+    const tests = chain.arms.map(([test]) => compared(test));
+    if (tests.some((one) => !one) || new Set(tests.map((one) => one.on))
+        .size !== 1)
+      return null;
+    text = `switch (${tests[0].on}) {\n` + chain.arms.map(([, value], at) =>
+      indent(tests[at].values.map((v) => `case ${v}:`)) + ` return ${value};`)
+      .join("\n") + (chain.otherwise === null ? ""
+        : `\n  default: return ${chain.otherwise};`) + "\n}";
+  }
+  if (chain.expression)
+    return replace(target.body, `{\n${indent(text.split("\n"))}\n}`);
+  return source.slice(0, chain.first.getStart()) + placed(chain.first, text)
+    + source.slice(chain.last.getEnd());
 }
 
 function structure(source, entry) {
@@ -1780,6 +2124,124 @@ function qualities(source, entry) {
            found: functions.has(entry) };
 }
 
+// A project's outline, off its syntax (v698): each file's functions --
+// declared, bound to a name, a class's methods -- with their lines, their
+// parameters and result as written, what each calls by name; and what each
+// file imports from where. No type checker: it is read as fast as it is
+// parsed, and a file that does not compile is still outlined.
+function outline(files) {
+  const out = {};
+  for (const [file, text] of Object.entries(files)) {
+    const kind = /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX
+      : /\.(js|mjs|cjs)$/.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true,
+                                   kind);
+    const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+    const functions = [];
+    const imports = [];
+    const exported = new Set();
+    // What people wrote about it: a comment right above a declaration is
+    // its doc; one at the top of the file, apart from what follows by a
+    // blank line, is the file's.
+    const comments = (node) => (ts.getLeadingCommentRanges(text,
+      node.getFullStart()) || []).map((range) => ({ range,
+      said: text.slice(range.pos, range.end)
+        .replace(/^\/\*\*?|\*\/$/g, "").split(/\r?\n/)
+        .map((one) => one.replace(/^\s*(\/\/+|\*)\s?/, "").trim())
+        .filter(Boolean).join(" ") }));
+    const docOf = (node) => {
+      const found = comments(node);
+      const last = found[found.length - 1];
+      if (!last) return null;
+      const between = text.slice(last.range.end, node.getStart(sf));
+      return /\n\s*\n/.test(between) ? null : last.said;
+    };
+    let about = null;
+    const first = sf.statements[0];
+    if (first) {
+      const found = comments(first);
+      const apart = found.filter((one) => /\n\s*\n/.test(
+        text.slice(one.range.end, first.getStart(sf))));
+      if (apart.length) about = apart.map((one) => one.said).join(" ");
+    }
+    const entries = [];
+    const isExported = (node) => !!(ts.getCombinedModifierFlags
+      && (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export));
+    const record = (name, node, kindName, owner, exportedHere, docNode) => {
+      const calls = new Set();
+      const body = node.body || node;
+      (function walk(n) {
+        if (ts.isCallExpression(n) || ts.isNewExpression(n)) {
+          const callee = n.expression;
+          if (ts.isIdentifier(callee)) calls.add(callee.text);
+          else if (ts.isPropertyAccessExpression(callee)) {
+            const said = callee.getText(sf);
+            calls.add(said.length <= 60 ? said : callee.name.text);
+          }
+        }
+        n.forEachChild(walk);
+      })(body);
+      functions.push({
+        name, kind: kindName, class: owner || null,
+        exported: exportedHere, doc: docOf(docNode || node),
+        start: line(node.getStart(sf)), end: line(node.end),
+        params: (node.parameters || []).map((p) => [
+          p.name.getText(sf), p.type ? p.type.getText(sf) : null]),
+        returns: node.type ? node.type.getText(sf) : null,
+        async: !!(node.modifiers || []).some(
+          (m) => m.kind === ts.SyntaxKind.AsyncKeyword),
+        calls: [...calls].sort(),
+      });
+    };
+    sf.forEachChild(function top(node) {
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        record(node.name.text, node, "function", null, isExported(node));
+      } else if (ts.isVariableStatement(node)) {
+        for (const one of node.declarationList.declarations) {
+          const init = one.initializer;
+          if (init && ts.isIdentifier(one.name)
+              && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+            record(one.name.text, init, "function", null, isExported(node),
+                   node);
+        }
+      } else if (ts.isClassDeclaration(node) && node.name) {
+        for (const member of node.members) {
+          if ((ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member))
+              && member.body) {
+            const name = member.name ? member.name.getText(sf) : "constructor";
+            record(`${node.name.text}.${name}`, member, "method",
+                   node.name.text, isExported(node));
+          }
+        }
+      } else if (ts.isImportDeclaration(node)) {
+        const names = [];
+        const clause = node.importClause;
+        if (clause && clause.name) names.push(clause.name.text);
+        if (clause && clause.namedBindings) {
+          if (ts.isNamespaceImport(clause.namedBindings))
+            names.push(`* as ${clause.namedBindings.name.text}`);
+          else clause.namedBindings.elements.forEach(
+            (e) => names.push(e.name.text));
+        }
+        imports.push({ from: node.moduleSpecifier.text, names,
+                       line: line(node.getStart(sf)) });
+      } else if (ts.isExpressionStatement(node)
+                 && ts.isCallExpression(node.expression)) {
+        // a call at the top of a file: what running the file does
+        entries.push({ call: node.expression.expression.getText(sf),
+                       line: line(node.getStart(sf)) });
+      } else if (ts.isExportDeclaration(node) && node.exportClause
+                 && ts.isNamedExports(node.exportClause)) {
+        node.exportClause.elements.forEach((e) => exported.add(e.name.text));
+      }
+    });
+    for (const one of functions) if (exported.has(one.name)) one.exported = true;
+    out[file] = { functions, imports, about, runs: entries,
+                  lines: sf.getLineStarts().length };
+  }
+  return out;
+}
+
 const lines = readline.createInterface({ input: process.stdin });
 lines.on("line", (line) => {
   let request;
@@ -1810,13 +2272,22 @@ lines.on("line", (line) => {
       reply.tree = tree(request.source, request.files);
       reply.ok = true;
     } else if (request.op === "diagnose") {
-      reply.errors = diagnose(request.files);
+      reply.errors = diagnose(request.files, !!request.strict);
       reply.ok = true;
     } else if (request.op === "project") {
       project(request.files, request.main, request.timeout || 2000);
       reply.ok = true;
+    } else if (request.op === "restyle") {
+      reply.source = restyle(request.source, request.entry, request.way);
+      reply.ok = true;
+    } else if (request.op === "shape") {
+      reply.shape = shape(request.source, request.entry);
+      reply.ok = true;
     } else if (request.op === "structure") {
       Object.assign(reply, structure(request.source, request.entry));
+      reply.ok = true;
+    } else if (request.op === "outline") {
+      reply.outline = outline(request.files);
       reply.ok = true;
     } else if (request.op === "qualities") {
       reply.qualities = qualities(request.source, request.entry);

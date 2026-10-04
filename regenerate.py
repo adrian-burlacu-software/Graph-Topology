@@ -1084,6 +1084,31 @@ def _risk_estimators_check() -> str | None:
     return "six heads"
 
 
+def _code_talk_check() -> str | None:
+    path = LLM / "code-talk-data" / "train-code.jsonl"
+    if not path.exists():
+        return None
+    count = sum(1 for _ in path.open(encoding="utf-8"))
+    if count < 24000:
+        raise Failed(f"code-talk: {count} records, expected 24000+ "
+                     f"(24678 when made)")
+    return f"{count} records"
+
+
+VSIX = ROOT / "tools" / "vscode-graph-topology"
+
+
+def _vsix_make() -> None:
+    subprocess.run([sys.executable, str(VSIX / "package.py")], check=True)
+
+
+def _vsix_check() -> str | None:
+    found = sorted((VSIX / "dist").glob("*.vsix"))
+    if not found:
+        return None
+    return f"{found[-1].name}, {found[-1].stat().st_size // 1024} KB"
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1396,6 +1421,56 @@ def steps() -> list[Step]:
              lambda: _run("research.v696.risk", "train"),
              _risk_estimators_check, needs=("risk-labels", "meaning"),
              cost="a few minutes", gpu=True),
+
+        # -- the editor (v698) ------------------------------------------------
+        Step("code-talk", "messages about code for the reader: written and "
+                          "checked by SmolLM3, names of every shape, what is "
+                          "not code talk (research/v698)",
+             lambda: (_run("research.v698.teach_code_talk", "lists"),
+                      _run("research.v698.teach_code_talk", "write"),
+                      _run("research.v698.teach_code_talk", "check"),
+                      _run("research.v698.teach_code_talk", "check-ways"),
+                      _run("research.v698.teach_code_talk", "corpus")),
+             _code_talk_check, needs=("multipl-e", "smollm3", "reader-corpus",
+                                      "math-corpus"),
+             cost="three hours", gpu=True),
+        Step("reader-code", "the shared reader taught code talk too",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-design4"),
+                          "--out", str(LLM / "reader-code7"),
+                          "--epochs", "4", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code7", 80),
+             needs=("code-talk", "reader-math"), cost="half an hour",
+             gpu=True),
+        # taught again from reader-code7, not from reader-design4: four
+        # epochs from design4 on the corpus with changes of how code is
+        # written (`use a switch`, `make it iterative`) lost a v689
+        # compound statement; two more from code7 keep the whole suite
+        Step("reader-code-ways", "the shared reader taught changes of how "
+                                 "code is written (research/v698)",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code7"),
+                          "--out", str(LLM / "reader-code9"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code9", 80),
+             needs=("reader-code",), cost="fifteen minutes", gpu=True),
+        # which ways of writing a message asks for (research/v698/ways.py):
+        # a head over the reader of meaning, as the risk estimators are --
+        # the shared reader is not touched (taught it, v689 lost compound
+        # statements each time)
+        Step("ways-estimator", "which ways of writing code a message asks "
+                               "for, read over the reader of meaning",
+             lambda: _run("research.v698.asked_ways", "tune"),
+             lambda: (f"chosen {json.loads((LLM / 'ways-estimator' / 'ways.json').read_text(encoding='utf-8'))['chosen']}"
+                      if (LLM / "ways-estimator" / "ways.json").exists()
+                      else None),
+             needs=("code-talk", "meaning"), cost="ten minutes",
+             gpu=True),
+        Step("vscode-extension", "the VS Code harness, packed as a .vsix "
+                                 "(install: package.py --install)",
+             _vsix_make, _vsix_check, cost="seconds"),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

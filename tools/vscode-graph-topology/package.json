@@ -1,0 +1,82 @@
+{
+  "name": "graph-topology",
+  "displayName": "Graph Topology",
+  "description": "The Graph-Topology conversation in the editor: everything each turn did, code written and checked, projects read whole. A thin client of a server at a URL you choose.",
+  "version": "0.1.0",
+  "publisher": "adrian-burlacu",
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "configuration": {
+      "title": "Graph Topology",
+      "properties": {
+        "graphTopology.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8697",
+          "description": "Where the server is. Any server that answers /api/health (v697, v698, or a later one) can be attached; a restart there is a reconnect here."
+        },
+        "graphTopology.serverCommand": {
+          "type": "string",
+          "default": "",
+          "description": "How to start the server, if this editor should be able to start, stop and restart it (e.g. `python -m research.v698 --workers 19`). Empty: attach only."
+        },
+        "graphTopology.serverCwd": {
+          "type": "string",
+          "default": "",
+          "description": "Where the server command is run. Empty: the first workspace folder."
+        },
+        "graphTopology.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start the server with the command above when the editor opens and none is answering."
+        },
+        "graphTopology.projectInclude": {
+          "type": "string",
+          "default": "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+          "description": "Which files are read as the project."
+        },
+        "graphTopology.projectExclude": {
+          "type": "string",
+          "default": "**/{node_modules,dist,build,out,.git,.vscode-test,coverage}/**",
+          "description": "Which files are never read."
+        },
+        "graphTopology.maxFiles": {
+          "type": "number",
+          "default": 1500,
+          "description": "At most this many files are sent."
+        },
+        "graphTopology.maxFileBytes": {
+          "type": "number",
+          "default": 300000,
+          "description": "A file larger than this is left out (minified bundles, generated code)."
+        },
+        "graphTopology.syncOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Once the project is read, send each file again when it is saved, and say when one is deleted."
+        }
+      }
+    },
+    "commands": [
+      { "command": "graphTopology.open", "title": "Graph Topology: Open the Conversation" },
+      { "command": "graphTopology.readProject", "title": "Graph Topology: Read the Project" },
+      { "command": "graphTopology.ask", "title": "Graph Topology: Ask…" },
+      { "command": "graphTopology.explainSelection", "title": "Graph Topology: Explain the Selection" },
+      { "command": "graphTopology.writeFunction", "title": "Graph Topology: Write a Function from the Selection" },
+      { "command": "graphTopology.startServer", "title": "Graph Topology: Start the Server" },
+      { "command": "graphTopology.stopServer", "title": "Graph Topology: Stop the Server" },
+      { "command": "graphTopology.restartServer", "title": "Graph Topology: Restart the Server" },
+      { "command": "graphTopology.serverOutput", "title": "Graph Topology: Show the Server's Output" },
+      { "command": "graphTopology.actions", "title": "Graph Topology: Actions…" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "graphTopology.explainSelection", "when": "editorHasSelection", "group": "graphTopology@1" },
+        { "command": "graphTopology.writeFunction", "when": "editorHasSelection", "group": "graphTopology@2" }
+      ]
+    }
+  }
+}

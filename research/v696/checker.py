@@ -144,6 +144,33 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return {"uses": reply["uses"], "root": reply["root"]}
 
+    def shape(self, source: str, entry: str) -> dict:
+        """How `source` is written, off its syntax: {uses, recursive, entry
+        (function / arrow / method / None), statements, lines}
+        (`tscheck.js`, v698 `ways.py`)."""
+        reply = self._ask({"op": "shape", "source": source, "entry": entry})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["shape"]
+
+    def restyle(self, source: str, entry: str, way: str) -> str | None:
+        """The same program written `way` (arrow, declaration, switch,
+        ifs) where that is syntax alone, else None (`tscheck.js`)."""
+        reply = self._ask({"op": "restyle", "source": source,
+                           "entry": entry, "way": way})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply.get("source")
+
+    def outline(self, files: dict) -> dict:
+        """A project's outline, off its syntax: {file: {functions: [{name,
+        kind, class, exported, start, end, params, returns, async, calls}],
+        imports: [{from, names, line}], lines}} (`tscheck.js`, v698)."""
+        reply = self._ask({"op": "outline", "files": files})
+        if not reply.get("ok"):
+            raise CheckerError(reply.get("error", "failed"))
+        return reply["outline"]
+
     def qualities(self, source: str, entry: str) -> dict:
         """What a program's risks are made of, off its syntax: {names,
         decisions, unbounded, mutates, partial, loops, found}
@@ -154,10 +181,13 @@ class Checker:
             raise CheckerError(reply.get("error", "failed"))
         return reply["qualities"]
 
-    def diagnose(self, files: dict) -> list:
+    def diagnose(self, files: dict, strict: bool = False) -> list:
         """What the compiler says is wrong in a project: [{file, start,
-        end, message, code}], spans in the files as given."""
-        reply = self._ask({"op": "diagnose", "files": files})
+        end, message, code}], spans in the files as given. `strict`: also
+        what finds bugs -- paths returning nothing, values never used, code
+        never reached, cases falling through."""
+        reply = self._ask({"op": "diagnose", "files": files,
+                           "strict": strict})
         if not reply.get("ok"):
             raise CheckerError(reply.get("error", "failed"))
         return reply["errors"]

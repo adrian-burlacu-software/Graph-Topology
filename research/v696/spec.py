@@ -42,6 +42,10 @@ class Spec:
     sources: list = field(default_factory=list)
     #: program (as printed) -> the decoders that wrote it (`sketcher._read`)
     authors: dict = field(default_factory=dict)
+    #: whether a program is written the ways asked (v698 `ways.py`: *use a
+    #: switch*), as one of its writers wrote it or as printed -- None where
+    #: no way is asked; the search chooses among those that are
+    shaped: object = None
     #: operators beyond the language's: a project's own functions (rung 5),
     #: grown by the search as the library's members are
     library: list = field(default_factory=list)
