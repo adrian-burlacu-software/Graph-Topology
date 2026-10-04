@@ -1089,9 +1089,9 @@ def _code_talk_check() -> str | None:
     if not path.exists():
         return None
     count = sum(1 for _ in path.open(encoding="utf-8"))
-    if count < 12000:
-        raise Failed(f"code-talk: {count} records, expected 12000+ "
-                     f"(12974 when made)")
+    if count < 17000:
+        raise Failed(f"code-talk: {count} records, expected 17000+ "
+                     f"(17778 when made)")
     return f"{count} records"
 
 
@@ -1442,6 +1442,19 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code7", 80),
              needs=("code-talk", "reader-math"), cost="half an hour",
              gpu=True),
+        # taught again from reader-code7, not from reader-design4: four
+        # epochs from design4 on the corpus with changes of how code is
+        # written (`use a switch`, `make it iterative`) lost a v689
+        # compound statement; two more from code7 keep the whole suite
+        Step("reader-code-ways", "the shared reader taught changes of how "
+                                 "code is written (research/v698)",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code7"),
+                          "--out", str(LLM / "reader-code9"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code9", 80),
+             needs=("reader-code",), cost="fifteen minutes", gpu=True),
         Step("vscode-extension", "the VS Code harness, packed as a .vsix "
                                  "(install: package.py --install)",
              _vsix_make, _vsix_check, cost="seconds"),

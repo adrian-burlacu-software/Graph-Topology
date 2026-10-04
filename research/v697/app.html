@@ -679,8 +679,11 @@ function codeIsh(text) {
 }
 function renderTurn(turn, box) {
   box.textContent = "";
+  // What was typed this turn: the request's own text keeps its lines, but a
+  // turn that continues or asks about an earlier request carries that one.
   const typed = ((turn.answer || {}).code || {}).request;
-  const typedText = typed ? typed.said : turn.said;
+  const flat = text => String(text || "").replace(/\s+/g, " ").trim();
+  const typedText = typed && flat(typed.said) === flat(turn.said) ? typed.said : turn.said;
   box.appendChild(el("div", "you" + (codeIsh(typedText) ? " code-ish" : ""), typedText));
   if (turn.number != null && !turnsSeen.includes(turn.number)) turnsSeen.push(turn.number);
   const me = el("div", "me");

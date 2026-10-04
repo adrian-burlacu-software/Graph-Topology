@@ -143,6 +143,34 @@ answers as it should (project, bugs as gaps, teach, a request using what
 was taught — confirmed by a second writer — explain, run, and the
 everyday questions left to the reasoner).
 
+## Changes of how code is written (`reader-code9`, 2026-10-04)
+
+Adrian: *use a switch statement* after a function was written went to the
+everyday reasoner (*a train can use the line*); *use recursion instead*
+and *fix it please* were read as questions. The changes taught were all of
+*what* the code gives (*it should also …*); none of *how* it is written.
+And the page showed the request a follow-up was merged into as what was
+typed (`app.html` `renderTurn`) -- fixed: what was typed, unless the
+request is what was typed.
+
+- **The sweep** (`teach_code_talk.py` `TECHNIQUES`, teacher input only):
+  one way for another in both directions (recursion <> a loop, a switch
+  <> ifs, a loop <> map / filter / reduce, async/await <> promises, a class
+  <> a function, a regex or not, Set / Map, in place or not ...), a quality
+  (shorter, faster, typed, generic, pure, safe, readable), fixing and
+  undoing -- each paraphrased of `it` and of a function named, plus a
+  rewrite job per request; beside them, the same ways in what is *not* a
+  change: questions (`is it recursive?`, `why a switch?`) and requests for
+  new code (`write a recursive factorial`).
+- **Trained**: from `reader-design4` (4 epochs, `reader-code8`) a v689
+  compound statement was lost (*dogs bark and cats purr* read as teach);
+  from `reader-code7` (2 epochs, `reader-code9`) the whole suite passes
+  (1514). Held-out act 72.0% (code7) -> 98.0%, aspect 84.9% -> 88.7%;
+  38 hand probes 22 -> 32.
+- **Still open**: the change is read, but nothing checks the rewrite does
+  it -- *use a switch statement* is said to the writers as words, and the
+  answer kept need not have a switch.
+
 ## Knowledge from talking about code
 
 *a vowel is one of a, e, i, o, u* is read as `teach` with its concept and

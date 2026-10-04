@@ -152,6 +152,75 @@ EVERYDAY_SEEDS = [
     ("how long is the reverse gear warranty?", "reverse"),
 ]
 
+#: Changes of *how* the code is written, not of what it gives: one way for
+#: another (recursion <> a loop, a switch <> ifs, a loop <> map/filter/reduce,
+#: async/await <> promises ...), a quality (shorter, faster, typed, pure,
+#: safe), and fixing. The teacher's input, paraphrased into changes of the
+#: code just written (`it`) and of a function named (`{n}`); taught beside
+#: questions and requests that name the same ways (`is it recursive?`,
+#: `write a recursive factorial`), so the act is read, not the word.
+TECHNIQUES = [
+    # one way for another, both directions
+    "make it recursive", "rewrite it iteratively instead of recursively",
+    "use a loop instead of recursion", "use recursion instead of a loop",
+    "use a switch statement", "use if/else instead of the switch",
+    "replace the ifs with a lookup table", "use a ternary",
+    "use a for loop instead of map", "use map and filter instead of the loop",
+    "use reduce", "use a while loop", "use a for...of loop",
+    "use forEach instead", "use a regex", "do it without a regex",
+    "use a Set instead of an array", "use a Map instead of an object",
+    "use async/await instead of promises", "use promises instead of callbacks",
+    "use an arrow function", "make it a function declaration",
+    "use a class", "make it a plain function instead of a class",
+    "use a generator", "use string methods instead of a loop",
+    "use the spread operator", "use destructuring",
+    "use a two-pointer approach", "use binary search",
+    "use dynamic programming", "memoize it", "use a stack instead",
+    "do it in place", "return a new array instead of mutating it",
+    "use bit operations", "use Math.max instead", "sort it first",
+    "do it in one pass", "use early returns", "split it into helpers",
+    "inline the helper", "use built-in methods", "don't use any built-ins",
+    "use const instead of let", "use template literals",
+    # a quality
+    "make it shorter", "make it a one-liner", "make it more readable",
+    "make it faster", "make it O(n)", "use less memory",
+    "add type annotations", "don't use any", "make it generic",
+    "add comments", "add a doc comment", "rename the variables",
+    "add error handling", "throw on bad input", "validate the input",
+    "handle the empty case", "make it pure", "avoid mutation",
+    "make it case-insensitive", "make it tail recursive",
+    # fixing and undoing
+    "fix it", "fix it please", "fix the bug", "that's wrong, fix it",
+    "it fails on an empty list, fix that", "go back to the previous version",
+    "undo that change", "try a different approach",
+]
+#: the same ways, named in what is not a change: a question about the
+#: code (aspect, subject), or a request for new code
+TECHNIQUE_ASKS = {
+    ("explain", "last"): ["is it recursive?", "does it use a loop?",
+                          "does it mutate the input?",
+                          "is it iterative or recursive?",
+                          "does it use a regex?"],
+    ("why", "last"): ["why did you use recursion?",
+                      "why a switch and not ifs?",
+                      "why did you use reduce there?",
+                      "why a loop instead of map?"],
+    ("others", "last"): ["was there an iterative version too?",
+                         "did you try one with a loop?"],
+    ("explain", "named"): ["is {n} recursive?", "does {n} use a loop?"],
+    ("bugs", "named"): ["does {n} fail on empty input?"],
+}
+TECHNIQUE_MAKES = [
+    "write a recursive function that reverses a string",
+    "write an iterative fibonacci",
+    "write a function that uses a switch to name the day of the week",
+    "write a function that uses reduce to sum a list",
+    "write a binary search over a sorted array",
+    "write a memoized function for the nth fibonacci number",
+    "using a regex, write a function that finds all numbers in a string",
+    "write a function with a while loop that counts the digits of n",
+]
+
 #: the words the everyday messages are written around, for the teacher
 EVERYDAY = ("bug", "error", "file", "function", "call", "run", "program",
             "project", "review", "code", "compile", "branch", "test",
@@ -340,6 +409,58 @@ def jobs() -> list:
                     {"act": "teach", "aspect": "none", "subject": "none",
                      "concept": concept, "members": members,
                      "paraphrase": True}))
+    # how the code is written: changes said again, of `it` and of a function
+    # named, and the same ways in questions and requests for new code
+    for at, seed in enumerate(TECHNIQUES):
+        out.append((f"tech|last|{at}", f"A coding assistant has just written "
+                    f"a function. Say this follow-up message in 12 different "
+                    f"ways, as the programmer would type it next, short ones "
+                    f"too, without naming the function: \"{seed}\". " + STYLE,
+                    {"act": "change", "aspect": "none", "subject": "last",
+                     "paraphrase": True, "seed": seed}))
+        name = rng.choice(found["functions"])
+        said = re.sub(r"\b(it|that)\b", name, seed, count=1)
+        if said == seed:
+            said = f"{seed} in {name}"
+        out.append((f"tech|named|{at}", f"Say this request to a coding "
+                    f"assistant in 12 different ways, as a programmer would "
+                    f"type it: \"{said}\". Keep {name} exactly so in every "
+                    f"one. " + STYLE,
+                    {"act": "change", "aspect": "none", "subject": "named",
+                     "paraphrase": True, "seed": said, "name": name}))
+    for at, (entry, english) in enumerate(rng.sample(found["requests"],
+                                                      EACH * 3)):
+        out.append((f"techgen|{at}", f"A coding assistant has just written a "
+                    f"function for this request: \"{english}\". Write 12 "
+                    f"different messages the person might type next asking "
+                    f"it to rewrite the function in a different way or "
+                    f"style -- for example recursion instead of a loop or "
+                    f"the other way round, a switch instead of ifs, map or "
+                    f"reduce instead of a loop, shorter, faster, typed, "
+                    f"more readable, or just to fix it -- without naming "
+                    f"the function. " + STYLE,
+                    {"act": "change", "aspect": "none", "subject": "last"}))
+    for (aspect, subject), seeds in TECHNIQUE_ASKS.items():
+        for at, seed in enumerate(seeds):
+            name = rng.choice(found["functions"]) if "{n}" in seed else None
+            said = seed.format(n=name or "")
+            meta = {"act": "ask", "aspect": aspect, "subject": subject,
+                    "paraphrase": True, "seed": said}
+            keep = ""
+            if name:
+                meta["name"] = name
+                keep = f" Keep {name} exactly so in every one."
+            out.append((f"techask|{aspect}|{subject}|{at}",
+                        f"Say this question in 12 different ways, as a "
+                        f"programmer would type it to a coding assistant "
+                        f"about code it wrote, short ones too: \"{said}\"."
+                        f"{keep} " + STYLE, meta))
+    for at, seed in enumerate(TECHNIQUE_MAKES):
+        out.append((f"techmake|{at}", f"Say this request for new code in 12 "
+                    f"different ways, as a programmer would type it to a "
+                    f"coding assistant: \"{seed}\". " + STYLE,
+                    {"act": "make", "aspect": "none", "subject": "none",
+                     "paraphrase": True, "seed": seed}))
     for word in EVERYDAY:
         out.append((f"none|{word}", f"Write 12 different everyday messages "
                     f"that have nothing to do with software, using the word "
@@ -643,16 +764,23 @@ def corpus(negatives: int = 4000) -> dict:
                     held or _held("name|" + new))
 
     def keeps(key: str, line: str, meta: dict) -> bool:
+        if key.startswith("techask|") and line != meta.get("seed"):
+            # a question naming a way of writing (`is it recursive?`): the
+            # judge's aspects have no `how it is written`, so it is kept as
+            # a question, its aspect as it was said
+            return picked.get((key, line)) == "ask"
         if meta.get("paraphrase") and meta.get("act") == "ask" \
                 and (key, line) in kept and line != meta.get("seed"):
             # a question said again can drift (`what does it use` became
             # `function of positivecount`): where the teacher checked it,
             # what it chose it asks must be what it was said as
             return bool(kept[(key, line)])
-        if meta.get("paraphrase"):
+        if meta.get("paraphrase") and meta["act"] != "change":
             # said again, its words kept exactly: `labelled` is the check
             return True
         if meta["act"] == "change":
+            if line == meta.get("seed"):
+                return True
             # the checking teacher takes a correction for a question about
             # the code as often as not; it is code talk either way, and the
             # message was written as a correction
