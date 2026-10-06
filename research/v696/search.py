@@ -63,6 +63,8 @@ from research.v696.spec import Spec
 
 #: How many candidates are sent to Node at once.
 BATCH = 400
+#: ... and where the solve has a deadline (`Solver.seconds`)
+TIMED_BATCH = 16
 #: How far a program is grown, in operators.
 DEPTH = 3
 #: How many candidates may be evaluated for one spec.
@@ -132,6 +134,8 @@ class Result:
     #: judged: a second program, written or found apart from the answer,
     #: does what it does beyond the examples (`risk.py`, four eyes)
     confirmed: bool = False
+    #: stopped by the solver's time (`Solver.seconds`), not its budget
+    timed_out: bool = False
 
     @property
     def solved(self) -> bool:
@@ -291,6 +295,10 @@ def _instantiate(template: P.Expr, args) -> P.Expr:
 
 # -- the solver ------------------------------------------------------------
 
+class OutOfTime(Exception):
+    """The solve's time is up (`Solver.seconds`)."""
+
+
 class Solver:
     def __init__(self, switches: Switches | None = None,
                  memory: Memory | None = None, depth: int = DEPTH,
@@ -299,6 +307,13 @@ class Solver:
         self.memory = memory if memory is not None else Memory()
         self.depth = depth
         self.budget = budget
+        #: the most a solve may take, in seconds (0: no limit): the budget
+        #: counts candidates, and in Python a candidate may take its whole
+        #: timeout -- one bug's search took half an hour (v699)
+        self.seconds = 0.0
+        self._deadline = None
+        #: judging what was found: no deadline holds it up
+        self._judging = False
         self.inductions = INDUCTIONS
         #: what the risk matrix says of the spec being solved (`risk.py`)
         self._moves, self._behaving, self._spec = (), {}, None
@@ -327,7 +342,8 @@ class Solver:
 
     # the pieces every route shares
     def _ops(self, spec: Spec) -> list:
-        ops = list(P.library().ops) + list(spec.library)
+        ops = list(P.library(language=spec.language).ops) + \
+            list(spec.library)
         if self.switches.chunks:
             ops += [op for op, _ in self.memory.chunks.values()]
         if self.switches.learned and self.memory.specs:
@@ -377,19 +393,20 @@ class Solver:
         """Each expression's values on the examples' inputs -- and on
         `beyond`, inputs no example gives an output for."""
         rows = []
-        for start in range(0, len(exprs), BATCH):
-            batch = exprs[start:start + BATCH]
-            rows += checker().values(spec.names, spec.cases + list(beyond),
-                                     [one.source() for one in batch],
-                                     prelude=P.prelude(batch))
+        # with a deadline, batches a few seconds long: one of BATCH can
+        # take minutes in Python, each candidate its whole timeout
+        size = TIMED_BATCH if self._deadline is not None else BATCH
+        for start in range(0, len(exprs), size):
+            if self._deadline is not None and not self._judging                     and time.time() > self._deadline:
+                raise OutOfTime
+            batch = exprs[start:start + size]
+            rows += spec.values(spec.cases + list(beyond), batch)
         return rows
 
     def _general(self, spec: Spec, program: P.Expr) -> bool:
         if not spec.hidden:
             return True
-        row = checker().values(spec.names, [a for a, _ in spec.hidden],
-                               [program.source()],
-                               prelude=P.prelude([program]))[0]
+        row = spec.values([a for a, _ in spec.hidden], [program])[0]
         return _matches(row, [o for _, o in spec.hidden])
 
     def solve(self, spec: Spec) -> Result:
@@ -410,6 +427,18 @@ class Solver:
 
     def _solve(self, spec: Spec) -> Result:
         started = time.time()
+        # a solve within a solve (a hole, a part) has the time of the one
+        # it is in
+        outer = self._deadline is None
+        if outer and self.seconds:
+            self._deadline = started + self.seconds
+        try:
+            return self._solve_timed(spec, started)
+        finally:
+            if outer:
+                self._deadline = None
+
+    def _solve_timed(self, spec: Spec, started: float) -> Result:
         self._deduced = {}
         result = Result(spec.name)
         self.events, self._result = [], result
@@ -420,21 +449,30 @@ class Solver:
         self._moves = spec.moves or ()
         self._behaving, self._spec = {}, spec
         found = None
-        if self.switches.recognition:
-            found = self._recognised(spec, result)
-            if found is not None:
-                result.route = "recognized"
-        if found is None and self.switches.meet:
-            found = self._meet(spec, result)
-        elif found is None:
-            self._stage = "means-ends"
-            found = self._means_ends(spec, result)
-            if found is not None:
-                result.route = "means-ends"
+        try:
+            if self.switches.recognition:
+                found = self._recognised(spec, result)
+                if found is not None:
+                    result.route = "recognized"
+            if found is None and self.switches.meet:
+                found = self._meet(spec, result)
+            elif found is None:
+                self._stage = "means-ends"
+                found = self._means_ends(spec, result)
+                if found is not None:
+                    result.route = "means-ends"
+        except OutOfTime:
+            # what met the examples by then is judged as ever
+            result.timed_out = True
+            self._note("out of time", seconds=self.seconds)
         if self._hits:
             # judged: of everything that met the examples, the one the
-            # request most likely asked for
-            found, result.route, result.confirmed = self._chosen(spec)
+            # request most likely asked for -- in time or not
+            judging, self._judging = self._judging, True
+            try:
+                found, result.route, result.confirmed = self._chosen(spec)
+            finally:
+                self._judging = judging
         result.program = found
         result.seconds = time.time() - started
         self._note("end", route=result.route,
@@ -754,9 +792,7 @@ class Solver:
         # the probes the reading was measured with: an edge (an empty
         # input) is where "longer than its input" need not hold
         cases = self._beyond(spec, moved=False)
-        row = checker().values(spec.names, cases, [program.source()],
-                               prelude=P.prelude([program]))[0] \
-            if cases else []
+        row = spec.values(cases, [program])[0] if cases else []
         pairs = list(spec.examples) + [
             (case, one["value"]) for case, one in zip(cases, row)
             if "error" not in one]

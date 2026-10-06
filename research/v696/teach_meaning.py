@@ -320,7 +320,33 @@ COMMENT = re.compile(r"^\s*//\s?(.*)$")
 
 
 def _english(prompt: str) -> str:
-    """A MultiPL-E prompt's comment, without its examples."""
+    """A MultiPL-E prompt's comment, without its examples -- or a Python
+    prompt's docstring, without its doctests."""
+    if "def " in prompt and ('"""' in prompt or "'''" in prompt):
+        import ast
+        try:
+            tree = ast.parse(prompt + "\n    pass\n")
+        except SyntaxError:
+            tree = None
+        function = next((one for one in getattr(tree, "body", [])
+                         if isinstance(one, ast.FunctionDef)), None)
+        doc = ast.get_docstring(function) if function is not None else None
+        if doc:
+            kept, skip = [], False
+            for line in doc.splitlines():
+                line = line.strip()
+                if line.startswith(">>>"):
+                    skip = True
+                    continue
+                if skip and line:
+                    # a doctest's result, after its call
+                    skip = False
+                    continue
+                skip = False
+                if line.lower().startswith(("example", "for example")):
+                    continue
+                kept.append(line)
+            return re.sub(r"\s+", " ", " ".join(kept)).strip()
     lines = []
     for line in prompt.splitlines():
         found = COMMENT.match(line)
@@ -400,6 +426,9 @@ def corpus() -> None:
     rows += _task_records("mbpp-ts", solved)
     rows += _task_records("humaneval-ts", solved)
     rows += _described_records()
+    # and Python's, beside them: one reader for both (v699, `pycorpus.py`)
+    from research.v696 import pycorpus
+    rows += pycorpus.records()
     with CORPUS.open("w", encoding="utf-8") as out:
         for row in rows:
             out.write(json.dumps(row) + "\n")

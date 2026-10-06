@@ -214,11 +214,20 @@ class Checker:
             self.process.wait(timeout=5)
 
 
-_CHECKER: Checker | None = None
+_CHECKERS: dict = {}
 
 
-def checker() -> Checker:
-    global _CHECKER
-    if _CHECKER is None or _CHECKER.process.poll() is not None:
-        _CHECKER = Checker()
-    return _CHECKER
+def checker(language: str = "typescript"):
+    """The checker of a language, one process each, kept: TypeScript's
+    (`tscheck.js`), Python's (`pycheck.py`) -- one protocol."""
+    found = _CHECKERS.get(language)
+    if found is None or found.process.poll() is not None:
+        if language == "typescript":
+            found = Checker()
+        elif language == "python":
+            from research.v696.pychecker import PyChecker
+            found = PyChecker()
+        else:
+            raise CheckerError(f"no checker for {language}")
+        _CHECKERS[language] = found
+    return found

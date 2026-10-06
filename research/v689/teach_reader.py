@@ -2550,6 +2550,117 @@ def social(store: str) -> None:
     print(json.dumps(dict(reasons), indent=1))
 
 
+# -- claims said against each other --------------------------------------------
+#
+# `so pigs don't fly, but this particular pig took a flight on a plane?`: a
+# claim of a kind, a comma, a claim of one of them. Readers taught a corpus
+# where a comma is mostly a list's (mathematics, code talk) rephrased it as
+# a question would be -- `fly,` moved to the end (`so pigs don't but ... on
+# a plane fly`). Taught here, in their own shape, with words other than the
+# test's.
+
+#: (kind, its plural, what it does, two things one of them did)
+CLAIM_KINDS = (
+    ("cat", "cats", "swim", ("swam across the lake", "took a swim")),
+    ("dog", "dogs", "climb trees", ("climbed the oak", "went up a tree")),
+    ("fish", "fish", "walk", ("walked on the beach", "took a walk")),
+    # not flying: v689's test is of pigs flying, and is not taught
+    ("penguin", "penguins", "juggle", ("juggled three balls",
+                                       "did some juggling")),
+    ("horse", "horses", "sing", ("sang a song", "sang at dawn")),
+    ("cow", "cows", "jump", ("jumped over the fence", "took a jump")),
+    ("bird", "birds", "swim", ("swam in the pond", "had a swim")),
+    ("snake", "snakes", "run", ("ran down the road", "went for a run")),
+    ("duck", "ducks", "talk", ("talked to the farmer", "spoke to me")),
+    ("sheep", "sheep", "climb", ("climbed the hill", "climbed a ladder")),
+    ("rabbit", "rabbits", "dive", ("dove into the river", "took a dive")),
+    ("goat", "goats", "read", ("read a book", "read the sign")),
+    ("mouse", "mice", "drive", ("drove a car", "drove to town")),
+    ("frog", "frogs", "dance", ("danced on the stage", "had a dance")),
+    ("bear", "bears", "cook", ("cooked dinner", "cooked an egg")),
+    ("owl", "owls", "laugh", ("laughed at the joke", "laughed out loud")),
+    ("lion", "lions", "paint", ("painted a picture", "painted the wall")),
+    ("whale", "whales", "climb", ("climbed a rock", "climbed the stairs")),
+    ("turtle", "turtles", "sprint", ("sprinted past me", "won a race")),
+    ("hen", "hens", "swim", ("swam to the boat", "went for a swim")),
+    ("donkey", "donkeys", "write", ("wrote a letter", "wrote its name")),
+    ("parrot", "parrots", "cook", ("cooked rice", "made soup")),
+    ("camel", "camels", "skate", ("skated on the ice", "went skating")),
+    ("fox", "foxes", "knit", ("knitted a scarf", "knitted a hat")),
+    ("bee", "bees", "sleep", ("slept all day", "took a nap")),
+    ("crab", "crabs", "whistle", ("whistled a tune", "gave a whistle")),
+    ("wolf", "wolves", "type", ("typed a message", "typed a word")),
+    ("seal", "seals", "ride", ("rode a bike", "went for a ride")),
+    ("ant", "ants", "sing", ("sang to us", "sang a tune")),
+    ("deer", "deer", "drive", ("drove the truck", "drove away")),
+)
+CLAIM_SHAPES = (
+    "so {p} don't {v}, but this particular {k} {d}?",
+    "so {p} don't {v}, but this {k} {d}?",
+    "{p} don't {v}, but my {k} {d}",
+    "so {p} can't {v}, but the {k} {d}?",
+    "{p} never {v}, but this one {d}",
+    "so {p} do {v}, but this particular {k} didn't?",
+    "{p} {v}, but my {k} doesn't",
+    "so {p} don't {v}, yet the {k} {d}?",
+    "wait, {p} don't {v}, but that {k} {d}?",
+    "so {p} cannot {v}, but our {k} {d}?",
+    "{p} do not {v}, but this {k} {d} yesterday",
+    "so {p} won't {v}, but this particular {k} {d}?",
+    "so {p} don't {v}, but this particular {k} {d}",
+    "{p} don't {v}, but this particular {k} {d}?",
+    "so {p} never {v}, but my {k} {d} on sunday?",
+    "so {p} do not {v}, but this one {d}?",
+)
+
+
+def claim_texts(seed: int = 699) -> list[str]:
+    """Every shape with every kind and each thing one of them did, said
+    with and without its opening capitalised."""
+    rng = random.Random(seed)
+    out = []
+    for shape in CLAIM_SHAPES:
+        for kind, plural, does, dids in CLAIM_KINDS:
+            for did in (dids if "{d}" in shape else dids[:1]):
+                said = shape.format(p=plural, v=does, k=kind, d=did)
+                out.append(said)
+                if rng.random() < 0.3:
+                    out.append(said[0].upper() + said[1:])
+    return out
+
+
+def claims(store: str) -> None:
+    """Records for claims said against each other, read, asked and placed
+    as the rules read them, into `train-claims.jsonl` and
+    `valid-claims.jsonl`: every tenth held out. (Read as the rules read
+    them, `dogs bark and cats purr` is taught, not refused: v689's test of
+    it held only while a reader remembered that one sentence --
+    research/v699/DESIGN.md.)"""
+    _start_worker(store)
+    lexicon, parser = _WORKER["lexicon"], _WORKER["parser"]
+    reasons: collections.Counter = collections.Counter()
+    seen: set = set()
+    with open(DATA / "train-claims.jsonl", "w", encoding="utf-8") as train, \
+            open(DATA / "valid-claims.jsonl", "w", encoding="utf-8") as valid:
+        for index, text in enumerate(claim_texts()):
+            into = valid if zlib.crc32(text.encode()) % 10 == 0 else train
+            record, why = label(text, lexicon, frozenset())
+            reasons[why or "taught"] += 1
+            if record is not None:
+                record.update(source=f"claims-{index}", how="claims",
+                              task="read")
+                into.write(json.dumps(record) + "\n")
+            # said with a question mark, a claim is put to the rephrasing
+            # first (`rephrase`), which moved `fly,` -- not the placing
+            more, why = _others(text, frozenset(), lexicon, parser, seen,
+                                ("ask", "place"))
+            reasons.update(why)
+            for one in more:
+                one.update(source=f"claims-{index}", how="claims")
+                into.write(json.dumps(one) + "\n")
+    print(json.dumps(dict(reasons), indent=1))
+
+
 # -- training ---------------------------------------------------------------------
 #: What share of each epoch each reader's records are.
 #: Reading replies back took 16% at first, most of it from parsing, and a
@@ -2910,7 +3021,7 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("what", choices=("corpus", "train", "pools",
-                                         "sources", "social"))
+                                         "sources", "social", "claims"))
     parser.add_argument("--variants", type=int, default=6)
     parser.add_argument("--external", action="store_true",
                         help="also read WikiAnswers and QA-SRL")
@@ -2935,6 +3046,9 @@ def main(argv=None) -> int:
     elif options.what == "social":
         from research.v687 import build as store
         social(str(store.DEFAULT_STORE))
+    elif options.what == "claims":
+        from research.v687 import build as store
+        claims(str(store.DEFAULT_STORE))
     elif options.what == "sources":
         texts = sources(external=True)
         print(dict(collections.Counter(kind for _, kind in texts)))

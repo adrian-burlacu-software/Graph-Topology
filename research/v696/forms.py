@@ -93,7 +93,8 @@ def _sub_spec(spec: Spec, scope, body_type: str, rows) -> Spec | None:
     # the hole is searched with what the spec may use: a project's
     # functions, a taught concept (`Spec.library`)
     return Spec(f"{spec.name}/hole", list(scope) + list(spec.params),
-                body_type, examples, library=list(spec.library))
+                body_type, examples, library=list(spec.library),
+                language=spec.language)
 
 
 def _induced(solver, spec: Spec, receiver: P.Expr, values: list,
@@ -130,7 +131,7 @@ def _induced(solver, spec: Spec, receiver: P.Expr, values: list,
     own = [(args[:width], out) for args, out in rows]
     for pushed in (Spec(f"{spec.name}/step", list(settled), body_type,
                         _unique(own)[:SUB_EXAMPLES],
-                        library=list(spec.library)),
+                        library=list(spec.library), language=spec.language),
                    _sub_spec(spec, settled, body_type, rows)):
         if pushed is None or len(pushed.examples) < 2:
             continue
@@ -159,7 +160,7 @@ def deduced(solver, spec: Spec, receiver: P.Expr, values: list,
             result, kinds=("map", "filter", "reduce")) -> P.Expr | None:
     """Try every deduced form over one receiver, whose values on the
     examples are `values`: a sub-spec pushed down, a child solving it."""
-    lib = P.library()
+    lib = P.library(language=spec.language)
     element = _element_type(receiver.type)
     outputs = spec.outputs
     for form in lib.forms:
@@ -243,13 +244,16 @@ def _solve_hole(solver, sub: Spec | None, result) -> P.Expr | None:
                             learned=solver.switches.learned),
                    memory=solver.memory, depth=SUB_DEPTH,
                    budget=min(SUB_BUDGET, left))
+    # ... and its time: the parent's deadline is the child's
+    child._deadline = getattr(solver, "_deadline", None)
     got = child.solve(sub)
     result.evaluated += got.evaluated
     result.subgoals = getattr(result, "subgoals", 0) + 1
     return got.program
 
 
-def bodies(scope, outer, body_type: str, literals=(), extra=()) -> list:
+def bodies(scope, outer, body_type: str, literals=(), extra=(),
+           language: str = "typescript") -> list:
     """Small bodies of a type in a hole's scope: its parameters, the outer
     ones, constants, and one operator over them -- the spec's own operators
     (`extra`: a project's functions, a taught concept) before the
@@ -258,7 +262,7 @@ def bodies(scope, outer, body_type: str, literals=(), extra=()) -> list:
         [P.param(name, kind) for name, kind in outer] + \
         [P.const(value, kind) for value, kind in P.CONSTANTS] + \
         list(literals)
-    lib = P.library()
+    lib = P.library(language=language)
     out = [one for one in pool if one.type == body_type]
     scoped = {name for name, _ in scope}
     for op in list(extra) + list(lib.ops):
@@ -283,7 +287,7 @@ def bodies(scope, outer, body_type: str, literals=(), extra=()) -> list:
 def applied(spec: Spec, receiver: P.Expr, literals=()) -> list:
     """Every checked form over a receiver, with small bodies: candidates to
     be checked whole, or offered to the forward trie."""
-    lib = P.library()
+    lib = P.library(language=spec.language)
     out = []
     for form in lib.forms:
         if form.receiver != receiver.type:
@@ -301,7 +305,8 @@ def applied(spec: Spec, receiver: P.Expr, literals=()) -> list:
             if not all(extra_choices):
                 continue
             for body in bodies(scope, spec.params, body_type,
-                               literals, spec.library)[:BODIES]:
+                               literals, spec.library,
+                               language=spec.language)[:BODIES]:
                 for extra in itertools.product(*extra_choices):
                     out.append(P.apply(op, [receiver, P.lambda_(scope,
                                                                 body),

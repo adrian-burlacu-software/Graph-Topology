@@ -127,6 +127,14 @@ def read(text: str, known=()) -> Reading | None:
     from research.v692.corpus import words
     if not available():
         return None
+    # a request with its examples under it (`sum_evens([1, 2]) == 2`): the
+    # words are read, as the reader and the ways were taught -- with the
+    # examples, `write a python function ...` was read as a change, and no
+    # language at all
+    from research.v697.coding import read as taken
+    asked = taken(text)
+    if asked.get("examples") and asked.get("english"):
+        text = asked["english"]
     said = words(text)
     if not said:
         return None

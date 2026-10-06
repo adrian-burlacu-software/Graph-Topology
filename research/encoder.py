@@ -37,9 +37,11 @@ LLM = Path(__file__).resolve().parents[1] / "llm"
 #: starts from. The reader taught mathematics and design goals as well
 #: (`research/v692`, `research/v693`, `regenerate.py`'s `reader-math`) is
 #: read with where it exists -- and before it the one taught code talk too
-#: (`research/v698`, `reader-code9`); the readers before them are left as
-#: they were.
-PREFERRED = ("reader-code9", "reader-design4", "reader-maths2", "reader")
+#: (`research/v698`, `reader-code9`; Python's code talk too, and claims
+#: said against each other, `research/v699`, `reader-code20`); the readers
+#: before them are left as they were.
+PREFERRED = ("reader-code20", "reader-code9", "reader-design4",
+             "reader-maths2", "reader")
 MODEL = Path(os.environ.get("V689_READER_MODEL") or next(
     (LLM / name for name in PREFERRED
      if (LLM / name / "labels.json").exists()), LLM / "reader"))

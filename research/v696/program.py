@@ -80,8 +80,14 @@ class Op:
     #: tree it returns -- a subgoal solved, named, and used as an operator
     params: tuple = ()
     body: object = None
+    #: how Python writes it, where it is one of Python's library
+    #: (`pylibrary.py`): a template of its arguments (`"{1}.join({0})"`)
+    py: str = ""
 
     def said(self, args: list) -> str:
+        if self.py:
+            # Python's own: its text is what it is
+            return self.py.format(*args)
         if self.kind == "range":
             # the numbers from `a` up to `b`, as the language writes them
             if args[0] == "0":
@@ -442,10 +448,14 @@ class Library:
 _LIBRARY: dict = {}
 
 
-def library(types=TYPES) -> Library:
+def library(types=TYPES, language: str = "typescript") -> Library:
     """Every rung-1 operator over these types: the language's operators,
     and each library member whose parameters and result are among them --
-    optional parameters left out, each as the compiler declares it."""
+    optional parameters left out, each as the compiler declares it.
+    Python's is its own (`pylibrary.py`)."""
+    if language == "python":
+        from research.v696 import pylibrary
+        return pylibrary.library(types)
     key = tuple(sorted(types))
     if key in _LIBRARY:
         return _LIBRARY[key]

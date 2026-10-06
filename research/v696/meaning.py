@@ -245,10 +245,12 @@ def word(op) -> str:
     return op.name
 
 
-def structure(source: str, entry: str) -> tuple:
-    """(uses, root) of `entry` in verified source, by the compiler."""
+def structure(source: str, entry: str, language: str = "typescript"
+              ) -> tuple:
+    """(uses, root) of `entry` in verified source, by the compiler -- or,
+    in Python, off its syntax in the same words (`pystructure.py`)."""
     from research.v696.checker import checker
-    read = checker().structure(source, entry)
+    read = checker(language).structure(source, entry)
     return frozenset(read["uses"]), read["root"]
 
 
@@ -297,16 +299,41 @@ def test_pairs(tests: str) -> list:
     return out
 
 
-def values_of(pairs_text: list) -> list:
-    """The texts of `test_pairs` as values, as Node makes them; pairs it
-    cannot read are left out."""
+def test_pairs_python(tests: str) -> list:
+    """Each `assert candidate(ARGS) == EXPECTED` of a Python test file as
+    (ARGS text, EXPECTED text) -- the plain equality only, as for
+    TypeScript `deepEqual` only."""
+    import ast
+    try:
+        tree = ast.parse(tests)
+    except SyntaxError:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assert):
+            continue
+        test = node.test
+        if not (isinstance(test, ast.Compare) and len(test.ops) == 1
+                and isinstance(test.ops[0], ast.Eq)
+                and isinstance(test.left, ast.Call)
+                and isinstance(test.left.func, ast.Name)
+                and not test.left.keywords):
+            continue
+        args = ", ".join(ast.unparse(one) for one in test.left.args)
+        out.append((args, ast.unparse(test.comparators[0])))
+    return out
+
+
+def values_of(pairs_text: list, language: str = "typescript") -> list:
+    """The texts of `test_pairs` as values, as the language makes them;
+    pairs it cannot read are left out."""
     from research.v696.checker import checker
     if not pairs_text:
         return []
     texts = []
     for args, expected in pairs_text:
         texts += [f"[{args}]", expected]
-    rows = checker().values([], [[]], texts)
+    rows = checker(language).values([], [[]], texts)
     out = []
     for at in range(0, len(rows), 2):
         args, expected = rows[at][0], rows[at + 1][0]

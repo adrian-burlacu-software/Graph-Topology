@@ -1109,6 +1109,21 @@ def _vsix_check() -> str | None:
     return f"{found[-1].name}, {found[-1].stat().st_size // 1024} KB"
 
 
+def _lines_check(path: Path, least: int, made: str
+                 ) -> Callable[[], str | None]:
+    """A data file there, with at least `least` lines (`made`: how many
+    when it was made)."""
+    def check() -> str | None:
+        if not path.exists():
+            return None
+        count = sum(1 for _ in path.open(encoding="utf-8"))
+        if count < least:
+            raise Failed(f"{path.name}: {count} lines, expected {least}+ "
+                         f"({made})")
+        return f"{count} lines"
+    return check
+
+
 def _sketcher_check(out: Path) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "sketcher.json").exists():
@@ -1150,6 +1165,11 @@ def steps() -> list[Step]:
                              "(JavaScript), v696 rung 4's held benchmark",
              lambda: _run("research.v696.bugs", "fetch"),
              _humanevalfix_check, cost="seconds"),
+        Step("humanevalfix-py", "the same bugs in Python (v699 rung 4)",
+             lambda: _run("research.v696.bugs", "fetch", "python"),
+             _lines_check(DATA / "humanevalfix" / "python.jsonl", 160,
+                          "164 when made"),
+             cost="seconds"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually
@@ -1471,6 +1491,135 @@ def steps() -> list[Step]:
         Step("vscode-extension", "the VS Code harness, packed as a .vsix "
                                  "(install: package.py --install)",
              _vsix_make, _vsix_check, cost="seconds"),
+
+        # -- v699: Python, fully -------------------------------------------
+        Step("multipl-e-py", "the same tasks in Python: MultiPL-E's typed "
+                             "originals, MBPP's and HumanEval's solutions",
+             lambda: _run("research.v696.tasks", "fetch-python"),
+             _lines_check(DATA / "multipl-e" / "mbpp-py.jsonl", 380,
+                          "390 when made"),
+             needs=("multipl-e",), cost="a few minutes"),
+        Step("code-meaning-py", "Python's corpora for the reader of meaning: "
+                                "its library's docstrings, people's solutions "
+                                "kept by the tests, generated programs said "
+                                "in English (SmolLM3, kept by a round trip)",
+             lambda: (_run("research.v696.pycorpus", "docs"),
+                      _run("research.v696.pycorpus", "solutions"),
+                      _run("research.v696.pycorpus", "described",
+                           "--count", "4000")),
+             # 3856 when made: the run stopped at its time limit, each kept as
+             # it was said (a run again goes on from there)
+             _lines_check(DATA / "code-meaning" / "described-py.jsonl", 3800,
+                          "3856 when made"),
+             needs=("multipl-e-py", "smollm3"), cost="two hours", gpu=True),
+        Step("requests-py", "new Python requests, written and solved by "
+                            "SmolLM3 offline, kept as TypeScript's are",
+             lambda: _run("research.v696.teach_requests", "write-python",
+                          "--count", "600"),
+             _lines_check(DATA / "code-meaning" / "requests-py.jsonl", 550,
+                          "600 when made"),
+             needs=("multipl-e-py", "smollm3"), cost="two hours", gpu=True),
+        Step("meaning-bilingual", "the reader of meaning taught both "
+                                  "languages, one vocabulary of what code "
+                                  "uses",
+             lambda: (_run("research.v696.teach_meaning", "corpus"),
+                      _run("research.v696.reader", "train", "--base",
+                           "unixcoder-base", "--model",
+                           "meaning-bilingual")),
+             _meaning_check(LLM / "meaning-bilingual"),
+             needs=("code-meaning", "code-meaning-py", "unixcoder"),
+             cost="twenty minutes", gpu=True),
+        Step("sketcher-functions3", "the writer taught both languages, the "
+                                    "language in its system line",
+             lambda: (_run("research.v696.teach_sketch", "corpus",
+                           "--functions", "--out",
+                           "sketches-functions3.jsonl", "--reader",
+                           "meaning-bilingual"),
+                      _run("research.v696.sketcher", "train", "--functions",
+                           "--epochs", "2", "--model", "sketcher-functions3",
+                           "--corpus", "sketches-functions3.jsonl")),
+             _sketcher_check(LLM / "sketcher-functions3"),
+             needs=("meaning-bilingual", "smollm2"), cost="forty minutes",
+             gpu=True),
+        Step("sketcher-people2", "the people's writer, both languages",
+             lambda: (_run("research.v696.teach_requests", "corpus"),
+                      _run("research.v696.sketcher", "train", "--functions",
+                           "--no-meaning", "--epochs", "2", "--model",
+                           "sketcher-people2", "--corpus",
+                           "sketches-people.jsonl")),
+             _sketcher_check(LLM / "sketcher-people2"),
+             needs=("requests", "requests-py", "smollm2"),
+             cost="fifteen minutes", gpu=True),
+        Step("risk-estimators2", "the six risk estimators over the bilingual "
+                                 "reader, Python's requests labelled too",
+             lambda: (_run("research.v696.risk", "label"),
+                      _run("research.v696.risk", "train", "--model",
+                           "risk-estimators2", "--reader",
+                           "meaning-bilingual")),
+             lambda: ("trained" if (LLM / "risk-estimators2"
+                                    / "risk.json").exists() else None),
+             needs=("risk-labels", "meaning-bilingual", "requests-py"),
+             cost="two hours", gpu=True),
+        # the ways estimator taught on the code talk as checked outright
+        # (`teach_code_talk._family_choice`: asked which a message is
+        # written with, the teacher took any message not naming a regex for
+        # `without a regular expression`); -2..-8 were v699's steps there
+        # ... and on requests asked without the way their seed names (a task
+        # is not a way: `sum the even numbers` was read as TypeScript), in
+        # two rounds -- the seeds, then the plain ones said again
+        Step("ways-estimator9", "the ways of writing a message asks for, "
+                                "in both languages, and which language",
+             lambda: (_run("research.v698.teach_code_talk",
+                           "contrast-write"),
+                      _run("research.v698.teach_code_talk",
+                           "contrast-check"),
+                      _run("research.v698.teach_code_talk",
+                           "contrast-write"),
+                      _run("research.v698.teach_code_talk",
+                           "contrast-check"),
+                      _run("research.v698.asked_ways", "tune", "--out",
+                           "ways-estimator9", "--reader",
+                           "meaning-bilingual")),
+             lambda: (f"chosen {json.loads((LLM / 'ways-estimator9' / 'ways.json').read_text(encoding='utf-8'))['chosen']}"
+                      if (LLM / "ways-estimator9" / "ways.json").exists()
+                      else None),
+             needs=("code-talk", "meaning-bilingual"), cost="half an hour",
+             gpu=True),
+        Step("ways-held", "the rare ways' own sets, never taught: messages "
+                          "asking for each and its near misses, kept as "
+                          "the teacher reads them; the estimator measured "
+                          "on them",
+             lambda: (_run("research.v698.teach_code_talk", "held-write"),
+                      _run("research.v698.teach_code_talk", "held-check"),
+                      _run("research.v698.asked_ways", "challenge", "--out",
+                           "ways-estimator9")),
+             _lines_check(LLM / "code-talk-data" / "ways-held.jsonl", 900,
+                          "about 1000 when made"),
+             needs=("code-talk", "ways-estimator9", "smollm3"),
+             cost="twenty minutes", gpu=True),
+        Step("reader-claims", "claims said against each other (`so cats "
+                              "don't swim, but this cat swam?`), read and "
+                              "placed by the rules: a comma before them is "
+                              "no time phrase",
+             lambda: _run("research.v689.teach_reader", "claims"),
+             lambda: (f"{_lines(LLM / 'reader-data' / 'train-claims.jsonl')}"
+                      f" claim rows" if (LLM / "reader-data"
+                                         / "train-claims.jsonl").exists()
+                      else None),
+             needs=("store", "reader-corpus"), cost="two minutes"),
+        # reader-code10 (without the claims) rephrased v689's pig claim as a
+        # question is, `fly` moved to the end; -10..-15 were v698's
+        # experiments' names, -16..-19 and -21 v699's tries (DESIGN.md)
+        Step("reader-code-python", "the shared reader taught Python's code "
+                                   "talk (snake_case names, .py files)",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code9"),
+                          "--out", str(LLM / "reader-code20"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code20", 80),
+             needs=("reader-code-ways", "code-talk", "reader-claims"),
+             cost="twenty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

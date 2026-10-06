@@ -36,17 +36,47 @@ ASSERTING = ("const console = { log: () => {}, assert: (holds, ...said) => "
              "{ if (!holds) throw new Error(\"assertion failed\"); } };\n")
 
 
-def fetch() -> int:
+def fetch(config: str = "js") -> int:
+    """HumanEvalPack's bugs in a language (`js`, `python`)."""
     rows = []
+    url = ROWS.replace("config=js", f"config={config}")
     for offset in range(0, COUNT, 100):
-        with urllib.request.urlopen(ROWS.format(offset=offset)) as reply:
+        with urllib.request.urlopen(url.format(offset=offset)) as reply:
             rows += [one["row"] for one in json.load(reply)["rows"]]
     DATA.mkdir(parents=True, exist_ok=True)
-    with (DATA / "js.jsonl").open("w", encoding="utf-8") as out:
+    path = DATA / f"{config}.jsonl"
+    with path.open("w", encoding="utf-8") as out:
         for row in rows:
             out.write(json.dumps(row) + "\n")
-    print(f"{len(rows)} bugs -> {DATA / 'js.jsonl'}")
+    print(f"{len(rows)} bugs -> {path}")
     return len(rows)
+
+
+def humanevalfix_python() -> list:
+    """Python's bugs (v699), each its declaration -- typed as HumanEval's
+    own -- and the body written wrong, judged in the end by its own
+    `check` and the task's tests; the cases those the task's tests say."""
+    typed = {int(task.name.split("_")[1]): task
+             for task in tasks.load("humaneval-py")}
+    out = []
+    for line in (DATA / "python.jsonl").open(encoding="utf-8"):
+        row = json.loads(line)
+        number = int(row["task_id"].split("/")[1])
+        task = typed.get(number)
+        if task is None:
+            continue
+        entry = row["entry_point"]
+        source = row["declaration"] + row["buggy_solution"]
+        pairs = M.values_of(M.test_pairs_python(task.tests), "python")
+        if not pairs:
+            continue
+        tests = row["test"] + f"\ncheck({entry})\n"
+        out.append(Bug(f"fixpy-{number}-{row['bug_type'].replace(' ', '-')}",
+                       source, entry, list(task.params), task.returns,
+                       [list(args) for args, _ in pairs],
+                       [want for _, want in pairs], tests,
+                       language="python"))
+    return out
 
 
 def humanevalfix() -> list:
@@ -151,8 +181,9 @@ def _generated(held: bool, count: int, seed: int) -> list:
 
 
 def main(argv=None) -> int:
-    if (argv or sys.argv[1:]) == ["fetch"]:
-        fetch()
+    said = argv or sys.argv[1:]
+    if said[:1] == ["fetch"]:
+        fetch(said[1] if len(said) > 1 else "js")
         return 0
     print(__doc__)
     return 0

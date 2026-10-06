@@ -36,6 +36,30 @@ class Workspace:
     #: the ways of writing asked for so far (v698 `ways.py`): *use a
     #: switch*, then *make it recursive* -- the code is held to them all
     ways: list | None = None
+    #: the language its code is in (v699): what a request names none of
+    #: keeps it
+    language: str | None = None
+
+
+def restated(request: dict, language: str) -> str:
+    """A request said again for another language: its words, and its
+    examples as that language writes its values (`True`, not `true`)."""
+    if language == "python":
+        from research.v696.pyprint import literal
+    else:
+        literal = json.dumps
+    entry = request.get("entry") or "f"
+    lines = [request.get("english") or ""]
+    for one in request.get("examples") or ():
+        args = ", ".join(literal(arg) for arg in one["args"])
+        lines.append(f"{entry}({args}) == {literal(one['value'])}")
+    return "\n".join(line for line in lines if line)
+
+
+def language_of(space: Workspace) -> str:
+    """The language of the conversation's code."""
+    return ((space.request or {}).get("language") or space.language
+            or "typescript")
 
 
 WORKSPACES: dict = {}
@@ -136,10 +160,12 @@ def answered(text: str, space: Workspace, turn: int) -> dict | None:
 
 
 def respond(kind: str, detail, text: str, space: Workspace,
-            turn: int, ways=()) -> dict:
+            turn: int, ways=(), language: str | None = None) -> dict:
     """What a turn of each kind does -- whoever read what kind it is (the
     hand rules above, or v698's encoder). `ways`: the ways of writing the
-    turn asks for (v698's encoder), added to those asked before."""
+    turn asks for (v698's encoder), added to those asked before;
+    `language`, what the turn or its project says the code is in (v699) --
+    a change keeps the conversation's."""
     if kind == "more" and not space.request:
         kind, detail = "request", coding.read(text)
     if kind in ("request", "more"):
@@ -155,9 +181,13 @@ def respond(kind: str, detail, text: str, space: Workspace,
                       ((space.found or {}).get("answer") or {}).get("entry"))
         # a function the person wrote for it, this turn: tried with the rest
         yours = detail.get("yours") if isinstance(detail, dict) else None
+        if kind == "more":
+            language = language_of(space)
         answer = coding.answered(request, ways=held, before=before,
-                                 yours=yours)
+                                 yours=yours, language=language)
         space.ways = held
+        space.language = (answer["code"].get("request") or {}).get(
+            "language") or language or space.language
         found = answer["code"]
         if kind == "more":
             found["continued"] = {"said": text, "asked": request}
@@ -192,7 +222,8 @@ def _settle(found: dict) -> list:
         [kind for _, kind in request.get("params") or ()])
         if args not in given]
     try:
-        rows = checker().run(code, entry, probes) if probes else []
+        rows = checker(request.get("language", "typescript")).run(
+            code, entry, probes) if probes else []
     except CheckerError:
         rows = []
     ranked = sorted(zip(probes, rows), key=lambda one: (
@@ -245,11 +276,11 @@ def _call(space: Workspace, args: str, text: str) -> dict:
         return _reply(space, text, "call", "There is no program yet to run.",
                       {})
     try:
-        values = coding._literal(f"[{args}]")
+        values = coding._literal(f"[{args}]", language_of(space))
     except ValueError:
         return _reply(space, text, "call",
                       f"I could not read {args} as arguments.", {})
-    row = checker().run(code, entry, [values])[0]
+    row = checker(language_of(space)).run(code, entry, [values])[0]
     shown = f"{entry}({', '.join(map(_said, values))})"
     if "error" in row:
         said = f"{shown} fails: {row['error']}."
@@ -276,11 +307,12 @@ def _explain(space: Workspace, text: str) -> dict:
     from research.v696 import meaning as M
     from research.v696.checker import checker
     code, entry = _code(space)
-    uses, root = M.structure(code, entry)
+    language = language_of(space)
+    uses, root = M.structure(code, entry, language)
     made = [one for one in sorted(uses) if one not in
             ("a name", "a literal", "let", "const", "return")]
     inputs = _inputs(space)
-    rows = checker().run(code, entry, inputs)
+    rows = checker(language).run(code, entry, inputs)
     pairs = [(args, row["value"]) for args, row in zip(inputs, rows)
              if "value" in row]
     printed = [line for row in rows for line in row.get("printed", [])]

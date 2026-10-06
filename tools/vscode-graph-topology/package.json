@@ -2,7 +2,7 @@
   "name": "graph-topology",
   "displayName": "Graph Topology",
   "description": "The Graph-Topology conversation in the editor: everything each turn did, code written and checked, projects read whole. A thin client of a server at a URL you choose.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "adrian-burlacu",
   "license": "UNLICENSED",
   "engines": { "vscode": "^1.80.0" },
@@ -35,12 +35,12 @@
         },
         "graphTopology.projectInclude": {
           "type": "string",
-          "default": "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+          "default": "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,py}",
           "description": "Which files are read as the project."
         },
         "graphTopology.projectExclude": {
           "type": "string",
-          "default": "**/{node_modules,dist,build,out,.git,.vscode-test,coverage}/**",
+          "default": "**/{node_modules,dist,build,out,.git,.vscode-test,coverage,__pycache__,.venv,venv,env,.tox,.mypy_cache,.pytest_cache,site-packages}/**",
           "description": "Which files are never read."
         },
         "graphTopology.maxFiles": {

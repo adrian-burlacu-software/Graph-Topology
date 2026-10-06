@@ -121,6 +121,44 @@ def _function(signature: str, expression: str) -> str:
     return f"{signature} {{\n  return {expression};\n}}"
 
 
+def _python_params(signature: str) -> list:
+    """(name, engine type) of a Python signature's parameters."""
+    import ast
+
+    from research.v696 import pytypes
+    try:
+        tree = ast.parse(signature.rstrip(":") + ":\n    pass\n")
+    except SyntaxError:
+        return []
+    function = tree.body[0]
+    return [(one.arg, pytypes.engine(ast.unparse(one.annotation)
+                                     if one.annotation else None))
+            for one in function.args.args]
+
+
+def _python_targets(record: dict, functions: bool, written: dict) -> list:
+    """A Python record's programs, as a writer is taught to write them: the
+    solution people wrote, where it reads into the tree; a generated
+    program or a member, printed from its tree."""
+    from research.v696 import language as L
+    from research.v696 import pyparse, pyprint
+    entry = record.get("entry") or "f"
+    params = _python_params(record["signature"])
+    out = []
+    if record["source"] == "mbpp-py":
+        code = written.get(record["name"])
+        if code and pyparse.parse(code, entry, params) is not None:
+            out.append(code.strip())
+    elif record["source"] in ("generated-py", "docs-py") and record["body"]:
+        tree = pyparse.parse(record["body"], entry, params)
+        if tree is not None:
+            returns = record["meaning"]["returns"]
+            out.append(L.of("python").function(entry, params, returns,
+                                               tree).strip()
+                       if functions else pyprint.text(tree))
+    return out
+
+
 def corpus(model: str = "meaning-unixcoder", seed: int = 696,
            functions: bool = False, out: Path | None = None) -> None:
     """The decoder's records. With `functions`, each target is a whole
@@ -146,8 +184,19 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696,
             row = json.loads(line)
             if row["code"]:
                 written[row["name"]] = row["code"]
+    from research.v696 import pycorpus
+    if functions and pycorpus.SOLUTIONS.exists():
+        for line in pycorpus.SOLUTIONS.open(encoding="utf-8"):
+            row = json.loads(line)
+            if row["code"]:
+                written[row["name"]] = row["code"]
     rows = []
     for record in records:
+        if record.get("language") == "python":
+            for target in dict.fromkeys(_python_targets(record, functions,
+                                                        written)):
+                rows.append((record, target))
+            continue
         targets = []
         entry = re.search(r"function\s+(\w+)", record["signature"]).group(1) \
             if record["signature"] else None
@@ -192,7 +241,8 @@ def corpus(model: str = "meaning-unixcoder", seed: int = 696,
             file.write(json.dumps({
                 "name": record["name"], "source": record["source"],
                 "split": record["split"], "english": english, "code": code,
-                "meaning": said_meaning(probs), "target": target}) + "\n")
+                "meaning": said_meaning(probs), "target": target,
+                "language": record.get("language", "typescript")}) + "\n")
     count: dict = {}
     for record, _ in rows:
         key = (record["source"], record["split"])
@@ -210,11 +260,14 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default="",
                         help="the corpus file's name in data/code-meaning "
                              "(a corpus made with a wider reader)")
+    parser.add_argument("--reader", default="meaning-unixcoder",
+                        help="the reader of meaning whose readings are the "
+                             "meaning lines (v699: the bilingual one)")
     args = parser.parse_args(argv)
     if args.job == "expressions":
         expressions()
     else:
-        corpus(functions=args.functions,
+        corpus(model=args.reader, functions=args.functions,
                out=T.DATA / args.out if args.out else None)
     return 0
 

@@ -37,9 +37,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import collections
 import json
 import random
 import re
+import zlib
 import sys
 from pathlib import Path
 
@@ -247,6 +249,22 @@ TECHNIQUE_WAYS = {
         "regex",
     "write a function with a while loop that counts the digits of n":
         "while",
+    "write a python function that counts the vowels in a string": "python",
+    "in Python, write a function that reverses each word of a sentence":
+        "python",
+    "write a TypeScript function that sums the even numbers of a list":
+        "typescript",
+    "write a python function using a list comprehension that squares a "
+    "list": ("python", "comprehension"),
+    "write a python generator that yields the first n primes":
+        ("python", "generator"),
+    "write a function in python with type hints that merges two sorted "
+    "lists": ("python", "annotations"),
+    # seeds of v696's that name a way and were taught as naming none (the
+    # last two before Python's ways were ways)
+    "make it a plain function instead of a class": "declaration",
+    "use a generator": "generator",
+    "add type annotations": "annotations",
 }
 #: ways no seed above names, said again as changes
 MORE_TECHNIQUES = [
@@ -278,6 +296,72 @@ MORE_TECHNIQUES = [
     ("use a hash map (a Map object)", "map-object"),
     ("make it more concise", "shorter"), ("trim it down", "shorter"),
     ("use const everywhere", "const"), ("const, not let", "const"),
+    # Python's own ways (v699), and which language it is asked in
+    ("use a list comprehension", "comprehension"),
+    ("turn the loop into a comprehension", "comprehension"),
+    ("no comprehensions, write the loop out", "no-comprehension"),
+    ("use a generator expression", "generator"),
+    ("make it a generator with yield", "generator"),
+    ("use an f-string", "template"), ("format it with an f-string", "template"),
+    ("make it a lambda", "arrow"), ("write it as a def, not a lambda",
+                                    "declaration"),
+    ("use a match statement", "switch"), ("use match/case instead of the ifs",
+                                          "switch"),
+    ("use enumerate instead of range(len())", "enumerate"),
+    ("loop over both with zip", "zip"),
+    ("add type hints", "annotations"), ("annotate the parameters", "annotations"),
+    ("use a with statement to open the file", "with"),
+    ("cache it with a decorator", "decorator"),
+    ("unpack the tuple", "destructuring"), ("use *args", "spread"),
+    ("use a dict to count them", "map-object"), ("use a set to dedupe", "set"),
+    ("use functools.reduce", "reduce"), ("use the map builtin", "map"),
+    ("write it in Python", "python"), ("can I get this in python instead",
+                                       "python"),
+    ("python please", "python"), ("port it to Python", "python"),
+    ("now do it in TypeScript", "typescript"), ("port it to TypeScript",
+                                                "typescript"),
+    ("TypeScript version please", "typescript"),
+    # (appended: a job's key is its place here) a regex refused is not a
+    # regex asked for, and `map` the method is not a Map -- what
+    # ways-estimator3 still confused, each beside its other side
+    ("regex not needed", "no-regex"), ("can't use regex", "no-regex"),
+    ("do it without regex", "no-regex"),
+    ("skip the regex, string methods are enough", "no-regex"),
+    ("use a regex for it", "regex"),
+    ("match it with a regular expression", "regex"),
+    ("write it with map", "map"), ("a function with map", "map"),
+    ("use map and filter instead of the loop", ("map", "filter", "no-loop")),
+    ("just map it", "map"),
+    ("count them with a Map", "map-object"),
+    ("use a Map instead of a plain object", "map-object"),
+    ("keep the counts in a dictionary", "map-object"),
+    # a comprehension refused names the comprehension; `avoid` alone is not
+    # one (`avoid the for loop` is no loop) -- what ways-estimator4 confused
+    ("avoid list comprehensions", "no-comprehension"),
+    ("don't use a comprehension here", "no-comprehension"),
+    ("skip the comprehension, a plain for loop is clearer",
+     ("no-comprehension", "for")),
+    ("avoid the while loop", "no-loop"), ("avoid mutation", "none"),
+    ("avoid globals", "none"),
+    # what ways-estimator6 still confused, on messages labelled outright: a
+    # regex refused mildly, `.map` against a Map, and a comprehension
+    # refused in the words people use for it
+    ("consider removing the regex", "no-regex"),
+    ("a regular expression isn't necessary here", "no-regex"),
+    ("the regex makes it hard to read, drop it", "no-regex"),
+    ("can we do this without the regex", "no-regex"),
+    ("a regex would make this cleaner", "regex"),
+    ("parse it with a regular expression", "regex"),
+    ("call .map on the array", "map"), ("map each item to its square", "map"),
+    ("use the map method instead of the loop", ("map", "no-loop")),
+    ("store them in a hash map", "map-object"),
+    ("a Map would be faster than a plain object", "map-object"),
+    ("look them up in a Map", "map-object"),
+    ("don't use a list comprehension", "no-comprehension"),
+    ("write it without list comprehensions", "no-comprehension"),
+    ("replace the list comprehension with a for loop",
+     ("no-comprehension", "for")),
+    ("no list comps please", "no-comprehension"),
 ]
 
 TECHNIQUE_MAKES = [
@@ -289,10 +373,18 @@ TECHNIQUE_MAKES = [
     "write a memoized function for the nth fibonacci number",
     "using a regex, write a function that finds all numbers in a string",
     "write a function with a while loop that counts the digits of n",
+    # in a language asked for, and its own ways (v699)
+    "write a python function that counts the vowels in a string",
+    "in Python, write a function that reverses each word of a sentence",
+    "write a TypeScript function that sums the even numbers of a list",
+    "write a python function using a list comprehension that squares a list",
+    "write a python generator that yields the first n primes",
+    "write a function in python with type hints that merges two sorted lists",
 ]
 
 #: the words the everyday messages are written around, for the teacher
-EVERYDAY = ("bug", "error", "file", "function", "call", "run", "program",
+EVERYDAY = ("python", "bug", "error", "file", "function", "call", "run",
+            "program",
             "project", "review", "code", "compile", "branch", "test",
             "script", "debug", "commit", "class", "method")
 
@@ -332,6 +424,14 @@ def real() -> dict:
             folder = rng.choice(("src", "lib", "src/utils", "app",
                                  "packages/core/src"))
             files.add(f"{folder}/{name}.{rng.choice(('ts', 'js', 'tsx'))}")
+    # and Python's files (v699), by a choosing of their own: what was
+    # chosen above stays what it was
+    python = random.Random(SEED + 699)
+    for name in sorted(functions):
+        if python.random() < 0.25:
+            folder = python.choice(("src", "app", "pkg", "lib",
+                                    "src/utils", "tests"))
+            files.add(f"{folder}/{name}.py")
     lists = {"project": [], "names": [], "concepts": [], "functions": []}
     if LISTS.exists():
         for line in LISTS.open(encoding="utf-8"):
@@ -347,9 +447,10 @@ def real() -> dict:
             concepts.append((concept.strip().lower(), members))
     # names as people write them: MBPP's in camelCase, and the teacher's
     # list -- a name that is an English word (`greeting`) is a name too
-    written = sorted({_camel(one) for one in functions} | {
-        one.strip() for one in lists["functions"]
-        if re.fullmatch(r"[A-Za-z_$][\w$]{1,40}", one.strip())})
+    written = sorted({_camel(one) for one in functions} | set(functions) |
+                     {one.strip() for one in lists["functions"]
+                      if re.fullmatch(r"[A-Za-z_$][\w$]{1,40}",
+                                      one.strip())})
     return {"functions": sorted(functions), "files": sorted(files),
             "calls": calls, "examples": examples, "requests": requests,
             "concepts": concepts, "names": written}
@@ -680,7 +781,9 @@ def _picked(reply: str, options: list) -> str | None:
 
 #: each message's ways of writing, checked by the teacher one family at a
 #: time (`check_ways`)
-WAYS_CHECKED = DATA / "ways-checked.jsonl"
+#: the teacher's checks of each message's ways, asked outright (v699:
+#: `ways-checked.jsonl` was asked which the code is written with)
+WAYS_CHECKED = DATA / "ways-checked2.jsonl"
 
 
 def _code_not_words(line: str) -> bool:
@@ -691,14 +794,17 @@ def _code_not_words(line: str) -> bool:
 
 
 def _family_choice(line: str, family: str) -> tuple:
-    """(prompt, options) asking which of a family's ways a message asks the
-    code to be written with -- or none of them."""
+    """(prompt, options) asking what a message says of a family's ways --
+    one of them, or nothing. Said outright: asked which the code is to be
+    written with, `without a regular expression` was chosen for any message
+    not naming one (`just map it`, 8 of 13 known messages right; said
+    outright, 13 of 13), and taught so."""
     from research.v698.ways import WAYS
-    options = [(way, said) for way, (fam, said, _) in WAYS.items()
-               if fam == family]
-    options.append(("none", "none of these"))
-    return _choice(line, options, "Which does it ask the code to be "
-                   "written with?"), options
+    options = [(way, f"it says to write it {said}")
+               for way, (fam, said, _) in WAYS.items() if fam == family]
+    options.append(("none", "it says nothing about this"))
+    return _choice(line, options, "What does it say about how the code is "
+                   "written?"), options
 
 
 def check_ways(batch: int = 24) -> dict:
@@ -1140,10 +1246,275 @@ def corpus(negatives: int = 4000) -> dict:
     return stats
 
 
+# -- the rare ways, measured on enough messages -------------------------------
+#
+# A way held out a dozen times is measured on a few reads: one wrong read
+# moves its precision ten points, and the 80% bar says nothing either way.
+# Each such way is measured on its own set, never taught: messages asking
+# for it, and as many asking for what it is nearest to (its family's other
+# ways, or what it was read as) -- precision among near misses, a harder
+# bar than among messages at large. The teacher writes them and, choosing
+# among the family's ways, keeps those it reads as asked.
+
+#: the ways measured on sets of their own: held out fewer than 40 times in
+#: one corpus or another of v699's -- named, not counted, since what is
+#: held out moves with each corpus, and a set written for one list and
+#: measured on another measures neither
+RARE = ("for", "while", "for-of", "forEach", "zip", "with",
+        "no-comprehension", "set", "regex", "spread", "shorter",
+        "typescript", "map-object")
+#: what a way is nearest to beside its family's other ways: where the
+#: family has none, and what it was read as (`avoid the for loop` as no
+#: comprehension, `recursive` as a regex)
+NEAR = {"forEach": ("map", "for-of"), "zip": ("enumerate", "for"),
+        "with": ("decorator", "async"), "set": ("map-object", "filter"),
+        "spread": ("destructuring", "arrow"),
+        "no-comprehension": ("no-loop", "iterative"),
+        "regex": ("recursive",)}
+#: ways asked only as a change, said outright: a way that is a lack
+#: (`without a regular expression`) is true of any request that does not
+#: name the thing -- the teacher, choosing, takes a plain request for one --
+#: and `shorter than before` has no before in a request for new code
+OUTRIGHT = ("no-regex", "no-loop", "no-comprehension", "iterative",
+            "shorter", "one-liner")
+HELD_WRITTEN = DATA / "ways-held-written.jsonl"
+HELD = DATA / "ways-held.jsonl"
+
+
+def rare_ways() -> dict:
+    """{rare way: the ways it is measured against}."""
+    from research.v698.ways import WAYS
+    out = {}
+    for way, (family, _, _) in WAYS.items():
+        if way not in RARE:
+            continue
+        siblings = [one for one, (fam, _, _) in WAYS.items()
+                    if fam == family and one != way]
+        out[way] = siblings + list(NEAR.get(way, ()))
+    return out
+
+
+def held_jobs() -> list:
+    """Messages asking for each rare way and each it is measured against:
+    for new code (two requests) and as a change, from requests drawn apart
+    from the taught ones' draw."""
+    from research.v698.ways import WAYS
+    found = real()
+    rng = random.Random(SEED + 77)
+    targets = sorted({one for way, near in rare_ways().items()
+                      for one in (way, *near)})
+    out = []
+    for way in targets:
+        said = WAYS[way][1]
+        # the job's key carries how the way is said: said again, it is
+        # written again (`held_check` reads the jobs as they are now)
+        tag = f"{zlib.crc32(said.encode()):08x}"
+        if way in OUTRIGHT:
+            for at, how in enumerate(("short ones and long ones",
+                                      "casual, as typed in a hurry",
+                                      "polite, with a reason given")):
+                out.append((f"held|outright|{way}|{at}|{tag}", f"A coding "
+                            f"assistant has just written a function. Write "
+                            f"12 different follow-up messages the "
+                            f"programmer might type, {how}, each one "
+                            f"saying in so many words to rewrite it "
+                            f"{said}. " + STYLE,
+                            {"act": "change", "way": way}))
+            continue
+        for at, (_, english) in enumerate(rng.sample(found["requests"], 2)):
+            out.append((f"held|make|{way}|{at}|{tag}", f"Write 12 different ways "
+                        f"a programmer might ask a coding assistant for "
+                        f"this, each one asking for it to be written "
+                        f"{said}: \"{english}\" " + STYLE,
+                        {"act": "make", "way": way}))
+        out.append((f"held|change|{way}|{tag}", f"A coding assistant has just "
+                    f"written a function. Write 12 different short "
+                    f"follow-up messages the programmer might type, each "
+                    f"asking for it to be rewritten {said}. " + STYLE,
+                    {"act": "change", "way": way}))
+    return out
+
+
+def held_write(samples: int = 2) -> None:
+    DATA.mkdir(parents=True, exist_ok=True)
+    todo = [one for one in held_jobs() if one[0] not in _done(HELD_WRITTEN)]
+    print(f"{len(todo)} held-out jobs to write", flush=True)
+    _write(todo, HELD_WRITTEN, samples, batch=6)
+
+
+def held_check(batch: int = 24) -> dict:
+    """Each held-out message the teacher reads as asking for the way it was
+    written asking for, and not taught: `ways-held.jsonl`."""
+    from research.v696.teach_meaning import Teacher
+    from research.v698.ways import WAYS
+    taught = {" ".join(row["words"]) for row in map(
+        json.loads, (DATA / "train-code.jsonl").open(encoding="utf-8"))}
+    todo, seen = [], set()
+    current = {key for key, _, _ in held_jobs()}
+    for row in map(json.loads, HELD_WRITTEN.open(encoding="utf-8")):
+        way = row["meta"]["way"]
+        if row["key"] not in current:
+            continue
+        for line in row["lines"]:
+            said = " ".join(words(line))
+            if not said or said in taught or (said, way) in seen \
+                    or _code_not_words(line):
+                continue
+            seen.add((said, way))
+            todo.append((said, way))
+    print(f"{len(todo)} held-out messages to check", flush=True)
+    teacher = Teacher()
+    kept = 0
+    with HELD.open("w", encoding="utf-8") as out:
+        for at in range(0, len(todo), batch):
+            chunk = todo[at:at + batch]
+            asked = [_family_choice(said, WAYS[way][0])
+                     for said, way in chunk]
+            replies = teacher.write([prompt for prompt, _ in asked],
+                                    longest=3)
+            for (said, way), (_, options), reply in zip(chunk, asked,
+                                                        replies):
+                if _picked(reply[0], options) == way:
+                    kept += 1
+                    out.write(json.dumps({"text": said, "way": way}) + "\n")
+            print(f"  {min(at + batch, len(todo))}/{len(todo)}: kept "
+                  f"{kept}", flush=True)
+    return {"kept": kept, "checked": len(todo)}
+
+
+# -- what a request asks, apart from how it is to be written ----------------
+#
+# Each request seed that names a way names it of one task: `write a
+# TypeScript function that sums the even numbers of a list`, `write a
+# recursive function that reverses a string`. The ways estimator learned the
+# task for the way -- `write a function that returns the sum of the even
+# numbers in a list` was read as TypeScript (0.998), `reverses a string` as
+# recursive. Each seed's task is asked again without a way, and a
+# language's in the other language: taught to the ways estimator only (the
+# shared reader reads no ways), one in ten held out to measure it.
+
+CONTRAST_WRITTEN = DATA / "ways-contrast-written.jsonl"
+CONTRAST = DATA / "ways-contrast.jsonl"
+LANGUAGES = {"python": "Python", "typescript": "TypeScript"}
+
+
+def contrast_jobs() -> list:
+    out = []
+    for at, seed in enumerate(TECHNIQUE_MAKES):
+        ways = [one for one in _listed(TECHNIQUE_WAYS.get(seed, "none"))
+                if one != "none"]
+        if not ways:
+            continue
+        out.append((f"contrast|plain|{at}", f"Here is a request for code: "
+                    f"\"{seed}\". Write 12 different ways a programmer might "
+                    f"ask a coding assistant for the same code without "
+                    f"saying anything about how it is to be written: no "
+                    f"programming language, no technique, no style -- only "
+                    f"what it does. " + STYLE,
+                    {"seed": seed, "ways": [], "checked": ways}))
+        for language in set(ways) & set(LANGUAGES):
+            other = next(one for one in LANGUAGES if one != language)
+            out.append((f"contrast|{other}|{at}", f"Here is a request for "
+                        f"code: \"{seed}\". Write 12 different ways a "
+                        f"programmer might ask a coding assistant for the "
+                        f"same code in {LANGUAGES[other]} instead, each "
+                        f"naming {LANGUAGES[other]}. " + STYLE,
+                        {"seed": seed, "ways": [other],
+                         "checked": [other]}))
+    return out
+
+
+def _again_jobs() -> list:
+    """Shown its seed (`a recursive function that reverses a string`), the
+    teacher wrote the way back in -- 1 of 25 plain for that one. The first
+    plain request kept of each seed is said again, the way never shown."""
+    if not CONTRAST.exists():
+        return []
+    kept = {json.loads(line)["text"] for line in CONTRAST.open(
+        encoding="utf-8")}
+    out = []
+    for row in map(json.loads, CONTRAST_WRITTEN.open(encoding="utf-8")):
+        if not row["key"].startswith("contrast|plain|"):
+            continue
+        first = next((line for line in row["lines"]
+                      if " ".join(words(line)) in kept), None)
+        if first is None:
+            continue
+        at = row["key"].split("|")[-1]
+        out.append((f"contrast|again|{at}", f"Say this request for code in "
+                    f"12 different ways, as a programmer would type it to a "
+                    f"coding assistant: \"{first}\". " + STYLE,
+                    dict(row["meta"])))
+    return out
+
+
+def contrast_write(samples: int = 2) -> None:
+    DATA.mkdir(parents=True, exist_ok=True)
+    todo = [one for one in contrast_jobs()
+            if one[0] not in _done(CONTRAST_WRITTEN)]
+    if not todo:
+        # the first round written and checked: the plain ones said again
+        todo = [one for one in _again_jobs()
+                if one[0] not in _done(CONTRAST_WRITTEN)]
+    print(f"{len(todo)} contrast jobs to write", flush=True)
+    _write(todo, CONTRAST_WRITTEN, samples, batch=6)
+
+
+def contrast_check(batch: int = 24) -> dict:
+    """Each message kept where the teacher, asked outright of each family
+    the seed names, reads it as written: nothing of a plain request, the
+    other language of one said in it."""
+    from research.v696.teach_meaning import Teacher
+    from research.v698.ways import WAYS
+    todo, seen = [], set()
+    for row in map(json.loads, CONTRAST_WRITTEN.open(encoding="utf-8")):
+        meta = row["meta"]
+        for line in row["lines"]:
+            said = " ".join(words(line))
+            if not said or said in seen or _code_not_words(line):
+                continue
+            seen.add(said)
+            todo.append((said, meta["ways"], meta["checked"]))
+    print(f"{len(todo)} contrast messages to check", flush=True)
+    teacher = Teacher()
+    # the language asked of every one: a plain request that says `in
+    # python` is not plain (`can you write a function to reverse a string in
+    # python?` was kept as one, checked of recursion only)
+    # once a family: what is wanted of it is the message's way in it, or
+    # nothing
+    asks = []
+    for at, (said, ways, checked) in enumerate(todo):
+        families = dict.fromkeys(WAYS[way][0] for way in
+                                 list(checked) + ["python"])
+        for family in families:
+            wanted = next((way for way in ways if WAYS[way][0] == family),
+                          "none")
+            asks.append((at, wanted, *_family_choice(said, family)))
+    agreed: dict = {}
+    for start in range(0, len(asks), batch):
+        chunk = asks[start:start + batch]
+        replies = teacher.write([prompt for _, _, prompt, _ in chunk],
+                                longest=3)
+        for (at, wanted, _, options), reply in zip(chunk, replies):
+            picked = _picked(reply[0], options)
+            agreed[at] = agreed.get(at, True) and picked == wanted
+    kept = 0
+    with CONTRAST.open("w", encoding="utf-8") as out:
+        for at, (said, ways, _) in enumerate(todo):
+            if agreed.get(at):
+                kept += 1
+                out.write(json.dumps({"text": said, "ways": ways,
+                                      "held": _held(said)}) + "\n")
+    print(f"kept {kept} of {len(todo)}", flush=True)
+    return {"kept": kept, "checked": len(todo)}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("job", choices=("lists", "write", "check",
-                                        "check-ways", "corpus"))
+                                        "check-ways", "corpus",
+                                        "held-write", "held-check",
+                                        "contrast-write", "contrast-check"))
     parser.add_argument("--samples", type=int, default=2)
     args = parser.parse_args(argv)
     if args.job == "lists":
@@ -1154,6 +1525,14 @@ def main(argv=None) -> int:
         print(check())
     elif args.job == "check-ways":
         print(check_ways())
+    elif args.job == "held-write":
+        held_write(samples=args.samples)
+    elif args.job == "held-check":
+        print(held_check())
+    elif args.job == "contrast-write":
+        contrast_write(samples=args.samples)
+    elif args.job == "contrast-check":
+        print(contrast_check())
     else:
         corpus()
     return 0

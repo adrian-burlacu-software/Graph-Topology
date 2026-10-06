@@ -55,6 +55,14 @@ LABELS = DATA / "risk.jsonl"
 MODEL = LLM / "risk-estimators"
 #: the reader of meaning whose encoder the estimators read with
 READER = "meaning-unixcoder"
+#: (the reader of meaning, the estimators over it) by the language a
+#: request is in (v699): Python's are taught both languages; TypeScript's
+#: stay -- the estimators read the encoder they were taught over, and the
+#: bilingual set was weaker on TypeScript's X (research/v699/DESIGN.md)
+BY_LANGUAGE = {
+    "typescript": (READER, "risk-estimators"),
+    "python": ("meaning-bilingual", "risk-estimators2"),
+}
 #: who writes the programs U is read from: taught none of these requests
 BASE = "SmolLM2-360M-Instruct"
 READINGS = 16
@@ -84,7 +92,7 @@ def _bin(value: int, tops) -> int:
     return 3
 
 
-def external(tree, examples) -> int:
+def external(tree, examples, language: str = "typescript") -> int:
     """X: nothing outside the library (0), operations made on the spot from
     the compiler's types (1), text the search cannot build (2), nothing to
     verify a program by (3)."""
@@ -92,7 +100,7 @@ def external(tree, examples) -> int:
         return 3
     if tree is None:
         return 2
-    library = {op.key for op in P.library().ops}
+    library = {op.key for op in P.library(language=language).ops}
     score = 0
     for op in tree.ops():
         if op.kind == "opaque":
@@ -102,27 +110,48 @@ def external(tree, examples) -> int:
     return score
 
 
-def static(body: str, entry: str, params, examples) -> dict | None:
+def static(body: str, entry: str, params, examples,
+           language: str = "typescript") -> dict | None:
     """D, P, S, X, B of a verified program, or None if its function is not
-    in it."""
+    in it -- read by its own language's reader and qualities."""
+    from research.v696 import language as L
     from research.v696.checker import checker
-    from research.v696.parse import parse
-    said = checker().qualities(body, entry)
+    said = checker(language).qualities(body, entry)
     if not said["found"]:
         return None
-    tree = parse(body, entry, params)
+    tree = L.of(language).parse(body, entry, params)
     names = said["names"]
     return {
         "D": 3 if tree is None else _bin(tree.depth - 1, (1, 2, 4)),
         "P": _bin(names * (names - 1) // 2, (1, 6, 15)),
         "S": _bin(said["decisions"], (0, 1, 3)),
-        "X": external(tree, examples),
+        "X": external(tree, examples, language),
         "B": (3 if said["unbounded"] else 2 if said["mutates"]
               else 1 if said["partial"] else 0),
     }
 
 
-def _signed(signature: str) -> tuple:
+def _signed(signature: str, row: dict | None = None) -> tuple:
+    """(entry, params, returns) of a record's signature, in its language
+    -- a `def` is Python's, whoever asks."""
+    python = (row is not None and row.get("language") == "python") or \
+        signature.lstrip().startswith("def ")
+    if python:
+        import ast
+
+        from research.v696 import pytypes
+        from research.v696.teach_sketch import _python_params
+        entry = re.match(r"\s*def\s+(\w+)", signature).group(1)
+        returns = (row or {}).get("returns")
+        if not returns:
+            try:
+                head = ast.parse(signature.rstrip().rstrip(":")
+                                 + ":\n    pass\n").body[0]
+                returns = pytypes.engine(ast.unparse(head.returns)
+                                         if head.returns else None)
+            except SyntaxError:
+                returns = None
+        return entry, _python_params(signature), returns or "any"
     found = SIGNATURE.match(signature.strip())
     from research.v696.tasks import _params
     return found.group(1), _params(found.group(2)), found.group(3).strip()
@@ -137,9 +166,17 @@ def records() -> list:
     for line in CORPUS.open(encoding="utf-8"):
         row = json.loads(line)
         if row.get("body") and row["examples"]:
-            out.append({key: row[key] for key in
-                        ("name", "source", "split", "english", "signature",
-                         "examples", "body")})
+            kept = {key: row[key] for key in
+                    ("name", "source", "split", "english", "signature",
+                     "examples", "body")}
+            if row.get("language") == "python":
+                # a record without its name (the docs' before v699 wrote
+                # it): the signature's
+                entry = row.get("entry") or re.match(
+                    r"\s*def\s+(\w+)", row["signature"]).group(1)
+                kept.update(language="python", entry=entry,
+                            returns=row["meaning"]["returns"])
+            out.append(kept)
     path = DATA / "requests.jsonl"
     if path.exists():
         for line in path.open(encoding="utf-8"):
@@ -155,20 +192,39 @@ def records() -> list:
                         "signature": f"function {row['entry']}({said}): "
                                      f"{row['returns']}",
                         "examples": row["examples"], "body": row["code"]})
+    path = DATA / "requests-py.jsonl"
+    if path.exists():
+        from research.v696 import language as L
+        from research.v696.teach_meaning import _english
+        for line in path.open(encoding="utf-8"):
+            row = json.loads(line)
+            if not row.get("code"):
+                continue
+            params = [tuple(one) for one in row["params"]]
+            out.append({"name": row["name"], "source": "requests-py",
+                        "split": "train", "language": "python",
+                        "entry": row["entry"], "returns": row["returns"],
+                        "english": _english(row["prompt"]),
+                        "signature": L.of("python").signature(
+                            row["entry"], params, row["returns"],
+                            row.get("written")),
+                        "examples": row["examples"], "body": row["code"]})
     return out
 
 
 def spec_of(row: dict):
     from research.v696.spec import Spec
-    entry, params, returns = _signed(row["signature"])
+    entry, params, returns = _signed(row["signature"], row)
     return Spec(row["name"], params, returns,
                 [(list(args), out) for args, out in row["examples"]],
-                entry=entry, english=row["english"])
+                entry=entry, english=row["english"],
+                language=row.get("language", "typescript"))
 
 
 #: U is read where a request is a person's: not the docs' one-liners, not
 #: the generated compositions
-READ_U = ("mbpp-ts", "humaneval-ts", "requests")
+READ_U = ("mbpp-ts", "humaneval-ts", "requests", "mbpp-py",
+          "humaneval-py", "requests-py")
 
 
 def readings(rows: list, batch: int = 4) -> None:
@@ -188,29 +244,41 @@ def readings(rows: list, batch: int = 4) -> None:
         chunk = rows[at:at + batch]
         specs = [spec_of(row) for row in chunk]
         texts = [prompt(*request(spec), None) for spec in specs]
-        written = writer.write(texts, samples=READINGS)
+        # told the language it writes, as at run time: the requests of a
+        # language written together
+        sayings = [None if spec.language == "typescript"
+                   else spec.lang.saying(True) for spec in specs]
+        written = [None] * len(specs)
+        for saying in dict.fromkeys(sayings):
+            these = [index for index, one in enumerate(sayings)
+                     if one == saying]
+            for index, said in zip(these, writer.write(
+                    [texts[index] for index in these], samples=READINGS,
+                    saying=saying)):
+                written[index] = said
         for row, spec, said in zip(chunk, specs, written):
             spec.proposals, spec.sources = [], []
             K._read(spec, said, parse)
             programs = [tree for tree in spec.proposals
                         if K._meets(spec, tree)]
-            mine = parse(row["body"], spec.entry, spec.params)
+            mine = spec.lang.parse(row["body"], spec.entry, spec.params)
             if mine is not None:
                 programs.append(mine)
             cases = M.probes(spec.examples)
             distinct = set()
             if programs and cases:
                 try:
-                    values = checker().values(
-                        spec.names, cases, [one.source() for one in programs],
-                        prelude=P.prelude(programs))
+                    values = spec.values(cases, programs)
                 except CheckerError:
                     values = []
                 for one in values:
                     distinct.add(json.dumps([cell.get("value", "!")
                                              for cell in one],
                                             sort_keys=True))
-            row["labels"]["U"] = _bin(max(len(distinct), 1), (1, 2, 4))
+            # nothing read (no program met, the verified one not read):
+            # how uncertain the request is is not known -- not one meaning
+            if distinct:
+                row["labels"]["U"] = _bin(len(distinct), (1, 2, 4))
             row["readings"] = {"met": len(programs) - (mine is not None),
                                "behaviours": len(distinct)}
             _append(row)
@@ -236,8 +304,9 @@ def label() -> dict:
     for row in records():
         if row["name"] in done:
             continue
-        entry, params, _ = _signed(row["signature"])
-        labels = static(row["body"], entry, params, row["examples"])
+        entry, params, _ = _signed(row["signature"], row)
+        labels = static(row["body"], entry, params, row["examples"],
+                        row.get("language", "typescript"))
         if labels is None:
             counts["not found"] += 1
             continue
@@ -260,6 +329,9 @@ def labelled() -> list:
         row = json.loads(line)
         if row["name"] not in seen:
             seen.add(row["name"])
+            # read before U waited on a behaviour: one with none is unread
+            if row.get("readings", {}).get("behaviours") == 0:
+                row["labels"].pop("U", None)
             rows.append(row)
     return rows
 
@@ -416,21 +488,21 @@ def _requests(rows: list) -> tuple:
     from research.v696.reader import said
     requests, plain = [], []
     for row in rows:
-        _, params, returns = _signed(row["signature"])
+        _, params, returns = _signed(row["signature"], row)
         requests.append(said(row, ("english", "signature", "examples")))
         plain.append(_surface(row["english"], params, returns,
                               row["examples"]))
     return requests, plain
 
 
-def train(out: Path = MODEL) -> dict:
+def train(out: Path = MODEL, reader: str = READER) -> dict:
     """Each factor's head, chosen on MBPP dev among what it is given (the
     encoder pooled, the reader's probabilities, both), its width, its
     decay, and whether the generated compositions are taught -- into a new
     `llm/` directory."""
     import torch
     rows = labelled()
-    features = Features()
+    features = Features(LLM / reader)
     requests, plain = _requests(rows)
     found = features(requests, plain)
     trained = [at for at, row in enumerate(rows) if row["split"] == "train"]
@@ -476,7 +548,7 @@ def train(out: Path = MODEL) -> dict:
     torch.save({"heads": heads, "norm": norm, "width": width},
                str(out / "heads.pt"))
     (out / "risk.json").write_text(json.dumps(
-        {"reader": READER, "chosen": chosen, "high": HIGH,
+        {"reader": reader, "chosen": chosen, "high": HIGH,
          "report": report, "labels": LABELS.name,
          "records": len(rows)}, indent=1), encoding="utf-8")
     print(f"-> {out}")
@@ -507,9 +579,13 @@ def evaluate(held: bool = False, path: Path = MODEL) -> dict:
     return out
 
 
-def assess(specs: list, path: Path = MODEL) -> None:
-    """Each spec's six scores (`Spec.risk`), read off its request."""
+def assess(specs: list, path: Path | None = None) -> None:
+    """Each spec's six scores (`Spec.risk`), read off its request -- by the
+    estimators of its language (`BY_LANGUAGE`) unless `path` says which."""
     from research.v696.reader import request
+    if path is None:
+        language = specs[0].language if specs else "typescript"
+        path = LLM / BY_LANGUAGE.get(language, BY_LANGUAGE["typescript"])[1]
     estimators = Estimators(path)
     requests = [request(spec) for spec in specs]
     plain = [_surface(spec.english, spec.params, spec.returns,
@@ -634,12 +710,15 @@ def main(argv=None) -> int:
     parser.add_argument("job", choices=("label", "train", "evaluate"))
     parser.add_argument("--held", action="store_true")
     parser.add_argument("--model", default="")
+    parser.add_argument("--reader", default=READER,
+                        help="the reader of meaning the estimators read "
+                             "over (v699: the bilingual one)")
     args = parser.parse_args(argv)
     path = LLM / args.model if args.model else MODEL
     if args.job == "label":
         label()
     elif args.job == "train":
-        train(path)
+        train(path, args.reader)
     else:
         evaluate(args.held, path)
     return 0

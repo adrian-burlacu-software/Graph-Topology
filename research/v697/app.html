@@ -705,6 +705,7 @@ function renderTurn(turn, box) {
   if (code) me.appendChild(code);
   ((answer.code || {}).blocks || []).forEach(one => me.appendChild(codeBlock(one.code,
     { title: one.title, kind: one.kind, small: true, file: one.file, line: one.line,
+      lang: one.file ? langOfFile(one.file) : langOf(answer.code),
       closed: ((answer.code || {}).blocks || []).length > 1 })));
   const badges = el("div", "badges");
   add(badges, el("span", "chip stance s-" + stance, stance));
@@ -1128,11 +1129,35 @@ const TS_TYPES = new Set(("string number boolean any unknown never object bigint
   "symbol Array Map Set Record Promise").split(" "));
 const TOKENS = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|(\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b)|([A-Za-z_$][\w$]*)(?=\s*\()|([A-Za-z_$][\w$]*)|(=>|===|!==|==|!=|<=|>=|&&|\|\||\?\?|\.\.\.|[-+*/%=<>!?:&|^~])/g;
 
+// Python's (v699): its words, `#` comments, its strings -- triple-quoted,
+// prefixed (f"", r"") -- and decorators.
+const PY_WORDS = new Set(("and as assert async await break class continue def " +
+  "del elif else except finally for from global if import in is lambda match " +
+  "case nonlocal not or pass raise return try while with yield None True " +
+  "False self").split(" "));
+const PY_TYPES = new Set(("int float str bool list dict set tuple bytes object " +
+  "None Any Optional Union List Dict Tuple Set Callable Iterable").split(" "));
+const PY_TOKENS = /(#[^\n]*)|((?:[rRbBuUfF]{0,2})(?:"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'))|(\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b)|([A-Za-z_][\w]*)(?=\s*\()|(@?[A-Za-z_][\w]*)|(->|==|!=|<=|>=|\*\*|\/\/|:=|[-+*/%=<>!:&|^~@])/g;
+//: what a language's code is labelled and saved as
+const LANGS = { ts: { label: "TS", ext: ".ts" }, py: { label: "PY", ext: ".py" },
+                json: { label: "json", ext: ".json" } };
+function langOf(code) {
+  // a code panel's language: its request's (v699)
+  return (((code || {}).request || {}).language === "python") ? "py" : "ts";
+}
+function langOfFile(file) {
+  return /\.py$/.test(file || "") ? "py" : "ts";
+}
+
 // One line of TypeScript as highlighted spans: comments, strings, numbers,
 // calls, keywords, types, operators. A string or a comment over several
 // lines is cut at each line and carried on.
 function highlightLines(code, lang) {
   if (lang === "json") return code.split("\n").map(line => highlightJSON(line));
+  const python = lang === "py";
+  const words = python ? PY_WORDS : TS_WORDS;
+  const types = python ? PY_TYPES : TS_TYPES;
+  const tokens = python ? new RegExp(PY_TOKENS.source, "g") : TOKENS;
   const lines = [];
   let line = document.createElement("span");
   const push = (text, cls) => {
@@ -1145,14 +1170,14 @@ function highlightLines(code, lang) {
     });
   };
   let last = 0;
-  code.replace(TOKENS, (match, comment, string, number, call, word, op, at) => {
+  code.replace(tokens, (match, comment, string, number, call, word, op, at) => {
     if (at > last) push(code.slice(last, at), null);
     let cls = null;
     if (comment) cls = "tok-c";
     else if (string) cls = "tok-s";
     else if (number) cls = "tok-n";
-    else if (call) cls = TS_WORDS.has(call) ? "tok-k" : "tok-f";
-    else if (word) cls = TS_WORDS.has(word) ? "tok-k" : TS_TYPES.has(word) ? "tok-t" : null;
+    else if (call) cls = words.has(call) ? "tok-k" : types.has(call) ? "tok-t" : "tok-f";
+    else if (word) cls = word.startsWith("@") ? "tok-f" : words.has(word) ? "tok-k" : types.has(word) ? "tok-t" : null;
     else if (op) cls = "tok-p";
     push(match, cls);
     last = at + match.length;
@@ -1216,7 +1241,7 @@ function codeBlock(code, options) {
   const box = el("section", "codeblock" + (o.answer ? " answer" : "") +
                  (o.small ? " small" : ""));
   const head = el("header");
-  add(head, el("span", "lang " + lang, lang === "ts" ? "TS" : lang));
+  add(head, el("span", "lang " + lang, (LANGS[lang] || {}).label || lang));
   if (o.title) head.appendChild(el("span", "title", o.title));
   if (o.kind) head.appendChild(el("span", "kind", o.kind));
   (o.chips || []).forEach(([text, cls]) => head.appendChild(el("span", "chip " + (cls || ""), text)));
@@ -1224,14 +1249,15 @@ function codeBlock(code, options) {
   const copy = el("button", null, "⧉ copy");
   copy.title = "copy the code (without line numbers)";
   copy.addEventListener("click", async () => flash(copy, (await copyText(code)) ? "✓ copied" : "✗ not copied"));
-  const save = el("button", null, "⤓ " + (lang === "json" ? ".json" : ".ts"));
+  const ext = (LANGS[lang] || LANGS.ts).ext;
+  const save = el("button", null, "⤓ " + ext);
   save.title = "download it as a file";
   save.addEventListener("click", () => {
     const blob = new Blob([code + "\n"], { type: "text/plain" });
     const link = el("a");
     link.href = URL.createObjectURL(blob);
     link.download = o.file || ((o.title || "code").replace(/[^\w.-]+/g, "_") +
-                               (lang === "json" ? ".json" : ".ts"));
+                               ext);
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   });
@@ -1251,7 +1277,7 @@ function codeBlock(code, options) {
       go.addEventListener("click", () => toEditor({ type: "open", file: o.file, line: o.line || 1 }));
       tools.insertBefore(go, copy);
     }
-    if (lang === "ts" && !o.file) {
+    if ((lang === "ts" || lang === "py") && !o.file) {
       const put = el("button", null, "⇲ insert");
       put.title = "put it in the editor: you choose where";
       put.addEventListener("click", () => toEditor({ type: "insert", code }));
@@ -1332,7 +1358,8 @@ function codeAnswer(code) {
   if (ways) (ways.asked || []).forEach(way => chips.push(
     (ways.missing || []).includes(way) ? ["✗ not " + way, "badc"] : ["✓ " + way, "good"]));
   return codeBlock(answer.code, { title: answer.entry, kind: "answer", chips,
-                                  answer: true, file: answer.entry + ".ts" });
+                                  answer: true, lang: langOf(code),
+                                  file: answer.entry + (LANGS[langOf(code)] || LANGS.ts).ext });
 }
 
 function codePanel(code) {
@@ -1394,17 +1421,17 @@ function codePanel(code) {
                     ["your words say", request.from_words ? request.from_words.said : ""],
                     ["missing", request.missing]]));
     if (request.signature) inside.appendChild(codeBlock(request.signature,
-      { title: "signature", kind: (request.made || []).includes("signature") ? "inferred from the examples" : "as given", small: true }));
+      { title: "signature", kind: (request.made || []).includes("signature") ? "inferred from the examples" : "as given", small: true, lang: langOf(code) }));
     if ((request.examples || []).length) inside.appendChild(codeBlock(
       request.examples.map(one => one.said).join("\n"),
-      { title: "examples", kind: `${request.examples.length} — what it is checked by`, small: true }));
+      { title: "examples", kind: `${request.examples.length} — what it is checked by`, small: true, lang: langOf(code) }));
   }));
   if (answer.code) {
     box.appendChild(panel("answer", CODE_STATUS[answer.status] ? CODE_STATUS[answer.status][0] : answer.status, true, inside => {
       inside.appendChild(codeAnswer(code));
       if (answer.printed && answer.printed.trim() !== String(answer.code).trim()) {
         inside.appendChild(codeBlock(answer.printed, { title: answer.entry, kind:
-          "as the search holds it — printed exactly from its tree", small: true, closed: true }));
+          "as the search holds it — printed exactly from its tree", small: true, closed: true, lang: langOf(code) }));
       }
       add(inside, kv([["the program, as a tree", answer.program],
                       ["checked by", `${answer.examples} example(s)`]]));
@@ -1450,7 +1477,7 @@ function codePanel(code) {
           if (one.read) chips.push(one.meets ? ["meets the examples", "good"] : ["misses", "warn"]);
           if (one.program && one.program === answer.program) chips.push(["the answer", "on"]);
           part.appendChild(codeBlock(one.text, { small: true, closed: true,
-            title: request.entry || "", chips, foldAt: 20 }));
+            title: request.entry || "", chips, foldAt: 20, lang: langOf(code) }));
         }));
         inside.appendChild(part);
       });
@@ -1471,7 +1498,7 @@ function codePanel(code) {
         el("td", "mono muted", group.does.map(one => JSON.stringify(one)).join(" · ")))));
       inside.appendChild(table);
       open.groups.slice(0, 4).forEach((group, i) => inside.appendChild(codeBlock(group.programs[0],
-        { small: true, closed: i > 0, title: `behaviour ${i + 1}`, kind: "by " + group.authors.join(", ") })));
+        { small: true, closed: i > 0, title: `behaviour ${i + 1}`, kind: "by " + group.authors.join(", "), lang: langOf(code) })));
     }));
   }
   const search = code.search;

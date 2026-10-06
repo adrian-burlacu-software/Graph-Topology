@@ -82,20 +82,39 @@ def _act(read, text: str, session, memory) -> dict | None:
     space = conversation.workspace(key)
     held = Pj.project(key)
     turn = v697_page._turn(memory)
+    # the language code is asked in (v699): what the message asks (*in
+    # Python*, read by the encoder), else the project's, else the
+    # conversation's -- and the code's own, where it is written (`read`)
+    from research.v698 import ways as W
+    language = (W.asked_language(read.ways)
+                or (held.language() if held is not None else None)
+                or space.language)
     if read.act == "make":
-        asked = coding.read(text)
+        asked = coding.read(text, language)
         if asked.get("yours") and space.request and \
                 asked.get("entry") == space.request.get("entry"):
             # the conversation's own function, written out by the person
             # (`what about function day(n) {...}`): more of what was asked
             # -- its examples kept -- not a new request
             return conversation.respond("more", asked, text, space, turn,
-                                        ways=read.ways)
+                                        ways=read.ways, language=language)
         return conversation.respond("request", asked, text,
-                                    space, turn, ways=read.ways)
+                                    space, turn, ways=read.ways,
+                                    language=language)
     if read.act == "change":
-        return conversation.respond("more", coding.read(text), text, space,
-                                    turn, ways=read.ways)
+        asked = W.asked_language(read.ways)
+        if asked and space.request and asked != conversation.language_of(
+                space):
+            # *now write it in Python*: the same request, in the language
+            # asked -- its words and its examples said again as that
+            # language writes them, not its old signature
+            said = conversation.restated(space.request, asked)
+            return conversation.respond(
+                "request", coding.read(said, asked), said, space, turn,
+                ways=read.ways, language=asked)
+        return conversation.respond("more", coding.read(text, language),
+                                    text, space, turn, ways=read.ways,
+                                    language=language)
     if read.act == "teach":
         return knowledge.taught(read, text)
     if read.act == "run":
