@@ -14,6 +14,11 @@ The editor sends a workspace's files (`/api/project`, then each save
 
 Paths are the workspace's, relative (`src/app.ts`); the checker is given
 them under one root (`/ws/src/app.ts`) so imports between them resolve.
+
+A project is TypeScript and JavaScript, Python, or both (v699): each file
+is read by its language's checker (`tscheck.js`, `pycheck.py`), and what
+they say is put together -- a Python file's imports resolve as Python's
+do (`from .b import x`, `import pkg.mod`, a package's `__init__.py`).
 """
 from __future__ import annotations
 
@@ -23,7 +28,15 @@ import time
 
 ROOT = "/ws/"
 #: what is read: TypeScript and JavaScript
-READ = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
+TS_READ = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
+#: and Python (v699)
+PY_READ = (".py",)
+READ = TS_READ + PY_READ
+
+
+def language_of(path: str) -> str:
+    """A file's language, by its name."""
+    return "python" if path.endswith(PY_READ) else "typescript"
 #: what a project may hold, at most
 MOST_FILES = 2000
 MOST_BYTES = 30_000_000
@@ -69,7 +82,7 @@ class Project:
         for path, text in files.items():
             path = path.replace("\\", "/").lstrip("/")
             if not path.endswith(READ):
-                refused[path] = "not TypeScript or JavaScript"
+                refused[path] = "not TypeScript, JavaScript or Python"
                 continue
             if text is None:
                 self.files.pop(path, None)
@@ -84,16 +97,33 @@ class Project:
         self.read_at = time.time()
         return refused
 
-    def checked(self) -> dict:
-        return {_inside(path): text for path, text in self.files.items()}
+    def checked(self, language: str | None = None) -> dict:
+        """The files under the checker's root -- of one language, if
+        given."""
+        return {_inside(path): text for path, text in self.files.items()
+                if language is None or language_of(path) == language}
+
+    def languages(self) -> list:
+        """The languages it is written in, the most files' first."""
+        count: dict = {}
+        for path in self.files:
+            count[language_of(path)] = count.get(language_of(path), 0) + 1
+        return sorted(count, key=lambda one: -count[one])
+
+    def language(self) -> str | None:
+        """What it is mostly written in, if anything."""
+        found = self.languages()
+        return found[0] if found else None
 
     # -- what it is -------------------------------------------------------------
     def outline(self) -> dict:
         if self._outline is None:
             from research.v696.checker import checker
-            read = checker().outline(self.checked())
-            self._outline = {path[len(ROOT):]: one
-                             for path, one in read.items()}
+            self._outline = {}
+            for language in self.languages():
+                read = checker(language).outline(self.checked(language))
+                self._outline.update({path[len(ROOT):]: one
+                                      for path, one in read.items()})
         return self._outline
 
     def functions(self) -> list:
@@ -116,9 +146,18 @@ class Project:
                if one["name"] == called]
         if own:
             return [{"file": path, **own[0]}]
+        python = language_of(path) == "python"
         for imported in read.get("imports", ()):
-            if called not in imported["names"] or \
-                    not imported["from"].startswith("."):
+            if called not in imported["names"]:
+                continue
+            if python:
+                found = self._python_module(path, imported["from"])
+                if found is not None:
+                    return [{"file": found, **one}
+                            for one in self.outline()[found]["functions"]
+                            if one["name"] == called]
+                continue
+            if not imported["from"].startswith("."):
                 continue
             base = posixpath.normpath(posixpath.join(
                 posixpath.dirname(path), imported["from"]))
@@ -131,6 +170,29 @@ class Project:
                         if one["name"] == called]
         return []
 
+    def _python_module(self, path: str, module: str) -> str | None:
+        """The project's file a Python import names: `.b` beside the
+        importer, `..pkg.mod` above it, `pkg.mod` from the root (or from
+        the importer's top folder), a package's `__init__.py`."""
+        dots = len(module) - len(module.lstrip("."))
+        parts = [one for one in module.lstrip(".").split(".") if one]
+        if dots:
+            base = posixpath.dirname(path)
+            for _ in range(dots - 1):
+                base = posixpath.dirname(base)
+            starts = [base]
+        else:
+            top = path.split("/")[0] if "/" in path else ""
+            starts = ["", top, posixpath.dirname(path)]
+        for start in starts:
+            stem = posixpath.join(start, *parts) if parts else start
+            for candidate in (stem + ".py", posixpath.join(stem,
+                                                           "__init__.py")):
+                candidate = candidate.lstrip("/")
+                if candidate in self.outline():
+                    return candidate
+        return None
+
     def calls(self) -> list:
         """Who calls whom: [{from, to, call}] between the project's own
         functions, `file#name` at each end."""
@@ -138,7 +200,7 @@ class Project:
         for one in self.functions():
             for called in one["calls"]:
                 name = called.split(".")[-1] if called.startswith(
-                    "this.") else called
+                    ("this.", "self.")) else called
                 for target in self._resolved(one["file"], name):
                     out.append({"from": f"{one['file']}#{one['name']}",
                                 "to": f"{target['file']}#{target['name']}",
@@ -159,9 +221,14 @@ class Project:
             from research.v696.checker import checker
             # what every runtime a project runs in has, said once: without
             # it, `console.log` is an error in every file that prints
-            checked = {**self.checked(), ROOT + AMBIENT_FILE: AMBIENT}
-            found = [one for one in checker().diagnose(checked, strict)
-                     if not one["file"].endswith(AMBIENT_FILE)]
+            found = []
+            for language in self.languages():
+                checked = self.checked(language)
+                if language == "typescript":
+                    checked[ROOT + AMBIENT_FILE] = AMBIENT
+                found += [one for one in checker(language).diagnose(
+                    checked, strict) if not one["file"].endswith(
+                        AMBIENT_FILE)]
             for one in found:
                 one["file"] = one["file"][len(ROOT):] if one["file"].startswith(
                     ROOT) else one["file"]
@@ -187,6 +254,7 @@ class Project:
         for one in self.calls():
             called[one["to"]] = called.get(one["to"], 0) + 1
         return {"name": self.name, "files": len(self.files),
+                "languages": self.languages(),
                 "lines": sum(read["lines"] for read in
                              self.outline().values()),
                 "functions": len(functions),

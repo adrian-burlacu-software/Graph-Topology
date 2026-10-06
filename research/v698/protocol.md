@@ -12,7 +12,12 @@ What a server answers to be attached by the editor
     {"name": "graph-topology", "server": "v698", "version": "<git rev>",
      "instance": "<an id new at every start>", "started": <unix time>,
      "capabilities": ["say", "turn", "page", "code", "project", "file",
-                      "pasted"], "page": "/", "projects": <n>}
+                      "pasted", "python"], "languages": ["typescript",
+     "python"], "page": "/", "projects": <n>}
+
+`languages` (v699): what code is read and written in. A project's files of
+any of them are read (`.ts`/`.js`… and `.py`); a server without it reads
+TypeScript and JavaScript only.
 
 The editor asks every 3 s. No answer: down. A different `instance`: a
 restart — what the server held (a project) is gone, and is sent again.

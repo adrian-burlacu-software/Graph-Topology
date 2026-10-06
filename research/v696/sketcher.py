@@ -50,9 +50,31 @@ PROPOSER = "sketcher-functions2"
 #: The proposers together, each asked where those before it wrote nothing
 #: that meets the examples (`--sketcher proposers --rounds 2`).
 PROPOSERS = "sketcher-functions2,sketcher-people,SmolLM2-360M-Instruct"
+#: The proposers by the language written (v699): Python's are taught both
+#: languages; TypeScript keeps its own, which the bilingual ones fell short
+#: of on MBPP dev (52 -> 47 passing hidden tests; research/v699/DESIGN.md)
+PROPOSERS_BY = {
+    "typescript": PROPOSERS,
+    "python": "sketcher-functions3,sketcher-people2,SmolLM2-360M-Instruct",
+}
+
+
+def proposers(language: str = "typescript") -> list:
+    """The writers asked, in order, for code in `language`."""
+    return (PROPOSERS_BY.get(language) or PROPOSERS).split(",")
 #: How often a source is repeated in training: MBPP's programs are the
 #: only ones asked for by people, and are few beside the generated.
-REPEAT = {"mbpp-ts": 8}
+REPEAT = {"mbpp-ts": 8, "mbpp-py": 8}
+
+
+def _saying(row: dict, functions: bool) -> str:
+    """What a writer is told it writes, for a record: its language's
+    (one writer for both languages, the language in its prompt)."""
+    language = row.get("language", "typescript")
+    if language == "typescript":
+        return SAYING_FUNCTIONS if functions else SAYING
+    from research.v696 import language as L
+    return L.of(language).saying(functions)
 
 
 def _encoded(tokenizer, text: str, target: str | None = None,
@@ -94,8 +116,8 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
     # A request too long to read whole (a long example) is left out, not
     # cut: a cut request asks for something else.
     rows = [one for one in rows if len(_encoded(
-        tokenizer, _text(one, meaning), one["target"], saying)[0])
-        <= longest]
+        tokenizer, _text(one, meaning), one["target"],
+        _saying(one, functions))[0]) <= longest]
     train_rows = [one for one in rows if one["split"] == "train"
                   for _ in range(REPEAT.get(one["source"], 1))]
     held = [one for one in rows if one["split"] == "dev"]
@@ -109,7 +131,7 @@ def train(out: Path, meaning: bool = True, epochs: int = 4,
         ids, labels = [], []
         for one in chunk:
             tokens, start = _encoded(tokenizer, _text(one, meaning),
-                                     one["target"], saying)
+                                     one["target"], _saying(one, functions))
             ids.append(tokens)
             labels.append([-100] * min(start, len(tokens)) + tokens[start:])
         width = max(map(len, ids))
@@ -196,14 +218,16 @@ class Sketcher:
         self.model.eval()
 
     def write(self, texts: list, samples: int = SAMPLES,
-              longest: int = 160, greedy: bool = True) -> list:
+              longest: int = 160, greedy: bool = True,
+              saying: str | None = None) -> list:
         """For each prompt, one greedy program (unless not `greedy`) and
-        `samples` sampled."""
+        `samples` sampled; `saying`, what it is told it writes, where it
+        is not what it was taught with (another language)."""
         torch = self.torch
         if self.settings.get("functions"):
             longest = max(longest, 360)
         heads = [_encoded(self.tokenizer, one,
-                          saying=self.settings["saying"])[0]
+                          saying=saying or self.settings["saying"])[0]
                  for one in texts]
         width = max(map(len, heads))
         pad = self.tokenizer.pad_token_id
@@ -233,8 +257,7 @@ def _meets(spec, tree) -> bool:
     from research.v696.checker import CheckerError, checker
     from research.v696.search import _matches
     try:
-        row = checker().values(spec.names, spec.cases, [tree.source()],
-                               prelude=P.prelude([tree]))[0]
+        row = spec.values(spec.cases, [tree])[0]
     except CheckerError:
         return False
     return _matches(row, spec.outputs)
@@ -298,8 +321,14 @@ def proposals(sketcher: Sketcher, specs: list, batch: int = 8,
             if written is None:
                 sketcher.torch.manual_seed(
                     SEED + zlib.crc32(specs[one].name.encode()) + round_)
-                written = sketcher.write([texts[one]],
-                                         greedy=round_ == 0)[0]
+                spec = specs[one]
+                # told the language it writes, where it is not TypeScript
+                saying = None if spec.language == "typescript" else \
+                    spec.lang.saying(bool(sketcher.settings.get("functions"))
+                                     or sketcher.settings.get("saying")
+                                     == SAYING_FUNCTIONS)
+                written = sketcher.write([texts[one]], greedy=round_ == 0,
+                                         saying=saying)[0]
                 _keep(key, written)
             _read(specs[one], written, parse, sketcher.name)
         todo = [one for one in todo if not met(one)]
@@ -332,13 +361,13 @@ def _keep(key: str, written: list) -> None:
 
 def _runs(spec, tree) -> bool:
     """Whether the helpers a tree calls, printed, run at all."""
-    from research.v696.checker import CheckerError, checker
-    prelude = P.prelude([tree])
+    from research.v696.checker import CheckerError
+    prelude = spec.lang.prelude([tree])
     if not prelude:
         return True
     try:
-        row = checker().values(spec.names, spec.cases[:1], ["0"],
-                               prelude=prelude)[0]
+        row = spec.lang.checker().values(spec.names, spec.cases[:1], ["0"],
+                                         prelude=prelude)[0]
     except CheckerError:
         return False
     return not any(str(one.get("error", "")).startswith("helpers")
@@ -350,16 +379,16 @@ def _read(spec, written: list, parse, writer: str = "") -> None:
     who wrote each (`Spec.authors`): the same program from two writers is
     two pairs of eyes, though it is one proposal."""
     seen = {one.source() for one in spec.proposals}
+    if spec.language != "typescript":
+        # read as its own language is read
+        parse = spec.lang.parse
     for text in written:
         if "```" in text:
             # a reply in a code block: what is inside it
             inside = text.split("```")[1]
             text = inside.partition("\n")[2] or inside
-        if "function " not in text:
-            text = text.strip().rstrip(";")
-            if text.startswith("return "):
-                text = text[len("return "):]
-            text = f"{spec.signature()} {{\n  return {text};\n}}\n"
+        # a bare expression is the body of the function asked for
+        text = spec.lang.wrapped(text, spec.signature())
         # a whole function, steps and loops as written
         tree = parse(text, spec.entry, spec.params)
         if tree is not None and not _runs(spec, tree):
@@ -395,10 +424,8 @@ def evaluate(model: str, meaning_model: str = "meaning-unixcoder") -> dict:
         parsed = met = passed = 0
         for spec in specs:
             parsed += bool(spec.proposals)
-            rows = checker().values(spec.names, spec.cases,
-                                    [one.source() for one in spec.proposals],
-                                    prelude=P.prelude(spec.proposals)
-                                    ) if spec.proposals else []
+            rows = spec.values(spec.cases, spec.proposals) \
+                if spec.proposals else []
             meeting = [tree for tree, row in zip(spec.proposals, rows)
                        if _matches(row, spec.outputs)]
             met += bool(meeting)

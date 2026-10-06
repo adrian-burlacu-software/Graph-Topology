@@ -225,7 +225,8 @@ async function offer(code, selection) {
   if (pick.id === "copy") {
     await vscode.env.clipboard.writeText(code);
   } else if (pick.id === "open") {
-    const document = await vscode.workspace.openTextDocument({ content: code, language: "typescript" });
+    const document = await vscode.workspace.openTextDocument({ content: code,
+                                                               language: lib.languageOf(code) });
     await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
   } else {
     const range = selection || editor.selection;

@@ -42,6 +42,9 @@ BUDGET = 3000
 PAIRED = 40
 #: What the search may spend writing again what no few edits fix.
 REWRITE_BUDGET = 8000
+#: ... and how long, in seconds: in Python a candidate may take its whole
+#: timeout, and the budget counts candidates (v699)
+REWRITE_SECONDS = 60
 
 
 @dataclass
@@ -61,6 +64,9 @@ class Bug:
     #: in a project (rung 5): `source` is {file: text}, this the file the
     #: function is in, `tests` the project's test file
     file: str = ""
+    #: the language the program is in (v699): its checker runs it, and in
+    #: Python its edits are read off its syntax (`pyediting.py`)
+    language: str = "typescript"
 
 
 @dataclass
@@ -252,10 +258,11 @@ def _passes(bug: Bug, source) -> list:
     """For each case, whether the program as edited gives what it must."""
     if isinstance(source, dict):
         source = flattened(source, bug.file)
+    running = checker(bug.language)
     try:
-        got = checker().run(source, bug.entry, bug.cases)
+        got = running.run(source, bug.entry, bug.cases)
     except CheckerError:
-        checker().restart()
+        running.restart()
         return [False] * len(bug.cases)
     return [("value" in one and json.dumps(one["value"], sort_keys=True)
              == json.dumps(want, sort_keys=True))
@@ -300,15 +307,18 @@ def _judged(bug: Bug, source: str) -> bool:
             return False
     if not bug.tests:
         return all(_passes(bug, source))
+    running = checker(bug.language)
     try:
-        return checker().tests(source + "\n" + bug.tests) is None
+        return running.tests(source + "\n" + bug.tests) is None
     except CheckerError:
-        checker().restart()
+        running.restart()
         return False
 
 
 def repair(bug: Bug, budget: int = BUDGET, rewrite: bool = True) -> Fix:
     """`rewrite`: whether what no few edits fix is searched for again."""
+    if bug.language == "python":
+        return _repair_python(bug, budget, rewrite)
     if isinstance(bug.source, dict):
         from research.v696.parse import parse_project
         tree = parse_project(bug.source, bug.file, bug.entry, bug.params)
@@ -356,6 +366,43 @@ def repair(bug: Bug, budget: int = BUDGET, rewrite: bool = True) -> Fix:
         else Fix(bug.name, "unfixed", tried=tried)
 
 
+def _repair_python(bug: Bug, budget: int, rewrite: bool) -> Fix:
+    """Python's: the edits off its syntax (`pyediting.edits`), in the order
+    of the text -- no site is suspected before another, its nodes being
+    the syntax's and not the search's -- one and then two at a time; the
+    search's reading of it, where there is one, the sketch it is written
+    again from."""
+    from research.v696 import pyediting
+    from research.v696.language import Python
+    passing = _passes(bug, bug.source)
+    if all(passing):
+        return Fix(bug.name, "already", bug.source)
+    single = pyediting.edits(bug.source, bug.entry)
+    tried = 0
+    for one in single[:budget]:
+        tried += 1
+        edited = one.apply(bug.source)
+        if all(_passes(bug, edited)) and _judged(bug, edited):
+            return Fix(bug.name, "fixed", edited, [one], tried)
+    top = single[:PAIRED]
+    for at, first in enumerate(top):
+        for second in top[at + 1:]:
+            if tried >= budget:
+                break
+            if not (first.end <= second.start or second.end <= first.start):
+                continue
+            later, earlier = sorted((first, second),
+                                    key=lambda one: -one.start)
+            edited = earlier.apply(later.apply(bug.source))
+            tried += 1
+            if all(_passes(bug, edited)) and _judged(bug, edited):
+                return Fix(bug.name, "fixed", edited, [first, second], tried)
+    if not rewrite:
+        return Fix(bug.name, "unfixed", tried=tried)
+    tree = Python().parse(bug.source, bug.entry, bug.params)
+    return _rewritten(bug, tree, tried)
+
+
 def _rewritten(bug: Bug, tree: P.Expr, tried: int) -> Fix:
     """What no few edits fix -- logic missing, not misused -- is searched:
     the program as it is is the search's sketch (its parts in the forward
@@ -365,11 +412,13 @@ def _rewritten(bug: Bug, tree: P.Expr, tried: int) -> Fix:
     from research.v696.spec import Spec
     spec = Spec(bug.name, bug.params, bug.returns,
                 [(list(args), want) for args, want in
-                 zip(bug.cases, bug.wanted)], entry=bug.entry)
-    spec.proposals = [tree]
+                 zip(bug.cases, bug.wanted)], entry=bug.entry,
+                language=bug.language)
+    spec.proposals = [tree] if tree is not None else []
     solver = S.Solver(S.Switches(meet=True, coarse=True, repair=True,
                                  forms=True, proposals=True),
                       budget=REWRITE_BUDGET)
+    solver.seconds = REWRITE_SECONDS
     got = solver.solve(spec)
     if got.program is None:
         return Fix(bug.name, "unfixed", tried=tried + got.evaluated)

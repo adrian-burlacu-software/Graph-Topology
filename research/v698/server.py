@@ -34,7 +34,10 @@ INSTANCE = uuid.uuid4().hex
 STARTED = time.time()
 #: the largest body taken: a project is sent whole
 LARGEST = 40_000_000
-CAPABILITIES = ("say", "turn", "page", "code", "project", "file", "pasted")
+CAPABILITIES = ("say", "turn", "page", "code", "project", "file", "pasted",
+                "python")
+#: the languages code is read and written in (v699)
+LANGUAGES = ("typescript", "python")
 
 
 def _version() -> str:
@@ -64,6 +67,7 @@ class Handler(v697.Handler):
             self._json({"name": "graph-topology", "server": "v698",
                         "version": VERSION, "instance": INSTANCE,
                         "started": STARTED, "capabilities": CAPABILITIES,
+                        "languages": LANGUAGES,
                         "page": "/", "projects": len(Pj.PROJECTS)})
         elif parsed.path == "/api/project":
             held = Pj.project(sid)

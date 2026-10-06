@@ -66,6 +66,39 @@ def helper(concept: str, members: list) -> tuple:
                   f"  return [{values}].includes(x);\n}}\n")
 
 
+def helper_python(concept: str, members: list) -> tuple:
+    """(name, Python source) of the function a concept is, as Python names
+    and writes it: `is_vowel(x)`."""
+    numbers = all(re.fullmatch(r"-?\d+(\.\d+)?", one) for one in members)
+    kind = "float" if numbers and any("." in one for one in members) else \
+        "int" if numbers else "str"
+    values = ", ".join(one if numbers else json.dumps(one)
+                       for one in members)
+    parts = [one.lower() for one in re.split(r"[^A-Za-z0-9]+", concept)
+             if one]
+    name = "is_" + "_".join(parts)
+    return name, (f"def {name}(x: {kind}) -> bool:\n"
+                  f'    """{concept}: one of {", ".join(members)} '
+                  f'(taught)"""\n'
+                  f"    return x in ({values},)\n")
+
+
+def _python_operator(name: str, source: str):
+    """A Python helper as an operator the search can use: its body read
+    into the engine's tree (`pyparse`)."""
+    import ast
+
+    from research.v696 import program as P
+    from research.v696 import pyparse, pytypes
+    tree = ast.parse(source)
+    function = tree.body[0]
+    params = [(one.arg, pytypes.engine(ast.unparse(one.annotation)))
+              for one in function.args.args]
+    body = pyparse.Reader(tree).function(name, params)
+    return P.Op(name, "helper", tuple(kind for _, kind in params),
+                body.type, params=tuple(n for n, _ in params), body=body)
+
+
 def relevant(text: str, path: Path = PATH) -> list:
     """The taught concepts a request names -- looked up in what was taught,
     as a function is looked up in a project: [(concept, members)]."""
@@ -83,6 +116,19 @@ def context(asked: dict, path: Path = PATH) -> dict:
     found = relevant(asked.get("english") or "", path)
     if not found:
         return {}
+    if asked.get("language") == "python":
+        library, said, used = [], [], []
+        for concept, members in found:
+            name, source = helper_python(concept, members)
+            try:
+                library.append(_python_operator(name, source))
+            except Exception:                       # noqa: BLE001
+                pass
+            said.append(f"a {concept} is one of {', '.join(members)}")
+            used.append({"concept": concept, "members": members,
+                         "function": name})
+        return {"english": "(" + "; ".join(said) + ")", "library": library,
+                "used": used}
     files, said = {}, []
     for concept, members in found:
         name, source = helper(concept, members)

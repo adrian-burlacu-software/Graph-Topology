@@ -21,9 +21,11 @@ the held-out messages and measured on the other.
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import itertools
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -32,7 +34,10 @@ from research.v698.ways import NAMES
 ROOT = Path(__file__).resolve().parents[2]
 LLM = ROOT / "llm"
 DATA = LLM / "code-talk-data"
-MODEL = LLM / "ways-estimator"
+#: v699: both languages' ways, and which language, taught on code talk
+#: checked outright, and on requests asked without the way their seed
+#: names (`regenerate.py`'s `ways-estimator9`)
+MODEL = LLM / "ways-estimator9"
 READER = "meaning-unixcoder"
 SEED = 698
 #: the ways a message can ask for: every one `ways.py` checks
@@ -50,6 +55,13 @@ def _rows(part: str) -> list:
         row = json.loads(line)
         if "ways" in row:
             out.append((" ".join(row["words"]), list(row["ways"])))
+    # requests asked again without the way their seed named (or in the
+    # other language): the task is not the way (`teach_code_talk.contrast`)
+    contrast = DATA / "ways-contrast.jsonl"
+    if contrast.exists():
+        for row in map(json.loads, contrast.open(encoding="utf-8")):
+            if row["held"] == (part == "valid"):
+                out.append((row["text"], list(row["ways"])))
     return out
 
 
@@ -217,16 +229,36 @@ def train(out: Path = MODEL) -> dict:
     return settings
 
 
-#: how precise each way must be read, on the half floors are chosen on: a
-#: way read is held to, and the code made to be so -- a way read that was
-#: not asked costs more than one asked and not read
-PRECISE = 0.85
+#: Each way's floor holds what is read of it to a bar, on the half floors
+#: are chosen on: a way read is held to, and the code made to be so -- a
+#: way read that was not asked costs more than one asked and not read.
+
+
+#: how sure of that precision: the lower bound (Wilson, one standard
+#: error) of what is read of a way right, not the share itself -- a way
+#: read ten times, all right, on the half floors are chosen on was 11 of
+#: 14 on the other (`regex`, v699): its floor rises until the few reads it
+#: has are enough
+SURE = 1.0
+#: the precision that bound must reach: the bar a way is held to
+BAR = 0.80
+
+
+def _bound(right: int, read: int, z: float = SURE) -> float:
+    """The Wilson lower bound of `right` of `read`."""
+    if not read:
+        return 1.0
+    share = right / read
+    return ((share + z * z / (2 * read)
+             - z * math.sqrt(share * (1 - share) / read
+                             + z * z / (4 * read * read)))
+            / (1 + z * z / read))
 
 
 def _floors(chances: list, truth: list) -> dict:
     """Each way's floor: the lowest (from `FLOOR` up) at which, decided as
-    it will be, what is read of it is `PRECISE` -- where none is, the
-    highest tried."""
+    it will be, what is read of it is surely (`SURE`) at the `BAR` -- where
+    none is, the highest tried."""
     floors = {}
     steps = [round(FLOOR + 0.05 * at, 2) for at in range(10)]
     for way in LABELS:
@@ -237,7 +269,7 @@ def _floors(chances: list, truth: list) -> dict:
                     for row in chances]
             read = sum(way in s for s in said)
             right = sum(way in s and way in t for s, t in zip(said, truth))
-            if not read or right / read >= PRECISE:
+            if not read or _bound(right, read) >= BAR:
                 chosen = floor
                 break
         floors[way] = chosen
@@ -245,6 +277,7 @@ def _floors(chances: list, truth: list) -> dict:
 
 
 def tune(out: Path = MODEL, epochs: int = 8, batch: int = 32,
+         reader: str = READER,
          rate: float = 3e-5) -> dict:
     """The reader of meaning's encoder, a copy of it, taught with the head:
     whether `without a regex` or `with a regex` is asked turns on a word,
@@ -257,8 +290,8 @@ def tune(out: Path = MODEL, epochs: int = 8, batch: int = 32,
     from research.v696.reader import LONGEST
     torch.manual_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    tokenizer = AutoTokenizer.from_pretrained(str(LLM / READER))
-    encoder = AutoModel.from_pretrained(str(LLM / READER)).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(str(LLM / reader))
+    encoder = AutoModel.from_pretrained(str(LLM / reader)).to(device)
     head = _head(torch, encoder.config.hidden_size, 256).to(device)
     train_rows, held = _rows("train"), _rows("valid")
     choose = [one for one in held if _half(one[0]) == 0]
@@ -334,7 +367,7 @@ def tune(out: Path = MODEL, epochs: int = 8, batch: int = 32,
     floors = _floors(chances_of(choose), [ways for _, ways in choose])
     measured = scores(said_of(measure, floors),
                       [ways for _, ways in measure])
-    settings = {"reader": READER, "tuned": True, "labels": LABELS,
+    settings = {"reader": reader, "tuned": True, "labels": LABELS,
                 "floor": FLOOR, "floors": floors,
                 "chosen": {"view": "pooled", "hidden": 256,
                            "epoch": best[1]},
@@ -450,17 +483,61 @@ def measure(path: Path = MODEL) -> dict:
     return got
 
 
+def challenge(path: Path = MODEL) -> dict:
+    """Each rare way (held out too seldom to be measured on its reads) on
+    its own set, never taught (`teach_code_talk.held_check`): the messages
+    asking for it and those asking for what it is nearest to. Precision:
+    of those read as it, how many ask for it; recall: of those asking for
+    it, how many are read so -- each with its Wilson bound."""
+    from research.v698 import teach_code_talk as T
+    estimator = Estimator(path)
+    rows = [json.loads(line) for line in T.HELD.open(encoding="utf-8")]
+    texts = sorted({row["text"] for row in rows})
+    said = {}
+    for at in range(0, len(texts), 64):
+        chunk = texts[at:at + 64]
+        for text, one in zip(chunk, estimator.read(chunk)):
+            said[text] = {way for way, _ in one}
+    asked = collections.defaultdict(set)
+    for row in rows:
+        asked[row["text"]].add(row["way"])
+    out = {}
+    for way, near in T.rare_ways().items():
+        mine = [text for text in texts if asked[text] & {way, *near}]
+        read = [text for text in mine if way in said[text]]
+        right = sum(way in asked[text] for text in read)
+        positives = [text for text in mine if way in asked[text]]
+        found = sum(way in said[text] for text in positives)
+        out[way] = {"messages": len(mine), "asking": len(positives),
+                    "read": len(read),
+                    "precision": round(right / max(1, len(read)), 3),
+                    "precision bound": round(_bound(right, len(read)), 3),
+                    "recall": round(found / max(1, len(positives)), 3)}
+        print(f"  {way:>16}: precision {out[way]['precision']} (bound "
+              f"{out[way]['precision bound']}) recall {out[way]['recall']}"
+              f"  -- {len(positives)} asking, {len(mine) - len(positives)} "
+              f"near ({', '.join(near)})", flush=True)
+    return out
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("job", choices=("train", "tune", "measure", "read"))
+    parser.add_argument("job", choices=("train", "tune", "measure",
+                                        "challenge", "read"))
+    parser.add_argument("--out", default="",
+                        help="tune: the model's directory in llm/")
+    parser.add_argument("--reader", default=READER,
+                        help="tune: the encoder it starts from")
     parser.add_argument("text", nargs="*")
     args = parser.parse_args(argv)
     if args.job == "train":
         train()
     elif args.job == "tune":
-        tune()
+        tune(LLM / args.out if args.out else MODEL, reader=args.reader)
     elif args.job == "measure":
-        measure()
+        measure(LLM / args.out if args.out else MODEL)
+    elif args.job == "challenge":
+        challenge(LLM / args.out if args.out else MODEL)
     else:
         print(read(" ".join(args.text)))
     return 0

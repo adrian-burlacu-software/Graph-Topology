@@ -63,6 +63,10 @@ ROUNDS = 2
 SIGNATURE = re.compile(
     r"function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:\s*([\w\[\]<>|, ]+?)\s*"
     r"(?=\{|;|$|\n)", re.M)
+#: a Python signature: `def f(x: int) -> int:` (v699)
+PY_SIGNATURE = re.compile(
+    r"^([ \t]*)def\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?:->\s*([^:\n]+?))?"
+    r"\s*:", re.M)
 #: what stands between a call and what it gives, in an example
 ARROW = re.compile(r"\s*(===|==|=>|->|→|should return|returns|gives)\s*")
 CALL = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\(")
@@ -74,6 +78,7 @@ ASKED = re.compile(
     r"\b(write|make|create|implement|code up|give me|i (?:want|need|'d "
     r"like)|we need|build|generate)\b[^.?!]*"
     r"\b(function|method|program|script|snippet|typescript code|"
+    r"python code|"
     r"code (?:that|to|which|for))\b", re.I)
 #: a request to print, not to return: what it prints is what it does
 PRINTS = re.compile(r"\b(print(s|ed|ing)?|outputs?|displays?|console)\b",
@@ -137,10 +142,10 @@ def _value_end(text: str, start: int, name: str) -> int:
     return len(text)
 
 
-def _literal(text: str):
-    """A TypeScript literal as the value Node makes of it."""
+def _literal(text: str, language: str = "typescript"):
+    """A literal as the value its language makes of it."""
     from research.v696.checker import checker
-    row = checker().values([], [[]], [text])[0][0]
+    row = checker(language).values([], [[]], [text])[0][0]
     if "error" in row:
         raise ValueError(text)
     return row["value"]
@@ -164,16 +169,86 @@ def _type(value) -> str | None:
 NAMES = {"string": "s", "number": "n", "boolean": "flag"}
 
 
-def read(text: str) -> dict:
+def _python_block(text: str, found) -> int:
+    """Where a `def`'s indented block ends: the first line after it, not
+    blank, indented no deeper than the `def`."""
+    indent = len(found.group(1).expandtabs())
+    at = text.find("\n", found.end())
+    if at < 0:
+        return len(text)
+    lines = text[at + 1:].split("\n")
+    end, seen = at, False
+    position = at + 1
+    for line in lines:
+        if line.strip() and len(line) - len(line.lstrip()) <= indent:
+            break
+        if line.strip():
+            seen = True
+            end = position + len(line)
+        position += len(line) + 1
+    return end if seen else -1
+
+
+def _read_python_signature(text: str, out: dict, spans: list):
+    """A `def` signature read into the request (types into the engine's,
+    kept as written), and the person's own function where a body follows.
+    The span of what was read, or None."""
+    import ast
+
+    from research.v696 import pytypes
+    found = PY_SIGNATURE.search(text)
+    if not found:
+        return None
+    head = text[found.start(2) - 4:found.end()].strip()
+    try:
+        function = ast.parse(head + "\n    pass\n").body[0]
+    except SyntaxError:
+        return None
+    out["entry"] = function.name
+    written, params = {}, []
+    for one in function.args.args:
+        said = ast.unparse(one.annotation) if one.annotation else None
+        params.append([one.arg, pytypes.engine(said)])
+        if said:
+            written[one.arg] = said
+    said = ast.unparse(function.returns) if function.returns else None
+    if said:
+        written["return"] = said
+    out["params"], out["written"] = params, written
+    out["returns"] = pytypes.engine(said) if said else None
+    span = (found.start(), found.end())
+    end = _python_block(text, found)
+    if end > 0:
+        source = text[found.start():end]
+        try:
+            ast.parse(__import__("textwrap").dedent(source))
+            out["yours"] = __import__("textwrap").dedent(source).rstrip() \
+                + "\n"
+            span = (found.start(), end)
+        except SyntaxError:
+            pass
+    spans.append(span)
+    return span
+
+
+def read(text: str, language: str | None = None) -> dict:
     """A request taken apart: {english, entry, params, returns, examples,
     signature (as given or made), made (which of them was inferred),
     missing (what it would take to answer), asked (whether it asks for
-    code at all)}."""
+    code at all), language}. The language is the code's own where it is
+    written (`function` is TypeScript, `def` Python), else `language` (the
+    conversation's, or what the message asks: `asked_ways`), else
+    TypeScript."""
     out = {"said": text, "entry": None, "params": [], "returns": None,
            "examples": [], "signature": None, "made": [], "missing": None}
     spans = []
     found = SIGNATURE.search(text)
     yours = None
+    python = None if found else _read_python_signature(text, out, spans)
+    out["language"] = ("typescript" if found else "python" if python
+                       else language or "typescript")
+    if python and out.get("yours"):
+        yours = python
     if found:
         from research.v696.tasks import _params
         out["entry"] = found.group(1)
@@ -203,9 +278,11 @@ def read(text: str) -> dict:
             continue
         end = _value_end(text, arrow.end(), name)
         said = text[arrow.end():end].strip().rstrip(".,")
+        if text[:call.start()].rstrip().endswith("def"):
+            continue
         try:
-            args = _literal(f"[{text[call.end():close]}]")
-            value = _literal(said)
+            args = _literal(f"[{text[call.end():close]}]", out["language"])
+            value = _literal(said, out["language"])
         except ValueError:
             continue
         out["entry"] = out["entry"] or name
@@ -229,14 +306,15 @@ def read(text: str) -> dict:
     if not out["params"] and out["examples"]:
         _inferred(out)
     if out["entry"] and out["returns"] and out["signature"] is None:
-        said = ", ".join(f"{name}: {kind}" for name, kind in out["params"])
-        out["signature"] = (f"function {out['entry']}({said}): "
-                            f"{out['returns']}")
+        from research.v696 import language as L
+        out["signature"] = L.of(out["language"]).signature(
+            out["entry"], out["params"], out["returns"],
+            out.get("written"))
     if out["signature"] is None and out["missing"] is None \
             and len(out["english"].split()) < 3:
         out["missing"] = ("what it should do, in words, or how it is "
                           "called: an example such as reverse(\"ab\") == "
-                          "\"ba\", or its TypeScript signature")
+                          "\"ba\", or its signature")
     return out
 
 
@@ -280,12 +358,39 @@ class Tools:
     _one = None
 
     def __init__(self) -> None:
+        self.readers: dict = {}
+        self.estimating: dict = {}
+        self.writers: dict = {}
+
+    def reader_for(self, language: str = "typescript"):
+        """The reader of meaning a request in `language` is read with
+        (`risk.BY_LANGUAGE`): one loaded per model, shared by languages."""
         from research.v696 import reader as R
         from research.v696 import risk
-        self.reader = R.Reader.load(R.LLM / risk.READER)
-        self.estimators = risk.Estimators(
-            features=risk.Features(reader=self.reader))
-        self.writers: dict = {}
+        name = risk.BY_LANGUAGE.get(language, risk.BY_LANGUAGE[
+            "typescript"])[0]
+        if name not in self.readers:
+            self.readers[name] = R.Reader.load(R.LLM / name)
+        return self.readers[name]
+
+    def estimators_for(self, language: str = "typescript"):
+        """The risk estimators over that reader's encoder."""
+        from research.v696 import risk
+        name = risk.BY_LANGUAGE.get(language, risk.BY_LANGUAGE[
+            "typescript"])[1]
+        if name not in self.estimating:
+            self.estimating[name] = risk.Estimators(
+                risk.LLM / name,
+                features=risk.Features(reader=self.reader_for(language)))
+        return self.estimating[name]
+
+    @property
+    def reader(self):
+        return self.reader_for("typescript")
+
+    @property
+    def estimators(self):
+        return self.estimators_for("typescript")
 
     @classmethod
     def get(cls) -> "Tools":
@@ -308,9 +413,13 @@ class _Held:
     switch*, *make it recursive*), checked on each program as written --
     its shape read once."""
 
-    def __init__(self, ways, before=None) -> None:
+    def __init__(self, ways, before=None,
+                 language: str = "typescript") -> None:
         from research.v698 import ways as W
-        self.W, self.ways, self.shapes = W, list(ways or ()), {}
+        self.W, self.shapes = W, {}
+        self.language = language
+        # what is asked of the code, not the language it is in
+        self.ways = W.held(ways, language)
         code, entry = before or (None, None)
         self.before = self.shape(code, entry) if code and entry else None
 
@@ -319,7 +428,8 @@ class _Held:
         key = (text, entry)
         if key not in self.shapes:
             try:
-                self.shapes[key] = checker().shape(text, entry)
+                self.shapes[key] = checker(self.language).shape(text,
+                                                                entry)
             except CheckerError:
                 self.shapes[key] = None
         return self.shapes[key]
@@ -332,7 +442,8 @@ class _Held:
                               self.before)
 
     def said(self, ways=None) -> str:
-        return self.W.said(self.ways if ways is None else ways)
+        return self.W.said(self.ways if ways is None else ways,
+                           self.language)
 
     def told(self) -> str:
         """What the writers are told of them."""
@@ -350,7 +461,8 @@ class _Held:
 
         def does(source):
             try:
-                rows = checker().run(source, entry, inputs)
+                rows = checker(self.language).run(source, entry,
+                                                  inputs)
             except CheckerError:
                 return None
             return [[row.get("value"), "error" in row, row.get("printed")]
@@ -387,7 +499,8 @@ class _Held:
             text = base
             for way in self.ways:
                 try:
-                    text = checker().restyle(text, entry, way) or text
+                    text = checker(self.language).restyle(
+                        text, entry, way) or text
                 except CheckerError:
                     pass
             for source, by in ((base, how), (text, "restyled")):
@@ -396,17 +509,20 @@ class _Held:
         said = prompt(f"Rewrite this function {self.said()}, so that it "
                       f"does exactly what it does:\n{answer}", code, None)
         tools = Tools.get()
-        for name in sketcher.PROPOSERS.split(","):
+        for name in sketcher.proposers(self.language):
             key = f"{name}|rewrite|0|{zlib.crc32(said.encode())}"
+            key += "" if self.language == "typescript" else \
+                f"|{self.language}"
             texts = sketcher._cached().get(key)
             if texts is None:
                 writer = tools.writer(name)
                 writer.torch.manual_seed(sketcher.SEED
                                          + zlib.crc32(said.encode()))
-                texts = writer.write([said], greedy=True)[0]
+                texts = writer.write([said], greedy=True,
+                                     saying=self._saying(writer))[0]
                 sketcher._keep(key, texts)
             for one in texts:
-                source, signature = _function(one)
+                source, signature = _function(one, self.language)
                 if signature is None or signature.group(1) != entry:
                     # an arrow, as written in its code block
                     source = (one.split("```")[1].partition("\n")[2]
@@ -419,6 +535,14 @@ class _Held:
         # none written every way asked: the one written the most of them
         # that does what the answer does
         return best[1]
+
+    def _saying(self, writer) -> str | None:
+        """What a writer is told it writes, in this language."""
+        if self.language == "typescript":
+            return None
+        from research.v696 import language as L
+        return L.of(self.language).saying(
+            bool(writer.settings.get("functions")))
 
     def json(self, text: str | None, entry: str | None) -> dict:
         missing = self.missing(text, entry) if text and entry else \
@@ -445,7 +569,8 @@ def _top(probs: dict, most: int = 10, floor: float = 0.05) -> list:
         probs.items(), key=lambda one: -one[1])[:most] if p >= floor]
 
 
-def solve(text: str, ways=(), before=None, yours=None) -> dict:
+def solve(text: str, ways=(), before=None, yours=None,
+          language: str | None = None) -> dict:
     """Everything done for a request, and its answer (`code`). `ways`: the
     ways of writing it is held to (v698), `before`: (code, entry) of the
     answer it changes, for the ways relative to it (`shorter`); `yours`: a
@@ -459,12 +584,14 @@ def solve(text: str, ways=(), before=None, yours=None) -> dict:
 
     started = time.time()
     timings = {}
-    asked = read(text)
+    asked = read(text, language)
     yours = yours or asked.get("yours")
     if yours:
         asked["yours"] = yours
     out = {"request": asked, "timings": timings}
-    held = _Held(ways, before) if ways else None
+    held = _Held(ways, before, asked["language"]) if ways else None
+    if held is not None and not held.ways:
+        held = None
     if asked["missing"]:
         out["answer"] = {"status": "missing", "code": None}
         return out
@@ -491,11 +618,13 @@ def solve(text: str, ways=(), before=None, yours=None) -> dict:
                 english=" ".join(filter(None, (
                     asked["english"], known.get("english"),
                     held.told() if held else None))),
-                library=list(known.get("library", ())))
+                library=list(known.get("library", ())),
+                language=asked["language"],
+                written=dict(asked.get("written") or {}))
     tools = Tools.get()
 
     # the request read: what the reader of meaning expects of its program
-    probs = tools.reader.read([said_as(spec)])[0]
+    probs = tools.reader_for(spec.language).read([said_as(spec)])[0]
     spec.expected = {"uses": probs["uses"], "behaviour": probs["behaviour"],
                      "probs": probs}
     out["read"] = {"returns": _top(probs["returns"], 3),
@@ -507,7 +636,7 @@ def solve(text: str, ways=(), before=None, yours=None) -> dict:
     # its risks, and what the matrix says of its search
     mark = time.time()
     from research.v696.risk import _surface
-    spec.risk = tools.estimators(
+    spec.risk = tools.estimators_for(spec.language)(
         [said_as(spec)], [_surface(spec.english, spec.params, spec.returns,
                                    spec.examples)])[0]
     spec.moves = risk.moves(spec.risk, risk.MOVES - {"budget"})
@@ -535,7 +664,7 @@ def solve(text: str, ways=(), before=None, yours=None) -> dict:
     mark = time.time()
     STATE.mkdir(exist_ok=True)
     sketcher.CACHE = WRITTEN
-    names = sketcher.PROPOSERS.split(",")
+    names = sketcher.proposers(spec.language)
     searched = spec.moves
     spec.moves = dataclasses.replace(searched,
                                      on=searched.on | {"readings"})
@@ -549,7 +678,8 @@ def solve(text: str, ways=(), before=None, yours=None) -> dict:
     if yours:
         # the person's own: one more writer, `you` -- checked as theirs are
         mine = Spec(spec.name, spec.params, spec.returns, spec.examples,
-                    entry=spec.entry)
+                    entry=spec.entry, language=spec.language,
+                    written=spec.written)
         sketcher._read(mine, [yours], parse)
         tree = mine.proposals[0] if mine.proposals else None
         sketcher._read(spec, [yours], parse, writer="you")
@@ -650,7 +780,54 @@ class _Signature:
         return self._groups[at - 1]
 
 
-def _function(text: str):
+class _PySignature:
+    """A Python function's name, parameters (as the engine types them, in
+    `name: type` form) and result, as SIGNATURE's groups are read."""
+
+    def __init__(self, function) -> None:
+        import ast
+
+        from research.v696 import pytypes
+        params = ", ".join(
+            f"{one.arg}: " + pytypes.engine(
+                ast.unparse(one.annotation) if one.annotation else None)
+            for one in function.args.args)
+        returns = pytypes.engine(ast.unparse(function.returns)) \
+            if function.returns is not None else "void"
+        self._groups = (function.name, params, returns)
+
+    def group(self, at: int) -> str:
+        return self._groups[at - 1]
+
+
+def _python_function(text: str):
+    """A writer's Python: its first `def` and what it imports, or loose
+    statements as a function of nothing, `main`."""
+    import ast
+    import textwrap
+    found = PY_SIGNATURE.search(text)
+    if found is None and text and not text.startswith("#"):
+        text = "def main() -> None:\n" + textwrap.indent(text, "    ")
+        found = PY_SIGNATURE.search(text)
+    if found is None:
+        return text, None
+    head = "".join(line + "\n" for line in text[:found.start()].splitlines()
+                   if line.startswith(("import ", "from ")))
+    # the function's own block: what follows it (its calls, a print of
+    # them) is the writer's showing, not the function
+    end = _python_block(text, found)
+    body = text[found.start():end if end > 0 else len(text)]
+    source = head + textwrap.dedent(body).strip() + "\n"
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source, None
+    function = next((one for one in tree.body
+                     if isinstance(one, ast.FunctionDef)), None)
+    return source, (_PySignature(function) if function else None)
+
+
+def _function(text: str, language: str = "typescript"):
     """The function a writer wrote, and its signature, or (text, None).
     Statements written with no function around them -- a program that
     prints, as people write one -- are taken as a function of nothing,
@@ -659,6 +836,8 @@ def _function(text: str):
         inside = text.split("```")[1]
         text = inside.partition("\n")[2] or inside
     text = text.strip()
+    if language == "python":
+        return _python_function(text)
     found = WRITTEN_FUNCTION.search(text)
     if found is None and text and not text.startswith(("//", "/*")):
         text = "function main(): void {\n  " + text.replace(
@@ -679,6 +858,7 @@ def _open(asked: dict, text: str, out: dict, started: float,
     what is compared. The answer is what the most writers arrived at apart
     (confirmed by two), and what meets the examples where there are any,
     the request's own words among them (`prints out "Hello World"`)."""
+    from research.v696 import language as L
     from research.v696 import meaning as M
     from research.v696 import sketcher
     from research.v696.checker import CheckerError, checker
@@ -693,7 +873,10 @@ def _open(asked: dict, text: str, out: dict, started: float,
     code = "\n".join([asked["signature"] or ""] + [
         one["said"] for one in asked["examples"]]).strip()
     request = f"open-{zlib.crc32(text.encode()):08x}"
-    probs = tools.reader.read([(english, code)])[0]
+    if asked["language"] != "typescript":
+        # the same words asked in another language are another request
+        request += f"-{asked['language']}"
+    probs = tools.reader_for(asked["language"]).read([(english, code)])[0]
     out["read"] = {"returns": _top(probs["returns"], 3),
                    "uses": _top(probs["uses"]),
                    "behaviour": _top(probs["behaviour"]),
@@ -719,7 +902,7 @@ def _open(asked: dict, text: str, out: dict, started: float,
 
     mark = time.time()
     written, programs = [], []
-    names = sketcher.PROPOSERS.split(",")
+    names = sketcher.proposers(asked["language"])
     for round_ in range(ROUNDS):
         for name in names:
             writer = tools.writer(name)
@@ -732,11 +915,15 @@ def _open(asked: dict, text: str, out: dict, started: float,
             if texts is None:
                 writer.torch.manual_seed(
                     sketcher.SEED + zlib.crc32(request.encode()) + round_)
-                texts = writer.write([said], greedy=round_ == 0)[0]
+                saying = None if asked["language"] == "typescript" else \
+                    L.of(asked["language"]).saying(
+                        bool(writer.settings.get("functions")))
+                texts = writer.write([said], greedy=round_ == 0,
+                                     saying=saying)[0]
                 sketcher._keep(key, texts)
             row = {"writer": name, "round": round_, "programs": []}
             for one in texts:
-                source, signature = _function(one)
+                source, signature = _function(one, asked["language"])
                 entry = signature.group(1) if signature else None
                 record = {"text": source, "read": False, "program": None,
                           "meets": False}
@@ -755,7 +942,7 @@ def _open(asked: dict, text: str, out: dict, started: float,
             break
     if asked.get("yours"):
         # the person's own: one more writer, `you`
-        source, signature = _function(asked["yours"])
+        source, signature = _function(asked["yours"], asked["language"])
         record = {"text": source, "read": False, "program": None,
                   "meets": False}
         written.append({"writer": "you", "round": 0, "programs": [record]})
@@ -793,7 +980,8 @@ def _open(asked: dict, text: str, out: dict, started: float,
     groups: dict = {}
     for one in candidates:
         try:
-            rows = checker().run(one["text"], one["entry"], inputs)
+            rows = checker(asked["language"]).run(one["text"],
+                                                  one["entry"], inputs)
         except CheckerError:
             continue
         if all("error" in row for row in rows):
@@ -883,7 +1071,8 @@ def _writers(spec, names: list, parse) -> list:
             programs = []
             for text in written:
                 alone = Spec(spec.name, spec.params, spec.returns,
-                             spec.examples, entry=spec.entry)
+                             spec.examples, entry=spec.entry,
+                             language=spec.language, written=spec.written)
                 sketcher._read(alone, [text], parse)
                 tree = alone.proposals[0] if alone.proposals else None
                 programs.append({
@@ -944,8 +1133,9 @@ def _ways_said(found: dict) -> str:
     if not ways or not (found["answer"].get("code")):
         return said
     from research.v698.ways import said as said_as
+    language = (found.get("request") or {}).get("language", "typescript")
     done = said_as([one for one in ways["asked"]
-                    if one not in ways["missing"]])
+                    if one not in ways["missing"]], language)
     rewritten = found["answer"].get("as") == "rewritten"
     if rewritten:
         inputs = len(found["rewritten"]["inputs"])
@@ -1014,12 +1204,13 @@ def _spoken(found: dict) -> str:
             f"{found.get('search', {}).get('evaluated', 0)} candidates.")
 
 
-def answered(text: str, ways=(), before=None, yours=None) -> dict:
+def answered(text: str, ways=(), before=None, yours=None,
+             language: str | None = None) -> dict:
     """The conversation's answer to a request for code: said in a
     sentence, with everything done for it (`code`). `ways`, `before`,
     `yours`: as `solve` takes them."""
     try:
-        found = solve(text, ways, before, yours)
+        found = solve(text, ways, before, yours, language)
     except Exception as bad:                       # noqa: BLE001
         import traceback
         found = {"request": read(text), "answer": {

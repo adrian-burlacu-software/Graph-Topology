@@ -18,6 +18,11 @@ assert.strictEqual(lib.asRequest("/**\n * reverse it\n * rev(\"ab\") == \"ba\"\n
 assert.strictEqual(lib.asQuestion("function f() {}\n\n", "typescript"),
   "explain this code\n```ts\nfunction f() {}\n```");
 
+assert.strictEqual(lib.asQuestion("def f():\n    pass\n", "python"),
+  "explain this code\n```python\ndef f():\n    pass\n```");
+assert.strictEqual(lib.languageOf("def f(x):\n    return x\n"), "python");
+assert.strictEqual(lib.languageOf("function f(x) { return x; }"), "typescript");
+
 assert.strictEqual(lib.base("http://127.0.0.1:8697/"), "http://127.0.0.1:8697");
 assert.strictEqual(lib.base(""), "http://127.0.0.1:8697");
 
@@ -31,6 +36,9 @@ assert.strictEqual(lib.relative("c:/work/proj/", "C:/work/proj/b.js"), "b.js");
 
 assert.ok(lib.isRead("src/a.ts"));
 assert.ok(!lib.isRead("README.md"));
+assert.ok(lib.isRead("pkg/mod.py"));
+assert.ok(!lib.isRead(".venv/lib/site.py"));
+assert.ok(!lib.isRead("pkg/__pycache__/mod.py"));
 assert.ok(!lib.isRead("node_modules/x/index.js"));
 assert.ok(!lib.isRead("packages/app/dist/bundle.js"));
 

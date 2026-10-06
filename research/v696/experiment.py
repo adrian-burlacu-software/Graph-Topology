@@ -170,9 +170,9 @@ def run(config: str, train: list, test: list, budget: int) -> Row:
 
 # -- MultiPL-E as specs ----------------------------------------------------
 
-def _literal(text: str):
-    """A TypeScript literal as the value Node makes of it."""
-    row = checker().values([], [[]], [text])[0][0]
+def _literal(text: str, language: str = "typescript"):
+    """A literal as the value its language makes of it."""
+    row = checker(language).values([], [[]], [text])[0][0]
     if "error" in row:
         raise ValueError(text)
     return row["value"]
@@ -186,30 +186,36 @@ def multipl_e(config: str = "humaneval-ts", shown: int = 1) -> list:
     from research.v696.teach_meaning import _english
     out = []
     for task in tasks.load(config):
+        language = task.language
         try:
-            examples = [([_literal(f"[{args}]")][0], _literal(value))
+            examples = [([_literal(f"[{args}]", language)][0],
+                         _literal(value, language))
                         for args, value in task.examples]
         except ValueError:
             continue
-        if not examples and config == "mbpp-ts":
+        if not examples and config.startswith("mbpp"):
             # MBPP's prompts show none: its first test is its example.
             # (HumanEval's are its own; a test is never shown there.)
-            from research.v696.meaning import test_pairs, values_of
+            from research.v696.meaning import (test_pairs,
+                                               test_pairs_python, values_of)
+            reading = (test_pairs_python if language == "python"
+                       else test_pairs)
             examples = [tuple(one) for one in values_of(
-                test_pairs(task.tests))[:shown]]
+                reading(task.tests), language)[:shown]]
         if not examples:
             continue
         out.append(Spec(task.name, task.params, task.returns, examples,
                         tests=task.tests, entry=task.entry,
-                        english=_english(task.prompt)))
+                        english=_english(task.prompt), language=language,
+                        written=dict(task.written)))
     return out
 
 
 def _passes(spec: Spec, got: S.Result) -> bool:
     if got.program is None:
         return False
-    return checker().tests(spec.function(got.program) + "\n"
-                           + spec.tests) is None
+    return checker(spec.language).tests(spec.function(got.program) + "\n"
+                                        + spec.tests) is None
 
 
 def main(argv=None) -> int:
@@ -245,12 +251,17 @@ def main(argv=None) -> int:
                         help="a file to keep what the decoders wrote in, "
                              "so a run measured again asks them nothing "
                              "it asked before (`sketcher.CACHE`)")
+    parser.add_argument("--language", default="typescript",
+                        choices=("typescript", "python"),
+                        help="the tasks in TypeScript (MultiPL-E's) or in "
+                             "Python (its originals); a Python run starts "
+                             "with no memory of TypeScript's programs")
     parser.add_argument("--part", default="",
                         help="k/n: only the k-th of n equal runs of the "
                              "test tasks -- a long run in parts")
     options = parser.parse_args(argv)
     if options.rung == 4:
-        main4(options.held)
+        main4(options.held, options.language)
         return 0
     if options.rung == 5:
         print(f"rung 5 {'held' if options.held else 'dev'}:",
@@ -259,11 +270,13 @@ def main(argv=None) -> int:
     if options.multipl_e and options.dev:
         from research.v696.teach_meaning import split
         train = generated(False)[0]
-        test = [one for one in multipl_e("mbpp-ts", shown=2)
+        suffix = "py" if options.language == "python" else "ts"
+        test = [one for one in multipl_e(f"mbpp-{suffix}", shown=2)
                 if split(one.name) == "dev"]
         print(f"MBPP dev: {len(test)} tasks, two examples shown")
     elif options.multipl_e:
-        train, test = generated(False)[0], multipl_e()
+        suffix = "py" if options.language == "python" else "ts"
+        train, test = generated(False)[0], multipl_e(f"humaneval-{suffix}")
         print(f"HumanEval-TS: {len(test)} tasks with readable examples")
     elif options.rung == 3:
         train, test = generated3(options.held)
@@ -277,6 +290,9 @@ def main(argv=None) -> int:
         train, test = generated(options.held)
         print(f"{'held' if options.held else 'dev'}: {len(train)} training, "
               f"{len(test)} test tasks, depths {DEPTHS}")
+    if options.language == "python":
+        # what the solver remembers is TypeScript's programs: not Python's
+        train = []
     if options.meaning:
         from research.v696 import reader
         reader.expect(test, reader.LLM / options.meaning)
@@ -303,7 +319,8 @@ def main(argv=None) -> int:
         if options.cache:
             sketcher.CACHE = Path(options.cache)
         said = {"proposer": sketcher.PROPOSER,
-                "proposers": sketcher.PROPOSERS}.get(options.sketcher,
+                "proposers": ",".join(sketcher.proposers(
+                    options.language))}.get(options.sketcher,
                                                      options.sketcher)
         # several decoders: each after the last, where it found nothing
         for at, name in enumerate(said.split(",")):
@@ -329,6 +346,10 @@ def main(argv=None) -> int:
 
 # -- rung 4: editing a program that exists ---------------------------------
 
+#: the most a bug's search from scratch may take, in seconds
+SECONDS_PER_BUG = 60
+
+
 def rung4(bugs_: list, budget: int = 8000) -> dict:
     """Each bug repaired by edits (`editing.repair`), and solved from
     scratch by the search on the same cases, both judged by its tests."""
@@ -336,6 +357,9 @@ def rung4(bugs_: list, budget: int = 8000) -> dict:
     routes, edits_made, tried = Counter(), Counter(), 0
     scratch = scratch_ok = 0
     solver = S.Solver(CONFIGS["meet+repair+forms"], budget=budget)
+    # a minute a bug: the budget counts candidates, and Python's may each
+    # take their whole timeout (one search took half an hour, v699)
+    solver.seconds = SECONDS_PER_BUG
     started = time.time()
     for bug in bugs_:
         fix = editing.repair(bug)
@@ -346,7 +370,8 @@ def rung4(bugs_: list, budget: int = 8000) -> dict:
         spec = Spec(bug.name, bug.params, bug.returns,
                     [(list(args), want) for args, want in
                      zip(bug.cases, bug.wanted)],
-                    tests=bug.tests, entry=bug.entry)
+                    tests=bug.tests, entry=bug.entry,
+                    language=getattr(bug, "language", "typescript"))
         got = solver.solve(spec)
         scratch += got.solved
         if got.solved:
@@ -364,11 +389,15 @@ def rung4(bugs_: list, budget: int = 8000) -> dict:
             "seconds": round(time.time() - started)}
 
 
-def main4(held: bool) -> None:
+def main4(held: bool, language: str = "typescript") -> None:
     from research.v696 import bugs
-    suites = {"generated": bugs.generated(held)}
-    if held:
-        suites["humanevalfix"] = bugs.humanevalfix()
+    if language == "python":
+        # Python's: HumanEvalPack's bugs in Python (`bugs.py fetch python`)
+        suites = {"humanevalfix-python": bugs.humanevalfix_python()}
+    else:
+        suites = {"generated": bugs.generated(held)}
+        if held:
+            suites["humanevalfix"] = bugs.humanevalfix()
     for name, found in suites.items():
         print(f"rung 4 {'held' if held else 'dev'} {name}:",
               rung4(found), flush=True)

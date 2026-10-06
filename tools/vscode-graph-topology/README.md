@@ -23,7 +23,7 @@ says which server is attached; click it for every action.
   workspace's own conversation. Code blocks there can be **opened** where
   they are or **inserted**: the editor asks where; nothing is written
   without that.
-- **Read the Project** — the workspace's TypeScript and JavaScript sent
+- **Read the Project** — the workspace's TypeScript, JavaScript and Python sent
   whole; each save sent again. Then ask: *what is in the project*, *where
   is main*, *who calls parse*, *what does render do*, *does the project
   compile*.

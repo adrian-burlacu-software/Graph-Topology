@@ -25,7 +25,8 @@ function asRequest(text) {
 
 /** Code pasted with a question about it: what the server reads as such. */
 function asQuestion(code, language) {
-  const fence = /typescript|javascript|ts|js/i.test(language || "") ? "ts" : "";
+  const fence = /python/i.test(language || "") ? "python"
+    : /typescript|javascript|ts|js/i.test(language || "") ? "ts" : "";
   return `explain this code\n\`\`\`${fence}\n${String(code).replace(/\s+$/, "")}\n\`\`\``;
 }
 
@@ -54,12 +55,13 @@ function relative(folderPath, filePath) {
     ? file.slice(folder.length + 1) : file;
 }
 
-const READ = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/i;
+const READ = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$/i;
 
 /** Whether a file is one the project is read from (for a save). */
 function isRead(path, excluded) {
   if (!READ.test(path)) return false;
-  return !(excluded || ["node_modules/", "/dist/", "/build/", "/out/", ".git/"])
+  return !(excluded || ["node_modules/", "/dist/", "/build/", "/out/", ".git/",
+                        "__pycache__/", ".venv/", "/venv/", "site-packages/"])
     .some((part) => ("/" + path.replace(/\\/g, "/")).includes(part.startsWith("/") ? part : "/" + part));
 }
 
@@ -88,5 +90,12 @@ window.addEventListener("message", (event) => {
 </script></body></html>`;
 }
 
-module.exports = { sidFor, asRequest, asQuestion, base, compare, relative,
+/** The editor's language for a piece of code: Python's `def`, else
+    TypeScript (what a new document beside is opened as). */
+function languageOf(code) {
+  return /^\s*(async\s+)?def\s+\w+\s*\(/m.test(String(code))
+    && !/\bfunction\s+\w+\s*\(/.test(String(code)) ? "python" : "typescript";
+}
+
+module.exports = { sidFor, asRequest, asQuestion, languageOf, base, compare, relative,
                    isRead, webviewHtml };

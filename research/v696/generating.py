@@ -87,12 +87,26 @@ def _uses(expr: P.Expr, names) -> bool:
     return set(names) <= found
 
 
-def task(seed: int, depth: int) -> Spec | None:
+def _values(language: str, names, cases, answer) -> list:
+    """What a composition gives on each case, as its language runs it."""
+    if language == "typescript":
+        return checker().values(names, cases, [answer.source()])[0]
+    from research.v696 import language as L
+    return L.of(language).values(names, cases, [answer])[0]
+
+
+def _named(prefix: str, language: str) -> str:
+    """A generated task's name: Python's apart from TypeScript's."""
+    return prefix if language == "typescript" else "py" + prefix
+
+
+def task(seed: int, depth: int, language: str = "typescript"
+         ) -> Spec | None:
     """One task, or None when this seed's composition is not worth one."""
     rng = random.Random(seed * 7919 + depth)
     shape = rng.choice(SHAPES)
     names = [name for name, _ in shape]
-    lib = P.library()
+    lib = P.library(language=language)
     pool = [P.param(name, kind) for name, kind in shape] + [
         P.const(value, kind) for value, kind in P.CONSTANTS]
     ops = [op for op in lib.ops if not P.later(op)]
@@ -103,7 +117,7 @@ def task(seed: int, depth: int) -> Spec | None:
             continue
         cases = [[_value(kind, rng) for _, kind in shape]
                  for _ in range(SHOWN + HIDDEN)]
-        row = checker().values(names, cases, [answer.source()])[0]
+        row = _values(language, names, cases, answer)
         if any("error" in one for one in row):
             continue
         outputs = [one["value"] for one in row]
@@ -114,8 +128,9 @@ def task(seed: int, depth: int) -> Spec | None:
                for index in range(len(names))):
             continue
         pairs = list(zip(cases, outputs))
-        return Spec(f"gen-{seed}-{depth}", list(shape), answer.type,
-                    pairs[:SHOWN], pairs[SHOWN:], answer=answer)
+        return Spec(f"{_named('gen', language)}-{seed}-{depth}", list(shape),
+                    answer.type, pairs[:SHOWN], pairs[SHOWN:],
+                    answer=answer, language=language)
     return None
 
 
@@ -129,25 +144,30 @@ SHAPES2 = (
 )
 
 
-def _receiver(shape) -> P.Expr:
+def _receiver(shape, language: str = "typescript") -> P.Expr:
     """What the form goes over: a list parameter, or a string's letters."""
     for name, kind in shape:
         if kind.endswith("[]"):
             return P.param(name, kind)
     name = shape[0][0]
+    if language == "python":
+        chars = next(op for op in P.library(language=language).ops
+                     if op.key == "function:chars:string->string[]")
+        return P.apply(chars, [P.param(name, "string")])
     split = next(op for op in P.library().ops
                  if op.key == "method:split:string,string->string[]")
     return P.apply(split, [P.param(name, "string"), P.const("", "string")])
 
 
-def task2(seed: int, depth: int = 1) -> Spec | None:
+def task2(seed: int, depth: int = 1, language: str = "typescript"
+          ) -> Spec | None:
     """A rung-2 task: a form over a list with a random body `depth` deep
     in the hole's scope, perhaps with one operator after it."""
     rng = random.Random(seed * 104729 + depth)
     shape = rng.choice(SHAPES2)
     names = [name for name, _ in shape]
-    lib = P.library()
-    receiver = _receiver(shape)
+    lib = P.library(language=language)
+    receiver = _receiver(shape, language)
     forms = [one for one in lib.forms if one.receiver == receiver.type]
     for _ in range(40):
         form = rng.choice(forms)
@@ -187,7 +207,7 @@ def task2(seed: int, depth: int = 1) -> Spec | None:
             continue
         cases = [[_value(kind, rng) for _, kind in shape]
                  for _ in range(SHOWN + HIDDEN)]
-        row = checker().values(names, cases, [answer.source()])[0]
+        row = _values(language, names, cases, answer)
         if any("error" in one for one in row):
             continue
         outputs = [one["value"] for one in row]
@@ -198,8 +218,9 @@ def task2(seed: int, depth: int = 1) -> Spec | None:
                for index in range(len(names))):
             continue
         pairs = list(zip(cases, outputs))
-        return Spec(f"gen2-{seed}-{depth}", list(shape), answer.type,
-                    pairs[:SHOWN], pairs[SHOWN:], answer=answer)
+        return Spec(f"{_named('gen2', language)}-{seed}-{depth}", list(shape),
+                    answer.type, pairs[:SHOWN], pairs[SHOWN:],
+                    answer=answer, language=language)
     return None
 
 
@@ -236,14 +257,14 @@ SHAPES3 = (
 )
 
 
-def task3(seed: int) -> Spec | None:
+def task3(seed: int, language: str = "typescript") -> Spec | None:
     """A rung-3 task: a loop, as the reader reads loops -- a form over a
     counted range (a fold, a search, a filter or a map over the numbers
     up to one of the inputs), its body free to index into the inputs."""
     rng = random.Random(seed * 130363 + 3)
     shape = rng.choice(SHAPES3)
     names = [name for name, _ in shape]
-    lib = P.library()
+    lib = P.library(language=language)
     params = [P.param(name, kind) for name, kind in shape]
     lengths = [P.apply(next(op for op in lib.ops if op.kind == "property"
                             and op.name == "length"
@@ -289,15 +310,16 @@ def task3(seed: int) -> Spec | None:
                 case.append(rng.randint(0, 12) if kind == "number"
                             else _value(kind, rng))
             cases.append(case)
-        row = checker().values(names, cases, [answer.source()])[0]
+        row = _values(language, names, cases, answer)
         if any("error" in one for one in row):
             continue
         outputs = [one["value"] for one in row]
         if len({json.dumps(one) for one in outputs}) < 3:
             continue
         pairs = list(zip(cases, outputs))
-        return Spec(f"gen3-{seed}", list(shape), answer.type,
-                    pairs[:SHOWN], pairs[SHOWN:], answer=answer)
+        return Spec(f"{_named('gen3', language)}-{seed}", list(shape),
+                    answer.type, pairs[:SHOWN], pairs[SHOWN:],
+                    answer=answer, language=language)
     return None
 
 

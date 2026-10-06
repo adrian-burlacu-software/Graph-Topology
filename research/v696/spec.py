@@ -53,6 +53,13 @@ class Spec:
     risk: dict | None = None
     #: what the resolution matrix says its search does (`risk.moves`)
     moves: object = None
+    #: the language it is written in (`language.py`): how its programs are
+    #: written out, what runs and checks them
+    language: str = "typescript"
+    #: the types as the person wrote them (`int`, `list[float]`), by
+    #: parameter and "return", where the language's words are not the
+    #: engine's (Python's)
+    written: dict = field(default_factory=dict)
 
     @property
     def names(self) -> list:
@@ -69,14 +76,25 @@ class Spec:
     def inputs(self) -> list:
         return [P.param(name, kind) for name, kind in self.params]
 
+    @property
+    def lang(self):
+        from research.v696 import language
+        return language.of(self.language)
+
     def signature(self) -> str:
-        said = ", ".join(f"{name}: {kind}" for name, kind in self.params)
-        return f"function {self.entry}({said}): {self.returns}"
+        return self.lang.signature(self.entry, self.params, self.returns,
+                                   self.written)
 
     def function(self, body: P.Expr) -> str:
         """The program whole: the helpers it calls, then the function."""
-        return (P.prelude([body]) + f"{self.signature()} {{\n  return "
-                f"{body.source()};\n}}\n")
+        return self.lang.function(self.entry, self.params, self.returns,
+                                  body, self.written)
+
+    def values(self, cases, exprs, timeout: int = 50) -> list:
+        """Each program's values on `cases`, run as its language runs it
+        (a tuple made a tuple, where a parameter is one)."""
+        return self.lang.values(self.names, cases, exprs, timeout,
+                                types=[kind for _, kind in self.params])
 
     def features(self) -> frozenset:
         """What the examples show, as predicates for the recognition trie:

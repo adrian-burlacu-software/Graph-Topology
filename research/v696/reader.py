@@ -62,9 +62,17 @@ def said(record: dict, parts) -> tuple:
     elif "signature" in parts:
         code.append(record["signature"])
     if "examples" in parts:
-        for args, out in record["examples"]:
-            code.append(f"// f({json.dumps(args)[1:-1]}) === "
-                        f"{json.dumps(out)}")
+        language = record.get("language")
+        if language and language != "typescript":
+            from research.v696 import language as L
+            said = L.of(language)
+            for args, out in record["examples"]:
+                code.append(said.example(record.get("entry") or "f", args,
+                                         out))
+        else:
+            for args, out in record["examples"]:
+                code.append(f"// f({json.dumps(args)[1:-1]}) === "
+                            f"{json.dumps(out)}")
     return english or "", "\n".join(code)
 
 
@@ -278,7 +286,8 @@ def request(spec) -> tuple:
     """A spec as the reader's sequence: its English, its signature, the
     examples it shows -- whatever of them it has."""
     record = {"english": spec.english, "signature": spec.signature(),
-              "examples": [[list(args), out] for args, out in spec.examples]}
+              "examples": [[list(args), out] for args, out in spec.examples],
+              "language": spec.language, "entry": spec.entry}
     parts = [one for one in ("english", "signature", "examples")
              if record[one]]
     return said(record, parts)
@@ -373,10 +382,12 @@ def refusals(model: Path, strong: float = 0.95) -> dict:
             sure_count += bool(sure)
             if not sure:
                 continue
-            entry = re.search(r"function\s+(\w+)", row["signature"]).group(1)
+            entry = row.get("entry") or re.search(
+                r"(?:function|def)\s+(\w+)", row["signature"]).group(1)
             examples = [(list(args), out) for args, out in row["examples"]]
             cases = M.probes(examples)
-            got = checker().run(row["body"], entry, cases) if cases else []
+            got = (checker(row.get("language") or "typescript").run(
+                row["body"], entry, cases) if cases else [])
             pairs = examples + [(case, one["value"]) for case, one in
                                 zip(cases, got) if "value" in one]
             refused += not sure <= M.behaviour(pairs)

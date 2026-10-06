@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from research.v698 import project as Pj
 
 IDENT = re.compile(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?")
-PATH = re.compile(r"[\w./-]+\.(?:[cm]?[jt]sx?)\b")
+PATH = re.compile(r"[\w./-]+\.(?:[cm]?[jt]sx?|py)\b")
 WORD = re.compile(r"[a-z']+")
 #: the project, by any of the names people give it
 PROJECT = re.compile(r"\b(?:the|this|my|our|your|whole) (?:project|workspace|"
@@ -375,6 +375,10 @@ def _at(one: dict) -> str:
 def _signature(one: dict) -> str:
     params = ", ".join(f"{name}: {kind}" if kind else name
                        for name, kind in one["params"])
+    if str(one.get("file", "")).endswith(".py"):
+        # as Python signs it (v699)
+        return f"{one['name']}({params})" + (f" -> {one['returns']}"
+                                             if one["returns"] else "")
     return f"{one['name']}({params})" + (f": {one['returns']}"
                                          if one["returns"] else "")
 
@@ -394,10 +398,17 @@ def _template(one: dict) -> str:
     """A call of a function with inputs of its types, its result asked:
     what an example of it would be."""
     from research.v697.coding import DEFAULTS
+    python = str(one.get("file", "")).endswith(".py")
+    if python:
+        from research.v696 import pytypes
+        from research.v696.pyprint import literal
     args = []
     for _, kind in one["params"]:
+        # a Python annotation (`list[int]`) as the engine's type first
+        kind = pytypes.engine(kind) if python and kind else kind
         values = DEFAULTS.get((kind or "").replace(" ", ""))
-        args.append(json.dumps(values[min(2, len(values) - 1)])
+        value = values[min(2, len(values) - 1)] if values else None
+        args.append((literal(value) if python else json.dumps(value))
                     if values else "…")
     return f"{one['name'].split('.')[-1]}({', '.join(args)}) == ?"
 
@@ -719,12 +730,15 @@ def _code_gaps(space, text: str) -> dict:
     answer = found.get("answer") or {}
     code, entry = answer.get("code"), answer.get("entry")
     request = space.request or {}
+    language = request.get("language") or "typescript"
+    from research.v696 import language as L
     pairs = [(list(one["args"]), one["value"]) for one in
              request.get("examples") or () if "(" in one.get("said", "(")]
     contradicted, open_ = [], []
     if code:
         if pairs:
-            rows = checker().run(code, entry, [args for args, _ in pairs])
+            rows = checker(language).run(code, entry,
+                                         [args for args, _ in pairs])
             for (args, want), row in zip(pairs, rows):
                 if row.get("value") != want or "error" in row:
                     contradicted.append({
@@ -740,7 +754,7 @@ def _code_gaps(space, text: str) -> dict:
                                    request.get("params") or ()]):
             if args not in edges:
                 edges.append(args)
-        rows = checker().run(code, entry, edges) if edges else []
+        rows = checker(language).run(code, entry, edges) if edges else []
         returns = request.get("returns") or ""
         # a type that promises a value: nothing given back breaks it
         promised = returns and returns not in ("void", "undefined") and \
@@ -758,7 +772,8 @@ def _code_gaps(space, text: str) -> dict:
                     "found": "gives nothing (undefined)"})
         # and what the compiler, strict, finds of it
         try:
-            said = checker().diagnose({"/answer.ts": code}, strict=True)
+            said = checker(language).diagnose(
+                {"/answer" + L.of(language).extension: code}, strict=True)
         except Exception:                           # noqa: BLE001
             said = []
         for one in said:
@@ -806,6 +821,22 @@ ABOUT_CODE = re.compile(r"\b(explain|what does|what is|describe|how does|"
                         r"read|bugs?|wrong)\b", re.I)
 
 
+def code_language(code: str, said: str = "") -> str:
+    """The language code is written in, off the code itself (and a fence's
+    tag): a `def` is Python, a `function` or an arrow TypeScript."""
+    import re as _re
+    from research.v696 import language as L
+    tag = _re.search(r"```([\w+-]+)", said or "")
+    if tag:
+        for one in L.LANGUAGES.values():
+            if tag.group(1).lower() in one.fences:
+                return one.name
+    if _re.search(r"^\s*(async\s+)?def\s+\w+\s*\(", code, _re.M) and \
+            not _re.search(r"\bfunction\s+\w+\s*\(", code):
+        return "python"
+    return "typescript"
+
+
 def pasted(text: str) -> str | None:
     """The code in an utterance that pastes some and asks about it."""
     found = FENCE.search(text)
@@ -821,7 +852,8 @@ def read_pasted(text: str, code: str, space) -> dict:
     from research.v696.checker import checker
     from research.v697 import coding
     from research.v697 import conversation as C
-    source, signature = coding._function(code)
+    language = code_language(code)
+    source, signature = coding._function(code, language)
     if signature is None:
         return _reply("pasted", text, "I could not find a function in what "
                       "you pasted.", {})
@@ -833,14 +865,17 @@ def read_pasted(text: str, code: str, space) -> dict:
         for at in range(4)] if params else [[]]
     space.request = {"entry": entry, "english": "(pasted)", "said": text,
                      "signature": None, "examples": [], "made": [],
-                     "params": [], "returns": None}
+                     "params": [], "returns": None, "language": language}
+    space.language = language
     space.found = {"request": space.request,
                    "answer": {"code": source, "entry": entry,
                               "status": "pasted"},
                    "open": {"inputs": inputs}}
     answer = C._explain(space, text)
-    outline = checker().outline({"/pasted.ts": source})["/pasted.ts"]
-    problems = checker().diagnose({"/pasted.ts": source})
+    from research.v696 import language as L
+    path = "/pasted" + L.of(language).extension
+    outline = checker(language).outline({path: source})[path]
+    problems = checker(language).diagnose({path: source})
     found = answer["code"]
     found["followup"]["asked"] = "pasted"
     found["followup"]["looked"].update(outline=outline,
