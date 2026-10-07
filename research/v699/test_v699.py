@@ -204,6 +204,19 @@ class ConversationTests(unittest.TestCase):
                                          "to": "app/maths.py#double",
                                          "call": "double"}])
 
+    def test_writers_read_past_a_python_rewrite(self):
+        """A Python rewrite's key once had a fifth field: every request
+        after it in the same server failed (`too many values to unpack`)."""
+        from research.v696 import sketcher
+        from research.v697 import coding
+        kept = sketcher._cached()
+        key = "w|rewrite|0|1|python"
+        kept[key] = ["x"]
+        try:
+            self.assertEqual(coding._writers(None, ["other"], None), [])
+        finally:
+            kept.pop(key, None)
+
     def test_a_taught_concept_in_python(self):
         from research.v696 import program as P
         from research.v696 import pyprint

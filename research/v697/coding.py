@@ -510,9 +510,11 @@ class _Held:
                       f"does exactly what it does:\n{answer}", code, None)
         tools = Tools.get()
         for name in sketcher.proposers(self.language):
-            key = f"{name}|rewrite|0|{zlib.crc32(said.encode())}"
-            key += "" if self.language == "typescript" else \
-                f"|{self.language}"
+            # four fields, as every key (`_writers` reads them): the
+            # language, where it is not TypeScript, is the request's
+            rewrite = "rewrite" if self.language == "typescript" else \
+                f"rewrite-{self.language}"
+            key = f"{name}|{rewrite}|0|{zlib.crc32(said.encode())}"
             texts = sketcher._cached().get(key)
             if texts is None:
                 writer = tools.writer(name)
@@ -1065,7 +1067,7 @@ def _writers(spec, names: list, parse) -> list:
     for name in names:
         rounds = []
         for key, written in kept.items():
-            writer, request, round_, _ = key.split("|")
+            writer, request, round_ = key.split("|")[:3]
             if writer != name or request != spec.name:
                 continue
             programs = []

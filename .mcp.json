@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "graph-topology": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["tools/graph-topology-mcp/server.py", "--url", "http://127.0.0.1:8697"],
+      "env": {"PYTHONUTF8": "1"}
+    }
+  }
+}
