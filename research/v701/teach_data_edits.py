@@ -331,10 +331,15 @@ def row_of(record: dict, phrases: dict, pool: list, rng) -> dict | None:
 
 
 def rows() -> dict:
+    from research.v700.teach_faults import _clean
     phrases: dict = {}
     for line in PHRASES.open(encoding="utf-8"):
         row = json.loads(line)
-        phrases.setdefault(row["kind"], []).append(row["phrase"])
+        said = _clean(row["phrase"])
+        # the teacher's own instruction said back is no request
+        if said and not re.search(r"exactly so|every one|different ways",
+                                  said, re.I):
+            phrases.setdefault(row["kind"], []).append(said)
     rng = random.Random(SEED)
     records = []
     for kind in ("yaml", "json", "csv"):
