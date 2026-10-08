@@ -25,5 +25,5 @@ users:
     role: owner
     projects: [graph-topology, stark-db]
   - name: sam
-    role: reader
+    role: owner
     projects: [graph-topology]
