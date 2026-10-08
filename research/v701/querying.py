@@ -302,7 +302,17 @@ def _resolved(held, asked: Asked) -> dict | None:
                     found, fit = (model, path), (1, around)
     if found is None:
         return None
-    return {"model": found[0], "place": found[1]}
+    model, path = found
+    # a place that holds more places, one of which another word of the
+    # message names: that one (`what model is the editor`: `models.editor`)
+    if "object" in model.places[path].types:
+        inner = [one for one in model.places if one.startswith(f"{path}.")
+                 and "." not in one[len(path) + 1:]]
+        named = [one for one in inner if any(
+            _named(word, one.rsplit(".", 1)[-1]) for word in asked.words)]
+        if len(named) == 1:
+            path = named[0]
+    return {"model": model, "place": path}
 
 
 def carry(asked: Asked, held) -> Found | None:
@@ -408,6 +418,25 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
         op = {"eq": "contains", "ne": "lacks"}.get(asked.op, asked.op) \
             if listed else asked.op
         looked["filter"] = [found["by"], op, wanted]
+    elif not values:
+        # no value read, but a word of the message is one the records hold
+        # (`the average age of the readers`: role `reader`) -- that filter,
+        # where exactly one field holds it
+        fields = model.collections[collection]["fields"]
+        spoken = {word for found_ in asked.spans.values() for phrase in
+                  found_ for word in _said(phrase)}
+        for word in asked.words:
+            if len(word) < 3 or word.lower() in spoken or any(
+                    _named(word, str(one)) for one in fields) or \
+                    _named(word, group):
+                continue
+            by = _field_by_value(records, fields, "eq", word)
+            if by is not None and not any(isinstance(_field_of(one, by), (
+                    int, float)) for one in records):
+                records = [one for one in records
+                           if _holds(_field_of(one, by), "eq", word)]
+                looked["filter"] = [by, "eq", _one(word.lower())]
+                break
     if asked.act == "count":
         return Found(f"{len(records)} {group} in {where}" + _because(looked)
                      + ".", len(records), where, collection, asked, looked)
