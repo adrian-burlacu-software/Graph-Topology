@@ -53,7 +53,7 @@ import json
 import math
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from research.v687.trie import PredicateTrie, ROOT
 from research.v696 import cognition as C
