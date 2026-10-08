@@ -38,9 +38,10 @@ LLM = Path(__file__).resolve().parents[1] / "llm"
 #: (`research/v692`, `research/v693`, `regenerate.py`'s `reader-math`) is
 #: read with where it exists -- and before it the one taught code talk too
 #: (`research/v698`, `reader-code9`; Python's code talk too, and claims
-#: said against each other, `research/v699`, `reader-code20`); the readers
-#: before them are left as they were.
-PREFERRED = ("reader-code20", "reader-code9", "reader-design4",
+#: said against each other, `research/v699`, `reader-code20`; changes of
+#: the project's code, as commits and faults say them, `research/v700`,
+#: `reader-code23`); the readers before them are left as they were.
+PREFERRED = ("reader-code23", "reader-code20", "reader-code9", "reader-design4",
              "reader-maths2", "reader")
 MODEL = Path(os.environ.get("V689_READER_MODEL") or next(
     (LLM / name for name in PREFERRED

@@ -35,10 +35,17 @@ the file, or asks the user where the code goes.
 |---|---|---|---|
 | `say` | `POST /api/say` | `{sid, q, example?}` | the turn (v697's: `reply`, `answer`, `steps`, …) |
 | `turn` | `GET /api/turn` | `?sid=&n=` | the turn whole, with `graph` |
-| `project` | `POST /api/project` | `{sid, files: {path: text}, name}` | `{refused, name, files, lines, functions, exported, "most called"}` |
+| `project` | `POST /api/project` | `{sid, files: {path: text}, name, root?}` | `{refused, name, files, lines, functions, exported, "most called"}` |
+| `edit` | (through `say`) | a change of the project's code (`fix _turn: read "number"`) | the turn, with `answer.code.change`: `{status, file, lines, diff, written}` |
 | `project` | `GET /api/project` | `?sid=` | `{summary, outline, graph}` |
 | `file` | `POST /api/file` | `{sid, path, text \| null}` | as `POST /api/project` |
 | `code`, `pasted` | (through `say`) | a request for code; code in a fence with a question | |
+
+`root` (v700, `edit`): where the project's files are on disk. A change
+asked of the project's code is made there by the server itself -- only in
+files of the project, only under `root` -- and the reply says what changed
+(`written`: whether it reached the disk). Without `root` the change is made
+in the project the server holds, and said.
 
 Paths are the workspace's, relative, `/`-separated. A conversation id from
 the editor is `vscode-<12 hex of the workspace path>`, so a workspace

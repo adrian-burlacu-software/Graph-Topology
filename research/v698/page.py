@@ -102,6 +102,23 @@ def _act(read, text: str, session, memory) -> dict | None:
                                     space, turn, ways=read.ways,
                                     language=language)
     if read.act == "change":
+        # a change of the project's own code -- a function or file named,
+        # or the one just talked about (v700): made in the project, and in
+        # its files on disk
+        from research.v700 import fixing
+        subject = (fixing.placed(read, held, text)
+                   or asking.resolve(read, held, space, turn, key)) \
+            if held is not None else None
+        if subject is not None and subject.kind in ("function", "file"):
+            if fixing.available():
+                made = fixing.change(text, held, subject, key)
+                asking.FOCUS[key] = (subject, turn)
+                found = asking._reply("change", text, made["said"],
+                                      {"read": read.json()},
+                                      name=subject.name)
+                found["code"]["change"] = made
+                found["code"]["answer"]["status"] = made["status"]
+                return found
         asked = W.asked_language(read.ways)
         if asked and space.request and asked != conversation.language_of(
                 space):
