@@ -225,6 +225,37 @@ class DataChangeTests(unittest.TestCase):
             "    projects: [x]\n  - name: reviewer")))
 
 
+class ExtremeTests(unittest.TestCase):
+    """The record with the most of a field, where the records are asked
+    for: the field named, else the one of numbers; of several, asked."""
+
+    def held(self):
+        from research.v698.project import Project
+        held = Project("t")
+        held.files["x/kids.csv"] = ("name,age,height\na,3,100\nb,5,90\n"
+                                    "c,4,120\n")
+        return held
+
+    def asked(self, act, spans):
+        from research.v701 import querying as Q
+        return Q.Asked(act, 0.99, "none", spans, ["which", "kids"], ["kids"])
+
+    def test_the_field_named(self):
+        from research.v701 import querying as Q
+        found = Q.carry(self.asked("max", {"TARGET": ["kids"],
+                                           "FIELD": ["height"]}), self.held())
+        self.assertEqual(found.value, "c")
+        found = Q.carry(self.asked("min", {"TARGET": ["kids"],
+                                           "FIELD": ["age"]}), self.held())
+        self.assertEqual(found.value, "a")
+
+    def test_of_several_fields_none_guessed(self):
+        from research.v701 import querying as Q
+        found = Q.carry(self.asked("max", {"TARGET": ["kids"]}), self.held())
+        self.assertIsNone(found.value)
+        self.assertIn("say which", found.said)
+
+
 class RecordsKeptTests(unittest.TestCase):
     """A change of data keeps its records records: no field left out, no
     column's cells moved, no key said twice."""

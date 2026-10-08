@@ -519,6 +519,8 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
         return Found((f"Yes: {len(records)} {group} in {where}" if there
                       else f"No {group} in {where}") + _because(looked) + ".",
                      there, where, collection, asked, looked)
+    if asked.act in ("max", "min") and not found["field"] and records:
+        return _extreme(asked, found, model, records, looked)
     name = found["field"] or (model.keys(collection) or [None])[0] or \
         next((one for one in (model.collections[collection]["fields"])
               if any(isinstance(_field_of(row, one), str)
@@ -550,6 +552,51 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
     return Found(f"{_said_list(picked)}: the {name} of the {group} in "
                  f"{where}" + _because(looked) + ".", picked, where,
                  collection, asked, looked)
+
+
+def _extreme(asked: Asked, found: dict, model, records: list,
+             looked: dict) -> Found:
+    """The records holding the most (or least) of a field, where the
+    records themselves are asked for (`which of the people has the highest
+    age`, `who is the oldest in people.csv`): the field the question names
+    -- else the collection's one field of numbers; of several, which is
+    said, not guessed."""
+    collection, group, where = found["collection"], found["name"], model.path
+    fields = [str(one) for one in model.collections[collection]["fields"]]
+    numeric = [one for one in fields if any(
+        isinstance(_field_of(row, one), (int, float)) and not isinstance(
+            _field_of(row, one), bool) for row in records)]
+    named = [one for one in fields for phrase in asked.spans.get("FIELD", ())
+             if _named(phrase, one)]
+    if found["by"] and found["by"] in numeric and not asked.spans.get(
+            "VALUE"):
+        named = [found["by"]]
+    field_ = named[0] if named else (numeric[0] if len(numeric) == 1
+                                      else None)
+    if field_ is None:
+        return Found(f"The {group} in {where} have "
+                     f"{'no field' if not numeric else 'several fields'} of "
+                     f"numbers{': ' + ', '.join(numeric) if numeric else ''}"
+                     f" -- say which.", None, where, collection, asked,
+                     looked)
+    numbers = [_field_of(row, field_) for row in records]
+    held = [(number, row) for number, row in zip(numbers, records)
+            if isinstance(number, (int, float)) and not isinstance(number,
+                                                                   bool)]
+    if not held:
+        return Found(f"{field_} of the {group} in {where} holds no numbers.",
+                     None, where, collection, asked, looked)
+    best = (max if asked.act == "max" else min)(one for one, _ in held)
+    rows = [row for number, row in held if number == best]
+    key = (model.keys(collection) or [None])[0] or next(
+        (one for one in fields if one not in numeric), None)
+    names = [_field_of(row, key) for row in rows] if key else rows
+    looked.update({"field": field_, "extreme": asked.act, "key": key})
+    word = "largest" if asked.act == "max" else "smallest"
+    return Found(f"{_said_list(names)}: the {group} in {where} with the "
+                 f"{word} {field_} ({_said_value(best)}).",
+                 names[0] if len(names) == 1 else names, where, collection,
+                 asked, looked)
 
 
 def _at(value, path: str) -> list:

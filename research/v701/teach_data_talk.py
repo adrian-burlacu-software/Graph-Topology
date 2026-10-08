@@ -367,6 +367,80 @@ def seeds_more(most: int = 160) -> int:
     return len(out)
 
 
+#: what the second reader read as no question, live (v701): a count whose
+#: filter's field goes unsaid (`how many people live in Toronto`), and the
+#: record that holds the most of a field (`who is the oldest in people.csv`)
+SEEDS_MORE2 = DATA / "seeds-more2.jsonl"
+
+
+def more_queries2(model, rng: random.Random) -> list:
+    out = []
+    for path, found in model.collections.items():
+        if found["count"] < 3:
+            continue
+        group = _name(path) if path else model.path.rsplit(
+            "/", 1)[-1].rsplit(".", 1)[0]
+        if not _wordy(group):
+            continue
+        records = [one for one in model.records()[path]
+                   if isinstance(one, dict)]
+        for name in found["fields"]:
+            if not _wordy(str(name)):
+                continue
+            values = [one.get(name) for one in records]
+            words_ = [one for one in values if _plain(one)
+                      and isinstance(one, str)]
+            numbers = [one for one in values if isinstance(one, (int, float))
+                       and not isinstance(one, bool)]
+            if words_:
+                value = rng.choice(words_)
+                out.append({"act": "count", "op": "eq", "target": path,
+                            "field": name, "value": value,
+                            "seed": f"how many {group} have {name} {value}?",
+                            "spans": {"TARGET": [group], "FIELD": [name],
+                                      "VALUE": [str(value)]},
+                            "optional": ["FIELD"]})
+            if len(numbers) >= 3:
+                act = rng.choice(["max", "min"])
+                most = "highest" if act == "max" else "lowest"
+                out.append({"act": act, "op": "none", "target": path,
+                            "field": name,
+                            "seed": rng.choice([
+                                f"which of the {group} has the {most} "
+                                f"{name}?",
+                                f"who in {group} has the {most} {name}?"]),
+                            "spans": {"TARGET": [group], "FIELD": [name]},
+                            "optional": ["FIELD"]})
+    return out
+
+
+def seeds_more2(most: int = 120) -> int:
+    from research.v701 import datamodel
+    rng = random.Random(SEED + 2)
+    files = _files(rng)
+    by_kind: dict = {}
+    for found in files.values():
+        for path, text in found[:4000]:
+            model = datamodel.read(path, text)
+            if model.error:
+                continue
+            made = more_queries2(model, rng)
+            rng.shuffle(made)
+            for one in made[:2]:
+                one["file"] = path
+                by_kind.setdefault(one["act"], []).append(one)
+    out = []
+    share = most // max(len(by_kind), 1)
+    for kind in sorted(by_kind):
+        out += by_kind[kind][:share]
+    with SEEDS_MORE2.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    print({kind: len(found[:share]) for kind, found in sorted(
+        by_kind.items())}, len(out))
+    return len(out)
+
+
 # -- the teacher says each again -----------------------------------------------
 
 def _required(one: dict) -> dict:
@@ -382,7 +456,7 @@ def _kept(spans: dict) -> list:
 
 def write(samples: int = 1, batch: int = 6) -> None:
     from research.v696.teach_meaning import Teacher
-    rows = [json.loads(line) for path in (SEEDS, SEEDS_MORE)
+    rows = [json.loads(line) for path in (SEEDS, SEEDS_MORE, SEEDS_MORE2)
             if path.exists() for line in path.open(encoding="utf-8")]
     done = set()
     if WRITTEN.exists():
@@ -553,9 +627,11 @@ def corpus(negatives: int = 3000) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("seeds", "more", "write", "corpus"))
+    parser.add_argument("job", choices=("seeds", "more", "more2", "write",
+                                        "corpus"))
     options = parser.parse_args(argv)
-    {"seeds": seeds, "more": seeds_more, "write": write,
+    {"seeds": seeds, "more": seeds_more, "more2": seeds_more2,
+     "write": write,
      "corpus": corpus}[options.job]()
     return 0
 
