@@ -54,14 +54,24 @@ STORY = ("gateway", "region", "uploader", "retries", "jobs")
 #: `set lee's city to Calgary in people.csv`, the reader read no change and
 #: the editor had been taught none -- said with the field, and without it
 #: (`lee moved to Calgary`: the value says which)
+#: several seeds of each, as people say them (the record's own name first,
+#: possessive, the file last): from one, the teacher's 15 were all
+#: `{f}: {k} ...`
+_UPDATE = {"region": "{x}", "gateway": "{g}", "gw-7": "{k}",
+           "eu-west": "{v}", "gateways.yaml": "{f}"}
+_UNSAID = {"gw-7": "{k}", "eu-west": "{v}", "gateways.yaml": "{f}"}
 MORE_SEEDS = {
-    "update": ("in gateways.yaml change the region of the gateway gw-7 to "
-               "eu-west",
-               {"region": "{x}", "gateway": "{g}", "gw-7": "{k}",
-                "eu-west": "{v}", "gateways.yaml": "{f}"}),
-    "update-unsaid": ("gateways.yaml: gw-7 moved to eu-west",
-                      {"gw-7": "{k}", "eu-west": "{v}",
-                       "gateways.yaml": "{f}"}),
+    "update": [
+        ("in gateways.yaml change the region of the gateway gw-7 to "
+         "eu-west", _UPDATE),
+        ("set gw-7's region to eu-west in gateways.yaml",
+         {k: v for k, v in _UPDATE.items() if k != "gateway"}),
+        ("the gateway gw-7 should have region eu-west, fix gateways.yaml",
+         _UPDATE)],
+    "update-unsaid": [
+        ("gateways.yaml: gw-7 moved to eu-west", _UNSAID),
+        ("gw-7 is in eu-west now, update gateways.yaml", _UNSAID),
+        ("put gw-7 on eu-west in gateways.yaml", _UNSAID)],
 }
 PHRASES_MORE = T.OUT / "data-edit-phrases-more.jsonl"
 EDITS_MORE = T.OUT / "data-edits-more.jsonl"
@@ -73,13 +83,16 @@ def phrase(samples: int = 3, more: bool = False) -> None:
     T.OUT.mkdir(parents=True, exist_ok=True)
     teacher = Teacher()
     teacher.torch.manual_seed(SEED + (1 if more else 0))
-    seeds = MORE_SEEDS if more else SEEDS
+    seeds = [(kind, seed, names)
+             for kind, found in (MORE_SEEDS if more else SEEDS).items()
+             for seed, names in (found if isinstance(found, list)
+                                 else [found])]
     jobs = [(kind, seed, names, (
         f"Say this request to an assistant that edits a project's files in "
         f"15 different ways, as a person would type it: short and long, "
         f"casual and terse. Keep {', '.join(names)} exactly so in every "
         f"one. One per line, nothing else: \"{seed}\""))
-        for kind, (seed, names) in seeds.items()]
+        for kind, seed, names in seeds]
     replies = teacher.write([one[3] for one in jobs], longest=900,
                             samples=samples, temperature=0.9)
     with (PHRASES_MORE if more else PHRASES).open("w",
@@ -95,6 +108,8 @@ def phrase(samples: int = 3, more: bool = False) -> None:
                                       + r"(?![\w-])", line)
                             for name in names):
                         kept.add(line)
+            if more:
+                kept = _checked(teacher, sorted(kept), names)
             for line in sorted(kept):
                 said = line
                 for name, place in sorted(names.items(),
@@ -105,6 +120,34 @@ def phrase(samples: int = 3, more: bool = False) -> None:
                     out.write(json.dumps({"kind": kind, "phrase": said})
                               + "\n")
             print(f"{kind}: {len(kept)} phrases", flush=True)
+
+
+def _checked(teacher, lines: list, names: dict) -> set:
+    """The lines the teacher, choosing what each does, reads as the record
+    given the value -- not the other way round (`replace eu-west with
+    gw-7`), nor a record added or taken out: said again, a request can
+    turn over."""
+    inverse = {place: name for name, place in names.items()}
+    record, value = inverse["{k}"], inverse["{v}"]
+    path = inverse["{f}"]
+    choices = [f"in {path}, the entry {record} is changed to have {value}",
+               f"in {path}, the entry {value} is changed to have {record}",
+               f"a new entry is added to {path}",
+               f"an entry is removed from {path}"]
+    letters = "ABCD"
+    prompts = [(f"A person asked an assistant: \"{line}\"\nWhat does the "
+                f"person want? Answer with one letter.\n" + "\n".join(
+                    f"{letter}) {one}" for letter, one in
+                    zip(letters, choices)))
+               for line in lines]
+    out = set()
+    for at in range(0, len(prompts), 24):
+        picked = teacher.write(prompts[at:at + 24], longest=3)
+        for line, reply in zip(lines[at:at + 24], picked):
+            if reply[0].strip().upper().startswith("A"):
+                out.add(line)
+    print(f"  checked: {len(out)} of {len(lines)} kept", flush=True)
+    return out
 
 
 # -- the changes, made in a file's own text --------------------------------------------
