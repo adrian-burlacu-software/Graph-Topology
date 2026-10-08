@@ -161,7 +161,6 @@ def deduced(solver, spec: Spec, receiver: P.Expr, values: list,
     """Try every deduced form over one receiver, whose values on the
     examples are `values`: a sub-spec pushed down, a child solving it."""
     lib = P.library(language=spec.language)
-    outputs = spec.outputs
     for form in lib.forms:
         if form.receiver != receiver.type or form.name not in kinds:
             continue
