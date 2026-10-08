@@ -50,21 +50,40 @@ SEEDS = {
 }
 STORY = ("gateway", "region", "uploader", "retries", "jobs")
 
+#: a record's field changed, found by its key (v701, editor5): asked as
+#: `set lee's city to Calgary in people.csv`, the reader read no change and
+#: the editor had been taught none -- said with the field, and without it
+#: (`lee moved to Calgary`: the value says which)
+MORE_SEEDS = {
+    "update": ("in gateways.yaml change the region of the gateway gw-7 to "
+               "eu-west",
+               {"region": "{x}", "gateway": "{g}", "gw-7": "{k}",
+                "eu-west": "{v}", "gateways.yaml": "{f}"}),
+    "update-unsaid": ("gateways.yaml: gw-7 moved to eu-west",
+                      {"gw-7": "{k}", "eu-west": "{v}",
+                       "gateways.yaml": "{f}"}),
+}
+PHRASES_MORE = T.OUT / "data-edit-phrases-more.jsonl"
+EDITS_MORE = T.OUT / "data-edits-more.jsonl"
+MOST_MORE = {"update": 2500, "update-unsaid": 2000}
 
-def phrase(samples: int = 3) -> None:
+
+def phrase(samples: int = 3, more: bool = False) -> None:
     from research.v696.teach_meaning import Teacher
     T.OUT.mkdir(parents=True, exist_ok=True)
     teacher = Teacher()
-    teacher.torch.manual_seed(SEED)
+    teacher.torch.manual_seed(SEED + (1 if more else 0))
+    seeds = MORE_SEEDS if more else SEEDS
     jobs = [(kind, seed, names, (
         f"Say this request to an assistant that edits a project's files in "
         f"15 different ways, as a person would type it: short and long, "
         f"casual and terse. Keep {', '.join(names)} exactly so in every "
         f"one. One per line, nothing else: \"{seed}\""))
-        for kind, (seed, names) in SEEDS.items()]
+        for kind, (seed, names) in seeds.items()]
     replies = teacher.write([one[3] for one in jobs], longest=900,
                             samples=samples, temperature=0.9)
-    with PHRASES.open("w", encoding="utf-8") as out:
+    with (PHRASES_MORE if more else PHRASES).open("w",
+                                                  encoding="utf-8") as out:
         for (kind, seed, names, _), written in zip(jobs, replies):
             kept = {seed}
             for reply in written:
@@ -279,7 +298,85 @@ def _add_remove(model, kind: str, lines: list, pool: list, rng):
     return None
 
 
-def row_of(record: dict, phrases: dict, pool: list, rng) -> dict | None:
+def _update(model, kind: str, lines: list, pool: list, rng):
+    """A record's field set, the record found by its key: its line, the
+    value's text replaced -- the new value one another record has there
+    (a city another lives in), else one of its kind."""
+    if kind not in ("yaml", "csv", "tsv"):
+        return None
+    for path, found in model.collections.items():
+        keys = model.keys(path)
+        if not keys or found["count"] < 3:
+            continue
+        key = keys[0]
+        records = model.records()[path]
+        group = path.replace("[]", "").rsplit(".", 1)[-1] if path else \
+            model.path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        if not _wordy(group):
+            continue
+        if kind == "yaml":
+            items = _yaml_items(lines, path)
+        else:
+            items = [(at, at + 1) for at in range(1, len(lines))
+                     if lines[at].strip()]
+        if not items or len(items) != len(records):
+            continue
+        pick = rng.randrange(len(records))
+        record = records[pick]
+        if not _scalar(record.get(key)):
+            continue
+        fields = [one for one in found["fields"] if one != key and
+                  _wordy(one) and _scalar(record.get(one))]
+        if not fields:
+            continue
+        field = rng.choice(fields)
+        old = record[field]
+        others = sorted({str(one.get(field)) for one in records
+                         if _scalar(one.get(field))} - {str(old)})
+        new = rng.choice(others) if others else _other(old, pool, rng)
+        if str(new) == str(old) or any(str(record.get(one)) == str(new)
+                                       for one in found["fields"]):
+            # the value must say which field, where the field is unsaid
+            continue
+        first, end = items[pick]
+        if kind == "yaml":
+            at = [line for line in range(first, end) if re.match(
+                r"\s*(-\s+)?" + re.escape(field) + r"\s*:\s*['\"]?"
+                + re.escape(str(old)) + r"['\"]?\s*$",
+                lines[line].rstrip("\r\n"))]
+            if len(at) != 1:
+                continue
+            line = lines[at[0]]
+            head, sep, tail = line.partition(":")
+            changed = head + sep + tail.replace(str(old), str(new), 1)
+            at = at[0]
+        else:
+            at, line = first, lines[first]
+            if '"' in line:
+                continue
+            cells = line.rstrip("\r\n").split("\t" if kind == "tsv" else ",")
+            names = found["fields"]
+            if len(cells) != len(names) or \
+                    cells[names.index(field)] != str(old):
+                continue
+            cells[names.index(field)] = str(new)
+            changed = ("\t" if kind == "tsv" else ",").join(cells) + \
+                line[len(line.rstrip("\r\n")):]
+        # unsaid, the field is told by the value: one the field has in
+        # another record, and no other field has in any
+        elsewhere = {str(one.get(name)) for one in records
+                     for name in found["fields"] if name != field}
+        unsaid = rng.random() < 0.45 and str(new) in others and \
+            str(new) not in elsewhere
+        return {"kind": "update-unsaid" if unsaid else "update", "at": at,
+                "old": [line], "new": [changed],
+                "names": {"g": _one(group), "k": str(record[key]),
+                          "x": field, "v": str(new)}}
+    return None
+
+
+def row_of(record: dict, phrases: dict, pool: list, rng,
+           update: bool = False) -> dict | None:
     from research.v701 import datamodel
     path, text = record["old_file"], record.get("old_contents") or ""
     kind = datamodel.format_of(path)
@@ -292,12 +389,15 @@ def row_of(record: dict, phrases: dict, pool: list, rng) -> dict | None:
     if not lines or not lines[-1].endswith("\n"):
         return None
     made = None
-    if rng.random() < 0.45:
-        made = _set(model, kind, lines, pool, rng)
-    if made is None:
-        made = _add_remove(model, kind, lines, pool, rng)
-    if made is None:
-        made = _set(model, kind, lines, pool, rng)
+    if update:
+        made = _update(model, kind, lines, pool, rng)
+    else:
+        if rng.random() < 0.45:
+            made = _set(model, kind, lines, pool, rng)
+        if made is None:
+            made = _add_remove(model, kind, lines, pool, rng)
+        if made is None:
+            made = _set(model, kind, lines, pool, rng)
     if made is None:
         return None
     at, old, new = made["at"], made["old"], made["new"]
@@ -317,7 +417,7 @@ def row_of(record: dict, phrases: dict, pool: list, rng) -> dict | None:
         return None
     names = dict(made["names"])
     names["f"] = path.rsplit("/", 1)[-1]
-    for one in ("x", "y", "v", "w", "g", "p"):
+    for one in ("x", "y", "v", "w", "g", "p", "k"):
         names.setdefault(one, "")
     usable = [one for one in pool_ if ("{p}" not in one or names["p"])]
     if not usable:
@@ -330,10 +430,12 @@ def row_of(record: dict, phrases: dict, pool: list, rng) -> dict | None:
             "source": f"data {made['kind']}"}
 
 
-def rows() -> dict:
+def rows(more: bool = False) -> dict:
+    """The changes, made: `more`, a record's field set (`MORE_SEEDS`)."""
     from research.v700.teach_faults import _clean
     phrases: dict = {}
-    for line in PHRASES.open(encoding="utf-8"):
+    most_of = MOST_MORE if more else MOST
+    for line in (PHRASES_MORE if more else PHRASES).open(encoding="utf-8"):
         row = json.loads(line)
         said = _clean(row["phrase"])
         # the teacher's own instruction said back is no request
@@ -363,16 +465,16 @@ def rows() -> dict:
     pool = sorted(set(pool))
     made, counts = [], {}
     for record in records:
-        row = row_of(record, phrases, pool, rng)
-        if row is None or counts.get(row["source"], 0) >= MOST[
+        row = row_of(record, phrases, pool, rng, update=more)
+        if row is None or counts.get(row["source"], 0) >= most_of[
                 row["source"].split()[1]]:
             continue
         counts[row["source"]] = counts.get(row["source"], 0) + 1
         made.append(row)
         if all(counts.get(f"data {one}", 0) >= most
-               for one, most in MOST.items()):
+               for one, most in most_of.items()):
             break
-    with EDITS.open("w", encoding="utf-8") as out:
+    with (EDITS_MORE if more else EDITS).open("w", encoding="utf-8") as out:
         for row in made:
             out.write(json.dumps(row) + "\n")
     split = {}
@@ -434,12 +536,40 @@ def mix(kept: int = 12000) -> dict:
     return counts
 
 
+MIX_MORE = T.OUT / "edits-mix-data2.jsonl"
+
+
+def mix_more(kept: int = 6000) -> dict:
+    """What editor5 is taught from editor4: a record's field set (twice),
+    and what editor4 was taught -- its changes of data, data commits,
+    editor3's mix -- so it is kept."""
+    rng = random.Random(SEED + 1)
+    update = [json.loads(line) for line in EDITS_MORE.open(encoding="utf-8")]
+    before = [json.loads(line) for line in MIX.open(encoding="utf-8")]
+    before = [one for one in before if one["split"] == "train"]
+    out = [one for one in update if one["split"] != "train"]
+    out += [one for one in update if one["split"] == "train"] * 2
+    out += rng.sample(before, min(kept, len(before)))
+    rng.shuffle(out)
+    with MIX_MORE.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    counts = {"train rows": sum(one["split"] == "train" for one in out),
+              "updates": len(update)}
+    print(json.dumps(counts))
+    return counts
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("phrase", "rows", "commits", "mix"))
+    parser.add_argument("job", choices=("phrase", "rows", "commits", "mix",
+                                        "phrase-more", "rows-more",
+                                        "mix-more"))
     options = parser.parse_args(argv)
-    {"phrase": phrase, "rows": rows, "commits": commits,
-     "mix": mix}[options.job]()
+    {"phrase": phrase, "rows": rows, "commits": commits, "mix": mix,
+     "phrase-more": lambda: phrase(more=True),
+     "rows-more": lambda: rows(more=True),
+     "mix-more": mix_more}[options.job]()
     return 0
 
 

@@ -1200,6 +1200,39 @@ def commit_rows() -> list:
     return out
 
 
+#: changes of data files said (v701 `teach_data_edits`: a value set, a
+#: record added, taken out, its field set), taught as changes: `in
+#: people.csv set lee's city to Calgary` was read as no code talk at all
+DATA_EDITS = (LLM / "editor-data" / "data-edits.jsonl",
+              LLM / "editor-data" / "data-edits-more.jsonl")
+DATA_EDITS_MOST = 3000
+
+
+def data_edit_rows() -> list:
+    """(record, held) of each change of a data file, taught as a change of
+    the file it names (else of what was last talked about)."""
+    rng = random.Random(SEED + 701)
+    out = []
+    for path in DATA_EDITS:
+        if not path.exists():
+            continue
+        rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+        for row in rng.sample(rows, min(DATA_EDITS_MOST, len(rows))):
+            said = words(" ".join(row["statement"].split()))
+            if not said or len(said) > 60:
+                continue
+            held = row["split"] != "train"
+            roles = ["O"] * len(said)
+            name = row["path"].rsplit("/", 1)[-1]
+            span = _match(said, name)
+            if span is not None:
+                _mark(roles, span, "SUBJ")
+            out.append((record(said, roles, "change", "none",
+                               "file" if span is not None else "last",
+                               "data edit"), held))
+    return out
+
+
 def real_names() -> list:
     if not hasattr(real_names, "found"):
         real_names.found = real()["names"]
@@ -1367,6 +1400,8 @@ def corpus(negatives: int = 4000) -> dict:
         put(record(said, ["O"] * len(said), "none", "none", "none",
                    "not code"), _held(" ".join(said)))
     for rec, held in commit_rows():
+        put(rec, held)
+    for rec, held in data_edit_rows():
         put(rec, held)
     # several ways in one message, each part from its own split
     rows["train"] += _together(rows["train"], rng, 6000)
