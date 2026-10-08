@@ -387,7 +387,49 @@ def change(statement: str, held, subject, key=None) -> dict:
         first["passes"] = passes
         first["said"] += f" (in {passes} passes, one change at a time)"
     first["touched"] = sorted(done)
+    # what it names that the code defines there and no pass changed: said,
+    # not passed over (asked to delete element and outputs, it deleted
+    # element and said it had changed deduced)
+    start, end = first.get("lines") or (1, 10 ** 9)
+    left = sorted((named - done) & defined_in(
+        MADE[key][-1][1], first["file"], start, end))
+    if left:
+        first["left"] = left
+        first["status"] = "partly"
+        first["said"] += (f" I left {', '.join(left)} as "
+                          f"{'it was' if len(left) == 1 else 'they were'}:"
+                          f" no change of {'it' if len(left) == 1 else 'them'}"
+                          f" passed the checks.")
     return first
+
+
+def defined_in(text: str, path: str, start: int = 1,
+               end: int = 10 ** 9) -> set:
+    """The names a Python file defines on lines [start, end] -- assigns,
+    imports, takes as parameters, defines as functions or classes: what a
+    statement names that can be taken out or changed."""
+    if not path.endswith(".py"):
+        return set()
+    import ast
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    out = set()
+    for node in ast.walk(tree):
+        if not start <= getattr(node, "lineno", start) <= end:
+            continue
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            out.add(node.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            out.update((one.asname or one.name).split(".")[0]
+                       for one in node.names)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                               ast.ClassDef)):
+            out.add(node.name)
+        elif isinstance(node, ast.arg):
+            out.add(node.arg)
+    return out
 
 
 def _change_once(statement: str, held, subject, key=None,

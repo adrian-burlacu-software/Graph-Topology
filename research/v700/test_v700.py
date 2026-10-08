@@ -113,6 +113,19 @@ class WindowTests(unittest.TestCase):
             {"a": [1], "zed": [3], "f": [3]})
 
 
+class LeftTests(unittest.TestCase):
+    """What a statement names that a change left is said: only what the
+    part defines (`element`), not words that are names elsewhere."""
+
+    def test_defined_in_the_part_only(self):
+        from research.v700.fixing import defined_in
+        source = ("import os\ndef f(a):\n    b = 1\n"
+                  "    from x import y as z\n    return uses\n"
+                  "def g():\n    c = 2\n")
+        self.assertEqual(defined_in(source, "m.py", 2, 5),
+                         {"a", "b", "f", "z"})
+
+
 class CommitReadingTests(unittest.TestCase):
     """Commit messages taught as changes: of the function named, where the
     name is written as code is."""
