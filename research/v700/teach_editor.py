@@ -70,10 +70,13 @@ SOURCE = "https://huggingface.co/datasets/bigcode/commitpackft/resolve/main/" \
 
 
 def fetch() -> None:
-    """CommitPackFT's Python and TypeScript commits, as published."""
+    """CommitPackFT's Python, TypeScript, JSON, YAML and CSV commits, as
+    published."""
     import urllib.request
     DATA.mkdir(parents=True, exist_ok=True)
-    for name in ("python", "typescript"):
+    # and its data files' commits (v701): real JSON, YAML and CSV files,
+    # what questions about data are made from
+    for name in ("python", "typescript", "json", "yaml", "csv"):
         path = DATA / f"{name}.jsonl"
         if not path.exists():
             urllib.request.urlretrieve(SOURCE.format(name), path)

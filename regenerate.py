@@ -1665,6 +1665,16 @@ def steps() -> list[Step]:
                            "--out", "change-judge2")),
              _model_check(LLM / "change-judge2", 400),
              needs=("editor",), cost="nine hours", gpu=True),
+        # v701: questions about data, read by the shared reader
+        Step("data-talk", "questions about data files, from real files' "
+                          "schemas, said again by SmolLM3 (research/v701)",
+             lambda: (_run("research.v701.teach_data_talk", "seeds"),
+                      _run("research.v701.teach_data_talk", "write"),
+                      _run("research.v701.teach_data_talk", "corpus")),
+             _lines_check(LLM / "data-talk-data" / "train-data.jsonl", 5000,
+                          "as made"),
+             needs=("commitpackft", "smollm3", "code-talk"),
+             cost="two hours", gpu=True),
         Step("reader-code-edits", "the shared reader taught changes of the "
                                   "project's code, as commits say them",
              lambda: _run("research.v689.teach_reader", "train",
