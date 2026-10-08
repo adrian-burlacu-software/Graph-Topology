@@ -240,6 +240,53 @@ def corpus() -> dict:
     return counts
 
 
+# -- the mix: what it is asked, more of it ------------------------------------
+
+MIX = OUT / "edits-mix.jsonl"
+#: commits taught again beside the faults, so what was taught is kept
+KEPT = 12000
+
+
+def _small_in_function(row: dict) -> bool:
+    """A change of a few lines inside one Python function: what it is
+    asked most (`fix _turn: ...`)."""
+    if row["language"] != "python" or not re.match(
+            r"\s*(@|(async\s+)?def\s)", row["part"]):
+        return False
+    changed = sum(len(old.splitlines()) + len(new.splitlines())
+                  for old, new in blocks_said(row["target"]))
+    return changed <= 4
+
+
+def mix(seed: int = SEED) -> dict:
+    """The faults (`teach_faults.py`), commits of a small change inside a
+    function three times, and `KEPT` others: what the second editor is
+    taught, from the first."""
+    from research.v700.teach_faults import FAULTS
+    rng = random.Random(seed)
+    commits = [json.loads(line) for line in EDITS.open(encoding="utf-8")]
+    faults = [json.loads(line) for line in FAULTS.open(encoding="utf-8")]
+    small = [one for one in commits if _small_in_function(one)
+             and one["split"] == "train"]
+    others = [one for one in commits if not _small_in_function(one)
+              and one["split"] == "train"]
+    out = [one for one in commits if one["split"] != "train"]
+    out += small * 3 + rng.sample(others, min(KEPT, len(others)))
+    repeat = {"fault import": 1, "fault variable": 3, "fault variables": 5}
+    for one in faults:
+        out += [one] * (repeat.get(one["source"], 1)
+                        if one["split"] == "train" else 1)
+    rng.shuffle(out)
+    with MIX.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    counts = {"small in a function": len(small), "others": min(KEPT,
+              len(others)), "faults": len(faults),
+              "train rows": sum(one["split"] == "train" for one in out)}
+    print(json.dumps(counts))
+    return counts
+
+
 # -- an answer, put in -------------------------------------------------------------------
 
 BLOCK = re.compile(r"<<<\n(.*?)===\n(.*?)>>>", re.S)
@@ -292,7 +339,8 @@ def _text(row: dict) -> str:
 
 def train(out: Path, epochs: int = 1, batch: int = 8, rate: float = 1e-4,
           longest: int = 1024, most: int | None = None,
-          seed: int = SEED, base: Path = BASE) -> None:
+          seed: int = SEED, base: Path = BASE,
+          corpus: Path = EDITS) -> None:
     """Taught from `base`: SmolLM2 as it came, or an editor taught before,
     taught again (a second pass, its own seed for the order)."""
     import torch
@@ -300,7 +348,7 @@ def train(out: Path, epochs: int = 1, batch: int = 8, rate: float = 1e-4,
                               get_cosine_schedule_with_warmup)
     torch.manual_seed(seed)
     rng = random.Random(seed)
-    rows = [json.loads(line) for line in EDITS.open(encoding="utf-8")]
+    rows = [json.loads(line) for line in corpus.open(encoding="utf-8")]
     tokenizer = AutoTokenizer.from_pretrained(str(base))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -392,7 +440,7 @@ def train(out: Path, epochs: int = 1, batch: int = 8, rate: float = 1e-4,
     tokenizer.save_pretrained(str(out))
     (out / "sketcher.json").write_text(json.dumps({
         "base": base.name, "saying": SAYING, "meaning": False,
-        "functions": True, "edits": True, "corpus": EDITS.name,
+        "functions": True, "edits": True, "corpus": corpus.name,
         "train": len(train_rows), "epochs": epochs}, indent=1),
         encoding="utf-8")
     print(f"-> {out}")
@@ -433,8 +481,9 @@ def measure(model: Path, most: int = 300, samples: int = 4) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("fetch", "corpus", "train",
+    parser.add_argument("job", choices=("fetch", "corpus", "mix", "train",
                                         "measure"))
+    parser.add_argument("--corpus", default=None)
     parser.add_argument("--out", default="editor")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--most", type=int, default=None)
@@ -447,10 +496,13 @@ def main(argv=None) -> int:
         fetch()
     elif options.job == "corpus":
         corpus()
+    elif options.job == "mix":
+        mix()
     elif options.job == "train":
         train(LLM / options.out, epochs=options.epochs, most=options.most,
               batch=options.batch, rate=options.rate, seed=options.seed,
-              base=LLM / options.base if options.base else BASE)
+              base=LLM / options.base if options.base else BASE,
+              corpus=OUT / options.corpus if options.corpus else EDITS)
     else:
         measure(LLM / options.out, most=options.most or 300)
     return 0
