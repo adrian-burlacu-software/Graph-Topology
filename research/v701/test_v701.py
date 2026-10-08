@@ -225,5 +225,34 @@ class DataChangeTests(unittest.TestCase):
             "    projects: [x]\n  - name: reviewer")))
 
 
+class PlacingTests(unittest.TestCase):
+    """A change of a data file is given the editor by the block the
+    statement is of, as its changes were taught."""
+
+    TEXT = ("# The page and the reader\nname: graph-topology\nserver:\n"
+            "  port: 9000\n  timeout_seconds: 900\nmodels:\n"
+            "  judge: llm/change-judge2\n  teacher:\n    offline: true\n"
+            "users:\n  - name: adrian\n    role: owner\n"
+            "  - name: reviewer\n    role: reader\n")
+
+    def test_the_block_holding_what_is_said(self):
+        from research.v701 import placing
+        lines = self.TEXT.splitlines()
+        self.assertEqual(placing.block(lines, "add a user sam, role reader"),
+                         (9, 13))
+        self.assertEqual(placing.block(lines, "set the timeout seconds to 1"),
+                         (4, 4))
+        # `change` is no part of `llm/change-judge2`, `the` of a comment
+        self.assertEqual(placing.block(lines, "change the teacher to offline"),
+                         (7, 8))
+        self.assertIsNone(placing.block(lines, "add a widget"))
+
+    def test_a_change_outside_it_refused(self):
+        from research.v700.fixing import _outside
+        part = "users:\n  - name: a\n"
+        self.assertFalse(_outside((0, 1), 1, part, part + "  - name: b\n"))
+        self.assertTrue(_outside((1, 1), 1, part, "people:\n  - name: a\n"))
+
+
 if __name__ == "__main__":
     unittest.main()

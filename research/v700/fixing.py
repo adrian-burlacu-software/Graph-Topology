@@ -72,6 +72,15 @@ def part_of(held, subject, statement: str = "") -> tuple | None:
     if found is None:
         return None
     start, end = found
+    from research.v698.project import is_data
+    if subject.kind == "file" and is_data(subject.file):
+        # a data file: the block the statement is of, as the editor was
+        # taught its changes, never the file whole (v701 `placing`)
+        from research.v701 import placing
+        placed_ = placing.window(held.files[subject.file], statement,
+                                 AROUND, LONGEST_PART)
+        if placed_ is not None:
+            return (subject.file, *placed_)
     lines = held.files[subject.file].splitlines()
     if end - start + 1 > LONGEST_PART:
         found = window(lines, start, end, statement, subject.file)
@@ -361,6 +370,22 @@ def said_names(statement: str, text: str, path: str, start: int, end: int,
             if one in code and one not in own}
 
 
+def _outside(block: tuple, start: int, part: str, made: str) -> bool:
+    """Whether a change of a data file takes out or puts in lines outside
+    the block the statement is of (`placing.block`, 0-based): a record
+    added after its last line is in it."""
+    matcher = difflib.SequenceMatcher(None, _lines(part), _lines(made),
+                                      autojunk=False)
+    for tag, i1, i2, _j1, _j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        first, end = start - 1 + i1, start - 1 + i2
+        if first < block[0] or end > block[1] + 1 or \
+                (tag != "insert" and first > block[1]):
+            return True
+    return False
+
+
 def _changed_names(part: str, made: str) -> set:
     """The names on the lines a change takes out or puts in."""
     out = set()
@@ -486,7 +511,15 @@ def _change_once(statement: str, held, subject, key=None,
                 "said": (f"I did not change {subject.name}: the compiler "
                          f"cannot check the project ({bad}), and I do not "
                          f"write what I cannot check.")}
-    named = said_names(statement, text, path, start, end, subject)
+    # what a data file's change must be in: the block the statement says
+    # (v701 `placing`) -- what its words name is told by where, not by the
+    # names on the lines changed (`go` added under `languages`)
+    block = None
+    if data:
+        from research.v701 import placing
+        block = placing.block(text.splitlines(), statement)
+    named = set() if data else said_names(statement, text, path, start,
+                                          end, subject)
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
     for round_ in range(ROUNDS):
@@ -536,6 +569,12 @@ def _change_once(statement: str, held, subject, key=None,
                                   f"({', '.join(sorted(named))})")
                 continue
             if data:
+                if block is not None and _outside(block, start, part,
+                                                  row["made"]):
+                    row["refused"] = ("it changes lines outside what the "
+                                      f"statement is of (lines {block[0] + 1}"
+                                      f"-{block[1] + 1})")
+                    continue
                 wrong = data_wrong(path, text, row["text"])
                 if wrong:
                     row["refused"] = wrong
@@ -612,7 +651,8 @@ def _change_once(statement: str, held, subject, key=None,
         if not passed:
             out.update({"status": "unchanged", "said": (
                 f"I could not change {subject.name} as asked: of "
-                f"{len(answers)} changes written, those that compile do "
+                f"{len(answers)} changes written, those that "
+                f"{'still read as data' if data else 'compile'} do "
                 f"not do what you said -- nothing was written.")})
             out["seconds"] = round(time.time() - started, 2)
             return out
