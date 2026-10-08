@@ -249,6 +249,17 @@ class ExtremeTests(unittest.TestCase):
                                            "FIELD": ["age"]}), self.held())
         self.assertEqual(found.value, "a")
 
+    def test_the_field_meant(self):
+        from research.v701 import likeness
+        self.assertEqual(likeness.extreme("who is the tallest in",
+                                          ["age", "height"]),
+                         ("height", "max"))
+        self.assertEqual(likeness.extreme("which is the cheapest",
+                                          ["price", "stock"]),
+                         ("price", "min"))
+        self.assertIsNone(likeness.extreme("who is the best",
+                                           ["age", "height"]))
+
     def test_of_several_fields_none_guessed(self):
         from research.v701 import querying as Q
         found = Q.carry(self.asked("max", {"TARGET": ["kids"]}), self.held())

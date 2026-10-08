@@ -1744,6 +1744,21 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code27", 80),
              needs=("reader-data-talk", "editor-data-more"),
              cost="twenty minutes", gpu=True),
+        Step("reader-data-more", "the shared reader taught counts whose "
+                                 "field goes unsaid and the record with the "
+                                 "most of a field (research/v701)",
+             lambda: (_run("research.v701.teach_data_talk", "more2"),
+                      _run("research.v701.teach_data_talk", "write"),
+                      _run("research.v701.teach_data_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code27"),
+                           "--out", str(LLM / "reader-code28"),
+                           "--epochs", "2", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data")),
+             _model_check(LLM / "reader-code28", 80),
+             needs=("reader-data-edits", "smollm3"),
+             cost="forty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

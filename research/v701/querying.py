@@ -36,6 +36,8 @@ class Asked:
     words: list
     #: the words naming the project's data, as told to the reader
     known: list = field(default_factory=list)
+    #: every act, most likely first, as the reader ranked them
+    acts: list = field(default_factory=list)
 
 
 @dataclass
@@ -107,7 +109,8 @@ def read(text: str, names=()) -> Asked | None:
             current = None
     return Asked(act, chance, op, {name: [" ".join(one) for one in found]
                                    for name, found in spans.items()}, said,
-                 [word for word, tag in zip(said, tags) if tag])
+                 [word for word, tag in zip(said, tags) if tag],
+                 [name for name, _ in found["data_act"]])
 
 
 # -- the words, looked up in the schema --------------------------------------------
@@ -207,6 +210,9 @@ def answer(text: str, held) -> Found | None:
     if asked is None:
         return None
     if asked.act == "none" or asked.chance < FLOOR:
+        found = _by_lookup(asked, held)
+        if found is not None:
+            return found
         # the act read as no question of data, the roles as one: a field
         # asked for, among words naming the project's data -- where what it
         # names is there, a value asked (`which port does the server
@@ -217,6 +223,53 @@ def answer(text: str, held) -> Found | None:
         found = carry(asked, held)
         return found if found is not None and found.place else None
     return carry(asked, held)
+
+
+#: what a question may ask of a collection when the act was read too
+#: unsurely to take, and the lookup must say it is one
+OF_RECORDS = ("count", "list", "exists", "max", "min")
+
+
+def _by_lookup(asked: Asked, held) -> Found | None:
+    """A question the reader was unsure is of data -- `how many people live
+    in Toronto` is also the world's -- taken as one where the project says
+    so: a word of it names a collection of records, and another is a value
+    exactly one of their fields holds (or, asking for the most or least, a
+    collection alone). Its act the reader's likeliest of those it ranked;
+    the filter equality."""
+    act = next((one for one in asked.acts if one in OF_RECORDS), None)
+    if act is None:
+        return None
+    for model, path, fields, name, base in _groups(held):
+        collection = next((word for word in asked.words
+                           if _named(word, name) or word.lower() == base.lower()
+                           or _named(word, base.rsplit(".", 1)[0])), None)
+        if collection is None:
+            continue
+        records = model.records()[path]
+        held_by = [(word, _field_by_value(records, fields, "eq", word))
+                   for word in asked.words if word != collection
+                   and len(word) > 2 and not any(_named(word, one)
+                                                 for one in fields)]
+        held_by = [(word, by) for word, by in held_by if by is not None]
+        if act in ("max", "min") and not held_by:
+            spans = {"TARGET": [collection]}
+        elif len(held_by) == 1 and act not in ("max", "min"):
+            # the value as the data writes it (`Toronto`, not `toronto`)
+            word, by = held_by[0]
+            spelled = next((str(_field_of(one, by)) for one in records
+                            if _same(_field_of(one, by), word)), word)
+            spans = {"TARGET": [collection], "VALUE": [spelled]}
+        else:
+            continue
+        lookup = Asked(act, asked.chance, "eq" if "VALUE" in spans else
+                       "none", spans, asked.words, asked.known, asked.acts)
+        found = carry(lookup, held)
+        # found: the collection's file (a CSV's rows have no path)
+        if found is not None and found.file:
+            found.looked["by lookup"] = True
+            return found
+    return None
 
 
 def _one(word: str) -> str:
@@ -559,8 +612,8 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     """The records holding the most (or least) of a field, where the
     records themselves are asked for (`which of the people has the highest
     age`, `who is the oldest in people.csv`): the field the question names
-    -- else the collection's one field of numbers; of several, which is
-    said, not guessed."""
+    -- else the field, and the way, it is nearest asking of (`likeness`);
+    where two fields are as near, which is asked, not guessed."""
     collection, group, where = found["collection"], found["name"], model.path
     fields = [str(one) for one in model.collections[collection]["fields"]]
     numeric = [one for one in fields if any(
@@ -571,8 +624,27 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     if found["by"] and found["by"] in numeric and not asked.spans.get(
             "VALUE"):
         named = [found["by"]]
-    field_ = named[0] if named else (numeric[0] if len(numeric) == 1
-                                      else None)
+    field_ = named[0] if named else None
+    act = asked.act
+    if field_ is None and numeric:
+        # no field said (`who is the oldest`): the question beside each
+        # field asked both ways (`likeness`) -- the nearest is the field
+        # and the way; two fields as near, it asks which
+        from research.v701 import likeness
+        # the words naming the data looked up already, left out: `kids` is
+        # near `age` whatever is asked of them
+        base = model.path.rsplit("/", 1)[-1].lower()
+        rest = [word for word in asked.words
+                if word.lower() not in {one.lower() for one in asked.known}
+                and not _named(word, group) and word.lower() != base
+                and not _named(word, base.rsplit(".", 1)[0])]
+        meant = likeness.extreme(" ".join(rest), numeric)
+        if meant is not None:
+            field_, act = meant
+            looked["nearest"] = f"{act} {field_}"
+    if act != asked.act:
+        asked = Asked(act, asked.chance, asked.op, asked.spans, asked.words,
+                      asked.known, asked.acts)
     if field_ is None:
         return Found(f"The {group} in {where} have "
                      f"{'no field' if not numeric else 'several fields'} of "

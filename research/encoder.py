@@ -41,9 +41,10 @@ LLM = Path(__file__).resolve().parents[1] / "llm"
 #: said against each other, `research/v699`, `reader-code20`; changes of
 #: the project's code, as commits and faults say them, `research/v700`,
 #: `reader-code23`; questions about data, `research/v701`, `reader-code26`;
-#: changes of data files, `reader-code27`); the readers before them are left
-#: as they were.
-PREFERRED = ("reader-code27", "reader-code26", "reader-code23", "reader-code20", "reader-code9", "reader-design4",
+#: changes of data files, `reader-code27`; counts with a field unsaid and
+#: the record with the most of one, `reader-code28`); the readers before
+#: them are left as they were.
+PREFERRED = ("reader-code28", "reader-code27", "reader-code26", "reader-code23", "reader-code20", "reader-code9", "reader-design4",
              "reader-maths2", "reader")
 MODEL = Path(os.environ.get("V689_READER_MODEL") or next(
     (LLM / name for name in PREFERRED
