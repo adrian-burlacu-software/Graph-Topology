@@ -61,7 +61,24 @@ def available() -> bool:
         return False
 
 
-def read(text: str) -> Asked | None:
+def known(held) -> set:
+    """The words that name something of the project's data -- a place's
+    own name, a collection's, a file's (and one of each: `models`,
+    `model`) -- looked up, and told to the reader beside each word as code
+    talk's names are (`CODE`)."""
+    out = set()
+    if held is None:
+        return out
+    for model in held.data().values():
+        base = model.path.rsplit("/", 1)[-1].lower()
+        out.update({base, base.rsplit(".", 1)[0]})
+        for path in list(model.places) + list(model.collections):
+            for part in _parts(path):
+                out.update({part, _one(part)})
+    return out
+
+
+def read(text: str, names=()) -> Asked | None:
     """What the encoder reads a message as asking of data, or None where
     the reader in use was not taught data."""
     from research.v692.corpus import words
@@ -70,7 +87,10 @@ def read(text: str) -> Asked | None:
     said = words(text)
     if not said:
         return None
-    found = encoder.read(said, heads=HEADS)
+    lower = {str(one).lower() for one in names}
+    tags = ["CODE" if word.lower() in lower or _one(word.lower()) in lower
+            else "" for word in said]
+    found = encoder.read(said, tags=tags, heads=HEADS)
     act, chance = found["data_act"][0]
     op = found["data_op"][0][0]
     spans: dict = {}
@@ -180,7 +200,7 @@ def answer(text: str, held) -> Found | None:
     is not one, or what it names is not there."""
     if held is None or not held.data():
         return None
-    asked = read(text)
+    asked = read(text, known(held))
     if asked is None or asked.act == "none" or asked.chance < FLOOR:
         return None
     return carry(asked, held)

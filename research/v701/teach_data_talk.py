@@ -470,6 +470,27 @@ def _swapped(said: list, roles: list, pool: dict, rng) -> list | None:
     return out
 
 
+#: how often the fields' words are marked as naming the project's data
+#: (`CODE`, as `querying.known` marks them), and how often a word of what
+#: is not a data question is -- so the mark alone decides nothing
+KNOWN, NOISE = 0.75, 0.15
+
+
+def _tagged(rec: dict, rng: random.Random) -> dict:
+    """The words told as the reader is told them at run time: those naming
+    the project's data marked `CODE` -- a field's (TARGET, FIELD) most of
+    the time; now and then one word of what is not a data question."""
+    if rec["act"] != "none":
+        if rng.random() < KNOWN:
+            rec["tags"] = ["CODE" if role.endswith(("TARGET", "FIELD"))
+                           else "" for role in rec["roles"]]
+    elif rec["words"] and rng.random() < NOISE:
+        at = rng.randrange(len(rec["words"]))
+        rec["tags"] = ["CODE" if one == at else ""
+                       for one in range(len(rec["words"]))]
+    return rec
+
+
 def corpus(negatives: int = 3000) -> dict:
     rng = random.Random(SEED)
     rows = {"train": [], "valid": []}
@@ -489,13 +510,14 @@ def corpus(negatives: int = 3000) -> dict:
                 continue
             said, roles = made
             part = "valid" if held else "train"
-            rows[part].append(record(said, roles, one["act"], one["op"],
-                                     "teacher"))
+            rows[part].append(_tagged(record(said, roles, one["act"],
+                                             one["op"], "teacher"), rng))
             for _ in range(SWAPS):
                 swapped = _swapped(said, roles, pool, rng)
                 if swapped is not None:
-                    rows[part].append(record(swapped, roles, one["act"],
-                                             one["op"], "swapped"))
+                    rows[part].append(_tagged(record(
+                        swapped, roles, one["act"], one["op"], "swapped"),
+                        rng))
     # what is not a question about data: code talk, and everyday sentences
     others = []
     for path in sorted((LLM / "code-talk-data").glob("train-code.jsonl")):
@@ -509,8 +531,8 @@ def corpus(negatives: int = 3000) -> dict:
     for said in rng.sample(others, min(negatives, len(others))):
         said = [str(one).lower() for one in said]
         part = "valid" if rng.random() < 0.12 else "train"
-        rows[part].append(record(said, ["O"] * len(said), "none", "none",
-                                 "not data"))
+        rows[part].append(_tagged(record(said, ["O"] * len(said), "none",
+                                         "none", "not data"), rng))
     stats = {}
     for part, made in rows.items():
         rng.shuffle(made)
