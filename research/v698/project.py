@@ -32,11 +32,17 @@ TS_READ = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
 #: and Python (v699)
 PY_READ = (".py",)
 READ = TS_READ + PY_READ
+#: and data (v701): read as what it holds and its schema, not as code
+DATA_READ = (".json", ".yaml", ".yml", ".csv", ".tsv")
 
 
 def language_of(path: str) -> str:
     """A file's language, by its name."""
     return "python" if path.endswith(PY_READ) else "typescript"
+
+
+def is_data(path: str) -> bool:
+    return path.lower().endswith(DATA_READ)
 #: what a project may hold, at most
 MOST_FILES = 2000
 MOST_BYTES = 30_000_000
@@ -77,6 +83,7 @@ class Project:
         self.read_at = 0.0
         self._outline: dict | None = None
         self._diagnostics: list | None = None
+        self._data: dict | None = None
 
     # -- what it holds ------------------------------------------------------
     def put(self, files: dict) -> dict:
@@ -84,8 +91,9 @@ class Project:
         refused = {}
         for path, text in files.items():
             path = path.replace("\\", "/").lstrip("/")
-            if not path.endswith(READ):
-                refused[path] = "not TypeScript, JavaScript or Python"
+            if not path.endswith(READ) and not is_data(path):
+                refused[path] = ("not TypeScript, JavaScript, Python, "
+                                 "JSON, YAML or CSV")
                 continue
             if text is None:
                 self.files.pop(path, None)
@@ -97,6 +105,7 @@ class Project:
         if sum(map(len, self.files.values())) > MOST_BYTES:
             raise ValueError(f"the project is over {MOST_BYTES} bytes")
         self._outline = self._diagnostics = None
+        self._data = None
         self.read_at = time.time()
         return refused
 
@@ -141,12 +150,15 @@ class Project:
         """The files under the checker's root -- of one language, if
         given."""
         return {_inside(path): text for path, text in self.files.items()
-                if language is None or language_of(path) == language}
+                if not is_data(path) and (language is None
+                                          or language_of(path) == language)}
 
     def languages(self) -> list:
         """The languages it is written in, the most files' first."""
         count: dict = {}
         for path in self.files:
+            if is_data(path):
+                continue
             count[language_of(path)] = count.get(language_of(path), 0) + 1
         return sorted(count, key=lambda one: -count[one])
 
@@ -154,6 +166,17 @@ class Project:
         """What it is mostly written in, if anything."""
         found = self.languages()
         return found[0] if found else None
+
+    # -- what it holds as data (v701) --------------------------------------------
+    def data(self) -> dict:
+        """Each data file's model: what it holds, and its schema
+        (`research/v701/datamodel.py`)."""
+        if self._data is None:
+            from research.v701 import datamodel
+            self._data = {path: datamodel.read(path, text)
+                          for path, text in sorted(self.files.items())
+                          if is_data(path)}
+        return self._data
 
     # -- what it is -------------------------------------------------------------
     def outline(self) -> dict:
@@ -295,6 +318,10 @@ class Project:
             called[one["to"]] = called.get(one["to"], 0) + 1
         return {"name": self.name, "files": len(self.files),
                 "languages": self.languages(),
+                "data": {path: (one.error or {
+                    name or "rows": found["count"]
+                    for name, found in one.collections.items()} or "values")
+                    for path, one in self.data().items()},
                 "lines": sum(read["lines"] for read in
                              self.outline().values()),
                 "functions": len(functions),
