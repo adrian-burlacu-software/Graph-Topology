@@ -453,12 +453,13 @@ def _same(a: str, b: str) -> bool:
         [one.rstrip() for one in b.strip().splitlines()]
 
 
-def measure(model: Path, most: int = 300, samples: int = 4) -> dict:
-    """On commits never taught: whether the greedy answer makes the
-    commit's code, whether any of the samples does, and how often an
+def measure(model: Path, most: int = 300, samples: int = 4,
+            corpus: Path = EDITS) -> dict:
+    """On commits (or faults) never taught: whether the greedy answer makes
+    the commit's code, whether any of the samples does, and how often an
     answer could be put in at all."""
     from research.v696.sketcher import Sketcher
-    rows = [json.loads(line) for line in EDITS.open(encoding="utf-8")]
+    rows = [json.loads(line) for line in corpus.open(encoding="utf-8")]
     rows = [one for one in rows if one["split"] == "test"]
     random.Random(SEED).shuffle(rows)
     rows = rows[:most]
@@ -504,7 +505,8 @@ def main(argv=None) -> int:
               base=LLM / options.base if options.base else BASE,
               corpus=OUT / options.corpus if options.corpus else EDITS)
     else:
-        measure(LLM / options.out, most=options.most or 300)
+        measure(LLM / options.out, most=options.most or 300,
+                corpus=OUT / options.corpus if options.corpus else EDITS)
     return 0
 
 
