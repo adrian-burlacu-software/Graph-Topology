@@ -1717,6 +1717,33 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code26", 80),
              needs=("reader-code-edits", "data-talk"),
              cost="twenty-five minutes", gpu=True),
+        Step("editor-data-more", "the editor taught again: a record's field "
+                                 "set, said by the teacher and checked by "
+                                 "it (research/v701/teach_data_edits.py)",
+             lambda: (_run("research.v701.teach_data_edits", "phrase-more"),
+                      _run("research.v701.teach_data_edits", "rows-more"),
+                      _run("research.v701.teach_data_edits", "mix-more"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor4", "--out", "editor5",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "704",
+                           "--corpus", "edits-mix-data2.jsonl")),
+             _model_check(LLM / "editor5", 600),
+             needs=("editor-data", "smollm3"), cost="fifty minutes",
+             gpu=True),
+        Step("reader-data-edits", "the shared reader taught changes of data "
+                                  "files as changes (research/v701)",
+             lambda: (_run("research.v698.teach_code_talk", "corpus"),
+                      _run("research.v701.teach_data_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code26"),
+                           "--out", str(LLM / "reader-code27"),
+                           "--epochs", "2", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data")),
+             _model_check(LLM / "reader-code27", 80),
+             needs=("reader-data-talk", "editor-data-more"),
+             cost="twenty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
