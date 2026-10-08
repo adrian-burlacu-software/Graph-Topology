@@ -650,8 +650,10 @@ def _change_once(statement: str, held, subject, key=None,
                  f"{path if subject.kind == 'file' else subject.name + ' in ' + path}"
                  f" ({count} lines), "
                  f"{where_}. {best['agree']} of {len(answers)} changes "
-                 f"written agree on it, and the compiler finds nothing "
-                 f"more wrong with the file.")})
+                 f"written agree on it, and "
+                 + ("it still reads as data and repeats no place it has."
+                    if data else "the compiler finds nothing more wrong "
+                    "with the file."))})
     out["seconds"] = round(time.time() - started, 2)
     return out
 
