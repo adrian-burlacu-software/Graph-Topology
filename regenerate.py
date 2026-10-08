@@ -1685,6 +1685,17 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code23", 80),
              needs=("reader-code-python", "code-talk", "editor-corpus"),
              cost="twenty minutes", gpu=True),
+        Step("reader-data", "the shared reader taught questions about data "
+                            "(research/v701)",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code23"),
+                          "--out", str(LLM / "reader-code24"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code",
+                          "--subject", "data"),
+             _model_check(LLM / "reader-code24", 80),
+             needs=("reader-code-edits", "data-talk"),
+             cost="twenty-five minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
