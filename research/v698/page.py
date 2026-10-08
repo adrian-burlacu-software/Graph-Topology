@@ -27,6 +27,9 @@ from research.v698 import asking, knowledge, reading
 from research.v698 import project as Pj
 
 PASTED, CODE_TALK = 212.0, 211.0
+#: a question about the project's data (v701): before code talk, where it is
+#: one and what it names is in the data
+DATA_TALK = 211.5
 
 
 def _key(session):
@@ -168,6 +171,41 @@ def replies(session) -> list:
                     utility=PASTED,
                     rule="code pasted with a question about it: read by "
                          "the compiler, run, kept as the conversation's")]
+
+    # a question about the project's data (v701): read by the encoder's data
+    # heads, its fields looked up in the data's schema, carried out over
+    # what the data holds -- where it is one, and what it names is there
+    from research.v701 import querying
+    if querying.available():
+        found_for: dict = {}
+
+        def data_found(memory):
+            text = typed(memory)
+            if text not in found_for:
+                found_for.clear()
+                found_for[text] = querying.answer(
+                    text, Pj.project(_key(session)))
+            return found_for[text]
+
+        def asks_data(memory) -> bool:
+            return not pastes(memory) and data_found(memory) is not None
+
+        def answer_data(memory):
+            found = data_found(memory)
+            if found is None:
+                return None
+            reply = asking._reply("data", typed(memory), found.said,
+                                  {"query": found.json()})
+            reply["code"]["data"] = found.json()
+            memory["turn"].answer = reply
+            return ANSWERED
+
+        out.append(Operator(
+            name="data talk", apply=answer_data, proposes=asks_data,
+            utility=DATA_TALK,
+            rule="a question about the project's data, read by the encoder, "
+                 "looked up in the data's schema, carried out over what it "
+                 "holds"))
 
     if reading.taught():
         def talks(memory) -> bool:

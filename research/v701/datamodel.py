@@ -93,7 +93,12 @@ class Model:
                     len(place.distinct) == size and set(place.types) <= {
                         "string", "integer"}:
                 out.append(name)
-        return out
+        # a name tells records apart before a number does: three ages that
+        # differ are not the users' key -- a number is one where no words
+        # are
+        words = [one for one in out if "string" in self.places[
+            f"{collection}.{one}" if collection else one].types]
+        return words or out
 
     def json(self) -> dict:
         if self.error:
