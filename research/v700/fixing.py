@@ -266,6 +266,27 @@ def _flakes(path: str, text: str) -> list:
     return said
 
 
+def data_wrong(path: str, before: str, after: str) -> str | None:
+    """Why a change of a data file is not one, or None: it must still read
+    as what it is, and put in no place whose name the file already has
+    elsewhere (`server.server.port` beside `server.port`: what was meant
+    is said twice)."""
+    from research.v701 import datamodel
+    old, new = datamodel.read(path, before), datamodel.read(path, after)
+    if new.error and not old.error:
+        return f"the file no longer reads as {new.format}: {new.error}"
+    added = [one for one in new.places if one not in old.places]
+    for place in added:
+        own = place.rsplit(".", 1)[-1]
+        twin = next((one for one in old.places if one != place
+                     and one.rsplit(".", 1)[-1] == own
+                     and not place.startswith(f"{one}.")
+                     and "[]" not in place), None)
+        if twin is not None:
+            return f"it puts in {place}, which the file has as {twin}"
+    return None
+
+
 def _unfound_imports(held, before: str, after: str, path: str) -> list:
     """Modules of the project's own packages a change imports that the
     project has no file for (`research.v696.checker.field`)."""
@@ -371,7 +392,11 @@ def change(statement: str, held, subject, key=None) -> dict:
     named = set(first.get("named", ()))
     done = set(first.get("touched", ()))
     passes = 1
-    while passes < PASSES and named - done:
+    from research.v698.project import is_data
+    # a data file's names are its keys, every one of them a word the
+    # statement may say: one change, as asked (a second pass put in
+    # `server.server.port`)
+    while passes < PASSES and named - done and not is_data(first["file"]):
         more = _change_once(statement, held, subject, key,
                             need=named - done)
         if more["status"] != "changed":
@@ -449,8 +474,11 @@ def _change_once(statement: str, held, subject, key=None,
     lines = _lines(text)
     part = "".join(lines[start - 1:end])
     asked = T.prompt(statement, path, part)
+    from research.v698.project import is_data
+    data = is_data(path)
     try:
-        before = _diagnosed(held, path, text)
+        # a data file (v701) has no compiler: it is checked as data
+        before = [] if data else _diagnosed(held, path, text)
     except Unchecked as bad:
         return {"status": "unchecked", "subject": subject.name,
                 "said": (f"I did not change {subject.name}: the compiler "
@@ -504,6 +532,13 @@ def _change_once(statement: str, held, subject, key=None,
                 # change it asks for, however well it compiles
                 row["refused"] = ("it changes nothing the statement names "
                                   f"({', '.join(sorted(named))})")
+                continue
+            if data:
+                wrong = data_wrong(path, text, row["text"])
+                if wrong:
+                    row["refused"] = wrong
+                    continue
+                passed.append(row)
                 continue
             if not _reads(path, row["text"]):
                 row["refused"] = "the file no longer reads"

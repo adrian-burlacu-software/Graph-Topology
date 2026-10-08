@@ -116,5 +116,23 @@ class QueryTests(unittest.TestCase):
         self.assertIn("nothing called shoe size", found.said)
 
 
+class DataChangeTests(unittest.TestCase):
+    """A change of a data file, checked as data: it still reads, and puts
+    in no place the file already names elsewhere."""
+
+    def test_checked_as_data(self):
+        from research.v700.fixing import data_wrong
+        self.assertIsNone(data_wrong("s.yaml", SERVICE, SERVICE.replace(
+            "port: 8697", "port: 9000")))
+        self.assertIn("server.server.port", data_wrong(
+            "s.yaml", SERVICE, SERVICE.replace(
+                "port: 8697", "port: 9000\n  server:\n    port: 9000")))
+        self.assertIn("no longer reads", data_wrong(
+            "s.yaml", SERVICE, SERVICE.replace("port: 8697", "port: [")))
+        self.assertIsNone(data_wrong("s.yaml", SERVICE, SERVICE.replace(
+            "  - name: reviewer", "  - name: sam\n    role: reader\n"
+            "    projects: [x]\n  - name: reviewer")))
+
+
 if __name__ == "__main__":
     unittest.main()
