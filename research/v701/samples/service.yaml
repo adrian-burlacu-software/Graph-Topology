@@ -3,7 +3,7 @@ name: graph-topology
 version: 0.7.0
 server:
   host: 127.0.0.1
-  port: 8697
+  port: 9000
   workers: 19
   timeout_seconds: 900
 models:
