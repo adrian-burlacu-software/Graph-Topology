@@ -521,7 +521,9 @@ def change(statement: str, held, subject, key=None) -> dict:
     out.update({
         "status": "changed", "written": written, "diff": changed,
         "agree": best["agree"], "of": len(answers),
-        "said": (f"Changed {subject.name} in {path} ({count} lines), "
+        "said": (f"Changed "
+                 f"{path if subject.kind == 'file' else subject.name + ' in ' + path}"
+                 f" ({count} lines), "
                  f"{where_}. {best['agree']} of {len(answers)} changes "
                  f"written agree on it, and the compiler finds nothing "
                  f"more wrong with the file.")})
