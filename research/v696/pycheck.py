@@ -585,14 +585,33 @@ def diagnose(files: dict, strict: bool = False) -> dict:
                  "--no-color-output", "--hide-error-context",
                  "--ignore-missing-imports", "--follow-imports=silent",
                  "--cache-dir", os.path.join(STATE, "mypy-cache"),
-                 "--python-version", "3.12", "--no-site-packages"]
+                 "--python-version", "3.12", "--no-site-packages",
+                 # each module named by where it is under the project's
+                 # root (`research/v698/__main__.py` is
+                 # `research.v698.__main__`): two `__main__.py` were one
+                 # module, and mypy checked nothing at all
+                 "--explicit-package-bases"]
         if strict:
             flags += ["--strict", "--warn-unreachable",
                       "--extra-checks"]
-        stdout, _, _ = api.run(flags + list(where))
+        # run from the root, the files by their paths under it: the bases
+        # the modules are named from (this worker runs one thing at once)
+        here = os.getcwd()
+        os.chdir(root)
+        try:
+            stdout, stderr, _ = api.run(
+                flags + [os.path.relpath(one, root) for one in where])
+        finally:
+            os.chdir(here)
         errors = []
         for line in stdout.splitlines():
             found = MYPY_LINE.match(line.strip())
+            if not found and re.search(r":\s*error:", line):
+                # an error of the run, not of a line (a module twice, a
+                # file it cannot read): nothing was checked -- said, not
+                # taken for a project with nothing wrong
+                return {"ok": False, "error": "mypy checked nothing: "
+                        + line.strip().split("error:", 1)[-1].strip()}
             if not found or found["level"] == "note":
                 continue
             # mypy's cache says a module's errors at the path it had when

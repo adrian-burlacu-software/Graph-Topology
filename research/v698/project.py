@@ -68,9 +68,12 @@ def _inside(path: str) -> str:
 
 
 class Project:
-    def __init__(self, name: str = "") -> None:
+    def __init__(self, name: str = "", root: str | None = None) -> None:
         self.name = name
         self.files: dict = {}
+        #: where its files are on disk (v700), where the editor said: a
+        #: change asked of the project is made there, not handed back
+        self.root = root
         self.read_at = 0.0
         self._outline: dict | None = None
         self._diagnostics: list | None = None
@@ -96,6 +99,43 @@ class Project:
         self._outline = self._diagnostics = None
         self.read_at = time.time()
         return refused
+
+    def on_disk(self, path: str):
+        """Where one of its files is on disk, or None: no root said, or a
+        path that would leave it."""
+        from pathlib import Path
+        if not self.root:
+            return None
+        root = Path(self.root).resolve()
+        found = (root / path.lstrip("/")).resolve()
+        return found if found.is_relative_to(root) else None
+
+    def write(self, path: str, text: str) -> bool:
+        """One of its files changed, here and on disk (where it has a
+        root): whether it was written there."""
+        path = path.replace("\\", "/").lstrip("/")
+        if path not in self.files:
+            raise ValueError(f"{path} is not a file of the project")
+        self.put({path: text})
+        found = self.on_disk(path)
+        if found is None:
+            return False
+        # as the file is written on disk: its line endings (an editor
+        # sends `\n`; a checkout on Windows has `\r\n`), and a byte-order
+        # mark if it has one -- a change of one line is not a change of
+        # every line's ending
+        ending, mark = "\n", ""
+        if found.exists():
+            held = found.read_bytes()
+            if b"\r\n" in held:
+                ending = "\r\n"
+            if held.startswith(b"\xef\xbb\xbf"):
+                mark = "﻿"
+        said = text.replace("\r\n", "\n").lstrip("﻿")
+        if ending != "\n":
+            said = said.replace("\n", ending)
+        found.write_text(mark + said, encoding="utf-8", newline="")
+        return True
 
     def checked(self, language: str | None = None) -> dict:
         """The files under the checker's root -- of one language, if
@@ -279,12 +319,13 @@ def project(key) -> Project | None:
         return PROJECTS.get(key)
 
 
-def put(key, files: dict, name: str = "", whole: bool = False) -> dict:
+def put(key, files: dict, name: str = "", whole: bool = False,
+        root: str | None = None) -> dict:
     """The files of a conversation's project: all of them (`whole`), or
-    some changed (`None` to remove one)."""
+    some changed (`None` to remove one); `root`, where they are on disk."""
     with _LOCK:
         found = PROJECTS.get(key)
         if found is None or whole:
-            found = PROJECTS[key] = Project(name)
+            found = PROJECTS[key] = Project(name, root)
         refused = found.put(files)
         return {"refused": refused, **found.summary()}

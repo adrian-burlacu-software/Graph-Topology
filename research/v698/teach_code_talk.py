@@ -364,6 +364,32 @@ MORE_TECHNIQUES = [
     ("no list comps please", "no-comprehension"),
 ]
 
+#: a fault of a function said, and what to do about it (v700): the dense
+#: statement a programmer makes of a fix -- what is wrong, then the change
+#: -- taught as a change of the function named, not as a question about
+#: it. `{n}` is the function, `{x}` a name in it.
+FAULT_SEEDS = [
+    "{n} imports {x} but never uses it -- drop the import",
+    "{n} assigns {x} and never reads it; remove that line",
+    "{n} reads the count from the wrong key, read it from \"total\"",
+    "{n} crashes on an empty list; return 0 then",
+    "{n} returns None when nothing matches, it should return an empty list",
+    "{n} is off by one at the end of the range, include the last item",
+    "{n} never closes the file -- use a with statement",
+    "{n} swallows every exception; catch only ValueError",
+    "{n} compares with == where it should use is None",
+    "{n} mutates its argument, copy {x} first",
+    "{n} sorts in the wrong order, sort descending",
+    "{n} ignores {x} when it is negative; handle that case",
+    "{n} computes {x} twice, compute it once before the loop",
+    "{n} uses a bare except, which hides real errors -- narrow it",
+    "{n} has a typo in the error message, it says recieve",
+    "{n} logs with print; use the logger instead",
+    "the default of {x} in {n} is mutable, make it None",
+    "{n} builds the string in a loop; join the parts instead",
+]
+
+
 TECHNIQUE_MAKES = [
     "write a recursive function that reverses a string",
     "write an iterative fibonacci",
@@ -663,6 +689,24 @@ def jobs() -> list:
                     f"without naming the function. " + STYLE,
                     {"act": "change", "aspect": "none", "subject": "last",
                      "way": way}))
+    # a fault said, then its fix (v700): of a function named, a name in it
+    # kept too -- by a choosing of its own, so what was chosen above is
+    # what it was
+    faults = random.Random(SEED + 700)
+    for at, seed in enumerate(FAULT_SEEDS):
+        for twice in range(2):
+            name = faults.choice(found["functions"])
+            other = faults.choice(["count", "items", "result", "config",
+                                   "path", "value", "data", "total"])
+            said = seed.format(n=name, x=other)
+            out.append((f"fault|{at}|{twice}", f"Say this request to a "
+                        f"coding assistant in 12 different ways, as a "
+                        f"programmer would type it -- first what is wrong, "
+                        f"then what to do, short ones too: \"{said}\". Keep "
+                        f"{name} exactly so in every one. " + STYLE,
+                        {"act": "change", "aspect": "none",
+                         "subject": "named", "paraphrase": True,
+                         "seed": said, "name": name}))
     for word in EVERYDAY:
         out.append((f"none|{word}", f"Write 12 different everyday messages "
                     f"that have nothing to do with software, using the word "
@@ -756,7 +800,11 @@ ACT_CHOICES = (
     ("ask", "asking a question about existing code, a function, a file or "
             "a software project"),
     ("make", "asking for new code to be written"),
-    ("change", "asking to change or correct code that was just written"),
+    # v700: a fault of a function of the project said with its fix is a
+    # change too -- told as "just written", the teacher chose `ask` for 549
+    # of 862 such statements (they are kept either way, `keeps`)
+    ("change", "asking to change, correct or fix code -- code just "
+               "written, or a function or file of their project"),
     ("run", "asking to run a function on an input"),
     ("teach", "telling what a word means by listing what belongs to it"),
     ("none", "something not about software or code at all"),
@@ -1064,6 +1112,100 @@ def _unnamed(meta: dict) -> str:
     return seed
 
 
+#: commits (v700): what people say a change of their code is, when they
+#: have made it -- `Make onoff function more versatile`, `Add
+#: match_distance flag to load_data_frame()` -- the editor's corpus
+#: (`research/v700/teach_editor.py`). Read as a change; of the function
+#: it was made in where the message names it, else of the code talked of.
+COMMITS = LLM / "editor-data" / "edits.jsonl"
+#: commits naming nothing, taught beside those naming their function
+COMMITS_UNNAMED = 3000
+#: how often the file is said first, as one says it to someone who does
+#: not know where (`in tools/mcp/server.py, _turn reads ...`)
+COMMITS_IN_FILE = 0.25
+#: how often a commit naming nothing is said of its file (`in search.py,
+#: drop the unused imports`)
+COMMITS_FILE = 0.4
+FUNCTION_LINE = re.compile(
+    r"^\s*(?:async\s+)?def\s+(\w+)|^\s*(?:export\s+)?(?:async\s+)?function"
+    r"\s*\*?\s*(\w+)|^\s*(?:public\s+|private\s+|protected\s+|static\s+|"
+    r"async\s+)*(\w+)\s*\([^)]*\)\s*(?::[^{]*)?\{", re.M)
+
+
+def _function_named(part: str) -> str | None:
+    found = FUNCTION_LINE.search(part)
+    return next((one for one in found.groups() if one), None) \
+        if found else None
+
+
+def _codey(name: str, message: str) -> bool:
+    """Whether a name in a message is the code's and not an English word
+    (`default`, `main`): written as code is -- with `_`, a capital inside,
+    a digit -- or called (`run()`)."""
+    return bool(re.search(r"_|[a-z][A-Z]|\d", name)) or \
+        f"{name}(" in message
+
+
+def commit_rows() -> list:
+    """(record, held) of each commit message taught as a change."""
+    if not COMMITS.exists():
+        return []
+    rng = random.Random(SEED + 700)
+    named, unnamed = [], []
+    for line in COMMITS.open(encoding="utf-8"):
+        row = json.loads(line)
+        message = " ".join(row["statement"].split())
+        said = words(message)
+        if not said or len(said) > 60:
+            continue
+        name = _function_named(row["part"])
+        span = _match(said, name) if name and len(name) > 2 and _codey(
+            name, message) else None
+        if span is None:
+            unnamed.append((said, row))
+            continue
+        roles = ["O"] * len(said)
+        _mark(roles, span, "SUBJ")
+        if rng.random() < COMMITS_IN_FILE:
+            where = words(f"in {row['path']},")
+            said, roles = where + said, ["O"] * len(where) + roles
+        named.append((said, roles, row, name))
+    out = []
+    for said, roles, row, name in named:
+        held = row["split"] != "train"
+        out.append((record(said, roles, "change", "none", "named",
+                           "commit"), held))
+        # and naming functions of other shapes, as every name is taught
+        for new in rng.sample(real_names(), 1):
+            swapped = _swapped(said, roles, name, new)
+            if swapped is not None:
+                out.append((record(swapped, roles, "change", "none",
+                                   "named", "commit renamed"), held))
+    for said, row in rng.sample(unnamed, min(COMMITS_UNNAMED, len(unnamed))):
+        held = row["split"] != "train"
+        out.append((record(said, ["O"] * len(said), "change", "none", "last",
+                           "commit"), held))
+        if rng.random() < COMMITS_FILE:
+            # and of the file it was made in, said first
+            path = row["path"] if rng.random() < 0.5 else \
+                row["path"].rsplit("/", 1)[-1]
+            where = words(f"in {path},")
+            roles = ["O"] + ["B-SUBJ"] + ["I-SUBJ"] * (len(where) - 3) + \
+                ["O"]
+            if len(roles) == len(where) and _match(where, path) == (
+                    1, len(where) - 1):
+                out.append((record(where + said, roles + ["O"] * len(said),
+                                   "change", "none", "file", "commit file"),
+                            held))
+    return out
+
+
+def real_names() -> list:
+    if not hasattr(real_names, "found"):
+        real_names.found = real()["names"]
+    return real_names.found
+
+
 def corpus(negatives: int = 4000) -> dict:
     """`train-code.jsonl` and `valid-code.jsonl`: every message the teacher
     wrote and kept, the real requests, examples and calls, and what is not
@@ -1224,6 +1366,8 @@ def corpus(negatives: int = 4000) -> dict:
         said = [str(one).lower() for one in said]
         put(record(said, ["O"] * len(said), "none", "none", "none",
                    "not code"), _held(" ".join(said)))
+    for rec, held in commit_rows():
+        put(rec, held)
     # several ways in one message, each part from its own split
     rows["train"] += _together(rows["train"], rng, 6000)
     rows["valid"] += _together(rows["valid"], rng, 1200)

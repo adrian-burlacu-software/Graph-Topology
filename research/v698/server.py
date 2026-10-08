@@ -35,7 +35,7 @@ STARTED = time.time()
 #: the largest body taken: a project is sent whole
 LARGEST = 40_000_000
 CAPABILITIES = ("say", "turn", "page", "code", "project", "file", "pasted",
-                "python")
+                "python", "edit")
 #: the languages code is read and written in (v699)
 LANGUAGES = ("typescript", "python")
 
@@ -106,8 +106,12 @@ class Handler(v697.Handler):
                                                   bool(body.get("example"))))
             elif parsed.path == "/api/project":
                 files = body.get("files") or {}
+                # `root` (v700): where the files are on disk -- a change
+                # asked of the project is made there
+                root = body.get("root")
                 self._json(Pj.put(sid, files, str(body.get("name") or ""),
-                                  whole=True))
+                                  whole=True,
+                                  root=str(root) if root else None))
             elif parsed.path == "/api/file":
                 path = str(body.get("path") or "")
                 if not Pj.project(sid):

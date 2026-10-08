@@ -5,16 +5,15 @@ change files.
     python tools/graph-topology-mcp/server.py [--url http://127.0.0.1:8697]
 
 It is a bridge, nothing more: every tool is a call on the v698 server's HTTP
-API (`research/v698/protocol.md`) -- the architecture reads, searches and
-writes; this only carries the words there and the answer back, and (for
-`change_file`, when asked to) puts the answer into the file.
+API (`research/v698/protocol.md`) -- the architecture reads, searches,
+writes and changes files (the project is sent with its root on disk); this
+only carries the words there and the answer back.
 
 Standard library only: JSON-RPC 2.0, one message per line on stdin/stdout.
 """
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
 import os
@@ -128,8 +127,11 @@ def _health(wait: bool = True) -> dict:
                     raise Down(f"the server at {URL} did not come up in "
                                f"{STARTUP:.0f} s") from None
     if SEEN["instance"] not in (None, found.get("instance")):
-        for sid, (files, name) in list(SENT.items()):
-            _raw("/api/project", {"sid": sid, "files": files, "name": name},
+        # read again from disk: what the architecture changed since is
+        # what is there now
+        for sid, (paths, name) in list(SENT.items()):
+            _raw("/api/project", {"sid": sid, "files": _files(paths),
+                                  "name": name, "root": str(ROOT)},
                  timeout=LONG)
         found["sent again"] = sorted(SENT)
     SEEN["instance"] = found.get("instance")
@@ -181,8 +183,12 @@ def _turn(turn: dict, raw: bool) -> dict:
         "status": answer.get("status"),
         "language": request.get("language"),
         "ways": (found.get("ways") or request.get("ways")),
-        "turn": turn.get("n", turn.get("turn")),
+        "turn": turn.get("number"),
     }
+    made = found.get("change") or {}
+    for key in ("file", "lines", "written", "diff"):
+        if made.get(key) not in (None, ""):
+            out[key] = made[key]
     out = {key: value for key, value in out.items() if value not in
            (None, "", [], {})}
     if raw:
@@ -193,76 +199,6 @@ def _turn(turn: dict, raw: bool) -> dict:
 def _say(text: str, sid: str | None, raw: bool = False) -> dict:
     return _turn(_call("/api/say", {"sid": _sid(sid), "q": text},
                        timeout=LONG), raw)
-
-
-# -- putting code into a file -------------------------------------------------
-
-def _python_span(source: str, entry: str):
-    """The lines (0-based start, end exclusive) of a top-level def or class
-    named `entry`, decorators included."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return None
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                             ast.ClassDef)) and node.name == entry:
-            start = min([node.lineno] + [one.lineno for one in
-                                         node.decorator_list]) - 1
-            return start, node.end_lineno
-    return None
-
-
-def _ts_span(source: str, entry: str):
-    """The lines of `function entry(...) {...}` or `const entry = ...`,
-    `export` included, found by matching its braces."""
-    pattern = re.compile(
-        r"^[ \t]*(export\s+)?(default\s+)?(async\s+)?(function\s*\*?\s*"
-        + re.escape(entry) + r"\b|(const|let|var)\s+" + re.escape(entry)
-        + r"\b)", re.M)
-    found = pattern.search(source)
-    if not found:
-        return None
-    at, depth, began, quote = found.end(), 0, False, None
-    while at < len(source):
-        char = source[at]
-        if quote:
-            if char == "\\":
-                at += 1
-            elif char == quote:
-                quote = None
-        elif char in "'\"`":
-            quote = char
-        elif char == "{":
-            depth, began = depth + 1, True
-        elif char == "}":
-            depth -= 1
-            if began and depth == 0:
-                break
-        elif char == ";" and not began and depth == 0:
-            break
-        at += 1
-    end = source.find("\n", at)
-    end = len(source) if end < 0 else end
-    first = source.count("\n", 0, found.start())
-    return first, source.count("\n", 0, end) + 1
-
-
-def _replaced(source: str, entry: str, code: str, python: bool):
-    span = (_python_span if python else _ts_span)(source, entry)
-    if span is None:
-        return None
-    lines = source.splitlines(keepends=True)
-    start, end = span
-    new = code.rstrip("\n") + "\n"
-    return "".join(lines[:start]) + new + "".join(lines[end:])
-
-
-def _diff(before: str, after: str, name: str) -> str:
-    import difflib
-    return "".join(difflib.unified_diff(
-        before.splitlines(keepends=True), after.splitlines(keepends=True),
-        f"a/{name}", f"b/{name}", n=2))
 
 
 # -- the tools ----------------------------------------------------------------
@@ -311,65 +247,15 @@ def t_send_project(args: dict) -> dict:
     if not files:
         raise RuntimeError("no .py/.ts/.js files under those paths")
     sid, name = _sid(args.get("sid")), args.get("name") or ROOT.name
-    found = _call("/api/project", {"sid": sid, "files": files, "name": name},
-                  timeout=LONG)
-    SENT[sid] = (files, name)
+    # the root: where the files are, so that a change asked is made there
+    found = _call("/api/project", {"sid": sid, "files": files, "name": name,
+                                   "root": str(ROOT)}, timeout=LONG)
+    SENT[sid] = (list(args.get("paths") or ["."]), name)
     return found
 
 
 def t_project(args: dict) -> dict:
     return _call("/api/project?sid=" + _sid(args.get("sid")), timeout=60)
-
-
-def t_change_file(args: dict) -> dict:
-    path = _path(str(args["path"]))
-    source = path.read_text(encoding="utf-8")
-    python = path.suffix.lower() == ".py"
-    entry = args.get("function")
-    if entry:
-        span = (_python_span if python else _ts_span)(source, entry)
-        if span is None:
-            raise RuntimeError(f"no top-level {entry} in {_relative(path)}")
-        lines = source.splitlines(keepends=True)
-        shown = "".join(lines[span[0]:span[1]])
-    else:
-        shown = source
-    # as the architecture reads a request with your own function in it: the
-    # words, the function (unfenced: `yours`, tried as one more writer's),
-    # then the examples it must meet -- fenced, it is read as a question
-    # about the code and nothing is written
-    text = "\n".join([str(args["instruction"]).strip(), shown.rstrip()]
-                     + [str(one).strip() for one in args.get("examples")
-                        or ()])
-    said = _say(text, args.get("sid"), bool(args.get("raw")))
-    code, written = said.get("code"), said.get("entry") or entry
-    out = {"file": _relative(path), **said}
-    if not code:
-        out["applied"] = False
-        out["why not applied"] = "the architecture answered with no code"
-        return out
-    after = _replaced(source, written, code, python) if written else None
-    if after is None:
-        out["applied"] = False
-        out["why not applied"] = (f"no top-level {written} in the file to "
-                                  "replace")
-        return out
-    out["diff"] = _diff(source, after, _relative(path))
-    if args.get("apply"):
-        path.write_text(after, encoding="utf-8", newline="")
-        out["applied"] = True
-        held = SENT.get(_sid(args.get("sid")))
-        if held and _relative(path) in held[0]:
-            held[0][_relative(path)] = after
-        try:
-            _call("/api/file", {"sid": _sid(args.get("sid")),
-                                "path": _relative(path), "text": after},
-                  timeout=60)
-        except RuntimeError:
-            pass                    # no project sent: nothing to keep in step
-    else:
-        out["applied"] = False
-    return out
 
 
 SID = {"sid": {"type": "string", "description":
@@ -384,8 +270,11 @@ TOOLS = {
     "say": (t_say, "Say anything to the cognitive architecture, as one turn "
             "of a conversation: a request for code, a change to the last "
             "answer ('make it recursive', 'in Python'), a question about "
-            "the project ('who calls main'), or a teaching. Returns its "
-            "reply and any code it wrote.",
+            "the project ('who calls main'), a change of the project's code "
+            "('in _turn, read the number from \"number\"') -- which it "
+            "makes in the files itself, where the project was sent -- or a "
+            "teaching. Returns its reply, any code it wrote, and any change "
+            "it made (file, lines, diff, written).",
             {"message": {"type": "string"}, **SID, **RAW}, ["message"]),
     "request_code": (t_request_code, "Ask the cognitive architecture to "
                      "write a function. Give the request in English, "
@@ -415,26 +304,6 @@ TOOLS = {
                       "name": {"type": "string"}, **SID}, []),
     "project": (t_project, "What the architecture holds of the project "
                 "sent: summary, outline and call graph.", {**SID}, []),
-    "change_file": (t_change_file, "Ask the cognitive architecture to "
-                    "change a file: the instruction (what the function "
-                    "should do, e.g. 'fix the bug: return the first item') "
-                    "is sent with the function's code and the examples it "
-                    "must meet; the architecture writes its own and tries "
-                    "yours. Its answer replaces that top-level function. "
-                    "Returns a diff; writes the file only when apply is "
-                    "true. Examples are what make a fix work.",
-                    {"path": {"type": "string"},
-                     "instruction": {"type": "string"},
-                     "examples": {"type": "array",
-                                  "items": {"type": "string"},
-                                  "description": "Calls with results, as "
-                                  "`first([1, 2]) == 1`."},
-                     "function": {"type": "string", "description":
-                                  "Top-level function to send and "
-                                  "replace (recommended)."},
-                     "apply": {"type": "boolean", "description":
-                               "Write the change to the file."},
-                     **SID, **RAW}, ["path", "instruction"]),
 }
 
 

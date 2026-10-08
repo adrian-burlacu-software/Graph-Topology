@@ -1170,6 +1170,13 @@ def steps() -> list[Step]:
              _lines_check(DATA / "humanevalfix" / "python.jsonl", 160,
                           "164 when made"),
              cost="seconds"),
+        Step("commitpackft", "CommitPackFT's Python and TypeScript commits: "
+                             "what people say a change is, and the change "
+                             "(v700's editor)",
+             lambda: _run("research.v700.teach_editor", "fetch"),
+             _lines_check(DATA / "commitpackft" / "python.jsonl", 56000,
+                          "56025 when fetched"),
+             cost="a minute"),
 
         # -- what the ingestion memories are read from ----------------------
         # `state/` survived the 2026-09-16 deletion, so these are usually
@@ -1452,7 +1459,7 @@ def steps() -> list[Step]:
                       _run("research.v698.teach_code_talk", "check-ways"),
                       _run("research.v698.teach_code_talk", "corpus")),
              _code_talk_check, needs=("multipl-e", "smollm3", "reader-corpus",
-                                      "math-corpus"),
+                                      "math-corpus", "editor-corpus"),
              cost="three hours", gpu=True),
         Step("reader-code", "the shared reader taught code talk too",
              lambda: _run("research.v689.teach_reader", "train",
@@ -1619,6 +1626,54 @@ def steps() -> list[Step]:
                           "--subject", "design", "--subject", "code"),
              _model_check(LLM / "reader-code20", 80),
              needs=("reader-code-ways", "code-talk", "reader-claims"),
+             cost="twenty minutes", gpu=True),
+        # v700: changes of the project's code, said as people say them --
+        # commit messages (`editor-corpus`) in the code-talk corpus
+        Step("editor-corpus", "commits as changes: the message, the part of "
+                              "the file changed, the change as blocks",
+             lambda: _run("research.v700.teach_editor", "corpus"),
+             _lines_check(LLM / "editor-data" / "edits.jsonl", 38000,
+                          "41233 when made"),
+             needs=("commitpackft",), cost="a minute"),
+        Step("editor", "a writer taught to change code as it is asked "
+                       "(research/v700/teach_editor.py)",
+             lambda: _run("research.v700.teach_editor", "train",
+                          "--out", "editor"),
+             _model_check(LLM / "editor", 600),
+             needs=("editor-corpus",), cost="three hours", gpu=True),
+        Step("editor-faults", "the editor taught again: faults found in "
+                              "real code, fixed by construction, and "
+                              "commits of small changes in a function",
+             lambda: (_run("research.v700.teach_faults", "phrase"),
+                      _run("research.v700.teach_faults", "rows"),
+                      _run("research.v700.teach_editor", "mix"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor", "--out", "editor3",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "702", "--corpus", "edits-mix.jsonl")),
+             _model_check(LLM / "editor3", 600),
+             needs=("editor", "smollm3"), cost="two hours", gpu=True),
+        Step("change-judge", "a judge of changes: does it do what was "
+                             "said (research/v700/teach_judge.py)",
+             lambda: (_run("research.v700.teach_editor", "train",
+                           "--base", "editor", "--out", "editor2",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "701"),
+                      _run("research.v700.teach_judge", "samples",
+                           "--editor", "editor2"),
+                      _run("research.v700.teach_judge", "train",
+                           "--out", "change-judge2")),
+             _model_check(LLM / "change-judge2", 400),
+             needs=("editor",), cost="nine hours", gpu=True),
+        Step("reader-code-edits", "the shared reader taught changes of the "
+                                  "project's code, as commits say them",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code20"),
+                          "--out", str(LLM / "reader-code23"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code"),
+             _model_check(LLM / "reader-code23", 80),
+             needs=("reader-code-python", "code-talk", "editor-corpus"),
              cost="twenty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------

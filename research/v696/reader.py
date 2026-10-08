@@ -137,7 +137,6 @@ class Reader:
             self.heads.parameters())
 
     def forward(self, pairs: list) -> dict:
-        torch = self.torch
         english = [one for one, _ in pairs]
         code = [two for _, two in pairs]
         batch = self.tokenizer(english, code, truncation="longest_first",
