@@ -96,6 +96,12 @@ def one(statement: str, path: str, finding: str, held, root: Path) -> dict:
     from research.v700 import fixing
     out = {"said": statement, "file": path}
     before = flakes(root / path)
+    findings = (finding,) if isinstance(finding, str) else finding
+    if not any(one in line for line in before for one in findings):
+        # fixed already (by the architecture, asked through the MCP): not a
+        # statement about this code any more
+        out["already so"] = True
+        return out
     found = reading.read(statement, known(held))
     out["read"] = None if found is None else {
         "act": found.act, "chance": round(found.chance, 3),
@@ -119,7 +125,6 @@ def one(statement: str, path: str, finding: str, held, root: Path) -> dict:
         out["tried"] = made.get("tried")
         return out
     after = flakes(root / path)
-    findings = (finding,) if isinstance(finding, str) else finding
     gone = not any(one in line for line in after for one in findings)
     new = [line for line in after if line not in before]
     out["finding gone"], out["new findings"] = gone, new
@@ -147,12 +152,14 @@ def main(argv=None) -> int:
             row["at"] = at
             rows.append(row)
             print(json.dumps(row, indent=1), flush=True)
-    right = sum("went wrong" not in row for row in rows)
+    rows_asked = [row for row in rows if not row.get("already so")]
+    right = sum("went wrong" not in row for row in rows_asked)
     wrong = {}
     for row in rows:
         if "went wrong" in row:
             wrong[row["went wrong"]] = wrong.get(row["went wrong"], 0) + 1
-    print(json.dumps({"right": right, "of": len(rows), "wrong": wrong}))
+    print(json.dumps({"right": right, "of": len(rows_asked), "wrong": wrong,
+                      "already so": len(rows) - len(rows_asked)}))
     if options.out:
         Path(options.out).write_text(json.dumps(rows, indent=1),
                                      encoding="utf-8")

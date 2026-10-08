@@ -27,10 +27,12 @@ from __future__ import annotations
 import difflib
 import re
 import time
+import zlib
 
 from research.v700 import teach_editor as T
 
 EDITOR = "editor"
+SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
 SAMPLES, ROUNDS = 6, 3
@@ -38,6 +40,8 @@ SAMPLES, ROUNDS = 6, 3
 #: refused; above it, the judge only weighs -- it gave removing an unused
 #: import alone 0.18, and the same with a docstring rewritten 0.70
 JUDGE_FLOOR = 0.1
+#: how many answers, written apart, must make a change for it to be written
+LEAST_AGREED = 2
 #: what the editor reads at most (`teach_editor.LONGEST_PART`), and the
 #: lines kept around what a statement names in what is longer
 LONGEST_PART, AROUND = T.LONGEST_PART, 8
@@ -375,8 +379,12 @@ def change(statement: str, held, subject, key=None) -> dict:
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
     for round_ in range(ROUNDS):
-        written_now = _editor().write([asked], samples=SAMPLES, longest=400,
-                                      greedy=round_ == 0)[0]
+        # each request sampled by a seed of its own and the round's, as the
+        # writers are (`sketcher.proposals`): asked again, the same answers
+        writer = _editor()
+        writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) + round_)
+        written_now = writer.write([asked], samples=SAMPLES, longest=400,
+                                   greedy=round_ == 0)[0]
         answers += written_now
         fresh = []
         for number, answer in enumerate(written_now):
@@ -482,6 +490,21 @@ def change(statement: str, held, subject, key=None) -> dict:
                 f"not do what you said -- nothing was written.")})
             out["seconds"] = round(time.time() - started, 2)
             return out
+    # a change one answer wrote is a guess: written into the file only
+    # where answers written apart agree on it (`_meets` was rewritten,
+    # its comparison with what it must give dropped, by 1 of 13)
+    agreed = [row for row in passed if row["agree"] >= LEAST_AGREED]
+    if not agreed:
+        best = max(passed, key=lambda one: one.get("judged", 0.0))
+        out["guess"] = diff(text, best["text"], path)
+        out.update({"status": "unsure", "said": (
+            f"I did not change {subject.name}: of {len(answers)} changes "
+            f"written, {len(passed)} pass the checks, and no two agree -- "
+            f"I do not write a guess into your file. The likeliest is "
+            f"under `guess`.")})
+        out["seconds"] = round(time.time() - started, 2)
+        return out
+    passed = agreed
     # how many answers wrote it, weighed by the judge's belief that it is
     # what was said: answers written apart agreeing is evidence the judge
     # does not have (it prefers changes with more in them); then the
