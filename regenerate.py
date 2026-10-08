@@ -1641,6 +1641,18 @@ def steps() -> list[Step]:
                           "--out", "editor"),
              _model_check(LLM / "editor", 600),
              needs=("editor-corpus",), cost="three hours", gpu=True),
+        Step("editor-faults", "the editor taught again: faults found in "
+                              "real code, fixed by construction, and "
+                              "commits of small changes in a function",
+             lambda: (_run("research.v700.teach_faults", "phrase"),
+                      _run("research.v700.teach_faults", "rows"),
+                      _run("research.v700.teach_editor", "mix"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor", "--out", "editor3",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "702", "--corpus", "edits-mix.jsonl")),
+             _model_check(LLM / "editor3", 600),
+             needs=("editor", "smollm3"), cost="two hours", gpu=True),
         Step("change-judge", "a judge of changes: does it do what was "
                              "said (research/v700/teach_judge.py)",
              lambda: (_run("research.v700.teach_editor", "train",

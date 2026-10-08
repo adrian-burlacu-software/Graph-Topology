@@ -31,7 +31,10 @@ import zlib
 
 from research.v700 import teach_editor as T
 
-EDITOR = "editor"
+#: the editor used: taught again on faults found in real code and commits
+#: of small changes inside a function (`teach_faults.py`, `mix`) -- the
+#: first editor's 80 of 160 held faults are 155 of 160
+EDITOR = "editor3"
 SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
@@ -353,9 +356,45 @@ def diff(before: str, after: str, path: str) -> str:
         _lines(before), _lines(after), f"a/{path}", f"b/{path}", n=2))
 
 
+#: passes made of one statement, while it names what no pass has changed
+#: (`delete both`: the editor makes one change at a time)
+PASSES = 4
+
+
 def change(statement: str, held, subject, key=None) -> dict:
-    """The change asked, made: what was tried, what was checked, what was
-    written."""
+    """The change asked, made -- again, on what it made, while the
+    statement names code no pass has changed yet, each pass changing some
+    of what is left; the passes kept as one change (`undo` puts all back)."""
+    first = _change_once(statement, held, subject, key)
+    if first["status"] != "changed":
+        return first
+    named = set(first.get("named", ()))
+    done = set(first.get("touched", ()))
+    passes = 1
+    while passes < PASSES and named - done:
+        more = _change_once(statement, held, subject, key,
+                            need=named - done)
+        if more["status"] != "changed":
+            break
+        done |= set(more.get("touched", ()))
+        passes += 1
+    if passes > 1:
+        made = MADE[key]
+        path, before, after = made[-passes][0], made[-passes][1],             made[-1][2]
+        del made[-passes:]
+        made.append((path, before, after))
+        first["diff"] = diff(before, after, path)
+        first["passes"] = passes
+        first["said"] += f" (in {passes} passes, one change at a time)"
+    first["touched"] = sorted(done)
+    return first
+
+
+def _change_once(statement: str, held, subject, key=None,
+                 need: set | None = None) -> dict:
+    """One change asked, made: what was tried, what was checked, what was
+    written. `need`: names it must change some of (what earlier passes
+    left)."""
     started = time.time()
     where = part_of(held, subject, statement)
     if where is None:
@@ -414,6 +453,10 @@ def change(statement: str, held, subject, key=None) -> dict:
                 seen[made] = row
                 fresh.append(row)
         for row in fresh:
+            if need and not set(row["touched"]) & need:
+                row["refused"] = ("it changes none of what is left "
+                                  f"({', '.join(sorted(need))})")
+                continue
             if named and not row["touched"]:
                 # a change of nothing the statement names is not the
                 # change it asks for, however well it compiles
@@ -477,7 +520,11 @@ def change(statement: str, held, subject, key=None) -> dict:
                                               for row in passed])
         for row, chance in zip(passed, chances):
             row["judged"] = round(chance, 3)
-            if chance < JUDGE_FLOOR:
+            # what most answers, written apart, make is not the judge's to
+            # refuse: it read removing an unused import that 7 of 7 wrote
+            # as not what was said (0.04)
+            most = row["agree"] * 2 > len(answers)
+            if chance < JUDGE_FLOOR and not most:
                 row["refused"] = (f"the judge reads it as not what was "
                                   f"said ({chance:.2f})")
         passed = [row for row in passed if "refused" not in row]
@@ -521,6 +568,7 @@ def change(statement: str, held, subject, key=None) -> dict:
     out.update({
         "status": "changed", "written": written, "diff": changed,
         "agree": best["agree"], "of": len(answers),
+        "touched": best["touched"],
         "said": (f"Changed "
                  f"{path if subject.kind == 'file' else subject.name + ' in ' + path}"
                  f" ({count} lines), "
