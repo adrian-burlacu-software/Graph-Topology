@@ -143,6 +143,56 @@ def _shown(value) -> str:
     return said if len(said) <= 40 else said[:37] + "..."
 
 
+# -- links between data ----------------------------------------------------------------
+
+#: how many of a field's values must be another collection's keys for it to
+#: name them, and how many values it must have
+LINKED, LEAST_LINKED = 0.8, 3
+
+
+def relations(models: list) -> list:
+    """Fields whose values are, nearly all, the keys of another collection
+    -- of the same file or another: what one record names of another."""
+    keys = []
+    for model in models:
+        if model.error:
+            continue
+        for path in model.collections:
+            records = model.records()[path]
+            # a collection's first key is what names its records: a field
+            # that only happens to differ (three tasks, three owners) is
+            # not what another names them by
+            for key in model.keys(path)[:1]:
+                found = {str(one.get(key)).lower() for one in records
+                         if isinstance(one, dict) and one.get(key) is not None}
+                keys.append((model.path, path, key, found))
+    out = []
+    for model in models:
+        if model.error:
+            continue
+        for path, collection in model.collections.items():
+            records = model.records()[path]
+            for name in collection["fields"]:
+                values = []
+                for one in records:
+                    held = one.get(name) if isinstance(one, dict) else None
+                    if isinstance(held, list):
+                        values += [str(item).lower() for item in held]
+                    elif held is not None and not isinstance(held, dict):
+                        values.append(str(held).lower())
+                if len(values) < LEAST_LINKED:
+                    continue
+                for file, other, key, found in keys:
+                    if (file, other, key) == (model.path, path, name):
+                        continue
+                    share = sum(one in found for one in values) / len(values)
+                    if share >= LINKED:
+                        out.append({"from": [model.path, path, name],
+                                    "to": [file, other, key],
+                                    "share": round(share, 3)})
+    return out
+
+
 # -- reading ------------------------------------------------------------------------
 
 def _typed(cells: list):

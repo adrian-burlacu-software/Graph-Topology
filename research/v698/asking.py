@@ -326,6 +326,12 @@ def _data_file(held, subject: Subject, aspect: str, text: str) -> dict:
     model = held.data().get(subject.file)
     said = model.said() if model is not None else \
         f"I hold no model of {subject.file}."
+    # and what it names of other data, and what names it
+    for link in held.relations():
+        if subject.file in (link["from"][0], link["to"][0]):
+            said += (f" {link['from'][1] or link['from'][0]}"
+                     f".{link['from'][2]} names {link['to'][0]}'s "
+                     f"{link['to'][1] or 'rows'} by {link['to'][2]}.")
     return _reply("data", text, said, {"model": model.json() if model
                                        else None}, name=subject.name)
 

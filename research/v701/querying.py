@@ -287,8 +287,11 @@ def _resolved(held, asked: Asked) -> dict | None:
             if model.error:
                 continue
             for path in model.places:
-                if any(path.startswith(f"{one}.") or path == one
-                       for one in model.collections if one):
+                # a CSV's columns are its rows' fields, not values of their
+                # own; nor is what a collection's records hold
+                if "" in model.collections or any(
+                        path.startswith(f"{one}.") or path == one
+                        for one in model.collections if one):
                     continue
                 parts = _parts(path)
                 if not parts or not _named(phrase, parts[-1]):
@@ -309,6 +312,10 @@ def carry(asked: Asked, held) -> Found | None:
     if not target:
         return None
     found = _resolved(held, asked)
+    if found is None:
+        joined = _joined(held, asked, target)
+        if joined is not None:
+            return joined
     if found is None or not found.get("also"):
         return _carried(asked, found, target)
     every = [_carried(asked, one, target) for one in [found] + found["also"]]
@@ -317,6 +324,55 @@ def carry(asked: Asked, held) -> Found | None:
     first.value = [one.value for one in every]
     first.looked["also"] = [one.file for one in every[1:]]
     return first
+
+
+def _joined(held, asked: Asked, target: str) -> Found | None:
+    """A question no one collection answers, answered across a link
+    (`Project.relations`): the records the question names, in one
+    collection -- found by the value it says -- and what they name of
+    another, which holds the field asked for (`what role does the owner of
+    t1 have`: the task t1, its owner, that user's role)."""
+    value = (asked.spans.get("VALUE") or [""])[0]
+    if not value:
+        return None
+    models = held.data()
+    # the link whose field the message says first (`the watchers of t1`)
+    links = sorted(held.relations(), key=lambda one: not any(
+        _named(word, one["from"][2]) for word in asked.words))
+    for link in links:
+        source, field_ = models[link["from"][0]], link["from"][2]
+        named, key = models[link["to"][0]], link["to"][2]
+        to_fields = named.collections[link["to"][1]]["fields"]
+        asked_field = next((one for one in to_fields
+                            if _named(target, str(one))), None)
+        if asked_field is None:
+            continue
+        records = source.records()[link["from"][1]]
+        fields = source.collections[link["from"][1]]["fields"]
+        by = _field_by_value(records, fields, "eq", _value(value))
+        if by is None:
+            continue
+        mine = [one for one in records if _holds(_field_of(one, by), "eq",
+                                                 _value(value))]
+        names = set()
+        for one in mine:
+            held_ = _field_of(one, field_)
+            names.update(str(item).lower() for item in (
+                held_ if isinstance(held_, list) else [held_])
+                if item is not None)
+        theirs = [one for one in named.records()[link["to"][1]]
+                  if str(_field_of(one, key)).lower() in names]
+        picked = [_field_of(one, asked_field) for one in theirs]
+        looked = {"target": target, "through": link,
+                  "filter": [by, "eq", _value(value)]}
+        group = link["from"][1] or link["from"][0]
+        said = (f"{_said_list(picked)}: the {asked_field} of the "
+                f"{field_} of the {_shown_name(link['from'][1], source)} in "
+                f"{source.path} whose {by} is {value} (by {named.path}'s "
+                f"{key}).")
+        return Found(said, picked[0] if len(picked) == 1 else picked,
+                     named.path, group, asked, looked)
+    return None
 
 
 def _carried(asked: Asked, found: dict | None, target: str) -> Found:

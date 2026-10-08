@@ -144,6 +144,41 @@ class QueryTests(unittest.TestCase):
         self.assertIn("nothing called shoe size", found.said)
 
 
+TASKS = ("tasks:\n  - id: t1\n    owner: adrian\n    watchers: [sam, reviewer]\n"
+         "  - id: t2\n    owner: sam\n    watchers: [adrian]\n"
+         "  - id: t3\n    owner: reviewer\n    watchers: []\n")
+
+
+class RelationTests(unittest.TestCase):
+    """Links between data, found in what it holds, and followed."""
+
+    @classmethod
+    def setUpClass(cls):
+        from research.v698.project import Project
+        cls.held = Project("t")
+        cls.held.put({"users.csv": USERS, "tasks.yaml": TASKS})
+
+    def test_links_to_a_collections_first_key(self):
+        self.assertEqual(
+            [(one["from"][2], one["to"][0], one["to"][2])
+             for one in self.held.relations()],
+            [("owner", "users.csv", "name"),
+             ("watchers", "users.csv", "name")])
+
+    def test_followed_the_link_the_message_says(self):
+        from research.v701.querying import Asked, carry
+        found = carry(Asked("value", 1.0, "eq", {"TARGET": ["role"],
+                                                 "VALUE": ["t1"]},
+                            "what role does the owner of t1 have".split()),
+                      self.held)
+        self.assertEqual(found.value, "owner")
+        found = carry(Asked("list", 1.0, "eq", {"TARGET": ["age"],
+                                                "VALUE": ["t1"]},
+                            "how old are the watchers of t1".split()),
+                      self.held)
+        self.assertEqual(sorted(found.value), [29, 35])
+
+
 class PastedTests(unittest.TestCase):
     """Data said in a message is found by parsing it, named by the name
     said beside it, and a request's examples are not data."""

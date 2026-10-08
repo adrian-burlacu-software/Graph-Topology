@@ -178,6 +178,15 @@ class Project:
                           if is_data(path)}
         return self._data
 
+    def relations(self) -> list:
+        """The links between its data: a field whose values are, nearly
+        all, another collection's keys (`tasks[].owner` naming `users.csv`'s
+        `name`) -- found in what they hold, in one file or across two.
+        [{from: (file, collection, field), to: (file, collection, key),
+        share}]."""
+        from research.v701 import datamodel
+        return datamodel.relations(list(self.data().values()))
+
     # -- what it is -------------------------------------------------------------
     def outline(self) -> dict:
         if self._outline is None:
