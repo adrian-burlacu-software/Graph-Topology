@@ -1685,7 +1685,7 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code23", 80),
              needs=("reader-code-python", "code-talk", "editor-corpus"),
              cost="twenty minutes", gpu=True),
-        Step("reader-data", "the shared reader taught questions about data "
+        Step("reader-data-talk", "the shared reader taught questions about data "
                             "(research/v701)",
              lambda: _run("research.v689.teach_reader", "train",
                           "--base", str(LLM / "reader-code23"),
