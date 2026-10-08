@@ -27,3 +27,6 @@ users:
   - name: reviewer
     role: reader
     projects: [graph-topology]
+  - name: sam
+    role: reader
+    projects: [graph-topology]
