@@ -33,8 +33,10 @@ from research.v700 import teach_editor as T
 
 #: the editor used: taught again on faults found in real code and commits
 #: of small changes inside a function (`teach_faults.py`, `mix`) -- the
-#: first editor's 80 of 160 held faults are 155 of 160
-EDITOR = "editor3"
+#: first editor's 80 of 160 held faults are 155 of 160 -- then on changes
+#: of data files (research/v701/teach_data_edits.py): held data edits 31
+#: of 181 right are 160, faults 153 of 160, small commits 12 -> 15 of 200
+EDITOR = "editor4"
 SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names

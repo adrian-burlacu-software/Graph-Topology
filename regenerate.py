@@ -1665,6 +1665,22 @@ def steps() -> list[Step]:
                            "--out", "change-judge2")),
              _model_check(LLM / "change-judge2", 400),
              needs=("editor",), cost="nine hours", gpu=True),
+        Step("editor-data", "the editor taught again: values set, records "
+                            "added and removed in real data files, made by "
+                            "construction, and data files' commits "
+                            "(research/v701/teach_data_edits.py)",
+             lambda: (_run("research.v701.teach_data_edits", "phrase"),
+                      _run("research.v701.teach_data_edits", "rows"),
+                      _run("research.v701.teach_data_edits", "commits"),
+                      _run("research.v701.teach_data_edits", "mix"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor3", "--out", "editor4",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "703",
+                           "--corpus", "edits-mix-data.jsonl")),
+             _model_check(LLM / "editor4", 600),
+             needs=("editor-faults", "smollm3"), cost="ninety minutes",
+             gpu=True),
         # v701: questions about data, read by the shared reader
         Step("data-talk", "questions about data files, from real files' "
                           "schemas, said again by SmolLM3 (research/v701)",
