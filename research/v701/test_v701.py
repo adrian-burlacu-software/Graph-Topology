@@ -225,6 +225,30 @@ class DataChangeTests(unittest.TestCase):
             "    projects: [x]\n  - name: reviewer")))
 
 
+class RecordsKeptTests(unittest.TestCase):
+    """A change of data keeps its records records: no field left out, no
+    column's cells moved, no key said twice."""
+
+    CSV = "name,age,city\nadrian,34,Toronto\nlee,41,Vancouver\n"
+
+    def test_a_row_a_cell_short(self):
+        from research.v700.fixing import data_wrong
+        self.assertIn("string", data_wrong(
+            "p.csv", self.CSV, self.CSV + "31,Ottawa\n"))
+        self.assertIsNone(data_wrong("p.csv", self.CSV,
+                                     self.CSV + "nia,31,Ottawa\n"))
+
+    def test_a_key_said_twice(self):
+        from research.v700.fixing import data_wrong
+        self.assertIn("repeats", data_wrong(
+            "p.csv", self.CSV, self.CSV + "lee,31,Ottawa\n"))
+        users = "users:\n  - name: a\n    role: x\n  - name: b\n    role: y\n"
+        self.assertIn("repeats", data_wrong(
+            "s.yaml", users, users + "  - name: b\n    role: x\n"))
+        self.assertIn("without role", data_wrong(
+            "s.yaml", users, users + "  - name: c\n"))
+
+
 class PlacingTests(unittest.TestCase):
     """A change of a data file is given the editor by the block the
     statement is of, as its changes were taught."""

@@ -295,6 +295,45 @@ def data_wrong(path: str, before: str, after: str) -> str | None:
                      and "[]" not in place), None)
         if twin is not None:
             return f"it puts in {place}, which the file has as {twin}"
+    # its records stay records of what they were: a field each had, each
+    # has (`31,stark-db,Ottawa` under `name,age,team,city` has no city),
+    # and what told them apart still does (a second `sam`, not sam changed)
+    for collection, found in old.collections.items():
+        now = new.collections.get(collection)
+        if now is None or not now["count"]:
+            continue
+        def place_of(field: str) -> str:
+            return f"{collection}.{field}" if collection else field
+        group = collection or "the rows"
+        for field in found["fields"]:
+            had, has = old.places.get(place_of(field)), \
+                new.places.get(place_of(field))
+            if had is None or has is None or had.count != found["count"]:
+                continue
+            # a cell left empty is a field without a value, and a column
+            # whose kind changes is one whose cells moved (a CSV's row a
+            # cell short: its ages read as text)
+            if has.count < now["count"] or ("null" in has.types and
+                                             "null" not in had.types):
+                return (f"it leaves a record of {group} without {field}, "
+                        f"which every one had")
+            if len(had.types) == 1 and set(has.types) != set(had.types):
+                return (f"it makes {field} of {group} "
+                        f"{'/'.join(sorted(has.types))}, where every one "
+                        f"was {next(iter(had.types))}")
+        # what tells records apart: their key -- or, too few to know one,
+        # their first field where it differs in each (`name`)
+        keys = old.keys(collection)
+        first = old.places.get(place_of(found["fields"][0])) \
+            if found["fields"] else None
+        if not keys and first is not None and found["count"] >= 2 and \
+                first.count == found["count"] == len(first.distinct):
+            keys = [found["fields"][0]]
+        for key in keys:
+            has = new.places.get(place_of(key))
+            if has is not None and len(has.distinct) < has.count:
+                return (f"it repeats a {key} of {group}, which told each "
+                        f"apart")
     return None
 
 
