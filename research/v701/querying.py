@@ -34,6 +34,8 @@ class Asked:
     op: str
     spans: dict
     words: list
+    #: the words naming the project's data, as told to the reader
+    known: list = field(default_factory=list)
 
 
 @dataclass
@@ -104,7 +106,8 @@ def read(text: str, names=()) -> Asked | None:
         else:
             current = None
     return Asked(act, chance, op, {name: [" ".join(one) for one in found]
-                                   for name, found in spans.items()}, said)
+                                   for name, found in spans.items()}, said,
+                 [word for word, tag in zip(said, tags) if tag])
 
 
 # -- the words, looked up in the schema --------------------------------------------
@@ -201,8 +204,18 @@ def answer(text: str, held) -> Found | None:
     if held is None or not held.data():
         return None
     asked = read(text, known(held))
-    if asked is None or asked.act == "none" or asked.chance < FLOOR:
+    if asked is None:
         return None
+    if asked.act == "none" or asked.chance < FLOOR:
+        # the act read as no question of data, the roles as one: a field
+        # asked for, among words naming the project's data -- where what it
+        # names is there, a value asked (`which port does the server
+        # listen on`: none 0.7, `port` the field asked, `server` there too)
+        if not (asked.spans.get("TARGET") and len(asked.known) >= 2):
+            return None
+        asked.act = "value"
+        found = carry(asked, held)
+        return found if found is not None and found.place else None
     return carry(asked, held)
 
 
@@ -302,7 +315,7 @@ def _resolved(held, asked: Asked) -> dict | None:
     # a value outside any collection: each word marked tried as its own
     # name, the rest of the message naming the places around it
     found, fit = None, (0, 0)
-    for phrase in [one for one in (target, field_) if one]:
+    for phrase in [one for one in (target, field_) if one] or asked.known:
         for model in held.data().values():
             if model.error:
                 continue
@@ -335,12 +348,53 @@ def _resolved(held, asked: Asked) -> dict | None:
     return {"model": model, "place": path}
 
 
+def _sorted_out(held, spans: dict) -> dict:
+    """The fields and values read, as the data has them: a "field" that is
+    a file's name is the file asked of, not a field (`how many commands
+    does package.json contribute`); a "value" that is a place's name and
+    no value the data holds is a place word (`contribute`)."""
+    files = set()
+    for model in held.data().values():
+        base = model.path.rsplit("/", 1)[-1].lower()
+        files.update({base, base.rsplit(".", 1)[0]})
+    names = known(held) - files
+
+    def held_somewhere(phrase: str) -> bool:
+        for model in held.data().values():
+            for place in model.places.values():
+                if any(_same(one, phrase) for one in place.distinct):
+                    return True
+                if any(_same(one, phrase) for one in place.examples):
+                    return True
+        return False
+    out = dict(spans)
+    if out.get("FIELD"):
+        out["FIELD"] = [one for one in out["FIELD"]
+                        if one.lower() not in files]
+    if out.get("VALUE"):
+        out["VALUE"] = [one for one in out["VALUE"]
+                        if not ((one.lower() in names or
+                                 _one(one.lower()) in names or any(
+                                     _one(name) == _one(one.lower())
+                                     for name in names))
+                                and not held_somewhere(one))]
+    return {name: found for name, found in out.items() if found}
+
+
 def carry(asked: Asked, held) -> Found | None:
     """What was read, looked up and carried out over the data -- of every
     collection that fits it as well as the best, each said."""
     target = (asked.spans.get("TARGET") or [""])[0]
+    if not target and asked.act == "value" and asked.known:
+        # no field marked, but words naming the project's data: the last
+        # of them is what is asked of (`is the teacher offline`), the others
+        # where it is -- as code talk's one known word stands for its
+        # subject when none is marked
+        target = asked.known[-1]
+        asked.spans = {**asked.spans, "TARGET": [target]}
     if not target:
         return None
+    asked.spans = _sorted_out(held, asked.spans)
     found = _resolved(held, asked)
     if found is None:
         joined = _joined(held, asked, target)

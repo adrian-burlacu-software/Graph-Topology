@@ -1669,6 +1669,7 @@ def steps() -> list[Step]:
         Step("data-talk", "questions about data files, from real files' "
                           "schemas, said again by SmolLM3 (research/v701)",
              lambda: (_run("research.v701.teach_data_talk", "seeds"),
+                      _run("research.v701.teach_data_talk", "more"),
                       _run("research.v701.teach_data_talk", "write"),
                       _run("research.v701.teach_data_talk", "corpus")),
              _lines_check(LLM / "data-talk-data" / "train-data.jsonl", 5000,
@@ -1687,13 +1688,17 @@ def steps() -> list[Step]:
              cost="twenty minutes", gpu=True),
         Step("reader-data-talk", "the shared reader taught questions about data "
                             "(research/v701)",
+             # the shipped reader-code26 was taught in three rounds
+             # (reader-code24, -25, -26: the questions the one before read
+             # wrong live, then the data's names told beside each word);
+             # rebuilt, the last corpus is taught at once
              lambda: _run("research.v689.teach_reader", "train",
                           "--base", str(LLM / "reader-code23"),
-                          "--out", str(LLM / "reader-code24"),
-                          "--epochs", "2", "--subject", "math",
+                          "--out", str(LLM / "reader-code26"),
+                          "--epochs", "4", "--subject", "math",
                           "--subject", "design", "--subject", "code",
                           "--subject", "data"),
-             _model_check(LLM / "reader-code24", 80),
+             _model_check(LLM / "reader-code26", 80),
              needs=("reader-code-edits", "data-talk"),
              cost="twenty-five minutes", gpu=True),
 
