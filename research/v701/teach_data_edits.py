@@ -37,9 +37,9 @@ SEED = 701
 MOST = {"set": 2500, "add": 2000, "remove": 1500}
 
 SEEDS = {
-    "set": ("set the timeout_seconds of the server in service.yaml to 120",
-            {"timeout_seconds": "{x}", "server": "{p}",
-             "service.yaml": "{f}", "120": "{v}"}),
+    "set": ("set the max_retries of the uploader in jobs.yaml to 7",
+            {"max_retries": "{x}", "uploader": "{p}", "jobs.yaml": "{f}",
+             "7": "{v}"}),
     "add": ("add a gateway with region eu-west and port 7443 to "
             "gateways.yaml",
             {"gateway": "{g}", "region": "{x}", "eu-west": "{v}",
@@ -48,7 +48,7 @@ SEEDS = {
                {"gateway": "{g}", "eu-west": "{v}",
                 "gateways.yaml": "{f}"}),
 }
-STORY = ("gateway", "region", "service", "server", "timeout")
+STORY = ("gateway", "region", "uploader", "retries", "jobs")
 
 
 def phrase(samples: int = 3) -> None:
@@ -212,13 +212,11 @@ def _add_remove(model, kind: str, lines: list, pool: list, rng):
             continue
         if kind == "yaml":
             items = _yaml_items(lines, path)
-            if len(items) != len(records):
-                continue
         else:
             items = [(at, at + 1) for at in range(1, len(lines))
                      if lines[at].strip()]
-            if len(items) != len(records):
-                continue
+        if not items or len(items) != len(records):
+            continue
         if rng.random() < 0.55:
             # add: the last record's lines, its values new
             first, end = items[-1]
