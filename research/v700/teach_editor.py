@@ -70,10 +70,13 @@ SOURCE = "https://huggingface.co/datasets/bigcode/commitpackft/resolve/main/" \
 
 
 def fetch() -> None:
-    """CommitPackFT's Python and TypeScript commits, as published."""
+    """CommitPackFT's Python, TypeScript, JSON, YAML and CSV commits, as
+    published."""
     import urllib.request
     DATA.mkdir(parents=True, exist_ok=True)
-    for name in ("python", "typescript"):
+    # and its data files' commits (v701): real JSON, YAML and CSV files,
+    # what questions about data are made from
+    for name in ("python", "typescript", "json", "yaml", "csv"):
         path = DATA / f"{name}.jsonl"
         if not path.exists():
             urllib.request.urlretrieve(SOURCE.format(name), path)
@@ -188,7 +191,9 @@ def row_of(record: dict) -> dict | None:
         return None
     path = record["old_file"]
     python = path.endswith(".py")
-    if not python and not re.search(r"\.(ts|tsx)$", path):
+    # and a data file's commits (v701): changed as text, the lines around
+    data = bool(re.search(r"\.(json|ya?ml|csv|tsv)$", path, re.I))
+    if not python and not data and not re.search(r"\.(ts|tsx)$", path):
         return None
     a, b = _lines(old), _lines(new)
     matcher = difflib.SequenceMatcher(None, a, b, autojunk=False)
@@ -215,7 +220,8 @@ def row_of(record: dict) -> dict | None:
     if applied(shown, said(blocks)) is None:
         return None
     return {"commit": record["commit"], "split": split_of(record["commit"]),
-            "language": "python" if python else "typescript",
+            "language": "python" if python else (
+                path.rsplit(".", 1)[-1].lower() if data else "typescript"),
             "statement": message, "path": path, "part": shown,
             "start": part[0] + 1, "target": said(blocks)}
 

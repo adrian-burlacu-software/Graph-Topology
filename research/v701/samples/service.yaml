@@ -1,0 +1,29 @@
+# The page and the reader, as a deployment would run them.
+name: graph-topology
+version: 0.7.0
+server:
+  host: 127.0.0.1
+  port: 9000
+  workers: 19
+  timeout_seconds: 900
+models:
+  reader: llm/reader-code23
+  editor: llm/editor3
+  judge: llm/change-judge2
+  teacher:
+    path: llm/SmolLM3-3B
+    offline: true
+languages:
+  - typescript
+  - python
+limits:
+  largest_body_bytes: 40000000
+  project_files: 2000
+  project_bytes: 30000000
+users:
+  - name: adrian
+    role: owner
+    projects: [graph-topology, stark-db]
+  - name: sam
+    role: owner
+    projects: [graph-topology]

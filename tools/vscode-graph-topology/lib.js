@@ -55,7 +55,8 @@ function relative(folderPath, filePath) {
     ? file.slice(folder.length + 1) : file;
 }
 
-const READ = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$/i;
+// code, and data (v701): read as what it holds and its schema
+const READ = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py|json|ya?ml|csv|tsv)$/i;
 
 /** Whether a file is one the project is read from (for a save). */
 function isRead(path, excluded) {

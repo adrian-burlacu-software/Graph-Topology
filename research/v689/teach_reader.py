@@ -97,7 +97,9 @@ MATH_DATA = LLM / "math-data"
 #: for (`--subject math`): the shipped readers were taught without them,
 #: and a rebuild of one must not quietly learn a subject it never had.
 SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data",
-                "code": LLM / "code-talk-data"}
+                "code": LLM / "code-talk-data",
+                # questions about data (`research/v701/teach_data_talk.py`)
+                "data": LLM / "data-talk-data"}
 SUBJECTS: list = []
 
 
@@ -561,7 +563,8 @@ HEAD_KINDS = {
     "stance": "sentence", "part": "word",
     "math_act": "sentence", "math_role": "word", "math_symbol": "word",
     "code_act": "sentence", "code_aspect": "sentence",
-    "code_subject": "sentence", "code_role": "word"}
+    "code_subject": "sentence", "code_role": "word",
+    "data_act": "sentence", "data_op": "sentence", "data_role": "word"}
 
 #: Which field of a record each head is taught from, for each reader. A
 #: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
@@ -583,7 +586,10 @@ FIELDS = {
     # its words name that -- or, teaching, the concept and its members
     # (`research/v698/teach_code_talk.py`).
     "code": {"code_act": "act", "code_aspect": "aspect",
-             "code_subject": "subject", "code_role": "roles"}}
+             "code_subject": "subject", "code_role": "roles"},
+    # What a question about data asks, the filter's comparison, and which
+    # words name the fields and the value (`research/v701`).
+    "data": {"data_act": "act", "data_op": "op", "data_role": "roles"}}
 
 
 def task_of(record: dict) -> str:
@@ -2669,7 +2675,7 @@ def claims(store: str) -> None:
 #: differently. The older readers keep close to the shares they were
 #: taught at.
 SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
-          "reply": 0.08, "math": 0.12, "code": 0.12}
+          "reply": 0.08, "math": 0.12, "code": 0.12, "data": 0.08}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2690,6 +2696,8 @@ def taught_as(record: dict) -> tuple:
         return task, record["act"]
     if task == "code":
         return task, record["act"], record["aspect"], record["subject"]
+    if task == "data":
+        return task, record["act"], record["op"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
             and record.get("order") == sorted(record.get("order", ())))
@@ -2768,6 +2776,13 @@ def labels(rows=()) -> dict:
                                                    SUBJECTS)
         said.update(code_act=list(CODE_ACTS), code_aspect=list(ASPECTS),
                     code_subject=list(SUBJECTS), code_role=list(CODE_ROLES))
+    if any(task_of(row) == "data" for row in rows):
+        # Questions about data (`research/v701/teach_data_talk.py`).
+        from research.v701.teach_data_talk import (ACTS as DATA_ACTS,
+                                                   OPS as DATA_OPS,
+                                                   ROLES as DATA_ROLES)
+        said.update(data_act=list(DATA_ACTS), data_op=list(DATA_OPS),
+                    data_role=list(DATA_ROLES))
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}

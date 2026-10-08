@@ -1665,6 +1665,33 @@ def steps() -> list[Step]:
                            "--out", "change-judge2")),
              _model_check(LLM / "change-judge2", 400),
              needs=("editor",), cost="nine hours", gpu=True),
+        Step("editor-data", "the editor taught again: values set, records "
+                            "added and removed in real data files, made by "
+                            "construction, and data files' commits "
+                            "(research/v701/teach_data_edits.py)",
+             lambda: (_run("research.v701.teach_data_edits", "phrase"),
+                      _run("research.v701.teach_data_edits", "rows"),
+                      _run("research.v701.teach_data_edits", "commits"),
+                      _run("research.v701.teach_data_edits", "mix"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor3", "--out", "editor4",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "703",
+                           "--corpus", "edits-mix-data.jsonl")),
+             _model_check(LLM / "editor4", 600),
+             needs=("editor-faults", "smollm3"), cost="ninety minutes",
+             gpu=True),
+        # v701: questions about data, read by the shared reader
+        Step("data-talk", "questions about data files, from real files' "
+                          "schemas, said again by SmolLM3 (research/v701)",
+             lambda: (_run("research.v701.teach_data_talk", "seeds"),
+                      _run("research.v701.teach_data_talk", "more"),
+                      _run("research.v701.teach_data_talk", "write"),
+                      _run("research.v701.teach_data_talk", "corpus")),
+             _lines_check(LLM / "data-talk-data" / "train-data.jsonl", 5000,
+                          "as made"),
+             needs=("commitpackft", "smollm3", "code-talk"),
+             cost="two hours", gpu=True),
         Step("reader-code-edits", "the shared reader taught changes of the "
                                   "project's code, as commits say them",
              lambda: _run("research.v689.teach_reader", "train",
@@ -1675,6 +1702,63 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code23", 80),
              needs=("reader-code-python", "code-talk", "editor-corpus"),
              cost="twenty minutes", gpu=True),
+        Step("reader-data-talk", "the shared reader taught questions about data "
+                            "(research/v701)",
+             # the shipped reader-code26 was taught in three rounds
+             # (reader-code24, -25, -26: the questions the one before read
+             # wrong live, then the data's names told beside each word);
+             # rebuilt, the last corpus is taught at once
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code23"),
+                          "--out", str(LLM / "reader-code26"),
+                          "--epochs", "4", "--subject", "math",
+                          "--subject", "design", "--subject", "code",
+                          "--subject", "data"),
+             _model_check(LLM / "reader-code26", 80),
+             needs=("reader-code-edits", "data-talk"),
+             cost="twenty-five minutes", gpu=True),
+        Step("editor-data-more", "the editor taught again: a record's field "
+                                 "set, said by the teacher and checked by "
+                                 "it (research/v701/teach_data_edits.py)",
+             lambda: (_run("research.v701.teach_data_edits", "phrase-more"),
+                      _run("research.v701.teach_data_edits", "rows-more"),
+                      _run("research.v701.teach_data_edits", "mix-more"),
+                      _run("research.v700.teach_editor", "train",
+                           "--base", "editor4", "--out", "editor5",
+                           "--epochs", "1", "--rate", "5e-5",
+                           "--seed", "704",
+                           "--corpus", "edits-mix-data2.jsonl")),
+             _model_check(LLM / "editor5", 600),
+             needs=("editor-data", "smollm3"), cost="fifty minutes",
+             gpu=True),
+        Step("reader-data-edits", "the shared reader taught changes of data "
+                                  "files as changes (research/v701)",
+             lambda: (_run("research.v698.teach_code_talk", "corpus"),
+                      _run("research.v701.teach_data_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code26"),
+                           "--out", str(LLM / "reader-code27"),
+                           "--epochs", "2", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data")),
+             _model_check(LLM / "reader-code27", 80),
+             needs=("reader-data-talk", "editor-data-more"),
+             cost="twenty minutes", gpu=True),
+        Step("reader-data-more", "the shared reader taught counts whose "
+                                 "field goes unsaid and the record with the "
+                                 "most of a field (research/v701)",
+             lambda: (_run("research.v701.teach_data_talk", "more2"),
+                      _run("research.v701.teach_data_talk", "write"),
+                      _run("research.v701.teach_data_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code27"),
+                           "--out", str(LLM / "reader-code28"),
+                           "--epochs", "2", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data")),
+             _model_check(LLM / "reader-code28", 80),
+             needs=("reader-data-edits", "smollm3"),
+             cost="forty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

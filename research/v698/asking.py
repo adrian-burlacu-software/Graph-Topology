@@ -301,7 +301,12 @@ def answered_read(reading, text: str, held, space, turn: int,
 def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
           key) -> dict:
     """An aspect of a subject, answered -- however it was read."""
-    if aspect not in CAN[subject.kind] or aspect == "capabilities":
+    from research.v698 import project as Pj
+    if subject.kind == "file" and held is not None and \
+            Pj.is_data(subject.file or ""):
+        # a data file (v701): what it holds and its schema, from its model
+        found = _data_file(held, subject, aspect, text)
+    elif aspect not in CAN[subject.kind] or aspect == "capabilities":
         found = _capabilities(held, space, subject, aspect, text)
     elif subject.kind == "code":
         found = _code(held, space, subject, aspect, text)
@@ -312,6 +317,23 @@ def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
     found["code"]["subject"] = {"kind": subject.kind, "name": subject.name,
                                 "file": subject.file, "aspect": aspect}
     return found
+
+
+def _data_file(held, subject: Subject, aspect: str, text: str) -> dict:
+    """A data file asked about: its schema said -- what it holds, its
+    records and their keys -- whatever was asked of it (v701: what a data
+    file can be asked is still to be taught)."""
+    model = held.data().get(subject.file)
+    said = model.said() if model is not None else \
+        f"I hold no model of {subject.file}."
+    # and what it names of other data, and what names it
+    for link in held.relations():
+        if subject.file in (link["from"][0], link["to"][0]):
+            said += (f" {link['from'][1] or link['from'][0]}"
+                     f".{link['from'][2]} names {link['to'][0]}'s "
+                     f"{link['to'][1] or 'rows'} by {link['to'][2]}.")
+    return _reply("data", text, said, {"model": model.json() if model
+                                       else None}, name=subject.name)
 
 
 def _suggest(held, subject: Subject, aspect: str) -> list:

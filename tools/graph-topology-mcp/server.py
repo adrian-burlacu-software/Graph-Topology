@@ -27,7 +27,9 @@ NAME = "graph-topology"
 VERSION = "0.1.0"
 #: a request for code may take minutes: writers, then search
 LONG = 15 * 60
-READ = re.compile(r"\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$", re.I)
+#: code, and data (v701: read as what it holds and its schema)
+READ = re.compile(r"\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py|json|ya?ml|csv|tsv)$",
+                  re.I)
 SKIPPED = ("node_modules/", "dist/", "build/", "out/", ".git/",
            "__pycache__/", ".venv/", "venv/", "site-packages/")
 
@@ -245,7 +247,7 @@ def _files(paths) -> dict:
 def t_send_project(args: dict) -> dict:
     files = _files(args.get("paths") or ["."])
     if not files:
-        raise RuntimeError("no .py/.ts/.js files under those paths")
+        raise RuntimeError("no code or data files under those paths")
     sid, name = _sid(args.get("sid")), args.get("name") or ROOT.name
     # the root: where the files are, so that a change asked is made there
     found = _call("/api/project", {"sid": sid, "files": files, "name": name,

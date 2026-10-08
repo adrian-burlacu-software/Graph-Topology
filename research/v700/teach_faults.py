@@ -105,8 +105,11 @@ STORY = ("invoice", "payment", "gateway")
 def _clean(phrase: str) -> str | None:
     """A phrase as a programmer types it: the teacher's labels (`casual:`)
     and quoting taken off; none where it drifted into the seed's story."""
-    said = re.sub(r"^\s*(casual|terse|short|long|formal|fault first|fix "
-                  r"first|just the fix)\s*[:\-]\s*", "", phrase, flags=re.I)
+    # one label or several (`casual and terse:`, `short, long:`)
+    label = (r"(casual|terse|short|long|formal|compact|brief|concise|"
+             r"fault first|fix first|just the fix)")
+    said = re.sub(r"^\s*" + label + r"(\s*(,|and|&)\s*" + label + r")*"
+                  r"\s*[:\-]\s*", "", phrase, flags=re.I)
     said = said.strip().strip("`\"'“” ").strip()
     if any(word in said.lower() for word in STORY) or len(said) < 8:
         return None

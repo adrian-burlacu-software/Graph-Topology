@@ -33,8 +33,12 @@ from research.v700 import teach_editor as T
 
 #: the editor used: taught again on faults found in real code and commits
 #: of small changes inside a function (`teach_faults.py`, `mix`) -- the
-#: first editor's 80 of 160 held faults are 155 of 160
-EDITOR = "editor3"
+#: first editor's 80 of 160 held faults are 155 of 160 -- then on changes
+#: of data files (research/v701/teach_data_edits.py): held data edits 31
+#: of 181 right are 160, faults 153 of 160, small commits 12 -> 15 of 200;
+#: then on a record's field set (`rows-more`): held 21 of 71 are 62, data
+#: edits 163, faults 150, small commits 17
+EDITOR = "editor5"
 SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
@@ -70,6 +74,15 @@ def part_of(held, subject, statement: str = "") -> tuple | None:
     if found is None:
         return None
     start, end = found
+    from research.v698.project import is_data
+    if subject.kind == "file" and is_data(subject.file):
+        # a data file: the block the statement is of, as the editor was
+        # taught its changes, never the file whole (v701 `placing`)
+        from research.v701 import placing
+        placed_ = placing.window(held.files[subject.file], statement,
+                                 AROUND, LONGEST_PART)
+        if placed_ is not None:
+            return (subject.file, *placed_)
     lines = held.files[subject.file].splitlines()
     if end - start + 1 > LONGEST_PART:
         found = window(lines, start, end, statement, subject.file)
@@ -266,6 +279,66 @@ def _flakes(path: str, text: str) -> list:
     return said
 
 
+def data_wrong(path: str, before: str, after: str) -> str | None:
+    """Why a change of a data file is not one, or None: it must still read
+    as what it is, and put in no place whose name the file already has
+    elsewhere (`server.server.port` beside `server.port`: what was meant
+    is said twice)."""
+    from research.v701 import datamodel
+    old, new = datamodel.read(path, before), datamodel.read(path, after)
+    if new.error and not old.error:
+        return f"the file no longer reads as {new.format}: {new.error}"
+    added = [one for one in new.places if one not in old.places]
+    for place in added:
+        own = place.rsplit(".", 1)[-1]
+        twin = next((one for one in old.places if one != place
+                     and one.rsplit(".", 1)[-1] == own
+                     and not place.startswith(f"{one}.")
+                     and "[]" not in place), None)
+        if twin is not None:
+            return f"it puts in {place}, which the file has as {twin}"
+    # its records stay records of what they were: a field each had, each
+    # has (`31,stark-db,Ottawa` under `name,age,team,city` has no city),
+    # and what told them apart still does (a second `sam`, not sam changed)
+    for collection, found in old.collections.items():
+        now = new.collections.get(collection)
+        if now is None or not now["count"]:
+            continue
+        def place_of(field: str) -> str:
+            return f"{collection}.{field}" if collection else field
+        group = collection or "the rows"
+        for field in found["fields"]:
+            had, has = old.places.get(place_of(field)), \
+                new.places.get(place_of(field))
+            if had is None or has is None or had.count != found["count"]:
+                continue
+            # a cell left empty is a field without a value, and a column
+            # whose kind changes is one whose cells moved (a CSV's row a
+            # cell short: its ages read as text)
+            if has.count < now["count"] or ("null" in has.types and
+                                             "null" not in had.types):
+                return (f"it leaves a record of {group} without {field}, "
+                        f"which every one had")
+            if len(had.types) == 1 and set(has.types) != set(had.types):
+                return (f"it makes {field} of {group} "
+                        f"{'/'.join(sorted(has.types))}, where every one "
+                        f"was {next(iter(had.types))}")
+        # what tells records apart: their key -- or, too few to know one,
+        # their first field where it differs in each (`name`)
+        keys = old.keys(collection)
+        first = old.places.get(place_of(found["fields"][0])) \
+            if found["fields"] else None
+        if not keys and first is not None and found["count"] >= 2 and \
+                first.count == found["count"] == len(first.distinct):
+            keys = [found["fields"][0]]
+        for key in keys:
+            has = new.places.get(place_of(key))
+            if has is not None and len(has.distinct) < has.count:
+                return (f"it repeats a {key} of {group}, which told each "
+                        f"apart")
+    return None
+
+
 def _unfound_imports(held, before: str, after: str, path: str) -> list:
     """Modules of the project's own packages a change imports that the
     project has no file for (`research.v696.checker.field`)."""
@@ -338,6 +411,22 @@ def said_names(statement: str, text: str, path: str, start: int, end: int,
             if one in code and one not in own}
 
 
+def _outside(block: tuple, start: int, part: str, made: str) -> bool:
+    """Whether a change of a data file takes out or puts in lines outside
+    the block the statement is of (`placing.block`, 0-based): a record
+    added after its last line is in it."""
+    matcher = difflib.SequenceMatcher(None, _lines(part), _lines(made),
+                                      autojunk=False)
+    for tag, i1, i2, _j1, _j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        first, end = start - 1 + i1, start - 1 + i2
+        if first < block[0] or end > block[1] + 1 or \
+                (tag != "insert" and first > block[1]):
+            return True
+    return False
+
+
 def _changed_names(part: str, made: str) -> set:
     """The names on the lines a change takes out or puts in."""
     out = set()
@@ -371,7 +460,11 @@ def change(statement: str, held, subject, key=None) -> dict:
     named = set(first.get("named", ()))
     done = set(first.get("touched", ()))
     passes = 1
-    while passes < PASSES and named - done:
+    from research.v698.project import is_data
+    # a data file's names are its keys, every one of them a word the
+    # statement may say: one change, as asked (a second pass put in
+    # `server.server.port`)
+    while passes < PASSES and named - done and not is_data(first["file"]):
         more = _change_once(statement, held, subject, key,
                             need=named - done)
         if more["status"] != "changed":
@@ -449,14 +542,25 @@ def _change_once(statement: str, held, subject, key=None,
     lines = _lines(text)
     part = "".join(lines[start - 1:end])
     asked = T.prompt(statement, path, part)
+    from research.v698.project import is_data
+    data = is_data(path)
     try:
-        before = _diagnosed(held, path, text)
+        # a data file (v701) has no compiler: it is checked as data
+        before = [] if data else _diagnosed(held, path, text)
     except Unchecked as bad:
         return {"status": "unchecked", "subject": subject.name,
                 "said": (f"I did not change {subject.name}: the compiler "
                          f"cannot check the project ({bad}), and I do not "
                          f"write what I cannot check.")}
-    named = said_names(statement, text, path, start, end, subject)
+    # what a data file's change must be in: the block the statement says
+    # (v701 `placing`) -- what its words name is told by where, not by the
+    # names on the lines changed (`go` added under `languages`)
+    block = None
+    if data:
+        from research.v701 import placing
+        block = placing.block(text.splitlines(), statement)
+    named = set() if data else said_names(statement, text, path, start,
+                                          end, subject)
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
     for round_ in range(ROUNDS):
@@ -504,6 +608,19 @@ def _change_once(statement: str, held, subject, key=None,
                 # change it asks for, however well it compiles
                 row["refused"] = ("it changes nothing the statement names "
                                   f"({', '.join(sorted(named))})")
+                continue
+            if data:
+                if block is not None and _outside(block, start, part,
+                                                  row["made"]):
+                    row["refused"] = ("it changes lines outside what the "
+                                      f"statement is of (lines {block[0] + 1}"
+                                      f"-{block[1] + 1})")
+                    continue
+                wrong = data_wrong(path, text, row["text"])
+                if wrong:
+                    row["refused"] = wrong
+                    continue
+                passed.append(row)
                 continue
             if not _reads(path, row["text"]):
                 row["refused"] = "the file no longer reads"
@@ -575,7 +692,8 @@ def _change_once(statement: str, held, subject, key=None,
         if not passed:
             out.update({"status": "unchanged", "said": (
                 f"I could not change {subject.name} as asked: of "
-                f"{len(answers)} changes written, those that compile do "
+                f"{len(answers)} changes written, those that "
+                f"{'still read as data' if data else 'compile'} do "
                 f"not do what you said -- nothing was written.")})
             out["seconds"] = round(time.time() - started, 2)
             return out
@@ -615,8 +733,10 @@ def _change_once(statement: str, held, subject, key=None,
                  f"{path if subject.kind == 'file' else subject.name + ' in ' + path}"
                  f" ({count} lines), "
                  f"{where_}. {best['agree']} of {len(answers)} changes "
-                 f"written agree on it, and the compiler finds nothing "
-                 f"more wrong with the file.")})
+                 f"written agree on it, and "
+                 + ("it still reads as data and repeats no place it has."
+                    if data else "the compiler finds nothing more wrong "
+                    "with the file."))})
     out["seconds"] = round(time.time() - started, 2)
     return out
 
