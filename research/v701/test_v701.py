@@ -116,6 +116,34 @@ class QueryTests(unittest.TestCase):
         self.assertIn("nothing called shoe size", found.said)
 
 
+class PastedTests(unittest.TestCase):
+    """Data said in a message is found by parsing it, named by the name
+    said beside it, and a request's examples are not data."""
+
+    def test_found_and_named(self):
+        from research.v701 import pasting
+        found = pasting.found("here is users.csv:\n" + USERS +
+                              "how many users are older than 30?")
+        self.assertEqual((found["format"], found["name"], found["rest"]),
+                         ("csv", "users.csv", "here is users.csv:\n"
+                          "how many users are older than 30?"))
+        found = pasting.found('what fields?\n```json\n{"a": 1}\n```')
+        self.assertEqual((found["format"], found["rest"]),
+                         ("json", "what fields?"))
+        self.assertIsNone(pasting.found(
+            "add two numbers\nadd(1, 2) == 3\nadd(2, 5) == 7\n"
+            "add(0, 0) == 0"))
+
+    def test_held_in_the_conversation(self):
+        from research.v698 import project as Pj
+        from research.v701 import pasting
+        held = pasting.hold("```yaml\n" + SERVICE + "```\nwhat port?",
+                            "test-v701-pasted")
+        self.assertEqual(held["path"], "pasted-1.yaml")
+        self.assertIn("pasted-1.yaml",
+                      Pj.project("test-v701-pasted").data())
+
+
 class DataChangeTests(unittest.TestCase):
     """A change of a data file, checked as data: it still reads, and puts
     in no place the file already names elsewhere."""

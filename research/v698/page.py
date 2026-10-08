@@ -30,6 +30,9 @@ PASTED, CODE_TALK = 212.0, 211.0
 #: a question about the project's data (v701): before code talk, where it is
 #: one and what it names is in the data
 DATA_TALK = 211.5
+#: data said in a message: before code pasted (a JSON object reads as a
+#: TypeScript one)
+PASTED_DATA = 212.5
 
 
 def _key(session):
@@ -175,7 +178,38 @@ def replies(session) -> list:
     # a question about the project's data (v701): read by the encoder's data
     # heads, its fields looked up in the data's schema, carried out over
     # what the data holds -- where it is one, and what it names is there
-    from research.v701 import querying
+    from research.v701 import pasting, querying
+
+    def says_data(memory) -> bool:
+        return pasting.found(typed(memory)) is not None
+
+    def hold_data(memory):
+        text = typed(memory)
+        key = _key(session)
+        held = pasting.hold(text, key)
+        if held is None:
+            return None
+        said = f"I hold {held['path']} now. {held['model'].said()}"
+        found = None
+        if held["rest"] and querying.available():
+            found = querying.answer(held["rest"], Pj.project(key))
+            if found is not None:
+                said = f"{found.said} (I hold {held['path']} now.)"
+        reply = asking._reply("data", text, said,
+                              {"held": held["model"].json(),
+                               "query": found.json() if found else None})
+        reply["code"]["data"] = {"held": held["path"],
+                                 "query": found.json() if found else None}
+        memory["turn"].answer = reply
+        return ANSWERED
+
+    out.append(Operator(
+        name="pasted data", apply=hold_data, proposes=says_data,
+        utility=PASTED_DATA,
+        rule="data said in a message (it parses as JSON, YAML or CSV): "
+             "held as the conversation's, and what is asked of it answered "
+             "from it"))
+
     if querying.available():
         found_for: dict = {}
 
