@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from research.v696 import program as P
 
