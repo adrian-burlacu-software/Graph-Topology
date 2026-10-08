@@ -120,7 +120,21 @@ class Project:
         found = self.on_disk(path)
         if found is None:
             return False
-        found.write_text(text, encoding="utf-8", newline="")
+        # as the file is written on disk: its line endings (an editor
+        # sends `\n`; a checkout on Windows has `\r\n`), and a byte-order
+        # mark if it has one -- a change of one line is not a change of
+        # every line's ending
+        ending, mark = "\n", ""
+        if found.exists():
+            held = found.read_bytes()
+            if b"\r\n" in held:
+                ending = "\r\n"
+            if held.startswith(b"\xef\xbb\xbf"):
+                mark = "﻿"
+        said = text.replace("\r\n", "\n").lstrip("﻿")
+        if ending != "\n":
+            said = said.replace("\n", ending)
+        found.write_text(mark + said, encoding="utf-8", newline="")
         return True
 
     def checked(self, language: str | None = None) -> dict:

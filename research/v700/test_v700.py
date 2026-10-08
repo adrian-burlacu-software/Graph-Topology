@@ -59,6 +59,16 @@ class ProjectOnDiskTests(unittest.TestCase):
                 held.write("b.py", "y = 1\n")
         self.assertFalse(Project("no root").on_disk("a.py"))
 
+    def test_a_file_keeps_its_line_endings(self):
+        from research.v698.project import Project
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / "a.py").write_bytes(b"x = 1\r\ny = 2\r\n")
+            held = Project("t", root)
+            held.put({"a.py": "x = 1\ny = 2\n"})
+            held.write("a.py", "x = 1\ny = 3\n")
+            self.assertEqual((Path(root) / "a.py").read_bytes(),
+                             b"x = 1\r\ny = 3\r\n")
+
 
 class PartTests(unittest.TestCase):
     """What is changed: the function named, its decorators with it."""
