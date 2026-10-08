@@ -110,6 +110,34 @@ class QueryTests(unittest.TestCase):
                           "how many users are there in service.yaml")
         self.assertEqual(found.value, 2)
 
+    def test_a_field_not_named_is_found_by_its_values(self):
+        found = self.said("list", "eq", {"TARGET": ["users"],
+                                         "FIELD": ["see"],
+                                         "VALUE": ["stark-db"]},
+                          "which users can see stark-db")
+        self.assertEqual(found.value, ["adrian"])
+        self.assertIn("whose projects has stark-db", found.said)
+        found = self.said("count", "gt", {"TARGET": ["users.csv"],
+                                          "FIELD": ["older"],
+                                          "VALUE": ["30"]},
+                          "how many users.csv are older than 30")
+        self.assertEqual(found.value, 2)
+        found = self.said("mean", "eq", {"TARGET": ["age"],
+                                         "VALUE": ["readers"]},
+                          "what is the average age of the readers")
+        self.assertEqual(found.value, 32)
+
+    def test_a_value_named_by_the_places_around_it(self):
+        from research.v698.project import Project
+        from research.v701.querying import Asked, carry
+        held = Project("t")
+        held.put({"s.yaml": "models:\n  editor: llm/editor3\n"
+                            "  judge: llm/change-judge2\n"})
+        found = carry(Asked("list", 1.0, "eq", {"TARGET": ["model"],
+                                                "FIELD": ["editor"]},
+                            "what model is the editor".split()), held)
+        self.assertEqual(found.value, "llm/editor3")
+
     def test_what_is_not_there_is_said(self):
         found = self.said("value", "none", {"TARGET": ["shoe size"]},
                           "what is the shoe size")

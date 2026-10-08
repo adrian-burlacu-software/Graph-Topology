@@ -151,13 +151,17 @@ def _value(phrase: str):
 
 
 def _holds(value, op: str, wanted) -> bool:
-    if op == "contains":
+    """Whether a value is held to what was asked -- a list is `wanted` where
+    it holds it (`projects` is `stark-db`: one of them is), a word where it
+    is it or one of it (`readers`: `reader`)."""
+    if op == "contains" or (isinstance(value, list) and op in ("eq", "ne")):
         if isinstance(value, list):
-            return any(str(one).lower() == str(wanted).lower()
-                       for one in value)
-        return str(wanted).lower() in str(value).lower()
+            there = any(_same(one, wanted) for one in value)
+        else:
+            there = str(wanted).lower() in str(value).lower()
+        return there if op != "ne" else not there
     if op in ("eq", "ne"):
-        same = str(value).lower() == str(wanted).lower()
+        same = _same(value, wanted)
         return same if op == "eq" else not same
     try:
         left, right = float(value), float(wanted)
@@ -182,69 +186,120 @@ def answer(text: str, held) -> Found | None:
     return carry(asked, held)
 
 
+def _one(word: str) -> str:
+    """A word as one of it: `models` is `model`, `readers` `reader`."""
+    return word[:-1] if len(word) > 3 and word.endswith("s") and \
+        not word.endswith("ss") else word
+
+
 def _named(phrase: str, name: str) -> bool:
     """Whether a phrase says a name: `timeout seconds`, `timeout_seconds`,
-    `users` for `users`."""
-    return bool(phrase) and (
-        phrase.lower().replace(" ", "_") == name.lower()
-        or _said(phrase) == _said(name))
+    `users` for `users`, `model` for `models`."""
+    if not phrase or not name:
+        return False
+    said, own = _said(phrase), _said(name)
+    return phrase.lower().replace(" ", "_") == name.lower() or said == own \
+        or (len(said) == len(own) and all(
+            _one(a) == _one(b) for a, b in zip(said, own)))
 
 
 def _groups(held):
     """Every collection of records of the project's data: (model, path,
-    its fields, its name -- a CSV's is its file's)."""
+    its fields, its name -- a CSV's is its file's -- and its file's)."""
     for model in held.data().values():
         if model.error:
             continue
+        base = model.path.rsplit("/", 1)[-1]
         for path, found in model.collections.items():
-            name = _shown_name(path, model) if path else \
-                model.path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
-            yield model, path, [str(one) for one in found["fields"]], name
+            name = _shown_name(path, model) if path else base.rsplit(
+                ".", 1)[0]
+            yield model, path, [str(one) for one in found["fields"]], name, \
+                base
+
+
+def _same(value, wanted) -> bool:
+    return str(value).lower() == str(wanted).lower() or \
+        _one(str(value).lower()) == _one(str(wanted).lower())
+
+
+def _field_by_value(records: list, fields: list, op: str, wanted):
+    """The field a filter is on, where the question does not name it --
+    found in what the records hold (`which users can see stark-db`:
+    `stark-db` is in their `projects`; `older than 30`: their one field of
+    numbers). None where no field, or more than one, holds it."""
+    found = []
+    for name in fields:
+        values = [_field_of(one, name) for one in records]
+        if op in ("eq", "ne", "contains"):
+            if any(_same(one, wanted) or (isinstance(one, list) and any(
+                    _same(item, wanted) for item in one)) for one in values):
+                found.append(name)
+        elif op in ("gt", "lt", "ge", "le"):
+            numbers = [one for one in values if one is not None]
+            if numbers and all(isinstance(one, (int, float)) and not
+                               isinstance(one, bool) for one in numbers):
+                found.append(name)
+    return found[0] if len(found) == 1 else None
 
 
 def _resolved(held, asked: Asked) -> dict | None:
     """What the question's words name: a collection (and the field of it
     asked for, and the field its filter is on), or a value outside any --
-    each looked up by its name, the one holding most of what is named
-    (and of the message's other words) taken."""
+    each looked up by its name (the filter's field, where not named, by
+    the value it is held to), the one holding most of what is named (and
+    of the message's other words) taken."""
     target = (asked.spans.get("TARGET") or [""])[0]
     field_ = (asked.spans.get("FIELD") or [""])[0]
+    value = (asked.spans.get("VALUE") or [""])[0]
     best, score, ties = None, None, []
-    for model, path, fields, name in _groups(held):
+    for model, path, fields, name, base in _groups(held):
         by = next((one for one in fields if _named(field_, one)), None)
-        if field_ and by is None:
-            continue
+        named_by = by is not None
+        records = model.records()[path]
+        if by is None and value and asked.op != "none":
+            by = _field_by_value(records, fields, asked.op, _value(value))
         asked_field = next((one for one in fields if _named(target, one)),
                            None)
-        whole = _named(target, name)
-        if not (asked_field or whole or by):
+        whole = _named(target, name) or target.lower() == base.lower()
+        if not (asked_field or whole) or (value and asked.op != "none"
+                                          and by is None):
             continue
-        base = model.path.rsplit("/", 1)[-1]
         around = sum(_named(word, name) or _named(word, base.rsplit(
             ".", 1)[0]) or word.lower() == base.lower()
             for word in asked.words)
-        fit = (by is not None, bool(asked_field or whole), around)
+        fit = (named_by, by is not None, bool(asked_field or whole), around)
         one = {"model": model, "collection": path, "field": asked_field,
                "by": by, "name": name}
         if score is None or fit > score:
             best, score, ties = one, fit, [one]
         elif fit == score:
             ties.append(one)
-    if best is not None and (best["field"] or best["by"] or
-                             _named(target, best["name"])):
+    if best is not None:
         # what fits as well elsewhere is answered too: two files' users
         # are both the users asked about
         best["also"] = ties[1:]
         return best
-    if field_:
-        return None
-    found = _place(held, target, asked.words, collections=False)
+    # a value outside any collection: each word marked tried as its own
+    # name, the rest of the message naming the places around it
+    found, fit = None, (0, 0)
+    for phrase in [one for one in (target, field_) if one]:
+        for model in held.data().values():
+            if model.error:
+                continue
+            for path in model.places:
+                if any(path.startswith(f"{one}.") or path == one
+                       for one in model.collections if one):
+                    continue
+                parts = _parts(path)
+                if not parts or not _named(phrase, parts[-1]):
+                    continue
+                around = sum(any(_named(word, part) for part in parts[:-1])
+                             for word in asked.words)
+                if (1, around) > fit:
+                    found, fit = (model, path), (1, around)
     if found is None:
         return None
-    model, path = found
-    if any(path.startswith(f"{one}.") for one in model.collections):
-        return None
-    return {"model": model, "place": path}
+    return {"model": found[0], "place": found[1]}
 
 
 def carry(asked: Asked, held) -> Found | None:
@@ -289,9 +344,14 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
     values = asked.spans.get("VALUE") or []
     if found["by"] and values and asked.op != "none":
         wanted = _value(values[0])
+        listed = any(isinstance(_field_of(one, found["by"]), list)
+                     for one in records)
         records = [one for one in records
                    if _holds(_field_of(one, found["by"]), asked.op, wanted)]
-        looked["filter"] = [found["by"], asked.op, wanted]
+        # a list holds what it is held to: said so (`whose projects has`)
+        op = {"eq": "contains", "ne": "lacks"}.get(asked.op, asked.op) \
+            if listed else asked.op
+        looked["filter"] = [found["by"], op, wanted]
     if asked.act == "count":
         return Found(f"{len(records)} {group} in {where}" + _because(looked)
                      + ".", len(records), where, collection, asked, looked)
@@ -350,7 +410,7 @@ def _because(looked: dict) -> str:
         return ""
     said = {"eq": "is", "ne": "is not", "gt": "is more than",
             "lt": "is less than", "ge": "is at least", "le": "is at most",
-            "contains": "has"}[found[1]]
+            "contains": "has", "lacks": "does not have"}[found[1]]
     return f" whose {found[0]} {said} {_said_value(found[2])}"
 
 
