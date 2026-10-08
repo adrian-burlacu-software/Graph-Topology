@@ -43,6 +43,10 @@ LLM = ROOT / "llm"
 DATA = LLM / "data-talk-data"
 SOURCE = ROOT / "data" / "commitpackft"
 SEEDS = DATA / "seeds.jsonl"
+#: what the first reader read wrong, live (v701): value questions said with
+#: a verb, yes or no of a setting, a record named by its key, a filter's
+#: field left unsaid
+SEEDS_MORE = DATA / "seeds-more.jsonl"
 WRITTEN = DATA / "written.jsonl"
 SEED = 701
 #: seeds made, and how many from each file
@@ -246,7 +250,131 @@ def seeds() -> int:
     return len(out)
 
 
+def more_queries(model, rng: random.Random) -> list:
+    """What the first reader read wrong, asked of a file: a value with a
+    verb and the place around it (`which port does the server use`), yes
+    or no of a setting (`is the teacher offline`), a record named by its
+    key (`the title of the command graphTopology.ask`), and a filter whose
+    field may go unsaid (`which users can see stark-db`)."""
+    out = []
+    inside = list(model.collections)
+    for place in model.places.values():
+        if any(place.path.startswith(f"{one}.") or place.path == one
+               for one in inside) or not place.examples:
+            continue
+        name = _name(place.path)
+        parent = _name(place.path.rsplit(".", 1)[0]) if "." in place.path \
+            else ""
+        if not _wordy(name) or not parent or not _wordy(parent):
+            continue
+        if "boolean" in place.types:
+            out.append({"act": "value", "op": "none", "target": place.path,
+                        "seed": rng.choice([f"is the {parent} {name}?",
+                                            f"is {name} on for the {parent}?",
+                                            f"does the {parent} have {name} "
+                                            f"set?"]),
+                        "spans": {"TARGET": [name]}})
+        elif _plain(place.examples[0]):
+            out.append({"act": "value", "op": "none", "target": place.path,
+                        "seed": rng.choice([
+                            f"which {name} does the {parent} use?",
+                            f"what {name} is the {parent} on?",
+                            f"the {parent}'s {name}?",
+                            f"what does the {parent} have as {name}?"]),
+                        "spans": {"TARGET": [name]}})
+    for path, found in model.collections.items():
+        if found["count"] < 3:
+            continue
+        group = _name(path) if path else model.path.rsplit(
+            "/", 1)[-1].rsplit(".", 1)[0]
+        if not _wordy(group):
+            continue
+        records = model.records()[path]
+        keys = model.keys(path)
+        for key in keys[:1]:
+            others = [one for one in found["fields"] if one != key and
+                      _wordy(str(one))]
+            record = rng.choice(records)
+            value = record.get(key) if isinstance(record, dict) else None
+            if not others or not _plain(value):
+                continue
+            target = rng.choice(others)
+            out.append({"act": "value", "op": "eq",
+                        "target": f"{path}.{target}" if path else target,
+                        "field": key, "value": value,
+                        "seed": f"what is the {target} of the {group} "
+                                f"{value}?",
+                        "spans": {"TARGET": [target],
+                                  "VALUE": [str(value)]}})
+        for name in found["fields"]:
+            values = [one.get(name) for one in records
+                      if isinstance(one, dict)]
+            words_ = [one for one in values if _plain(one)
+                      and isinstance(one, str)]
+            items = [item for one in values if isinstance(one, list)
+                     for item in one if _plain(item)]
+            if not _wordy(str(name)):
+                continue
+            if words_:
+                value = rng.choice(words_)
+                out.append({"act": "list", "op": "eq", "target": path,
+                            "field": name, "value": value,
+                            "seed": f"which {group} have {name} {value}?",
+                            "spans": {"TARGET": [group], "FIELD": [name],
+                                      "VALUE": [str(value)]},
+                            "optional": ["FIELD"]})
+            if items:
+                value = rng.choice(items)
+                out.append({"act": "list", "op": "contains", "target": path,
+                            "field": name, "value": value,
+                            "seed": (f"which {group} have {value} in their "
+                                     f"{name}?"),
+                            "spans": {"TARGET": [group], "FIELD": [name],
+                                      "VALUE": [str(value)]},
+                            "optional": ["FIELD"]})
+    return out
+
+
+def seeds_more(most: int = 160) -> int:
+    """The second seeds: `more_queries` of real files, spread over their
+    kinds -- by a choosing of their own, so the first seeds stay what they
+    were."""
+    from research.v701 import datamodel
+    rng = random.Random(SEED + 1)
+    files = _files(rng)
+    by_kind: dict = {}
+    for found in files.values():
+        for path, text in found[:4000]:
+            model = datamodel.read(path, text)
+            if model.error:
+                continue
+            made = more_queries(model, rng)
+            rng.shuffle(made)
+            for one in made[:2]:
+                one["file"] = path
+                kind = (one["act"], one["op"], bool(one.get("optional")),
+                        one["seed"].split()[0])
+                by_kind.setdefault(kind, []).append(one)
+    out = []
+    share = most // max(len(by_kind), 1)
+    for kind in sorted(by_kind):
+        out += by_kind[kind][:share]
+    with SEEDS_MORE.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    print({"|".join(map(str, kind)): len(found[:share])
+           for kind, found in sorted(by_kind.items())}, len(out))
+    return len(out)
+
+
 # -- the teacher says each again -----------------------------------------------
+
+def _required(one: dict) -> dict:
+    """The spans the teacher must keep: not an optional one -- a field the
+    question may leave unsaid (`which users can see stark-db`)."""
+    return {role: found for role, found in one["spans"].items()
+            if role not in one.get("optional", ())}
+
 
 def _kept(spans: dict) -> list:
     return [one for found in spans.values() for one in found]
@@ -254,7 +382,8 @@ def _kept(spans: dict) -> list:
 
 def write(samples: int = 1, batch: int = 6) -> None:
     from research.v696.teach_meaning import Teacher
-    rows = [json.loads(line) for line in SEEDS.open(encoding="utf-8")]
+    rows = [json.loads(line) for path in (SEEDS, SEEDS_MORE)
+            if path.exists() for line in path.open(encoding="utf-8")]
     done = set()
     if WRITTEN.exists():
         done = {json.loads(line)["seed"] for line in
@@ -268,8 +397,8 @@ def write(samples: int = 1, batch: int = 6) -> None:
         prompts = [(f"Say this question about a data file in 12 different "
                     f"ways, as a person would type it to an assistant that "
                     f"has read the file: \"{one['seed']}\". Keep "
-                    f"{', '.join(_kept(one['spans']))} exactly so in every "
-                    f"one. " + STYLE) for one in chunk]
+                    f"{', '.join(_kept(_required(one)))} exactly so in "
+                    f"every one. " + STYLE) for one in chunk]
         replies = teacher.write(prompts, longest=600, samples=samples,
                                 temperature=0.9)
         with WRITTEN.open("a", encoding="utf-8") as stream:
@@ -287,9 +416,10 @@ def write(samples: int = 1, batch: int = 6) -> None:
 
 # -- the corpus -------------------------------------------------------------------
 
-def labelled(line: str, spans: dict) -> tuple | None:
+def labelled(line: str, spans: dict, optional=()) -> tuple | None:
     """(words, roles) of a question: each span's words where they are
-    found, in the order given; None where one is not there."""
+    found, in the order given; None where one is not there -- but for an
+    optional role's (a field the question may leave unsaid)."""
     from research.v698.teach_code_talk import _mark, _match
     said = words(line)
     if not said:
@@ -303,6 +433,8 @@ def labelled(line: str, spans: dict) -> tuple | None:
                                             range(*where)):
                 where = _match(said, phrase, where[1])
             if where is None:
+                if role in optional:
+                    continue
                 return None
             _mark(roles, where, role)
     return said, roles
@@ -352,7 +484,7 @@ def corpus(negatives: int = 3000) -> dict:
         spans = {role: [str(phrase) for phrase in found]
                  for role, found in one["spans"].items()}
         for line in dict.fromkeys(one["lines"] + [one["seed"]]):
-            made = labelled(line, spans)
+            made = labelled(line, spans, one.get("optional", ()))
             if made is None:
                 continue
             said, roles = made
@@ -399,9 +531,10 @@ def corpus(negatives: int = 3000) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("seeds", "write", "corpus"))
+    parser.add_argument("job", choices=("seeds", "more", "write", "corpus"))
     options = parser.parse_args(argv)
-    {"seeds": seeds, "write": write, "corpus": corpus}[options.job]()
+    {"seeds": seeds, "more": seeds_more, "write": write,
+     "corpus": corpus}[options.job]()
     return 0
 
 
