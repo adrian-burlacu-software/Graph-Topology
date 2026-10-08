@@ -51,7 +51,48 @@ Three gaps, all of the architecture:
 - **The bridge** no longer edits files: `say` carries the words; the reply
   carries the change made (`file`, `lines`, `diff`, `written`).
 
-## Numbers
+## Numbers (2026-10-08)
 
-(to come: the editor on held commits; the reader on held commit messages
-and v689's suite; the statements of the attachment, end to end.)
+| what | number |
+|---|---|
+| reader-code23 (the default): code act / subject, held | 98.3% / 98.4%; suite 1544 pass |
+| editor, held commits, greedy / any of 5 match | 12 / 19 of 200 |
+| editor2 (a second pass): same | 11 / 18 -- no better; kept only to regenerate the judge's negatives |
+| editor3 (the default: + faults, + small changes in a function), held commits | 12 / 16 of 200 |
+| editor3, held faults found in real code, greedy right | 155 / 160 (editor 80) |
+| change-judge2, own change above: extra / partial / another / reversed | 98.8% / 91.1% / 95.0% / 83.4% |
+| attach.py, editor3 | 3 of 7 right, 2 part-made, 2 refused, 0 written wrong |
+
+Live, through the MCP, on this repository (each a commit of its own,
+made and written by the architecture): `Reader.forward` (torch),
+`projects.py` (sys), `pycorpus.py` (math), `meaning.py` (field, out of
+its line), `forms.deduced` (element; outputs on a follow-up),
+`search.py` (field; the other four said as left). Refused rightly:
+`readings`, `search.py` math. Reverted by Claude: `_meets` rewritten on
+one answer of 13 (before the agreement bar), `prelude` (a different fix
+than asked: the import in the branch removed, not the one in the loop
+moved).
+
+## What each live run taught
+
+- A file kept its content and lost its line endings: `Project.write`
+  writes as the file on disk is written.
+- One answer of 13 is a guess: a change is written where two answers
+  agree; else nothing, and the likeliest said.
+- The same request, the same answers: the editor seeded by the request.
+- mypy had checked nothing (two `__main__.py`): modules by their path,
+  and a run that checked nothing is said, not taken as clean.
+- The judge refused what 7 of 7 answers wrote (0.04): what most answers
+  make is not its to refuse.
+- Asked for two, it did one and said it had done the change: what it
+  names and left is said (`partly`).
+
+## Still open
+
+- A statement naming several things: one per request; follow-ups work.
+- Neighbours: `checker` beside `CheckerError`, `import math` beside
+  `import time` -- the editor takes both, the checks refuse.
+- A move or a restructuring (`prelude`): it makes a different fix, and
+  neither the checks nor the judge tell a move from a removal.
+- The judge on small changes (it misread removing one import): to be
+  taught on the faults (the right name removed vs another).
