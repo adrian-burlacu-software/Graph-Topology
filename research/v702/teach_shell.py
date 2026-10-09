@@ -48,7 +48,7 @@ SAYING = ("You write Bash: one command that does what is asked, run in the "
 ACTS = ("none", "command", "task", "yes", "no")
 ROLES = ("O", "B-CMD", "I-CMD")
 #: requests said again by the teacher, and how many ways each
-PHRASE_MOST, PHRASE_WAYS = 3000, 6
+PHRASE_MOST, PHRASE_WAYS = 1500, 5
 
 
 def words(text: str) -> list:
@@ -105,7 +105,13 @@ def _names(text: str) -> list:
                               if one.strip(".,;:()")))
 
 
-def phrase(batch: int = 12) -> None:
+def _commandlike(line: str) -> bool:
+    """A line the teacher wrote as the command, not as a request: options
+    (` -name`), pipes, redirections."""
+    return bool(re.search(r"(^|\s)--?[a-zA-Z]|\||\s>{1,2}\s|\$\(|`", line))
+
+
+def phrase(batch: int = 24) -> None:
     """Requests said again as people ask the computer -- questions and
     requests -- every name kept."""
     from research.v696.teach_meaning import Teacher
@@ -129,23 +135,31 @@ def phrase(batch: int = 12) -> None:
             names = _names(said)
             keep = (f" Keep {', '.join(names)} exactly so in every one."
                     if names else "")
+            # the same request, said otherwise -- not another question:
+            # told to ask `how many`, the teacher asked how many PHP files
+            # need `foo` replaced, of a command that replaces it
             prompts.append(
-                f"Say this to an assistant that runs commands on your "
-                f"computer, in {PHRASE_WAYS} different ways, as a person "
-                f"would type it: some as questions (what, which, how many, "
-                f"how big, where, is there), some as requests, short and "
-                f"casual.{keep} One per line, nothing else: \"{said}\"")
-        replies = teacher.write(prompts, longest=400, samples=1)
+                f"Say this request to an assistant that runs commands on "
+                f"your computer in {PHRASE_WAYS} different ways, as a person "
+                f"would type it -- short and casual, as a request or as a "
+                f"question -- asking for exactly the same thing, nothing "
+                f"more or less.{keep} One per line, nothing else: "
+                f"\"{said}\"")
+        # sampled: greedy, it says the request back as it was
+        replies = teacher.write(prompts, longest=400, samples=2,
+                                temperature=0.9)
         with PHRASED.open("a", encoding="utf-8") as out:
             for (said, command), written in zip(chunk, replies):
                 names = _names(said)
                 lines = []
-                for line in written[0].splitlines():
-                    line = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", line)
-                    line = line.strip().strip("\"'“”")
-                    if 6 <= len(line) <= 200 and all(
-                            name in line for name in names):
-                        lines.append(line)
+                for reply in written:
+                    for line in reply.splitlines():
+                        line = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", line)
+                        line = line.strip().strip("\"'“”")
+                        if 6 <= len(line) <= 200 and all(
+                                name in line for name in names) and                                 line.lower() != said.lower() and                                 not _commandlike(line):
+                            lines.append(line)
+                lines = list(dict.fromkeys(lines))
                 out.write(json.dumps({"said": said, "command": command,
                                       "lines": lines}) + "\n")
         print(f"  {at + len(chunk)}/{len(todo)}", flush=True)
