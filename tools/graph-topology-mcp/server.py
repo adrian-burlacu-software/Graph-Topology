@@ -63,6 +63,17 @@ def _raw(path: str, body: dict | None = None, timeout: float = 10) -> dict:
             found = {}
         raise RuntimeError(found.get("error") or f"HTTP {bad.code}")
     except (urllib.error.URLError, OSError) as bad:
+        reason = getattr(bad, "reason", bad)
+        if data is not None and isinstance(reason, (
+                ConnectionAbortedError, ConnectionResetError,
+                BrokenPipeError)):
+            # the server took the connection and dropped it while it was
+            # sent: it is up, and what was sent is what it would not take
+            # (a whole workspace's 1.5 GB was reported as "Down")
+            raise RuntimeError(
+                f"the server at {URL} dropped the request while "
+                f"{len(data) / 1e6:.1f} MB were sent ({reason}) -- it "
+                f"takes at most 40 MB") from None
         raise Down(f"no architecture server at {URL} ({bad})")
 
 
@@ -230,8 +241,34 @@ def t_ask_about_code(args: dict) -> dict:
     return _say(text, args.get("sid"), bool(args.get("raw")))
 
 
-def _files(paths) -> dict:
-    files = {}
+#: a file larger is data or a build, not the project's own: left out; and
+#: the most sent at all (the server takes 40 MB)
+LARGEST_FILE, MOST_SENT = 2_000_000, 30_000_000
+
+
+def _tracked() -> set | None:
+    """The files git keeps or would keep in this workspace (what it ignores
+    left out: `data/`, `llm/`) -- None where it is no git repository."""
+    import subprocess
+    try:
+        found = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--cached", "--others",
+             "--exclude-standard", "-z"], capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if found.returncode != 0:
+        return None
+    return {one for one in found.stdout.decode("utf-8", "replace").split(
+        "\0") if one}
+
+
+def _files(paths, skipped: dict | None = None) -> dict:
+    """The code and data files under the paths, as the project is sent --
+    not what git ignores, nor a file over `LARGEST_FILE`, nor more than
+    `MOST_SENT` in all; what is left out, and why, put in `skipped`."""
+    files, total = {}, 0
+    tracked = _tracked()
+    skipped = {} if skipped is None else skipped
     for given in paths:
         path = _path(given)
         found = [path] if path.is_file() else sorted(path.rglob("*"))
@@ -240,19 +277,40 @@ def _files(paths) -> dict:
             if not one.is_file() or not READ.search(name) or any(
                     ("/" + skip) in "/" + name for skip in SKIPPED):
                 continue
+            if tracked is not None and name not in tracked:
+                skipped.setdefault("ignored by git", []).append(name)
+                continue
+            size = one.stat().st_size
+            if size > LARGEST_FILE:
+                skipped.setdefault("over 2 MB", []).append(name)
+                continue
+            if total + size > MOST_SENT:
+                skipped.setdefault("past 30 MB in all", []).append(name)
+                continue
             files[name] = one.read_text(encoding="utf-8", errors="replace")
+            total += size
     return files
 
 
+def _skipped_said(skipped: dict) -> dict:
+    """What was left out, as a reply says it: how many, and a few."""
+    return {why: {"count": len(names), "some": names[:5]}
+            for why, names in skipped.items()}
+
+
 def t_send_project(args: dict) -> dict:
-    files = _files(args.get("paths") or ["."])
+    skipped: dict = {}
+    files = _files(args.get("paths") or ["."], skipped)
     if not files:
-        raise RuntimeError("no code or data files under those paths")
+        raise RuntimeError("no code or data files under those paths" + (
+            f" (left out: {_skipped_said(skipped)})" if skipped else ""))
     sid, name = _sid(args.get("sid")), args.get("name") or ROOT.name
     # the root: where the files are, so that a change asked is made there
     found = _call("/api/project", {"sid": sid, "files": files, "name": name,
                                    "root": str(ROOT)}, timeout=LONG)
     SENT[sid] = (list(args.get("paths") or ["."]), name)
+    if skipped:
+        found["left out"] = _skipped_said(skipped)
     return found
 
 
