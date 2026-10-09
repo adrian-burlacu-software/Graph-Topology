@@ -140,10 +140,12 @@ def commits(most: int = 6000) -> int:
 # -- the teacher says each file's part ------------------------------------------------
 
 def _shown_diff(diff: str) -> str:
-    lines = [one for one in diff.splitlines()
+    # each line, and the whole, cut short: a minified file's one line asked
+    # the teacher for 51 GB
+    lines = [one[:200] for one in diff.splitlines()
              if one.startswith(("+", "-", "@@")) and not
              one.startswith(("+++", "---"))]
-    return "\n".join(lines[:DIFF_LINES])
+    return "\n".join(lines[:DIFF_LINES])[:4000]
 
 
 def describe(batch: int = 16) -> None:
