@@ -43,6 +43,20 @@ class CutTests(unittest.TestCase):
         self.assertEqual(shell._cut(text, said, 1, 2), "cat README.md")
 
 
+class GroundedTests(unittest.TestCase):
+    """A path the request names, as it names it: not at the computer's
+    root where the writer, taught `/path/to/dir`, put it."""
+
+    def test_the_request_s_paths(self):
+        self.assertEqual(shell._grounded("find /research/v701",
+                                         "what files are in research/v701?"),
+                         "find research/v701")
+        self.assertEqual(shell._grounded("ls -la /tmp", "list /tmp"),
+                         "ls -la /tmp")
+        self.assertEqual(shell._grounded("cat /etc/hosts", "show hosts"),
+                         "cat /etc/hosts")
+
+
 @unittest.skipIf(shell.bash() is None, "no bash")
 class RunTests(unittest.TestCase):
     def test_in_the_folder(self):

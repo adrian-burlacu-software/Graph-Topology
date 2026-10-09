@@ -236,6 +236,18 @@ def writer_available() -> bool:
     return (encoder.LLM / WRITER / "config.json").exists()
 
 
+def _grounded(command: str, request: str) -> str:
+    """The paths the request names, as it names them: taught on NL2Bash's
+    `/path/to/dir`, the writer made `research/v701` `/research/v701`, a
+    folder at the computer's root, not the project's."""
+    said = {one.strip("\"'`.,?!") for one in request.split()}
+    def own(found) -> str:
+        path = found.group(2)
+        return found.group(1) + (path[1:] if path[1:].rstrip("/") in {
+            one.rstrip("/") for one in said} else path)
+    return re.sub(r"(^|[\s=\"'])(/[\w.\-/]+)", own, command)
+
+
 def written(request: str) -> dict:
     """The command a request asks for: the writer's answers, those that
     parse, the one most of them write -- where at least two agree."""
@@ -253,6 +265,7 @@ def written(request: str) -> dict:
         if command.startswith("$ "):
             command = command[2:]
         command = command.splitlines()[0].strip() if command else ""
+        command = _grounded(command, request)
         if command and parses(command):
             key = " ".join(command.split())
             counts.setdefault(key, [command, 0])[1] += 1
