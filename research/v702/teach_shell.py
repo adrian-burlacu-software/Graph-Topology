@@ -443,9 +443,19 @@ def corpus(negatives: int = 9000) -> dict:
                 rows[part].append(made)
     # requests to change a program that talk of commands: the developer's,
     # not the shell's
+    # and the requests plans are taught from (v703: commits of several
+    # files) -- `report whether the shell asks in /api/health and show it
+    # in the MCP health tool` was written `curl -sIq /api/health`
+    planned = LLM / "plan-data" / "described.jsonl"
+    asked = [json.loads(line)["message"].splitlines()[0]
+             for line in planned.open(encoding="utf-8")] \
+        if planned.exists() else []
     if FEATURES.exists():
-        for line in FEATURES.open(encoding="utf-8"):
-            said = words(json.loads(line)["said"])
+        asked += [json.loads(line)["said"]
+                  for line in FEATURES.open(encoding="utf-8")]
+    for one in asked:
+        if one:
+            said = words(one)
             part = "valid" if rng.random() < 0.1 else "train"
             for _ in range(3):
                 rows[part].append(_record(said, ["O"] * len(said), "none",
