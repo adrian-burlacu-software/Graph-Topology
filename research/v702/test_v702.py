@@ -57,6 +57,18 @@ class GroundedTests(unittest.TestCase):
                          "cat /etc/hosts")
 
 
+class UnsetTests(unittest.TestCase):
+    """A command reading a variable nobody set is not the one asked for
+    (`du -sh $DATA_DIR` measured the folder it ran in)."""
+
+    def test_unset(self):
+        self.assertEqual(shell._unset("du -sh $DATA_DIR"), ["DATA_DIR"])
+        self.assertEqual(shell._unset("cat ${FILES}"), ["FILES"])
+        self.assertEqual(shell._unset("ls $HOME"), [])
+        self.assertEqual(shell._unset("for f in *; do echo $f; done"), [])
+        self.assertEqual(shell._unset("X=1; echo $X"), [])
+
+
 @unittest.skipIf(shell.bash() is None, "no bash")
 class RunTests(unittest.TestCase):
     def test_in_the_folder(self):

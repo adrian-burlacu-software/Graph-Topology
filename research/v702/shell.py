@@ -36,7 +36,7 @@ ASK = True
 #: how long a command may run, and how much of its output is kept
 TIMEOUT, MOST_OUTPUT = 60, 20_000
 #: the writer, its answers, and how many must agree
-WRITER = "shell-writer"
+WRITER = "shell-writer2"
 SAMPLES, LEAST_AGREED = 6, 2
 
 
@@ -267,6 +267,21 @@ def writer_available() -> bool:
     return (encoder.LLM / WRITER / "config.json").exists()
 
 
+def _unset(command: str) -> list:
+    """The variables a command reads that are not set -- what NL2Bash's
+    `$FILES` and `$DIR` stand for, never given (`du -sh $DATA_DIR` measured
+    the folder it ran in) -- but for those the command sets itself."""
+    import os
+    shell_own = {"HOME", "PWD", "USER", "PATH", "SHELL", "RANDOM", "OLDPWD",
+                 "HOSTNAME", "LINENO", "SECONDS", "BASH", "IFS", "UID"}
+    said = set(re.findall(r"\$\{?([A-Za-z_]\w*)", command))
+    made = set(re.findall(r"(?:^|[\s;&|(])([A-Za-z_]\w*)=", command)) | \
+        set(re.findall(r"\bfor\s+([A-Za-z_]\w*)\s+in\b", command)) | \
+        set(re.findall(r"\bread\s+(?:-\w+\s+)*([A-Za-z_]\w*)", command))
+    return sorted(name for name in said - made - shell_own
+                  if name not in os.environ)
+
+
 def _grounded(command: str, request: str) -> str:
     """The paths the request names, as it names them: taught on NL2Bash's
     `/path/to/dir`, the writer made `research/v701` `/research/v701`, a
@@ -297,7 +312,7 @@ def written(request: str, root: str | Path | None = None) -> dict:
             command = command[2:]
         command = command.splitlines()[0].strip() if command else ""
         command = _grounded(command, request)
-        if command and parses(command):
+        if command and parses(command) and not _unset(command):
             key = " ".join(command.split())
             counts.setdefault(key, [command, 0])[1] += 1
     ranked = sorted(counts.values(), key=lambda one: -one[1])

@@ -1768,10 +1768,14 @@ def steps() -> list[Step]:
         Step("shell-writer", "a writer of Bash: a request, the command that "
                              "does it; requests said again by the teacher",
              lambda: (_run("research.v702.teach_shell", "phrase"),
+                      _run("research.v702.teach_shell", "everyday"),
+                      _run("research.v702.teach_shell", "features"),
                       _run("research.v702.teach_shell", "corpus"),
                       _run("research.v702.teach_shell", "train",
-                           "--epochs", "2")),
-             _model_check(LLM / "shell-writer", 600),
+                           "--epochs", "2"),
+                      # then taught the project's everyday commands
+                      _run("research.v702.teach_shell", "train-more")),
+             _model_check(LLM / "shell-writer2", 600),
              needs=("nl2bash", "smollm3", "code-talk", "data-talk"),
              cost="two hours", gpu=True),
         Step("reader-shell", "the shared reader taught what is asked of the "
