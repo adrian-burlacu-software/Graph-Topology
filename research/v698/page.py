@@ -232,7 +232,7 @@ def _shell_ran(text: str, command: str, key, looked: dict,
         said += "\n```\n" + shown + ("\n..." if result.get("cut") else "") \
             + "\n```"
     # what it printed, where it reads as data, held: asked about next
-    if shown and pasting.found(shown) is not None:
+    if shown and shell.tabular(shown) and pasting.found(shown) is not None:
         found = pasting.hold(shown, key)
         if found is not None:
             looked["held"] = found["path"]
@@ -323,8 +323,24 @@ def replies(session) -> list:
                 return False
             if asked.act in ("yes", "no"):
                 return _key(session) in WAITING
+            if asked.act == "task" and _of_the_code(typed(memory)):
+                return False
             return asked.act == "task" and shell.writer_available() or \
                 asked.act == "command" and bool(asked.command)
+
+        def _of_the_code(text: str) -> bool:
+            # a task that code talk reads as of something the project has
+            # -- its subject a function or file found there -- is code
+            # talk's (`who calls shell.run`: `who` is a command too)
+            read = reading.code_talk(text, known(_key(session)))
+            if read is None or read.act in ("none", "teach"):
+                return False
+            names = known(_key(session))
+            return any(one in names
+                       for phrase in read.spans.get("SUBJ", ())
+                       for word in [phrase] + phrase.split()
+                       for one in (word, word.split("(")[0],
+                                   word.split("(")[0].rsplit(".", 1)[-1]))
 
         def do_shell(memory):
             asked = shell_read(memory)

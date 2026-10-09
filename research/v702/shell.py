@@ -258,6 +258,28 @@ def _stop(process) -> None:
     process.kill()
 
 
+def tabular(out: str) -> bool:
+    """Whether what a command printed is data to hold: JSON whole, or rows
+    with the same number of columns (two or more) on every line, a comma or
+    a tab between -- not `git log`, whose words have commas in places."""
+    import json
+    text = out.strip()
+    if text[:1] in "[{":
+        try:
+            json.loads(text)
+            return True
+        except ValueError:
+            return False
+    lines = [one for one in text.splitlines() if one.strip()]
+    if len(lines) < 3:
+        return False
+    for mark in (",", "\t"):
+        counts = {one.count(mark) for one in lines}
+        if len(counts) == 1 and counts.pop() >= 1:
+            return True
+    return False
+
+
 def _text(raw: bytes) -> str:
     # a CRLF file's lines said as lines
     return raw[:MOST_OUTPUT].decode("utf-8", "replace").replace("\r\n", "\n")
