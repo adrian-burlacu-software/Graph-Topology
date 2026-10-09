@@ -27,6 +27,9 @@ import re
 from collections import Counter
 
 PLANNER = "planner"
+#: the judge of what a request changes, and how sure it must be; the most
+#: it may choose
+PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
 #: the files shown the planner, and its answers
 SHOWN, SAMPLES, LEAST_AGREED = 12, 6, 2
 #: how long the tests beside a change may run
@@ -35,7 +38,8 @@ TESTS_TIMEOUT = 600
 
 def available() -> bool:
     from research import encoder
-    return (encoder.LLM / PLANNER / "config.json").exists()
+    return (encoder.LLM / PLANNER / "config.json").exists() or \
+        (encoder.LLM / PICKER / "config.json").exists()
 
 
 def _words(request: str) -> set:
@@ -96,16 +100,62 @@ def _steps(answer: str, shown: list) -> list:
     return out
 
 
+def picker_available() -> bool:
+    from research import encoder
+    return (encoder.LLM / PICKER / "config.json").exists()
+
+
 def plan(request: str, held) -> dict:
+    """What a request changes, chosen among what the project has: each
+    function of the files shown (and each file that has none) put before
+    the picker with the request; those it reads as changed, most likely
+    first -- never a name the project has not (Adrian: planning is
+    choosing). Without the picker, the planner's written plan."""
+    shown = shortlist(request, held)
+    if not shown:
+        return {"status": "unplanned", "said": "nothing in the project is "
+                "named by what you asked", "shown": []}
+    if picker_available():
+        return _chosen(request, held, shown)
+    return _written(request, held, shown)
+
+
+def _chosen(request: str, held, shown: list) -> dict:
+    from research.v700 import teach_judge as J
+    from research.v703.teach_picker import unit
+    units = []
+    for path in shown:
+        functions = (held.outline().get(path) or {}).get("functions", ())
+        if path.endswith(".py") and functions:
+            units += [(path, one) for one in functions]
+        else:
+            units.append((path, None))
+    if "picker" not in _LOADED:
+        from research import encoder
+        _LOADED["picker"] = J.Judge(encoder.LLM / PICKER)
+    chances = _LOADED["picker"].chances(request, [unit(path, one)
+                                                  for path, one in units])
+    ranked = sorted(zip(chances, range(len(units))), reverse=True)
+    picked = [(chance, units[at]) for chance, at in ranked
+              if chance >= PICKED][:MOST_PICKED]
+    steps = [{"path": path, "function": one["name"] if one else None,
+              "said": request, "new": False, "chance": round(chance, 3)}
+             for chance, (path, one) in picked]
+    return {"status": "planned" if steps else "unplanned", "steps": steps,
+            "shown": shown, "by": "picker",
+            "nearest": [{"unit": unit(*units[at]), "chance": round(chance, 3)}
+                        for chance, at in ranked[:8]]}
+
+
+_LOADED: dict = {}
+
+
+def _written(request: str, held, shown: list) -> dict:
     """The files most of the planner's answers change, two at least, and
     what the first of those says to do in each."""
     import zlib
     from research.v697.coding import Tools
     from research.v700 import teach_editor as T
-    shown = shortlist(request, held)
-    if not shown:
-        return {"status": "unplanned", "said": "nothing in the project is "
-                "named by what you asked", "shown": []}
     from research.v703 import structure
     writer = Tools.get().writer(PLANNER)
     # each file said as what it is -- of the files shown alone, as the
@@ -145,10 +195,18 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
             done.append({**step, "status": "left", "said_back":
                          "a file to make is not made yet"})
             continue
-        statement = f"in {step['path']}, {step['said']}"
-        read = reading.read(statement, set())
-        subject = fixing.placed(read, _only(held, step["path"]), statement) \
-            or Subject("file", step["path"], step["path"])
+        if step.get("function"):
+            # chosen by the picker: the function itself, and the request
+            # said of it
+            statement = (f"in {step['path']}, {step['function']}: "
+                         f"{step['said']}")
+            subject = Subject("function", step["function"], step["path"])
+        else:
+            statement = f"in {step['path']}, {step['said']}"
+            read = reading.read(statement, set())
+            subject = fixing.placed(read, _only(held, step["path"]),
+                                    statement) \
+                or Subject("file", step["path"], step["path"])
         result = fixing.change(statement, held, subject, key)
         done.append({**step, "status": result["status"],
                      "said_back": result.get("said", "")})
