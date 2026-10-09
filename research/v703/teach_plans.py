@@ -60,6 +60,26 @@ def split_of(key: str) -> str:
     return "test" if at < 8 else "dev" if at < 16 else "train"
 
 
+SHARD = ("https://huggingface.co/datasets/JetBrains-Research/commit-chronicle/"
+         "resolve/main/data/train-00000-of-00061-2a7ccc8e843f5f5b.parquet")
+SHARD_BYTES = 179_224_070
+
+
+def fetch() -> None:
+    """CommitChronicle's first training shard, as published -- resumed
+    where a download stopped (it stopped twice at 3 and 10 MB)."""
+    import subprocess as sp
+    CHRONICLE.mkdir(parents=True, exist_ok=True)
+    path = CHRONICLE / "train-00000.parquet"
+    for _ in range(40):
+        if path.exists() and path.stat().st_size >= SHARD_BYTES:
+            break
+        sp.run(["curl", "-sS", "-L", "-C", "-", "--retry", "5",
+                "--speed-time", "60", "--speed-limit", "1000", "-o",
+                str(path), SHARD])
+    print(path, path.stat().st_size if path.exists() else 0, "bytes")
+
+
 # -- commits --------------------------------------------------------------------------
 
 def _git(*args) -> str:
@@ -325,13 +345,15 @@ def train(epochs: int = 2, out: str = "planner") -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("commits", "describe", "corpus",
-                                        "train"))
+    parser.add_argument("job", choices=("fetch", "commits", "describe",
+                                        "corpus", "train"))
     parser.add_argument("--most", type=int, default=6000)
     parser.add_argument("--out", default="planner")
     parser.add_argument("--epochs", type=int, default=2)
     options = parser.parse_args(argv)
-    if options.job == "commits":
+    if options.job == "fetch":
+        fetch()
+    elif options.job == "commits":
         commits(options.most)
     elif options.job == "train":
         train(options.epochs, options.out)

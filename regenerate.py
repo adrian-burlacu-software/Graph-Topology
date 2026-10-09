@@ -606,6 +606,15 @@ def _hf_make(repo: str, out: Path) -> Callable[[], None]:
     return make
 
 
+def _size_check(path: Path, size: int) -> Callable[[], str | None]:
+    """A file downloaded whole: its size as published."""
+    def check() -> str | None:
+        if not path.exists() or path.stat().st_size < size:
+            return None
+        return f"{path.name}: {path.stat().st_size} bytes"
+    return check
+
+
 def _model_check(out: Path, least_mb: int) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "config.json").exists():
@@ -1793,6 +1802,21 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code30", 80),
              needs=("reader-data-more", "shell-writer"),
              cost="twenty-five minutes", gpu=True),
+
+        # v703: changes across a project -- planned by choosing
+        Step("commit-chronicle", "CommitChronicle's commits whole, one "
+                                 "training shard (JetBrains Research)",
+             lambda: _run("research.v703.teach_plans", "fetch"),
+             _size_check(DATA / "commit-chronicle" / "train-00000.parquet",
+                         179_224_070), cost="minutes"),
+        Step("picker", "a judge of what a request changes, among the "
+                       "functions a project has (research/v703)",
+             lambda: (_run("research.v703.teach_plans", "commits",
+                           "--most", "1200"),
+                      _run("research.v703.teach_picker", "pairs"),
+                      _run("research.v703.teach_picker", "train")),
+             _model_check(LLM / "picker", 400),
+             needs=("commit-chronicle",), cost="twenty minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
