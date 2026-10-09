@@ -111,6 +111,18 @@ def span(held, subject) -> tuple | None:
     return None
 
 
+def _content_words(statement: str) -> set | None:
+    """The statement's words that carry meaning -- nouns, verbs, adjectives,
+    names, as the parser reads them -- lowered; None where there is no
+    parser."""
+    from research.v691.hearing import nlp
+    parser = nlp()
+    if parser is None:
+        return None
+    return {one.text.lower() for one in parser(statement)
+            if one.pos_ in ("NOUN", "PROPN", "VERB", "ADJ", "X")}
+
+
 def placed(read, held, statement: str):
     """What a change is of: among what the statement names that the
     project has -- the encoder's subject phrases, and each word that is a
@@ -126,6 +138,15 @@ def placed(read, held, statement: str):
               for phrase in read.spans.get("SUBJ", ())]
     said = [one for one in dict.fromkeys(
         re.findall(r"[A-Za-z_$][\w$./-]*[\w$]", statement))]
+    # a plain word the encoder did not mark is a name only where it can be
+    # one: `the` is a function here (`Open.the`), and a subsystem asked for
+    # was placed on it -- the parser's part of speech says which words of
+    # the statement carry meaning
+    content = _content_words(statement)
+    if content is not None:
+        said = [one for one in said if one in marked or
+                re.search(r"[_.$/()]|[a-z][A-Z]", one) or
+                one.lower() in content]
     candidates = []
     for word in dict.fromkeys(marked + said):
         if not word:
