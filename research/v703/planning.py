@@ -30,6 +30,8 @@ PLANNER = "planner"
 #: the judge of what a request changes, and how sure it must be; the most
 #: it may choose
 PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
+#: how near the likeliest a file's best must be, and a unit its file's best
+NEAR_FILES, NEAR_UNITS = 0.06, 0.02
 #: the files shown the planner, and its answers
 SHOWN, SAMPLES, LEAST_AGREED = 12, 6, 2
 #: how long the tests beside a change may run
@@ -136,8 +138,19 @@ def _chosen(request: str, held, shown: list) -> dict:
     chances = _LOADED["picker"].chances(request, [unit(path, one)
                                                   for path, one in units])
     ranked = sorted(zip(chances, range(len(units))), reverse=True)
+    # the picker reads most of what is shown as likely (it was taught
+    # commits, and a commit changes something of every file it names):
+    # what is chosen is what it reads near its likeliest -- each file's
+    # best, where near the best of all, and of a file what is near its own
+    best_of: dict = {}
+    for chance, at in ranked:
+        best_of.setdefault(units[at][0], chance)
+    top = ranked[0][0] if ranked else 0.0
+    files = {path for path, chance in best_of.items()
+             if chance >= max(PICKED, top - NEAR_FILES)}
     picked = [(chance, units[at]) for chance, at in ranked
-              if chance >= PICKED][:MOST_PICKED]
+              if units[at][0] in files and
+              chance >= best_of[units[at][0]] - NEAR_UNITS][:MOST_PICKED]
     steps = [{"path": path, "function": one["name"] if one else None,
               "said": request, "new": False, "chance": round(chance, 3)}
              for chance, (path, one) in picked]
