@@ -99,7 +99,9 @@ MATH_DATA = LLM / "math-data"
 SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data",
                 "code": LLM / "code-talk-data",
                 # questions about data (`research/v701/teach_data_talk.py`)
-                "data": LLM / "data-talk-data"}
+                "data": LLM / "data-talk-data",
+                # what is asked of the computer (`research/v702/teach_shell.py`)
+                "shell": LLM / "shell-data"}
 SUBJECTS: list = []
 
 
@@ -564,7 +566,8 @@ HEAD_KINDS = {
     "math_act": "sentence", "math_role": "word", "math_symbol": "word",
     "code_act": "sentence", "code_aspect": "sentence",
     "code_subject": "sentence", "code_role": "word",
-    "data_act": "sentence", "data_op": "sentence", "data_role": "word"}
+    "data_act": "sentence", "data_op": "sentence", "data_role": "word",
+    "shell_act": "sentence", "shell_role": "word"}
 
 #: Which field of a record each head is taught from, for each reader. A
 #: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
@@ -589,7 +592,11 @@ FIELDS = {
              "code_subject": "subject", "code_role": "roles"},
     # What a question about data asks, the filter's comparison, and which
     # words name the fields and the value (`research/v701`).
-    "data": {"data_act": "act", "data_op": "op", "data_role": "roles"}}
+    "data": {"data_act": "act", "data_op": "op", "data_role": "roles"},
+    # What a message asks of the computer -- a command to run, a task a
+    # command does, yes or no to one shown -- and the command's words
+    # (`research/v702`).
+    "shell": {"shell_act": "act", "shell_role": "roles"}}
 
 
 def task_of(record: dict) -> str:
@@ -2675,7 +2682,8 @@ def claims(store: str) -> None:
 #: differently. The older readers keep close to the shares they were
 #: taught at.
 SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
-          "reply": 0.08, "math": 0.12, "code": 0.12, "data": 0.08}
+          "reply": 0.08, "math": 0.12, "code": 0.12, "data": 0.08,
+          "shell": 0.08}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2698,6 +2706,8 @@ def taught_as(record: dict) -> tuple:
         return task, record["act"], record["aspect"], record["subject"]
     if task == "data":
         return task, record["act"], record["op"]
+    if task == "shell":
+        return task, record["act"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
             and record.get("order") == sorted(record.get("order", ())))
@@ -2783,6 +2793,11 @@ def labels(rows=()) -> dict:
                                                    ROLES as DATA_ROLES)
         said.update(data_act=list(DATA_ACTS), data_op=list(DATA_OPS),
                     data_role=list(DATA_ROLES))
+    if any(task_of(row) == "shell" for row in rows):
+        # What is asked of the computer (`research/v702/teach_shell.py`).
+        from research.v702.teach_shell import (ACTS as SHELL_ACTS,
+                                               ROLES as SHELL_ROLES)
+        said.update(shell_act=list(SHELL_ACTS), shell_role=list(SHELL_ROLES))
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}

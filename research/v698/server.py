@@ -35,7 +35,7 @@ STARTED = time.time()
 #: the largest body taken: a project is sent whole
 LARGEST = 40_000_000
 CAPABILITIES = ("say", "turn", "page", "code", "project", "file", "pasted",
-                "python", "edit")
+                "python", "edit", "shell")
 #: the languages code is read and written in (v699)
 LANGUAGES = ("typescript", "python")
 
@@ -128,6 +128,20 @@ class Handler(v697.Handler):
 
 
 def main() -> None:
+    import argparse
+    import sys
+    # v702: whether a command that may change something is shown first and
+    # run only on yes (`--ask`, the default) or run at once (`--no-ask`);
+    # what only reads runs either way
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--ask", action=argparse.BooleanOptionalAction,
+                        default=True)
+    found, rest = parser.parse_known_args()
+    from research.v702 import shell
+    shell.ASK = found.ask
+    sys.argv = sys.argv[:1] + rest
+    print(f"shell: commands that may change something "
+          f"{'are shown first' if shell.ASK else 'run at once'}")
     v697.main(Handler, Conversations, "v698",
               __doc__.splitlines()[0])
 

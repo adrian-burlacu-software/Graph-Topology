@@ -202,6 +202,12 @@ def _turn(turn: dict, raw: bool) -> dict:
     for key in ("file", "lines", "written", "diff"):
         if made.get(key) not in (None, ""):
             out[key] = made[key]
+    # a command (v702): what was run, or shown waiting for yes
+    ran = found.get("shell") or {}
+    if ran.get("command"):
+        out["command"] = ran["command"]
+        if "code" in ran:
+            out["exit"] = ran["code"]
     out = {key: value for key, value in out.items() if value not in
            (None, "", [], {})}
     if raw:

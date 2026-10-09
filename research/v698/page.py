@@ -33,6 +33,12 @@ DATA_TALK = 211.5
 #: data said in a message: before code pasted (a JSON object reads as a
 #: TypeScript one)
 PASTED_DATA = 212.5
+#: what is asked of the computer (v702): a command given, a task a command
+#: does, yes or no to one shown -- before code talk (`run ls` is no
+#: function's call) and data talk
+SHELL_TALK = 212.25
+#: a command shown and waiting for yes, by conversation
+WAITING: dict = {}
 
 
 def _key(session):
@@ -155,6 +161,92 @@ def _act(read, text: str, session, memory) -> dict | None:
     return asking.answered_read(read, text, held, space, turn, key)
 
 
+def _shell_turn(asked, text: str, key) -> dict:
+    """A message to the shell, carried out: the command given, or the one
+    written for the task; run where it only reads (or the person said yes,
+    or `shell.ASK` is off), else shown and kept waiting for yes."""
+    from research.v702 import shell
+    looked: dict = {"act": asked.act, "chance": round(asked.chance, 3)}
+    if asked.act == "no":
+        waiting = WAITING.pop(key, None)
+        said = f"I did not run `{waiting['command']}`." if waiting else \
+            "Nothing was waiting to run."
+        return _shell_reply(text, said, looked)
+    if asked.act == "yes":
+        waiting = WAITING.pop(key)
+        return _shell_ran(text, waiting["command"], key, looked,
+                          asked_yes=True)
+    if asked.act == "command":
+        command = asked.command
+        looked["given"] = command
+    else:
+        made = shell.written(text)
+        looked["written"] = made
+        if made["status"] == "unwritten":
+            return _shell_reply(text, (
+                f"I could not write a command for that: of {made['of']} "
+                f"written, none parses."), looked)
+        command = made["command"]
+        if made["status"] == "unsure":
+            WAITING[key] = {"command": command}
+            return _shell_reply(text, (
+                f"I am not sure of the command: of {made['of']} written, no "
+                f"two agree. The likeliest is `{command}` -- say yes to run "
+                f"it."), looked, command)
+    if not shell.parses(command):
+        return _shell_reply(text, f"`{command}` does not parse as Bash.",
+                            looked, command)
+    reads, why = shell.reads_only(command)
+    looked["reads only"] = reads
+    if not reads and shell.ASK:
+        WAITING[key] = {"command": command}
+        return _shell_reply(text, (
+            f"I would run `{command}`, but {why}, which may change "
+            f"something -- say yes to run it."), looked, command)
+    return _shell_ran(text, command, key, looked)
+
+
+def _shell_ran(text: str, command: str, key, looked: dict,
+               asked_yes: bool = False) -> dict:
+    """The command run in the project's folder (else the server's), what it
+    printed said, and what parses as data held as the conversation's."""
+    import os
+    from research.v701 import pasting
+    from research.v702 import shell
+    held = Pj.project(key)
+    root = (held.root if held is not None and held.root else os.getcwd())
+    result = shell.run(command, root)
+    looked["ran"] = {one: result.get(one) for one in ("code", "seconds",
+                                                      "cut")}
+    shown = (result["out"] or "").rstrip()
+    if result.get("error") and (result.get("code") or not shown):
+        shown = (shown + "\n" + result["error"].rstrip()).strip()
+    lines = shown.count("\n") + 1 if shown else 0
+    said = (f"Ran `{command}`" + (" (as you said)" if asked_yes else "")
+            + (f": exit {result['code']}" if result.get("code") else "")
+            + (f", {result['error']}" if result.get("code") is None else "")
+            + (f" -- {lines} lines:" if shown else ", nothing printed."))
+    if shown:
+        said += "\n```\n" + shown + ("\n..." if result.get("cut") else "") \
+            + "\n```"
+    # what it printed, where it reads as data, held: asked about next
+    if shown and pasting.found(shown) is not None:
+        found = pasting.hold(shown, key)
+        if found is not None:
+            looked["held"] = found["path"]
+            said += f"\nI hold its output as {found['path']}."
+    reply = _shell_reply(text, said, looked, command)
+    reply["code"]["shell"] = result
+    return reply
+
+
+def _shell_reply(text: str, said: str, looked: dict,
+                 command: str = "") -> dict:
+    reply = asking._reply("shell", text, said, looked)
+    reply["code"]["shell"] = {"command": command}
+    return reply
+
+
 def replies(session) -> list:
     def typed(memory) -> str:
         return v697_page._typed(memory)
@@ -209,6 +301,42 @@ def replies(session) -> list:
         rule="data said in a message (it parses as JSON, YAML or CSV): "
              "held as the conversation's, and what is asked of it answered "
              "from it"))
+
+    from research.v702 import shell
+
+    if shell.available():
+        asked_for: dict = {}
+
+        def shell_read(memory):
+            text = typed(memory)
+            if text not in asked_for:
+                asked_for.clear()
+                asked_for[text] = shell.read(text, known(_key(session)))
+            return asked_for[text]
+
+        def asks_shell(memory) -> bool:
+            asked = shell_read(memory)
+            if asked is None or asked.act == "none" or \
+                    asked.chance < shell.FLOOR or pastes(memory):
+                return False
+            if asked.act in ("yes", "no"):
+                return _key(session) in WAITING
+            return asked.act == "task" and shell.writer_available() or \
+                asked.act == "command" and bool(asked.command)
+
+        def do_shell(memory):
+            asked = shell_read(memory)
+            text, key = typed(memory), _key(session)
+            memory["turn"].answer = _shell_turn(asked, text, key)
+            return ANSWERED
+
+        out.append(Operator(
+            name="shell", apply=do_shell, proposes=asks_shell,
+            utility=SHELL_TALK,
+            rule="what is asked of the computer, read by the encoder: a "
+                 "command given, or written for a task; run in the "
+                 "project's folder where it only reads, shown first where "
+                 "it may change something"))
 
     if querying.available():
         found_for: dict = {}
