@@ -136,7 +136,10 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
     from research.v698 import reading
     from research.v698.asking import Subject
     from research.v700 import fixing
+    from research.v703 import structure
     made, done = [], []
+    before = structure.signatures(held, [step["path"] for step in
+                                         found["steps"] if not step["new"]])
     for step in found["steps"]:
         if step["new"]:
             done.append({**step, "status": "left", "said_back":
@@ -155,6 +158,14 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
     failed = next((one for one in done if one["status"] not in
                    ("changed", "left")), None)
     ran = None
+    if failed is None and made:
+        # what the project's graph says the change left undone: a caller
+        # elsewhere of a function whose parameters it changed
+        broken = structure.broken_callers(held, before, made)
+        if broken:
+            failed = {"path": "callers", "status": "incomplete",
+                      "said_back": "still called the old way: "
+                                   + "; ".join(broken[:3])}
     if failed is None and tests and made:
         ran = _tests(made, held)
         if ran is not None and ran.get("code") != 0:

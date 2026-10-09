@@ -28,8 +28,11 @@ def links(held) -> Counter:
     (`Project.calls`); imports anywhere in a file, and the calls made
     through them (`shell.run` in page.py, imported inside a function); and
     a route both say (`/api/health`: the bridge asks, the server answers)."""
-    if getattr(held, "_links", None) is not None:
-        return held._links
+    # kept while the project is as it was read (a file written reads it
+    # again: `Project.put`)
+    cached = getattr(held, "_links", None)
+    if cached is not None and cached[0] == getattr(held, "read_at", None):
+        return cached[1]
     out: Counter = Counter()
     for one in held.calls():
         mine, theirs = _file_of(one["from"]), _file_of(one["to"])
@@ -50,7 +53,33 @@ def links(held) -> Counter:
         for at, one in enumerate(paths):
             for other in paths[at + 1:]:
                 out[(one, other)] += 1
-    held._links = out
+    held._links = (getattr(held, "read_at", None), out)
+    return out
+
+
+def signatures(held, paths: list) -> dict:
+    """(file, function) -> its parameters, of the files given."""
+    return {(path, one["name"]): [param[0] for param in one.get("params")
+                                  or ()]
+            for path in paths
+            for one in (held.outline().get(path) or {}).get("functions",
+                                                             ())}
+
+
+def broken_callers(held, before: dict, changed: list) -> list:
+    """Callers, in files the change did not touch, of a function whose
+    parameters it changed or which it took out: what a change across files
+    left undone (`file#caller -> file#function`)."""
+    after = signatures(held, changed)
+    moved = {key for key, params in before.items()
+             if after.get(key) != params}
+    if not moved:
+        return []
+    out = []
+    for one in held.calls():
+        target = tuple(one["to"].split("#", 1))
+        if target in moved and _file_of(one["from"]) not in changed:
+            out.append(f"{one['from']} -> {one['to']}")
     return out
 
 
