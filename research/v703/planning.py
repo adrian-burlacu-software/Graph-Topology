@@ -72,7 +72,13 @@ def shortlist(request: str, held, most: int = SHOWN) -> list:
               and len(one.strip("?.,!'\"`")) > 3]
     for path, text in held.files.items():
         score[path] += 3 * sum(one in text for one in shaped)
-    return [path for path, found in score.most_common(most) if found > 0]
+    named = [path for path, found in score.most_common(most) if found > 0]
+    # and what is joined to the files named most (`structure`): the bridge
+    # reads what the server's /api/health answers, though it says neither
+    from research.v703 import structure
+    seeds = named[:most // 2]
+    joined = structure.linked(held, seeds, most // 3)
+    return list(dict.fromkeys(seeds + joined + named))[:most]
 
 
 def _steps(answer: str, shown: list) -> list:
@@ -100,8 +106,13 @@ def plan(request: str, held) -> dict:
     if not shown:
         return {"status": "unplanned", "said": "nothing in the project is "
                 "named by what you asked", "shown": []}
+    from research.v703 import structure
     writer = Tools.get().writer(PLANNER)
-    asked = T.prompt(request, "plan", "\n".join(shown))
+    # each file said as what it is -- of the files shown alone, as the
+    # planner was taught
+    said = structure.shown(structure.subset(
+        {path: held.files[path] for path in shown}), shown)
+    asked = T.prompt(request, "plan", said)
     writer.torch.manual_seed(703 + zlib.crc32(asked.encode()))
     answers = writer.write([asked], samples=SAMPLES, longest=400,
                            greedy=True)[0]

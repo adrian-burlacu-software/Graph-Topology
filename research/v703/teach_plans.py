@@ -201,13 +201,20 @@ def said_plan(steps: list) -> str:
 
 
 def _names_its_change(said: str, diff: str) -> bool:
-    """Whether a step says a name the diff adds or takes out."""
+    """Whether a step says a name the diff adds or takes out -- a name as
+    code has one (`teach_reader`, `PREFERRED`, `shown(`), not a word the
+    diff's prose shares (`The file DESIGN.md is touched by the following
+    changes:` shared `file`)."""
+    if said.rstrip().endswith(":"):
+        return False
     changed = set()
     for line in diff.splitlines():
         if line.startswith(("+", "-")) and not line.startswith(("+++",
                                                                 "---")):
-            changed.update(re.findall(r"[A-Za-z_][\w]{3,}", line))
-    return bool(changed & set(re.findall(r"[A-Za-z_][\w]{3,}", said)))
+            changed.update(re.findall(r"\b([A-Za-z_]\w{2,})\s*[(=:]", line))
+            changed.update(re.findall(
+                r"\b(\w*_\w+|[a-z]+[A-Z]\w*|[A-Z][A-Z0-9_]{3,})\b", line))
+    return bool(changed & set(re.findall(r"[A-Za-z_]\w{2,}", said)))
 
 
 def prompt(request: str, files: list) -> str:
@@ -233,6 +240,11 @@ def corpus() -> dict:
             one = json.loads(line)
             for mod in one["mods"]:
                 diffs[(one["key"], mod["path"])] = mod["diff"]
+    # the project as it is, for what joins its files (they change little)
+    from research.v703 import structure
+    present = structure.subset({
+        path: (ROOT / path).read_text(encoding="utf-8", errors="replace")
+        for path in ours if path.endswith(".py") and (ROOT / path).exists()})
     out = []
     for one in rows:
         # a step names what its file's diff changes (`Change the PREFERRED
@@ -245,19 +257,31 @@ def corpus() -> dict:
         if len(steps) < LEAST_FILES:
             continue
         mine = [step["path"] for step in steps if step["change"] != "A"]
-        pool = ours if one["project"] == "graph-topology" else sorted(
-            by_project[one["project"]]) or every
-        others = [path for path in pool if path not in mine]
-        if len(others) < SHOWN - len(mine):
-            others += rng.sample(every, min(len(every), SHOWN))
-            others = [path for path in dict.fromkeys(others)
-                      if path not in mine]
-        shown = mine + rng.sample(others, max(0, min(len(others),
-                                                     SHOWN - len(mine))))
-        rng.shuffle(shown)
+        if not mine:
+            # only files made: nothing shown is chosen
+            continue
         request = one["message"].splitlines()[0][:300]
+        if one["project"] == "graph-topology":
+            # as the planner is shown the project at run time: the files the
+            # commit changed, those joined to them, a few others -- each
+            # said as it was before the commit
+            part = _ours_shown(one["key"].split(":", 1)[1], mine, ours,
+                               present, rng)
+            if part is None:
+                continue
+        else:
+            pool = sorted(by_project[one["project"]]) or every
+            others = [path for path in pool if path not in mine]
+            if len(others) < SHOWN - len(mine):
+                others += rng.sample(every, min(len(every), SHOWN))
+                others = [path for path in dict.fromkeys(others)
+                          if path not in mine]
+            shown = mine + rng.sample(others, max(0, min(
+                len(others), SHOWN - len(mine))))
+            rng.shuffle(shown)
+            part = "\n".join(shown)
         out.append({"statement": request, "path": "plan",
-                    "part": "\n".join(shown), "target": said_plan(steps),
+                    "part": part, "target": said_plan(steps),
                     "split": split_of(one["key"]), "source": one["key"]})
     rng.shuffle(out)
     with PLANS.open("w", encoding="utf-8") as stream:
@@ -267,6 +291,29 @@ def corpus() -> dict:
              for split in ("train", "dev", "test")}
     print(json.dumps(count))
     return count
+
+
+def _ours_shown(commit: str, mine: list, ours: list, present, rng):
+    """The files shown for one of this project's commits, each said as it
+    was before the commit; None where a file it changed was not there."""
+    from research.v703 import structure
+    joined = structure.linked(present, mine, SHOWN // 3)
+    others = [path for path in ours if path not in mine and
+              path not in joined]
+    paths = list(dict.fromkeys(mine + joined))
+    paths += rng.sample(others, max(0, min(len(others),
+                                           SHOWN - len(paths))))
+    paths = paths[:SHOWN]
+    files = {}
+    for path in paths:
+        text = _git("show", f"{commit}^:{path}")
+        if text:
+            files[path] = text
+        elif path in mine:
+            return None
+    paths = [path for path in paths if path in files]
+    rng.shuffle(paths)
+    return structure.shown(structure.subset(files), paths)
 
 
 def train(epochs: int = 2) -> None:

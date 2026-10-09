@@ -126,6 +126,15 @@ def summary(held, path: str, shown: list) -> str:
     return "; ".join(parts)
 
 
+def subset(files: dict, root=None):
+    """A project of just these files: what a plan is shown is said of them
+    alone, at run time as when it was taught (as each commit found them)."""
+    from research.v698.project import Project
+    one = Project("shown", root)
+    one.files = dict(files)
+    return one
+
+
 def shown(held, paths: list) -> str:
     """The files as a planner is shown them: each with what it is."""
     out = []
