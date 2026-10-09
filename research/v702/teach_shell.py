@@ -75,11 +75,15 @@ def fetch() -> None:
         path = SOURCE / name
         if not path.exists():
             urllib.request.urlretrieve(URL.format(name), path)
-    (SOURCE.parent / "nl2bash.SOURCE.md").write_text(
-        "NL2Bash (Lin et al., LREC 2018): English descriptions and the Bash "
-        "commands they describe.\nFetched from "
-        "https://github.com/TellinaTool/nl2bash (data/bash/all.nl, all.cm) by "
-        "`python -m research.v702.teach_shell fetch`.\n", encoding="utf-8")
+    note = SOURCE.parent / "nl2bash.SOURCE.md"
+    # the one committed says more: written only where there is none
+    if not note.exists():
+        note.write_text(
+            "NL2Bash (Lin et al., LREC 2018): English descriptions and the "
+            "Bash commands they describe.\nFetched from "
+            "https://github.com/TellinaTool/nl2bash (data/bash/all.nl, "
+            "all.cm) by `python -m research.v702.teach_shell fetch`.\n",
+            encoding="utf-8")
     print(len(pairs()), "pairs")
 
 
