@@ -161,10 +161,15 @@ def focus(request: str, held) -> tuple:
         for found in held.find(one.split("(")[0]):
             out[found["file"]] += 2
         for path, text in held.files.items():
-            # said in the code, not in a document or a test about it
-            if one in text and path.endswith(CODE_FILES) and \
-                    not re.search(r"(^|/)test_", path):
-                out[path] += 1
+            # said in the code -- not in its documentation, a document, or
+            # a test about it
+            if one not in text or not path.endswith(CODE_FILES) or \
+                    re.search(r"(^|/)test_", path):
+                continue
+            if path.endswith(".py") and one not in _code_says(
+                    text, 1, text.count("\n") + 1):
+                continue
+            out[path] += 1
     outright = [path for path, _ in out.most_common(SHOWN // 2)]
     return outright, structure.linked(held, outright, SHOWN // 3) \
         if outright else []
