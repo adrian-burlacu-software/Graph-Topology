@@ -18,6 +18,8 @@ All read the utterance as typed (`v697.page.said_as_typed`).
 """
 from __future__ import annotations
 
+import re
+
 from research.v687.executive import ANSWERED, Operator
 from research.v689 import session as v689
 from research.v697 import coding
@@ -336,8 +338,13 @@ def replies(session) -> list:
             if read is None or read.act in ("none", "teach"):
                 return False
             names = known(_key(session))
+            # its subject as marked, else the message's words shaped as
+            # code (`shell.run`, `_turn`, `main()`) -- looked up
+            shaped = [one.strip("?.,!'\"`") for one in text.split()
+                      if re.search(r"[._(]", one.strip("?.,!'\"`"))]
             return any(one in names
-                       for phrase in read.spans.get("SUBJ", ())
+                       for phrase in list(read.spans.get("SUBJ", ())) +
+                       shaped
                        for word in [phrase] + phrase.split()
                        for one in (word, word.split("(")[0],
                                    word.split("(")[0].rsplit(".", 1)[-1]))
