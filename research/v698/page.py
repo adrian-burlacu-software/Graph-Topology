@@ -377,12 +377,26 @@ def replies(session) -> list:
             # code (`shell.run`, `_turn`, `main()`) -- looked up
             shaped = [one.strip("?.,!'\"`") for one in text.split()
                       if re.search(r"[._(]", one.strip("?.,!'\"`"))]
-            return any(one in names
-                       for phrase in list(read.spans.get("SUBJ", ())) +
-                       shaped
-                       for word in [phrase] + phrase.split()
-                       for one in (word, word.split("(")[0],
-                                   word.split("(")[0].rsplit(".", 1)[-1]))
+            if any(one in names
+                   for phrase in list(read.spans.get("SUBJ", ())) + shaped
+                   for word in [phrase] + phrase.split()
+                   for one in (word, word.split("(")[0],
+                               word.split("(")[0].rsplit(".", 1)[-1])):
+                return True
+            # a change asked of something the project's code says -- a word
+            # shaped as code found in its files' text, not a path of it
+            # (`report whether the shell asks in /api/health ...`: the
+            # server answers /api/health) -- is a change of the project
+            held = Pj.project(_key(session))
+            if read.act != "change" or held is None:
+                return False
+            routes = [one.strip("?.,!'\"`") for one in text.split()
+                      if re.search(r"[_/()]|[a-z][A-Z]", one.strip(
+                          "?.,!'\"`")) and len(one) > 3]
+            return any(one not in held.files and not any(
+                path.startswith(one.strip("/")) for path in held.files)
+                and any(one in body for body in held.files.values())
+                for one in routes)
 
         def do_shell(memory):
             asked = shell_read(memory)
