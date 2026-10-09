@@ -32,6 +32,11 @@ PLANNER = "planner"
 PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
 #: how near the likeliest a file's best must be, and a unit its file's best
 NEAR_FILES, NEAR_UNITS = 0.06, 0.02
+#: what is added to the picker's chance of a file the request names
+#: outright, and of one joined to it
+OUTRIGHT, JOINED = 0.1, 0.05
+#: and of a function whose own code says what the request names as code
+EVIDENCE = 0.3
 #: the files shown the planner, and its answers
 SHOWN, SAMPLES, LEAST_AGREED = 12, 6, 2
 #: how long the tests beside a change may run
@@ -79,12 +84,90 @@ def shortlist(request: str, held, most: int = SHOWN) -> list:
     for path, text in held.files.items():
         score[path] += 3 * sum(one in text for one in shaped)
     named = [path for path, found in score.most_common(most) if found > 0]
-    # and what is joined to the files named most (`structure`): the bridge
-    # reads what the server's /api/health answers, though it says neither
+    # first what the request names outright -- a file, a function, words
+    # shaped as code the files say -- and what is joined to it: the bridge
+    # reads what the server's /api/health answers, though it says neither;
+    # then the files its words name (test files share many of them)
     from research.v703 import structure
-    seeds = named[:most // 2]
-    joined = structure.linked(held, seeds, most // 3)
+    outright, joined = focus(request, held)
+    seeds = outright or named[:most // 2]
+    joined = joined or structure.linked(held, seeds, most // 3)
     return list(dict.fromkeys(seeds + joined + named))[:most]
+
+
+#: what is code, where a word shaped as code is looked for
+CODE_FILES = (".py", ".ts", ".tsx", ".js", ".mjs")
+
+
+def _shaped(request: str) -> list:
+    """The request's words shaped as code: `/api/health`, `reads_only`,
+    `GRAPH_TOPOLOGY_PORT`, `protocol.md`."""
+    return [one.strip("?.,!'\"`") for one in request.split()
+            if re.search(r"[_/()]|[a-z][A-Z]|\w\.\w|^[A-Z][A-Z_]{3,}$",
+                         one.strip("?.,!'\"`"))
+            and len(one.strip("?.,!'\"`")) > 3]
+
+
+def _code_says(text: str, start: int, end: int) -> str:
+    """What the code of lines [start, end] says -- its names, and its
+    strings but for docstrings -- not its comments or documentation (this
+    project's own planning names `/api/health` in a docstring)."""
+    import ast
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return ""
+    docs = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef,
+                             ast.AsyncFunctionDef)) and node.body and \
+                isinstance(node.body[0], ast.Expr) and \
+                isinstance(getattr(node.body[0], "value", None), ast.Constant):
+            docs.add(id(node.body[0].value))
+    out = []
+    for node in ast.walk(tree):
+        line = getattr(node, "lineno", 0)
+        if not start <= line <= end:
+            continue
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                and id(node) not in docs:
+            out.append(node.value)
+        elif isinstance(node, ast.Name):
+            out.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            out.append(node.attr)
+    return "\n".join(out)
+
+
+def _named_files(request: str, held) -> set:
+    """The files a request names by their path or name (`protocol.md`)."""
+    said = {one.strip("?.,!'\"`") for one in request.split()}
+    return {path for path in held.files
+            if path in said or path.rsplit("/", 1)[-1] in said}
+
+
+def focus(request: str, held) -> tuple:
+    """(what the request names outright, what is joined to it): a file it
+    names (`protocol.md`), a function it names as code (`reads_only`), a
+    word shaped as code a file says (`/api/health`,
+    `GRAPH_TOPOLOGY_PORT`)."""
+    from research.v703 import structure
+    shaped = _shaped(request)
+    out: Counter = Counter()
+    for one in shaped:
+        for path in held.files:
+            if path == one or path.endswith("/" + one):
+                out[path] += 3
+        for found in held.find(one.split("(")[0]):
+            out[found["file"]] += 2
+        for path, text in held.files.items():
+            # said in the code, not in a document or a test about it
+            if one in text and path.endswith(CODE_FILES) and \
+                    not re.search(r"(^|/)test_", path):
+                out[path] += 1
+    outright = [path for path, _ in out.most_common(SHOWN // 2)]
+    return outright, structure.linked(held, outright, SHOWN // 3) \
+        if outright else []
 
 
 def _steps(answer: str, shown: list) -> list:
@@ -126,17 +209,46 @@ def _chosen(request: str, held, shown: list) -> dict:
     from research.v700 import teach_judge as J
     from research.v703.teach_picker import unit
     units = []
+    named = _named_files(request, held)
     for path in shown:
         functions = (held.outline().get(path) or {}).get("functions", ())
         if path.endswith(".py") and functions:
             units += [(path, one) for one in functions]
-        else:
+        elif path in named:
+            # a document or a setting is a step where the request names it
+            # (`document it in protocol.md`): the picker reads every one as
+            # likely -- in this project's commits a DESIGN.md changes with
+            # most of them
             units.append((path, None))
     if "picker" not in _LOADED:
         from research import encoder
         _LOADED["picker"] = J.Judge(encoder.LLM / PICKER)
     chances = _LOADED["picker"].chances(request, [unit(path, one)
                                                   for path, one in units])
+    # what the request names outright, and what is joined to it, before
+    # the like of it elsewhere (an old version's server)
+    outright, joined = focus(request, held)
+    shaped = _shaped(request)
+    evidenced: set = set()
+    def lead(path: str, one) -> float:
+        # a function whose own code says what the request names as code
+        # (`do_GET` answers /api/health, and has no docstring to say so)
+        if one is not None and shaped and path.endswith(".py"):
+            said_ = _code_says(held.files[path], one["start"], one["end"])
+            if any(word in said_ for word in shaped):
+                evidenced.add(path)
+                return EVIDENCE
+        return OUTRIGHT if path in outright else JOINED \
+            if path in joined else 0.0
+    chances = [chance + lead(path, one)
+               for chance, (path, one) in zip(chances, units)]
+    # a function whose own code says what the request names as code is a
+    # candidate whatever the picker reads of its name (`Handler.do_GET`
+    # answers /api/health; the picker, shown only `do_GET()`, said 0.06)
+    chances = [max(chance, PICKED) if path in evidenced and one is not None
+               and any(word in _code_says(held.files[path], one["start"],
+                                          one["end"]) for word in shaped)
+               else chance for chance, (path, one) in zip(chances, units)]
     ranked = sorted(zip(chances, range(len(units))), reverse=True)
     # the picker reads most of what is shown as likely (it was taught
     # commits, and a commit changes something of every file it names):
@@ -146,14 +258,33 @@ def _chosen(request: str, held, shown: list) -> dict:
     for chance, at in ranked:
         best_of.setdefault(units[at][0], chance)
     top = ranked[0][0] if ranked else 0.0
+    # and each file a function of which says what the request names as code
+    # -- a request of two places (`in /api/health ... and in the MCP health
+    # tool`) is near its likeliest in one of them only
     files = {path for path, chance in best_of.items()
-             if chance >= max(PICKED, top - NEAR_FILES)}
+             if chance >= max(PICKED, top - NEAR_FILES) or
+             (path in evidenced and chance >= PICKED)}
     picked = [(chance, units[at]) for chance, at in ranked
               if units[at][0] in files and
               chance >= best_of[units[at][0]] - NEAR_UNITS][:MOST_PICKED]
     steps = [{"path": path, "function": one["name"] if one else None,
               "said": request, "new": False, "chance": round(chance, 3)}
              for chance, (path, one) in picked]
+    # a function the request names, chosen: what calls it by that name, in
+    # other files, changes with it (`rename reads_only ... everywhere`)
+    said = set(re.findall(r"[A-Za-z_]\w+", request))
+    for step in list(steps):
+        name = (step["function"] or "").split(".")[-1]
+        if name not in said:
+            continue
+        from research.v703 import structure
+        for path, caller in structure.callers_of(held, step["path"], name):
+            if path != step["path"] and not any(
+                    one["path"] == path and one["function"] == caller
+                    for one in steps):
+                steps.append({"path": path, "function": caller,
+                              "said": request, "new": False,
+                              "chance": None, "because": f"calls {name}"})
     return {"status": "planned" if steps else "unplanned", "steps": steps,
             "shown": shown, "by": "picker",
             "nearest": [{"unit": unit(*units[at]), "chance": round(chance, 3)}

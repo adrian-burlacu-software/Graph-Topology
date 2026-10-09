@@ -57,6 +57,23 @@ def links(held) -> Counter:
     return out
 
 
+def callers_of(held, path: str, name: str) -> list:
+    """(file, function) calling `name` of `path` -- by the call graph, and
+    through an import anywhere in a file (`shell.reads_only` in page.py,
+    `shell` imported in the function)."""
+    out = {tuple(one["from"].split("#", 1)) for one in held.calls()
+           if one["to"] == f"{path}#{name}"}
+    for other, text in held.files.items():
+        if other == path or not other.endswith(".py") or \
+                path not in _imported(held, other, text):
+            continue
+        for one in (held.outline().get(other) or {}).get("functions", ()):
+            if any(call == name or call.endswith("." + name)
+                   for call in one.get("calls", ())):
+                out.add((other, one["name"]))
+    return sorted(out)
+
+
 def signatures(held, paths: list) -> dict:
     """(file, function) -> its parameters, of the files given."""
     return {(path, one["name"]): [param[0] for param in one.get("params")

@@ -54,6 +54,47 @@ class StructureTests(unittest.TestCase):
                                                   ["a.py", "b.py"]), [])
 
 
+class FocusTests(unittest.TestCase):
+    """What a request names outright, what code says it, who calls it."""
+
+    FILES = {
+        "srv/server.py": ('"""The server."""\n\nclass Handler:\n'
+                          '    def do_GET(self):\n'
+                          '        if self.path == "/api/health":\n'
+                          '            return {}\n'),
+        "srv/notes.py": ('"""Says /api/health in its doc only."""\n\n'
+                         'def note():\n    """About /api/health."""\n'
+                         '    return 1\n'),
+        "srv/shell.py": "def reads_only(command):\n    return True\n",
+        "srv/page.py": ("def act():\n    from srv import shell\n"
+                        "    return shell.reads_only('ls')\n"),
+        "srv/__init__.py": "",
+        "docs/protocol.md": "# The protocol\n",
+    }
+
+    def test_what_the_code_says(self):
+        held = _project(self.FILES)
+        server = held.files["srv/server.py"]
+        self.assertIn("/api/health", planning._code_says(server, 4, 6))
+        notes = held.files["srv/notes.py"]
+        self.assertNotIn("/api/health", planning._code_says(notes, 1, 6))
+
+    def test_named_outright(self):
+        held = _project(self.FILES)
+        outright, _ = planning.focus(
+            "show whether the shell asks in /api/health, in protocol.md",
+            held)
+        self.assertIn("docs/protocol.md", outright)
+        self.assertIn("srv/server.py", outright)
+        self.assertNotIn("srv/notes.py", outright)
+
+    def test_callers_through_an_import_in_a_function(self):
+        held = _project(self.FILES)
+        self.assertEqual(structure.callers_of(held, "srv/shell.py",
+                                              "reads_only"),
+                         [("srv/page.py", "act")])
+
+
 class PlanTests(unittest.TestCase):
     def test_steps_of_files_shown(self):
         answer = ("srv/server.py: add the shell's asking to health\n"
