@@ -1780,13 +1780,17 @@ def steps() -> list[Step]:
              cost="two hours", gpu=True),
         Step("reader-shell", "the shared reader taught what is asked of the "
                              "computer (research/v702)",
+             # the shipped reader-code30 was taught in two rounds (29: the
+             # first corpus; 30: everyday commands, the developer's
+             # requests, tags as at run time); rebuilt, the last corpus is
+             # taught at once
              lambda: _run("research.v689.teach_reader", "train",
                           "--base", str(LLM / "reader-code28"),
-                          "--out", str(LLM / "reader-code29"),
+                          "--out", str(LLM / "reader-code30"),
                           "--epochs", "2", "--subject", "math",
                           "--subject", "design", "--subject", "code",
                           "--subject", "data", "--subject", "shell"),
-             _model_check(LLM / "reader-code29", 80),
+             _model_check(LLM / "reader-code30", 80),
              needs=("reader-data-more", "shell-writer"),
              cost="twenty-five minutes", gpu=True),
 
