@@ -37,6 +37,7 @@ the file, or asks the user where the code goes.
 | `turn` | `GET /api/turn` | `?sid=&n=` | the turn whole, with `graph` |
 | `project` | `POST /api/project` | `{sid, files: {path: text}, name, root?}` | `{refused, name, files, lines, functions, exported, "most called"}` |
 | `edit` | (through `say`) | a change of the project's code (`fix _turn: read "number"`) | the turn, with `answer.code.change`: `{status, file, lines, diff, written}` |
+| `shell` | (through `say`) | a command (`run ls`, `$ git status`), a task a command does (`what files are in research`), or `yes`/`no` to one shown (v702) | the turn, with `answer.code.shell`: `{command, code, out, error, seconds}` -- run in the project's `root` where it only reads; else shown, run on `yes` (the server's `--no-ask`: at once) |
 | `project` | `GET /api/project` | `?sid=` | `{summary, outline, graph}` |
 | `file` | `POST /api/file` | `{sid, path, text \| null}` | as `POST /api/project` |
 | `code`, `pasted` | (through `say`) | a request for code; code in a fence with a question | |
