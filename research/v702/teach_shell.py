@@ -40,6 +40,10 @@ URL = ("https://raw.githubusercontent.com/TellinaTool/nl2bash/master/data/"
 DATA = LLM / "shell-data"
 PHRASED = DATA / "phrased.jsonl"
 COMMANDS = DATA / "commands.jsonl"
+COMMANDS_MORE = DATA / "commands-more.jsonl"
+WRITER_MORE = LLM / "shell-writer2"
+#: how often a row's words are told as naming code
+TAGGED = 0.25
 WRITER = LLM / "shell-writer"
 SEED = 702
 
@@ -165,6 +169,106 @@ def phrase(batch: int = 24) -> None:
         print(f"  {at + len(chunk)}/{len(todo)}", flush=True)
 
 
+# -- everyday requests, and requests that are not the shell's -----------------------------
+
+EVERYDAY = DATA / "everyday.jsonl"
+FEATURES = DATA / "features.jsonl"
+#: what people ask of a computer in a project's folder; NL2Bash has little
+#: of it (`git log -3`, `du -sh data`, the current branch): the writer
+#: agreed on `git log -n 3 | tail -1` for the last three commits
+TOPICS = ("listing files and folders", "the size of files and folders",
+          "free disk space and memory", "git history and recent commits",
+          "git status, branches and changed files", "searching for text "
+          "in files", "counting files and lines", "finding files by name "
+          "or type", "reading the start or end of a file", "running "
+          "processes", "the date, time, user and machine",
+          "installed program versions (python, node, git)",
+          "comparing two files", "environment variables and the path",
+          "making and removing folders", "copying, moving and renaming "
+          "files", "archives (zip, tar)", "file permissions",
+          "downloading a file", "the largest or newest files")
+#: requests to change a program that talk of shells and commands: what is
+#: asked of the developer, not of the computer (`integrate writing and
+#: reading Bash commands into the architecture` was written `brew install`)
+FEATURE_SEEDS = (
+    "add a feature that runs shell commands", "make the server log every "
+    "command it runs", "write a function that parses ls output",
+    "integrate a terminal into the app", "support running Bash scripts "
+    "in the editor", "refactor the command runner", "add tests for the "
+    "shell module", "teach the reader to understand commands",
+    "fix the bug where git output is cut off", "document how commands are "
+    "checked before they run")
+
+
+def everyday(per: int = 15) -> None:
+    """Requests people make of the computer, each with the command that
+    does it, written by the teacher; kept where the command parses and --
+    where it only reads -- runs here and succeeds."""
+    from research.v696.teach_meaning import Teacher
+    from research.v702 import shell
+    teacher = Teacher()
+    teacher.torch.manual_seed(SEED + 1)
+    prompts = [(f"Write {per} different requests a developer types to an "
+                f"assistant that runs Bash commands in their project's "
+                f"folder, about {topic}: questions and requests, short and "
+                f"casual, naming real-looking files and folders. After each, "
+                f"the one Bash command that does it. Format each line as: "
+                f"request ||| command") for topic in TOPICS]
+    replies = teacher.write(prompts, longest=900, samples=2, temperature=0.8)
+    kept = seen = 0
+    with EVERYDAY.open("w", encoding="utf-8") as out:
+        for topic, written in zip(TOPICS, replies):
+            for reply in written:
+                for line in reply.splitlines():
+                    if "|||" not in line:
+                        continue
+                    said, _, command = line.partition("|||")
+                    said = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", said)
+                    said = said.strip().strip("\"'“”")
+                    command = command.strip().strip("`").strip()
+                    if not said or not command or len(command) > 200:
+                        continue
+                    seen += 1
+                    if not shell.parses(command):
+                        continue
+                    reads, _ = shell.reads_only(command)
+                    if reads:
+                        ran = shell.run(command, ROOT, timeout=10)
+                        if ran.get("code") != 0:
+                            continue
+                    kept += 1
+                    out.write(json.dumps({"said": said, "command": command,
+                                          "topic": topic, "reads": reads})
+                              + "\n")
+    print(f"everyday: {kept} of {seen} kept")
+
+
+def features(per: int = 12) -> None:
+    """Requests to change a program that talk of shells and commands --
+    not the shell's to carry out -- said by the teacher from seeds."""
+    from research.v696.teach_meaning import Teacher
+    teacher = Teacher()
+    teacher.torch.manual_seed(SEED + 2)
+    prompts = [(f"Write {per} different requests a developer gives a "
+                f"programmer working on their program, like: \"{seed}\". "
+                f"Each asks for a change to the program's code, about "
+                f"commands, shells, terminals, scripts or git. One per line, "
+                f"nothing else.") for seed in FEATURE_SEEDS]
+    replies = teacher.write(prompts, longest=700, samples=2, temperature=0.9)
+    lines = set(FEATURE_SEEDS)
+    for written in replies:
+        for reply in written:
+            for line in reply.splitlines():
+                line = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", line)
+                line = line.strip().strip("\"'“”")
+                if 10 <= len(line) <= 200 and not _commandlike(line):
+                    lines.add(line)
+    with FEATURES.open("w", encoding="utf-8") as out:
+        for line in sorted(lines):
+            out.write(json.dumps({"said": line}) + "\n")
+    print(f"features: {len(lines)}")
+
+
 # -- the corpus ---------------------------------------------------------------------------
 
 #: a command given to run, as people give one (the command's words marked)
@@ -223,6 +327,42 @@ def corpus(negatives: int = 9000) -> dict:
         made = _given(command, rng)
         if made is not None:
             rows[part].append(made)
+    # everyday requests (the teacher's, each command checked by running
+    # it): taught as tasks, and to the writer three times over; their
+    # commands given bare, as `git status` is typed
+    more = []
+    if EVERYDAY.exists():
+        for line in EVERYDAY.open(encoding="utf-8"):
+            one = json.loads(line)
+            split = split_of(one["command"])
+            part = "train" if split == "train" else "valid"
+            said_words = words(one["said"])
+            if said_words:
+                rows[part].append(_record(said_words, ["O"] * len(said_words),
+                                          "task", "everyday"))
+            row = {"statement": one["said"], "path": "shell", "part": "",
+                   "target": one["command"], "split": split,
+                   "source": "everyday"}
+            writer.append(row)
+            more += [row] * 3
+            bare = words(one["command"])
+            if bare:
+                rows[part].append(_record(
+                    [w.lower() for w in bare],
+                    ["B-CMD"] + ["I-CMD"] * (len(bare) - 1), "command",
+                    "given bare"))
+            made = _given(one["command"], rng)
+            if made is not None:
+                rows[part].append(made)
+    # requests to change a program that talk of commands: the developer's,
+    # not the shell's
+    if FEATURES.exists():
+        for line in FEATURES.open(encoding="utf-8"):
+            said = words(json.loads(line)["said"])
+            part = "valid" if rng.random() < 0.1 else "train"
+            for _ in range(3):
+                rows[part].append(_record(said, ["O"] * len(said), "none",
+                                          "feature"))
     for part in rows:
         for _ in range(400 if part == "train" else 60):
             for kind, pool in (("yes", YES), ("no", NO)):
@@ -244,6 +384,17 @@ def corpus(negatives: int = 9000) -> dict:
         part = "valid" if rng.random() < 0.1 else "train"
         rows[part].append(_record(said, ["O"] * len(said), "none",
                                   "not shell"))
+    # the words naming the project's code told beside them, as at run time
+    # (`the` is a function's name here: told so, `delete the __pycache__
+    # folders` fell under the floor) -- now and then, on any row, so the tag
+    # alone decides nothing
+    for made in rows.values():
+        for one in made:
+            if one["words"] and rng.random() < TAGGED:
+                marked = set(rng.sample(range(len(one["words"])),
+                                        min(2, len(one["words"]))))
+                one["tags"] = ["CODE" if at in marked else ""
+                               for at in range(len(one["words"]))]
     DATA.mkdir(parents=True, exist_ok=True)
     stats = {}
     for part, made in rows.items():
@@ -258,6 +409,14 @@ def corpus(negatives: int = 9000) -> dict:
     rng.shuffle(writer)
     with COMMANDS.open("w", encoding="utf-8") as out:
         for one in writer:
+            out.write(json.dumps(one) + "\n")
+    # what the second writer is taught from the first: the everyday
+    # requests, and as many of the rest, so what it knew is kept
+    rest = [one for one in writer if one["source"] != "everyday"]
+    more += rng.sample(rest, min(len(rest), max(len(more), 4000)))
+    rng.shuffle(more)
+    with COMMANDS_MORE.open("w", encoding="utf-8") as out:
+        for one in more:
             out.write(json.dumps(one) + "\n")
     stats["writer"] = {split: sum(one["split"] == split for one in writer)
                        for split in ("train", "dev", "test")}
@@ -279,16 +438,27 @@ def train(epochs: int = 2, seed: int = SEED) -> None:
             longest=512)
 
 
+def train_more(seed: int = SEED + 1) -> None:
+    """The second writer: the first taught the everyday requests."""
+    from research.v700 import teach_editor as T
+    T.SAYING = SAYING
+    T.train(WRITER_MORE, epochs=1, rate=5e-5, seed=seed,
+            corpus=COMMANDS_MORE, longest=512, base=WRITER)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("fetch", "phrase", "corpus",
-                                        "train"))
+    parser.add_argument("job", choices=("fetch", "phrase", "everyday",
+                                        "features", "corpus", "train",
+                                        "train-more"))
     parser.add_argument("--epochs", type=int, default=2)
     options = parser.parse_args(argv)
     if options.job == "train":
         train(options.epochs)
     else:
-        {"fetch": fetch, "phrase": phrase, "corpus": corpus}[options.job]()
+        {"fetch": fetch, "phrase": phrase, "everyday": everyday,
+         "features": features, "corpus": corpus,
+         "train-more": train_more}[options.job]()
     return 0
 
 
