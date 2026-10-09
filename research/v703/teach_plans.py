@@ -316,10 +316,10 @@ def _ours_shown(commit: str, mine: list, ours: list, present, rng):
     return structure.shown(structure.subset(files), paths)
 
 
-def train(epochs: int = 2) -> None:
+def train(epochs: int = 2, out: str = "planner") -> None:
     from research.v700 import teach_editor as T
     T.SAYING = SAYING
-    T.train(PLANNER, epochs=epochs, rate=1e-4, seed=SEED, corpus=PLANS,
+    T.train(LLM / out, epochs=epochs, rate=1e-4, seed=SEED, corpus=PLANS,
             longest=1024)
 
 
@@ -328,9 +328,13 @@ def main(argv=None) -> int:
     parser.add_argument("job", choices=("commits", "describe", "corpus",
                                         "train"))
     parser.add_argument("--most", type=int, default=6000)
+    parser.add_argument("--out", default="planner")
+    parser.add_argument("--epochs", type=int, default=2)
     options = parser.parse_args(argv)
     if options.job == "commits":
         commits(options.most)
+    elif options.job == "train":
+        train(options.epochs, options.out)
     else:
         {"describe": describe, "corpus": corpus, "train": train}[
             options.job]()
