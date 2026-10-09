@@ -148,7 +148,7 @@ def _shown_diff(diff: str) -> str:
     return "\n".join(lines[:DIFF_LINES])[:4000]
 
 
-def describe(batch: int = 16) -> None:
+def describe(batch: int = 32) -> None:
     """Each file's part of each commit, said as an instruction."""
     from research.v696.teach_meaning import Teacher
     rows = [json.loads(line) for line in COMMITS.open(encoding="utf-8")]
