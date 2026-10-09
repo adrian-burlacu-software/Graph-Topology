@@ -98,8 +98,13 @@ def _chronicle(most: int) -> list:
     import pyarrow.parquet as pq
     out = []
     for shard in sorted(CHRONICLE.glob("*.parquet")):
-        table = pq.read_table(shard, columns=["hash", "repo", "message",
-                                              "mods", "language"])
+        try:
+            table = pq.read_table(shard, columns=["hash", "repo", "message",
+                                                  "mods", "language"])
+        except Exception as bad:                    # noqa: BLE001
+            # a shard still coming (the download resumes): next time
+            print(f"{shard.name} not read: {bad}", flush=True)
+            continue
         for row in table.to_pylist():
             if row["language"] != "Python":
                 continue
