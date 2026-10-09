@@ -68,6 +68,15 @@ class RunTests(unittest.TestCase):
             self.assertTrue(shell.parses("ls -la"))
             self.assertFalse(shell.parses("ls ("))
 
+    def test_stopped_whole(self):
+        """Out of time, the command stops and all it started with it: a
+        `find` under a stopped bash kept its output open."""
+        import time
+        started = time.time()
+        found = shell.run("sleep 30 | cat", ".", timeout=2)
+        self.assertIsNone(found["code"])
+        self.assertLess(time.time() - started, 15)
+
 
 if __name__ == "__main__":
     unittest.main()

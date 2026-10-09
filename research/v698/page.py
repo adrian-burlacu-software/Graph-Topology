@@ -180,7 +180,9 @@ def _shell_turn(asked, text: str, key) -> dict:
         command = asked.command
         looked["given"] = command
     else:
-        made = shell.written(text)
+        held = Pj.project(key)
+        made = shell.written(text, held.root if held is not None and
+                             held.root else None)
         looked["written"] = made
         if made["status"] == "unwritten":
             return _shell_reply(text, (

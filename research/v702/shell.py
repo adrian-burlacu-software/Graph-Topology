@@ -205,7 +205,7 @@ def parses(command: str) -> bool:
     return checked.returncode == 0
 
 
-def run(command: str, root: str | Path) -> dict:
+def run(command: str, root: str | Path, timeout: int | None = None) -> dict:
     """The command run by Bash in `root`: its exit code, what it printed
     (the first `MOST_OUTPUT` characters of each stream) and how long."""
     found = bash()
@@ -213,23 +213,54 @@ def run(command: str, root: str | Path) -> dict:
         return {"command": command, "code": None, "out": "",
                 "error": "no bash on this computer", "seconds": 0}
     started = time.time()
+    limit = timeout or TIMEOUT
+    # its own process group: stopped, all it started stops with it -- a
+    # `find` under a stopped bash kept its output open, and the run waited
+    flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    # and stopped from inside: GNU timeout stops all it started (Windows'
+    # taskkill reaches Git Bash, not the MSYS programs under it)
+    process = subprocess.Popen(
+        [found, "-c", f"timeout -k 2 {limit} bash -c {shlex.quote(command)}"],
+        cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL, creationflags=flags,
+        start_new_session=os.name != "nt")
     try:
-        done = subprocess.run([found, "-c", command], cwd=str(root),
-                              capture_output=True, timeout=TIMEOUT,
-                              stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired as late:
-        return {"command": command, "code": None,
-                "out": _text(late.stdout or b""),
-                "error": f"stopped after {TIMEOUT} s", "seconds": TIMEOUT}
-    out, error = _text(done.stdout), _text(done.stderr)
-    return {"command": command, "code": done.returncode, "out": out,
-            "error": error, "cut": len(done.stdout) > MOST_OUTPUT or
-            len(done.stderr) > MOST_OUTPUT,
+        stdout, stderr = process.communicate(timeout=limit + 10)
+    except subprocess.TimeoutExpired:
+        _stop(process)
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            stdout, stderr = b"", b""
+        return {"command": command, "code": None, "out": _text(stdout or b""),
+                "error": f"stopped after {limit} s", "seconds": limit}
+    if process.returncode in (124, 137):
+        return {"command": command, "code": None, "out": _text(stdout),
+                "error": f"stopped after {limit} s", "seconds": limit}
+    out, error = _text(stdout), _text(stderr)
+    return {"command": command, "code": process.returncode, "out": out,
+            "error": error, "cut": len(stdout) > MOST_OUTPUT or
+            len(stderr) > MOST_OUTPUT,
             "seconds": round(time.time() - started, 2)}
 
 
+def _stop(process) -> None:
+    """The process and everything it started, stopped."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)],
+                       capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    process.kill()
+
+
 def _text(raw: bytes) -> str:
-    return raw[:MOST_OUTPUT].decode("utf-8", "replace")
+    # a CRLF file's lines said as lines
+    return raw[:MOST_OUTPUT].decode("utf-8", "replace").replace("\r\n", "\n")
 
 
 def writer_available() -> bool:
@@ -248,7 +279,7 @@ def _grounded(command: str, request: str) -> str:
     return re.sub(r"(^|[\s=\"'])(/[\w.\-/]+)", own, command)
 
 
-def written(request: str) -> dict:
+def written(request: str, root: str | Path | None = None) -> dict:
     """The command a request asks for: the writer's answers, those that
     parse, the one most of them write -- where at least two agree."""
     from research.v697.coding import Tools
@@ -273,6 +304,36 @@ def written(request: str) -> dict:
     if not ranked:
         return {"status": "unwritten", "of": len(answers)}
     command, agree = ranked[0]
-    return {"status": "written" if agree >= LEAST_AGREED else "unsure",
-            "command": command, "agree": agree, "of": len(answers),
-            "others": [one[0] for one in ranked[1:4]]}
+    out = {"status": "written" if agree >= LEAST_AGREED else "unsure",
+           "command": command, "agree": agree, "of": len(answers),
+           "others": [one[0] for one in ranked[1:4]]}
+    if agree < LEAST_AGREED and root is not None:
+        found = _agreed_by_output(ranked, root)
+        if found is not None:
+            out.update(found)
+    return out
+
+
+#: how long a command written apart may run to be compared by its output
+COMPARED = 10
+
+
+def _agreed_by_output(ranked: list, root) -> dict | None:
+    """Commands written apart that only read, run, and compared by what
+    they print: `git log -n 3` and `git log -3` say the same, and agree
+    though written otherwise. The most of them printing the same (two at
+    least, and something), the most written of those."""
+    printed: dict = {}
+    for command, times in ranked[:SAMPLES]:
+        if not reads_only(command)[0]:
+            continue
+        found = run(command, root, timeout=COMPARED)
+        if found.get("code") != 0 or not found["out"].strip():
+            continue
+        printed.setdefault(found["out"], []).append((command, times))
+    groups = sorted(printed.values(), key=lambda one: -len(one))
+    if not groups or len(groups[0]) < LEAST_AGREED:
+        return None
+    best = max(groups[0], key=lambda one: one[1])[0]
+    return {"status": "written", "command": best, "agree": len(groups[0]),
+            "by": "output", "same": [one[0] for one in groups[0]]}
