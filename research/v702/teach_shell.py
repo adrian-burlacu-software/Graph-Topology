@@ -29,6 +29,7 @@ import hashlib
 import json
 import random
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -173,20 +174,6 @@ def phrase(batch: int = 24) -> None:
 
 EVERYDAY = DATA / "everyday.jsonl"
 FEATURES = DATA / "features.jsonl"
-#: what people ask of a computer in a project's folder; NL2Bash has little
-#: of it (`git log -3`, `du -sh data`, the current branch): the writer
-#: agreed on `git log -n 3 | tail -1` for the last three commits
-TOPICS = ("listing files and folders", "the size of files and folders",
-          "free disk space and memory", "git history and recent commits",
-          "git status, branches and changed files", "searching for text "
-          "in files", "counting files and lines", "finding files by name "
-          "or type", "reading the start or end of a file", "running "
-          "processes", "the date, time, user and machine",
-          "installed program versions (python, node, git)",
-          "comparing two files", "environment variables and the path",
-          "making and removing folders", "copying, moving and renaming "
-          "files", "archives (zip, tar)", "file permissions",
-          "downloading a file", "the largest or newest files")
 #: requests to change a program that talk of shells and commands: what is
 #: asked of the developer, not of the computer (`integrate writing and
 #: reading Bash commands into the architecture` was written `brew install`)
@@ -200,47 +187,143 @@ FEATURE_SEEDS = (
     "checked before they run")
 
 
-def everyday(per: int = 15) -> None:
-    """Requests people make of the computer, each with the command that
-    does it, written by the teacher; kept where the command parses and --
-    where it only reads -- runs here and succeeds."""
-    from research.v696.teach_meaning import Teacher
+#: what people ask of a computer in a project's folder -- NL2Bash has
+#: little of it (`git log -3`, `du -sh data`, the current branch): the
+#: writer agreed on `git log -n 3 | tail -1` for the last three commits.
+#: Commands made here, over this project's own folders, files and words
+#: (labels by construction); the teacher says what a person asks for each.
+#: (Told to write requests and commands both, the teacher wrote `request
+#: ||| ls -l -d */` and `ls -lt | grep -o \d+` for the newest folder.)
+EVERYDAY_PER = 12
+
+
+def _project():
+    """The project's folders, files and words, as git keeps them."""
+    import subprocess
+    listed = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
+                            capture_output=True, text=True).stdout.split()
+    files = [one for one in listed if (ROOT / one).is_file() and
+             (ROOT / one).stat().st_size < 400_000]
+    folders = sorted({one.rsplit("/", 1)[0] for one in files if "/" in one})
+    names = []
+    for one in files:
+        if one.endswith(".py"):
+            text = (ROOT / one).read_text(encoding="utf-8", errors="replace")
+            names += re.findall(r"^def ([a-z_]\w{3,})", text, re.M)
+    return files, folders, sorted(set(names))
+
+
+def everyday_commands(rng) -> list:
+    """(command, reads only) over the project, each kind once or more."""
+    files, folders, names = _project()
+    exts = ("py", "md", "json", "ts", "csv", "yaml")
+    def f():
+        return rng.choice(files)
+    def d():
+        return rng.choice(folders)
+    def k():
+        return rng.choice((1, 2, 3, 5, 10, 20))
+    def w():
+        return rng.choice(names)
+    def x():
+        return rng.choice(exts)
+    def base(path):
+        return path.rsplit("/", 1)[-1]
+    makers = [
+        lambda: f"ls {d()}", lambda: f"ls -la {d()}",
+        lambda: f"ls {d()} | wc -l", lambda: f"du -sh {d()}",
+        lambda: f"du -sh {f()}", lambda: f"find {d()} -name '*.{x()}' | wc -l",
+        lambda: f"find {d()} -name '*.{x()}'", lambda: f"find . -name {base(f())}",
+        lambda: f"wc -l {f()}", lambda: f"head -n {k()} {f()}",
+        lambda: f"tail -n {k()} {f()}", lambda: f"cat {f()}",
+        lambda: f"grep -rn '{w()}' {d()}", lambda: f"grep -rl '{w()}' .",
+        lambda: f"grep -c '{w()}' {f()}",
+        lambda: f"git log -n {k()} --oneline", lambda: f"git log -n {k()}",
+        lambda: f"git log --oneline -- {f()}", lambda: "git log -1 --format=%cd",
+        lambda: "git status --short", lambda: "git status",
+        lambda: "git branch --show-current", lambda: "git branch -a",
+        lambda: "git diff --stat", lambda: "git diff --name-only",
+        lambda: "git show --stat HEAD", lambda: f"git log -n {k()} --format='%an %s'",
+        lambda: "df -h .", lambda: "date", lambda: "whoami", lambda: "pwd",
+        lambda: "python --version", lambda: "git --version",
+        lambda: f"ls -lt {d()} | head -n {k()}", lambda: f"ls -S {d()} | head -n {k()}",
+        lambda: f"find {d()} -type f -newer {f()}",
+        lambda: f"mkdir -p {d()}/notes", lambda: f"rm {f()}",
+        lambda: f"cp {f()} {f()}.bak", lambda: f"touch {d()}/TODO.md",
+        lambda: f"tar -czf {base(d())}.tar.gz {d()}", lambda: f"git add {f()}",
+        lambda: f"mv {f()} {d()}/",
+    ]
     from research.v702 import shell
+    out, seen = [], set()
+    for _ in range(EVERYDAY_PER):
+        for make in makers:
+            command = make()
+            if command in seen:
+                continue
+            seen.add(command)
+            reads, _ = shell.reads_only(command)
+            if reads:
+                ran = shell.run(command, ROOT, timeout=10)
+                if ran.get("code") != 0 or not ran["out"].strip():
+                    continue
+            out.append((command, reads))
+    return out
+
+
+def everyday(batch: int = 24) -> None:
+    """The project's everyday commands, each said by the teacher as people
+    ask for it -- every name in the command kept exactly."""
+    from research.v696.teach_meaning import Teacher
+    rng = random.Random(SEED + 1)
+    commands = everyday_commands(rng)
+    print(f"{len(commands)} commands", flush=True)
     teacher = Teacher()
     teacher.torch.manual_seed(SEED + 1)
-    prompts = [(f"Write {per} different requests a developer types to an "
-                f"assistant that runs Bash commands in their project's "
-                f"folder, about {topic}: questions and requests, short and "
-                f"casual, naming real-looking files and folders. After each, "
-                f"the one Bash command that does it. Format each line as: "
-                f"request ||| command") for topic in TOPICS]
-    replies = teacher.write(prompts, longest=900, samples=2, temperature=0.8)
-    kept = seen = 0
+    kept = 0
     with EVERYDAY.open("w", encoding="utf-8") as out:
-        for topic, written in zip(TOPICS, replies):
-            for reply in written:
-                for line in reply.splitlines():
-                    if "|||" not in line:
-                        continue
-                    said, _, command = line.partition("|||")
-                    said = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", said)
-                    said = said.strip().strip("\"'“”")
-                    command = command.strip().strip("`").strip()
-                    if not said or not command or len(command) > 200:
-                        continue
-                    seen += 1
-                    if not shell.parses(command):
-                        continue
-                    reads, _ = shell.reads_only(command)
-                    if reads:
-                        ran = shell.run(command, ROOT, timeout=10)
-                        if ran.get("code") != 0:
-                            continue
-                    kept += 1
-                    out.write(json.dumps({"said": said, "command": command,
-                                          "topic": topic, "reads": reads})
-                              + "\n")
-    print(f"everyday: {kept} of {seen} kept")
+        for at in range(0, len(commands), batch):
+            chunk = commands[at:at + batch]
+            prompts = []
+            for command, _ in chunk:
+                names = _command_names(command)
+                keep = (f" Keep {', '.join(names)} exactly so in every one."
+                        if names else "")
+                prompts.append(
+                    f"In a project's folder, this Bash command was run: "
+                    f"`{command}`. Write 4 different things a person might "
+                    f"type to an assistant that runs commands for them, "
+                    f"asking for exactly what this command does or shows -- "
+                    f"questions or requests, short and casual, in plain "
+                    f"words, not the command.{keep} One per line, nothing "
+                    f"else.")
+            replies = teacher.write(prompts, longest=300, samples=1)
+            for (command, reads), written in zip(chunk, replies):
+                names = _command_names(command)
+                for line in written[0].splitlines():
+                    line = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", line)
+                    line = line.strip().strip("\"'“”")
+                    if 8 <= len(line) <= 200 and all(
+                            name in line for name in names) and \
+                            not _commandlike(line) and command not in line:
+                        kept += 1
+                        out.write(json.dumps({"said": line, "command": command,
+                                              "reads": reads}) + "\n")
+            print(f"  {at + len(chunk)}/{len(commands)}", flush=True)
+    print(f"everyday: {kept} requests")
+
+
+def _command_names(command: str) -> list:
+    """What a request for the command must say: its paths, files, numbers
+    and quoted words."""
+    found = []
+    for one in shlex.split(command.replace("|", " ")):
+        if one.startswith("-") or one in (".", "wc", "head", "tail"):
+            continue
+        if re.search(r"[/.]", one) and one not in (".",) or \
+                re.fullmatch(r"\d+", one) or re.fullmatch(r"[a-z_]\w{3,}",
+                                                          one) and "_" in one:
+            found.append(one.strip("'"))
+    return list(dict.fromkeys(found))
 
 
 def features(per: int = 12) -> None:
