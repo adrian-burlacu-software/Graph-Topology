@@ -1759,6 +1759,32 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code28", 80),
              needs=("reader-data-edits", "smollm3"),
              cost="forty minutes", gpu=True),
+        # v702: Bash, for basic computer use
+        Step("nl2bash", "NL2Bash's descriptions and commands, as published "
+                        "(research/v702/teach_shell.py)",
+             lambda: _run("research.v702.teach_shell", "fetch"),
+             _lines_check(DATA / "nl2bash" / "all.cm", 12000, "as published"),
+             cost="seconds"),
+        Step("shell-writer", "a writer of Bash: a request, the command that "
+                             "does it; requests said again by the teacher",
+             lambda: (_run("research.v702.teach_shell", "phrase"),
+                      _run("research.v702.teach_shell", "corpus"),
+                      _run("research.v702.teach_shell", "train",
+                           "--epochs", "2")),
+             _model_check(LLM / "shell-writer", 600),
+             needs=("nl2bash", "smollm3", "code-talk", "data-talk"),
+             cost="two hours", gpu=True),
+        Step("reader-shell", "the shared reader taught what is asked of the "
+                             "computer (research/v702)",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code28"),
+                          "--out", str(LLM / "reader-code29"),
+                          "--epochs", "2", "--subject", "math",
+                          "--subject", "design", "--subject", "code",
+                          "--subject", "data", "--subject", "shell"),
+             _model_check(LLM / "reader-code29", 80),
+             needs=("reader-data-more", "shell-writer"),
+             cost="twenty-five minutes", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
