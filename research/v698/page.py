@@ -120,6 +120,23 @@ def _act(read, text: str, session, memory) -> dict | None:
         # or the one just talked about (v700): made in the project, and in
         # its files on disk
         from research.v700 import fixing
+        # a change naming no function or file of the project outright --
+        # its words name what it is about, not where (`report whether the
+        # shell asks in /api/health and show it in the MCP health tool`) --
+        # is planned across the project (v703), where a plan is agreed
+        if held is not None and not _named_outright(read, text, held):
+            from research.v703 import planning
+            if planning.available():
+                planned = planning.plan(text, held)
+                if planned["status"] == "planned" and \
+                        len(planned["steps"]) >= 2:
+                    made = planning.carry(planned, held, key)
+                    found = asking._reply("plan", text, made["said"],
+                                          {"read": read.json(),
+                                           "plan": planned})
+                    found["code"]["plan"] = {**planned, **made}
+                    found["code"]["answer"]["status"] = made["status"]
+                    return found
         subject = (fixing.placed(read, held, text)
                    or asking.resolve(read, held, space, turn, key)) \
             if held is not None else None
@@ -161,6 +178,24 @@ def _act(read, text: str, session, memory) -> dict | None:
                                  name=subject.name)
         return None
     return asking.answered_read(read, text, held, space, turn, key)
+
+
+def _named_outright(read, text: str, held) -> bool:
+    """Whether a change names what it changes: a subject the encoder marked,
+    or a word shaped as code (`_turn`, `server.py`, `Open.the`), that the
+    project has -- where it does, it is one change of that; where it does
+    not, a plan says where."""
+    names = set()
+    for one in held.functions():
+        names.update({one["name"], one["name"].split(".")[-1]})
+    names.update(held.files)
+    names.update(path.rsplit("/", 1)[-1] for path in held.files)
+    marked = [phrase.split("(")[0].strip(" ?.,!'\"`")
+              for phrase in read.spans.get("SUBJ", ())]
+    shaped = [one.strip("?.,!'\"`") for one in text.split()
+              if re.search(r"[_.()]|[a-z][A-Z]", one.strip("?.,!'\"`"))]
+    return any(one in names or one.split("(")[0].split(".")[-1] in names
+               for one in marked + shaped if one)
 
 
 def _shell_turn(asked, text: str, key) -> dict:
