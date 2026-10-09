@@ -11,7 +11,8 @@ whole, and put back whole where it fails.
 function in them, a word of the request names -- looked up, the words the
 parser reads as carrying meaning and those shaped as code.
 
-**The plan**: the planner (`llm/planner`, `teach_plans.py`) is asked
+**The plan** (where there is no picker -- the written planner, retired
+for writing names the project has not): the planner (`teach_plans.py`) is asked
 several times; a plan is the files most answers change, two at least, with
 what the first of those says to do in each.
 
