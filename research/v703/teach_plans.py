@@ -198,6 +198,16 @@ def said_plan(steps: list) -> str:
                      + f"{one['path']}: {one['said']}" for one in steps)
 
 
+def _names_its_change(said: str, diff: str) -> bool:
+    """Whether a step says a name the diff adds or takes out."""
+    changed = set()
+    for line in diff.splitlines():
+        if line.startswith(("+", "-")) and not line.startswith(("+++",
+                                                                "---")):
+            changed.update(re.findall(r"[A-Za-z_][\w]{3,}", line))
+    return bool(changed & set(re.findall(r"[A-Za-z_][\w]{3,}", said)))
+
+
 def prompt(request: str, files: list) -> str:
     return (f"{request.strip()}\n\nfiles:\n" + "\n".join(files) + "\n")
 
@@ -215,10 +225,21 @@ def corpus() -> dict:
     ours = _git("ls-files").split()
     ours = [one for one in ours if CODE.search(one)]
     every = sorted({path for paths in by_project.values() for path in paths})
+    diffs = {}
+    if COMMITS.exists():
+        for line in COMMITS.open(encoding="utf-8"):
+            one = json.loads(line)
+            for mod in one["mods"]:
+                diffs[(one["key"], mod["path"])] = mod["diff"]
     out = []
     for one in rows:
+        # a step names what its file's diff changes (`Change the PREFERRED
+        # list ...`), else it is the teacher talking (`To change the
+        # functions ... you would need to know`)
         steps = [step for step in one["steps"] if step["said"] and
-                 len(step["said"].split()) >= 3]
+                 len(step["said"].split()) >= 3 and
+                 _names_its_change(step["said"],
+                                   diffs.get((one["key"], step["path"]), ""))]
         if len(steps) < LEAST_FILES:
             continue
         mine = [step["path"] for step in steps if step["change"] != "A"]
