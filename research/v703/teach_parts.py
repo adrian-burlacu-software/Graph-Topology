@@ -253,6 +253,19 @@ def imports(source: str, path: str, paths: set) -> dict:
     return out
 
 
+def top_names(source: str) -> set:
+    """The names a module's top binds by importing: what every function
+    of it may use."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return set()
+    return {(alias.asname or alias.name).split(".")[0]
+            for node in tree.body
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for alias in node.names}
+
+
 def importable(path: str) -> bool:
     """Whether a file can be imported as a module: each part of its path a
     name."""
@@ -311,16 +324,15 @@ def units_of(path: str, source: str, files: dict, paths: set) -> list:
 
 
 def unit_line(unit) -> str:
-    """A definition as the editor is shown it."""
+    """A definition as the editor is shown it and the judge of uses reads
+    it: with what it says it is -- `ASK = True` alone says nothing of
+    asking (editor6, shown it so, wrote `"asked": shell.ASK`)."""
     said, path, line = unit[:3]
-    return f"{said} -- {path}: {line}"
-
-
-def judged_line(unit) -> str:
-    """A definition as the judge of uses reads it: with what it says it
-    is -- `ASK = True` alone says nothing of asking."""
     about = unit[3] if len(unit) > 3 else ""
-    return unit_line(unit) + (f" -- {about}" if about else "")
+    return f"{said} -- {path}: {line}" + (f" -- {about}" if about else "")
+
+
+judged_line = unit_line
 
 
 def asked(statement: str, others: list, units: list) -> str:

@@ -31,8 +31,10 @@ PLANNER = "planner"
 #: the judge of what a request changes, and how sure it must be; the most
 #: it may choose
 PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
-#: the judge of what a step's change uses of what the project has
+#: the judge of what a step's change uses of what the project has; and of
+#: the files a request names by name, how many, and how much of each, shown
 USES = "uses2"
+NAMED_FILES, NAMED_EACH = 2, 3
 #: how near the likeliest a file's best must be, and a unit its file's best
 NEAR_FILES, NEAR_UNITS = 0.06, 0.02
 #: what is added to the picker's chance of a file the request names
@@ -449,8 +451,20 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
             statement.split("\n")[0], [TP.judged_line(one) for one in units])
         units = [one for _, one in sorted(zip(chances, units),
                                           key=lambda pair: -pair[0])]
-    units = units[:TP.MOST_UNITS]
-    imported = TP.imports(text, path, paths)
+    # what a file the request names by its name has (`the shell`:
+    # research/v702/shell.py), its likeliest first, whatever the judge
+    # reads of reaching into another module -- changes mostly use what is
+    # at hand, and the request says what is not
+    said = _words(step["said"])
+    named = [other for other in files if other != path and
+             TP.module_of(other).lower() in said]
+    first = [one for other in named[:NAMED_FILES]
+             for one in [unit for unit in units
+                         if unit[1] == other][:NAMED_EACH]]
+    units = list(dict.fromkeys(first + units))[:TP.MOST_UNITS]
+    # what the file imports at its top: an import inside another function
+    # (`shell`, in the server's main) is not there for this one
+    imported = TP.top_names(text)
     offered = {}
     for said, other, *_ in units:
         alias = said.split(".")[0]

@@ -163,6 +163,11 @@ class PartTests(unittest.TestCase):
         self.assertEqual(teach_parts.import_line("research/v702/shell.py"),
                          "from research.v702 import shell")
 
+    def test_imported_at_the_top(self):
+        text = ("import json\nfrom srv import page\n\n\ndef main():\n"
+                "    from srv import shell\n    return shell\n")
+        self.assertEqual(teach_parts.top_names(text), {"json", "page"})
+
     def test_the_import_looked_up(self):
         from research.v700 import fixing
         text = ('"""A server."""\nimport json\n\n\ndef health():\n'
