@@ -269,9 +269,10 @@ def units_of(path: str, source: str, files: dict, paths: set) -> list:
         by_file.setdefault(found, []).append((alias, name))
     for other, text in files.items():
         # a file no code imports (`tools/graph-topology-mcp/server.py`: a
-        # program of its own) has nothing another file may use
-        if not other.endswith(".py") or other != path and \
-                not importable(other):
+        # program of its own), or a test, has nothing another file may use
+        if not other.endswith(".py") or other != path and (
+                not importable(other) or re.search(
+                    r"(^|/)(test_\w*|\w*_test|conftest)\.py$", other)):
             continue
         for name, line in definitions(text):
             if other == path:
