@@ -1838,6 +1838,28 @@ def steps() -> list[Step]:
                       _run("research.v703.teach_picker", "train")),
              _model_check(LLM / "picker", 400),
              needs=("commit-chronicle",), cost="twenty minutes", gpu=True),
+        Step("commit-repos", "Python projects' histories, cloned whole "
+                             "(research/v703/teach_parts.py)",
+             lambda: _run("research.v703.teach_parts", "fetch"),
+             lambda: (ROOT / "data" / "commit-repos" /
+                      "pypa_pip.git").exists(),
+             cost="ten minutes"),
+        Step("uses", "a judge of what a function's change uses of what "
+                     "the project has (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "corpus"),
+                      _run("research.v703.teach_parts", "uses"),
+                      _run("research.v703.teach_parts", "train-uses")),
+             _model_check(LLM / "uses", 400),
+             needs=("commit-repos",), cost="an hour", gpu=True),
+        Step("editor-parts", "the editor taught again: one function's part "
+                             "of a change across files, and what the "
+                             "project has (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "mix"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor5", "--out", "editor6")),
+             _model_check(LLM / "editor6", 600),
+             needs=("uses", "editor-data-more"), cost="two hours",
+             gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
