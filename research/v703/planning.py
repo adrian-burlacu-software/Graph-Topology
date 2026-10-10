@@ -140,6 +140,12 @@ def _code_says(text: str, start: int, end: int) -> str:
     return "\n".join(out)
 
 
+def _is_test(path: str) -> bool:
+    """A test file: what it says of the code is a test about it, not where
+    it is done (`test_v703.py` says `/api/health` in its cases)."""
+    return bool(re.search(r"(^|/)test_\w*\.py$|_test\.py$", path))
+
+
 def _named_files(request: str, held) -> set:
     """The files a request names by their path or name (`protocol.md`)."""
     said = {one.strip("?.,!'\"`") for one in request.split()}
@@ -165,7 +171,7 @@ def focus(request: str, held) -> tuple:
             # said in the code -- not in its documentation, a document, or
             # a test about it
             if one not in text or not path.endswith(CODE_FILES) or \
-                    re.search(r"(^|/)test_", path):
+                    _is_test(path):
                 continue
             if path.endswith(".py") and one not in _code_says(
                     text, 1, text.count("\n") + 1):
@@ -239,7 +245,8 @@ def _chosen(request: str, held, shown: list) -> dict:
     def lead(path: str, one) -> float:
         # a function whose own code says what the request names as code
         # (`do_GET` answers /api/health, and has no docstring to say so)
-        if one is not None and shaped and path.endswith(".py"):
+        if one is not None and shaped and path.endswith(".py") and \
+                not _is_test(path):
             said_ = _code_says(held.files[path], one["start"], one["end"])
             if any(word in said_ for word in shaped):
                 evidenced.add(path)

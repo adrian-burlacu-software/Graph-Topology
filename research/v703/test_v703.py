@@ -69,8 +69,17 @@ class FocusTests(unittest.TestCase):
         "srv/page.py": ("def act():\n    from srv import shell\n"
                         "    return shell.reads_only('ls')\n"),
         "srv/__init__.py": "",
+        "srv/test_srv.py": ("def test_health():\n"
+                            "    assert get('/api/health') == {}\n"),
         "docs/protocol.md": "# The protocol\n",
     }
+
+    def test_a_test_says_it_of_the_code(self):
+        held = _project(self.FILES)
+        outright, _ = planning.focus("show the shell in /api/health", held)
+        self.assertNotIn("srv/test_srv.py", outright)
+        self.assertTrue(planning._is_test("srv/test_srv.py"))
+        self.assertFalse(planning._is_test("srv/testing.py"))
 
     def test_what_the_code_says(self):
         held = _project(self.FILES)
