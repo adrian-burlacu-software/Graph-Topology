@@ -1849,7 +1849,7 @@ def steps() -> list[Step]:
              lambda: (_run("research.v703.teach_parts", "corpus"),
                       _run("research.v703.teach_parts", "uses"),
                       _run("research.v703.teach_parts", "train-uses")),
-             _model_check(LLM / "uses", 400),
+             _model_check(LLM / "uses2", 400),
              needs=("commit-repos",), cost="an hour", gpu=True),
         Step("editor-parts", "the editor taught again: one function's part "
                              "of a change across files, and what the "

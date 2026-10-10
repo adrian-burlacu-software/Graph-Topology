@@ -66,11 +66,13 @@ MOST_UNITS, MOST_USED = 8, 4
 MOST_OTHERS = 4
 #: how alike a file must stay to be taught as changed, not written again
 SAME_AT_LEAST = 0.5
+#: what a definition says it is, read by the judge at most
+ABOUT = 160
 #: what the judge of uses is taught of a row besides what it used; and
 #: of a row that uses nothing, how many
 CANDIDATES, UNUSED = 24, 2
 USES_PAIRS = P.DATA / "uses-{}.jsonl"
-USES = P.LLM / "uses"
+USES = P.LLM / "uses2"
 #: rows of a project at most (pip's history is not the rest's); of the
 #: editor's earlier teaching, kept beside them
 MOST_PER_REPO, KEPT = 5000, 12000
@@ -162,8 +164,10 @@ def functions(source: str) -> list:
 
 
 def definitions(source: str) -> list:
-    """(name, the line that says it) of what a module defines at its top:
-    functions, classes, names assigned."""
+    """(name, the line that says it, what it says it is) of what a module
+    defines at its top: functions, classes, names assigned -- what each
+    says of itself, its docstring's first sentence or the comment above it
+    (`#: whether a command that may change something is shown first`)."""
     try:
         tree = ast.parse(source)
     except (SyntaxError, ValueError):
@@ -173,16 +177,26 @@ def definitions(source: str) -> list:
     for node in tree.body:
         line = lines[node.lineno - 1].strip() if node.lineno <= len(lines) \
             else ""
+        # the comment lines right above it (and above its decorators)
+        first = min([node.lineno] + [one.lineno for one in getattr(
+            node, "decorator_list", ())]) - 2
+        above = []
+        while first >= 0 and lines[first].strip().startswith("#"):
+            above.insert(0, lines[first].strip().lstrip("#:").strip())
+            first -= 1
+        about = " ".join(above)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
                              ast.ClassDef)):
-            out.append((node.name, line))
+            doc = ast.get_docstring(node) or ""
+            about = " ".join(doc.split("\n\n")[0].split()) or about
+            out.append((node.name, line, about))
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) \
                 else [node.target]
             for one in targets:
                 if isinstance(one, ast.Name):
-                    out.append((one.id, line))
-    return [(name, said[:100]) for name, said in out]
+                    out.append((one.id, line, about))
+    return [(name, said[:100], about[:ABOUT]) for name, said, about in out]
 
 
 def module_path(path: str, module: str, paths: set, level: int = 0):
@@ -274,7 +288,7 @@ def units_of(path: str, source: str, files: dict, paths: set) -> list:
                 not importable(other) or re.search(
                     r"(^|/)(test_\w*|\w*_test|conftest)\.py$", other)):
             continue
-        for name, line in definitions(text):
+        for name, line, about in definitions(text):
             if other == path:
                 said = name
             else:
@@ -287,13 +301,21 @@ def units_of(path: str, source: str, files: dict, paths: set) -> list:
                 said = said or f"{module_of(other)}.{name}"
             if said not in seen:
                 seen.add(said)
-                out.append((said, other, line))
+                out.append((said, other, line, about))
     return out
 
 
 def unit_line(unit) -> str:
-    said, path, line = unit
+    """A definition as the editor is shown it."""
+    said, path, line = unit[:3]
     return f"{said} -- {path}: {line}"
+
+
+def judged_line(unit) -> str:
+    """A definition as the judge of uses reads it: with what it says it
+    is -- `ASK = True` alone says nothing of asking."""
+    about = unit[3] if len(unit) > 3 else ""
+    return unit_line(unit) + (f" -- {about}" if about else "")
 
 
 def asked(statement: str, others: list, units: list) -> str:
@@ -471,8 +493,8 @@ def rows_of(repo: Repo, commit: str, parent: str, message: str,
             "target": target, "used": [one[0] for one in used],
             # what the judge of uses is taught from: what it used, and
             # what else it could have
-            "candidates": [unit_line(one) for one in used] +
-            [unit_line(one) for one in rng.sample(
+            "candidates": [judged_line(one) for one in used] +
+            [judged_line(one) for one in rng.sample(
                 others, min(len(others), CANDIDATES))]})
     return rows
 

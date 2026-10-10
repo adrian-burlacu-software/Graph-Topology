@@ -32,7 +32,7 @@ PLANNER = "planner"
 #: it may choose
 PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
 #: the judge of what a step's change uses of what the project has
-USES = "uses"
+USES = "uses2"
 #: how near the likeliest a file's best must be, and a unit its file's best
 NEAR_FILES, NEAR_UNITS = 0.06, 0.02
 #: what is added to the picker's chance of a file the request names
@@ -435,13 +435,13 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
         if judge not in _LOADED:
             _LOADED[judge] = J.Judge(encoder.LLM / judge)
         chances = _LOADED[judge].chances(
-            statement.split("\n")[0], [TP.unit_line(one) for one in units])
+            statement.split("\n")[0], [TP.judged_line(one) for one in units])
         units = [one for _, one in sorted(zip(chances, units),
                                           key=lambda pair: -pair[0])]
     units = units[:TP.MOST_UNITS]
     imported = TP.imports(text, path, paths)
     offered = {}
-    for said, other, _ in units:
+    for said, other, *_ in units:
         alias = said.split(".")[0]
         if "." in said and other != path and alias not in imported:
             offered[alias] = TP.import_line(other)
