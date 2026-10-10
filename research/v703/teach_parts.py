@@ -76,6 +76,7 @@ USES_PAIRS = P.DATA / "uses-{}.jsonl"
 NOTHINGS = P.DATA / "parts-nothing.jsonl"
 MOST_NOTHING_PER_REPO = 1500
 MIX_NOTHING = P.DATA / "parts-mix-nothing.jsonl"
+NOTHING_TAUGHT = 8000
 USES = P.LLM / "uses2"
 #: rows of a project at most (pip's history is not the rest's); of the
 #: editor's earlier teaching, kept beside them
@@ -700,26 +701,30 @@ def mix(seed: int = SEED) -> dict:
 
 
 def mix_nothing(seed: int = SEED) -> dict:
-    """The NOTHING rows, beside twice as many parts and some of what was
-    taught before: the editor taught again (from editor6) that its part
-    may be nothing, keeping what it does."""
+    """At most `NOTHING_TAUGHT` NOTHING rows, beside three times as many
+    parts and some of what was taught before: the editor taught again
+    (from editor6) that its part may be nothing -- seldom enough that it
+    does not say so of what a plan rightly chose."""
     rng = random.Random(seed + 2)
     nothing = [json.loads(line) for line in NOTHINGS.open(encoding="utf-8")]
     parts = [json.loads(line) for line in PARTS.open(encoding="utf-8")]
     before = [json.loads(line) for line in T.MIX.open(encoding="utf-8")]
     before = [one for one in before if one["split"] == "train"]
-    kept = rng.sample(before, min(KEPT // 2, len(before)))
+    taught = [one for one in nothing if one["split"] == "train"]
+    taught = rng.sample(taught, min(NOTHING_TAUGHT, len(taught)))
     trained = [one for one in parts if one["split"] == "train"]
-    out = nothing + rng.sample(trained, min(2 * len(nothing),
-                                            len(trained))) + kept
-    out += [one for one in parts if one["split"] == "dev"][:300]
+    trained = rng.sample(trained, min(3 * len(taught), len(trained)))
+    kept = rng.sample(before, min(KEPT // 3, len(before)))
+    # held: the dev rows of both, for the loss while teaching
+    held = [one for one in nothing if one["split"] == "dev"][:150] + \
+        [one for one in parts if one["split"] == "dev"][:450]
+    out = taught + trained + kept + held
     rng.shuffle(out)
     with MIX_NOTHING.open("w", encoding="utf-8") as stream:
         for one in out:
             stream.write(json.dumps(one) + "\n")
-    counts = {"nothing": len(nothing), "parts": min(2 * len(nothing),
-              len(trained)), "kept": len(kept),
-              "train": sum(one["split"] == "train" for one in out)}
+    counts = {"nothing": len(taught), "parts": len(trained),
+              "kept": len(kept), "held": len(held)}
     print(json.dumps(counts))
     return counts
 
