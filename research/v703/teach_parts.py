@@ -724,6 +724,29 @@ def mix_nothing(seed: int = SEED) -> dict:
     return counts
 
 
+def measure_nothing(model, most: int = 200) -> dict:
+    """On commits never taught: how often the greedy answer says NOTHING
+    of a function the commit left unchanged, and of one it changed (what
+    it must not)."""
+    from research.v696.sketcher import Sketcher
+    editor = Sketcher(model)
+    got = {}
+    for name, path in (("unchanged", NOTHINGS), ("changed", PARTS)):
+        rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+        rows = [one for one in rows if one["split"] == "test"]
+        random.Random(SEED).shuffle(rows)
+        rows = rows[:most]
+        said = 0
+        for at in range(0, len(rows), 4):
+            chunk = rows[at:at + 4]
+            for answers in editor.write([T._text(one) for one in chunk],
+                                        samples=1, longest=400):
+                said += answers[0].strip() == T.NOTHING
+        got[name] = f"{said}/{len(rows)} said nothing"
+    print(json.dumps(got))
+    return got
+
+
 def uses_job() -> dict:
     """(statement, a definition, whether the change used it) -- what it
     used, beside as many it did not, and two of a row that used nothing."""
@@ -767,7 +790,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("fetch", "corpus", "uses",
                                         "train-uses", "mix", "nothing",
-                                        "mix-nothing", "train", "measure"))
+                                        "mix-nothing", "train", "measure",
+                                        "measure-nothing"))
     parser.add_argument("--corpus", default=None,
                         help="the mix taught, or the rows measured")
     parser.add_argument("--base", default="editor5")
@@ -793,6 +817,8 @@ def main(argv=None) -> int:
         T.train(T.LLM / options.out, epochs=options.epochs,
                 base=T.LLM / options.base,
                 corpus=P.DATA / options.corpus if options.corpus else MIX)
+    elif options.job == "measure-nothing":
+        measure_nothing(T.LLM / options.out, most=options.most)
     else:
         T.measure(T.LLM / options.out, most=options.most,
                   corpus=P.DATA / options.corpus if options.corpus

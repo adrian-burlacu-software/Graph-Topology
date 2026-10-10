@@ -1858,8 +1858,19 @@ def steps() -> list[Step]:
                       _run("research.v703.teach_parts", "train",
                            "--base", "editor5", "--out", "editor6")),
              _model_check(LLM / "editor6", 600),
-             needs=("uses", "editor-data-more"), cost="two hours",
+             needs=("uses", "editor-data-more"), cost="five hours",
              gpu=True),
+        Step("editor-nothing", "the editor taught again: a step's part of "
+                               "a change may be nothing -- functions a "
+                               "commit across files left unchanged "
+                               "(research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "nothing"),
+                      _run("research.v703.teach_parts", "mix-nothing"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor6", "--out", "editor7",
+                           "--corpus", "parts-mix-nothing.jsonl")),
+             _model_check(LLM / "editor7", 600),
+             needs=("editor-parts",), cost="three hours", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
