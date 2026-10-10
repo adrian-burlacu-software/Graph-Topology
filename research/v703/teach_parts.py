@@ -72,6 +72,10 @@ ABOUT = 160
 #: of a row that uses nothing, how many
 CANDIDATES, UNUSED = 24, 2
 USES_PAIRS = P.DATA / "uses-{}.jsonl"
+#: functions a commit across files did not change, answered NOTHING
+NOTHINGS = P.DATA / "parts-nothing.jsonl"
+MOST_NOTHING_PER_REPO = 1500
+MIX_NOTHING = P.DATA / "parts-mix-nothing.jsonl"
 USES = P.LLM / "uses2"
 #: rows of a project at most (pip's history is not the rest's); of the
 #: editor's earlier teaching, kept beside them
@@ -392,12 +396,102 @@ _NAME = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?")
 def rows_of(repo: Repo, commit: str, parent: str, message: str,
             changed: list, rng, paths_of) -> list:
     statement = _message(message)
-    if len(statement.split()) < 4:
+    found = _changed(repo, commit, parent, statement, changed)
+    if not found:
         return []
+    found, news = found
+    # the other functions changed, as a plan's other steps are said
+    said_of = [f"{path} {owner[0]}" if owner else None
+               for path, owner, *_ in found]
+    paths = None
+    rows = []
+    for at, (path, owner, mine, a, b) in enumerate(found):
+        if owner is None:
+            continue
+        name, start, end, _ = owner
+        size = sum((i2 - i1) + (j2 - j1) for _, i1, i2, j1, j2 in mine)
+        if end - start > T.LONGEST_PART or size > T.LONGEST_CHANGE:
+            continue
+        blocks = _blocks(a, b, mine, start, end)
+        if not blocks:
+            continue
+        part = "".join(a[start:end])
+        target = T.said(blocks)
+        if T.applied(part, target) is None:
+            continue
+        if paths is None:
+            paths = paths_of(commit)
+        units = _could_use(repo, commit, path, news[path], news, paths, name)
+        added = "".join(line for _, new_lines in blocks
+                        for line in new_lines)
+        written = set(_NAME.findall(added))
+        before = set(_NAME.findall(part))
+        used = [one for one in units if one[0] in written and
+                one[0] not in before]
+        if len(used) > MOST_USED:
+            continue
+        others = [one for one in units if one not in used]
+        shown = _shown(used, others, rng)
+        rows.append({
+            "commit": f"{repo.key}:{commit}", "split": P.split_of(
+                f"{repo.key}:{commit}"),
+            "language": "python", "source": "part " + repo.key,
+            "statement": asked(f"in {path}, {name}: {statement}",
+                               list(dict.fromkeys(
+                                   one for k, one in enumerate(said_of)
+                                   if k != at and one)), shown),
+            "path": path, "part": part, "start": start + 1,
+            "target": target, "used": [one[0] for one in used],
+            # what the judge of uses is taught from: what it used, and
+            # what else it could have
+            "candidates": [judged_line(one) for one in used] +
+            [judged_line(one) for one in rng.sample(
+                others, min(len(others), CANDIDATES))]})
+    return rows
+
+
+def _could_use(repo, commit, path, text, news, paths, name) -> list:
+    """What the project has that a change of `name` in `path` could use:
+    the file itself, what it imports, the commit's other files -- as they
+    are after it."""
+    files = {path: text}
+    files.update({other: one for other, one in news.items()
+                  if one and other != path})
+    for found_path, _ in imports(text, path, paths).values():
+        if found_path not in files:
+            one = repo.blob(commit, found_path)
+            if one and len(one) < 200_000:
+                files[found_path] = one
+    return [one for one in units_of(path, text, files, paths)
+            if one[0].split(".")[-1] != name.split(".")[-1]]
+
+
+def _shown(used: list, others: list, rng) -> list:
+    """What the project has, shown: what it used, beside others of the
+    same files first, then any -- none at all, now and then."""
+    near = [one for one in others if one[1] in {u[1] for u in used}]
+    rest = [one for one in others if one not in near]
+    rng.shuffle(near)
+    rng.shuffle(rest)
+    room = MOST_UNITS - len(used)
+    if not used and rng.random() < 0.3:
+        room = 0
+    shown = used + (near[:room // 2] + rest)[:room]
+    rng.shuffle(shown)
+    return shown
+
+
+def _changed(repo: Repo, commit: str, parent: str, statement: str,
+             changed: list):
+    """(each function changed with its changes, the files after) of a
+    commit -- None where its message says too little or it changes no
+    Python file as a change (a file written again is not)."""
+    if len(statement.split()) < 4:
+        return None
     modified = [path for status, path in changed
                 if status == "M" and path.endswith(".py")]
     if not modified:
-        return []
+        return None
     olds, news = {}, {}
     for status, path in changed:
         if not path.endswith(".py"):
@@ -426,77 +520,126 @@ def rows_of(repo: Repo, commit: str, parent: str, message: str,
             groups.setdefault(owner, []).append(group)
         for owner, mine in groups.items():
             found.append((path, owner, mine, a, b))
+    return (found, news) if found else None
+
+
+def nothing_rows(repo: Repo, commit: str, parent: str, message: str,
+                 changed: list, rng, paths_of) -> list:
+    """Of a commit across files, functions it did not change -- one in the
+    files it changed, one in a file they import, each the one saying most
+    of the message's words (what a plan may choose wrongly) -- each
+    answered `NOTHING`: a step's part of a change may be nothing."""
+    statement = _message(message)
+    found = _changed(repo, commit, parent, statement, changed)
     if not found:
         return []
-    # the other functions changed, as a plan's other steps are said
-    said_of = [f"{path} {owner[0]}" if owner else None
-               for path, owner, *_ in found]
-    paths = None
+    found, news = found
+    steps = list(dict.fromkeys(f"{path} {owner[0]}"
+                               for path, owner, *_ in found if owner))
+    if not steps:
+        return []
+    touched = {(path, owner[0]) for path, owner, *_ in found if owner}
+    words = {one.lower() for one in re.findall(r"[A-Za-z]{4,}", statement)}
+    paths = paths_of(commit)
+    near, far = [], []
+    for path in dict.fromkeys(path for path, *_ in found):
+        text = news.get(path) or ""
+        for one in imports(text, path, paths).values():
+            if one[0] not in news and one[0] not in far:
+                far.append(one[0])
+        near.append(path)
     rows = []
-    for at, (path, owner, mine, a, b) in enumerate(found):
-        if owner is None:
+    for pool in (near, far[:3]):
+        best = None
+        for path in pool:
+            # a changed file as it was before: what the commit added is
+            # not a function it left unchanged
+            text = repo.blob(parent if path in news else commit, path)
+            if not text or len(text) > 200_000:
+                continue
+            lines = T._lines(text)
+            for name, start, end, _ in functions(text):
+                if any(path == one and (name == other or
+                                        other.startswith(name + ".") or
+                                        name.startswith(other + "."))
+                       for one, other in touched) or \
+                        end - start > T.LONGEST_PART:
+                    continue
+                part = "".join(lines[start:end])
+                said = len(words & {one.lower() for one in
+                                    re.findall(r"[A-Za-z]{4,}", part)})
+                key = (said, rng.random())
+                if best is None or key > best[0]:
+                    best = (key, path, name, start, part, text)
+        if best is None or best[0][0] == 0:
             continue
-        name, start, end, _ = owner
-        size = sum((i2 - i1) + (j2 - j1) for _, i1, i2, j1, j2 in mine)
-        if end - start > T.LONGEST_PART or size > T.LONGEST_CHANGE:
-            continue
-        blocks = _blocks(a, b, mine, start, end)
-        if not blocks:
-            continue
-        part = "".join(a[start:end])
-        target = T.said(blocks)
-        if T.applied(part, target) is None:
-            continue
-        # what the project has: the file itself, what it imports, the
-        # commit's other files -- as they are after it
-        if paths is None:
-            paths = paths_of(commit)
-        new_text = news[path]
-        files = {path: new_text}
-        files.update({other: text for other, text in news.items()
-                      if text and other != path})
-        for found_path, _ in imports(new_text, path, paths).values():
-            if found_path not in files:
-                text = repo.blob(commit, found_path)
-                if text and len(text) < 200_000:
-                    files[found_path] = text
-        units = [one for one in units_of(path, new_text, files, paths)
-                 if one[0].split(".")[-1] != name.split(".")[-1]]
-        added = "".join(line for _, new_lines in blocks
-                        for line in new_lines)
-        written = set(_NAME.findall(added))
-        before = set(_NAME.findall(part))
-        used = [one for one in units if one[0] in written and
-                one[0] not in before]
-        if len(used) > MOST_USED:
-            continue
-        others = [one for one in units if one not in used]
-        # beside what it uses, others of the same files first
-        near = [one for one in others if one[1] in {u[1] for u in used}]
-        rest = [one for one in others if one not in near]
-        rng.shuffle(near)
-        rng.shuffle(rest)
-        room = MOST_UNITS - len(used)
-        if not used and rng.random() < 0.3:
-            room = 0
-        shown = used + (near[:room // 2] + rest)[:room]
-        rng.shuffle(shown)
+        _, path, name, start, part, text = best
+        if path in news:
+            # the same after the commit as before, whatever the diff paired
+            after = news[path] or ""
+            same = [one for one in functions(after) if one[0] == name]
+            if not same or "".join(T._lines(after)[same[0][1]:
+                                                   same[0][2]]) != part:
+                continue
+            text = after
+        units = _could_use(repo, commit, path, text, news, paths, name)
         rows.append({
             "commit": f"{repo.key}:{commit}", "split": P.split_of(
                 f"{repo.key}:{commit}"),
-            "language": "python", "source": "part " + repo.key,
-            "statement": asked(f"in {path}, {name}: {statement}",
-                               list(dict.fromkeys(
-                                   one for k, one in enumerate(said_of)
-                                   if k != at and one)), shown),
+            "language": "python", "source": "nothing " + repo.key,
+            "statement": asked(f"in {path}, {name}: {statement}", steps,
+                               _shown([], units, rng)),
             "path": path, "part": part, "start": start + 1,
-            "target": target, "used": [one[0] for one in used],
-            # what the judge of uses is taught from: what it used, and
-            # what else it could have
-            "candidates": [judged_line(one) for one in used] +
-            [judged_line(one) for one in rng.sample(
-                others, min(len(others), CANDIDATES))]})
+            "target": T.NOTHING, "used": []})
     return rows
+
+
+def nothing_job() -> dict:
+    """`NOTHING` rows of every repository, beside the parts."""
+    rng = random.Random(SEED + 1)
+    counts = {}
+    with NOTHINGS.open("w", encoding="utf-8") as out:
+        for git_dir, key in _repos():
+            if not git_dir.exists():
+                continue
+            repo = Repo(git_dir, key)
+            paths_of = _lister(repo)
+            made = 0
+            for commit, parent, message, changed in repo.commits():
+                try:
+                    rows = nothing_rows(repo, commit, parent, message,
+                                        changed, rng, paths_of)
+                except RecursionError:
+                    continue
+                for row in rows:
+                    out.write(json.dumps(row) + "\n")
+                made += len(rows)
+                if made >= MOST_NOTHING_PER_REPO:
+                    break
+            repo.close()
+            counts[key] = made
+            print(f"{key}: {made}", flush=True)
+    print(json.dumps(counts))
+    return counts
+
+
+def _repos() -> list:
+    return [(P.ROOT / ".git", "ours")] + [
+        (REPOS_DIR / (name.replace("/", "_") + ".git"), name)
+        for name in REPOS]
+
+
+def _lister(repo: Repo):
+    """The project's files at a commit, the last one asked kept."""
+    listing: dict = {}
+
+    def paths_of(commit):
+        if commit not in listing:
+            listing.clear()
+            listing[commit] = set(repo.git(
+                "ls-tree", "-r", "--name-only", commit).split("\n"))
+        return listing[commit]
+    return paths_of
 
 
 def corpus() -> dict:
@@ -556,6 +699,31 @@ def mix(seed: int = SEED) -> dict:
     return counts
 
 
+def mix_nothing(seed: int = SEED) -> dict:
+    """The NOTHING rows, beside twice as many parts and some of what was
+    taught before: the editor taught again (from editor6) that its part
+    may be nothing, keeping what it does."""
+    rng = random.Random(seed + 2)
+    nothing = [json.loads(line) for line in NOTHINGS.open(encoding="utf-8")]
+    parts = [json.loads(line) for line in PARTS.open(encoding="utf-8")]
+    before = [json.loads(line) for line in T.MIX.open(encoding="utf-8")]
+    before = [one for one in before if one["split"] == "train"]
+    kept = rng.sample(before, min(KEPT // 2, len(before)))
+    trained = [one for one in parts if one["split"] == "train"]
+    out = nothing + rng.sample(trained, min(2 * len(nothing),
+                                            len(trained))) + kept
+    out += [one for one in parts if one["split"] == "dev"][:300]
+    rng.shuffle(out)
+    with MIX_NOTHING.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    counts = {"nothing": len(nothing), "parts": min(2 * len(nothing),
+              len(trained)), "kept": len(kept),
+              "train": sum(one["split"] == "train" for one in out)}
+    print(json.dumps(counts))
+    return counts
+
+
 def uses_job() -> dict:
     """(statement, a definition, whether the change used it) -- what it
     used, beside as many it did not, and two of a row that used nothing."""
@@ -598,8 +766,10 @@ def train_uses(epochs: int = 2) -> None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("fetch", "corpus", "uses",
-                                        "train-uses", "mix", "train",
-                                        "measure"))
+                                        "train-uses", "mix", "nothing",
+                                        "mix-nothing", "train", "measure"))
+    parser.add_argument("--corpus", default=None,
+                        help="the mix taught, or the rows measured")
     parser.add_argument("--base", default="editor5")
     parser.add_argument("--out", default="editor6")
     parser.add_argument("--epochs", type=int, default=1)
@@ -615,11 +785,18 @@ def main(argv=None) -> int:
         train_uses()
     elif options.job == "mix":
         mix()
+    elif options.job == "nothing":
+        nothing_job()
+    elif options.job == "mix-nothing":
+        mix_nothing()
     elif options.job == "train":
         T.train(T.LLM / options.out, epochs=options.epochs,
-                base=T.LLM / options.base, corpus=MIX)
+                base=T.LLM / options.base,
+                corpus=P.DATA / options.corpus if options.corpus else MIX)
     else:
-        T.measure(T.LLM / options.out, most=options.most, corpus=PARTS)
+        T.measure(T.LLM / options.out, most=options.most,
+                  corpus=P.DATA / options.corpus if options.corpus
+                  else PARTS)
     return 0
 
 

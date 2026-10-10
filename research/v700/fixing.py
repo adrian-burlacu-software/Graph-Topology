@@ -634,6 +634,11 @@ def _change_once(statement: str, held, subject, key=None,
         fresh = []
         for number, answer in enumerate(written_now):
             greedy = round_ == 0 and number == 0
+            if answer.strip() == T.NOTHING:
+                # its part of a larger change is nothing (a plan's step)
+                tried.append({"answer": answer, "greedy": greedy,
+                              "round": round_, "nothing": True})
+                continue
             made_all = T.made_each(part, answer)
             if not made_all:
                 tried.append({"answer": answer, "greedy": greedy,
@@ -711,13 +716,23 @@ def _change_once(statement: str, held, subject, key=None,
         # asked again only while nothing passed: the words a statement
         # shares with the code are not all code it names (`it`, `never`
         # are names in some code), so all of them touched is no stop
-        if passed:
+        nothing = sum(1 for one in tried if one.get("nothing"))
+        if passed or nothing >= LEAST_AGREED:
             break
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
                       if key_ not in ("text", "made")} for one in tried],
            "diagnostics before": len(before)}
+    # answers written apart agreeing that nothing here is to change, more
+    # of them than agree on any change: the step is not this function's
+    if nothing >= LEAST_AGREED and nothing > max(
+            (row["agree"] for row in passed), default=0):
+        out.update({"status": "nothing", "said": (
+            f"Nothing to change in {subject.name}: {nothing} of "
+            f"{len(answers)} answers written say so.")})
+        out["seconds"] = round(time.time() - started, 2)
+        return out
     if not passed:
         out.update({"status": "unchanged",
                     "said": (f"I could not change {subject.name} as asked: "

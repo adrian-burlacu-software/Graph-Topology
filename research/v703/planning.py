@@ -372,11 +372,19 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
                                if step.get("function") else None)
         done.append({**step, "status": result["status"],
                      "said_back": result.get("said", "")})
+        if result["status"] == "nothing":
+            # its part of the change is nothing (the MCP's health tool
+            # shows what the server's /api/health answers, whole)
+            continue
         if result["status"] != "changed":
             break
         made.append(step["path"])
     failed = next((one for one in done if one["status"] not in
-                   ("changed", "left")), None)
+                   ("changed", "left", "nothing")), None)
+    if failed is None and not made:
+        return {"status": "unchanged", "steps": done, "tests": None,
+                "said": "Nothing of what was planned needs changing: "
+                        + "; ".join(one["said_back"] for one in done)}
     ran = None
     if failed is None and made:
         # what the project's graph says the change left undone: a caller
@@ -398,8 +406,11 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
                 "said": (f"I put every step back: {failed['path']} -- "
                          f"{failed['said_back']}")}
     return {"status": "changed", "steps": done, "tests": ran,
-            "said": (f"Changed {len(made)} files: "
-                     + ", ".join(made)
+            "said": (f"Changed {len(set(made))} files: "
+                     + ", ".join(dict.fromkeys(made))
+                     + "".join(f"; nothing to change in {one['function']}"
+                               for one in done
+                               if one["status"] == "nothing")
                      + ("; the tests beside them pass." if ran else "."))}
 
 
