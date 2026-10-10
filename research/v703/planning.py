@@ -31,6 +31,8 @@ PLANNER = "planner"
 #: the judge of what a request changes, and how sure it must be; the most
 #: it may choose
 PICKER, PICKED, MOST_PICKED = "picker", 0.5, 6
+#: the judge of what a step's change uses of what the project has
+USES = "uses"
 #: how near the likeliest a file's best must be, and a unit its file's best
 NEAR_FILES, NEAR_UNITS = 0.06, 0.02
 #: what is added to the picker's chance of a file the request names
@@ -364,7 +366,10 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
             subject = fixing.placed(read, _only(held, step["path"]),
                                     statement) \
                 or Subject("file", step["path"], step["path"])
-        result = fixing.change(statement, held, subject, key)
+        result = fixing.change(statement, held, subject, key,
+                               context=context(step, found, held,
+                                               statement)
+                               if step.get("function") else None)
         done.append({**step, "status": result["status"],
                      "said_back": result.get("said", "")})
         if result["status"] != "changed":
@@ -396,6 +401,51 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
             "said": (f"Changed {len(made)} files: "
                      + ", ".join(made)
                      + ("; the tests beside them pass." if ran else "."))}
+
+
+def context(step: dict, found: dict, held, statement: str) -> dict:
+    """What a step's editor is given beside the request, as it was taught
+    (`teach_parts`): the plan's other steps, and what the project has that
+    the change could use -- the definitions of its own file, of what it
+    imports, of the files the plan was shown, those the picker reads
+    likeliest with the request first; and the imports of those it would
+    say through a module the file does not import yet."""
+    from research.v703 import teach_parts as TP
+    path = step["path"]
+    text = held.files.get(path, "")
+    paths = set(held.files)
+    others = [f"{one['path']} {one['function']}" for one in found["steps"]
+              if one is not step and one.get("function")]
+    files = {path: text}
+    for other in list(found.get("shown", ())) + [
+            found_ for found_, _ in TP.imports(text, path, paths).values()]:
+        if other.endswith(".py") and other in held.files:
+            files.setdefault(other, held.files[other])
+    own = step["function"].split(".")[-1]
+    units = [one for one in TP.units_of(path, text, files, paths)
+             if one[0].split(".")[-1] != own]
+    # ranked by the judge of what a change uses (taught by construction
+    # from the commits: what each function's change used of what its
+    # project had), else by the picker
+    from research import encoder
+    judge = USES if (encoder.LLM / USES / "config.json").exists() else \
+        PICKER if picker_available() else None
+    if units and judge:
+        from research.v700 import teach_judge as J
+        if judge not in _LOADED:
+            _LOADED[judge] = J.Judge(encoder.LLM / judge)
+        chances = _LOADED[judge].chances(
+            statement.split("\n")[0], [TP.unit_line(one) for one in units])
+        units = [one for _, one in sorted(zip(chances, units),
+                                          key=lambda pair: -pair[0])]
+    units = units[:TP.MOST_UNITS]
+    imported = TP.imports(text, path, paths)
+    offered = {}
+    for said, other, _ in units:
+        alias = said.split(".")[0]
+        if "." in said and other != path and alias not in imported:
+            offered[alias] = TP.import_line(other)
+    return {"said": TP.asked(statement, others, units), "imports": offered}
 
 
 def _only(held, path: str):

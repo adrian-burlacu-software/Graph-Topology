@@ -300,6 +300,40 @@ def _flakes(path: str, text: str) -> list:
     return said
 
 
+def _with_imports(path: str, text: str, offered: dict | None) -> str:
+    """The file, importing what a change uses and the file does not
+    define, where the project has it and the change was told so (a plan's
+    step: `shell.ASK -- research/v702/shell.py`): looked up, not written
+    by the editor -- it is shown one function, not the file's imports."""
+    if not offered or not path.endswith(".py"):
+        return text
+    missing = sorted({found.group(1) for one in _flakes(path, text)
+                      for found in [re.match(r"undefined name '(\w+)'",
+                                             one["message"])] if found})
+    wanted = [offered[name] for name in missing if name in offered]
+    if not wanted:
+        return text
+    import ast
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return text
+    # after the file's last import at its top, or its docstring
+    at = 0
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            at = node.end_lineno
+        elif at == 0 and isinstance(node, ast.Expr) and isinstance(
+                getattr(node, "value", None), ast.Constant):
+            at = node.end_lineno
+        elif at:
+            break
+    lines = text.splitlines(keepends=True)
+    ending = "\r\n" if "\r\n" in text else "\n"
+    return "".join(lines[:at]) + "".join(one + ending for one in wanted) + \
+        "".join(lines[at:])
+
+
 def data_wrong(path: str, before: str, after: str) -> str | None:
     """Why a change of a data file is not one, or None: it must still read
     as what it is, and put in no place whose name the file already has
@@ -471,11 +505,15 @@ def diff(before: str, after: str, path: str) -> str:
 PASSES = 4
 
 
-def change(statement: str, held, subject, key=None) -> dict:
+def change(statement: str, held, subject, key=None,
+           context: dict | None = None) -> dict:
     """The change asked, made -- again, on what it made, while the
     statement names code no pass has changed yet, each pass changing some
-    of what is left; the passes kept as one change (`undo` puts all back)."""
-    first = _change_once(statement, held, subject, key)
+    of what is left; the passes kept as one change (`undo` puts all back).
+    `context`: what a plan's step is given beside the statement (v703
+    `teach_parts`) -- `said` to the editor, and the `imports` the project
+    offers for what that says."""
+    first = _change_once(statement, held, subject, key, context=context)
     if first["status"] != "changed":
         return first
     named = set(first.get("named", ()))
@@ -487,7 +525,7 @@ def change(statement: str, held, subject, key=None) -> dict:
     # `server.server.port`)
     while passes < PASSES and named - done and not is_data(first["file"]):
         more = _change_once(statement, held, subject, key,
-                            need=named - done)
+                            need=named - done, context=context)
         if more["status"] != "changed":
             break
         done |= set(more.get("touched", ()))
@@ -547,7 +585,8 @@ def defined_in(text: str, path: str, start: int = 1,
 
 
 def _change_once(statement: str, held, subject, key=None,
-                 need: set | None = None) -> dict:
+                 need: set | None = None,
+                 context: dict | None = None) -> dict:
     """One change asked, made: what was tried, what was checked, what was
     written. `need`: names it must change some of (what earlier passes
     left)."""
@@ -562,7 +601,7 @@ def _change_once(statement: str, held, subject, key=None,
     text = held.files[path]
     lines = _lines(text)
     part = "".join(lines[start - 1:end])
-    asked = T.prompt(statement, path, part)
+    asked = T.prompt((context or {}).get("said") or statement, path, part)
     from research.v698.project import is_data
     data = is_data(path)
     try:
@@ -612,8 +651,9 @@ def _change_once(statement: str, held, subject, key=None,
                     seen[made]["agree"] += 1
                     row["same as"] = seen[made]["index"]
                     continue
-                after = "".join(lines[:start - 1]) + made + \
-                    "".join(lines[end:])
+                after = _with_imports(path, "".join(lines[:start - 1]) +
+                                      made + "".join(lines[end:]),
+                                      (context or {}).get("imports"))
                 row.update({"index": len(tried) - 1, "agree": 1,
                             "text": after, "made": made, "touched": sorted(
                                 named & _changed_names(part, made))})

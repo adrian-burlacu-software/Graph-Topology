@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from research.v703 import planning, structure, teach_plans
+from research.v703 import planning, structure, teach_parts, teach_plans
 
 
 def _project(files: dict):
@@ -122,6 +122,56 @@ class PlanTests(unittest.TestCase):
             "The file is touched by the following changes:", diff))
         self.assertFalse(teach_plans._names_its_change(
             "Update the file as needed", "+the file\n"))
+
+
+class PartTests(unittest.TestCase):
+    """A function's part of a commit, what it could use, what is imported
+    for it."""
+
+    def test_a_functions_changes_only(self):
+        import difflib
+        from research.v700 import teach_editor as T
+        old = T._lines("def f():\n    return 1\n\n\ndef g():\n"
+                       "    return 2\n")
+        new = T._lines("def f():\n    return 1\n    # more\n\n\ndef g():\n"
+                       "    return 3\n")
+        spans = teach_parts.functions("".join(old))
+        groups = [one for one in difflib.SequenceMatcher(
+            None, old, new, autojunk=False).get_opcodes() if one[0] != "equal"]
+        owners = [teach_parts._owner(spans, one, new)[0] for one in groups]
+        # added under f, indented: f's; g's line changed: g's
+        self.assertEqual(owners, ["f", "g"])
+        blocks = teach_parts._blocks(old, new, groups[1:], 4, 6)
+        self.assertEqual(T.said(blocks),
+                         "<<<\n    return 2\n===\n    return 3\n>>>")
+
+    def test_what_it_could_use(self):
+        files = {"srv/server.py": "from srv import shell\n\nVERSION = 1\n",
+                 "srv/shell.py": "ASK = True\n\ndef run(command):\n"
+                                 "    return 0\n",
+                 "srv/__init__.py": "",
+                 "tools/my-bridge/server.py": "def health():\n    return 1\n"}
+        units = teach_parts.units_of("srv/server.py",
+                                     files["srv/server.py"], files,
+                                     set(files))
+        said = [one[0] for one in units]
+        self.assertIn("VERSION", said)
+        self.assertIn("shell.ASK", said)
+        self.assertIn("shell.run", said)
+        # a program of its own, no module: nothing of it to use
+        self.assertFalse(any("health" in one for one in said))
+        self.assertEqual(teach_parts.import_line("research/v702/shell.py"),
+                         "from research.v702 import shell")
+
+    def test_the_import_looked_up(self):
+        from research.v700 import fixing
+        text = ('"""A server."""\nimport json\n\n\ndef health():\n'
+                '    return {"asks": shell.ASK}\n')
+        made = fixing._with_imports("srv/server.py", text, {
+            "shell": "from srv import shell"})
+        self.assertIn("import json\nfrom srv import shell\n", made)
+        self.assertEqual(fixing._with_imports("srv/server.py", text, {}),
+                         text)
 
 
 if __name__ == "__main__":
