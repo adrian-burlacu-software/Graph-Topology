@@ -112,6 +112,16 @@ class QueryTests(unittest.TestCase):
                             "how many members are there".split()), held)
         self.assertEqual(found.value, 2)
 
+    def test_a_record_named_by_its_value(self):
+        from research.v698.project import Project
+        from research.v701.querying import answer
+        held = Project("t")
+        held.put({"books.csv": "id,title,author,year\n1,Kindred,Octavia "
+                               "Butler,1979\n2,Solaris,Stanislaw Lem,1961\n"})
+        found = answer("what year was Solaris published?", held)
+        self.assertEqual(found.value, 1961)
+        self.assertIsNone(answer("what is a dune?", held))
+
     def test_both_where_both_fit_and_the_file_said_decides(self):
         found = self.said("count", "none", {"TARGET": ["users"]},
                           "how many users are there")
