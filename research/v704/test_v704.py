@@ -44,6 +44,38 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(C._same_as_fixture(C.FIXTURE))
 
 
+class SelfModelTests(unittest.TestCase):
+    """What it knows of itself, from a run: how each area does, the part
+    that answers it, what went to another part."""
+
+    def test_routing_found(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from research.v704 import selfmodel as M
+
+        def row(verdict, part, said="what is 2 plus 2?"):
+            return {"area": "maths", "verdict": verdict, "part": part,
+                    "turns": [said], "said": ["4"]}
+        runs = Path(tempfile.mkdtemp())
+        rows = [row("right", "mathematics"), row("right", "mathematics"),
+                row("unsure", "shell", "what is 7 squared?"),
+                row("wrong", "mathematics")]
+        (runs / "one.jsonl").write_text(
+            "".join(json.dumps(one) + "\n" for one in rows),
+            encoding="utf-8")
+        with mock.patch.object(M, "RUNS", runs), \
+                mock.patch.object(M, "SELF", runs / "self.json"):
+            found = M.build("one")
+        maths = found["areas"]["maths"]
+        self.assertEqual((maths["right"], maths["usual part"]),
+                         (2, "mathematics"))
+        self.assertEqual([one["said"] for one in found["routing"]],
+                         ["what is 7 squared?"])
+        self.assertEqual(len(maths["failed"]), 1)
+
+
 class HistoryTests(unittest.TestCase):
     """A goal's plan, chosen from goals reached like it."""
 

@@ -100,12 +100,22 @@ def _goal(text: str, held, read) -> dict:
     said = ("That's something you want to achieve rather than a change to "
             "make, so I haven't changed anything.")
     looked: dict = {"read": read.json()}
+    # a goal about the assistant itself: what it does worst now, by the
+    # conversation test (v704 `selfmodel`) -- what the steps are of
+    from research.v704 import history, selfmodel
+    model = selfmodel.held()
+    weak = selfmodel.weaknesses(text, model) \
+        if model and selfmodel.about_itself(text) else []
+    if weak:
+        looked["weaknesses"] = weak
+        said += " " + selfmodel.said(weak, model)
     # its steps, chosen from how this project reached goals like it (v704)
-    from research.v704 import history
     planned = history.plan(text)
     if planned:
         looked["plan"] = planned
         said += " " + history.said(planned)
+        if weak:
+            said += f" Starting with: {weak[0]['what']}."
     else:
         said += " No goal I have reached is like it, so I can't break it " \
                 "into steps yet."

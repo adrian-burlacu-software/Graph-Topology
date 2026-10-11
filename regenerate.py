@@ -1851,6 +1851,13 @@ def steps() -> list[Step]:
              lambda: _run("research.v704.history", "collect"),
              lambda: (LLM / "plan-data" / "goals-history.jsonl").exists(),
              cost="a minute"),
+        Step("self-model", "what the architecture knows of itself, from "
+                           "the latest conversation test run "
+                           "(research/v704/selfmodel.py; run the test "
+                           "first: python -m research.v704.converse)",
+             lambda: _run("research.v704.selfmodel", "build"),
+             lambda: (LLM / "plan-data" / "self.json").exists(),
+             cost="a second, after a twenty-minute test run"),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

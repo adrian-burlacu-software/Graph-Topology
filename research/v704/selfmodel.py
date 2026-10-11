@@ -1,0 +1,194 @@
+"""What the architecture knows of itself (v704, step 3 of planning goals):
+what it does, how well, and where it fails -- from the conversation test.
+
+    python -m research.v704.selfmodel build [label]   llm/plan-data/self.json
+    python -m research.v704.selfmodel show "improve how you communicate"
+
+Planned from how this project reached goals like it, "improve how you
+communicate" came back as build, change, teach -- of nothing in
+particular: what "it" does badly was known nowhere it could look. The
+conversation test (`converse.py`) knows: every area it does, and each
+conversation's verdict and the part that answered it.
+
+**Built from a run, by construction**: each area's right / unsure /
+wrong; the part that answers it when it is right (data questions: the
+project's data); and its failures -- **routing** where another part
+answered (`what is 7 squared?` went to the shell), else **answering**
+(the right part, the wrong answer) and **not knowing** (unsure).
+**Read for a goal**: whether the goal is about the assistant itself or a
+project -- the nearer in meaning of the two (MiniLM, as pretrained); of
+itself, the weaknesses its words are near -- or, where it is near none
+more than the rest (`communicate in general`), the worst.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SELF = ROOT / "llm" / "plan-data" / "self.json"
+RUNS = ROOT / "conversations-out"
+#: each area the test asks, as the architecture says it does it
+AREAS = {
+    "code-ask": "answering questions about a project's code",
+    "code-change": "changing a project's code as asked",
+    "code-make": "writing new code from a description",
+    "explain": "explaining code that is pasted in",
+    "data-ask": "answering questions about a project's data files",
+    "data-change": "changing a project's data files as asked",
+    "shell": "running commands on the computer",
+    "facts": "answering questions about the world",
+    "maths": "working out arithmetic",
+    "memory": "remembering what was said earlier in the conversation",
+    "how-to": "saying how to do something",
+    "follow-up": "following on from what was just said",
+    "asks": "asking when a request is unclear, and declining what is "
+            "unsafe",
+}
+ROUTING = "understanding which kind of thing is asked, and sending it to " \
+          "the right part"
+#: what a goal about the assistant itself, and one about a project, is
+ABOUT = ("making the assistant itself better at understanding, answering "
+         "and talking", "making a software project's code, server or "
+         "features better")
+#: how much nearer a goal must be to one weakness than to most, for its
+#: words to choose; the weaknesses a goal is shown
+CHOOSES, SHOWN = 0.08, 3
+
+
+def _latest() -> str | None:
+    runs = [one for one in RUNS.glob("*.jsonl") if "queued" not in one.name]
+    return max(runs, key=lambda one: one.stat().st_mtime).stem \
+        if runs else None
+
+
+def build(label: str | None = None) -> dict:
+    label = label or _latest()
+    if label is None:
+        raise SystemExit("no conversation test run in conversations-out")
+    rows = [json.loads(line) for line in
+            (RUNS / f"{label}.jsonl").open(encoding="utf-8")]
+    areas: dict = {}
+    for area in AREAS:
+        mine = [one for one in rows if one["area"] == area]
+        if not mine:
+            continue
+        verdicts = Counter(one["verdict"] for one in mine)
+        right_parts = Counter(one.get("part") for one in mine
+                              if one["verdict"] == "right" and
+                              one.get("part"))
+        usual = right_parts.most_common(1)[0][0] if right_parts else None
+        failed = [one for one in mine if one["verdict"] != "right"]
+        routed = [one for one in failed if usual and one.get("part")
+                  and one["part"] != usual]
+        areas[area] = {
+            "what": AREAS[area], "right": verdicts["right"],
+            "unsure": verdicts["unsure"], "wrong": verdicts["wrong"],
+            "of": len(mine), "usual part": usual,
+            "routed": [_example(one) for one in routed],
+            "failed": [_example(one) for one in failed
+                       if one not in routed][:4]}
+    found = {"run": label, "built": time.strftime("%Y-%m-%d"),
+             "areas": areas,
+             "routing": [one for area in areas.values()
+                         for one in area["routed"]]}
+    SELF.parent.mkdir(parents=True, exist_ok=True)
+    SELF.write_text(json.dumps(found, indent=1), encoding="utf-8")
+    return found
+
+
+def _example(row: dict) -> dict:
+    return {"said": row["turns"][-1][:120], "part": row.get("part"),
+            "verdict": row["verdict"],
+            "answer": ((row.get("said") or [""])[-1] or "")[:160]}
+
+
+def held() -> dict | None:
+    if not SELF.exists():
+        return None
+    return json.loads(SELF.read_text(encoding="utf-8"))
+
+
+def about_itself(goal: str) -> bool:
+    """Whether a goal is about the assistant itself, rather than a project:
+    the nearer in meaning."""
+    from research.v701.likeness import nearest
+    ranked = nearest(goal, list(ABOUT))
+    return ranked[0][1] == ABOUT[0]
+
+
+def weaknesses(goal: str, model: dict | None = None) -> list:
+    """The weaknesses a goal about itself is about: those its words are
+    near, or the worst where it is near none more than the rest -- each
+    {what, how it does, examples}, worst first."""
+    from research.v701.likeness import nearest
+    model = model or held()
+    if not model:
+        return []
+    found = []
+    routing = model.get("routing") or []
+    if routing:
+        found.append({"what": ROUTING, "bad": len(routing),
+                      "how": f"{len(routing)} messages went to the wrong "
+                             f"part", "examples": routing[:2]})
+    for area in model["areas"].values():
+        bad = area["wrong"] + area["unsure"] / 2 - len(area["routed"])
+        if area["wrong"] + area["unsure"] == 0:
+            continue
+        found.append({"what": area["what"], "bad": bad,
+                      "how": f"{area['right']} right of {area['of']}, "
+                             f"{area['wrong']} wrong",
+                      "examples": area["failed"][:2]})
+    if not found:
+        return []
+    near = dict((what, score) for score, what in
+                nearest(goal, [one["what"] for one in found]))
+    scores = sorted(near.values(), reverse=True)
+    middle = scores[len(scores) // 2]
+    chosen = [one for one in found if near[one["what"]] - middle >= CHOOSES]
+    if not chosen:
+        # a goal near none more than the rest is of all of it: the worst
+        chosen = found
+        chosen.sort(key=lambda one: -one["bad"])
+    else:
+        chosen.sort(key=lambda one: -near[one["what"]])
+    return chosen[:SHOWN]
+
+
+def said(found: list, model: dict) -> str:
+    lines = [f"What I do worst now, by the conversation test of "
+             f"{model['built']}:"]
+    for at, one in enumerate(found, 1):
+        line = f"{at}) {one['what']}: {one['how']}"
+        if one["examples"]:
+            example = one["examples"][0]
+            line += (f" -- e.g. \"{example['said']}\" "
+                     f"(answered by {example['part']})")
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("job", choices=("build", "show"))
+    parser.add_argument("text", nargs="?", default=None)
+    options = parser.parse_args(argv)
+    if options.job == "build":
+        found = build(options.text)
+        print(json.dumps({area: [one["right"], one["unsure"], one["wrong"],
+                                 one["usual part"], len(one["routed"])]
+                          for area, one in found["areas"].items()},
+                         indent=1))
+    else:
+        model = held()
+        print("about itself:", about_itself(options.text))
+        print(said(weaknesses(options.text, model), model))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
