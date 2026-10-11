@@ -91,6 +91,28 @@ def _arguments(text: str, read) -> str | None:
     return None
 
 
+def _goal(text: str, held, read) -> dict:
+    """Something wanted, not something to do (v704): never acted on -- told
+    `I want to improve the ability for it to communicate in general`, the
+    architecture once changed a function called `plan` -- but said back as
+    a goal, with what the project has that its words point to, and the
+    first step asked for."""
+    said = ("That's something you want to achieve rather than a change to "
+            "make, so I haven't changed anything. I can't break a goal into "
+            "steps yet.")
+    looked: dict = {"read": read.json()}
+    if held is not None:
+        from research.v703 import planning
+        near = planning.shortlist(text, held, most=3)
+        looked["near"] = near
+        if near:
+            said += " What your words point to: " + ", ".join(near) + "."
+    said += " What should the first change be?"
+    found = asking._reply("goal", text, said, looked)
+    found["code"]["answer"]["status"] = "goal"
+    return found
+
+
 def _act(read, text: str, session, memory) -> dict | None:
     key = _key(session)
     space = conversation.workspace(key)
@@ -103,6 +125,8 @@ def _act(read, text: str, session, memory) -> dict | None:
     language = (W.asked_language(read.ways)
                 or (held.language() if held is not None else None)
                 or space.language)
+    if read.act == "goal":
+        return _goal(text, held, read)
     if read.act == "make":
         asked = coding.read(text, language)
         if asked.get("yours") and space.request and \

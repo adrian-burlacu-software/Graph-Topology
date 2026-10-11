@@ -62,7 +62,9 @@ EACH = 6
 #: a word of what is not code talk is
 KNOWN, NOISE = 0.75, 0.15
 
-ACTS = ("none", "ask", "make", "change", "run", "teach")
+#: `goal` (v704, `research/v704/teach_goals.py`): something wanted, said
+#: without what to change -- never acted on
+ACTS = ("none", "ask", "make", "change", "run", "teach", "goal")
 ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
            "sure", "why", "others", "risk", "files", "functions")
 SUBJECTS = ("none", "project", "file", "named", "last")

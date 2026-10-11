@@ -1830,6 +1830,21 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code31", 80),
              needs=("reader-shell", "plan-commits"),
              cost="ten minutes", gpu=True),
+        Step("reader-goals", "the shared reader taught that a goal is a "
+                             "goal: something wanted, said without what to "
+                             "change (research/v704/teach_goals.py)",
+             lambda: (_run("research.v704.teach_goals", "write"),
+                      _run("research.v704.teach_goals", "check"),
+                      _run("research.v704.teach_goals", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code31"),
+                           "--out", str(LLM / "reader-code32"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell")),
+             _model_check(LLM / "reader-code32", 80),
+             needs=("reader-plans", "smollm3"), cost="forty minutes",
+             gpu=True),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

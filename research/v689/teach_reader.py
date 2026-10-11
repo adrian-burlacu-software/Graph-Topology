@@ -2975,6 +2975,32 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
                 if key.split(".")[0] in ("sentence", "word", "query", "key")
                 and key.split(".")[1] in same}
         net.load_state_dict(kept, strict=False)
+        # a head whose labels grew (`code_act` taught `goal`) keeps what it
+        # learned of the labels it had: each one's row, moved to where the
+        # label is now -- only the new label's row starts from nothing
+        grown = []
+        with torch.no_grad():
+            for name, head in spec["heads"].items():
+                old = before.get("heads", {}).get(name, {}).get("labels")
+                if not old or name in same or not set(old) < set(
+                        head["labels"]):
+                    continue
+                for part in ("sentence", "word"):
+                    layer = getattr(net, part)
+                    weight = saved.get(f"{part}.{name}.weight")
+                    if name not in layer or weight is None:
+                        continue
+                    bias = saved.get(f"{part}.{name}.bias")
+                    for at, label in enumerate(head["labels"]):
+                        if label in old:
+                            layer[name].weight[at] = weight[
+                                old.index(label)].to(layer[name].weight.device)
+                            if bias is not None:
+                                layer[name].bias[at] = bias[old.index(
+                                    label)].to(layer[name].bias.device)
+                    grown.append(name)
+        if grown:
+            print(f"grown, its labels kept: {sorted(grown)}", flush=True)
         # what spaCy's tags and dependencies were learned to mean, each
         # moved to where it is in the new vocabulary (`CODE` is new)
         with torch.no_grad():
