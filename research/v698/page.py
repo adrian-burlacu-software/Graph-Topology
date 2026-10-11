@@ -120,6 +120,27 @@ def _act(read, text: str, session, memory) -> dict | None:
         # or the one just talked about (v700): made in the project, and in
         # its files on disk
         from research.v700 import fixing
+        # a change naming no function or file of the project outright --
+        # its words name what it is about, not where (`report whether the
+        # shell asks in /api/health and show it in the MCP health tool`) --
+        # is planned across the project (v703), where a plan is agreed
+        if held is not None and not _named_outright(read, text, held):
+            from research.v703 import planning
+            if planning.available():
+                planned = planning.plan(text, held)
+                # across files: two steps or more, or one whose answer
+                # another file passes through as it came (the MCP's
+                # _health shows what do_GET adds to /api/health)
+                if planned["status"] == "planned" and (
+                        len(planned["steps"]) >= 2 or
+                        planned.get("passed through")):
+                    made = planning.carry(planned, held, key)
+                    found = asking._reply("plan", text, made["said"],
+                                          {"read": read.json(),
+                                           "plan": planned})
+                    found["code"]["plan"] = {**planned, **made}
+                    found["code"]["answer"]["status"] = made["status"]
+                    return found
         subject = (fixing.placed(read, held, text)
                    or asking.resolve(read, held, space, turn, key)) \
             if held is not None else None
@@ -161,6 +182,24 @@ def _act(read, text: str, session, memory) -> dict | None:
                                  name=subject.name)
         return None
     return asking.answered_read(read, text, held, space, turn, key)
+
+
+def _named_outright(read, text: str, held) -> bool:
+    """Whether a change names what it changes: a subject the encoder marked,
+    or a word shaped as code (`_turn`, `server.py`, `Open.the`), that the
+    project has -- where it does, it is one change of that; where it does
+    not, a plan says where."""
+    names = set()
+    for one in held.functions():
+        names.update({one["name"], one["name"].split(".")[-1]})
+    names.update(held.files)
+    names.update(path.rsplit("/", 1)[-1] for path in held.files)
+    marked = [phrase.split("(")[0].strip(" ?.,!'\"`")
+              for phrase in read.spans.get("SUBJ", ())]
+    shaped = [one.strip("?.,!'\"`") for one in text.split()
+              if re.search(r"[_.()]|[a-z][A-Z]", one.strip("?.,!'\"`"))]
+    return any(one in names or one.split("(")[0].split(".")[-1] in names
+               for one in marked + shaped if one)
 
 
 def _shell_turn(asked, text: str, key) -> dict:
@@ -342,12 +381,26 @@ def replies(session) -> list:
             # code (`shell.run`, `_turn`, `main()`) -- looked up
             shaped = [one.strip("?.,!'\"`") for one in text.split()
                       if re.search(r"[._(]", one.strip("?.,!'\"`"))]
-            return any(one in names
-                       for phrase in list(read.spans.get("SUBJ", ())) +
-                       shaped
-                       for word in [phrase] + phrase.split()
-                       for one in (word, word.split("(")[0],
-                                   word.split("(")[0].rsplit(".", 1)[-1]))
+            if any(one in names
+                   for phrase in list(read.spans.get("SUBJ", ())) + shaped
+                   for word in [phrase] + phrase.split()
+                   for one in (word, word.split("(")[0],
+                               word.split("(")[0].rsplit(".", 1)[-1])):
+                return True
+            # a change asked of something the project's code says -- a word
+            # shaped as code found in its files' text, not a path of it
+            # (`report whether the shell asks in /api/health ...`: the
+            # server answers /api/health) -- is a change of the project
+            held = Pj.project(_key(session))
+            if read.act != "change" or held is None:
+                return False
+            routes = [one.strip("?.,!'\"`") for one in text.split()
+                      if re.search(r"[_/()]|[a-z][A-Z]", one.strip(
+                          "?.,!'\"`")) and len(one) > 3]
+            return any(one not in held.files and not any(
+                path.startswith(one.strip("/")) for path in held.files)
+                and any(one in body for body in held.files.values())
+                for one in routes)
 
         def do_shell(memory):
             asked = shell_read(memory)

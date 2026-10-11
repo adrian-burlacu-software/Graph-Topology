@@ -58,6 +58,9 @@ SAYING = ("You change code as you are asked. Answer with each change as "
           "<<< the lines as they are === the lines as they become >>>, "
           "nothing else.")
 
+#: what the editor answers where its part of a change is nothing (v703
+#: `teach_parts`: a function a commit across files did not change)
+NOTHING = "nothing to change here"
 #: what is taught: a part of a file at most this long, changed this much
 LONGEST_PART, LONGEST_CHANGE = 60, 24
 LONGEST_MESSAGE = 300

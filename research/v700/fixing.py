@@ -37,8 +37,15 @@ from research.v700 import teach_editor as T
 #: of data files (research/v701/teach_data_edits.py): held data edits 31
 #: of 181 right are 160, faults 153 of 160, small commits 12 -> 15 of 200;
 #: then on a record's field set (`rows-more`): held 21 of 71 are 62, data
-#: edits 163, faults 150, small commits 17
-EDITOR = "editor5"
+#: edits 163, faults 150, small commits 17; then (v703 `teach_parts`) on
+#: a function's part of a commit across files, what the project has, parts
+#: left as they were (NOTHING) and what a message names by its words:
+#: held parts 0 -> 12 of 300 (any of 5: 4 -> 18), commits 24 -> 20,
+#: NOTHING on 115 of 200 unchanged, 14 of 200 changed -- the editor of a
+#: plan's steps (`STEP_EDITOR`), given what a step is given; a change asked
+#: alone keeps editor5 (attach: editor8 did not move pytypes' import out
+#: of the loop, editor5 does)
+EDITOR, STEP_EDITOR = "editor5", "editor8"
 SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
@@ -56,9 +63,10 @@ LONGEST_PART, AROUND = T.LONGEST_PART, 8
 MADE: dict = {}
 
 
-def _editor():
+def _editor(step: bool = False):
     from research.v697.coding import Tools
-    return Tools.get().writer(EDITOR)
+    return Tools.get().writer(STEP_EDITOR if step and (
+        T.LLM / STEP_EDITOR / "config.json").exists() else EDITOR)
 
 
 def available() -> bool:
@@ -111,6 +119,18 @@ def span(held, subject) -> tuple | None:
     return None
 
 
+def _content_words(statement: str) -> set | None:
+    """The statement's words that carry meaning -- nouns, verbs, adjectives,
+    names, as the parser reads them -- lowered; None where there is no
+    parser."""
+    from research.v691.hearing import nlp
+    parser = nlp()
+    if parser is None:
+        return None
+    return {one.text.lower() for one in parser(statement)
+            if one.pos_ in ("NOUN", "PROPN", "VERB", "ADJ", "X")}
+
+
 def placed(read, held, statement: str):
     """What a change is of: among what the statement names that the
     project has -- the encoder's subject phrases, and each word that is a
@@ -126,6 +146,15 @@ def placed(read, held, statement: str):
               for phrase in read.spans.get("SUBJ", ())]
     said = [one for one in dict.fromkeys(
         re.findall(r"[A-Za-z_$][\w$./-]*[\w$]", statement))]
+    # a plain word the encoder did not mark is a name only where it can be
+    # one: `the` is a function here (`Open.the`), and a subsystem asked for
+    # was placed on it -- the parser's part of speech says which words of
+    # the statement carry meaning
+    content = _content_words(statement)
+    if content is not None:
+        said = [one for one in said if one in marked or
+                re.search(r"[_.$/()]|[a-z][A-Z]", one) or
+                one.lower() in content]
     candidates = []
     for word in dict.fromkeys(marked + said):
         if not word:
@@ -277,6 +306,66 @@ def _flakes(path: str, text: str) -> list:
         said.append({"code": "pyflakes", "message": re.sub(
             r"\bline \d+", "line", message)})
     return said
+
+
+def _lines_changed(part: str, made: str) -> tuple:
+    """(lines taken out, lines put in) from `part` to `made`, stripped."""
+    out, put = [], []
+    for line in difflib.ndiff(part.splitlines(), made.splitlines()):
+        if line.startswith("- "):
+            out.append(line[2:].strip())
+        elif line.startswith("+ "):
+            put.append(line[2:].strip())
+    return out, put
+
+
+def _extends(part: str, core: str, more: str) -> bool:
+    """Whether `more` makes the change `core` makes, and more besides:
+    the same lines taken out, and each line `core` puts in put in by
+    `more` too -- as it is, or with more after it on the line."""
+    if core == more:
+        return False
+    core_out, core_in = _lines_changed(part, core)
+    more_out, more_in = _lines_changed(part, more)
+    if not core_in or sorted(core_out) != sorted(more_out):
+        return False
+    return all(any(one == line or one.startswith(line.rstrip(",")) and
+                   len(one) > len(line.rstrip(","))
+                   for one in more_in) for line in core_in)
+
+
+def _with_imports(path: str, text: str, offered: dict | None) -> str:
+    """The file, importing what a change uses and the file does not
+    define, where the project has it and the change was told so (a plan's
+    step: `shell.ASK -- research/v702/shell.py`): looked up, not written
+    by the editor -- it is shown one function, not the file's imports."""
+    if not offered or not path.endswith(".py"):
+        return text
+    missing = sorted({found.group(1) for one in _flakes(path, text)
+                      for found in [re.match(r"undefined name '(\w+)'",
+                                             one["message"])] if found})
+    wanted = [offered[name] for name in missing if name in offered]
+    if not wanted:
+        return text
+    import ast
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return text
+    # after the file's last import at its top, or its docstring
+    at = 0
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            at = node.end_lineno
+        elif at == 0 and isinstance(node, ast.Expr) and isinstance(
+                getattr(node, "value", None), ast.Constant):
+            at = node.end_lineno
+        elif at:
+            break
+    lines = text.splitlines(keepends=True)
+    ending = "\r\n" if "\r\n" in text else "\n"
+    return "".join(lines[:at]) + "".join(one + ending for one in wanted) + \
+        "".join(lines[at:])
 
 
 def data_wrong(path: str, before: str, after: str) -> str | None:
@@ -450,11 +539,15 @@ def diff(before: str, after: str, path: str) -> str:
 PASSES = 4
 
 
-def change(statement: str, held, subject, key=None) -> dict:
+def change(statement: str, held, subject, key=None,
+           context: dict | None = None) -> dict:
     """The change asked, made -- again, on what it made, while the
     statement names code no pass has changed yet, each pass changing some
-    of what is left; the passes kept as one change (`undo` puts all back)."""
-    first = _change_once(statement, held, subject, key)
+    of what is left; the passes kept as one change (`undo` puts all back).
+    `context`: what a plan's step is given beside the statement (v703
+    `teach_parts`) -- `said` to the editor, and the `imports` the project
+    offers for what that says."""
+    first = _change_once(statement, held, subject, key, context=context)
     if first["status"] != "changed":
         return first
     named = set(first.get("named", ()))
@@ -466,7 +559,7 @@ def change(statement: str, held, subject, key=None) -> dict:
     # `server.server.port`)
     while passes < PASSES and named - done and not is_data(first["file"]):
         more = _change_once(statement, held, subject, key,
-                            need=named - done)
+                            need=named - done, context=context)
         if more["status"] != "changed":
             break
         done |= set(more.get("touched", ()))
@@ -526,7 +619,8 @@ def defined_in(text: str, path: str, start: int = 1,
 
 
 def _change_once(statement: str, held, subject, key=None,
-                 need: set | None = None) -> dict:
+                 need: set | None = None,
+                 context: dict | None = None) -> dict:
     """One change asked, made: what was tried, what was checked, what was
     written. `need`: names it must change some of (what earlier passes
     left)."""
@@ -541,7 +635,7 @@ def _change_once(statement: str, held, subject, key=None,
     text = held.files[path]
     lines = _lines(text)
     part = "".join(lines[start - 1:end])
-    asked = T.prompt(statement, path, part)
+    asked = T.prompt((context or {}).get("said") or statement, path, part)
     from research.v698.project import is_data
     data = is_data(path)
     try:
@@ -566,7 +660,7 @@ def _change_once(statement: str, held, subject, key=None,
     for round_ in range(ROUNDS):
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
-        writer = _editor()
+        writer = _editor(step=context is not None)
         writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) + round_)
         written_now = writer.write([asked], samples=SAMPLES, longest=400,
                                    greedy=round_ == 0)[0]
@@ -574,6 +668,11 @@ def _change_once(statement: str, held, subject, key=None,
         fresh = []
         for number, answer in enumerate(written_now):
             greedy = round_ == 0 and number == 0
+            if answer.strip() == T.NOTHING:
+                # its part of a larger change is nothing (a plan's step)
+                tried.append({"answer": answer, "greedy": greedy,
+                              "round": round_, "nothing": True})
+                continue
             made_all = T.made_each(part, answer)
             if not made_all:
                 tried.append({"answer": answer, "greedy": greedy,
@@ -591,14 +690,25 @@ def _change_once(statement: str, held, subject, key=None,
                     seen[made]["agree"] += 1
                     row["same as"] = seen[made]["index"]
                     continue
-                after = "".join(lines[:start - 1]) + made + \
-                    "".join(lines[end:])
+                after = _with_imports(path, "".join(lines[:start - 1]) +
+                                      made + "".join(lines[end:]),
+                                      (context or {}).get("imports"))
                 row.update({"index": len(tried) - 1, "agree": 1,
                             "text": after, "made": made, "touched": sorted(
                                 named & _changed_names(part, made))})
                 seen[made] = row
                 fresh.append(row)
         for row in fresh:
+            # what the request names of the project by its words (a plan's
+            # step: `the shell asks` is shell.ASK) -- a change using none of
+            # it is not the change asked (`"asked": parsed.path ==
+            # "/api/shell"` compiled, two wrote it, the judge let it by)
+            wanted = (context or {}).get("names")
+            if wanted and not any(name in line for line in _lines_changed(
+                    part, row["made"])[1] for name in wanted):
+                row["refused"] = ("it uses nothing the request names "
+                                  f"({', '.join(wanted)})")
+                continue
             if need and not set(row["touched"]) & need:
                 row["refused"] = ("it changes none of what is left "
                                   f"({', '.join(sorted(need))})")
@@ -647,16 +757,37 @@ def _change_once(statement: str, held, subject, key=None,
                                   f"have: {', '.join(unfound)}")
                 continue
             passed.append(row)
-        # asked again only while nothing passed: the words a statement
-        # shares with the code are not all code it names (`it`, `never`
-        # are names in some code), so all of them touched is no stop
-        if passed:
+        # asked again only while nothing passed that answers agree on: the
+        # words a statement shares with the code are not all code it names
+        # (`it`, `never` are names in some code), so all of them touched is
+        # no stop -- and a change one answer wrote is not written, so more
+        # answers are asked for before saying so
+        nothing = sum(1 for one in tried if one.get("nothing"))
+        agreed_ = any(row["agree"] + sum(
+            other["agree"] for other in seen.values() if other is not row
+            and _extends(part, row["made"], other["made"])) >= LEAST_AGREED
+            for row in passed)
+        if agreed_ or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
             break
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
                       if key_ not in ("text", "made")} for one in tried],
            "diagnostics before": len(before)}
+    # most answers written apart saying nothing here is to change: the step
+    # is not this function's (2 of 7 said so of do_GET, where the change
+    # was; 4 of 7 of the bridge's _health, where none is)
+    # -- or answers agreeing on it where no change written holds up (the
+    # bridge's _health: 4 said nothing, the 22 changes all refused)
+    if nothing >= LEAST_AGREED and (nothing * 2 > len(answers) or
+                                    not passed):
+        out.update({"status": "nothing", "said": (
+            f"Nothing to change in {subject.name}: {nothing} of "
+            f"{len(answers)} answers written say so"
+            + ("." if passed or nothing * 2 > len(answers) else
+               ", and none of the changes written passed the checks."))})
+        out["seconds"] = round(time.time() - started, 2)
+        return out
     if not passed:
         out.update({"status": "unchanged",
                     "said": (f"I could not change {subject.name} as asked: "
@@ -669,6 +800,16 @@ def _change_once(statement: str, held, subject, key=None,
         row["size"] = sum(1 for one in diff(text, row["text"], path)
                           .splitlines() if one[:1] in "+-"
                           and not one.startswith(("+++", "---")))
+    # an answer that makes a change and more besides agrees with that
+    # change: three of seven wrote `"asked": shell.ASK,`, two of them with
+    # a key of their own after it -- the more is a guess, the change agreed
+    for row in passed:
+        more = sum(other["agree"] for other in seen.values()
+                   if other is not row and _extends(part, row["made"],
+                                                    other["made"]))
+        if more:
+            row["agree"] += more
+            row["within"] = more
     # whether each does what was said: the judge's reading of the statement
     # against the change (`teach_judge.py`) -- a change it does not believe
     # is not written, however well it compiles

@@ -44,8 +44,10 @@ LLM = Path(__file__).resolve().parents[1] / "llm"
 #: changes of data files, `reader-code27`; counts with a field unsaid and
 #: the record with the most of one, `reader-code28`; what is asked of the
 #: computer -- a command, a task, yes or no -- `research/v702`,
-#: `reader-code30`); the readers before them are left as they were.
-PREFERRED = ("reader-code30", "reader-code28", "reader-code27", "reader-code26", "reader-code23", "reader-code20", "reader-code9", "reader-design4",
+#: `reader-code30`; requests to change the project apart from the shell's,
+#: `research/v703`, `reader-code31`); the readers before them are left as
+#: they were.
+PREFERRED = ("reader-code31", "reader-code30", "reader-code28", "reader-code27", "reader-code26", "reader-code23", "reader-code20", "reader-code9", "reader-design4",
              "reader-maths2", "reader")
 MODEL = Path(os.environ.get("V689_READER_MODEL") or next(
     (LLM / name for name in PREFERRED

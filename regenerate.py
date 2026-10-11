@@ -606,6 +606,15 @@ def _hf_make(repo: str, out: Path) -> Callable[[], None]:
     return make
 
 
+def _size_check(path: Path, size: int) -> Callable[[], str | None]:
+    """A file downloaded whole: its size as published."""
+    def check() -> str | None:
+        if not path.exists() or path.stat().st_size < size:
+            return None
+        return f"{path.name}: {path.stat().st_size} bytes"
+    return check
+
+
 def _model_check(out: Path, least_mb: int) -> Callable[[], str | None]:
     def check() -> str | None:
         if not (out / "config.json").exists():
@@ -1793,6 +1802,84 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code30", 80),
              needs=("reader-data-more", "shell-writer"),
              cost="twenty-five minutes", gpu=True),
+
+        # v703: changes across a project -- planned by choosing
+        Step("commit-chronicle", "CommitChronicle's commits whole, one "
+                                 "training shard (JetBrains Research)",
+             lambda: _run("research.v703.teach_plans", "fetch"),
+             _size_check(DATA / "commit-chronicle" / "train-00000.parquet",
+                         179_224_070), cost="minutes"),
+        Step("plan-commits", "commits of several files, each file's part "
+                             "said by the teacher (research/v703)",
+             lambda: (_run("research.v703.teach_plans", "commits",
+                           "--most", "1200"),
+                      _run("research.v703.teach_plans", "describe")),
+             _lines_check(LLM / "plan-data" / "described.jsonl", 1400,
+                          "1608 when made"),
+             needs=("commit-chronicle", "smollm3"), cost="three hours",
+             gpu=True),
+        Step("reader-plans", "the shared reader taught requests to change "
+                             "the project as none of the shell's",
+             lambda: (_run("research.v702.teach_shell", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code30"),
+                           "--out", str(LLM / "reader-code31"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell")),
+             _model_check(LLM / "reader-code31", 80),
+             needs=("reader-shell", "plan-commits"),
+             cost="ten minutes", gpu=True),
+        Step("picker", "a judge of what a request changes, among the "
+                       "functions a project has (research/v703)",
+             lambda: (_run("research.v703.teach_plans", "commits",
+                           "--most", "1200"),
+                      _run("research.v703.teach_picker", "pairs"),
+                      _run("research.v703.teach_picker", "train")),
+             _model_check(LLM / "picker", 400),
+             needs=("commit-chronicle",), cost="twenty minutes", gpu=True),
+        Step("commit-repos", "Python projects' histories, cloned whole "
+                             "(research/v703/teach_parts.py)",
+             lambda: _run("research.v703.teach_parts", "fetch"),
+             lambda: (ROOT / "data" / "commit-repos" /
+                      "pypa_pip.git").exists(),
+             cost="ten minutes"),
+        Step("uses", "a judge of what a function's change uses of what "
+                     "the project has (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "corpus"),
+                      _run("research.v703.teach_parts", "uses"),
+                      _run("research.v703.teach_parts", "train-uses")),
+             _model_check(LLM / "uses2", 400),
+             needs=("commit-repos",), cost="an hour", gpu=True),
+        Step("editor-parts", "the editor taught again: one function's part "
+                             "of a change across files, and what the "
+                             "project has (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "mix"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor5", "--out", "editor6")),
+             _model_check(LLM / "editor6", 600),
+             needs=("uses", "editor-data-more"), cost="five hours",
+             gpu=True),
+        Step("editor-nothing", "the editor taught again: a step's part of "
+                               "a change may be nothing -- functions a "
+                               "commit across files left unchanged "
+                               "(research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "nothing"),
+                      _run("research.v703.teach_parts", "mix-nothing"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor6", "--out", "editor7",
+                           "--corpus", "parts-mix-nothing.jsonl")),
+             _model_check(LLM / "editor7", 600),
+             needs=("editor-parts",), cost="three hours", gpu=True),
+        Step("editor-named", "the editor taught again: changes using what "
+                             "their message names by its words, not as "
+                             "written (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "mix-named"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor7", "--out", "editor8",
+                           "--corpus", "parts-mix-named.jsonl")),
+             _model_check(LLM / "editor8", 600),
+             needs=("editor-nothing",), cost="an hour", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",
