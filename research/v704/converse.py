@@ -82,6 +82,23 @@ NOT_ANSWERED_STATUS = {"unsure", "unchanged", "undone", "unsolved",
                        "unplaced", "unchecked", "unplanned"}
 
 
+def part_of(turn: dict) -> str:
+    """Which of the architecture's parts answered: what the project was
+    asked (`callers`, `data`, `plan`, `goal`), the shell, code written, or
+    where a verdict came from (`kind`, `mathematics`, `told`)."""
+    code = code_of(turn)
+    if code.get("shell"):
+        return "shell"
+    asked = (code.get("project") or {}).get("asked")
+    if asked:
+        return f"project {asked}"
+    if code.get("request") or code.get("writers"):
+        return "code written"
+    if code.get("change"):
+        return "change"
+    return str((turn.get("answer") or {}).get("source") or "none")
+
+
 def unanswered(turn: dict) -> bool:
     status = (code_of(turn).get("answer") or {}).get("status")
     stance = stance_of(turn)
@@ -281,6 +298,7 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
             out["verdict"] = "unsure" if unanswered(turn) else "wrong"
         status = (code_of(turn).get("answer") or {}).get("status")
         out["status"] = status
+        out["part"] = part_of(turn)
     except urllib.error.HTTPError as bad:
         out.update(verdict="wrong", why=f"server {bad.code}: "
                    f"{bad.read().decode(errors='replace')[:300]}")
