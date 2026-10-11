@@ -37,8 +37,15 @@ from research.v700 import teach_editor as T
 #: of data files (research/v701/teach_data_edits.py): held data edits 31
 #: of 181 right are 160, faults 153 of 160, small commits 12 -> 15 of 200;
 #: then on a record's field set (`rows-more`): held 21 of 71 are 62, data
-#: edits 163, faults 150, small commits 17
-EDITOR = "editor5"
+#: edits 163, faults 150, small commits 17; then (v703 `teach_parts`) on
+#: a function's part of a commit across files, what the project has, parts
+#: left as they were (NOTHING) and what a message names by its words:
+#: held parts 0 -> 12 of 300 (any of 5: 4 -> 18), commits 24 -> 20,
+#: NOTHING on 115 of 200 unchanged, 14 of 200 changed -- the editor of a
+#: plan's steps (`STEP_EDITOR`), given what a step is given; a change asked
+#: alone keeps editor5 (attach: editor8 did not move pytypes' import out
+#: of the loop, editor5 does)
+EDITOR, STEP_EDITOR = "editor5", "editor8"
 SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
@@ -56,9 +63,10 @@ LONGEST_PART, AROUND = T.LONGEST_PART, 8
 MADE: dict = {}
 
 
-def _editor():
+def _editor(step: bool = False):
     from research.v697.coding import Tools
-    return Tools.get().writer(EDITOR)
+    return Tools.get().writer(STEP_EDITOR if step and (
+        T.LLM / STEP_EDITOR / "config.json").exists() else EDITOR)
 
 
 def available() -> bool:
@@ -652,7 +660,7 @@ def _change_once(statement: str, held, subject, key=None,
     for round_ in range(ROUNDS):
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
-        writer = _editor()
+        writer = _editor(step=context is not None)
         writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) + round_)
         written_now = writer.write([asked], samples=SAMPLES, longest=400,
                                    greedy=round_ == 0)[0]
