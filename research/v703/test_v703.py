@@ -177,6 +177,15 @@ class PartTests(unittest.TestCase):
         self.assertFalse(fixing._extends(part, core, apart))
         self.assertFalse(fixing._extends(part, core, core))
 
+    def test_named_by_the_requests_words(self):
+        said = planning._lemmas("report whether the shell asks in "
+                                "/api/health")
+        if not said:
+            self.skipTest("no parser")
+        self.assertLessEqual(planning._name_parts("shell.ASK"), said)
+        self.assertFalse(planning._name_parts("shell.run") <= said)
+        self.assertNotIn("in", said)
+
     def test_imported_at_the_top(self):
         text = ("import json\nfrom srv import page\n\n\ndef main():\n"
                 "    from srv import shell\n    return shell\n")

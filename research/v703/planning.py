@@ -461,7 +461,13 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
     first = [one for other in named[:NAMED_FILES]
              for one in [unit for unit in units
                          if unit[1] == other][:NAMED_EACH]]
-    units = list(dict.fromkeys(first + units))[:TP.MOST_UNITS]
+    # and before all, what the request names by its words -- each part of
+    # the name one of them, as the parser reads them (`the shell asks`:
+    # shell.ASK)
+    lemmas = _lemmas(step["said"])
+    by_words = [one for one in units if lemmas and _name_parts(one[0]) and
+                _name_parts(one[0]) <= lemmas]
+    units = list(dict.fromkeys(by_words + first + units))[:TP.MOST_UNITS]
     # what the file imports at its top: an import inside another function
     # (`shell`, in the server's main) is not there for this one
     imported = TP.top_names(text)
@@ -471,6 +477,30 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
         if "." in said and other != path and alias not in imported:
             offered[alias] = TP.import_line(other)
     return {"said": TP.asked(statement, others, units), "imports": offered}
+
+
+def _lemmas(text: str) -> set:
+    """The words of a request as the parser reads them, by lemma (`asks`
+    is ask); empty where there is no parser."""
+    from research.v691.hearing import nlp
+    parser = nlp()
+    if parser is None:
+        return set()
+    return {one.lemma_.lower() for one in parser(text)
+            if one.is_alpha and not one.is_stop}
+
+
+def _name_parts(name: str) -> set:
+    """A name's parts, by lemma: shell.ASK is shell and ask, reads_only
+    read and only, callersOf caller and of."""
+    words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+", name)
+    if not words:
+        return set()
+    from research.v691.hearing import nlp
+    parser = nlp()
+    if parser is None:
+        return {one.lower() for one in words}
+    return {parser(one.lower())[0].lemma_.lower() for one in words}
 
 
 def _only(held, path: str):
