@@ -119,6 +119,9 @@ def faithful(piece: str, said: str, framing: set | None = None) -> bool:
     if set(re.findall(r"\b(v\d{3})", said)) - {one[:4] for one in versions}:
         return False
     if piece.startswith("say: step"):
+        if "|" in said:
+            # the piece's own form said back, not said
+            return False
         verb = piece.split("step: ", 2)[-1].split()[0].lower()
         return said.split()[0].lower().strip("*:,") == verb and \
             len(said) <= LONGEST_STEP
@@ -267,13 +270,15 @@ def say(goal: str, weak: list, planned: dict, model: dict | None,
     where there is no sayer."""
     if _sayer() is None:
         return None
-    pieces = [opening(goal, weak, model)] + [step(one)
-                                             for one in planned["steps"]]
+    # the steps only: the teacher's openings each made up what the plan
+    # did not hold (0 of 2,043 kept), so an opening is the architecture's
+    # own, joined from what it holds
+    pieces = [step(one) for one in planned["steps"]]
     said = said_by_sayer(pieces)
     like = ", ".join(one["version"] for one in planned["like"])
-    lines = [said[0] or joined_opening,
+    lines = [joined_opening,
              f"Goals like it here ({like}) were reached this way:"]
-    for at, (one, plainly) in enumerate(zip(planned["steps"], said[1:]), 1):
+    for at, (one, plainly) in enumerate(zip(planned["steps"], said), 1):
         example = one["as in"]
         lines.append(f"{at}. " + (plainly or (
             f"{one['said']} (as in {example['version']}: "
