@@ -152,7 +152,8 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
     if routing:
         found.append({"what": ROUTING, "bad": len(routing),
                       "how": f"{len(routing)} messages went to the wrong "
-                             f"part", "examples": routing[:2]})
+                             f"part", "examples": routing[:2],
+                      "cases": routing})
     for area in model["areas"].values():
         bad = area["wrong"] + area["unsure"] / 2 - len(area["routed"])
         if area["wrong"] + area["unsure"] == 0:
@@ -160,7 +161,8 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
         found.append({"what": area["what"], "bad": bad,
                       "how": f"{area['right']} right of {area['of']}, "
                              f"{area['wrong']} wrong",
-                      "examples": area["failed"][:2]})
+                      "examples": area["failed"][:2],
+                      "cases": area["failed"]})
     if not found:
         return []
     near = dict((what, score) for score, what in

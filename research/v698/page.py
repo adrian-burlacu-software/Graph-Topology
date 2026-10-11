@@ -41,6 +41,11 @@ PASTED_DATA = 212.5
 SHELL_TALK = 212.25
 #: a command shown and waiting for yes, by conversation
 WAITING: dict = {}
+#: a yes or no to a goal's plan comes before one to a command
+GOAL_STEP = 212.3
+#: a goal said back with its plan, by conversation: a yes takes its first
+#: step (v704)
+GOALS: dict = {}
 
 
 def _key(session):
@@ -91,7 +96,7 @@ def _arguments(text: str, read) -> str | None:
     return None
 
 
-def _goal(text: str, held, read) -> dict:
+def _goal(text: str, held, read, key: str = "") -> dict:
     """Something wanted, not something to do (v704): never acted on -- told
     `I want to improve the ability for it to communicate in general`, the
     architecture once changed a function called `plan` -- but said back as
@@ -127,8 +132,60 @@ def _goal(text: str, held, read) -> dict:
             said += " What your words point to: " + ", ".join(near) + "."
     said += (" Shall I start on the first step?" if planned else
              " What should the first change be?")
+    if planned and key:
+        # kept for a yes: the first step taken (`_first_step`)
+        GOALS[key] = {"goal": text, "weak": weak, "plan": planned}
     found = asking._reply("goal", text, said, looked)
     found["code"]["answer"]["status"] = "goal"
+    return found
+
+
+#: the cases a first step shows at most
+FIRST_CASES = 6
+
+
+def _first_step(key: str, held) -> dict:
+    """A goal's first step, on a yes: a look, never a change -- of itself,
+    what fails in its worst weakness now (the conversation test's cases,
+    each with what answered it); of a project, where in it the goal would
+    go (v703's plan, nothing changed)."""
+    goal = GOALS.pop(key)
+    lines = []
+    looked: dict = {"goal": goal["goal"]}
+    if goal["weak"]:
+        weak = goal["weak"][0]
+        cases = weak.get("cases") or weak["examples"]
+        looked["cases"] = cases
+        lines.append(f"First, a look at {weak['what']} -- what fails now:")
+        for at, one in enumerate(cases[:FIRST_CASES], 1):
+            answer = " ".join((one.get("answer") or "").split())[:100]
+            lines.append(f"{at}. \"{one['said']}\" went to "
+                         f"{one['part']}" + (f", which said: {answer}"
+                                             if answer else ""))
+        if len(cases) > FIRST_CASES:
+            lines.append(f"(and {len(cases) - FIRST_CASES} more)")
+        lines.append("Which of these should I look into first?")
+    elif held is not None:
+        from research.v703 import planning
+        found = planning.plan(goal["goal"], held)
+        looked["plan"] = found
+        steps = found.get("steps") or []
+        if steps:
+            lines.append("First, where it would go in the project -- "
+                         "nothing changed:")
+            for at, one in enumerate(steps[:FIRST_CASES], 1):
+                lines.append(f"{at}. {one['function'] or 'the file'} in "
+                             f"{one['path']}")
+            lines.append("Which should change first, and how?")
+        else:
+            lines.append("I couldn't find where in the project it would go. "
+                         "Which file or function is it about?")
+    else:
+        lines.append("For that I need the project: send it, and I'll look "
+                     "at where it would go.")
+    found = asking._reply("goal step", goal["goal"], "\n".join(lines),
+                          looked)
+    found["code"]["answer"]["status"] = "goal step"
     return found
 
 
@@ -145,7 +202,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                 or (held.language() if held is not None else None)
                 or space.language)
     if read.act == "goal":
-        return _goal(text, held, read)
+        return _goal(text, held, read, key)
     if read.act == "make":
         asked = coding.read(text, language)
         if asked.get("yours") and space.request and \
@@ -485,6 +542,32 @@ def replies(session) -> list:
             memory["turn"].answer = _shell_turn(asked, text, key)
             return ANSWERED
 
+        def asks_goal_step(memory) -> bool:
+            # yes or no to a goal said back with its plan (v704) -- read as
+            # the shell's yes and no to a command shown are
+            if _key(session) not in GOALS:
+                return False
+            asked = shell_read(memory)
+            return asked is not None and asked.act in ("yes", "no") and \
+                asked.chance >= shell.FLOOR
+
+        def goal_step(memory):
+            key = _key(session)
+            if shell_read(memory).act == "no":
+                GOALS.pop(key, None)
+                reply = asking._reply("goal step", typed(memory),
+                                      "All right -- I've left it.", {})
+            else:
+                reply = _first_step(key, Pj.project(key))
+            memory["turn"].answer = reply
+            return ANSWERED
+
+        out.append(Operator(
+            name="goal step", apply=goal_step, proposes=asks_goal_step,
+            utility=GOAL_STEP,
+            rule="yes or no to a goal's plan: on yes its first step, a look "
+                 "-- what fails now, or where in the project it would go -- "
+                 "never a change"))
         out.append(Operator(
             name="shell", apply=do_shell, proposes=asks_shell,
             utility=SHELL_TALK,

@@ -76,6 +76,21 @@ class SelfModelTests(unittest.TestCase):
         self.assertEqual(len(maths["failed"]), 1)
 
 
+class FirstStepTests(unittest.TestCase):
+    """A yes to a goal's plan: a look at what fails, never a change."""
+
+    def test_what_fails_listed(self):
+        from research.v698 import page
+        cases = [{"said": "what is 7 squared?", "part": "shell",
+                  "answer": "I would run `7`"}]
+        page.GOALS["k"] = {"goal": "communicate better", "plan": {},
+                           "weak": [{"what": "sending it to the right part",
+                                     "cases": cases, "examples": cases}]}
+        found = page._first_step("k", None)
+        self.assertIn('"what is 7 squared?" went to shell', found["text"])
+        self.assertNotIn("k", page.GOALS)
+
+
 class HistoryTests(unittest.TestCase):
     """A goal's plan, chosen from goals reached like it."""
 
