@@ -38,8 +38,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "library"
 OUT = ROOT / "conversations-out"
-#: conversations at once, and how long one turn may take
-WORKERS, TURN_SECONDS = 6, 240
+#: conversations at once, and how long one turn may take -- one: the
+#: server says one turn at a time, whoever says it (v690's
+#: `service._engines`), and six at once queued behind code being written
+#: until every turn timed out
+WORKERS, TURN_SECONDS = 1, 300
 
 
 # -- what an answer said -----------------------------------------------------
