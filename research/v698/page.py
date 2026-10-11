@@ -132,6 +132,15 @@ def _goal(text: str, held, read, key: str = "") -> dict:
             said += " What your words point to: " + ", ".join(near) + "."
     said += (" Shall I start on the first step?" if planned else
              " What should the first change be?")
+    if planned:
+        # said plainly by the sayer (v704 `teach_saying`), where what it
+        # says keeps every part; else the parts joined, as above
+        from research.v704 import teach_saying
+        plainly = teach_saying.say(teach_saying.message(text, weak, planned,
+                                                        model))
+        if plainly:
+            looked["said by"] = "the plan sayer"
+            said = plainly
     if planned and key:
         # kept for a yes: the first step taken (`_first_step`)
         GOALS[key] = {"goal": text, "weak": weak, "plan": planned}

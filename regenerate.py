@@ -1858,6 +1858,16 @@ def steps() -> list[Step]:
              lambda: _run("research.v704.selfmodel", "build"),
              lambda: (LLM / "plan-data" / "self.json").exists(),
              cost="a second, after a twenty-minute test run"),
+        Step("plan-sayer", "a decoder that says a goal's plan plainly, "
+                           "taught what the teacher said of plans and kept "
+                           "where faithful (research/v704/teach_saying.py)",
+             lambda: (_run("research.v704.teach_saying", "messages"),
+                      _run("research.v704.teach_saying", "write"),
+                      _run("research.v704.teach_saying", "corpus"),
+                      _run("research.v704.teach_saying", "train")),
+             _model_check(LLM / "plan-sayer", 600),
+             needs=("reader-goals", "goals-history", "self-model",
+                    "smollm3"), cost="an hour and a half", gpu=True),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",
