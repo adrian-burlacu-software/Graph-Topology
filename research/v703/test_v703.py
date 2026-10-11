@@ -163,6 +163,20 @@ class PartTests(unittest.TestCase):
         self.assertEqual(teach_parts.import_line("research/v702/shell.py"),
                          "from research.v702 import shell")
 
+    def test_a_change_and_more_agrees_with_it(self):
+        from research.v700 import fixing
+        part = 'def health():\n    return {"name": 1,\n            "page": 2}\n'
+        core = part.replace('"name": 1,\n',
+                            '"name": 1,\n            "asked": ASK,\n')
+        more = part.replace('"name": 1,\n', '"name": 1,\n            '
+                            '"asked": ASK, "other": ASK,\n')
+        apart = part.replace('"name": 1,\n',
+                             '"name": 1,\n            "said": 3,\n')
+        self.assertTrue(fixing._extends(part, core, more))
+        self.assertFalse(fixing._extends(part, more, core))
+        self.assertFalse(fixing._extends(part, core, apart))
+        self.assertFalse(fixing._extends(part, core, core))
+
     def test_imported_at_the_top(self):
         text = ("import json\nfrom srv import page\n\n\ndef main():\n"
                 "    from srv import shell\n    return shell\n")

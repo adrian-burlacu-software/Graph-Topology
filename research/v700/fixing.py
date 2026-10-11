@@ -300,6 +300,32 @@ def _flakes(path: str, text: str) -> list:
     return said
 
 
+def _lines_changed(part: str, made: str) -> tuple:
+    """(lines taken out, lines put in) from `part` to `made`, stripped."""
+    out, put = [], []
+    for line in difflib.ndiff(part.splitlines(), made.splitlines()):
+        if line.startswith("- "):
+            out.append(line[2:].strip())
+        elif line.startswith("+ "):
+            put.append(line[2:].strip())
+    return out, put
+
+
+def _extends(part: str, core: str, more: str) -> bool:
+    """Whether `more` makes the change `core` makes, and more besides:
+    the same lines taken out, and each line `core` puts in put in by
+    `more` too -- as it is, or with more after it on the line."""
+    if core == more:
+        return False
+    core_out, core_in = _lines_changed(part, core)
+    more_out, more_in = _lines_changed(part, more)
+    if not core_in or sorted(core_out) != sorted(more_out):
+        return False
+    return all(any(one == line or one.startswith(line.rstrip(",")) and
+                   len(one) > len(line.rstrip(","))
+                   for one in more_in) for line in core_in)
+
+
 def _with_imports(path: str, text: str, offered: dict | None) -> str:
     """The file, importing what a change uses and the file does not
     define, where the project has it and the change was told so (a plan's
@@ -717,17 +743,17 @@ def _change_once(statement: str, held, subject, key=None,
         # shares with the code are not all code it names (`it`, `never`
         # are names in some code), so all of them touched is no stop
         nothing = sum(1 for one in tried if one.get("nothing"))
-        if passed or nothing >= LEAST_AGREED:
+        if passed or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
             break
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
                       if key_ not in ("text", "made")} for one in tried],
            "diagnostics before": len(before)}
-    # answers written apart agreeing that nothing here is to change, more
-    # of them than agree on any change: the step is not this function's
-    if nothing >= LEAST_AGREED and nothing > max(
-            (row["agree"] for row in passed), default=0):
+    # most answers written apart saying nothing here is to change: the step
+    # is not this function's (2 of 7 said so of do_GET, where the change
+    # was; 4 of 7 of the bridge's _health, where none is)
+    if nothing >= LEAST_AGREED and nothing * 2 > len(answers):
         out.update({"status": "nothing", "said": (
             f"Nothing to change in {subject.name}: {nothing} of "
             f"{len(answers)} answers written say so.")})
@@ -745,6 +771,16 @@ def _change_once(statement: str, held, subject, key=None,
         row["size"] = sum(1 for one in diff(text, row["text"], path)
                           .splitlines() if one[:1] in "+-"
                           and not one.startswith(("+++", "---")))
+    # an answer that makes a change and more besides agrees with that
+    # change: three of seven wrote `"asked": shell.ASK,`, two of them with
+    # a key of their own after it -- the more is a guess, the change agreed
+    for row in passed:
+        more = sum(other["agree"] for other in seen.values()
+                   if other is not row and _extends(part, row["made"],
+                                                    other["made"]))
+        if more:
+            row["agree"] += more
+            row["within"] = more
     # whether each does what was said: the judge's reading of the statement
     # against the change (`teach_judge.py`) -- a change it does not believe
     # is not written, however well it compiles
