@@ -116,6 +116,7 @@ def _goal(text: str, held, read, key: str = "") -> dict:
         said += " " + selfmodel.said(weak, model)
     # its steps, chosen from how this project reached goals like it (v704)
     planned = history.plan(text)
+    opened = said
     if planned:
         looked["plan"] = planned
         said += " " + history.said(planned)
@@ -136,8 +137,7 @@ def _goal(text: str, held, read, key: str = "") -> dict:
         # said plainly by the sayer (v704 `teach_saying`), where what it
         # says keeps every part; else the parts joined, as above
         from research.v704 import teach_saying
-        plainly = teach_saying.say(teach_saying.message(text, weak, planned,
-                                                        model))
+        plainly = teach_saying.say(text, weak, planned, model, opened)
         if plainly:
             looked["said by"] = "the plan sayer"
             said = plainly
