@@ -28,10 +28,14 @@ MYPY = 180.0
 
 class PyChecker:
     def __init__(self) -> None:
+        # in a folder of its own: what a program written runs on is its
+        # working folder too (one, given "a", "Abc" and "hello world",
+        # made those files in the repository the server ran from)
+        from research.v696.checker import run_folder
         self.process = subprocess.Popen(
             [sys.executable, "-u", str(SCRIPT)], stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-            encoding="utf-8", bufsize=1)
+            encoding="utf-8", bufsize=1, cwd=run_folder("python"))
         self.replies: queue.Queue = queue.Queue()
         threading.Thread(target=self._read, args=(self.process,),
                          daemon=True).start()
