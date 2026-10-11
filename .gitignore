@@ -43,6 +43,7 @@ state/
 
 # bAbI replies, kept so the scorer can read them again
 research/v689/babi-out/
+conversations-out/
 
 # Provenance travels with the data it documents. `data/` is not committed,
 # but how to get it back must be.
