@@ -1845,6 +1845,12 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code32", 80),
              needs=("reader-plans", "smollm3"), cost="forty minutes",
              gpu=True),
+        Step("goals-history", "the goals this project reached, each "
+                              "commit's kind of step by what it touched "
+                              "(research/v704/history.py)",
+             lambda: _run("research.v704.history", "collect"),
+             lambda: (LLM / "plan-data" / "goals-history.jsonl").exists(),
+             cost="a minute"),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

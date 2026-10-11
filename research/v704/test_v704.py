@@ -44,5 +44,38 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(C._same_as_fixture(C.FIXTURE))
 
 
+class HistoryTests(unittest.TestCase):
+    """A goal's plan, chosen from goals reached like it."""
+
+    def test_most_taken_in_order(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from research.v704 import history as H
+
+        def goal(name, kinds):
+            return {"version": name, "goal": name, "steps": [
+                {"said": f"{name} {kind}", "kind": kind} for kind in kinds]}
+        rows = [goal("speak plainly to people", ["build", "teach",
+                                                 "measure"]),
+                goal("say replies people understand", ["teach", "build",
+                                                       "measure", "tidy"]),
+                goal("read the words people type", ["build", "teach",
+                                                    "document"])]
+        path = Path(tempfile.mkdtemp()) / "history.jsonl"
+        path.write_text("".join(json.dumps(one) + "\n" for one in rows),
+                        encoding="utf-8")
+        with mock.patch.object(H, "HISTORY", path), \
+                mock.patch("research.v701.likeness.nearest",
+                           lambda text, phrases: [
+                               (0.9 - at / 10, one)
+                               for at, one in enumerate(phrases)]):
+            found = H.plan("communicate better")
+        self.assertEqual([one["kind"] for one in found["steps"]],
+                         ["build", "teach", "measure"])
+        self.assertIn("1. Build", H.said(found))
+
+
 if __name__ == "__main__":
     unittest.main()

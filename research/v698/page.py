@@ -98,16 +98,25 @@ def _goal(text: str, held, read) -> dict:
     a goal, with what the project has that its words point to, and the
     first step asked for."""
     said = ("That's something you want to achieve rather than a change to "
-            "make, so I haven't changed anything. I can't break a goal into "
-            "steps yet.")
+            "make, so I haven't changed anything.")
     looked: dict = {"read": read.json()}
+    # its steps, chosen from how this project reached goals like it (v704)
+    from research.v704 import history
+    planned = history.plan(text)
+    if planned:
+        looked["plan"] = planned
+        said += " " + history.said(planned)
+    else:
+        said += " No goal I have reached is like it, so I can't break it " \
+                "into steps yet."
     if held is not None:
         from research.v703 import planning
         near = planning.shortlist(text, held, most=3)
         looked["near"] = near
         if near:
             said += " What your words point to: " + ", ".join(near) + "."
-    said += " What should the first change be?"
+    said += (" Shall I start on the first step?" if planned else
+             " What should the first change be?")
     found = asking._reply("goal", text, said, looked)
     found["code"]["answer"]["status"] = "goal"
     return found
