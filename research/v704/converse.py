@@ -109,6 +109,29 @@ def says_all(*words):
     return check
 
 
+def says_only(right, *others):
+    """The answer says `right` and none of the other candidates: a list of
+    them all is no answer to which one (`which member joined first`,
+    answered with all four members, was scored right)."""
+    def check(turn, root):
+        said = _norm(text_of(turn))
+        return _norm(right) in said and not any(_norm(one) in said
+                                                for one in others)
+    check.about = f"says {right!r} and none of {others}"
+    return check
+
+
+def not_denied(check_, *words):
+    """A check that holds, in an answer that does not deny it (`180 hours
+    kilometers is not something measured in 1 hour` says 180)."""
+    def check(turn, root):
+        said = f" {_norm(text_of(turn))} "
+        return check_(turn, root) and not any(f" {one} " in said
+                                              for one in words)
+    check.about = f"{check_.about}, not denied"
+    return check
+
+
 def number(value):
     """The answer says this number, as a number."""
     wanted = str(value)
@@ -281,8 +304,47 @@ def summary(rows: list) -> dict:
     return {"areas": areas, "total": total, "of": len(rows)}
 
 
+def rescore(label: str) -> dict:
+    """A run's answers scored again by the suite's checks as they are now
+    -- only those that read what was said; a check of files or code needs
+    the run again. After a check is corrected (2026-10-11: a list of every
+    candidate passed `which ... first`)."""
+    from research.v704.suite import SUITE
+    path = OUT / f"{label}.jsonl"
+    rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+    changed = 0
+    for row in rows:
+        item = SUITE[row["n"]]
+        about = getattr(item.check, "about", "")
+        if not row.get("said") or getattr(item.check, "changes", False) \
+                or about.startswith(("its code", "answers yes",
+                                     "answers no")):
+            continue
+        turn = {"reply": {"text": row["said"][-1]},
+                "answer": {"code": {"answer": {"status": row.get(
+                    "status")}}}}
+        verdict = "right" if item.check(turn, None) else (
+            "unsure" if unanswered(turn) else "wrong")
+        if verdict != row["verdict"] and not row.get("why"):
+            row["verdict"], row["check"] = verdict, about
+            changed += 1
+    with path.open("w", encoding="utf-8") as out:
+        for row in rows:
+            out.write(json.dumps(row) + "\n")
+    found = summary(rows)
+    found["rescored"] = changed
+    (OUT / f"{label}.summary.json").write_text(json.dumps(found, indent=1),
+                                               encoding="utf-8")
+    return found
+
+
 def main(argv=None) -> int:
     from research.v704.suite import SUITE
+    if argv is None and len(sys.argv) > 2 and sys.argv[1] == "--rescore":
+        for label in sys.argv[2:]:
+            found = rescore(label)
+            print(label, found["total"], "rescored", found["rescored"])
+        return 0
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8697")
     parser.add_argument("--area", default=None)

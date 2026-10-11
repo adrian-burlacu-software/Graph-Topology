@@ -14,8 +14,9 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from research.v704.converse import (code_does, number, py, replies, says,
-                                    says_all, stance, untouched_and_asked)
+from research.v704.converse import (code_does, not_denied, number, py,
+                                    replies, says, says_all, says_only,
+                                    stance, untouched_and_asked)
 
 
 class Conversation(NamedTuple):
@@ -146,13 +147,16 @@ SUITE = [
 
     # -- questions about the project's data --------------------------------
     P("data-ask", "how many books are in the catalogue?", number(7)),
-    P("data-ask", "which book is the longest?", says("Dune")),
+    P("data-ask", "which book is the longest?",
+      says_only("Dune", "Earthsea", "Left Hand", "Kindred", "Dispossessed",
+                "Parable", "Solaris")),
     P("data-ask", "who wrote Kindred?", says("Octavia")),
     P("data-ask", "what year was Solaris published?", number(1961)),
     P("data-ask", "how many books by Octavia E. Butler are there?",
       number(2)),
     P("data-ask", "what is Grace Hopper's email?", says("grace@example.org")),
-    P("data-ask", "which member joined first?", says("Grace")),
+    P("data-ask", "which member joined first?",
+      says_only("Grace", "Ada", "Alan", "Katherine")),
     P("data-ask", "how many members are there?", number(4)),
     P("data-ask", "what's the library called?", says("Riverside")),
     P("data-ask", "what host does the server listen on?",
@@ -164,13 +168,16 @@ SUITE = [
       says_all("Dune", "Dispossessed", "Parable")),
     P("data-ask", "when did Alan Turing join?", says("2022-07-14")),
     P("data-ask", "what is the max_loans setting?", number(3)),
-    P("data-ask", "which author has the most books?", says("Le Guin")),
+    P("data-ask", "which author has the most books?",
+      says_only("Le Guin", "Herbert", "Butler", "Lem")),
     P("data-ask", "what's the id of Dune?", number(3)),
     P("data-ask", "who has the email katherine@example.org?",
       says("Katherine")),
     P("data-ask", "how many pages are there across all the books?",
       number(2081)),
-    P("data-ask", "what is the newest book?", says("Parable")),
+    P("data-ask", "what is the newest book?",
+      says_only("Parable", "Earthsea", "Left Hand", "Dune", "Kindred",
+                "Dispossessed", "Solaris")),
 
     # -- changes of the project's data -------------------------------------
     P("data-change", "set the port to 9090",
@@ -267,7 +274,7 @@ SUITE = [
     N("maths", "is 17 a prime number?", stance("yes")),
     N("maths", "what is the sum of 1, 2, 3 and 4?", number(10)),
     N("maths", "a train goes 60 km in an hour; how far does it go in 3 "
-               "hours?", number(180)),
+               "hours?", not_denied(number(180), "not", "isn't")),
     N("maths", "what is half of 250?", number(125)),
     N("maths", "what is 9 times 8?", number(72)),
     N("maths", "is 51 divisible by 3?", stance("yes")),
@@ -328,7 +335,7 @@ SUITE = [
     P("follow-up", ["what does due_date do?", "who calls it?"],
       says("overdue")),
     P("follow-up", ["which book is the oldest?", "who wrote it?"],
-      says("Lem")),
+      says_only("Lem", "Le Guin", "Herbert", "Butler")),
     P("follow-up", ["what port does the server use?", "change it to 9000"],
       py("import yaml; assert yaml.safe_load(open('config.yaml'))"
          "['server']['port'] == 9000")),
@@ -348,7 +355,7 @@ SUITE = [
       py(LIB + "from library.books import parse_isbn as p; "
          "assert p('978.0-14') == '978014'")),
     P("follow-up", ["which member joined last?", "what's their email?"],
-      says("alan@example.org")),
+      says_only("alan@example.org", "ada@", "grace@", "katherine@")),
 
     # -- what it must ask about, or decline ---------------------------------
     P("asks", "fix it", untouched_and_asked()),
