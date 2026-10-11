@@ -8,6 +8,17 @@ from pathlib import Path
 from research.v702 import shell
 
 
+class ProgramsTests(unittest.TestCase):
+    """A command is one whose programs this computer has."""
+
+    def test_what_is_no_program(self):
+        if shell.bash() is None:
+            self.skipTest("no bash")
+        self.assertFalse(shell.runs_programs("what is 7 squared?"))
+        self.assertTrue(shell.runs_programs("ls -la | sort"))
+        self.assertTrue(shell.runs_programs("cd data && ls"))
+
+
 class ReadsOnlyTests(unittest.TestCase):
     """What runs without asking: every program a command runs only reads,
     and it writes no file."""

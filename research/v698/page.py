@@ -197,6 +197,16 @@ def _act(read, text: str, session, memory) -> dict | None:
                 found["code"]["change"] = made
                 found["code"]["answer"]["status"] = made["status"]
                 return found
+        if held is not None and not space.request:
+            # a change of the project, placed nowhere in it, with no code
+            # of the conversation's to change: said, not written as new
+            # code (`bump the server version to 1.3.0` became a function)
+            found = asking._reply(
+                "change", text, "I couldn't find what in the project to "
+                "change for that -- which function or file is it in?",
+                {"read": read.json()})
+            found["code"]["answer"]["status"] = "unplaced"
+            return found
         asked = W.asked_language(read.ways)
         if asked and space.request and asked != conversation.language_of(
                 space):
@@ -407,10 +417,34 @@ def replies(session) -> list:
                 return False
             if asked.act in ("yes", "no"):
                 return _key(session) in WAITING
-            if asked.act == "task" and _of_the_code(typed(memory)):
+            if asked.act == "command":
+                # a command is one this computer can run (`what is 7
+                # squared?` runs `what`, which it has not)
+                return bool(asked.command) and \
+                    shell.runs_programs(asked.command)
+            if asked.act == "task" and (_of_the_code(typed(memory)) or
+                                        _claimed(memory)):
                 return False
-            return asked.act == "task" and shell.writer_available() or \
-                asked.act == "command" and bool(asked.command)
+            return asked.act == "task" and shell.writer_available()
+
+        def _claimed(memory) -> bool:
+            # a task a command could do, that a part made for it reads as
+            # its own, is that part's: the shell is what is left (`make
+            # loans last 21 days instead of 14` is a change of the
+            # project's code; `what is 7 squared?` mathematics; `what is
+            # the newest book?` the project's data)
+            text, key = typed(memory), _key(session)
+            from research.v692 import page as maths
+            if maths.asked_of_mathematics(session, text):
+                return True
+            held = Pj.project(key)
+            if held is None:
+                return False
+            read = reading.code_talk(text, known(key))
+            if read is not None and read.act in ("change", "make", "goal"):
+                return True
+            return querying.available() and \
+                querying.answer(text, held) is not None
 
         def _of_the_code(text: str) -> bool:
             # a task that code talk reads as of something the project has
