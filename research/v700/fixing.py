@@ -691,6 +691,16 @@ def _change_once(statement: str, held, subject, key=None,
                 seen[made] = row
                 fresh.append(row)
         for row in fresh:
+            # what the request names of the project by its words (a plan's
+            # step: `the shell asks` is shell.ASK) -- a change using none of
+            # it is not the change asked (`"asked": parsed.path ==
+            # "/api/shell"` compiled, two wrote it, the judge let it by)
+            wanted = (context or {}).get("names")
+            if wanted and not any(name in line for line in _lines_changed(
+                    part, row["made"])[1] for name in wanted):
+                row["refused"] = ("it uses nothing the request names "
+                                  f"({', '.join(wanted)})")
+                continue
             if need and not set(row["touched"]) & need:
                 row["refused"] = ("it changes none of what is left "
                                   f"({', '.join(sorted(need))})")

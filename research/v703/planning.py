@@ -476,7 +476,10 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
         alias = said.split(".")[0]
         if "." in said and other != path and alias not in imported:
             offered[alias] = TP.import_line(other)
-    return {"said": TP.asked(statement, others, units), "imports": offered}
+    # what the request names by its words, as the change would write it
+    names = [one[0] for one in by_words]
+    return {"said": TP.asked(statement, others, units), "imports": offered,
+            "names": names}
 
 
 def _lemmas(text: str) -> set:
