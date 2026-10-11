@@ -739,11 +739,17 @@ def _change_once(statement: str, held, subject, key=None,
                                   f"have: {', '.join(unfound)}")
                 continue
             passed.append(row)
-        # asked again only while nothing passed: the words a statement
-        # shares with the code are not all code it names (`it`, `never`
-        # are names in some code), so all of them touched is no stop
+        # asked again only while nothing passed that answers agree on: the
+        # words a statement shares with the code are not all code it names
+        # (`it`, `never` are names in some code), so all of them touched is
+        # no stop -- and a change one answer wrote is not written, so more
+        # answers are asked for before saying so
         nothing = sum(1 for one in tried if one.get("nothing"))
-        if passed or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
+        agreed_ = any(row["agree"] + sum(
+            other["agree"] for other in seen.values() if other is not row
+            and _extends(part, row["made"], other["made"])) >= LEAST_AGREED
+            for row in passed)
+        if agreed_ or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
             break
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
