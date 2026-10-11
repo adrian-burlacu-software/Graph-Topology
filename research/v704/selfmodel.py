@@ -60,6 +60,22 @@ ABOUT = ("making the assistant itself better at understanding, answering "
 CHOOSES, SHOWN = 0.08, 3
 
 
+def family(part: str | None) -> str | None:
+    """Which part of the architecture an answer came from: the project's
+    data (data talk), a change or a plan of it, any other question of it
+    (code talk), else the part as the test kept it (the shell, code
+    written, where a verdict came from)."""
+    if not part:
+        return part
+    if part.startswith("project data"):
+        return "data talk"
+    if part.startswith(("project change", "project plan", "project goal")):
+        return "changing"
+    if part.startswith("project"):
+        return "code talk"
+    return part
+
+
 def _latest() -> str | None:
     runs = [one for one in RUNS.glob("*.jsonl") if "queued" not in one.name]
     return max(runs, key=lambda one: one.stat().st_mtime).stem \
@@ -78,13 +94,15 @@ def build(label: str | None = None) -> dict:
         if not mine:
             continue
         verdicts = Counter(one["verdict"] for one in mine)
-        right_parts = Counter(one.get("part") for one in mine
+        # the parts that answer it when right, by kind: code questions are
+        # answered right by callers, explain, where -- one part, code talk
+        right_parts = Counter(family(one.get("part")) for one in mine
                               if one["verdict"] == "right" and
                               one.get("part"))
         usual = right_parts.most_common(1)[0][0] if right_parts else None
         failed = [one for one in mine if one["verdict"] != "right"]
-        routed = [one for one in failed if usual and one.get("part")
-                  and one["part"] != usual]
+        routed = [one for one in failed if right_parts and one.get("part")
+                  and family(one["part"]) not in right_parts]
         areas[area] = {
             "what": AREAS[area], "right": verdicts["right"],
             "unsure": verdicts["unsure"], "wrong": verdicts["wrong"],
