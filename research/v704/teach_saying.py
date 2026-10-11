@@ -81,10 +81,31 @@ def step(one: dict) -> str:
             f"{history._short(one['as in']['step'])}")
 
 
-def faithful(piece: str, said: str) -> bool:
+FRAMING = DATA / "plan-framing.json"
+#: a word is the openings' framing where this share of the teacher's
+#: openings say it, whatever they open (`changed`, `anything`, `yet`)
+FRAMES_IN = 0.15
+
+
+def _content(text: str) -> set:
+    return {one.rstrip("s") for one in re.findall(r"[a-z]{4,}", text.lower())}
+
+
+def _framing() -> set | None:
+    if not FRAMING.exists():
+        return None
+    return set(json.loads(FRAMING.read_text(encoding="utf-8")))
+
+
+def faithful(piece: str, said: str, framing: set | None = None) -> bool:
     """Whether a saying keeps what its piece holds: each example quoted as
     it is, every version cited and no other; a step, one sentence that
-    begins with its verb; an opening, no steps."""
+    begins with its verb; an opening, no steps, and no word its piece has
+    not but the openings' framing (v690's read-back: `I tend to focus too
+    much on individual features` was said of a goal that said nothing of
+    it)."""
+    if framing is None:
+        framing = _framing()
     said = said.strip()
     if not said or "\n" in said.strip() and piece.startswith("say: step"):
         return False
@@ -101,8 +122,9 @@ def faithful(piece: str, said: str) -> bool:
         verb = piece.split("step: ", 2)[-1].split()[0].lower()
         return said.split()[0].lower().strip("*:,") == verb and \
             len(said) <= LONGEST_STEP
-    return not re.search(r"(?m)^\s*\d+[.)]\s", said) and \
-        len(said) <= LONGEST_OPENING
+    if re.search(r"(?m)^\s*\d+[.)]\s", said) or len(said) > LONGEST_OPENING:
+        return False
+    return framing is None or _content(said) <= _content(piece) | framing
 
 
 def messages() -> int:
@@ -165,6 +187,18 @@ def write(batch: int = 16) -> None:
 
 def corpus() -> dict:
     rows = [json.loads(line) for line in SAID.open(encoding="utf-8")]
+    # the openings' framing: the words a share of all openings say,
+    # whatever their goal -- counted, not listed
+    openings = [said.strip().strip('"') for row in rows
+                if not row["piece"].startswith("say: step")
+                for said in row["said"]]
+    counted: dict = {}
+    for said in openings:
+        for word in _content(said):
+            counted[word] = counted.get(word, 0) + 1
+    framing = {word for word, count in counted.items()
+               if count >= FRAMES_IN * max(len(openings), 1)}
+    FRAMING.write_text(json.dumps(sorted(framing)), encoding="utf-8")
     kept, total, by = [], 0, {"opening": [0, 0], "step": [0, 0]}
     for row in rows:
         kind = "step" if row["piece"].startswith("say: step") else "opening"
@@ -172,7 +206,7 @@ def corpus() -> dict:
             said = said.strip().strip('"')
             total += 1
             by[kind][1] += 1
-            if faithful(row["piece"], said):
+            if faithful(row["piece"], said, framing):
                 by[kind][0] += 1
                 kept.append({"split": row["split"], "statement":
                              row["piece"], "target": said})
@@ -180,7 +214,7 @@ def corpus() -> dict:
     with CORPUS.open("w", encoding="utf-8") as out:
         for one in kept:
             out.write(json.dumps(one) + "\n")
-    counts = {"said": total, "kept": len(kept),
+    counts = {"said": total, "kept": len(kept), "framing": sorted(framing),
               "kept of each": {kind: f"{one[0]} of {one[1]}"
                                for kind, one in by.items()}}
     print(json.dumps(counts))
