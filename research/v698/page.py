@@ -128,8 +128,12 @@ def _act(read, text: str, session, memory) -> dict | None:
             from research.v703 import planning
             if planning.available():
                 planned = planning.plan(text, held)
-                if planned["status"] == "planned" and \
-                        len(planned["steps"]) >= 2:
+                # across files: two steps or more, or one whose answer
+                # another file passes through as it came (the MCP's
+                # _health shows what do_GET adds to /api/health)
+                if planned["status"] == "planned" and (
+                        len(planned["steps"]) >= 2 or
+                        planned.get("passed through")):
                     made = planning.carry(planned, held, key)
                     found = asking._reply("plan", text, made["said"],
                                           {"read": read.json(),
