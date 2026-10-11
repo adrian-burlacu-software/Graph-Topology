@@ -53,6 +53,16 @@ class StructureTests(unittest.TestCase):
         self.assertEqual(structure.broken_callers(held, before,
                                                   ["a.py", "b.py"]), [])
 
+    def test_a_file_left_as_it_was_breaks_no_caller(self):
+        held = _project({"a.py": "def f(x):\n    return x\n",
+                         "b.py": "from a import f\n\ndef g():\n"
+                                 "    return f(1)\n"})
+        before = structure.signatures(held, ["a.py", "b.py"])
+        held.put({"b.py": "from a import f\n\ndef g():\n"
+                          "    return f(2)\n"})
+        self.assertEqual(structure.broken_callers(held, before, ["b.py"]),
+                         [])
+
 
 class FocusTests(unittest.TestCase):
     """What a request names outright, what code says it, who calls it."""

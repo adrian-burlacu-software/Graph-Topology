@@ -483,27 +483,24 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
 
 
 def _lemmas(text: str) -> set:
-    """The words of a request as the parser reads them, by lemma (`asks`
-    is ask); empty where there is no parser."""
+    """The words of a request, as said and as the parser reads them by
+    lemma (`asks` is asks and ask), but for function words; empty where
+    there is no parser."""
     from research.v691.hearing import nlp
     parser = nlp()
     if parser is None:
         return set()
-    return {one.lemma_.lower() for one in parser(text)
-            if one.is_alpha and not one.is_stop}
+    return {form for one in parser(text) if one.is_alpha and not
+            one.is_stop for form in (one.lower_, one.lemma_.lower())}
 
 
 def _name_parts(name: str) -> set:
-    """A name's parts, by lemma: shell.ASK is shell and ask, reads_only
-    read and only, callersOf caller and of."""
-    words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+", name)
-    if not words:
-        return set()
-    from research.v691.hearing import nlp
-    parser = nlp()
-    if parser is None:
-        return {one.lower() for one in words}
-    return {parser(one.lower())[0].lemma_.lower() for one in words}
+    """A name's parts as written: shell.ASK is shell and ask, reads_only
+    read and only, callersOf callers and of -- not by lemma: `Asked` is
+    asked, which `the shell asks` does not say (shell.Asked, a class, was
+    written for shell.ASK)."""
+    return {one.lower() for one in
+            re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+", name)}
 
 
 def _only(held, path: str):

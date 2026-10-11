@@ -88,8 +88,10 @@ def broken_callers(held, before: dict, changed: list) -> list:
     parameters it changed or which it took out: what a change across files
     left undone (`file#caller -> file#function`)."""
     after = signatures(held, changed)
+    # of the files changed only: a step that changed nothing (its part was
+    # nothing) left its file's functions as they were
     moved = {key for key, params in before.items()
-             if after.get(key) != params}
+             if key[0] in changed and after.get(key) != params}
     if not moved:
         return []
     out = []

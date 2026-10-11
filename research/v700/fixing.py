@@ -769,10 +769,15 @@ def _change_once(statement: str, held, subject, key=None,
     # most answers written apart saying nothing here is to change: the step
     # is not this function's (2 of 7 said so of do_GET, where the change
     # was; 4 of 7 of the bridge's _health, where none is)
-    if nothing >= LEAST_AGREED and nothing * 2 > len(answers):
+    # -- or answers agreeing on it where no change written holds up (the
+    # bridge's _health: 4 said nothing, the 22 changes all refused)
+    if nothing >= LEAST_AGREED and (nothing * 2 > len(answers) or
+                                    not passed):
         out.update({"status": "nothing", "said": (
             f"Nothing to change in {subject.name}: {nothing} of "
-            f"{len(answers)} answers written say so.")})
+            f"{len(answers)} answers written say so"
+            + ("." if passed or nothing * 2 > len(answers) else
+               ", and none of the changes written passed the checks."))})
         out["seconds"] = round(time.time() - started, 2)
         return out
     if not passed:
