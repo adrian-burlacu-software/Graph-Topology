@@ -1871,6 +1871,15 @@ def steps() -> list[Step]:
                            "--corpus", "parts-mix-nothing.jsonl")),
              _model_check(LLM / "editor7", 600),
              needs=("editor-parts",), cost="three hours", gpu=True),
+        Step("editor-named", "the editor taught again: changes using what "
+                             "their message names by its words, not as "
+                             "written (research/v703/teach_parts.py)",
+             lambda: (_run("research.v703.teach_parts", "mix-named"),
+                      _run("research.v703.teach_parts", "train",
+                           "--base", "editor7", "--out", "editor8",
+                           "--corpus", "parts-mix-named.jsonl")),
+             _model_check(LLM / "editor8", 600),
+             needs=("editor-nothing",), cost="an hour", gpu=True),
 
         # -- measurement ----------------------------------------------------
         Step("screened", "COMPS foils a calibrated judge denied",

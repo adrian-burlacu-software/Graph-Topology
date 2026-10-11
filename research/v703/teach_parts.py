@@ -77,6 +77,10 @@ NOTHINGS = P.DATA / "parts-nothing.jsonl"
 MOST_NOTHING_PER_REPO = 1500
 MIX_NOTHING = P.DATA / "parts-mix-nothing.jsonl"
 NOTHING_TAUGHT = 8000
+#: what a message names by its words: taught this many times more; and
+#: of other parts, this share beside them
+MIX_NAMED = P.DATA / "parts-mix-named.jsonl"
+NAMED_TIMES, OTHERS_SHARE = 3, 0.15
 USES = P.LLM / "uses2"
 #: rows of a project at most (pip's history is not the rest's); of the
 #: editor's earlier teaching, kept beside them
@@ -741,6 +745,69 @@ def mix_nothing(seed: int = SEED) -> dict:
     return counts
 
 
+def _named_first(row: dict, lemmas: set) -> dict:
+    """The row with what its message names by its words first among what
+    the project has -- as a step is shown it (`planning.context`)."""
+    from research.v703 import planning
+    head, _, listed = row["statement"].partition("\nthe project has:\n")
+    if not listed:
+        return row
+    lines = listed.split("\n")
+    named = [one for one in lines if lemmas and planning._name_parts(
+        one.split(" -- ")[0]) and planning._name_parts(
+        one.split(" -- ")[0]) <= lemmas]
+    lines = named + [one for one in lines if one not in named]
+    return {**row, "statement": head + "\nthe project has:\n" +
+            "\n".join(lines)}
+
+
+def mix_named(seed: int = SEED) -> dict:
+    """Changes using what their message names by its words, not as written
+    (`matching what a goal requires`: REQUIRES) -- what the editor did not
+    do with `whether the shell asks` (shell.ASK) -- `NAMED_TIMES` times,
+    beside those naming it as written, other parts, NOTHING rows and what
+    was taught before; what the message names first, as at run time."""
+    from research.v703 import planning
+    rng = random.Random(seed + 3)
+    parts = [json.loads(line) for line in PARTS.open(encoding="utf-8")]
+    by_words, as_written, others = [], [], []
+    for row in parts:
+        if row["split"] == "test":
+            continue
+        message = row["statement"].split("\n")[0].split(": ", 1)[-1]
+        lemmas = planning._lemmas(message) if row["used"] else set()
+        kind = others
+        for name in row["used"]:
+            if name.split(".")[-1] in message:
+                kind = as_written
+            elif planning._name_parts(name) and \
+                    planning._name_parts(name) <= lemmas:
+                kind = by_words
+                break
+        if kind is not others or rng.random() < OTHERS_SHARE:
+            kind.append(_named_first(row, lemmas) if lemmas else row)
+    nothing = [json.loads(line) for line in NOTHINGS.open(encoding="utf-8")]
+    nothing = [one for one in nothing if one["split"] == "train"]
+    before = [json.loads(line) for line in T.MIX.open(encoding="utf-8")]
+    before = [one for one in before if one["split"] == "train"]
+    train = [one for one in by_words if one["split"] == "train"]
+    out = train * NAMED_TIMES + by_words + as_written + others
+    out = [one for one in out if one["split"] == "train" or one in by_words
+           and one["split"] == "dev"]
+    out += rng.sample(nothing, min(len(out) // 5, len(nothing)))
+    out += rng.sample(before, min(len(out) // 8, len(before)))
+    out += [one for one in parts if one["split"] == "dev"][:300]
+    rng.shuffle(out)
+    with MIX_NAMED.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    counts = {"by words": len(by_words), "as written": len(as_written),
+              "others": len(others),
+              "train": sum(one["split"] == "train" for one in out)}
+    print(json.dumps(counts))
+    return counts
+
+
 def measure_nothing(model, most: int = 200) -> dict:
     """On commits never taught: how often the greedy answer says NOTHING
     of a function the commit left unchanged, and of one it changed (what
@@ -807,7 +874,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("fetch", "corpus", "uses",
                                         "train-uses", "mix", "nothing",
-                                        "mix-nothing", "train", "measure",
+                                        "mix-nothing", "mix-named", "train", "measure",
                                         "measure-nothing"))
     parser.add_argument("--corpus", default=None,
                         help="the mix taught, or the rows measured")
@@ -830,6 +897,8 @@ def main(argv=None) -> int:
         nothing_job()
     elif options.job == "mix-nothing":
         mix_nothing()
+    elif options.job == "mix-named":
+        mix_named()
     elif options.job == "train":
         T.train(T.LLM / options.out, epochs=options.epochs,
                 base=T.LLM / options.base,
