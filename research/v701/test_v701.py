@@ -102,6 +102,16 @@ class QueryTests(unittest.TestCase):
                           "which users can see stark-db")
         self.assertEqual(found.value, ["adrian"])
 
+    def test_a_list_at_the_files_top_named_by_the_file(self):
+        from research.v698.project import Project
+        held = Project("t")
+        held.put({"data/members.json": '[{"id": 1, "name": "Ada"}, '
+                                       '{"id": 2, "name": "Grace"}]'})
+        from research.v701.querying import Asked, carry
+        found = carry(Asked("count", 1.0, "none", {"TARGET": ["members"]},
+                            "how many members are there".split()), held)
+        self.assertEqual(found.value, 2)
+
     def test_both_where_both_fit_and_the_file_said_decides(self):
         found = self.said("count", "none", {"TARGET": ["users"]},
                           "how many users are there")

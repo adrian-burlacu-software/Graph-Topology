@@ -124,6 +124,10 @@ class Handler(v697.Handler):
         except ValueError as bad:
             self._json({"error": str(bad)}, 400)
         except Exception as bad:                # noqa: BLE001
+            # where it failed, in the server's log: the reply says only
+            # what (`IndexError: list index out of range`)
+            import traceback
+            traceback.print_exc()
             self._json({"error": f"{type(bad).__name__}: {bad}"}, 500)
 
 

@@ -677,9 +677,15 @@ def _at(value, path: str) -> list:
 
 
 def _shown_name(path: str, model) -> str:
-    if path:
-        return [one for one in path.replace("[]", "").split(".") if one][-1]
-    return "rows"
+    """What a collection is called: the last name of its path -- or, where
+    the path names none (a list at the file's top: `[]` in members.json,
+    which failed every turn of a project holding one), its file's."""
+    named = [one for one in (path or "").replace("[]", "").split(".")
+             if one]
+    if named:
+        return named[-1]
+    base = (getattr(model, "path", "") or "").rsplit("/", 1)[-1]
+    return base.rsplit(".", 1)[0] or "rows"
 
 
 def _because(looked: dict) -> str:
