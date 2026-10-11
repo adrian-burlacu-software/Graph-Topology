@@ -107,6 +107,30 @@ class FocusTests(unittest.TestCase):
         self.assertIn("srv/server.py", outright)
         self.assertNotIn("srv/notes.py", outright)
 
+    def test_an_answer_passed_through(self):
+        held = _project({
+            "srv/server.py": ('def do_GET(self):\n'
+                              '    if self.path == "/api/health":\n'
+                              '        return {"name": 1}\n'),
+            "tools/bridge.py": ('def _health(wait=True):\n'
+                                '    found = _raw("/api/health", timeout=5)\n'
+                                '    found["seen"] = 1\n'
+                                '    return found\n\n\n'
+                                'def t_health(args):\n'
+                                '    return _health(wait=True)\n\n\n'
+                                'def t_say(args):\n'
+                                '    said = _raw("/api/say", args)\n'
+                                '    return said["reply"]\n')})
+        self.assertEqual(structure.passes_through(
+            held, "tools/bridge.py", "_health"), "/api/health")
+        self.assertEqual(structure.passes_through(
+            held, "tools/bridge.py", "t_health"), "/api/health")
+        # what it returns is a part of the answer, not the answer
+        self.assertIsNone(structure.passes_through(
+            held, "tools/bridge.py", "t_say"))
+        self.assertEqual(structure.answers(held, "srv/server.py", "do_GET"),
+                         {"/api/health"})
+
     def test_callers_through_an_import_in_a_function(self):
         held = _project(self.FILES)
         self.assertEqual(structure.callers_of(held, "srv/shell.py",

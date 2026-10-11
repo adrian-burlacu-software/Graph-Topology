@@ -302,8 +302,23 @@ def _chosen(request: str, held, shown: list) -> dict:
                 steps.append({"path": path, "function": caller,
                               "said": request, "new": False,
                               "chance": None, "because": f"calls {name}"})
+    # a function passing a route's answer through, where the plan changes
+    # what answers it: what is added there reaches it whole (the MCP's
+    # _health returns what the server's /api/health answers)
+    from research.v703 import structure
+    answered = {route for step in steps if step["function"]
+                for route in structure.answers(held, step["path"],
+                                               step["function"])}
+    passed = []
+    for step in list(steps):
+        route = step["function"] and structure.passes_through(
+            held, step["path"], step["function"])
+        if route and route in answered:
+            steps.remove(step)
+            passed.append({**step, "because": f"it returns what {route} "
+                           "answers, as it came"})
     return {"status": "planned" if steps else "unplanned", "steps": steps,
-            "shown": shown, "by": "picker",
+            "passed through": passed, "shown": shown, "by": "picker",
             "nearest": [{"unit": unit(*units[at]), "chance": round(chance, 3)}
                         for chance, at in ranked[:8]]}
 
@@ -413,6 +428,9 @@ def carry(found: dict, held, key, tests: bool = True) -> dict:
                      + "".join(f"; nothing to change in {one['function']}"
                                for one in done
                                if one["status"] == "nothing")
+                     + "".join(f"; {one['function']} in {one['path']} "
+                               f"needs no change: {one['because']}"
+                               for one in found.get("passed through", ()))
                      + ("; the tests beside them pass." if ran else "."))}
 
 
@@ -427,7 +445,11 @@ def context(step: dict, found: dict, held, statement: str) -> dict:
     path = step["path"]
     text = held.files.get(path, "")
     paths = set(held.files)
-    others = [f"{one['path']} {one['function']}" for one in found["steps"]
+    # the plan's other parts: its other steps, and what passes this one's
+    # answer through -- the request's other half is done there, by what
+    # is done here (`show it in the MCP health tool`: the bridge's _health)
+    others = [f"{one['path']} {one['function']}" for one in
+              found["steps"] + found.get("passed through", [])
               if one is not step and one.get("function")]
     files = {path: text}
     for other in list(found.get("shown", ())) + [

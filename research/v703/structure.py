@@ -102,6 +102,92 @@ def broken_callers(held, before: dict, changed: list) -> list:
     return out
 
 
+ROUTE = re.compile(r"^/api/[\w/\-]+$")
+
+
+def _function_node(text: str, name: str):
+    """The function or method of a module by its name (`Handler.do_GET`
+    by its last part, in the class it names)."""
+    import ast
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    *owners, last = name.split(".")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and owners and \
+                node.name == owners[-1]:
+            for one in node.body:
+                if isinstance(one, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                        and one.name == last:
+                    return one
+        elif not owners and isinstance(node, (ast.FunctionDef,
+                                              ast.AsyncFunctionDef)) and \
+                node.name == last:
+            return node
+    return None
+
+
+def _route_of(call) -> str | None:
+    import ast
+    for one in call.args:
+        if isinstance(one, ast.Constant) and isinstance(one.value, str) and \
+                ROUTE.match(one.value):
+            return one.value
+    return None
+
+
+def passes_through(held, path: str, name: str, depth: int = 2):
+    """The route whose answer a function returns as it came -- what a call
+    given the route returned (`found = _raw("/api/health")` ... `return
+    found`), or what a function of its file that does returns
+    (`t_health` returns `_health()`) -- or None. What the answering side
+    adds to that answer reaches it whole."""
+    import ast
+    node = _function_node(held.files.get(path, ""), name)
+    if node is None:
+        return None
+    held_from: dict = {}
+    for one in ast.walk(node):
+        if isinstance(one, ast.Assign) and isinstance(one.value, ast.Call):
+            route = _route_of(one.value)
+            for target in one.targets:
+                if route and isinstance(target, ast.Name):
+                    held_from[target.id] = route
+    for one in ast.walk(node):
+        if not isinstance(one, ast.Return) or one.value is None:
+            continue
+        value = one.value
+        if isinstance(value, ast.Name) and value.id in held_from:
+            return held_from[value.id]
+        if isinstance(value, ast.Call):
+            route = _route_of(value)
+            if route:
+                return route
+            if depth and isinstance(value.func, ast.Name):
+                route = passes_through(held, path, value.func.id, depth - 1)
+                if route:
+                    return route
+    return None
+
+
+def answers(held, path: str, name: str) -> set:
+    """The routes a function answers: those its code compares a path with
+    (`if parsed.path == "/api/health"`)."""
+    import ast
+    node = _function_node(held.files.get(path, ""), name)
+    out = set()
+    if node is None:
+        return out
+    for one in ast.walk(node):
+        if isinstance(one, ast.Compare):
+            for side in [one.left] + list(one.comparators):
+                if isinstance(side, ast.Constant) and isinstance(
+                        side.value, str) and ROUTE.match(side.value):
+                    out.add(side.value)
+    return out
+
+
 def _imported(held, path: str, text: str) -> Counter:
     """The project's files a Python file imports -- at its top or inside a
     function -- each with how often it is used through what was imported."""
