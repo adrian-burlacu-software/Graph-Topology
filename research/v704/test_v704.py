@@ -117,12 +117,15 @@ class CarryingTests(unittest.TestCase):
                           '(90%); tried: ask_name (_ask_name, s.py) '
                           'declined -> generic answered', look)
             self.assertIn("Most telling: ask_name", look)
-            self.assertIn("Next: 1. Change. Shall I go on?", look)
-            change = "\n".join(D.carry(state, change=lambda text: (
-                asked.append(text) or "unsure"), held=Held()))
-            self.assertEqual(asked, ['in _ask_name, answer "what is my '
-                                     'dog called?" after "my dog is called '
-                                     'Rex" instead of declining it'])
+            # the steps left said again of what the look found
+            self.assertIn('Next: 1. Change _ask_name in s.py, where "what '
+                          'is my dog called?" goes wrong', look)
+            change = "\n".join(D.carry(state, change=lambda text, *where: (
+                asked.append((text, *where)) or "unsure"), held=Held()))
+            self.assertEqual(asked, [('change s._ask_name so that it '
+                                      'answers "what is my dog called?" '
+                                      'after "my dog is called Rex"',
+                                      "_ask_name", "s.py")])
             self.assertIn("unsure", change)
             self.assertIn("1 cases are this goal's checks",
                           "\n".join(D.carry(state)))
@@ -149,8 +152,10 @@ class CarryingTests(unittest.TestCase):
         self.assertEqual((shared["function"], shared["how"]),
                          ("build", "never tried"))
         self.assertEqual(shared["file"], "research/v689/reader.py")
-        self.assertIn('in build, build "what is my dog called?" as '
-                      'ask_name', D.request_for(shared))
+        self.assertEqual(D.request_for(shared),
+                         'change reader.build so that "what is my dog '
+                         'called?" is read as ask_name, as the reader '
+                         'reads it')
 
 
 class HistoryTests(unittest.TestCase):

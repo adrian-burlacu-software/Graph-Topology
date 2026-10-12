@@ -174,17 +174,17 @@ def request_for(found: dict | None) -> str | None:
     if not found:
         return None
     case = found["case"]
+    module = found["file"].rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    named = f"{module}.{found['function']}"
     if found["how"] == "never tried":
         lost = case["lost"]
-        return (f"in {found['function']}, build \"{case['said']}\" as "
-                f"{lost['act']}, as the reader reads it, so that "
-                f"{lost['operator']} answers it")
-    asked = f"in {found['function']}, answer \"{case['said']}\""
+        return (f"change {named} so that \"{case['said']}\" is read as "
+                f"{lost['act']}, as the reader reads it")
+    asked = f"change {named} so that it answers \"{case['said']}\""
     if case["before"]:
         asked += " after " + " and ".join(f"\"{turn}\"" for turn in
                                           case["before"][-2:])
-    return asked + (" instead of declining it" if found["how"] ==
-                    "declined" else " right")
+    return asked
 
 
 # -- measuring, in the background ---------------------------------------------
@@ -248,6 +248,12 @@ def _look(state: dict, weak: dict | None) -> list:
     lines += [f"{at}. {said_diagnosis(one)}" for at, one in
               enumerate(found, 1)]
     shared = state["finding"]
+    if shared and state.get("plan"):
+        # the steps left, said again of what the look found
+        history.ground(state["plan"], {**weak, "where": [{
+            "operator": shared["operator"], "function": shared["function"],
+            "file": shared["file"], "role": "found",
+            "cases": shared["cases"], "case": shared["case"]["said"]}]})
     if shared:
         lines.append(f"Most telling: {shared['operator']} "
                      f"({shared['function']} in {shared['file']}) "
@@ -271,8 +277,13 @@ def _step(state: dict, step: dict, change, held) -> list:
             return [f"{step['said']}: I would ask for \"{asked}\" -- but "
                     f"{file or 'the project'} is not one I hold, so I left "
                     f"it."]
-        return [f"{step['said']}: I asked myself for \"{asked}\".",
-                change(asked)]
+        if asked in state.setdefault("asked", []):
+            return [f"{step['said']}: asked already, in step "
+                    f"{state['asked'].index(asked) + 1} -- left."]
+        state["asked"].append(asked)
+        shared = state.get("finding") or {}
+        return [f"{step['said']}: I asked myself to {asked}.",
+                change(asked, shared.get("function"), shared.get("file"))]
     if kind == "check":
         numbers = [one["n"] for one in state.get("found") or []
                    if one.get("n") is not None]

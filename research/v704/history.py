@@ -172,7 +172,9 @@ def plan(goal: str) -> dict | None:
 #: known of it, its slots filled from the weakness (`selfmodel`) or the
 #: project -- the first whose slots are all known is said
 FRAMES = {
-    "change": ("Change {FUNCTION} in {FILE}, which took {TOOK} messages "
+    "change": ("Change {FUNCTION} in {FILE}, where \"{LOST}\" goes "
+               "wrong, and fix what fails",
+               "Change {FUNCTION} in {FILE}, which took {TOOK} messages "
                "that were not its own, and fix what fails",
                "Change {FUNCTION} in {FILE}, where {WHAT} is done, and fix "
                "what fails",
@@ -209,9 +211,12 @@ def slots_of(weak: dict | None = None, near: list = ()) -> dict:
                 out["COUNT"] = str(len(cases) - 1)
         where = weak.get("where") or []
         took = next((one for one in where if one["role"] in
-                     ("took", "does")), None)
+                     ("found", "took", "does")), None)
         if took:
             out.update(FUNCTION=took["function"], FILE=took["file"])
+        if took and took["role"] == "found":
+            # what a look found: where its case goes wrong
+            out["LOST"] = took["case"].split("\n")[0]
         if took and took["role"] == "took":
             out["TOOK"] = str(took["cases"])
             # the case said is one that place took, and where it should

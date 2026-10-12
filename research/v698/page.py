@@ -588,18 +588,38 @@ def replies(session) -> list:
                                       "All right -- I've left it.", {})
             else:
                 reply = _next_step(key, Pj.project(key),
-                                   lambda text: _by_myself(text, memory))
+                                   lambda text, function=None, file=None:
+                                   _by_myself(text, memory, function, file))
             memory["turn"].answer = reply
             return ANSWERED
 
-        def _by_myself(text: str, memory) -> str:
-            # a change a plan's step asks for, said to the architecture as
-            # anyone's is: read, and carried out where it reads as one
-            read = reading.code_talk(text, known(_key(session))) \
+        def _by_myself(text: str, memory, function: str | None = None,
+                       file: str | None = None) -> str:
+            # a change a plan's step asks for: of a function the look
+            # found, made there -- what it is a change of is known, not
+            # read back from its own words (`in build, build "what is my
+            # dog called?" as ask_name` read as none: `reader`, `reads`
+            # are this project's names); of a project, read as anyone's
+            key = _key(session)
+            held = Pj.project(key)
+            if function and file:
+                from research.v700 import fixing
+                found = [one for one in (held.find(function) if held else [])
+                         if one["file"] == file]
+                if not found or not fixing.available():
+                    return f"{function} is not in the project I hold."
+                subject = asking.Subject("function", found[0]["name"], file)
+                made = fixing.change(text, held, subject, key)
+                asking.FOCUS[key] = (subject, v697_page._turn(memory))
+                return made["said"]
+            read = reading.read(text, known(key)) \
                 if reading.taught() else None
-            if read is None or read.act != "change":
-                return ("I read my own request as no change, so nothing "
-                        "was done.")
+            if read is None or read.act != "change" or \
+                    read.chance < reading.FLOOR:
+                return (f"I read my own request as "
+                        f"{read.act if read else 'nothing'}"
+                        + (f" ({int(read.chance * 100)}%)" if read else "")
+                        + ", not a change, so nothing was done.")
             found = _act(read, text, session, memory)
             return found["text"] if found else "Nothing came of it."
 
