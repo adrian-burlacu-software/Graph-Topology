@@ -352,11 +352,14 @@ def searched(bug: dict) -> str | None:
                 [bug["cases"][at] for at in shown],
                 [bug["all wanted"][at] for at in shown],
                 language=bug["language"])
+    # its edits only: a function written again to pass the cases shown fits
+    # them, it does not fix it (on HumanEvalFix's TypeScript, rewrites were
+    # right 2 times of 14 by the cases held back, one edit 41 of 47)
     try:
-        found = repair(asked)
+        found = repair(asked, rewrite=False)
     except Exception:                               # noqa: BLE001
         return None
-    return found.source if found.route in ("fixed", "rewritten") else None
+    return found.source if found.route == "fixed" else None
 
 
 def precision(editor: str = "editor-debug", traced: bool = True,
