@@ -135,35 +135,39 @@ def said_diagnosis(one: dict) -> str:
 
 
 def finding(found: list) -> dict | None:
-    """What most of the cases share: the operator that declined them most
-    -- where an answer was looked for and not given -- else the one that
-    answered them wrongly. Its function and file, and its first case."""
-    declined: Counter = Counter()
-    answered: Counter = Counter()
-    lost: Counter = Counter()
-    first: dict = {}
+    """What most of the cases share: the place in the code -- a function of
+    a file -- that lost their readings most (read as one act, taken as
+    another), else that declined them, else that answered them wrongly;
+    counted by the place, whichever operator it was for (`ask_name` and
+    `place located` are both lost in reader.build). The place, the
+    operators, every case there and the first."""
+    places: dict = {}
     for one in found:
+        seen = set()
         if one.get("lost"):
-            key = (one["lost"]["operator"], one["lost"]["function"],
+            key = ("never tried", one["lost"]["function"],
                    one["lost"]["file"])
-            lost[key] += 1
-            first.setdefault(key, one)
+            places.setdefault(key, []).append((one["lost"]["operator"], one))
+            seen.add(key)
         for step in one["tried"]:
-            if not step["function"]:
+            if not step["function"] or step["outcome"] not in (
+                    "declined", "answered"):
                 continue
-            key = (step["operator"], step["function"], step["file"])
-            if step["outcome"] == "declined":
-                declined[key] += 1
-            elif step["outcome"] == "answered":
-                answered[key] += 1
-            first.setdefault(key, one)
-    for counted, how in ((lost, "never tried"), (declined, "declined"),
-                         (answered, "answered")):
-        if counted:
-            (operator, function, file), count = counted.most_common(1)[0]
-            return {"operator": operator, "function": function,
-                    "file": file, "how": how, "cases": count,
-                    "case": first[(operator, function, file)]}
+            key = (step["outcome"], step["function"], step["file"])
+            if key not in seen:
+                places.setdefault(key, []).append((step["operator"], one))
+                seen.add(key)
+    for how in ("never tried", "declined", "answered"):
+        mine = [(key, cases) for key, cases in places.items()
+                if key[0] == how]
+        if mine:
+            (_, function, file), cases = max(mine,
+                                             key=lambda item: len(item[1]))
+            operators = list(dict.fromkeys(op for op, _ in cases))
+            return {"operator": ", ".join(operators), "function": function,
+                    "file": file, "how": how, "cases": len(cases),
+                    "case": cases[0][1],
+                    "all": [one["said"] for _, one in cases]}
     return None
 
 
@@ -255,9 +259,10 @@ def _look(state: dict, weak: dict | None) -> list:
             "file": shared["file"], "role": "found",
             "cases": shared["cases"], "case": shared["case"]["said"]}]})
     if shared:
-        lines.append(f"Most telling: {shared['operator']} "
-                     f"({shared['function']} in {shared['file']}) "
-                     f"{shared['how']} {shared['cases']} of them.")
+        lines.append(f"Most telling: {shared['function']} in "
+                     f"{shared['file']} -- {shared['how']} "
+                     f"({shared['operator']}) for {shared['cases']} of "
+                     f"them.")
     return lines
 
 
@@ -454,5 +459,16 @@ def _feedback(state: dict, phrase: str, undo) -> list:
         if put_back:
             return [f"I've put back my change to {last} -- "
                     f"{put_back}. Shall I try it another way, or go on?"]
+    # what it said answered, not what it did: the finding looked at again,
+    # with what it rests on
+    if state.get("found"):
+        state["finding"] = finding(state["found"])
+        shared = state["finding"]
+        if shared:
+            return [f"Looking again: {shared['function']} in "
+                    f"{shared['file']} -- {shared['how']} for "
+                    f"{shared['cases']} of the {len(state['found'])} cases: "
+                    + "; ".join(f"\"{one}\"" for one in shared["all"])
+                    + ". Shall I go on from there?"]
     return [f"Noted about {phrase or 'that'}. Shall I try it another way, "
             f"or go on?"]

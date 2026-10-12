@@ -116,7 +116,8 @@ class CarryingTests(unittest.TestCase):
                           'called Rex"): read by conversation as ask_name '
                           '(90%); tried: ask_name (_ask_name, s.py) '
                           'declined -> generic answered', look)
-            self.assertIn("Most telling: ask_name", look)
+            self.assertIn("Most telling: _ask_name in s.py -- declined",
+                          look)
             # the steps left said again of what the look found
             self.assertIn('Next: 1. Change _ask_name in s.py, where "what '
                           'is my dog called?" goes wrong', look)
@@ -154,6 +155,14 @@ class CarryingTests(unittest.TestCase):
         self.assertEqual((shared["function"], shared["how"]),
                          ("build", "never tried"))
         self.assertEqual(shared["file"], "research/v689/reader.py")
+        # counted by the place, whichever operator it was for
+        cat = {**case, "said": "where is the cat?",
+               "acts": {"read": [["place located", 1.0]],
+                        "taken": "question"}}
+        with mock.patch.object(D.selfmodel, "places",
+                               lambda: self.PLACES),                 mock.patch.object(D, "readings", lambda text: []):
+            both = D.finding([D.diagnose(case), D.diagnose(cat)])
+        self.assertEqual((both["function"], both["cases"]), ("build", 2))
         self.assertEqual(D.request_for(shared),
                          'change reader.build so that "what is my dog '
                          'called?" is read as ask_name, as the reader '
