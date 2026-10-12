@@ -208,7 +208,7 @@ def _fixed(bug: dict, answer: str) -> bool:
                    zip(got, bug["all wanted"]))
 
 
-def held_bugs(most: int = 150) -> dict:
+def held_bugs(most: int = 80) -> dict:
     """The bugs never taught: HumanEval's made the same way, and
     HumanEvalFix's (people's), each in both languages."""
     out = {}
@@ -236,7 +236,7 @@ def held_bugs(most: int = 150) -> dict:
                          "entry": bug.entry, "source": bug.source,
                          "case": bug.cases[at], "got": got[at],
                          "wanted": bug.wanted[at], "cases": bug.cases,
-                         "all wanted": bug.wanted,
+                         "all wanted": bug.wanted, "tests": bug.tests,
                          "run": debugging.said(traced, bug.source,
                                                language=language)})
         out[f"humanevalfix {language}"] = rows[:most]
@@ -244,7 +244,7 @@ def held_bugs(most: int = 150) -> dict:
 
 
 def measure(editor: str = "editor-debug", traced: bool = True,
-            samples: int = 4) -> dict:
+            samples: int = 2) -> dict:
     """Bugs fixed, greedy and by any of the samples, on each held set."""
     from research.v696.sketcher import Sketcher
     model = Sketcher(ROOT / "llm" / editor)
@@ -266,10 +266,97 @@ def measure(editor: str = "editor-debug", traced: bool = True,
     return found
 
 
+def _split(bug: dict) -> tuple:
+    """The cases shown -- the failing one, and half of the rest -- and the
+    cases held back to judge a fix by."""
+    order = [at for at, case in enumerate(bug["cases"])
+             if case == bug["case"]][:1]
+    order += [at for at in range(len(bug["cases"])) if at not in order]
+    shown = order[:max(1, (len(order) + 1) // 2)]
+    return shown, [at for at in order if at not in shown]
+
+
+def _passes(bug: dict, made: str, ats: list) -> bool:
+    from research.v696.checker import checker
+    if not ats:
+        return True
+    running = checker(bug["language"])
+    try:
+        got = running.run(made, bug["entry"], [bug["cases"][at]
+                                               for at in ats])
+    except Exception:                               # noqa: BLE001
+        running.restart()
+        return False
+    return not any(debugging.wrong(one, bug["all wanted"][at])
+                   for one, at in zip(got, ats))
+
+
+def _judged(bug: dict, made: str) -> bool:
+    """A fix as it is judged: every case held back, and the task's own
+    test file where it has one."""
+    from research.v696.checker import checker
+    _, hidden = _split(bug)
+    if not _passes(bug, made, hidden):
+        return False
+    if not bug.get("tests"):
+        return True
+    running = checker(bug["language"])
+    try:
+        return running.tests(made + "\n" + bug["tests"]) is None
+    except Exception:                               # noqa: BLE001
+        running.restart()
+        return False
+
+
+def claim(bug: dict, answers: list) -> str | None:
+    """The fix claimed: the first answer (greedy first) whose program
+    passes every case shown; None -- unsure -- where none does."""
+    from research.v700 import teach_editor as T
+    shown, _ = _split(bug)
+    for answer in answers:
+        made = T.applied(bug["source"], answer)
+        if made is None or made == bug["source"]:
+            continue
+        if _passes(bug, made, shown):
+            return made
+    return None
+
+
+def precision(editor: str = "editor-debug", traced: bool = True,
+              samples: int = 4) -> dict:
+    """On each held set: of the fixes claimed (an answer passing the cases
+    shown), how many are right by what was held back -- precision -- and
+    of all the bugs, how many are claimed -- coverage."""
+    from research.v696.sketcher import Sketcher
+    model = Sketcher(ROOT / "llm" / editor)
+    found = {}
+    for name, rows in held_bugs().items():
+        prompts = [f"{statement(bug, traced).strip()}\n\n"
+                   f"{bug['entry']}."
+                   f"{'py' if bug['language'] == 'python' else 'ts'}:"
+                   f"\n{bug['source'].rstrip()}\n" for bug in rows]
+        written = model.write(prompts, samples=samples, longest=400,
+                              saying=SAYING if editor != "editor5"
+                              else None)
+        claimed = right = 0
+        for bug, answers in zip(rows, written):
+            made = claim(bug, answers)
+            if made is None:
+                continue
+            claimed += 1
+            right += _judged(bug, made)
+        found[name] = {"precision": round(right / claimed, 3)
+                       if claimed else None, "claimed": claimed,
+                       "right": right, "of": len(rows)}
+        print(name, json.dumps(found[name]), flush=True)
+    print(json.dumps({"editor": editor, "traced": traced, **found}))
+    return found
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("bugs", "corpus", "train",
-                                        "measure"))
+                                        "measure", "precision"))
     parser.add_argument("--editor", default="editor-debug")
     parser.add_argument("--untraced", action="store_true")
     options = parser.parse_args(argv)
@@ -281,6 +368,8 @@ def main(argv=None) -> int:
         corpus()
     elif options.job == "train":
         train()
+    elif options.job == "precision":
+        precision(options.editor, not options.untraced)
     else:
         measure(options.editor, not options.untraced)
     return 0
