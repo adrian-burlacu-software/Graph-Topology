@@ -84,6 +84,7 @@ def places(root: Path = ROOT / "research") -> dict:
     one version is told apart by its rule."""
     import ast
     found: dict = {}
+    computed_in: list = []
     for path in sorted(root.rglob("*.py")):
         if path.name.startswith("test_"):
             continue
@@ -102,9 +103,18 @@ def places(root: Path = ROOT / "research") -> dict:
                         one[0] <= line]
                 return {"function": node.id,
                         "line": max(made)[0]} if made else None
+            if isinstance(node, ast.Attribute):
+                # a method (`self._generic`)
+                made = [one for one in defs if one[1] == node.attr]
+                return {"function": node.attr,
+                        "line": min(made)[0]} if made else None
+            if isinstance(node, ast.Call) and len(node.args) == 1:
+                # a handler wrapped (`acted(self._generic)`): the handler
+                return at(node.args[0], line)
             if isinstance(node, ast.Lambda):
                 return {"function": "lambda", "line": node.lineno}
             return None
+        computed = False
         for node in ast.walk(tree):
             if not (isinstance(node, ast.Call) and getattr(
                     node.func, "id", None) == "Operator"):
@@ -114,6 +124,7 @@ def places(root: Path = ROOT / "research") -> dict:
             name = given.get("name")
             if not (isinstance(name, ast.Constant) and
                     isinstance(name.value, str)):
+                computed = True
                 continue
             rule = given.get("rule")
             found.setdefault(name.value, []).append({
@@ -122,6 +133,29 @@ def places(root: Path = ROOT / "research") -> dict:
                 isinstance(rule.value, str) else "",
                 "apply": at(given.get("apply"), node.lineno),
                 "proposes": at(given.get("proposes"), node.lineno)})
+        if computed:
+            computed_in.append((path, tree, defs))
+    # an operator named by a key of a table its maker goes through
+    # (`{"located": {"subject": self.located}, ...}` -> one operator a
+    # key): the key's handler, where nothing names that operator itself
+    for path, tree, defs in computed_in:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values):
+                if not (isinstance(key, ast.Constant) and
+                        isinstance(key.value, str)) or key.value in found:
+                    continue
+                if isinstance(value, ast.Dict) and value.values:
+                    value = value.values[0]
+                handler = getattr(value, "attr", None) or getattr(
+                    value, "id", None)
+                made = [one for one in defs if one[1] == handler]
+                if made:
+                    found.setdefault(key.value, []).append({
+                        "file": path.relative_to(ROOT).as_posix(),
+                        "rule": "", "proposes": None, "apply": {
+                            "function": handler, "line": min(made)[0]}})
     return found
 
 

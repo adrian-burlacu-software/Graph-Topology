@@ -589,10 +589,15 @@ def replies(session) -> list:
             return found_for[text]
 
         def asks_data(memory) -> bool:
-            if pastes(memory) or data_found(memory) is None:
+            found = None if pastes(memory) else data_found(memory)
+            if found is None:
                 return False
-            # a doing is no question, whatever it names (`set Dune's pages
-            # to 896` names a record by a value, and asks to change it)
+            if found.looked.get("read as") != "no question":
+                return True
+            # read as no question of data, and answered from it all the
+            # same: a doing is no question, whatever it names (`set Dune's
+            # pages to 896` names a record by a value, and asks to change
+            # it)
             read = reading.code_talk(typed(memory), known(_key(session))) \
                 if reading.taught() else None
             return read is None or read.act not in DOINGS

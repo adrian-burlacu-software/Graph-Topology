@@ -210,19 +210,31 @@ def answer(text: str, held) -> Found | None:
     if asked is None:
         return None
     if asked.act == "none" or asked.chance < FLOOR:
-        found = _by_lookup(asked, held)
+        found = _unread(text, asked, held)
         if found is not None:
-            return found
-        # the act read as no question of data, the roles as one: a field
-        # asked for, among words naming the project's data -- where what it
-        # names is there, a value asked (`which port does the server
-        # listen on`: none 0.7, `port` the field asked, `server` there too)
-        if not (asked.spans.get("TARGET") and len(asked.known) >= 2):
-            return _by_value(text, held)
-        asked.act = "value"
-        found = carry(asked, held)
-        return found if found is not None and found.place else None
+            # what the reader read as no question of data: another part's,
+            # where one reads it as its own (the page's data talk yields)
+            found.looked["read as"] = "no question"
+        return found
     return carry(asked, held)
+
+
+def _unread(text: str, asked: Asked, held) -> Found | None:
+    """A question the reader read as none of data, answered from it all
+    the same: a lookup, a field asked among the data's words, a record
+    named by a value."""
+    found = _by_lookup(asked, held)
+    if found is not None:
+        return found
+    # the act read as no question of data, the roles as one: a field
+    # asked for, among words naming the project's data -- where what it
+    # names is there, a value asked (`which port does the server
+    # listen on`: none 0.7, `port` the field asked, `server` there too)
+    if not (asked.spans.get("TARGET") and len(asked.known) >= 2):
+        return _by_value(text, held)
+    asked.act = "value"
+    found = carry(asked, held)
+    return found if found is not None and found.place else None
 
 
 #: a record named by a value: how near the rest of the question must be to
