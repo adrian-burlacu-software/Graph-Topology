@@ -426,6 +426,76 @@ def run(source: str, entry: str, cases: list, timeout: int) -> dict:
     return {"ok": True, "outputs": outputs}
 
 
+#: the most steps a trace keeps, and the longest a value is said in one
+TRACED, SHOWN = 400, 80
+
+
+def _shown(value) -> str:
+    try:
+        said = json.dumps(plain(value))
+    except Exception:                               # noqa: BLE001
+        said = f"<{type(value).__name__}>"
+    return said if len(said) <= SHOWN else said[:SHOWN] + "..."
+
+
+def trace(source: str, entry: str, case: list, timeout: int) -> dict:
+    """A function run on one case, each step it takes kept (v705): the
+    line, the function it is in, the values that changed since its last
+    step there; where it returns, what; where it raises, what. What a
+    debugger shows, as data: where a run goes is what a fix needs to
+    know."""
+    space = _namespace()
+    stopped = _exec(source, space, max(timeout * 5, 1000))
+    if stopped:
+        return {"ok": False, "error": stopped}
+    function = space.get(entry)
+    if not callable(function):
+        return {"ok": False, "error": f"no function {entry}"}
+    kinds = _hints(function)
+    args = [given(one) for one in case]
+    args = [shaped(one, kinds[at]) if at < len(kinds) and kinds[at]
+            else one for at, one in enumerate(args)]
+    steps: list = []
+    seen: dict = {}
+    #: frames an exception is passing through: their `return` is the
+    #: unwinding, not a value given (an exception caught there is not, once
+    #: a line runs after it)
+    raising: set = set()
+
+    def tracer(frame, event, arg):
+        if frame.f_code.co_filename != "<candidate>" or \
+                len(steps) >= TRACED:
+            return None
+        name = frame.f_code.co_name
+        if event == "return" and id(frame) in raising:
+            raising.discard(id(frame))
+            return tracer
+        if event == "line":
+            raising.discard(id(frame))
+            now = {key: _shown(value) for key, value in
+                   frame.f_locals.items() if not key.startswith("__")}
+            before = seen.get(id(frame), {})
+            steps.append({"line": frame.f_lineno, "in": name, "values": {
+                key: value for key, value in now.items()
+                if before.get(key) != value}})
+            seen[id(frame)] = now
+        elif event == "return":
+            steps.append({"line": frame.f_lineno, "in": name,
+                          "returns": _shown(arg)})
+        elif event == "exception":
+            raising.add(id(frame))
+            steps.append({"line": frame.f_lineno, "in": name,
+                          "raises": _failed(arg[1])})
+        return tracer
+    sys.settrace(tracer)
+    try:
+        out = _call(function, args, timeout)
+    finally:
+        sys.settrace(None)
+    return {"ok": True, "output": out, "steps": steps,
+            "cut": len(steps) >= TRACED}
+
+
 #: engine types a value is made to be, for `values` (no annotations there)
 def _engine_shaped(value, kind: str | None):
     if not kind:
@@ -1163,6 +1233,9 @@ def answer(request: dict) -> dict:
     if op == "run":
         return run(request["source"], request["entry"], request["cases"],
                    request.get("timeout", 200))
+    if op == "trace":
+        return trace(request["source"], request["entry"], request["case"],
+                     request.get("timeout", 2000))
     if op == "values":
         return values(request["params"], request["cases"],
                       request["expressions"], request.get("timeout", 50),
