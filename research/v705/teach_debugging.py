@@ -115,6 +115,8 @@ def bugs(language: str, split: str, each: int = EACH) -> list:
             out.append({"name": f"{task.name}-{one.kind}-{made}",
                         "language": language, "split": split,
                         "entry": task.entry, "source": broken,
+                        "params": [list(one) for one in task.params],
+                        "returns": task.returns,
                         "original": row["code"], "case": cases[at],
                         "got": got[at], "wanted": wanted[at],
                         "cases": cases, "all wanted": wanted,
@@ -208,6 +210,20 @@ def _fixed(bug: dict, answer: str) -> bool:
                    zip(got, bug["all wanted"]))
 
 
+def _typed(rows: list, config: str) -> None:
+    """Each bug made before its parameters were kept: its task's."""
+    from research.v696 import tasks
+    by = {one.name: one for one in tasks.load(config)}
+    for row in rows:
+        if "params" in row:
+            continue
+        task = next((one for name, one in by.items()
+                     if row["name"].startswith(name + "-")), None)
+        if task is not None:
+            row["params"] = [list(one) for one in task.params]
+            row["returns"] = task.returns
+
+
 def held_bugs(most: int = 80) -> dict:
     """The bugs never taught: HumanEval's made the same way, and
     HumanEvalFix's (people's), each in both languages."""
@@ -215,9 +231,10 @@ def held_bugs(most: int = 80) -> dict:
     for language in ("typescript", "python"):
         path = DATA / f"bugs-{language}-held.jsonl"
         if path.exists():
-            out[f"humaneval {language}"] = [
-                json.loads(line) for line in path.open(encoding="utf-8")
-            ][:most]
+            rows = [json.loads(line) for line in
+                    path.open(encoding="utf-8")][:most]
+            _typed(rows, SOURCES[(language, "held")][1])
+            out[f"humaneval {language}"] = rows
     from research.v696 import bugs as B
     for language, made in (("typescript", B.humanevalfix),
                            ("python", B.humanevalfix_python)):
@@ -234,6 +251,8 @@ def held_bugs(most: int = 80) -> dict:
             traced = running.trace(bug.source, bug.entry, bug.cases[at])
             rows.append({"name": bug.name, "language": language,
                          "entry": bug.entry, "source": bug.source,
+                         "params": [list(one) for one in bug.params],
+                         "returns": bug.returns,
                          "case": bug.cases[at], "got": got[at],
                          "wanted": bug.wanted[at], "cases": bug.cases,
                          "all wanted": bug.wanted, "tests": bug.tests,
@@ -322,8 +341,26 @@ def claim(bug: dict, answers: list) -> str | None:
     return None
 
 
+def searched(bug: dict) -> str | None:
+    """A fix found by v696's repair -- edits searched for, suspected sites
+    first, then a rewrite -- given only the cases shown, never those held
+    back: its source, else None."""
+    from research.v696.editing import Bug, repair
+    shown, _ = _split(bug)
+    asked = Bug(bug["name"], bug["source"], bug["entry"],
+                bug.get("params") or [], bug.get("returns") or "",
+                [bug["cases"][at] for at in shown],
+                [bug["all wanted"][at] for at in shown],
+                language=bug["language"])
+    try:
+        found = repair(asked)
+    except Exception:                               # noqa: BLE001
+        return None
+    return found.source if found.route in ("fixed", "rewritten") else None
+
+
 def precision(editor: str = "editor-debug", traced: bool = True,
-              samples: int = 4) -> dict:
+              samples: int = 4, search: bool = False) -> dict:
     """On each held set: of the fixes claimed (an answer passing the cases
     shown), how many are right by what was held back -- precision -- and
     of all the bugs, how many are claimed -- coverage."""
@@ -341,6 +378,8 @@ def precision(editor: str = "editor-debug", traced: bool = True,
         claimed = right = 0
         for bug, answers in zip(rows, written):
             made = claim(bug, answers)
+            if made is None and search:
+                made = searched(bug)
             if made is None:
                 continue
             claimed += 1
@@ -349,7 +388,8 @@ def precision(editor: str = "editor-debug", traced: bool = True,
                        if claimed else None, "claimed": claimed,
                        "right": right, "of": len(rows)}
         print(name, json.dumps(found[name]), flush=True)
-    print(json.dumps({"editor": editor, "traced": traced, **found}))
+    print(json.dumps({"editor": editor, "traced": traced,
+                      "search": search, **found}))
     return found
 
 
@@ -359,6 +399,7 @@ def main(argv=None) -> int:
                                         "measure", "precision"))
     parser.add_argument("--editor", default="editor-debug")
     parser.add_argument("--untraced", action="store_true")
+    parser.add_argument("--search", action="store_true")
     options = parser.parse_args(argv)
     if options.job == "bugs":
         for language in ("typescript", "python"):
@@ -369,7 +410,8 @@ def main(argv=None) -> int:
     elif options.job == "train":
         train()
     elif options.job == "precision":
-        precision(options.editor, not options.untraced)
+        precision(options.editor, not options.untraced,
+                  search=options.search)
     else:
         measure(options.editor, not options.untraced)
     return 0
