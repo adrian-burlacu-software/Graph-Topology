@@ -85,6 +85,8 @@ def places(root: Path = ROOT / "research") -> dict:
     import ast
     found: dict = {}
     computed_in: list = []
+    #: every module's functions, by folder: {folder: [(path, defs)]}
+    defined: dict = {}
     for path in sorted(root.rglob("*.py")):
         if path.name.startswith("test_"):
             continue
@@ -94,6 +96,7 @@ def places(root: Path = ROOT / "research") -> dict:
             continue
         defs = [(one.lineno, one.name) for one in ast.walk(tree)
                 if isinstance(one, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        defined.setdefault(path.parent, []).append((path, defs))
 
         def at(node, line):
             # a name: the latest function of that name made before the
@@ -146,17 +149,42 @@ def places(root: Path = ROOT / "research") -> dict:
                 if not (isinstance(key, ast.Constant) and
                         isinstance(key.value, str)) or key.value in found:
                     continue
-                if isinstance(value, ast.Dict) and value.values:
-                    value = value.values[0]
-                handler = getattr(value, "attr", None) or getattr(
-                    value, "id", None)
-                made = [one for one in defs if one[1] == handler]
+                handler = _handler(value)
+                made = [(line, path) for line, name in defs
+                        if name == handler]
+                # a method of another module of the same version
+                # (`scene.how`, v691's `how` act)
+                made = made or [(line, other) for other, names in
+                                defined.get(path.parent, [])
+                                for line, name in names if name == handler]
                 if made:
+                    line, where = min(made)
                     found.setdefault(key.value, []).append({
-                        "file": path.relative_to(ROOT).as_posix(),
+                        "file": where.relative_to(ROOT).as_posix(),
                         "rule": "", "proposes": None, "apply": {
-                            "function": handler, "line": min(made)[0]}})
+                            "function": handler, "line": line}})
     return found
+
+
+def _handler(value) -> str | None:
+    """The function a table's value carries out: itself, a method of
+    something, the first of a tuple (`(handler, ORDER, rule)`), the last
+    argument of a call wrapping it (`_first("how", handler)`), or what a
+    lambda calls (`lambda scene, heard: scene.how(heard)`)."""
+    import ast
+    for _ in range(6):
+        if isinstance(value, ast.Dict) and value.values:
+            value = value.values[0]
+        elif isinstance(value, ast.Tuple) and value.elts:
+            value = value.elts[0]
+        elif isinstance(value, ast.Lambda):
+            value = value.body
+        elif isinstance(value, ast.Call):
+            value = value.args[-1] if value.args and not isinstance(
+                value.func, ast.Attribute) else value.func
+        else:
+            break
+    return getattr(value, "attr", None) or getattr(value, "id", None)
 
 
 def place_of(name: str | None, rule: str = "", found: dict | None = None):
