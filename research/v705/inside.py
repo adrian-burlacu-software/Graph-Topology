@@ -81,12 +81,19 @@ def watch(function, run) -> tuple:
 def replay(session, turns: list, function) -> tuple:
     """The turns said again to a scratch session like `session` -- the
     last with `function` watched: (the last turn, its calls)."""
+    import contextvars
     from research.v689.session import Session
-    scratch = Session(session.asker, None, "v705-debug", True,
-                      getattr(session, "definitions", None))
-    for said in turns[:-1]:
-        scratch.say(said)
-    return watch(function, lambda: scratch.say(turns[-1]))
+
+    def apart():
+        scratch = Session(session.asker, None, "v705-debug", True,
+                          getattr(session, "definitions", None))
+        for said in turns[:-1]:
+            scratch.say(said)
+        return watch(function, lambda: scratch.say(turns[-1]))
+    # its own world: run in a context of its own, so what the scratch
+    # session changes is its own and not the operator's that asked
+    # (`executive.effect`: 'plan talk changed conversation')
+    return contextvars.Context().run(apart)
 
 
 def said(call: dict, function) -> str:
