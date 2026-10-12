@@ -160,7 +160,8 @@ class CarryingTests(unittest.TestCase):
                "acts": {"read": [["place located", 1.0]],
                         "taken": "question"}}
         with mock.patch.object(D.selfmodel, "places",
-                               lambda: self.PLACES),                 mock.patch.object(D, "readings", lambda text: []):
+                               lambda: self.PLACES), \
+                mock.patch.object(D, "readings", lambda text: []):
             both = D.finding([D.diagnose(case), D.diagnose(cat)])
         self.assertEqual((both["function"], both["cases"]), ("build", 2))
         self.assertEqual(D.request_for(shared),
