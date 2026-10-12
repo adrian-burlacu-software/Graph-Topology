@@ -642,9 +642,12 @@ def replies(session) -> list:
             # read with the conversation's state: a plan is held
             # (`teach_plan_talk.MARKER`) -- `start with the routing
             # problem` is a pick here, a change anywhere else
+            # -- its words naming the plan's options, not the project's
+            # code: read without the project's names marked (with them,
+            # `start by looking at what fails in remembering` marked
+            # `looking`, one of this project's 6,000 names)
             from research.v704.teach_plan_talk import MARKER
-            return reading.code_talk(f"{MARKER} {typed(memory)}",
-                                     known(_key(session)))
+            return reading.code_talk(f"{MARKER} {typed(memory)}")
 
         def plan_talk(memory):
             from research.v700 import fixing
