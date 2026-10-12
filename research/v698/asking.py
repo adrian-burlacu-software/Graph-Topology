@@ -115,7 +115,21 @@ FOCUS: dict = {}
 
 # -- reading: the subject, the aspect ----------------------------------------------
 
-def _explicit(text: str, held, space) -> Subject | None:
+def _function(held, name: str, key=None) -> Subject | None:
+    """The project's function of a name -- of several of that name, the
+    one the conversation is about (`build` just changed in
+    v689/reader.py, not v687/build.py's, the first found)."""
+    found = held.find(name)
+    if not found:
+        return None
+    talked, _ = FOCUS.get(key, (None, None))
+    one = next((one for one in found if talked is not None and
+                talked.kind == "function" and one["name"] == talked.name
+                and one["file"] == talked.file), found[0])
+    return Subject("function", one["name"], one["file"])
+
+
+def _explicit(text: str, held, space, key=None) -> Subject | None:
     """A subject named outright: a function of the project, a file, the
     project, the conversation's code by its function's name."""
     entry = ((space.found or {}).get("answer") or {}).get("entry") \
@@ -126,8 +140,7 @@ def _explicit(text: str, held, space) -> Subject | None:
             if name == entry:
                 return Subject("code", name)
             if len(name) > 1 and held.find(name):
-                one = held.find(name)[0]
-                return Subject("function", one["name"], one["file"])
+                return _function(held, name, key)
         for found in PATH.finditer(text):
             path = _file(held, found.group(0))
             if path:
@@ -170,7 +183,7 @@ def route(text: str, held, space, turn: int, key) -> tuple:
         if coding.read(text).get("asked"):
             return None, None
     words = WORD.findall(text.lower())
-    subject = _explicit(text, held, space)
+    subject = _explicit(text, held, space, key)
     pronoun = subject is None and PRONOUN.search(text) is not None
     if pronoun:
         subject = _focus(key, space, turn)
@@ -265,10 +278,9 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
             path = _file(held, name)
             if path:
                 return Subject("file", path, path)
-            found = held.find(name)
+            found = _function(held, name, key)
             if found:
-                return Subject("function", found[0]["name"],
-                               found[0]["file"])
+                return found
         return Subject("unknown", name)
     if reading.subject == "last" or reading.subject == "none":
         recent = _focus(key, space, turn)

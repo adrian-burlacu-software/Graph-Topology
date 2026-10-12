@@ -41,6 +41,14 @@ class EditsTests(unittest.TestCase):
         self.assertIsNone(T.applied(part, "<<<\ny = 1\n===\nx = 2\n>>>"))
         self.assertIsNone(T.applied(part, "no blocks at all"))
 
+    def test_a_blank_line_is_no_change(self):
+        from research.v700.fixing import _same_code
+        part = "def f(x):\n    return x\n"
+        self.assertTrue(_same_code("def f(x):\n\n    return x  \n", part))
+        self.assertTrue(_same_code("def f(x):\n    # read it\n"
+                                   "    return x\n", part))
+        self.assertFalse(_same_code("def f(x):\n    return x + 1\n", part))
+
 
 class ProjectOnDiskTests(unittest.TestCase):
     """A project with a root: its files changed there, and nowhere else."""
