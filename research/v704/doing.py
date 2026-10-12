@@ -448,7 +448,12 @@ def _asked(state: dict, kind: str, at: int) -> list:
     found = state.get("found") or [diagnose(one) for one in (
         state["weak"][0].get("cases") or [])[:MOST]]
     state["found"] = found
-    return [said_diagnosis(found[at]) + "."]
+    lines = [said_diagnosis(found[at]) + "."]
+    # and what it would do about it: the change its own finding asks for
+    asked = request_for(finding([found[at]]))
+    if asked:
+        lines.append(f"What I'd change: {asked}.")
+    return lines
 
 
 def _feedback(state: dict, phrase: str, undo) -> list:
