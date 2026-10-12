@@ -78,8 +78,9 @@ FRAMES_ASK = (
     "fact, reason or example. Reply with the sentence only.\n\n")
 #: rephrasings asked of each frame, in rounds of this many
 ROUNDS, SAMPLES = 6, 8
-#: a word is the rephrasings' framing where this share of them say it
-FRAMES_IN = 0.02
+#: a word is the rephrasings' framing where rephrasings of this share of
+#: the frames say it
+FRAMED_ACROSS = 0.3
 #: the kept frames each piece is said in, in the corpus
 SAID_IN = 4
 
@@ -208,6 +209,8 @@ def frames() -> None:
 
 
 _NLP: dict = {}
+#: what is loaded once: the sayer, the kept frames, their framing
+_LOADED: dict = {}
 
 
 def _lemmas(text: str) -> list:
@@ -228,21 +231,43 @@ def _synonyms(lemma: str) -> set:
             wordnet.synsets(lemma) for name in synset.lemma_names()}
 
 
+def _lead(text: str) -> str | None:
+    """A step's verb: the first word, where the frame begins with one."""
+    if "nlp" not in _NLP:
+        _lemmas("")
+    doc = _NLP["nlp"](re.sub(r"\{[A-Z]+\}", "it", text))
+    first = next((one for one in doc if one.is_alpha and
+                  one.lower_ != "please"), None)
+    return first.lemma_.lower() if first is not None and \
+        first.pos_ == "VERB" else None
+
+
 def kept_frame(frame: str, said: str, framing: set) -> str | None:
-    """A rephrasing kept: one sentence, every slot once and no other, the
-    quoted kept quoted, and every word of its own its frame's, a synonym
-    of one, or the rephrasings' framing. Its text, else None."""
+    """A rephrasing kept: one sentence; every slot once and no other; the
+    quoted kept quoted and nothing else quoted; slots the frame joins by
+    a mark alone (`{VERSION}: {PRECEDENT}`) joined so still; a step begun
+    by its verb or a synonym of it; and every word of its own its
+    frame's, a synonym of one, or the rephrasings' framing. Its text,
+    else None."""
     said = said.strip().strip('"').strip()
-    if not said or "\n" in said or len(said) > 2 * len(frame) + 40:
+    if not said or "\n" in said or "�" in said or \
+            len(said) > 2 * len(frame) + 40:
         return None
     if Counter(slots(said)) != Counter(slots(frame)):
         return None
     if any(len(re.findall(r"\{" + name + r"\}", said)) != 1
            for name in slots(frame)):
         return None
-    for quoted in re.findall(r'"(\{[A-Z]+\})"', frame):
-        if f'"{quoted}"' not in said:
+    quoted = set(re.findall(r'"(\{[A-Z]+\})"', frame))
+    if quoted != set(re.findall(r'"(\{[A-Z]+\})', said)) | set(
+            re.findall(r'(\{[A-Z]+\})"', said)):
+        return None
+    for joined_ in re.findall(r"\{[A-Z]+\}[^\w\s{]+ ?\{[A-Z]+\}", frame):
+        if joined_ not in said:
             return None
+    lead = _lead(frame)
+    if lead and _lead(said) not in {lead} | _synonyms(lead):
+        return None
     own = set(_lemmas(frame))
     allowed = own | framing | {name for one in own
                                for name in _synonyms(one)}
@@ -252,20 +277,28 @@ def kept_frame(frame: str, said: str, framing: set) -> str | None:
 
 
 def kept_frames() -> dict:
-    """{base frame: [kept rephrasings, the frame itself first]}."""
+    """{base frame: [kept rephrasings, the frame itself first]}. The
+    rephrasings' framing: the words said in rephrasings of a share of all
+    the frames (`FRAMED_ACROSS`), whatever each says -- not the words one
+    frame's rephrasings keep saying (`explain`, of teaching)."""
+    if "kept" in _LOADED:
+        return _LOADED["kept"]
     rows = [json.loads(line) for line in FRAMED.open(encoding="utf-8")]
-    said = [one for row in rows for one in row["said"]]
-    counted: Counter = Counter()
-    for one in said:
-        counted.update(set(_lemmas(one)))
-    framing = {word for word, count in counted.items()
-               if count >= FRAMES_IN * max(len(said), 1)}
+    across: dict = {}
+    for row in rows:
+        for one in row["said"]:
+            for word in set(_lemmas(one)):
+                across.setdefault(word, set()).add(row["frame"])
+    frames_ = {row["frame"] for row in rows}
+    framing = {word for word, where in across.items()
+               if len(where) >= FRAMED_ACROSS * len(frames_)}
     out: dict = {frame: [frame] for frame in base_frames()}
     for row in rows:
         for one in row["said"]:
             kept = kept_frame(row["frame"], one, framing)
             if kept and kept not in out.setdefault(row["frame"], []):
                 out[row["frame"]].append(kept)
+    _LOADED["kept"] = out
     return out
 
 
@@ -400,8 +433,6 @@ def train(epochs: int = 1) -> None:
 
 # -- run time: said, and read back --------------------------------------------
 
-_LOADED: dict = {}
-
 
 def _sayer():
     if not (SAYER / "config.json").exists():
@@ -417,18 +448,21 @@ def reads_plans() -> bool:
     return encoder.enabled() and "plan_kind" in encoder.LOADED.get().heads
 
 
-def _framing() -> set:
-    """Every word the kept frames say of their own: what a saying may say
-    besides its slots."""
+def _framing(kind: str) -> set:
+    """Every word the kept frames of a kind of piece say of their own:
+    what a saying of that kind may say besides its slots (`goals ...
+    achieved this way` is the like-piece's, never the worst-piece's)."""
     if "framing" not in _LOADED:
-        words: set = set()
+        by_kind: dict = {}
         if FRAMED.exists():
-            for options in kept_frames().values():
+            based = base_frames()
+            for base, options in kept_frames().items():
+                words = by_kind.setdefault(based.get(base), set())
                 for frame in options:
                     bare = re.sub(r"\{[A-Z]+\}", " ", frame)
                     words |= {one.lower() for one in tokens(bare)}
-        _LOADED["framing"] = words
-    return _LOADED["framing"]
+        _LOADED["framing"] = by_kind
+    return _LOADED["framing"].get(kind, set())
 
 
 def read_back(one: dict, text: str) -> str | None:
@@ -444,7 +478,7 @@ def read_back(one: dict, text: str) -> str | None:
     if kind != one["kind"]:
         return f"read as {kind}, not {one['kind']}"
     spans: dict = {}
-    framing = _framing()
+    framing = _framing(one["kind"])
     for word, part in zip(words, found["plan_part"]):
         if part == "O":
             if word.lower() not in framing and word.isalpha():
@@ -462,7 +496,34 @@ def read_back(one: dict, text: str) -> str | None:
             return f"does not say {name} as it is"
     if spans:
         return f"says {', '.join(spans)}, which the piece has not"
-    return None
+    return _keeps(one, text)
+
+
+def _keeps(one: dict, text: str) -> str | None:
+    """Whether a saying keeps what its frame says, not only its slots
+    (`Worst, 2026-10-12` said every word allowed and dropped the rest):
+    with its slots as slots, one of the kept frames of its kind; else every
+    content word of its frame said, or a synonym of it."""
+    masked = text
+    for name, value in sorted(one["slots"].items(),
+                              key=lambda item: -len(item[1])):
+        masked = masked.replace(value, "{" + name + "}")
+    # the piece's own frame; where it was not kept, any of its kind with
+    # its slots
+    bases = [one["frame"]] if one.get("frame") else [
+        base for base, kind in base_frames().items()
+        if kind == one["kind"] and set(slots(base)) == set(one["slots"])]
+    kept = kept_frames() if FRAMED.exists() else {}
+    if any(masked.strip() == option.strip() for base in bases
+           for option in kept.get(base, [base])):
+        return None
+    said = set(_lemmas(masked))
+    for base in bases:
+        missing = [word for word in _lemmas(base) if word not in said and
+                   not _synonyms(word) & said]
+        if not missing:
+            return None
+    return "drops what its frame says"
 
 
 def say(pieces: list, samples: int = 3) -> tuple:

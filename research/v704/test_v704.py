@@ -228,7 +228,8 @@ class SayingTests(unittest.TestCase):
     def test_read_back(self):
         from unittest import mock
         from research.v704 import teach_saying as T
-        one = {"kind": "teach", "frame": "",
+        one = {"kind": "teach",
+               "frame": 'Teach it so "{CASE}" goes to {OPERATOR}',
                "slots": {"CASE": "what is 7?", "OPERATOR": "maths"}}
         text = 'Teach it so "what is 7?" goes to maths'
         words, parts = T.labelled('Teach it so "{CASE}" goes to '
@@ -237,14 +238,14 @@ class SayingTests(unittest.TestCase):
         def read(said, kind="teach", roles=parts, **_):
             return {"plan_kind": [(kind, 0.9)], "plan_part": roles}
         framing = {"teach", "it", "so", "goes", "to", '"'}
-        with mock.patch.object(T, "_framing", lambda: framing), \
+        with mock.patch.object(T, "_framing", lambda kind: framing), \
                 mock.patch("research.encoder.read", read):
             self.assertIsNone(T.read_back(one, text))
-        with mock.patch.object(T, "_framing", lambda: framing), \
+        with mock.patch.object(T, "_framing", lambda kind: framing), \
                 mock.patch("research.encoder.read",
                            lambda *a, **k: read(a, kind="check")):
             self.assertIn("read as check", T.read_back(one, text))
-        with mock.patch.object(T, "_framing", lambda: framing - {"goes"}), \
+        with mock.patch.object(T, "_framing", lambda kind: framing - {"goes"}), \
                 mock.patch("research.encoder.read", read):
             self.assertIn("says goes", T.read_back(one, text))
 
