@@ -1884,6 +1884,24 @@ def steps() -> list[Step]:
                           "--subject", "plan"),
              _model_check(LLM / "reader-code33", 80),
              needs=("plan-sayings",), cost="forty minutes", gpu=True),
+        Step("reader-plan-talk", "the shared reader taught what is said "
+                                 "back to a plan it holds: an option "
+                                 "picked, asked about, or what it did "
+                                 "answered (research/v704/teach_plan_talk.py)",
+             lambda: (_run("research.v704.teach_plan_talk", "write"),
+                      _run("research.v704.teach_plan_talk", "more-queries"),
+                      _run("research.v704.teach_plan_talk", "check"),
+                      _run("research.v704.teach_plan_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code33"),
+                           "--out", str(LLM / "reader-code34"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell",
+                           "--subject", "plan")),
+             _model_check(LLM / "reader-code34", 80),
+             needs=("reader-plans-read", "self-model", "smollm3"),
+             cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",

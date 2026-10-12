@@ -45,6 +45,8 @@ SHELL_TALK = 212.25
 WAITING: dict = {}
 #: a yes or no to a goal's plan comes before one to a command
 GOAL_STEP = 212.3
+#: what is said back to a plan held, before the shell and code talk
+PLAN_TALK = 212.28
 #: a goal said back with its plan, by conversation: a yes takes its first
 #: step (v704)
 GOALS: dict = {}
@@ -162,9 +164,8 @@ def _next_step(key: str, held, change) -> dict:
             [found["text"]] + lines)
         return found
     lines = doing.carry(goal, change=change, held=held)
-    if goal.get("done") and (not goal.get("measuring") or
-                             goal["measuring"].get("told")):
-        GOALS.pop(key, None)
+    # a plan carried out is kept, done, for what is said back to it
+    # (`plan talk`): a yes is no longer its
     found = asking._reply("goal step", goal["goal"], "\n".join(lines),
                           {"goal": goal["goal"], "at": goal.get("at"),
                            "found": goal.get("found"),
@@ -574,7 +575,8 @@ def replies(session) -> list:
         def asks_goal_step(memory) -> bool:
             # yes or no to a goal said back with its plan (v704) -- read as
             # the shell's yes and no to a command shown are
-            if _key(session) not in GOALS:
+            if _key(session) not in GOALS or \
+                    GOALS[_key(session)].get("done"):
                 return False
             asked = shell_read(memory)
             return asked is not None and asked.act in ("yes", "no") and \
@@ -594,7 +596,7 @@ def replies(session) -> list:
             return ANSWERED
 
         def _by_myself(text: str, memory, function: str | None = None,
-                       file: str | None = None) -> str:
+                       file: str | None = None) -> tuple:
             # a change a plan's step asks for: of a function the look
             # found, made there -- what it is a change of is known, not
             # read back from its own words (`in build, build "what is my
@@ -607,11 +609,11 @@ def replies(session) -> list:
                 found = [one for one in (held.find(function) if held else [])
                          if one["file"] == file]
                 if not found or not fixing.available():
-                    return f"{function} is not in the project I hold."
+                    return f"{function} is not in the project I hold.", False
                 subject = asking.Subject("function", found[0]["name"], file)
                 made = fixing.change(text, held, subject, key)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
-                return made["said"]
+                return made["said"], made["status"] == "changed"
             read = reading.read(text, known(key)) \
                 if reading.taught() else None
             if read is None or read.act != "change" or \
@@ -619,10 +621,53 @@ def replies(session) -> list:
                 return (f"I read my own request as "
                         f"{read.act if read else 'nothing'}"
                         + (f" ({int(read.chance * 100)}%)" if read else "")
-                        + ", not a change, so nothing was done.")
+                        + ", not a change, so nothing was done."), False
             found = _act(read, text, session, memory)
-            return found["text"] if found else "Nothing came of it."
+            status = ((found or {}).get("code") or {}).get(
+                "answer", {}).get("status")
+            return (found["text"] if found else "Nothing came of it.",
+                    status in ("changed", "planned"))
 
+        def asks_plan_talk(memory) -> bool:
+            # what is said back to a plan held: an option picked or asked
+            # about, or what was just done answered (v704)
+            key = _key(session)
+            if key not in GOALS or pastes(memory) or not reading.taught():
+                return False
+            read = reading.code_talk(typed(memory), known(key))
+            return read is not None and read.act in ("pick", "query",
+                                                     "feedback")
+
+        def plan_talk(memory):
+            from research.v700 import fixing
+            from research.v704 import doing
+            key = _key(session)
+            held = Pj.project(key)
+            read = reading.code_talk(typed(memory), known(key))
+            phrase = " ".join((read.spans.get("OPTION") or [""])[0].split())
+            goal = GOALS[key]
+            goal.pop("done", None)
+            lines = doing.talk(
+                goal, read.act, phrase,
+                change=lambda text, function=None, file=None: _by_myself(
+                    text, memory, function, file),
+                held=held,
+                undo=lambda: (fixing.undo(held, key) or {}).get("said"))
+            reply = asking._reply("plan talk", typed(memory),
+                                  "\n".join(lines),
+                                  {"act": read.act, "option": phrase,
+                                   "read": read.json()})
+            reply["code"]["answer"]["status"] = "plan talk"
+            memory["turn"].answer = reply
+            return ANSWERED
+
+        out.append(Operator(
+            name="plan talk", apply=plan_talk, proposes=asks_plan_talk,
+            utility=PLAN_TALK,
+            rule="what is said back to a plan held, read by the encoder: an "
+                 "option picked is done, one asked about is said, what was "
+                 "just done answered -- a change put back where found "
+                 "wanting"))
         out.append(Operator(
             name="goal step", apply=goal_step, proposes=asks_goal_step,
             utility=GOAL_STEP,

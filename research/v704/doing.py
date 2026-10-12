@@ -282,8 +282,12 @@ def _step(state: dict, step: dict, change, held) -> list:
                     f"{state['asked'].index(asked) + 1} -- left."]
         state["asked"].append(asked)
         shared = state.get("finding") or {}
-        return [f"{step['said']}: I asked myself to {asked}.",
-                change(asked, shared.get("function"), shared.get("file"))]
+        said, changed = change(asked, shared.get("function"),
+                               shared.get("file"))
+        # what it changed, for the person to answer (`_feedback`)
+        state["changed"] = (shared.get("function") or "the project") \
+            if changed else None
+        return [f"{step['said']}: I asked myself to {asked}.", said]
     if kind == "check":
         numbers = [one["n"] for one in state.get("found") or []
                    if one.get("n") is not None]
@@ -323,3 +327,132 @@ def _measured_lines(state: dict) -> list:
     right = sum(found.get(one) == "right" for one in pending["numbers"])
     return [f"Measured: {right} of {len(pending['numbers'])} of the "
             f"goal's cases are right now."]
+
+
+# -- what is said back to the plan --------------------------------------------
+
+#: how near an option's words a phrase must be, and how much nearer than the
+#: next option
+LEAST_NEAR, LEAD = 0.3, 0.05
+
+
+def options(state: dict) -> list:
+    """The plan's options a reply can name: (kind, index, the words each is
+    said in) -- each weakness by what it is and its name, each step by its
+    number, kind and what it says, each case by its words."""
+    out = []
+    for at, one in enumerate(state.get("weak") or []):
+        out.append(("weak", at, [one["what"], one.get("name") or
+                                 one["what"]]))
+    for at, one in enumerate((state.get("plan") or {}).get("steps") or []):
+        out.append(("step", at, [one["said"], f"step {at + 1}",
+                                 f"the {one['kind']} step"]))
+    cases = state.get("found") or [
+        {"said": one["said"].split("\n")[0]} for one in
+        ((state.get("weak") or [{}])[0].get("cases") or [])[:MOST]]
+    for at, one in enumerate(cases):
+        out.append(("case", at, [one["said"], f"case {at + 1}"]))
+    return out
+
+
+def option_of(state: dict, phrase: str) -> tuple | None:
+    """The option a phrase names: the nearest in meaning of every option's
+    words, near enough and nearer than the next. (kind, index), else
+    None."""
+    from research.v701.likeness import nearest
+    found = options(state)
+    said = [(text, (kind, at)) for kind, at, texts in found
+            for text in texts]
+    ranked = nearest(phrase, [text for text, _ in said])
+    best: dict = {}
+    for score, text in ranked:
+        key = next(option for one, option in said if one == text)
+        best[key] = max(best.get(key, 0.0), score)
+    order = sorted(best.items(), key=lambda item: -item[1])
+    if not order or order[0][1] < LEAST_NEAR or (
+            len(order) > 1 and order[0][1] - order[1][1] < LEAD):
+        return None
+    return order[0][0]
+
+
+def talk(state: dict, act: str, phrase: str, change=None, held=None,
+         undo=None) -> list:
+    """A reply to the plan, answered: an option picked is done, one asked
+    about is said, and what it just did, answered -- a change it made put
+    back where the person found it wanting."""
+    if act == "feedback":
+        return _feedback(state, phrase, undo)
+    named = option_of(state, phrase) if phrase else None
+    if named is None:
+        listed = "; ".join(f"{texts[0]}" for _, _, texts in
+                           options(state)[:8])
+        return [f"I couldn't tell which of the plan's options \"{phrase}\" "
+                f"is. They are: {listed}."]
+    kind, at = named
+    if act == "pick":
+        return _picked(state, kind, at, change, held)
+    return _asked(state, kind, at)
+
+
+def _picked(state: dict, kind: str, at: int, change, held) -> list:
+    if kind == "weak":
+        weak = state["weak"]
+        weak.insert(0, weak.pop(at))
+        if state.get("plan"):
+            history.ground(state["plan"], weak[0])
+        state.update(at=None, found=None, finding=None)
+        return carry(state, change, held)
+    if kind == "step":
+        state["at"] = at
+        return carry(state, change, held)
+    found = state.get("found")
+    if not found:
+        _look(state, state["weak"][0])
+        state["at"] = 0
+        found = state["found"]
+    one = found[at]
+    state["finding"] = finding([one]) or state.get("finding")
+    lines = [f"Looking into \"{one['said']}\":", said_diagnosis(one)]
+    asked = request_for(state["finding"])
+    if asked:
+        lines.append(f"What I'd change: {asked}. Shall I go on?")
+    return lines
+
+
+def _asked(state: dict, kind: str, at: int) -> list:
+    if kind == "weak":
+        one = state["weak"][at]
+        cases = [f"\"{case['said'].splitlines()[0]}\"" for case in
+                 (one.get("cases") or [])[:3]]
+        return [f"{one['what']}: {one.get('how', '')}"
+                + (f" -- e.g. {', '.join(cases)}" if cases else "") + "."]
+    if kind == "step":
+        step = state["plan"]["steps"][at]
+        if step["kind"] in ("change", "build"):
+            asked = request_for(state.get("finding"))
+            does = (f"I'd {asked}" if asked else
+                    "I'd need to look first, to know where")
+        else:
+            does = {"check": "I'd keep the failing cases as the goal's "
+                             "checks",
+                    "measure": "I'd run the checks again in the "
+                               "background"}.get(step["kind"],
+                                                 "I can't do this one "
+                                                 "myself yet")
+        return [f"Step {at + 1}, {step['said']}: {does}."]
+    found = state.get("found") or [diagnose(one) for one in (
+        state["weak"][0].get("cases") or [])[:MOST]]
+    state["found"] = found
+    return [said_diagnosis(found[at]) + "."]
+
+
+def _feedback(state: dict, phrase: str, undo) -> list:
+    last = state.get("changed")
+    if last and undo is not None:
+        put_back = undo()
+        state["changed"] = None
+        if put_back:
+            return [f"I've put back my change to {last} -- "
+                    f"{put_back}. Shall I try it another way, or go on?"]
+    return [f"Noted about {phrase or 'that'}. Shall I try it another way, "
+            f"or go on?"]

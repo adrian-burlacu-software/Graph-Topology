@@ -294,7 +294,8 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
     found = []
     routing = model.get("routing") or []
     if routing:
-        found.append({"what": ROUTING, "bad": len(routing),
+        found.append({"what": ROUTING, "name": "routing",
+                      "bad": len(routing),
                       "count": len(routing),
                       "how": f"{len(routing)} messages went to the wrong "
                              f"part", "examples": routing[:2],
@@ -303,11 +304,11 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
                                        for one in routing] +
                                       [(one.get("should"), "proposes",
                                         "should take") for one in routing])})
-    for area in model["areas"].values():
+    for name, area in model["areas"].items():
         bad = area["wrong"] + area["unsure"] / 2 - len(area["routed"])
         if area["wrong"] + area["unsure"] == 0:
             continue
-        found.append({"what": area["what"], "bad": bad,
+        found.append({"what": area["what"], "name": name, "bad": bad,
                       "right": area["right"], "of": area["of"],
                       "wrong": area["wrong"],
                       "how": f"{area['right']} right of {area['of']}, "

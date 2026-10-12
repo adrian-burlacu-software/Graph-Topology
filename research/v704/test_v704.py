@@ -121,12 +121,14 @@ class CarryingTests(unittest.TestCase):
             self.assertIn('Next: 1. Change _ask_name in s.py, where "what '
                           'is my dog called?" goes wrong', look)
             change = "\n".join(D.carry(state, change=lambda text, *where: (
-                asked.append((text, *where)) or "unsure"), held=Held()))
+                asked.append((text, *where)) or ("Changed it", True)),
+                held=Held()))
+            self.assertEqual(state["changed"], "_ask_name")
             self.assertEqual(asked, [('change s._ask_name so that it '
                                       'answers "what is my dog called?" '
                                       'after "my dog is called Rex"',
                                       "_ask_name", "s.py")])
-            self.assertIn("unsure", change)
+            self.assertIn("Changed it", change)
             self.assertIn("1 cases are this goal's checks",
                           "\n".join(D.carry(state)))
             self.assertIn("running its 1 cases", "\n".join(D.carry(state)))
@@ -236,6 +238,43 @@ class GroundingTests(unittest.TestCase):
                          "Change a.f, b.g, and fix what fails")
         # nothing known to teach of: said of nothing in particular
         self.assertEqual(found["steps"][1]["said"], H.SAYING["teach"])
+
+
+class PlanTalkTests(unittest.TestCase):
+    """What is said back to a plan held: an option named by the words the
+    reader marked, picked or asked about; what was just done answered."""
+
+    def state(self):
+        cases = [{"said": "what is my dog called?"},
+                 {"said": "what is 7 squared?"}]
+        return {"goal": "communicate better", "plan": {"steps": [
+            {"kind": "teach", "said": "Teach the model that reads it"},
+            {"kind": "measure", "said": "Measure it again"}]},
+            "weak": [{"what": "remembering what was said earlier",
+                      "name": "memory", "cases": cases},
+                     {"what": "sending each message to the right part",
+                      "name": "routing", "cases": cases}]}
+
+    def test_an_option_named(self):
+        from research.v704 import doing as D
+        state = self.state()
+        self.assertEqual(D.option_of(state, "the routing problem"),
+                         ("weak", 1))
+        self.assertEqual(D.option_of(state, "the dog question"),
+                         ("case", 0))
+        self.assertEqual(D.option_of(state, "the measuring step"),
+                         ("step", 1))
+
+    def test_asked_about_and_answered(self):
+        from research.v704 import doing as D
+        state = self.state()
+        said = D.talk(state, "query", "step 2")
+        self.assertIn("Step 2, Measure it again", said[0])
+        state["changed"] = "build"
+        said = D.talk(state, "feedback", "that change",
+                      undo=lambda: "Put reader.py back as it was.")
+        self.assertIn("put back my change to build", said[0])
+        self.assertIsNone(state["changed"])
 
 
 class PlacesTests(unittest.TestCase):
