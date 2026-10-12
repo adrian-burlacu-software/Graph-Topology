@@ -338,7 +338,8 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
         # made where the look inside found it, else where the look did
         target = looked or shared
         said, changed = change(asked, target.get("function"),
-                               target.get("file"))
+                               target.get("file"),
+                               (shared.get("case") or {}).get("said"))
         # what it changed, for the person to answer (`_feedback`)
         state["changed"] = (target.get("function") or "the project") \
             if changed else None

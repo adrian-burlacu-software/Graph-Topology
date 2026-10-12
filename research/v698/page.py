@@ -590,14 +590,16 @@ def replies(session) -> list:
                                       "All right -- I've left it.", {})
             else:
                 reply = _next_step(key, Pj.project(key),
-                                   lambda text, function=None, file=None:
-                                   _by_myself(text, memory, function, file),
+                                   lambda text, function=None, file=None,
+                                   case=None: _by_myself(
+                                       text, memory, function, file, case),
                                    _inside)
             memory["turn"].answer = reply
             return ANSWERED
 
         def _by_myself(text: str, memory, function: str | None = None,
-                       file: str | None = None) -> tuple:
+                       file: str | None = None,
+                       case: str | None = None) -> tuple:
             # a change a plan's step asks for: of a function the look
             # found, made there -- what it is a change of is known, not
             # read back from its own words (`in build, build "what is my
@@ -612,7 +614,9 @@ def replies(session) -> list:
                 if not found or not fixing.available():
                     return f"{function} is not in the project I hold.", False
                 subject = asking.Subject("function", found[0]["name"], file)
-                made = fixing.change(text, held, subject, key)
+                # the case it fixes, kept out of the code (`fixing`)
+                made = fixing.change(text, held, subject, key,
+                                     {"case": case} if case else None)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
             read = reading.read(text, known(key)) \
@@ -667,8 +671,8 @@ def replies(session) -> list:
             goal.pop("done", None)
             lines = doing.talk(
                 goal, read.act, phrase,
-                change=lambda text, function=None, file=None: _by_myself(
-                    text, memory, function, file),
+                change=lambda text, function=None, file=None, case=None:
+                _by_myself(text, memory, function, file, case),
                 held=held,
                 undo=lambda: (fixing.undo(held, key) or {}).get("said"),
                 debug=_inside)
