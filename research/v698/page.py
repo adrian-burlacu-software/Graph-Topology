@@ -634,16 +634,24 @@ def replies(session) -> list:
             key = _key(session)
             if key not in GOALS or pastes(memory) or not reading.taught():
                 return False
-            read = reading.code_talk(typed(memory), known(key))
+            read = _plan_read(memory)
             return read is not None and read.act in ("pick", "query",
                                                      "feedback")
+
+        def _plan_read(memory):
+            # read with the conversation's state: a plan is held
+            # (`teach_plan_talk.MARKER`) -- `start with the routing
+            # problem` is a pick here, a change anywhere else
+            from research.v704.teach_plan_talk import MARKER
+            return reading.code_talk(f"{MARKER} {typed(memory)}",
+                                     known(_key(session)))
 
         def plan_talk(memory):
             from research.v700 import fixing
             from research.v704 import doing
             key = _key(session)
             held = Pj.project(key)
-            read = reading.code_talk(typed(memory), known(key))
+            read = _plan_read(memory)
             phrase = " ".join((read.spans.get("OPTION") or [""])[0].split())
             goal = GOALS[key]
             goal.pop("done", None)

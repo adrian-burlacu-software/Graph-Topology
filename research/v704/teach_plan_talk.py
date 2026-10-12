@@ -75,11 +75,33 @@ CHOICES_ADDED = (
 )
 #: replies asked of each act, in rounds of two samples
 EACH, ROUNDS = 12, 6
+#: what a message is read with while a plan is held: the conversation's
+#: state, as a word the reader sees -- `start with the routing problem`
+#: is a pick only where a plan was shown, a change anywhere else
+#: (reader-code34, taught without it: 0 of 5 real picks read as picks)
+MARKER = "[plan]"
+#: the forms each act is asked in, besides the first rounds' (whose
+#: picks put {X} first, and said why it was a good start)
+FORMS = {
+    "pick": "short orders and choices like 'start with {X}', '{X} first', "
+            "'go with {X}', 'let's do {X} next', 'ok, look at {X}', 'try "
+            "{X}', 'begin with {X} please', 'I'd pick {X}'",
+    "query": "short questions like 'why does {X} fail?', 'what is {X}?', "
+             "'what went wrong with {X}?', 'what would you do about {X}?', "
+             "'how come {X} broke?', 'what's {X} about?'",
+    "feedback": "short reactions like 'that change to {X} did nothing', "
+                "'you changed the wrong thing in {X}', '{X} is still "
+                "broken', 'nice, {X} works now', 'that's not what I meant "
+                "by {X}', 'undo {X}'",
+}
+#: of other code talk, how many said with the marker for each reply
+#: taught: what a plan held does not change
+CONTRAST = 2
 VALID = K.VALID
 
 
 def write(acts=tuple(ASKED), rounds: int = ROUNDS, seed: int = SEED,
-          mode: str = "w") -> None:
+          mode: str = "w", forms: bool = False) -> None:
     from research.v696.teach_meaning import Teacher
     teacher = Teacher()
     teacher.torch.manual_seed(seed)
@@ -91,7 +113,8 @@ def write(acts=tuple(ASKED), rounds: int = ROUNDS, seed: int = SEED,
                 f"the person {ASKED[act]}, naming it as {{X}}. Write {{X}} "
                 f"exactly, where the thing is named -- do not say what it "
                 f"is. Vary them a lot: short and long, casual and formal, "
-                f"questions and orders. One per line, nothing else."
+                + (f"{FORMS[act]}. " if forms else "questions and orders. ")
+                + "One per line, nothing else."
                 for act in acts]
             replies = teacher.write(prompts, longest=600, samples=2,
                                     temperature=0.95)
@@ -266,8 +289,26 @@ def corpus() -> dict:
         for at in range(begin, end):
             roles[at] = ("B-" if at == begin else "I-") + "OPTION"
         out[split_of(one["template"])].append(K.record(
-            said, roles, one["act"], "none", "none",
+            [MARKER] + said, ["O"] + roles, one["act"], "none", "none",
             f"plan {one['act']}"))
+    # the rest of code talk, said while a plan is held: its own act still
+    # (a change named, a question of code, a new goal)
+    for split in out:
+        others = []
+        for name in ("code", "goals"):
+            path = DATA / f"{split}-{name}.jsonl"
+            if path.exists():
+                others += [json.loads(line) for line in
+                           path.open(encoding="utf-8")]
+        for one in rng.sample(others, min(len(others), CONTRAST *
+                                          len(out[split]))):
+            out[split].append({**one, "words": [MARKER] + one["words"],
+                               "roles": ["O"] + one["roles"],
+                               "tags": [""] + one["tags"],
+                               "deps": [""] + one["deps"],
+                               "said": f"{MARKER} {one['said']}",
+                               "source": f"plan held, {one['source']}",
+                               "how": "plan held"})
     counts = {}
     for split, records in out.items():
         with (DATA / f"{split}-plans.jsonl").open(
@@ -284,12 +325,14 @@ def corpus() -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("write", "check", "corpus",
-                                        "more-queries"))
+                                        "more-queries", "more"))
     options = parser.parse_args(argv)
     {"write": write, "check": check, "corpus": corpus,
      # queries, asked again more plainly: the first were questions about
      # products, not about an item shown (15 of 92 said yes to)
-     "more-queries": lambda: write(("query",), 6, SEED + 1, "a")}[
+     "more-queries": lambda: write(("query",), 6, SEED + 1, "a"),
+     # every act again in short everyday forms (`FORMS`)
+     "more": lambda: write(tuple(ASKED), 10, SEED + 2, "a", forms=True)}[
         options.job]()
     return 0
 
