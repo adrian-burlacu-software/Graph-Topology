@@ -114,6 +114,19 @@ def operator_of(turn: dict) -> tuple:
     return None, "", []
 
 
+def fired_of(turn: dict) -> list:
+    """Every operator the executive tried in the last turn, in order, and
+    what came of it (`answered`, `declined`, `continue`): where an answer
+    was looked for before the one that gave it."""
+    out = []
+    for trace in turn.get("trace") or []:
+        for one in trace.get("fired", []):
+            out.append({"operator": one.get("operator"),
+                        "rule": one.get("rule", ""),
+                        "outcome": one.get("outcome")})
+    return out
+
+
 def unanswered(turn: dict) -> bool:
     status = (code_of(turn).get("answer") or {}).get("status")
     stance = stance_of(turn)
@@ -315,6 +328,10 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
         out["status"] = status
         out["part"] = part_of(turn)
         out["operator"], out["rule"], out["candidates"] = operator_of(turn)
+        out["fired"] = fired_of(turn)
+        out["acts"] = {"read": ((turn.get("heard") or {}).get("acts")
+                                or [])[:2],
+                       "taken": (turn.get("reading") or {}).get("act")}
     except urllib.error.HTTPError as bad:
         out.update(verdict="wrong", why=f"server {bad.code}: "
                    f"{bad.read().decode(errors='replace')[:300]}")

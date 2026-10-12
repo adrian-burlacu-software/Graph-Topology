@@ -235,6 +235,8 @@ def _placed(operator, found: dict) -> dict | None:
 
 def _example(row: dict) -> dict:
     return {"said": row["turns"][-1][:120], "part": row.get("part"),
+            "n": row.get("n"), "turns": row["turns"],
+            "fired": row.get("fired") or [], "acts": row.get("acts"),
             "verdict": row["verdict"], "by": row.get("placed"),
             "answer": ((row.get("said") or [""])[-1] or "")[:160]}
 

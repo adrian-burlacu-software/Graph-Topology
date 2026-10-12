@@ -145,12 +145,40 @@ def _goal(text: str, held, read, key: str = "") -> dict:
 FIRST_CASES = 6
 
 
+def _next_step(key: str, held, change) -> dict:
+    """A held goal's next step, on a yes (v704 `doing`): of itself, each
+    step carried out where it can be; of a project, where it would go
+    first (`_first_step`), then the same."""
+    from research.v704 import doing
+    goal = GOALS[key]
+    if not goal["weak"] and goal.get("at") is None:
+        found = _first_step(key, held)
+        goal["at"] = 0
+        lines = []
+        steps = (goal.get("plan") or {}).get("steps") or []
+        if steps:
+            lines.append(f"Next: 1. {steps[0]['said']}. Shall I go on?")
+        found["text"] = found["spoken"] = "\n".join(
+            [found["text"]] + lines)
+        return found
+    lines = doing.carry(goal, change=change, held=held)
+    if goal.get("done") and (not goal.get("measuring") or
+                             goal["measuring"].get("told")):
+        GOALS.pop(key, None)
+    found = asking._reply("goal step", goal["goal"], "\n".join(lines),
+                          {"goal": goal["goal"], "at": goal.get("at"),
+                           "found": goal.get("found"),
+                           "finding": goal.get("finding")})
+    found["code"]["answer"]["status"] = "goal step"
+    return found
+
+
 def _first_step(key: str, held) -> dict:
     """A goal's first step, on a yes: a look, never a change -- of itself,
     what fails in its worst weakness now (the conversation test's cases,
     each with what answered it); of a project, where in it the goal would
     go (v703's plan, nothing changed)."""
-    goal = GOALS.pop(key)
+    goal = GOALS[key]
     lines = []
     looked: dict = {"goal": goal["goal"]}
     if goal["weak"]:
@@ -559,9 +587,21 @@ def replies(session) -> list:
                 reply = asking._reply("goal step", typed(memory),
                                       "All right -- I've left it.", {})
             else:
-                reply = _first_step(key, Pj.project(key))
+                reply = _next_step(key, Pj.project(key),
+                                   lambda text: _by_myself(text, memory))
             memory["turn"].answer = reply
             return ANSWERED
+
+        def _by_myself(text: str, memory) -> str:
+            # a change a plan's step asks for, said to the architecture as
+            # anyone's is: read, and carried out where it reads as one
+            read = reading.code_talk(text, known(_key(session))) \
+                if reading.taught() else None
+            if read is None or read.act != "change":
+                return ("I read my own request as no change, so nothing "
+                        "was done.")
+            found = _act(read, text, session, memory)
+            return found["text"] if found else "Nothing came of it."
 
         out.append(Operator(
             name="goal step", apply=goal_step, proposes=asks_goal_step,

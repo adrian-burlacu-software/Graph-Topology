@@ -76,19 +76,81 @@ class SelfModelTests(unittest.TestCase):
         self.assertEqual(len(maths["failed"]), 1)
 
 
-class FirstStepTests(unittest.TestCase):
-    """A yes to a goal's plan: a look at what fails, never a change."""
+class CarryingTests(unittest.TestCase):
+    """A goal's plan held, and each yes its next step carried out: the
+    look diagnoses each case from its trace, a change is asked of itself
+    from what the look found, the cases kept and measured."""
 
-    def test_what_fails_listed(self):
-        from research.v698 import page
-        cases = [{"said": "what is 7 squared?", "part": "shell",
-                  "answer": "I would run `7`"}]
-        page.GOALS["k"] = {"goal": "communicate better", "plan": {},
-                           "weak": [{"what": "sending it to the right part",
-                                     "cases": cases, "examples": cases}]}
-        found = page._first_step("k", None)
-        self.assertIn('"what is 7 squared?" went to shell', found["text"])
-        self.assertNotIn("k", page.GOALS)
+    CASE = {"said": "what is my dog called?", "part": "kind", "n": 7,
+            "turns": ["my dog is called Rex", "what is my dog called?"],
+            "fired": [{"operator": "noting", "outcome": "continue"},
+                      {"operator": "ask_name", "outcome": "declined"},
+                      {"operator": "generic", "outcome": "answered"}]}
+    PLACES = {"ask_name": [{"file": "s.py", "rule": "", "proposes": None,
+                            "apply": {"function": "_ask_name",
+                                      "line": 3}}]}
+
+    def state(self):
+        steps = planned("change", "check", "measure", "teach")
+        steps = {"steps": [{**one, "said": one["kind"].title()}
+                           for one in steps["steps"]]}
+        return {"goal": "remember better", "plan": steps, "weak": [
+            {"what": "remembering", "cases": [self.CASE]}]}
+
+    def test_carried_step_by_step(self):
+        from unittest import mock
+        from research.v704 import doing as D
+        state, asked, measured = self.state(), [], []
+
+        class Held:
+            files = {"s.py": ""}
+        with mock.patch.object(D.selfmodel, "places",
+                               lambda: self.PLACES), \
+                mock.patch.object(D, "readings", lambda text: [
+                    ("conversation", "ask_name", 0.9),
+                    ("code talk", "none", 1.0)]), \
+                mock.patch.object(D, "measure", lambda numbers, label:
+                                  measured.append(numbers)):
+            look = "\n".join(D.carry(state))
+            self.assertIn('"what is my dog called?" (after "my dog is '
+                          'called Rex"): read by conversation as ask_name '
+                          '(90%); tried: ask_name (_ask_name, s.py) '
+                          'declined -> generic answered', look)
+            self.assertIn("Most telling: ask_name", look)
+            self.assertIn("Next: 1. Change. Shall I go on?", look)
+            change = "\n".join(D.carry(state, change=lambda text: (
+                asked.append(text) or "unsure"), held=Held()))
+            self.assertEqual(asked, ['in _ask_name, answer "what is my '
+                                     'dog called?" after "my dog is called '
+                                     'Rex" instead of declining it'])
+            self.assertIn("unsure", change)
+            self.assertIn("1 cases are this goal's checks",
+                          "\n".join(D.carry(state)))
+            self.assertIn("running its 1 cases", "\n".join(D.carry(state)))
+            self.assertEqual(measured, [[7]])
+            last = "\n".join(D.carry(state))
+            self.assertIn("not done", last)
+            self.assertIn("last step", last)
+            self.assertTrue(state["done"])
+
+    def test_a_reading_lost(self):
+        from unittest import mock
+        from research.v704 import doing as D
+        case = {**self.CASE, "acts": {"read": [["ask_name", 0.66]],
+                                      "taken": "generic"},
+                "fired": [{"operator": "generic", "outcome": "answered"}]}
+        with mock.patch.object(D.selfmodel, "places",
+                               lambda: self.PLACES), \
+                mock.patch.object(D, "readings", lambda text: []):
+            found = [D.diagnose(case)]
+        self.assertIn("taken as generic, so ask_name (_ask_name) was "
+                      "never tried", D.said_diagnosis(found[0]))
+        shared = D.finding(found)
+        self.assertEqual((shared["function"], shared["how"]),
+                         ("build", "never tried"))
+        self.assertEqual(shared["file"], "research/v689/reader.py")
+        self.assertIn('in build, build "what is my dog called?" as '
+                      'ask_name', D.request_for(shared))
 
 
 class HistoryTests(unittest.TestCase):
