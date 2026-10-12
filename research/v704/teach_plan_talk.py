@@ -55,7 +55,14 @@ ASKED = {
     "feedback": "reacts to what the assistant just did about it -- that it "
                 "did nothing useful, changed the wrong thing, missed the "
                 "point, or did well",
+    "correction": "says the assistant got something wrong about it, or "
+                  "corrects what it said -- a count, a place in the code, "
+                  "a cause, which case belongs where",
 }
+#: what each kind of reply is taught as: a correction of what it said is
+#: feedback too, on its words rather than its deeds (`build loses 2 of the
+#: 4, not 1` was read as a query, 0.58)
+LABEL = {"correction": "feedback"}
 SITUATION = {
     "pick": "An assistant that works on software has just shown a person "
             "a plan: what it does worst, the steps it would take, and "
@@ -65,6 +72,9 @@ SITUATION = {
              "cases that fail now.",
     "feedback": "An assistant that works on software has just carried out "
                 "a step of its plan and said what it did.",
+    "correction": "An assistant that works on software has just told a "
+                  "person what it found about the items of its plan: which "
+                  "part fails, how many cases, where in the code.",
 }
 #: the acts' choices, as the teacher is told them
 CHOICES_ADDED = (
@@ -80,12 +90,15 @@ EACH, ROUNDS = 12, 6
 #: is a pick only where a plan was shown, a change anywhere else
 #: (reader-code34, taught without it: 0 of 5 real picks read as picks)
 MARKER = "[plan]"
+#: the acts only a plan held makes possible
+PLAN_ACTS = ("pick", "query", "feedback")
 #: the forms each act is asked in, besides the first rounds' (whose
 #: picks put {X} first, and said why it was a good start)
 FORMS = {
     "pick": "short orders and choices like 'start with {X}', '{X} first', "
             "'go with {X}', 'let's do {X} next', 'ok, look at {X}', 'try "
-            "{X}', 'begin with {X} please', 'I'd pick {X}'",
+            "{X}', 'begin with {X} please', 'I'd pick {X}', 'skip that, go "
+            "to {X}', 'move on to {X}', 'do {X}'",
     "query": "short questions like 'why does {X} fail?', 'what is {X}?', "
              "'what went wrong with {X}?', 'what would you do about {X}?', "
              "'how come {X} broke?', 'what's {X} about?'",
@@ -93,6 +106,10 @@ FORMS = {
                 "'you changed the wrong thing in {X}', '{X} is still "
                 "broken', 'nice, {X} works now', 'that's not what I meant "
                 "by {X}', 'undo {X}'",
+    "correction": "short corrections like 'no, {X} fails too', 'you "
+                  "counted wrong, {X} is lost there as well', '{X} goes "
+                  "wrong in the same place', 'that's not right about {X}', "
+                  "'actually {X} is the cause', '{X} isn't what fails'",
 }
 #: of other code talk, how many said with the marker for each reply
 #: taught: what a plan held does not change
@@ -150,6 +167,10 @@ def references(rng: random.Random) -> dict:
                         f"the {words_[0]} one", f"{words_[0]}"]
     for kind, said in history.SAYING.items():
         out["pick"] += [f"the {kind} step", said.split(",")[0].lower()]
+        # and by its doing (`the teaching step`, `measuring`), as Brown has
+        # it
+        for doing in _doing(kind):
+            out["pick"] += [f"the {doing} step", doing, f"the {doing}"]
     for number in range(1, 7):
         out["pick"] += [f"step {number}", f"number {number}",
                         f"option {number}"]
@@ -166,7 +187,23 @@ def references(rng: random.Random) -> dict:
         out["feedback"] += [name, f"that change to {name}", f"{name}"]
     out["feedback"] += ["that change", "that step", "what you just did",
                         "the last change"]
+    out["correction"] = out["pick"] + out["feedback"]
     return out
+
+
+def _doing(kind: str) -> list:
+    """A step's verb as its doing: the words Brown has that end in -ing
+    and are, to WordNet, that verb."""
+    if "doing" not in _DOING:
+        from nltk.corpus import brown
+        _DOING["doing"] = {one.lower() for one in brown.words()
+                           if one.lower().endswith("ing")}
+    from nltk.corpus import wordnet
+    return sorted(one for one in _DOING["doing"]
+                  if wordnet.morphy(one, "v") == kind)
+
+
+_DOING: dict = {}
 
 
 def _nouns(cases: list) -> list:
@@ -220,12 +257,30 @@ QUESTIONS = {
     "query": "Is the person asking a question?",
     "feedback": "Is the person reacting to something the assistant just "
                 "did?",
+    "correction": "Is the person saying the assistant was wrong, or "
+                  "correcting it?",
 }
 
 
 #: the act a reply of each is nearest being instead: a no to it is asked
 #: too (`feedback`'s question is yes for most replies of any act)
-CLOSEST = {"pick": "query", "query": "pick", "feedback": "pick"}
+CLOSEST = {"pick": "query", "query": "pick", "feedback": "pick",
+           "correction": "query"}
+
+
+#: the questions a reply of each kind is kept on a yes to: a correction
+#: is feedback (what it is taught as), and the teacher says no to `is the
+#: person correcting it?` for `No, {X} fails too.` (102 of 153 left)
+YES_TO = {"correction": ("correction", "feedback")}
+
+
+def kept_reply(act: str, line: str, said: dict) -> bool:
+    """Kept: a yes to its own kind's question (or one it is taught as), a
+    no to the closest kind's, and no other slot than {X}."""
+    if re.search(r"\{(?!X\})", line):
+        return False
+    return any(said.get(one) for one in YES_TO.get(act, (act,))) and \
+        not said.get(CLOSEST[act])
 
 
 def check(batch: int = 24) -> dict:
@@ -252,7 +307,7 @@ def check(batch: int = 24) -> dict:
     counts: dict = {}
     with CHECKED.open("w", encoding="utf-8") as out:
         for (act, line), said in answers.items():
-            kept = said.get(act) and not said.get(CLOSEST[act])
+            kept = kept_reply(act, line, said)
             counts[f"{act} {'kept' if kept else 'left'}"] = counts.get(
                 f"{act} {'kept' if kept else 'left'}", 0) + 1
             out.write(json.dumps({"act": act, "template": line,
@@ -273,7 +328,7 @@ def corpus() -> dict:
     never in both."""
     rows = [json.loads(line) for line in CHECKED.open(encoding="utf-8")]
     templates = {(one["act"], one["template"]) for one in rows
-                 if one["kept"]}
+                 if kept_reply(one["act"], one["template"], one["answers"])}
     rng = random.Random(SEED)
     kept = [one for one in filled(rng) if (one["act"], one["template"])
             in templates]
@@ -289,7 +344,8 @@ def corpus() -> dict:
         for at in range(begin, end):
             roles[at] = ("B-" if at == begin else "I-") + "OPTION"
         out[split_of(one["template"])].append(K.record(
-            [MARKER] + said, ["O"] + roles, one["act"], "none", "none",
+            [MARKER] + said, ["O"] + roles,
+            LABEL.get(one["act"], one["act"]), "none", "none",
             f"plan {one['act']}"))
     # the rest of code talk, said while a plan is held: its own act still
     # (a change named, a question of code, a new goal)
@@ -325,14 +381,20 @@ def corpus() -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("write", "check", "corpus",
-                                        "more-queries", "more"))
+                                        "more-queries", "more",
+                                        "corrections"))
     options = parser.parse_args(argv)
     {"write": write, "check": check, "corpus": corpus,
      # queries, asked again more plainly: the first were questions about
      # products, not about an item shown (15 of 92 said yes to)
      "more-queries": lambda: write(("query",), 6, SEED + 1, "a"),
      # every act again in short everyday forms (`FORMS`)
-     "more": lambda: write(tuple(ASKED), 10, SEED + 2, "a", forms=True)}[
+     "more": lambda: write(("pick", "query", "feedback"), 10, SEED + 2,
+                           "a", forms=True),
+     # corrections of what it said, and picks again with skips and
+     # moves (`skip that, go to measuring` was read as none)
+     "corrections": lambda: write(("correction", "pick"), 8, SEED + 3, "a",
+                                  forms=True)}[
         options.job]()
     return 0
 
