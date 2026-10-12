@@ -201,6 +201,8 @@ def request_for(found: dict | None, looked: dict | None = None
     if looked and looked.get("line"):
         # where it gave up, seen inside: the line, what it was given there
         lost = case.get("lost") or {}
+        module = looked["file"].rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        named = f"{module}.{looked['function']}"
         return (f"change {named} so that it does not give up at line "
                 f"{looked['line']} (`{looked['code']}`) for "
                 f"\"{case['said']}\""
@@ -309,7 +311,20 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
         lines = []
         looked = _inside(state, debug)
         if looked:
-            lines.append(f"Looking inside {shared['function']} with "
+            # each call followed to where the nothing came from, the last
+            # said whole
+            chain = []
+            one = looked
+            while one:
+                chain.append(one)
+                one = one.get("deeper")
+            for upper, lower in zip(chain, chain[1:]):
+                lines.append(f"{upper['function']} gives back "
+                             f"{upper['returns']} at line {upper['line']} "
+                             f"(`{upper['code']}`), from "
+                             f"{lower['function']}.")
+            looked = chain[-1]
+            lines.append(f"Looking inside {looked['function']} with "
                          f"\"{shared['case']['said']}\": {looked['said']}")
         asked = request_for(shared or None, looked) or (
             None if state.get("weak") else state.get("goal"))

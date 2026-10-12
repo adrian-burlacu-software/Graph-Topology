@@ -140,11 +140,43 @@ def function_at(file: str, name: str):
     return None
 
 
+#: how many calls deep a give-up is followed
+DEEPEST = 3
+
+
+def _callee(function, call: dict) -> str | None:
+    """Where a call got the nothing it gave back: the last name given None
+    before it returned, and the function called on the line that gave it
+    (`found = _one(...)` -> `_one`)."""
+    import ast
+    import textwrap
+    steps = call["steps"]
+    for at in range(len(steps) - 1, 0, -1):
+        if "None" not in steps[at]["values"].values():
+            continue
+        # the values of a step are as its line begins: the line before
+        # gave them
+        given = steps[at - 1]["line"]
+        lines, first = inspect.getsourcelines(function)
+        tree = ast.parse(textwrap.dedent("".join(lines)))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and \
+                    node.lineno + first - 1 == given and \
+                    isinstance(node.value, ast.Call):
+                called = node.value.func
+                return getattr(called, "id", None) or getattr(
+                    called, "attr", None)
+        return None
+    return None
+
+
 def look_inside(session, turns: list, file: str, name: str,
-                wanted: str | None = None) -> dict | None:
+                wanted: str | None = None, depth: int = 0) -> dict | None:
     """A failing conversation said again with one of the architecture's own
     functions watched: the call that matters -- the one given the act read
-    (`wanted`), else the last -- said, with the line it gave back at."""
+    (`wanted`), else the last -- said, with the line it gave back at. Where
+    it gave back nothing because a function it called did, that function
+    is looked inside in turn (`DEEPEST` deep): `deeper`."""
     function = function_at(file, name)
     if function is None:
         return None
@@ -156,7 +188,21 @@ def look_inside(session, turns: list, file: str, name: str,
         calls[-1])
     lines, first = inspect.getsourcelines(function)
     line = call.get("line")
-    return {"said": said(call, function), "calls": len(calls),
-            "line": line, "code": lines[line - first].strip()
-            if line and 0 <= line - first < len(lines) else "",
-            "given": call["args"], "returns": call.get("returns")}
+    found = {"function": name, "file": file, "said": said(call, function),
+             "calls": len(calls), "line": line,
+             "code": lines[line - first].strip()
+             if line and 0 <= line - first < len(lines) else "",
+             "given": call["args"], "returns": call.get("returns")}
+    if call.get("returns") == "None" and depth < DEEPEST:
+        callee = _callee(function, call)
+        if callee and function_at(file, callee) is not None:
+            found["deeper"] = look_inside(session, turns, file, callee,
+                                          wanted, depth + 1)
+    return found
+
+
+def deepest(found: dict | None) -> dict | None:
+    """The last call followed: where the nothing came from."""
+    while found and found.get("deeper"):
+        found = found["deeper"]
+    return found
