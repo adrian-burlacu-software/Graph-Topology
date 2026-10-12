@@ -52,6 +52,11 @@ def watch(function, run) -> tuple:
         elif event == "return":
             call["returns"] = _shown(arg)
             call["line"] = frame.f_lineno
+            # what its names were bound to, for a function called through
+            # one to be followed (`act`, or a handler held in a variable)
+            call["scope"] = ({key: value for key, value in
+                              frame.f_locals.items() if callable(value)},
+                             frame.f_globals)
             frames.pop(id(frame), None)
         elif event == "exception":
             call["raises"] = f"{type(arg[1]).__name__}: {arg[1]}"
@@ -144,30 +149,43 @@ def function_at(file: str, name: str):
 DEEPEST = 3
 
 
-def _callee(function, call: dict) -> str | None:
-    """Where a call got the nothing it gave back: the last name given None
-    before it returned, and the function called on the line that gave it
-    (`found = _one(...)` -> `_one`)."""
+def _called(node) -> str | None:
+    return getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+
+
+def _callee(function, call: dict):
+    """Where a call got the nothing it gave back: the function called on
+    the line it returned at (`return act(...)`), else on the line that
+    gave the last name None before it returned (`found = _one(...)`) --
+    resolved through the names the call itself had bound, as a debugger
+    would (a handler held in a variable is the function it holds). The
+    function, else None."""
     import ast
     import textwrap
+    lines, first = inspect.getsourcelines(function)
+    tree = ast.parse(textwrap.dedent("".join(lines)))
+
+    def at_line(line: int, kinds) -> str | None:
+        for node in ast.walk(tree):
+            if isinstance(node, kinds) and node.lineno + first - 1 == line \
+                    and isinstance(node.value, ast.Call):
+                return _called(node.value)
+        return None
+    name = at_line(call.get("line") or 0, ast.Return)
     steps = call["steps"]
     for at in range(len(steps) - 1, 0, -1):
-        if "None" not in steps[at]["values"].values():
-            continue
-        # the values of a step are as its line begins: the line before
-        # gave them
-        given = steps[at - 1]["line"]
-        lines, first = inspect.getsourcelines(function)
-        tree = ast.parse(textwrap.dedent("".join(lines)))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and \
-                    node.lineno + first - 1 == given and \
-                    isinstance(node.value, ast.Call):
-                called = node.value.func
-                return getattr(called, "id", None) or getattr(
-                    called, "attr", None)
+        if name:
+            break
+        if "None" in steps[at]["values"].values():
+            # the values of a step are as its line begins: the line before
+            # gave them
+            name = at_line(steps[at - 1]["line"], ast.Assign)
+            break
+    if not name:
         return None
-    return None
+    local, module = call.get("scope") or ({}, {})
+    found = local.get(name) or module.get(name)
+    return found if inspect.isfunction(found) else None
 
 
 def look_inside(session, turns: list, file: str, name: str,
@@ -177,9 +195,11 @@ def look_inside(session, turns: list, file: str, name: str,
     (`wanted`), else the last -- said, with the line it gave back at. Where
     it gave back nothing because a function it called did, that function
     is looked inside in turn (`DEEPEST` deep): `deeper`."""
-    function = function_at(file, name)
+    function = name if inspect.isfunction(name) else function_at(file, name)
     if function is None:
         return None
+    name = function.__name__
+    file = _relative(inspect.getsourcefile(function)) or file
     _, calls = replay(session, turns, function)
     if not calls:
         return {"said": f"{name} was never called", "calls": 0}
@@ -195,10 +215,21 @@ def look_inside(session, turns: list, file: str, name: str,
              "given": call["args"], "returns": call.get("returns")}
     if call.get("returns") == "None" and depth < DEEPEST:
         callee = _callee(function, call)
-        if callee and function_at(file, callee) is not None:
+        if callee is not None and _relative(inspect.getsourcefile(callee)):
             found["deeper"] = look_inside(session, turns, file, callee,
                                           wanted, depth + 1)
     return found
+
+
+def _relative(path: str | None) -> str | None:
+    """A file of the architecture's own code, as the project names it;
+    None for one outside it (a library's)."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    try:
+        return Path(path).resolve().relative_to(root).as_posix()
+    except (TypeError, ValueError):
+        return None
 
 
 def deepest(found: dict | None) -> dict | None:
