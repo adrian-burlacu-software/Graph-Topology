@@ -252,5 +252,26 @@ class ExtensionTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
 
 
+class SameNameTests(unittest.TestCase):
+    """Of several functions of one name, the one being talked about."""
+
+    def test_the_one_in_focus(self):
+        from research.v698 import asking
+        from research.v698.project import Project
+        held = Project("same-name")
+        held.put({"a/build.py": "def build():\n    return 1\n",
+                  "b/reader.py": "def build():\n    return 2\n"})
+        first = asking._function(held, "build", "k-same")
+        other = "b/reader.py" if first.file == "a/build.py" else \
+            "a/build.py"
+        asking.FOCUS["k-same"] = (asking.Subject("function", "build",
+                                                 other), 1)
+        try:
+            self.assertEqual(asking._function(held, "build", "k-same").file,
+                             other)
+        finally:
+            asking.FOCUS.pop("k-same", None)
+
+
 if __name__ == "__main__":
     unittest.main()

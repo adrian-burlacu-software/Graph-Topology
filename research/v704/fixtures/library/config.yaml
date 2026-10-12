@@ -1,0 +1,7 @@
+server:
+  host: 127.0.0.1
+  port: 8080
+library:
+  name: Riverside Library
+  loan_days: 14
+  max_loans: 3

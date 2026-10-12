@@ -1,0 +1,6 @@
+[
+  {"id": 1, "name": "Ada Lovelace", "email": "ada@example.org", "joined": "2021-03-02"},
+  {"id": 2, "name": "Grace Hopper", "email": "grace@example.org", "joined": "2019-11-20"},
+  {"id": 3, "name": "Alan Turing", "email": "alan@example.org", "joined": "2022-07-14"},
+  {"id": 4, "name": "Katherine Johnson", "email": "katherine@example.org", "joined": "2020-01-09"}
+]

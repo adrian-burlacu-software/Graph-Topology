@@ -210,19 +210,102 @@ def answer(text: str, held) -> Found | None:
     if asked is None:
         return None
     if asked.act == "none" or asked.chance < FLOOR:
-        found = _by_lookup(asked, held)
+        found = _unread(text, asked, held)
         if found is not None:
-            return found
-        # the act read as no question of data, the roles as one: a field
-        # asked for, among words naming the project's data -- where what it
-        # names is there, a value asked (`which port does the server
-        # listen on`: none 0.7, `port` the field asked, `server` there too)
-        if not (asked.spans.get("TARGET") and len(asked.known) >= 2):
-            return None
-        asked.act = "value"
-        found = carry(asked, held)
-        return found if found is not None and found.place else None
+            # what the reader read as no question of data: another part's,
+            # where one reads it as its own (the page's data talk yields)
+            found.looked["read as"] = "no question"
+        return found
     return carry(asked, held)
+
+
+def _unread(text: str, asked: Asked, held) -> Found | None:
+    """A question the reader read as none of data, answered from it all
+    the same: a lookup, a field asked among the data's words, a record
+    named by a value."""
+    found = _by_lookup(asked, held)
+    if found is not None:
+        return found
+    # the act read as no question of data, the roles as one: a field
+    # asked for, among words naming the project's data -- where what it
+    # names is there, a value asked (`which port does the server
+    # listen on`: none 0.7, `port` the field asked, `server` there too)
+    if not (asked.spans.get("TARGET") and len(asked.known) >= 2):
+        return _by_value(text, held)
+    asked.act = "value"
+    found = carry(asked, held)
+    return found if found is not None and found.place else None
+
+
+#: a record named by a value: how near the rest of the question must be to
+#: a field, and how much nearer than the next field
+LEAST_FIELD, FIELD_LEAD = 0.2, 0.05
+
+
+def _by_value(text: str, held) -> Found | None:
+    """A question naming a record by one of its values, read as no
+    question of data (`who wrote Kindred?`, `when did Alan Turing join?`
+    -- answered from the world, `I don't have that information`): the
+    record whose value the question says as it is, and the field the rest
+    of it is nearest in meaning (`who wrote` -> author, as v701's
+    `likeness` reads `oldest`). None where no value is said, more than one
+    record has it, or no field is near enough, or nearer than the next."""
+    lowered = text.lower()
+    found = []
+    for model in held.data().values():
+        if model.error:
+            continue
+        for path, records in model.records().items():
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                for name, value in record.items():
+                    said = str(value).strip()
+                    if not isinstance(value, str) or len(said) < 3:
+                        continue
+                    if re.search(r"(?<!\w)" + re.escape(said.lower()) +
+                                 r"(?!\w)", lowered):
+                        found.append((len(said), model, path, record, name,
+                                      said))
+    if not found:
+        return None
+    longest = max(one[0] for one in found)
+    found = [one for one in found if one[0] == longest]
+    if len({id(one[3]) for one in found}) != 1:
+        return None
+    _, model, path, record, named, said = found[0]
+    rest = re.sub(re.escape(said), " ", text, flags=re.I)
+    fields = [one for one in record if one != named]
+    if not fields:
+        return None
+    # a field the rest names by its own name (`what year was Solaris
+    # published?`: year -- read by meaning alone, `published` was nearer
+    # the author) -- looked up
+    words = set(re.findall(r"[a-z]+", rest.lower()))
+    named_here = [one for one in fields
+                  if set(one.lower().replace("_", " ").split()) <= words]
+    likeness_ = None
+    if len(named_here) == 1:
+        field_ = named_here[0]
+    else:
+        # else the question beside the same question of each field
+        # (`what is the author of Kindred?`): the nearest, by a lead
+        from research.v701.likeness import nearest
+        framed = {f"what is the {one.replace('_', ' ')} of {said}?": one
+                  for one in fields}
+        ranked = nearest(text, list(framed))
+        if ranked[0][0] < LEAST_FIELD or (
+                len(ranked) > 1 and ranked[0][0] - ranked[1][0] <
+                FIELD_LEAD):
+            return None
+        field_, likeness_ = framed[ranked[0][1]], round(ranked[0][0], 3)
+    value = record[field_]
+    place = f"{path}.{field_}" if path else field_
+    return Found(said=f"The {field_} of the record whose {named} is {said} "
+                      f"(in {model.path}) is {value}.",
+                 value=value, file=model.path, place=place,
+                 looked={"named by": named, "value": said, "field": field_,
+                         "likeness": likeness_})
 
 
 #: what a question may ask of a collection when the act was read too
@@ -677,9 +760,15 @@ def _at(value, path: str) -> list:
 
 
 def _shown_name(path: str, model) -> str:
-    if path:
-        return [one for one in path.replace("[]", "").split(".") if one][-1]
-    return "rows"
+    """What a collection is called: the last name of its path -- or, where
+    the path names none (a list at the file's top: `[]` in members.json,
+    which failed every turn of a project holding one), its file's."""
+    named = [one for one in (path or "").replace("[]", "").split(".")
+             if one]
+    if named:
+        return named[-1]
+    base = (getattr(model, "path", "") or "").rsplit("/", 1)[-1]
+    return base.rsplit(".", 1)[0] or "rows"
 
 
 def _because(looked: dict) -> str:

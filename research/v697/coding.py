@@ -764,6 +764,42 @@ DEFAULTS = {"number": [0, 1, 5, -3], "string": ["", "a", "hello world", "Abc"],
             "boolean[]": [[], [True, False]]}
 
 
+#: what a parameter of no known kind (Python's untyped `def add(a, b)`) is
+#: tried with, in turn: what most programs written run on is used
+UNTYPED = ("number", "string", "number[]")
+
+
+def _defaults(kinds, at: int) -> list:
+    return [DEFAULTS.get(kind, [None])[at % len(DEFAULTS.get(kind, [None]))]
+            for kind in kinds]
+
+
+def _inputs_for(kinds, candidates: list, language: str) -> list:
+    """The inputs every program written is run on: its parameters' kinds'
+    defaults -- and for a parameter of no kind the engine knows, each of
+    `UNTYPED` in turn, the one most programs run on without failing
+    (`None` for a's and b's made `a + b` fail, and every untyped Python
+    function asked for with no examples was dropped)."""
+    if all(kind in DEFAULTS for kind in kinds):
+        return [_defaults(kinds, at) for at in range(4)]
+    from research.v696.checker import CheckerError, checker
+    best, best_ran = None, -1
+    for guess in UNTYPED:
+        tried = [kind if kind in DEFAULTS else guess for kind in kinds]
+        inputs = [_defaults(tried, at) for at in range(4)]
+        ran = 0
+        for one in candidates[:12]:
+            try:
+                rows = checker(language).run(one["text"], one["entry"],
+                                             inputs)
+            except CheckerError:
+                continue
+            ran += not all("error" in row for row in rows)
+        if ran > best_ran:
+            best, best_ran = inputs, ran
+    return best
+
+
 #: a function as people write it: types where they are given, a result type
 #: or not (then it gives nothing: `void`)
 WRITTEN_FUNCTION = re.compile(
@@ -975,8 +1011,7 @@ def _open(asked: dict, text: str, out: dict, started: float,
     if wanted:
         inputs = [args for args, _ in wanted] + M.probes(wanted)
     elif shape and shape[0]:
-        inputs = [[DEFAULTS.get(kind, [None])[at % len(DEFAULTS.get(
-            kind, [None]))] for kind in shape[0]] for at in range(4)]
+        inputs = _inputs_for(shape[0], candidates, asked["language"])
     else:
         inputs = [[]]
     groups: dict = {}

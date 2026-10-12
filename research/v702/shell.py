@@ -196,6 +196,41 @@ def bash() -> str | None:
     return shutil.which("bash")
 
 
+_PROGRAMS: dict = {}
+
+
+def runs_programs(command: str) -> bool:
+    """Whether every program a command runs is one this computer has -- a
+    command of bash, or a program on its path (`what is 7 squared?` read
+    as a command runs `what`, which no computer here has)."""
+    found = bash()
+    if found is None:
+        return True
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError:
+        return False
+    names, first = [], True
+    for token in tokens:
+        if token and set(token) <= set(";&|"):
+            first = True
+            continue
+        if first and token and not set(token) <= set("<>") and \
+                not re.fullmatch(r"[A-Za-z_]\w*=.*", token):
+            names.append(token)
+            first = False
+    for name in names:
+        if name not in _PROGRAMS:
+            done = subprocess.run([found, "-c", f"type -t {shlex.quote(name)}"],
+                                  capture_output=True, text=True, timeout=10)
+            _PROGRAMS[name] = bool(done.stdout.strip())
+        if not _PROGRAMS[name]:
+            return False
+    return bool(names)
+
+
 def parses(command: str) -> bool:
     found = bash()
     if found is None:

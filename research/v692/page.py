@@ -144,22 +144,29 @@ def _sentence(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+def asked_of_mathematics(session, text: str) -> bool:
+    """Whether a message asks mathematics something -- what this act
+    takes, and what the shell (v698) leaves to it (`what is 7 squared?`
+    is not the program `what`)."""
+    read = read_for(session, text)
+    if read is None:
+        return False
+    if read.act == "given" and workspace(session).pending is None:
+        # `the width is 6` is mathematics only where something was
+        # asked for; otherwise it is somebody saying something.
+        return False
+    if not read.parts and read.kind is None:
+        # Nothing was read to do it to: `are all prime numbers odd` is
+        # a claim about a kind, which the reasoner answers (R33), not
+        # a sum to work out.
+        return False
+    return True
+
+
 def replies(session) -> list:
     """v692's act, as an operator for v689's act executive."""
     def proposes(memory) -> bool:
-        read = read_for(session, said(memory))
-        if read is None:
-            return False
-        if read.act == "given" and workspace(session).pending is None:
-            # `the width is 6` is mathematics only where something was
-            # asked for; otherwise it is somebody saying something.
-            return False
-        if not read.parts and read.kind is None:
-            # Nothing was read to do it to: `are all prime numbers odd` is
-            # a claim about a kind, which the reasoner answers (R33), not
-            # a sum to work out.
-            return False
-        return True
+        return asked_of_mathematics(session, said(memory))
 
     def apply(memory):
         answer = answered(session, said(memory))

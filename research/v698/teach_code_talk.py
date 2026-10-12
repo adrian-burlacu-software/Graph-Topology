@@ -62,12 +62,17 @@ EACH = 6
 #: a word of what is not code talk is
 KNOWN, NOISE = 0.75, 0.15
 
-ACTS = ("none", "ask", "make", "change", "run", "teach")
+#: `goal` (v704, `research/v704/teach_goals.py`): something wanted, said
+#: without what to change -- never acted on
+# what is said back to a plan held: an option picked, asked about, or
+# what was just done answered (`research/v704/teach_plan_talk.py`)
+ACTS = ("none", "ask", "make", "change", "run", "teach", "goal", "pick",
+        "query", "feedback")
 ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
            "sure", "why", "others", "risk", "files", "functions")
 SUBJECTS = ("none", "project", "file", "named", "last")
 ROLES = ("O", "B-SUBJ", "I-SUBJ", "B-CONCEPT", "I-CONCEPT", "B-MEMBER",
-         "I-MEMBER")
+         "I-MEMBER", "B-OPTION", "I-OPTION")
 
 #: what each aspect asks, as the teacher is told it
 ASKS = {

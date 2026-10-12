@@ -139,6 +139,14 @@ def read(text: str, known=()) -> Reading | None:
     if not said:
         return None
     found = encoder.read(said, tags=_known(said, known), heads=HEADS)
+    # what can be meant depends on the conversation's state: what is said
+    # back to a plan only where one is held -- read with its state word
+    # (v704 `teach_plan_talk.MARKER`); elsewhere the likeliest of the rest
+    # (`what parameters does lend take?` was read as a query of a plan)
+    from research.v704.teach_plan_talk import MARKER, PLAN_ACTS
+    if said[0] != MARKER:
+        found = {**found, "code_act": [one for one in found["code_act"]
+                                       if one[0] not in PLAN_ACTS]}
     act, chance = found["code_act"][0]
     aspect, aspect_chance = found["code_aspect"][0]
     subject = found["code_subject"][0][0]

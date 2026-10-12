@@ -54,6 +54,24 @@ class CheckerTests(unittest.TestCase):
                              [("/ws/app/main.py", 2)])
 
 
+class UntypedTests(unittest.TestCase):
+    """A function written with no types, asked for with no examples: run
+    on what it runs on, not on None."""
+
+    def test_the_kind_most_programs_run_on(self):
+        from research.v697 import coding as C
+        text = C._inputs_for(("any",), [{"text": "def rev(s):\n"
+                                         "    return s[::-1]\n",
+                                         "entry": "rev"}], "python")
+        self.assertTrue(all(isinstance(one[0], str) for one in text))
+        numbers = C._inputs_for(("any", "any"), [{"text": "def add(a, b):\n"
+                                                  "    return a * b - 1\n",
+                                                  "entry": "add"}], "python")
+        self.assertTrue(all(isinstance(one[0], int) for one in numbers))
+        self.assertEqual(C._inputs_for(("number",), [], "python"),
+                         [[0], [1], [5], [-3]])
+
+
 class ReadingAndPrintingTests(unittest.TestCase):
     """`pyparse.py` reads Python into the search's trees, `pyprint.py`
     writes them back as people write Python: the same behaviour."""

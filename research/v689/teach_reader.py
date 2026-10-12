@@ -101,7 +101,9 @@ SUBJECT_DATA = {"math": MATH_DATA, "design": LLM / "design-data",
                 # questions about data (`research/v701/teach_data_talk.py`)
                 "data": LLM / "data-talk-data",
                 # what is asked of the computer (`research/v702/teach_shell.py`)
-                "shell": LLM / "shell-data"}
+                "shell": LLM / "shell-data",
+                # a goal's reply read back (`research/v704/teach_saying.py`)
+                "plan": LLM / "plan-reader-data"}
 SUBJECTS: list = []
 
 
@@ -567,7 +569,8 @@ HEAD_KINDS = {
     "code_act": "sentence", "code_aspect": "sentence",
     "code_subject": "sentence", "code_role": "word",
     "data_act": "sentence", "data_op": "sentence", "data_role": "word",
-    "shell_act": "sentence", "shell_role": "word"}
+    "shell_act": "sentence", "shell_role": "word",
+    "plan_kind": "sentence", "plan_part": "word"}
 
 #: Which field of a record each head is taught from, for each reader. A
 #: reply is read back by v690 (`v690/roundtrip.py`, `teach_decoder.py`).
@@ -596,7 +599,10 @@ FIELDS = {
     # What a message asks of the computer -- a command to run, a task a
     # command does, yes or no to one shown -- and the command's words
     # (`research/v702`).
-    "shell": {"shell_act": "act", "shell_role": "roles"}}
+    "shell": {"shell_act": "act", "shell_role": "roles"},
+    # A piece of a goal's reply read back: which piece, and the slot each
+    # word fills (`research/v704/teach_saying.py`).
+    "plan": {"plan_kind": "act", "plan_part": "roles"}}
 
 
 def task_of(record: dict) -> str:
@@ -2683,7 +2689,7 @@ def claims(store: str) -> None:
 #: taught at.
 SHARES = {"read": 0.37, "ask": 0.13, "place": 0.18, "parse": 0.24,
           "reply": 0.08, "math": 0.12, "code": 0.12, "data": 0.08,
-          "shell": 0.08}
+          "shell": 0.08, "plan": 0.05}
 
 #: How much a head's loss counts, where not once.
 WEIGHTS = {"who": 0.5}
@@ -2706,7 +2712,7 @@ def taught_as(record: dict) -> tuple:
         return task, record["act"], record["aspect"], record["subject"]
     if task == "data":
         return task, record["act"], record["op"]
-    if task == "shell":
+    if task in ("shell", "plan"):
         return task, record["act"]
     same = (all(op == "KEEP" for op in record.get("ops", ()))
             and not record.get("opening") and not any(record.get("inserts", ()))
@@ -2798,6 +2804,11 @@ def labels(rows=()) -> dict:
         from research.v702.teach_shell import (ACTS as SHELL_ACTS,
                                                ROLES as SHELL_ROLES)
         said.update(shell_act=list(SHELL_ACTS), shell_role=list(SHELL_ROLES))
+    if any(task_of(row) == "plan" for row in rows):
+        # A goal's reply read back (`research/v704/teach_saying.py`): the
+        # pieces as it declares them, the slots as its frames have them.
+        from research.v704.teach_saying import KINDS, part_labels
+        said.update(plan_kind=list(KINDS), plan_part=part_labels())
     return {"heads": {name: {"kind": HEAD_KINDS[name], "labels": values}
                       for name, values in said.items()},
             "tags": [""] + tags, "deps": [""] + deps}
@@ -2975,6 +2986,32 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
                 if key.split(".")[0] in ("sentence", "word", "query", "key")
                 and key.split(".")[1] in same}
         net.load_state_dict(kept, strict=False)
+        # a head whose labels grew (`code_act` taught `goal`) keeps what it
+        # learned of the labels it had: each one's row, moved to where the
+        # label is now -- only the new label's row starts from nothing
+        grown = []
+        with torch.no_grad():
+            for name, head in spec["heads"].items():
+                old = before.get("heads", {}).get(name, {}).get("labels")
+                if not old or name in same or not set(old) < set(
+                        head["labels"]):
+                    continue
+                for part in ("sentence", "word"):
+                    layer = getattr(net, part)
+                    weight = saved.get(f"{part}.{name}.weight")
+                    if name not in layer or weight is None:
+                        continue
+                    bias = saved.get(f"{part}.{name}.bias")
+                    for at, label in enumerate(head["labels"]):
+                        if label in old:
+                            layer[name].weight[at] = weight[
+                                old.index(label)].to(layer[name].weight.device)
+                            if bias is not None:
+                                layer[name].bias[at] = bias[old.index(
+                                    label)].to(layer[name].bias.device)
+                    grown.append(name)
+        if grown:
+            print(f"grown, its labels kept: {sorted(grown)}", flush=True)
         # what spaCy's tags and dependencies were learned to mean, each
         # moved to where it is in the new vocabulary (`CODE` is new)
         with torch.no_grad():

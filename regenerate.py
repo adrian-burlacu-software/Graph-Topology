@@ -1830,6 +1830,86 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code31", 80),
              needs=("reader-shell", "plan-commits"),
              cost="ten minutes", gpu=True),
+        Step("reader-goals", "the shared reader taught that a goal is a "
+                             "goal: something wanted, said without what to "
+                             "change (research/v704/teach_goals.py)",
+             lambda: (_run("research.v704.teach_goals", "write"),
+                      _run("research.v704.teach_goals", "check"),
+                      _run("research.v704.teach_goals", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code31"),
+                           "--out", str(LLM / "reader-code32"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell")),
+             _model_check(LLM / "reader-code32", 80),
+             needs=("reader-plans", "smollm3"), cost="forty minutes",
+             gpu=True),
+        Step("goals-history", "the goals this project reached, each "
+                              "commit's kind of step by what it touched "
+                              "(research/v704/history.py)",
+             lambda: _run("research.v704.history", "collect"),
+             lambda: (LLM / "plan-data" / "goals-history.jsonl").exists(),
+             cost="a minute"),
+        Step("self-model", "what the architecture knows of itself, from "
+                           "the latest conversation test run "
+                           "(research/v704/selfmodel.py; run the test "
+                           "first: python -m research.v704.converse)",
+             lambda: _run("research.v704.selfmodel", "build"),
+             lambda: (LLM / "plan-data" / "self.json").exists(),
+             cost="a second, after a twenty-minute test run"),
+        Step("plan-frames", "the teacher's rephrasings of each frame a "
+                            "goal's reply is said in, its slots unfilled "
+                            "(research/v704/teach_saying.py)",
+             lambda: _run("research.v704.teach_saying", "frames"),
+             lambda: (LLM / "plan-data" / "plan-frames.jsonl").exists(),
+             needs=("smollm3",), cost="twenty minutes", gpu=True),
+        Step("plan-sayings", "each piece of every goal's reply said in "
+                             "kept frames, by construction: the sayer's "
+                             "corpus and the plan reader's",
+             lambda: _run("research.v704.teach_saying", "corpus"),
+             lambda: (LLM / "plan-reader-data" / "train-plan.jsonl")
+             .exists(),
+             needs=("plan-frames", "goals-history", "self-model",
+                    "reader-goals"), cost="ten minutes"),
+        Step("reader-plans-read", "the shared reader taught to read a "
+                                  "goal's reply back: its kind of piece "
+                                  "and each word's slot",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code32"),
+                          "--out", str(LLM / "reader-code33"),
+                          "--epochs", "1", "--subject", "math",
+                          "--subject", "design", "--subject", "code",
+                          "--subject", "data", "--subject", "shell",
+                          "--subject", "plan"),
+             _model_check(LLM / "reader-code33", 80),
+             needs=("plan-sayings",), cost="forty minutes", gpu=True),
+        Step("reader-plan-talk", "the shared reader taught what is said "
+                                 "back to a plan it holds: an option "
+                                 "picked, asked about, or what it did "
+                                 "answered (research/v704/teach_plan_talk.py)",
+             lambda: (_run("research.v704.teach_plan_talk", "write"),
+                      _run("research.v704.teach_plan_talk", "more-queries"),
+                      _run("research.v704.teach_plan_talk", "more"),
+                      _run("research.v704.teach_plan_talk", "corrections"),
+                      _run("research.v704.teach_plan_talk", "check"),
+                      _run("research.v704.teach_plan_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code33"),
+                           "--out", str(LLM / "reader-code37"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell",
+                           "--subject", "plan")),
+             _model_check(LLM / "reader-code37", 80),
+             needs=("reader-plans-read", "self-model", "smollm3"),
+             cost="an hour", gpu=True),
+        Step("plan-sayer", "a decoder that says each piece of a goal's "
+                           "reply in its own words, read back by the "
+                           "reader (research/v704/teach_saying.py)",
+             lambda: _run("research.v704.teach_saying", "train"),
+             _model_check(LLM / "plan-sayer2", 600),
+             needs=("plan-sayings",), cost="half an hour", gpu=True),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

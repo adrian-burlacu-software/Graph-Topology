@@ -37,6 +37,14 @@ def _node_path() -> str:
     return found.stdout.strip()
 
 
+def run_folder(language: str) -> str:
+    """An empty folder of its own for a checker's process: what a program
+    written makes with a path of its own (`open(name, "w")`) is made
+    there, not where the server runs."""
+    import tempfile
+    return tempfile.mkdtemp(prefix=f"graph-topology-run-{language}-")
+
+
 class Checker:
     def __init__(self) -> None:
         node = shutil.which("node")
@@ -47,7 +55,8 @@ class Checker:
             [node, "--max-old-space-size=1024", str(SCRIPT)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-            encoding="utf-8", env=env, bufsize=1)
+            encoding="utf-8", env=env, bufsize=1,
+            cwd=run_folder("typescript"))
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
         self.calls = 0

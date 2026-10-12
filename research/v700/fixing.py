@@ -308,6 +308,15 @@ def _flakes(path: str, text: str) -> list:
     return said
 
 
+def _same_code(made: str, part: str) -> bool:
+    """Whether two versions of code are the same code: the same lines, but
+    for blank ones, comments alone on a line, and spaces at their ends."""
+    def code(text: str) -> list:
+        return [line.rstrip() for line in text.splitlines()
+                if line.strip() and not line.strip().startswith(("#", "//"))]
+    return code(made) == code(part)
+
+
 def _lines_changed(part: str, made: str) -> tuple:
     """(lines taken out, lines put in) from `part` to `made`, stripped."""
     out, put = [], []
@@ -683,7 +692,10 @@ def _change_once(statement: str, held, subject, key=None,
             for made in made_all:
                 row = {"answer": answer, "greedy": greedy, "round": round_}
                 tried.append(row)
-                if made == part:
+                if _same_code(made, part):
+                    # a blank line or a comment is no change of the code
+                    # (`change reader.build so that ... is read as
+                    # ask_name` added one blank line, five agreed on it)
                     row["refused"] = "it changes nothing"
                     continue
                 if made in seen:
