@@ -147,7 +147,7 @@ def _goal(text: str, held, read, key: str = "") -> dict:
 FIRST_CASES = 6
 
 
-def _next_step(key: str, held, change) -> dict:
+def _next_step(key: str, held, change, debug=None) -> dict:
     """A held goal's next step, on a yes (v704 `doing`): of itself, each
     step carried out where it can be; of a project, where it would go
     first (`_first_step`), then the same."""
@@ -163,7 +163,7 @@ def _next_step(key: str, held, change) -> dict:
         found["text"] = found["spoken"] = "\n".join(
             [found["text"]] + lines)
         return found
-    lines = doing.carry(goal, change=change, held=held)
+    lines = doing.carry(goal, change=change, held=held, debug=debug)
     # a plan carried out is kept, done, for what is said back to it
     # (`plan talk`): a yes is no longer its
     found = asking._reply("goal step", goal["goal"], "\n".join(lines),
@@ -591,7 +591,8 @@ def replies(session) -> list:
             else:
                 reply = _next_step(key, Pj.project(key),
                                    lambda text, function=None, file=None:
-                                   _by_myself(text, memory, function, file))
+                                   _by_myself(text, memory, function, file),
+                                   _inside)
             memory["turn"].answer = reply
             return ANSWERED
 
@@ -628,6 +629,12 @@ def replies(session) -> list:
             return (found["text"] if found else "Nothing came of it.",
                     status in ("changed", "planned"))
 
+        def _inside(turns, file, function, act=None):
+            # one of its own functions watched while a failing case is
+            # said again, to a scratch session like this one (v705)
+            from research.v705 import inside
+            return inside.look_inside(session, turns, file, function, act)
+
         def asks_plan_talk(memory) -> bool:
             # what is said back to a plan held: an option picked or asked
             # about, or what was just done answered (v704)
@@ -663,7 +670,8 @@ def replies(session) -> list:
                 change=lambda text, function=None, file=None: _by_myself(
                     text, memory, function, file),
                 held=held,
-                undo=lambda: (fixing.undo(held, key) or {}).get("said"))
+                undo=lambda: (fixing.undo(held, key) or {}).get("said"),
+                debug=_inside)
             reply = asking._reply("plan talk", typed(memory),
                                   "\n".join(lines),
                                   {"act": read.act, "option": phrase,

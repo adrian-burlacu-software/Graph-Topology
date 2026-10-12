@@ -171,7 +171,25 @@ def finding(found: list) -> dict | None:
     return None
 
 
-def request_for(found: dict | None) -> str | None:
+def _inside(state: dict, debug) -> dict | None:
+    """The finding's function watched while its case is said again (v705
+    `inside`), where it is the architecture's own and can be: what the call
+    that matters did, and the line it gave back at. Kept, looked once."""
+    shared = state.get("finding") or {}
+    if debug is None or not shared or not shared["file"].startswith(
+            "research/"):
+        return None
+    if "inside" not in shared:
+        case = shared["case"]
+        lost = case.get("lost") or {}
+        shared["inside"] = debug(list(case["before"]) + [case["said"]],
+                                 shared["file"], shared["function"],
+                                 lost.get("act"))
+    return shared["inside"]
+
+
+def request_for(found: dict | None, looked: dict | None = None
+                ) -> str | None:
     """The change the finding asks for, said as a person would say it to
     the architecture: in the function that declined its case (or answered
     it wrongly), answer the case -- after what was said before it."""
@@ -180,6 +198,13 @@ def request_for(found: dict | None) -> str | None:
     case = found["case"]
     module = found["file"].rsplit("/", 1)[-1].rsplit(".", 1)[0]
     named = f"{module}.{found['function']}"
+    if looked and looked.get("line"):
+        # where it gave up, seen inside: the line, what it was given there
+        lost = case.get("lost") or {}
+        return (f"change {named} so that it does not give up at line "
+                f"{looked['line']} (`{looked['code']}`) for "
+                f"\"{case['said']}\""
+                + (f", read as {lost['act']}" if lost.get("act") else ""))
     if found["how"] == "never tried":
         lost = case["lost"]
         return (f"change {named} so that \"{case['said']}\" is read as "
@@ -214,7 +239,7 @@ def measured(label: str) -> dict | None:
 
 # -- the plan, carried out ----------------------------------------------------
 
-def carry(state: dict, change=None, held=None) -> list:
+def carry(state: dict, change=None, held=None, debug=None) -> list:
     """The next step of a held plan, done: its lines. `state` is the goal
     as held (`page.GOALS`), moved on; `change(text)` says a change to the
     architecture itself and returns what it said, where it can."""
@@ -226,7 +251,7 @@ def carry(state: dict, change=None, held=None) -> list:
         lines += _look(state, weak)
         state["at"] = 0
     elif at < len(steps):
-        lines += _step(state, steps[at], change, held)
+        lines += _step(state, steps[at], change, held, debug)
         state["at"] = at + 1
     at = state["at"]
     if at < len(steps):
@@ -266,33 +291,42 @@ def _look(state: dict, weak: dict | None) -> list:
     return lines
 
 
-def _step(state: dict, step: dict, change, held) -> list:
+def _step(state: dict, step: dict, change, held, debug=None) -> list:
     kind = step["kind"]
     if kind in ("change", "build"):
-        # of itself, the finding's request; of a project, the goal itself,
-        # planned across the project as any change is (v703)
-        asked = request_for(state.get("finding")) or (
-            None if state.get("weak") else state.get("goal"))
-        if asked is None:
-            return [f"{step['said']}: I found no place to change, so I "
-                    f"left it."]
-        file = (state.get("finding") or {}).get("file")
+        # of itself, the finding's request -- where it is lost, seen from
+        # inside the function when it can be (v705) -- of a project, the
+        # goal itself, planned across the project as any change is (v703)
+        shared = state.get("finding") or {}
+        file = shared.get("file")
         if change is None or held is None or (file and
                                               file not in held.files):
+            asked = request_for(shared or None) or (
+                None if state.get("weak") else state.get("goal"))
             return [f"{step['said']}: I would ask for \"{asked}\" -- but "
                     f"{file or 'the project'} is not one I hold, so I left "
                     f"it."]
+        lines = []
+        looked = _inside(state, debug)
+        if looked:
+            lines.append(f"Looking inside {shared['function']} with "
+                         f"\"{shared['case']['said']}\": {looked['said']}")
+        asked = request_for(shared or None, looked) or (
+            None if state.get("weak") else state.get("goal"))
+        if asked is None:
+            return lines + [f"{step['said']}: I found no place to change, "
+                            f"so I left it."]
         if asked in state.setdefault("asked", []):
-            return [f"{step['said']}: asked already, in step "
-                    f"{state['asked'].index(asked) + 1} -- left."]
+            return lines + [f"{step['said']}: asked already, in step "
+                            f"{state['asked'].index(asked) + 1} -- left."]
         state["asked"].append(asked)
-        shared = state.get("finding") or {}
         said, changed = change(asked, shared.get("function"),
                                shared.get("file"))
         # what it changed, for the person to answer (`_feedback`)
         state["changed"] = (shared.get("function") or "the project") \
             if changed else None
-        return [f"{step['said']}: I asked myself to {asked}.", said]
+        return lines + [f"{step['said']}: I asked myself to {asked}.",
+                        said]
     if kind == "check":
         numbers = [one["n"] for one in state.get("found") or []
                    if one.get("n") is not None]
@@ -381,7 +415,7 @@ def option_of(state: dict, phrase: str) -> tuple | None:
 
 
 def talk(state: dict, act: str, phrase: str, change=None, held=None,
-         undo=None) -> list:
+         undo=None, debug=None) -> list:
     """A reply to the plan, answered: an option picked is done, one asked
     about is said, and what it just did, answered -- a change it made put
     back where the person found it wanting."""
@@ -395,21 +429,22 @@ def talk(state: dict, act: str, phrase: str, change=None, held=None,
                 f"is. They are: {listed}."]
     kind, at = named
     if act == "pick":
-        return _picked(state, kind, at, change, held)
+        return _picked(state, kind, at, change, held, debug)
     return _asked(state, kind, at)
 
 
-def _picked(state: dict, kind: str, at: int, change, held) -> list:
+def _picked(state: dict, kind: str, at: int, change, held,
+            debug=None) -> list:
     if kind == "weak":
         weak = state["weak"]
         weak.insert(0, weak.pop(at))
         if state.get("plan"):
             history.ground(state["plan"], weak[0])
         state.update(at=None, found=None, finding=None)
-        return carry(state, change, held)
+        return carry(state, change, held, debug)
     if kind == "step":
         state["at"] = at
-        return carry(state, change, held)
+        return carry(state, change, held, debug)
     found = state.get("found")
     if not found:
         _look(state, state["weak"][0])
