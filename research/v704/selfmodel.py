@@ -76,6 +76,65 @@ def family(part: str | None) -> str | None:
     return part
 
 
+def places(root: Path = ROOT / "research") -> dict:
+    """Where each of the architecture's operators lives in its own code, by
+    construction: every `Operator(...)` made in it -- its name, rule, and
+    the functions that propose it and carry it out, each a file, a
+    function and a line. {name: [place, ...]}: a name made in more than
+    one version is told apart by its rule."""
+    import ast
+    found: dict = {}
+    for path in sorted(root.rglob("*.py")):
+        if path.name.startswith("test_"):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        defs = [(one.lineno, one.name) for one in ast.walk(tree)
+                if isinstance(one, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
+        def at(node, line):
+            # a name: the latest function of that name made before the
+            # operator (a closure in the same function); a lambda: itself
+            if isinstance(node, ast.Name):
+                made = [one for one in defs if one[1] == node.id and
+                        one[0] <= line]
+                return {"function": node.id,
+                        "line": max(made)[0]} if made else None
+            if isinstance(node, ast.Lambda):
+                return {"function": "lambda", "line": node.lineno}
+            return None
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and getattr(
+                    node.func, "id", None) == "Operator"):
+                continue
+            given = dict(zip(("name", "apply", "proposes"), node.args))
+            given.update({one.arg: one.value for one in node.keywords})
+            name = given.get("name")
+            if not (isinstance(name, ast.Constant) and
+                    isinstance(name.value, str)):
+                continue
+            rule = given.get("rule")
+            found.setdefault(name.value, []).append({
+                "file": path.relative_to(ROOT).as_posix(),
+                "rule": rule.value if isinstance(rule, ast.Constant) and
+                isinstance(rule.value, str) else "",
+                "apply": at(given.get("apply"), node.lineno),
+                "proposes": at(given.get("proposes"), node.lineno)})
+    return found
+
+
+def place_of(name: str | None, rule: str = "", found: dict | None = None):
+    """The place of the operator of this name (and rule, where several
+    versions made one of that name); None where it is made nowhere."""
+    if not name:
+        return None
+    made = (found if found is not None else places()).get(name) or []
+    same = [one for one in made if rule and one["rule"] == rule]
+    return (same or made or [None])[-1]
+
+
 def _latest() -> str | None:
     runs = [one for one in RUNS.glob("*.jsonl") if "queued" not in one.name]
     return max(runs, key=lambda one: one.stat().st_mtime).stem \
@@ -89,6 +148,10 @@ def build(label: str | None = None) -> dict:
     rows = [json.loads(line) for line in
             (RUNS / f"{label}.jsonl").open(encoding="utf-8")]
     areas: dict = {}
+    found_places = places()
+    for row in rows:
+        row["placed"] = _placed((row.get("operator"), row.get("rule", "")),
+                                found_places)
     for area in AREAS:
         mine = [one for one in rows if one["area"] == area]
         if not mine:
@@ -100,6 +163,12 @@ def build(label: str | None = None) -> dict:
                               if one["verdict"] == "right" and
                               one.get("part"))
         usual = right_parts.most_common(1)[0][0] if right_parts else None
+        # the operator that answers it right: where in the architecture's
+        # own code the area is done
+        right_ops = Counter((one["operator"], one.get("rule", ""))
+                            for one in mine if one["verdict"] == "right"
+                            and one.get("operator"))
+        doer = right_ops.most_common(1)[0][0] if right_ops else None
         failed = [one for one in mine if one["verdict"] != "right"]
         routed = [one for one in failed if right_parts and one.get("part")
                   and family(one["part"]) not in right_parts]
@@ -107,7 +176,10 @@ def build(label: str | None = None) -> dict:
             "what": AREAS[area], "right": verdicts["right"],
             "unsure": verdicts["unsure"], "wrong": verdicts["wrong"],
             "of": len(mine), "usual part": usual,
-            "routed": [_example(one) for one in routed],
+            "done by": _placed(doer, found_places),
+            "routed": [{**_example(one), "should": _placed(doer,
+                                                           found_places)}
+                       for one in routed],
             "failed": [_example(one) for one in failed
                        if one not in routed][:4]}
     found = {"run": label, "built": time.strftime("%Y-%m-%d"),
@@ -119,9 +191,17 @@ def build(label: str | None = None) -> dict:
     return found
 
 
+def _placed(operator, found: dict) -> dict | None:
+    """An operator (name, rule) with its place in the code."""
+    if not operator or not operator[0]:
+        return None
+    return {"operator": operator[0],
+            "place": place_of(operator[0], operator[1], found)}
+
+
 def _example(row: dict) -> dict:
     return {"said": row["turns"][-1][:120], "part": row.get("part"),
-            "verdict": row["verdict"],
+            "verdict": row["verdict"], "by": row.get("placed"),
             "answer": ((row.get("said") or [""])[-1] or "")[:160]}
 
 
@@ -151,18 +231,27 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
     routing = model.get("routing") or []
     if routing:
         found.append({"what": ROUTING, "bad": len(routing),
+                      "count": len(routing),
                       "how": f"{len(routing)} messages went to the wrong "
                              f"part", "examples": routing[:2],
-                      "cases": routing})
+                      "cases": routing,
+                      "where": _where([(one.get("by"), "proposes", "took")
+                                       for one in routing] +
+                                      [(one.get("should"), "proposes",
+                                        "should take") for one in routing])})
     for area in model["areas"].values():
         bad = area["wrong"] + area["unsure"] / 2 - len(area["routed"])
         if area["wrong"] + area["unsure"] == 0:
             continue
         found.append({"what": area["what"], "bad": bad,
+                      "right": area["right"], "of": area["of"],
+                      "wrong": area["wrong"],
                       "how": f"{area['right']} right of {area['of']}, "
                              f"{area['wrong']} wrong",
                       "examples": area["failed"][:2],
-                      "cases": area["failed"]})
+                      "cases": area["failed"],
+                      "where": _where([(area.get("done by"), "apply",
+                                        "does")])})
     if not found:
         return []
     near = dict((what, score) for score, what in
@@ -177,6 +266,25 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
     else:
         chosen.sort(key=lambda one: -near[one["what"]])
     return chosen[:SHOWN]
+
+
+def _where(placed: list) -> list:
+    """The functions of the architecture's own code a weakness is in, each
+    once: the operator, its function (that proposes it, or carries it out),
+    file and line, and what it does in the weakness (`took` a message it
+    should not have, `should take` it, `does` the area), most cases
+    first."""
+    counted: Counter = Counter()
+    for operator, which, role in placed:
+        place = (operator or {}).get("place") or {}
+        function = place.get(which)
+        if not function or function["function"] == "lambda":
+            continue
+        counted[(operator["operator"], function["function"], place["file"],
+                 function["line"], role)] += 1
+    return [{"operator": one[0], "function": one[1], "file": one[2],
+             "line": one[3], "role": one[4], "cases": count}
+            for one, count in counted.most_common()]
 
 
 def said(found: list, model: dict) -> str:

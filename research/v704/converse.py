@@ -99,6 +99,21 @@ def part_of(turn: dict) -> str:
     return str((turn.get("answer") or {}).get("source") or "none")
 
 
+def operator_of(turn: dict) -> tuple:
+    """The executive's operator that answered, its rule, and the others
+    proposed in the cycle it was chosen in -- the place in the
+    architecture's own code an answer came from (`selfmodel.places`)."""
+    for trace in reversed(turn.get("trace") or []):
+        name = trace.get("answered_by")
+        if not name:
+            continue
+        chosen = next((one for one in trace.get("fired", [])
+                       if one.get("operator") == name), {})
+        return name, chosen.get("rule", ""), [
+            one for one in chosen.get("candidates", []) if one != name]
+    return None, "", []
+
+
 def unanswered(turn: dict) -> bool:
     status = (code_of(turn).get("answer") or {}).get("status")
     stance = stance_of(turn)
@@ -299,6 +314,7 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
         status = (code_of(turn).get("answer") or {}).get("status")
         out["status"] = status
         out["part"] = part_of(turn)
+        out["operator"], out["rule"], out["candidates"] = operator_of(turn)
     except urllib.error.HTTPError as bad:
         out.update(verdict="wrong", why=f"server {bad.code}: "
                    f"{bad.read().decode(errors='replace')[:300]}")

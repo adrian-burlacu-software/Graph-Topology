@@ -168,6 +168,99 @@ def plan(goal: str) -> dict | None:
          "likeness": round(score, 3)} for score, one in near]}
 
 
+#: each kind of step, said of what it is done to: a frame per what is
+#: known of it, its slots filled from the weakness (`selfmodel`) or the
+#: project -- the first whose slots are all known is said
+FRAMES = {
+    "change": ("Change {FUNCTION} in {FILE}, which took {TOOK} messages "
+               "that were not its own, and fix what fails",
+               "Change {FUNCTION} in {FILE}, where {WHAT} is done, and fix "
+               "what fails",
+               "Change {THINGS}, and fix what fails"),
+    "build": ("Build the part that is missing for {WHAT}",
+              "Build the part that is missing, beside {THINGS}"),
+    "teach": ("Teach the model that reads it, from data made for it, so "
+              "that \"{CASE}\" goes to {OPERATOR}",
+              "Teach the model that reads it, from data made for it, so "
+              "that \"{CASE}\" is read right"),
+    "check": ("Add the tests that hold it: \"{CASE}\" and the {COUNT} "
+              "other cases that fail now",
+              "Add the tests that hold it: \"{CASE}\""),
+    "measure": ("Measure {WHAT} again, on the conversation test, never "
+                "taught",),
+}
+#: what every step ends with: the goal it was taken in, and how
+PRECEDENT = " -- as in {VERSION}: {PRECEDENT}"
+
+
+def slots_of(weak: dict | None = None, near: list = ()) -> dict:
+    """What a plan's steps can be said of: the weakness it starts with --
+    its first case, how many more, the place in the architecture's own
+    code most of its cases are in and the operator they should have gone
+    to -- or the project's things the goal's words point to."""
+    out: dict = {}
+    if weak:
+        out["WHAT"] = weak["what"]
+        cases = [one["said"].split("\n")[0] for one in
+                 weak.get("cases", []) if one.get("said")]
+        if cases:
+            out["CASE"] = cases[0]
+            if len(cases) > 1:
+                out["COUNT"] = str(len(cases) - 1)
+        where = weak.get("where") or []
+        took = next((one for one in where if one["role"] in
+                     ("took", "does")), None)
+        if took:
+            out.update(FUNCTION=took["function"], FILE=took["file"])
+        if took and took["role"] == "took":
+            out["TOOK"] = str(took["cases"])
+            # the case said is one that place took, and where it should
+            # have gone
+            mine = next((one for one in weak.get("cases", []) if (
+                one.get("by") or {}).get("operator") == took["operator"]
+                and one.get("should")), None)
+            if mine:
+                out["CASE"] = mine["said"].split("\n")[0]
+                out["OPERATOR"] = mine["should"]["operator"]
+    if near:
+        out["THINGS"] = ", ".join(near[:3])
+    return out
+
+
+def framed(kind: str, slots: dict) -> str:
+    """The first frame of a kind of step whose slots are all known, else
+    the kind said of nothing in particular."""
+    import string
+    for frame in FRAMES.get(kind, ()):
+        wanted = {one for _, one, _, _ in string.Formatter().parse(frame)
+                  if one}
+        if wanted <= set(slots):
+            return frame
+    return SAYING[kind]
+
+
+def ground(planned: dict, weak: dict | None = None,
+           near: list = ()) -> dict:
+    """Each step of a plan said of its goal, not of nothing in particular:
+    of the weakness it answers (its cases, and the places in the
+    architecture's own code it is in: `selfmodel.weaknesses`' `where`), or
+    the project's things the goal's words point to (`near`). Each kind of
+    step takes its own part of that (`FRAMES`): a change the places, a
+    test a case, teaching what a case should be read as. A step keeps its
+    frame and its slots, each filled in by construction -- what the plan
+    sayer is taught from, and what its saying is read back to."""
+    known = slots_of(weak, near)
+    for step in planned["steps"]:
+        frame = framed(step["kind"], known)
+        slots = {name: value for name, value in known.items()
+                 if "{" + name + "}" in frame}
+        slots.update(VERSION=step["as in"]["version"],
+                     PRECEDENT=_short(step["as in"]["step"]))
+        step.update(frame=frame + PRECEDENT, slots=slots,
+                    said=frame.format(**slots))
+    return planned
+
+
 def said(found: dict) -> str:
     """A plan in words: the goals it is like, then each step."""
     like = "; ".join(f"{one['version']} ({one['goal']})"

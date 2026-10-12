@@ -32,6 +32,8 @@ PASTED, CODE_TALK = 212.0, 211.0
 #: a question about the project's data (v701): before code talk, where it is
 #: one and what it names is in the data
 DATA_TALK = 211.5
+#: what code talk reads as asking something done, never a question of data
+DOINGS = ("change", "make", "run", "teach", "goal")
 #: data said in a message: before code pasted (a JSON object reads as a
 #: TypeScript one)
 PASTED_DATA = 212.5
@@ -102,45 +104,35 @@ def _goal(text: str, held, read, key: str = "") -> dict:
     architecture once changed a function called `plan` -- but said back as
     a goal, with what the project has that its words point to, and the
     first step asked for."""
-    said = ("That's something you want to achieve rather than a change to "
-            "make, so I haven't changed anything.")
     looked: dict = {"read": read.json()}
     # a goal about the assistant itself: what it does worst now, by the
     # conversation test (v704 `selfmodel`) -- what the steps are of
-    from research.v704 import history, selfmodel
+    from research.v704 import history, selfmodel, teach_saying
     model = selfmodel.held()
     weak = selfmodel.weaknesses(text, model) \
         if model and selfmodel.about_itself(text) else []
     if weak:
         looked["weaknesses"] = weak
-        said += " " + selfmodel.said(weak, model)
-    # its steps, chosen from how this project reached goals like it (v704)
-    planned = history.plan(text)
-    opened = said
-    if planned:
-        looked["plan"] = planned
-        said += " " + history.said(planned)
-        if weak:
-            said += f" Starting with: {weak[0]['what']}."
-    else:
-        said += " No goal I have reached is like it, so I can't break it " \
-                "into steps yet."
-    if held is not None:
+    # its steps, chosen from how this project reached goals like it (v704),
+    # each said of what it is done to: the weakness it starts with, or what
+    # in the project the goal's words point to
+    near: list = []
+    if held is not None and not weak:
         from research.v703 import planning
         near = planning.shortlist(text, held, most=3)
         looked["near"] = near
-        if near:
-            said += " What your words point to: " + ", ".join(near) + "."
-    said += (" Shall I start on the first step?" if planned else
-             " What should the first change be?")
+    planned = history.plan(text)
     if planned:
-        # said plainly by the sayer (v704 `teach_saying`), where what it
-        # says keeps every part; else the parts joined, as above
-        from research.v704 import teach_saying
-        plainly = teach_saying.say(text, weak, planned, model, opened)
-        if plainly:
-            looked["said by"] = "the plan sayer"
-            said = plainly
+        planned = history.ground(planned, weak[0] if weak else None, near)
+        looked["plan"] = planned
+    # the reply in pieces, each said by the plan sayer where its saying
+    # reads back to it, else as the architecture holds it
+    pieces = teach_saying.pieces_of(weak, model, planned)
+    sayings, by_sayer = teach_saying.say(pieces)
+    looked["said by the sayer"] = f"{by_sayer} of {len(pieces)}"
+    said = teach_saying.joined(pieces, sayings)
+    if near and not planned:
+        said += " What your words point to: " + ", ".join(near) + "."
     if planned and key:
         # kept for a yes: the first step taken (`_first_step`)
         GOALS[key] = {"goal": text, "weak": weak, "plan": planned}
@@ -597,7 +589,13 @@ def replies(session) -> list:
             return found_for[text]
 
         def asks_data(memory) -> bool:
-            return not pastes(memory) and data_found(memory) is not None
+            if pastes(memory) or data_found(memory) is None:
+                return False
+            # a doing is no question, whatever it names (`set Dune's pages
+            # to 896` names a record by a value, and asks to change it)
+            read = reading.code_talk(typed(memory), known(_key(session))) \
+                if reading.taught() else None
+            return read is None or read.act not in DOINGS
 
         def answer_data(memory):
             found = data_found(memory)

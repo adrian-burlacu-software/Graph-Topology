@@ -124,5 +124,130 @@ class HistoryTests(unittest.TestCase):
         self.assertIn("1. Build", H.said(found))
 
 
+WEAK = {"what": "sending each message to the right part", "count": 3,
+        "examples": [{"said": "what is 7 squared?", "part": "shell"}],
+        "cases": [{"said": "list the books", "by": {"operator": "data"}},
+                  {"said": "what is 7 squared?",
+                   "by": {"operator": "shell"},
+                   "should": {"operator": "mathematics"}}],
+        "where": [{"operator": "shell", "function": "asks_shell",
+                   "file": "page.py", "line": 1, "role": "took",
+                   "cases": 2},
+                  {"operator": "mathematics", "function": "proposes",
+                   "file": "maths.py", "line": 2, "role": "should take",
+                   "cases": 2}]}
+
+
+def planned(*kinds):
+    return {"like": [{"version": "v1", "goal": "g", "likeness": 0.5}],
+            "steps": [{"kind": kind, "said": "", "as in": {
+                "version": "v1", "step": f"v1: {kind} it"}}
+                for kind in kinds]}
+
+
+class GroundingTests(unittest.TestCase):
+    """Each step said of what it is done to: the weakness's place in the
+    architecture's own code and its case, or the project's things."""
+
+    def test_of_a_weakness(self):
+        from research.v704 import history as H
+        found = H.ground(planned("change", "teach", "check", "tidy"), WEAK)
+        said = [one["said"] for one in found["steps"]]
+        self.assertEqual(said[0], "Change asks_shell in page.py, which "
+                         "took 2 messages that were not its own, and fix "
+                         "what fails")
+        # the case said is one the place took, and where it should go
+        self.assertIn('"what is 7 squared?" goes to mathematics', said[1])
+        self.assertIn("and the 1 other cases", said[2])
+        self.assertEqual(said[3], H.SAYING["tidy"])
+        self.assertEqual(found["steps"][0]["slots"]["VERSION"], "v1")
+
+    def test_of_a_project(self):
+        from research.v704 import history as H
+        found = H.ground(planned("change", "teach"), None, ["a.f", "b.g"])
+        self.assertEqual(found["steps"][0]["said"],
+                         "Change a.f, b.g, and fix what fails")
+        # nothing known to teach of: said of nothing in particular
+        self.assertEqual(found["steps"][1]["said"], H.SAYING["teach"])
+
+
+class PlacesTests(unittest.TestCase):
+    """Where each operator lives in the architecture's own code."""
+
+    def test_found_by_construction(self):
+        from research.v704 import selfmodel as S
+        found = S.places()
+        shell = S.place_of("shell", "", found)
+        self.assertEqual(shell["file"], "research/v698/page.py")
+        self.assertEqual(shell["proposes"]["function"], "asks_shell")
+        self.assertEqual(shell["apply"]["function"], "do_shell")
+
+
+class SayingTests(unittest.TestCase):
+    """A goal's reply in pieces: each a frame and its slots, labelled by
+    construction, and a saying read back to its piece."""
+
+    def test_labelled(self):
+        from research.v704 import teach_saying as T
+        words, parts = T.labelled('so "{CASE}" goes to {OPERATOR}',
+                                  {"CASE": "what is 7?",
+                                   "OPERATOR": "maths"})
+        self.assertEqual(words, ["so", '"', "what", "is", "7", "?", '"',
+                                 "goes", "to", "maths"])
+        self.assertEqual(parts, ["O", "O", "B-CASE", "I-CASE", "I-CASE",
+                                 "I-CASE", "O", "O", "O", "B-OPERATOR"])
+
+    def test_pieces(self):
+        from research.v704 import history as H
+        from research.v704 import teach_saying as T
+        steps = H.ground(planned("change", "tidy"), WEAK)
+        pieces = T.pieces_of([WEAK], {"built": "2026-10-12"}, steps)
+        self.assertEqual([one["kind"] for one in pieces],
+                         ["goal", "worst", "weak-routing", "like", "change",
+                          "tidy", "ask"])
+        said = T.joined(pieces, [T.said_as_held(one) for one in pieces])
+        self.assertIn("1) sending each message", said)
+        self.assertIn("\n1. Change asks_shell", said)
+        self.assertIn("\n2. Clear what is left over", said)
+
+    def test_a_frame_kept(self):
+        from research.v704 import teach_saying as T
+        frame = 'Teach it, so that "{CASE}" goes to {OPERATOR}'
+        self.assertTrue(T.kept_frame(
+            frame, 'Teach it so "{CASE}" moves to {OPERATOR}', set()))
+        # a slot lost, a slot twice, a fact added
+        self.assertIsNone(T.kept_frame(frame, "Teach it to {OPERATOR}",
+                                       set()))
+        self.assertIsNone(T.kept_frame(
+            frame, 'Teach it, so "{CASE}" goes to {OPERATOR} and '
+                   '{OPERATOR}', set()))
+        self.assertIsNone(T.kept_frame(
+            frame, 'Teach it, since users complained, so "{CASE}" goes to '
+                   '{OPERATOR}', set()))
+
+    def test_read_back(self):
+        from unittest import mock
+        from research.v704 import teach_saying as T
+        one = {"kind": "teach", "frame": "",
+               "slots": {"CASE": "what is 7?", "OPERATOR": "maths"}}
+        text = 'Teach it so "what is 7?" goes to maths'
+        words, parts = T.labelled('Teach it so "{CASE}" goes to '
+                                  '{OPERATOR}', one["slots"])
+
+        def read(said, kind="teach", roles=parts, **_):
+            return {"plan_kind": [(kind, 0.9)], "plan_part": roles}
+        framing = {"teach", "it", "so", "goes", "to", '"'}
+        with mock.patch.object(T, "_framing", lambda: framing), \
+                mock.patch("research.encoder.read", read):
+            self.assertIsNone(T.read_back(one, text))
+        with mock.patch.object(T, "_framing", lambda: framing), \
+                mock.patch("research.encoder.read",
+                           lambda *a, **k: read(a, kind="check")):
+            self.assertIn("read as check", T.read_back(one, text))
+        with mock.patch.object(T, "_framing", lambda: framing - {"goes"}), \
+                mock.patch("research.encoder.read", read):
+            self.assertIn("says goes", T.read_back(one, text))
+
+
 if __name__ == "__main__":
     unittest.main()

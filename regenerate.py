@@ -1858,16 +1858,38 @@ def steps() -> list[Step]:
              lambda: _run("research.v704.selfmodel", "build"),
              lambda: (LLM / "plan-data" / "self.json").exists(),
              cost="a second, after a twenty-minute test run"),
-        Step("plan-sayer", "a decoder that says a goal's plan plainly, "
-                           "taught what the teacher said of plans and kept "
-                           "where faithful (research/v704/teach_saying.py)",
-             lambda: (_run("research.v704.teach_saying", "messages"),
-                      _run("research.v704.teach_saying", "write"),
-                      _run("research.v704.teach_saying", "corpus"),
-                      _run("research.v704.teach_saying", "train")),
-             _model_check(LLM / "plan-sayer", 600),
-             needs=("reader-goals", "goals-history", "self-model",
-                    "smollm3"), cost="an hour and a half", gpu=True),
+        Step("plan-frames", "the teacher's rephrasings of each frame a "
+                            "goal's reply is said in, its slots unfilled "
+                            "(research/v704/teach_saying.py)",
+             lambda: _run("research.v704.teach_saying", "frames"),
+             lambda: (LLM / "plan-data" / "plan-frames.jsonl").exists(),
+             needs=("smollm3",), cost="twenty minutes", gpu=True),
+        Step("plan-sayings", "each piece of every goal's reply said in "
+                             "kept frames, by construction: the sayer's "
+                             "corpus and the plan reader's",
+             lambda: _run("research.v704.teach_saying", "corpus"),
+             lambda: (LLM / "plan-reader-data" / "train-plan.jsonl")
+             .exists(),
+             needs=("plan-frames", "goals-history", "self-model",
+                    "reader-goals"), cost="ten minutes"),
+        Step("reader-plans-read", "the shared reader taught to read a "
+                                  "goal's reply back: its kind of piece "
+                                  "and each word's slot",
+             lambda: _run("research.v689.teach_reader", "train",
+                          "--base", str(LLM / "reader-code32"),
+                          "--out", str(LLM / "reader-code33"),
+                          "--epochs", "1", "--subject", "math",
+                          "--subject", "design", "--subject", "code",
+                          "--subject", "data", "--subject", "shell",
+                          "--subject", "plan"),
+             _model_check(LLM / "reader-code33", 80),
+             needs=("plan-sayings",), cost="forty minutes", gpu=True),
+        Step("plan-sayer", "a decoder that says each piece of a goal's "
+                           "reply in its own words, read back by the "
+                           "reader (research/v704/teach_saying.py)",
+             lambda: _run("research.v704.teach_saying", "train"),
+             _model_check(LLM / "plan-sayer2", 600),
+             needs=("plan-sayings",), cost="half an hour", gpu=True),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

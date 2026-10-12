@@ -1,28 +1,37 @@
-"""Saying a goal's plan plainly (v704, step 4 of planning goals): the plan
-as the architecture holds it, said in English by a decoder taught to --
-piece by piece.
+"""Saying a goal's plan plainly (v704, step 4 of planning goals): the reply
+to a goal as the architecture holds it -- pieces, each a frame and its
+slots -- said in English by a decoder taught to, and read back.
 
-    python -m research.v704.teach_saying messages   llm/plan-data/plan-pieces.jsonl
-    python -m research.v704.teach_saying write      the teacher says each
-    python -m research.v704.teach_saying corpus     kept where faithful
-    python -m research.v704.teach_saying train      llm/plan-sayer
+    python -m research.v704.teach_saying frames       the teacher rephrases each frame
+    python -m research.v704.teach_saying corpus       sayings, by construction
+    python -m research.v704.teach_saying train        llm/plan-sayer2
+    python -m research.v704.teach_saying measure      held out, read back
 
-A goal's reply was its parts joined -- "What I do worst now, by the
-conversation test of 2026-10-11: 1) ... Goals like it here were reached
-this way -- v698/vscode-harness (...): 1. Build ..." -- the parts right,
-the saying a template's.
+**What failed first** (0873cc9): the teacher (SmolLM3) asked to say whole
+plans said 0 of 24 faithfully, and asked to say each opening made up what
+the plan did not hold (attempts, crashes: 0 of 2,043 kept); the steps it
+kept were near-copies of what it was given. A saying checked by counting
+its words cannot tell a paraphrase from an invention.
 
-**Said whole, the teacher failed** (SmolLM3, 0 of 24 faithful): it said
-steps twice, dropped the versions, and made up that nothing changed when
-the person tried them. **Said in pieces** it is asked one small thing at
-a time: the **opening** -- nothing changed, and what the assistant does
-worst now, each example quoted -- and each **step**, one sentence that
-begins with its verb and says what it was in the version named. **Kept
-where faithful, by construction** (`faithful`): every example quoted as
-it is, every version the piece cites and no other, a step's verb first.
-**The sayer** (SmolLM2-360M, `llm/plan-sayer`) is taught what is kept;
-at run time each piece it says is checked the same way, and the piece
-said as before where it fails.
+**Now the architecture says each piece itself** -- `history.FRAMES` for
+the steps (each said of the goal: the place in its own code, the case that
+fails), `PIECES` here for the rest -- **and the teacher only rephrases the
+frames**, their slots left as `{SLOT}`s: it never sees what fills them, so
+it has nothing to embellish. A rephrasing is kept where every slot is in it
+once, and every other word it says is its frame's, a synonym of one
+(WordNet), or the rephrasings' framing (counted over all of them, not
+listed). **The sayings are made by construction**: each piece of every
+goal's reply (the teacher's goals, this project's) said in several kept
+frames, its slots filled -- so each word's part is known (`plan_part`:
+which slot, or O) and each saying's kind (`plan_kind`).
+
+**The sayer** (SmolLM2-360M, `llm/plan-sayer2`) is taught piece -> saying;
+**the shared reader** (`--subject plan`) is taught to read a saying back
+into its kind and slots (v690's round trip, for plans). At run time a
+piece is said by the sayer and kept only where it **reads back**: its kind
+the piece's, each slot read exactly as the piece has it and nothing else
+read as one, and no word read as framing that no kept frame says. Else the
+frame as the architecture has it.
 """
 from __future__ import annotations
 
@@ -30,109 +39,264 @@ import argparse
 import json
 import random
 import re
+import string
 import sys
+from collections import Counter
 
 from research.v704 import history, selfmodel
 
 DATA = history.HISTORY.parent
-PIECES = DATA / "plan-pieces.jsonl"
-SAID = DATA / "plan-said.jsonl"
+FRAMED = DATA / "plan-frames.jsonl"
 CORPUS = DATA / "plan-saying.jsonl"
-SAYER = history.ROOT / "llm" / "plan-sayer"
-SEED = 7041
-SAYING = ("You say one piece of an assistant's plan to the person, plainly, "
-          "in its own words: keep every quoted example and every version "
-          "named, begin a step with its verb, and add nothing.")
-OPENING_ASKS = (
-    "An assistant was given a goal by a person. It has changed nothing "
-    "yet. Below is the goal and, maybe, what the assistant does worst now "
-    "with a real example of each. Write the assistant's first one or two "
-    "sentences to the person, as 'I': that it has changed nothing, and "
-    "what it does worst (if given), quoting each example exactly as "
-    "written between the quotes. Do not list steps, do not add anything "
-    "not given. Reply with the sentences only.\n\n")
-STEP_ASKS = (
-    "Rewrite this step of a plan as one plain sentence to the person. "
-    "Begin it with the word '{verb}'. Say what the step was in "
-    "{version}, keeping '{version}' exactly as written. Add nothing not "
-    "given. Reply with the sentence only.\n\n")
-#: the most a piece is said in
-LONGEST_OPENING, LONGEST_STEP = 420, 260
+READER_DATA = history.ROOT / "llm" / "plan-reader-data"
+SAYER = history.ROOT / "llm" / "plan-sayer2"
+SEED = 7042
+SAYING = ("You say one piece of an assistant's reply to a person's goal, "
+          "plainly, in your own words: keep every value given exactly as "
+          "written, and add nothing.")
+
+#: the reply's pieces besides the steps: what each says, of what slots
+PIECES = {
+    "goal": "That's something you want to achieve rather than a change "
+            "to make, so I haven't changed anything.",
+    "worst": "What I do worst now, by the conversation test of {DATE}:",
+    "weak-area": "{WHAT}: {RIGHT} right of {OF}, {WRONG} wrong -- e.g. "
+                 "\"{CASE}\" (answered by {PART})",
+    "weak-routing": "{WHAT}: {COUNT} messages went to the wrong part -- "
+                    "e.g. \"{CASE}\" (answered by {PART})",
+    "like": "Goals like it here ({LIKE}) were reached this way:",
+    "unlike": "No goal I have reached is like it, so I can't break it "
+              "into steps yet.",
+    "ask": "Shall I start on the first step?",
+    "ask-change": "What should the first change be?",
+}
+KINDS = tuple(PIECES) + tuple(history.SAYING)
+FRAMES_ASK = (
+    "Rewrite this sentence, which an assistant says to a person, in other "
+    "plain words. Keep every placeholder in curly braces exactly as "
+    "written, each once, and keep quoted text quoted. Do not add any "
+    "fact, reason or example. Reply with the sentence only.\n\n")
+#: rephrasings asked of each frame, in rounds of this many
+ROUNDS, SAMPLES = 6, 8
+#: a word is the rephrasings' framing where this share of them say it
+FRAMES_IN = 0.02
+#: the kept frames each piece is said in, in the corpus
+SAID_IN = 4
 
 
-def opening(goal: str, weak: list, model: dict | None) -> str:
-    """The opening's piece: the goal, and its weaknesses if it is about the
-    assistant itself."""
-    lines = ["say: opening", f"goal: {goal}"]
+def part_labels() -> list:
+    """What the reader says each word of a saying is: O, or the start or
+    rest of a slot -- every slot any frame has."""
+    names = sorted({name for frame in base_frames() for name in
+                    slots(frame)})
+    return ["O"] + [f"{edge}-{name}" for name in names
+                    for edge in ("B", "I")]
+
+
+def slots(frame: str) -> list:
+    return [one for _, one, _, _ in string.Formatter().parse(frame) if one]
+
+
+TOKEN = r"[\w][\w./\-']*[\w]|[\w]|[^\w\s]"
+
+
+def tokens(text: str) -> list:
+    """A saying's words as the reader reads them: a path or a name one
+    word, each mark its own."""
+    return re.findall(TOKEN, text)
+
+
+# -- the pieces of a goal's reply ---------------------------------------------
+
+def piece(kind: str, frame: str, filled: dict) -> dict:
+    return {"kind": kind, "frame": frame, "slots": {
+        name: str(filled[name]) for name in slots(frame)}}
+
+
+def pieces_of(weak: list, model: dict | None, planned: dict | None) -> list:
+    """The pieces of a goal's reply, in order: nothing changed; what it
+    does worst, if the goal is of itself; the goals it is like and each
+    step, or that none is; and the question."""
+    out = [piece("goal", PIECES["goal"], {})]
     if weak and model:
-        lines.append(f"tested: {model['built']}")
+        out.append(piece("worst", PIECES["worst"], {"DATE": model["built"]}))
         for one in weak:
-            example = one["examples"][0] if one["examples"] else None
-            lines.append(f"weak: {one['what']} | {one['how']}" + (
-                f" | e.g. \"{example['said']}\" answered by "
-                f"{example['part']}" if example else ""))
-    return "\n".join(lines)
+            example = (one.get("examples") or [None])[0]
+            if not example:
+                continue
+            filled = {"WHAT": one["what"], "CASE": example["said"].split(
+                "\n")[0], "PART": example.get("part") or "nothing",
+                "COUNT": one.get("count"), "RIGHT": one.get("right"),
+                "OF": one.get("of"), "WRONG": one.get("wrong")}
+            kind = "weak-routing" if "count" in one else "weak-area"
+            out.append(piece(kind, PIECES[kind], filled))
+    if planned:
+        out.append(piece("like", PIECES["like"], {"LIKE": ", ".join(
+            one["version"] for one in planned["like"])}))
+        for step in planned["steps"]:
+            out.append({"kind": step["kind"], "frame": step["frame"],
+                        "slots": dict(step["slots"])})
+    else:
+        out.append(piece("unlike", PIECES["unlike"], {}))
+    out.append(piece("ask", PIECES["ask"], {}) if planned else
+               piece("ask-change", PIECES["ask-change"], {}))
+    return out
 
 
-def step(one: dict) -> str:
-    """A step's piece: what to do, and what it was in the version named."""
-    return (f"say: step\nstep: {one['said']} | as in "
-            f"{one['as in']['version']}: "
-            f"{history._short(one['as in']['step'])}")
+def said_as_held(one: dict) -> str:
+    return one["frame"].format(**one["slots"])
 
 
-FRAMING = DATA / "plan-framing.json"
-#: a word is the openings' framing where this share of the teacher's
-#: openings say it, whatever they open (`changed`, `anything`, `yet`)
-FRAMES_IN = 0.15
+def statement(one: dict) -> str:
+    """What the sayer is given: the kind of piece and what fills it."""
+    return "\n".join([f"say: {one['kind']}"] + [
+        f"{name}: {value}" for name, value in one["slots"].items()])
 
 
-def _content(text: str) -> set:
-    return {one.rstrip("s") for one in re.findall(r"[a-z]{4,}", text.lower())}
+def joined(pieces: list, said: list) -> str:
+    """The reply: each piece's saying, the weaknesses and the steps
+    numbered."""
+    lines, weak, steps = [], 0, 0
+    for one, text in zip(pieces, said):
+        if one["kind"].startswith("weak-"):
+            weak += 1
+            text = f"{weak}) {text}"
+        elif one["kind"] in history.SAYING:
+            steps += 1
+            text = f"{steps}. {text}"
+        lines.append(text)
+    out = []
+    for one, line in zip(pieces, lines):
+        # a numbered line its own; the sentences around them run on
+        if out and not re.match(r"\d+[.)] ", line) and not re.match(
+                r"\d+[.)] ", out[-1]) and not out[-1].endswith(":"):
+            out[-1] += " " + line
+        else:
+            out.append(line)
+    return "\n".join(out)
 
 
-def _framing() -> set | None:
-    if not FRAMING.exists():
+# -- the frames, rephrased ----------------------------------------------------
+
+def base_frames() -> dict:
+    """Every frame the architecture says a piece in: {frame: kind}."""
+    out = {frame: kind for kind, frame in PIECES.items()}
+    for kind, frames in history.FRAMES.items():
+        for frame in frames:
+            out[frame + history.PRECEDENT] = kind
+    for kind, frame in history.SAYING.items():
+        out[frame + history.PRECEDENT] = kind
+    return out
+
+
+def frames() -> None:
+    """The teacher rephrases each frame, its slots left unfilled."""
+    from research.v696.teach_meaning import Teacher
+    teacher = Teacher()
+    teacher.torch.manual_seed(SEED)
+    based = base_frames()
+    with FRAMED.open("w", encoding="utf-8") as out:
+        for round_ in range(ROUNDS):
+            asked = list(based)
+            replies = teacher.write([FRAMES_ASK + one for one in asked],
+                                    longest=120, samples=SAMPLES,
+                                    temperature=0.9)
+            for frame, said in zip(asked, replies):
+                out.write(json.dumps({"frame": frame, "kind": based[frame],
+                                      "said": said}) + "\n")
+            print(f"round {round_ + 1} of {ROUNDS}", flush=True)
+
+
+_NLP: dict = {}
+
+
+def _lemmas(text: str) -> list:
+    """The content words of a frame's own words (its slots left out), by
+    lemma."""
+    if "nlp" not in _NLP:
+        import spacy
+        _NLP["nlp"] = spacy.load("en_core_web_sm")
+    bare = re.sub(r"\{[A-Z]+\}", " ", text)
+    return [one.lemma_.lower() for one in _NLP["nlp"](bare)
+            if one.is_alpha and not one.is_stop and one.pos_ in
+            ("NOUN", "VERB", "ADJ", "ADV", "PROPN", "NUM")]
+
+
+def _synonyms(lemma: str) -> set:
+    from nltk.corpus import wordnet
+    return {name.lower().replace("_", " ") for synset in
+            wordnet.synsets(lemma) for name in synset.lemma_names()}
+
+
+def kept_frame(frame: str, said: str, framing: set) -> str | None:
+    """A rephrasing kept: one sentence, every slot once and no other, the
+    quoted kept quoted, and every word of its own its frame's, a synonym
+    of one, or the rephrasings' framing. Its text, else None."""
+    said = said.strip().strip('"').strip()
+    if not said or "\n" in said or len(said) > 2 * len(frame) + 40:
         return None
-    return set(json.loads(FRAMING.read_text(encoding="utf-8")))
+    if Counter(slots(said)) != Counter(slots(frame)):
+        return None
+    if any(len(re.findall(r"\{" + name + r"\}", said)) != 1
+           for name in slots(frame)):
+        return None
+    for quoted in re.findall(r'"(\{[A-Z]+\})"', frame):
+        if f'"{quoted}"' not in said:
+            return None
+    own = set(_lemmas(frame))
+    allowed = own | framing | {name for one in own
+                               for name in _synonyms(one)}
+    if any(one not in allowed for one in _lemmas(said)):
+        return None
+    return said
 
 
-def faithful(piece: str, said: str, framing: set | None = None) -> bool:
-    """Whether a saying keeps what its piece holds: each example quoted as
-    it is, every version cited and no other; a step, one sentence that
-    begins with its verb; an opening, no steps, and no word its piece has
-    not but the openings' framing (v690's read-back: `I tend to focus too
-    much on individual features` was said of a goal that said nothing of
-    it)."""
-    if framing is None:
-        framing = _framing()
-    said = said.strip()
-    if not said or "\n" in said.strip() and piece.startswith("say: step"):
-        return False
-    lowered = said.lower()
-    for quoted in re.findall(r'e\.g\. "([^"]+)"', piece):
-        if quoted.lower() not in lowered:
-            return False
-    versions = set(re.findall(r"\b(v\d{3}[\w/\-]*)", piece))
-    if any(one.lower() not in lowered for one in versions):
-        return False
-    if set(re.findall(r"\b(v\d{3})", said)) - {one[:4] for one in versions}:
-        return False
-    if piece.startswith("say: step"):
-        if "|" in said:
-            # the piece's own form said back, not said
-            return False
-        verb = piece.split("step: ", 2)[-1].split()[0].lower()
-        return said.split()[0].lower().strip("*:,") == verb and \
-            len(said) <= LONGEST_STEP
-    if re.search(r"(?m)^\s*\d+[.)]\s", said) or len(said) > LONGEST_OPENING:
-        return False
-    return framing is None or _content(said) <= _content(piece) | framing
+def kept_frames() -> dict:
+    """{base frame: [kept rephrasings, the frame itself first]}."""
+    rows = [json.loads(line) for line in FRAMED.open(encoding="utf-8")]
+    said = [one for row in rows for one in row["said"]]
+    counted: Counter = Counter()
+    for one in said:
+        counted.update(set(_lemmas(one)))
+    framing = {word for word, count in counted.items()
+               if count >= FRAMES_IN * max(len(said), 1)}
+    out: dict = {frame: [frame] for frame in base_frames()}
+    for row in rows:
+        for one in row["said"]:
+            kept = kept_frame(row["frame"], one, framing)
+            if kept and kept not in out.setdefault(row["frame"], []):
+                out[row["frame"]].append(kept)
+    return out
 
 
-def messages() -> int:
-    """The pieces of every goal's plan: the teacher's goals and this
-    project's -- each opening, and each step once."""
+# -- the sayings, by construction ---------------------------------------------
+
+def labelled(frame: str, filled: dict) -> tuple:
+    """A frame filled, as words: each word's part (the slot it fills, or
+    O)."""
+    # where each slot's value is in the saying, then the saying's words as
+    # the reader reads them (`tokens`), each in the slot it starts in
+    text, places = "", []
+    for literal, name, _, _ in string.Formatter().parse(frame):
+        text += literal
+        if name:
+            value = str(filled[name])
+            places.append((len(text), len(text) + len(value), name))
+            text += value
+    words, parts, last = [], [], None
+    for found in re.finditer(TOKEN, text):
+        name = next((one[2] for one in places
+                     if one[0] <= found.start() < one[1]), None)
+        words.append(found.group())
+        if name is None:
+            parts.append("O")
+        else:
+            parts.append(("I-" if last == name else "B-") + name)
+        last = name
+    return words, parts
+
+
+def _goals() -> list:
     from research.v698.teach_code_talk import DATA as TALK
     goals = []
     for split in ("train", "valid"):
@@ -140,93 +304,88 @@ def messages() -> int:
         if path.exists():
             goals += [(" ".join(json.loads(line)["words"]), split)
                       for line in path.open(encoding="utf-8")]
-    goals += [(one["goal"], "train") for one in history._goals()]
-    model = selfmodel.held()
-    pieces: dict = {}
-    for goal, split in goals:
-        planned = history.plan(goal)
-        if not planned:
+    return goals + [(one["goal"], "train") for one in history._goals()]
+
+
+def _names() -> list:
+    """Names of this project's functions, to fill a project goal's things
+    with (what the goal's words would point to: real names, picked by
+    construction)."""
+    import ast
+    out = []
+    for path in sorted((history.ROOT / "research").rglob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
             continue
-        weak = selfmodel.weaknesses(goal, model) \
-            if model and selfmodel.about_itself(goal) else []
-        pieces.setdefault(opening(goal, weak, model), split)
-        for one in planned["steps"]:
-            pieces.setdefault(step(one), split)
-    with PIECES.open("w", encoding="utf-8") as out:
-        for piece, split in pieces.items():
-            out.write(json.dumps({"piece": piece, "split": split}) + "\n")
-    print(f"{len(pieces)} pieces of {len(goals)} goals")
-    return len(pieces)
-
-
-def _asked(piece: str) -> str:
-    if piece.startswith("say: step"):
-        verb = piece.split("step: ", 2)[-1].split()[0]
-        found = re.search(r"as in (\S+):", piece)
-        return STEP_ASKS.format(verb=verb, version=found.group(1)
-                                if found else "the past goal") + piece
-    return OPENING_ASKS + piece
-
-
-def write(batch: int = 16) -> None:
-    from research.v696.teach_meaning import Teacher
-    rows = [json.loads(line) for line in PIECES.open(encoding="utf-8")]
-    done = set()
-    if SAID.exists():
-        done = {json.loads(line)["piece"] for line in
-                SAID.open(encoding="utf-8")}
-    todo = [one for one in rows if one["piece"] not in done]
-    teacher = Teacher()
-    teacher.torch.manual_seed(SEED)
-    for at in range(0, len(todo), batch):
-        chunk = todo[at:at + batch]
-        replies = teacher.write([_asked(one["piece"]) for one in chunk],
-                                longest=160, samples=3, temperature=0.8)
-        with SAID.open("a", encoding="utf-8") as out:
-            for one, said in zip(chunk, replies):
-                out.write(json.dumps({**one, "said": said}) + "\n")
-        print(f"{at + len(chunk)} of {len(todo)}", flush=True)
+        out += [one.name for one in tree.body
+                if isinstance(one, ast.FunctionDef)]
+    return sorted(set(out))
 
 
 def corpus() -> dict:
-    rows = [json.loads(line) for line in SAID.open(encoding="utf-8")]
-    # the openings' framing: the words a share of all openings say,
-    # whatever their goal -- counted, not listed
-    openings = [said.strip().strip('"') for row in rows
-                if not row["piece"].startswith("say: step")
-                for said in row["said"]]
-    counted: dict = {}
-    for said in openings:
-        for word in _content(said):
-            counted[word] = counted.get(word, 0) + 1
-    framing = {word for word, count in counted.items()
-               if count >= FRAMES_IN * max(len(openings), 1)}
-    FRAMING.write_text(json.dumps(sorted(framing)), encoding="utf-8")
-    kept, total, by = [], 0, {"opening": [0, 0], "step": [0, 0]}
-    for row in rows:
-        kind = "step" if row["piece"].startswith("say: step") else "opening"
-        for said in row["said"]:
-            said = said.strip().strip('"')
-            total += 1
-            by[kind][1] += 1
-            if faithful(row["piece"], said, framing):
-                by[kind][0] += 1
-                kept.append({"split": row["split"], "statement":
-                             row["piece"], "target": said})
-    random.Random(SEED).shuffle(kept)
+    """Every piece of every goal's reply, each said in `SAID_IN` kept
+    frames: the sayer's corpus (piece -> saying) and the reader's (each
+    saying's words, their parts and its kind)."""
+    kept = kept_frames()
+    rng = random.Random(SEED)
+    model = selfmodel.held()
+    names = _names()
+    sayer, reader = [], {"train": [], "valid": []}
+    counts: Counter = Counter()
+    for goal, split in _goals():
+        planned = history.plan(goal)
+        itself = bool(model) and selfmodel.about_itself(goal)
+        weak = selfmodel.weaknesses(goal, model) if itself else []
+        if planned:
+            near = [] if weak else rng.sample(names, rng.randint(1, 3))
+            planned = history.ground(planned, weak[0] if weak else None,
+                                     near)
+        for one in pieces_of(weak, model, planned):
+            frames_ = kept.get(one["frame"]) or [one["frame"]]
+            chosen = frames_[:1] + rng.sample(
+                frames_[1:], min(SAID_IN - 1, len(frames_) - 1))
+            for frame in chosen:
+                words, parts = labelled(frame, one["slots"])
+                text = frame.format(**one["slots"])
+                counts[one["kind"]] += 1
+                sayer.append({"split": split, "statement": statement(one),
+                              "target": text})
+                reader[split].append({
+                    "task": "plan", "words": words, "roles": parts,
+                    "act": one["kind"], "tags": [""] * len(words),
+                    "deps": [""] * len(words), "names": [], "said": text,
+                    "source": "constructed", "how": "framed"})
+    # the same piece said the same way once
+    seen, unique = set(), []
+    for one in sayer:
+        key = (one["statement"], one["target"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(one)
+    rng.shuffle(unique)
     with CORPUS.open("w", encoding="utf-8") as out:
-        for one in kept:
+        for one in unique:
             out.write(json.dumps(one) + "\n")
-    counts = {"said": total, "kept": len(kept), "framing": sorted(framing),
-              "kept of each": {kind: f"{one[0]} of {one[1]}"
-                               for kind, one in by.items()}}
-    print(json.dumps(counts))
-    return counts
+    READER_DATA.mkdir(parents=True, exist_ok=True)
+    for split, rows in reader.items():
+        rows = list({one["said"]: one for one in rows}.values())
+        rng.shuffle(rows)
+        with (READER_DATA / f"{split}-plan.jsonl").open(
+                "w", encoding="utf-8") as out:
+            for one in rows:
+                out.write(json.dumps(one) + "\n")
+    found = {"frames": {kind: sum(len(v) for f, v in kept.items()
+                                  if base_frames().get(f) == kind)
+                        for kind in KINDS},
+             "sayings": len(unique), "by kind": dict(counts)}
+    print(json.dumps(found))
+    return found
 
 
-def train(epochs: int = 2) -> None:
-    """The sayer: SmolLM2-360M taught the kept sayings (the editor's
-    trainer, told what it says)."""
+def train(epochs: int = 1) -> None:
+    """The sayer: SmolLM2-360M taught the sayings (the editor's trainer,
+    told what it says)."""
     from research.v700 import teach_editor as T
     T.SAYING = SAYING
     T._text = lambda row: row["statement"]
@@ -236,8 +395,10 @@ def train(epochs: int = 2) -> None:
         for one in rows:
             out.write(json.dumps({**one, "split": "train" if one["split"]
                                   == "train" else "dev"}) + "\n")
-    T.train(SAYER, epochs=epochs, corpus=staged, longest=512)
+    T.train(SAYER, epochs=epochs, corpus=staged, longest=384)
 
+
+# -- run time: said, and read back --------------------------------------------
 
 _LOADED: dict = {}
 
@@ -251,49 +412,132 @@ def _sayer():
     return _LOADED["sayer"]
 
 
-def said_by_sayer(pieces: list) -> list:
-    """Each piece said by the sayer where what it says keeps the piece,
-    else None in its place; all None where there is no sayer."""
+def reads_plans() -> bool:
+    from research import encoder
+    return encoder.enabled() and "plan_kind" in encoder.LOADED.get().heads
+
+
+def _framing() -> set:
+    """Every word the kept frames say of their own: what a saying may say
+    besides its slots."""
+    if "framing" not in _LOADED:
+        words: set = set()
+        if FRAMED.exists():
+            for options in kept_frames().values():
+                for frame in options:
+                    bare = re.sub(r"\{[A-Z]+\}", " ", frame)
+                    words |= {one.lower() for one in tokens(bare)}
+        _LOADED["framing"] = words
+    return _LOADED["framing"]
+
+
+def read_back(one: dict, text: str) -> str | None:
+    """Why a saying does not say its piece, else None: its kind as read,
+    each slot read exactly as the piece has it and nothing else read as a
+    slot, and every other word one a kept frame says."""
+    from research import encoder
+    words = tokens(text)
+    if not words:
+        return "said nothing"
+    found = encoder.read(words, heads=("plan_kind", "plan_part"))
+    kind = found["plan_kind"][0][0]
+    if kind != one["kind"]:
+        return f"read as {kind}, not {one['kind']}"
+    spans: dict = {}
+    framing = _framing()
+    for word, part in zip(words, found["plan_part"]):
+        if part == "O":
+            if word.lower() not in framing and word.isalpha():
+                return f"says {word}, which no frame does"
+            continue
+        name = part[2:]
+        if part.startswith("B-") or name not in spans:
+            if part.startswith("B-") and name in spans:
+                return f"says {name} twice"
+            spans[name] = []
+        spans[name].append(word)
+    for name, value in one["slots"].items():
+        if [w.lower() for w in spans.pop(name, [])] != \
+                [w.lower() for w in tokens(value)]:
+            return f"does not say {name} as it is"
+    if spans:
+        return f"says {', '.join(spans)}, which the piece has not"
+    return None
+
+
+def say(pieces: list, samples: int = 3) -> tuple:
+    """Each piece said by the sayer where a saying reads back to it, else
+    as the architecture holds it: (the sayings, how many were the
+    sayer's). As held, all, where there is no sayer or reader."""
+    held = [said_as_held(one) for one in pieces]
     sayer = _sayer()
-    if sayer is None:
-        return [None] * len(pieces)
-    written = sayer.write(pieces, samples=2, longest=160, saying=SAYING)
-    return [next((one.strip() for one in answers
-                  if faithful(piece, one.strip())), None)
-            for piece, answers in zip(pieces, written)]
+    if sayer is None or not reads_plans():
+        return held, 0
+    written = sayer.write([statement(one) for one in pieces],
+                          samples=samples, longest=160, saying=SAYING)
+    out, by_sayer = [], 0
+    for one, answers, fallback in zip(pieces, written, held):
+        good = next((text.strip() for text in answers
+                     if read_back(one, text.strip()) is None), None)
+        by_sayer += good is not None
+        out.append(good or fallback)
+    return out, by_sayer
 
 
-def say(goal: str, weak: list, planned: dict, model: dict | None,
-        joined_opening: str) -> str | None:
-    """A goal's plan said plainly: the sayer's opening and steps, each where
-    faithful, else as before (`joined_opening`, `history.SAYING`); None
-    where there is no sayer."""
-    if _sayer() is None:
-        return None
-    # the steps only: the teacher's openings each made up what the plan
-    # did not hold (0 of 2,043 kept), so an opening is the architecture's
-    # own, joined from what it holds
-    pieces = [step(one) for one in planned["steps"]]
-    said = said_by_sayer(pieces)
-    like = ", ".join(one["version"] for one in planned["like"])
-    lines = [joined_opening,
-             f"Goals like it here ({like}) were reached this way:"]
-    for at, (one, plainly) in enumerate(zip(planned["steps"], said), 1):
-        example = one["as in"]
-        lines.append(f"{at}. " + (plainly or (
-            f"{one['said']} (as in {example['version']}: "
-            f"{history._short(example['step'])})")))
-    lines.append("Shall I start on the first step?")
-    return "\n".join(lines)
+def measure(most: int = 200) -> dict:
+    """On the held-out goals' pieces: how many the sayer says so they read
+    back, and how many of those are not the frame as held."""
+    rows = [json.loads(line) for line in CORPUS.open(encoding="utf-8")
+            if json.loads(line)["split"] != "train"]
+    seen, pieces = set(), []
+    for row in rows:
+        if row["statement"] in seen:
+            continue
+        seen.add(row["statement"])
+        lines = row["statement"].split("\n")
+        kind = lines[0].split(": ", 1)[1]
+        filled = dict(line.split(": ", 1) for line in lines[1:])
+        pieces.append({"kind": kind, "slots": filled, "frame": ""})
+    pieces = pieces[:most]
+    sayer = _sayer()
+    written = sayer.write([statement(one) for one in pieces], samples=3,
+                          longest=160, saying=SAYING)
+    kept, other, why = 0, 0, Counter()
+    for one, answers in zip(pieces, written):
+        good = None
+        for text in answers:
+            wrong = read_back(one, text.strip())
+            if wrong is None:
+                good = text.strip()
+                break
+            why[wrong.split(",")[0].split(" ")[0] + " " +
+                wrong.split(" ")[1]] += 1
+        if good:
+            kept += 1
+            frames_ = [f for f, k in base_frames().items()
+                       if k == one["kind"]]
+            other += not any(good == f.format(**one["slots"])
+                             for f in frames_ if set(slots(f)) ==
+                             set(one["slots"]))
+    found = {"pieces": len(pieces), "read back": kept,
+             "not as held": other, "why not": dict(why.most_common(8))}
+    print(json.dumps(found))
+    return found
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("messages", "write", "corpus",
-                                        "train"))
+    parser.add_argument("job", choices=("frames", "corpus", "train",
+                                        "measure", "show"))
     options = parser.parse_args(argv)
-    {"messages": messages, "write": write, "corpus": corpus,
-     "train": train}[options.job]()
+    if options.job == "show":
+        for frame, options_ in kept_frames().items():
+            print(f"{len(options_) - 1:3d}  {frame}")
+            for one in options_[1:4]:
+                print(f"       {one}")
+        return 0
+    {"frames": frames, "corpus": corpus, "train": train,
+     "measure": measure}[options.job]()
     return 0
 
 
