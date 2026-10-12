@@ -335,10 +335,12 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
             return lines + [f"{step['said']}: asked already, in step "
                             f"{state['asked'].index(asked) + 1} -- left."]
         state["asked"].append(asked)
-        said, changed = change(asked, shared.get("function"),
-                               shared.get("file"))
+        # made where the look inside found it, else where the look did
+        target = looked or shared
+        said, changed = change(asked, target.get("function"),
+                               target.get("file"))
         # what it changed, for the person to answer (`_feedback`)
-        state["changed"] = (shared.get("function") or "the project") \
+        state["changed"] = (target.get("function") or "the project") \
             if changed else None
         return lines + [f"{step['said']}: I asked myself to {asked}.",
                         said]
