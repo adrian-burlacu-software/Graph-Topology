@@ -32,7 +32,19 @@ def trace(source: str, entry: str, case: list, language: str) -> dict:
     return checker(language).trace(source, entry, case)
 
 
-def said(found: dict, source: str, most: int = SAID) -> str:
+def as_written(value: str, language: str | None) -> str:
+    """A value as its language writes it: Python's `None`, `False`, `'a'`
+    where the checker said `null`, `false`, `"a"`."""
+    if language != "python":
+        return value
+    try:
+        return repr(json.loads(value))
+    except (ValueError, TypeError):
+        return value
+
+
+def said(found: dict, source: str, most: int = SAID,
+         language: str | None = None) -> str:
     """A run in words: each line it took, with its code and what changed,
     a line taken again and again said once with how often; then what it
     gave or raised."""
@@ -49,13 +61,14 @@ def said(found: dict, source: str, most: int = SAID) -> str:
             out.append(f"line {line} `{code}` raises {one['raises']}")
             continue
         if "returns" in one:
-            out.append(f"line {line} `{code}` returns {one['returns']}")
+            out.append(f"line {line} `{code}` returns "
+                       f"{as_written(one['returns'], language)}")
             continue
         if line in told:
             continue
         told.add(line)
-        changed = ", ".join(f"{name} = {value}" for name, value in
-                            one["values"].items())
+        changed = ", ".join(f"{name} = {as_written(value, language)}"
+                            for name, value in one["values"].items())
         again = f" ({counted[line]} times)" if counted[line] > 1 else ""
         out.append(f"line {line} `{code}`{again}"
                    + (f": {changed}" if changed else ""))
