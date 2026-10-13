@@ -723,11 +723,19 @@ def replies(session) -> list:
                     if own and look:
                         from research.v705 import talk as debug_talk
                         from research.v705.teach_debugging import SAYING
-                        if debug_talk.EDITOR.exists():
+                        # editor-debug2 was taught missing cases too (v706:
+                        # a give-up is mostly a case no branch handles);
+                        # people's bugs it fixes a little less precisely
+                        # (81.8/85.2% against 84.9/87.1%), so it is this
+                        # path's alone
+                        editor = next((one for one in (
+                            debug_talk.EDITOR.parent / "editor-debug2",
+                            debug_talk.EDITOR) if one.exists()), None)
+                        if editor is not None:
                             context.update(
                                 said=inside.statement_of(look, own),
                                 imports=inside.imports_of(own),
-                                editor=debug_talk.EDITOR.name, saying=SAYING)
+                                editor=editor.name, saying=SAYING)
                 made = fixing.change(text, held, subject, key, context)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
