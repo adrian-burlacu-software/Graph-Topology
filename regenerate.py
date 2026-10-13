@@ -1892,18 +1892,32 @@ def steps() -> list[Step]:
                       _run("research.v704.teach_plan_talk", "more-queries"),
                       _run("research.v704.teach_plan_talk", "more"),
                       _run("research.v704.teach_plan_talk", "corrections"),
+                      _run("research.v705.teach_debug_talk", "write"),
+                      _run("research.v705.teach_debug_talk", "check"),
+                      _run("research.v705.teach_debug_talk", "corpus"),
                       _run("research.v704.teach_plan_talk", "check"),
                       _run("research.v704.teach_plan_talk", "corpus"),
                       _run("research.v689.teach_reader", "train",
                            "--base", str(LLM / "reader-code33"),
-                           "--out", str(LLM / "reader-code37"),
+                           "--out", str(LLM / "reader-code40"),
                            "--epochs", "1", "--subject", "math",
                            "--subject", "design", "--subject", "code",
                            "--subject", "data", "--subject", "shell",
                            "--subject", "plan")),
-             _model_check(LLM / "reader-code37", 80),
-             needs=("reader-plans-read", "self-model", "smollm3"),
+             _model_check(LLM / "reader-code40", 80),
+             needs=("reader-plans-read", "self-model", "smollm3",
+                    "editor-debug"),
              cost="an hour", gpu=True),
+        Step("editor-debug", "the editor taught to fix what a run shows "
+                             "wrong, in Python and TypeScript: verified "
+                             "programs made wrong by one edit, each "
+                             "statement with its traced run "
+                             "(research/v705/teach_debugging.py)",
+             lambda: (_run("research.v705.teach_debugging", "bugs"),
+                      _run("research.v705.teach_debugging", "corpus"),
+                      _run("research.v705.teach_debugging", "train")),
+             _model_check(LLM / "editor-debug", 600),
+             needs=("editor-named",), cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",

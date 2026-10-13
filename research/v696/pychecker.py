@@ -99,6 +99,30 @@ class PyChecker:
             return [{"error": reply.get("error", "failed")} for _ in cases]
         return reply["outputs"]
 
+    def trace(self, source: str, entry: str, case, timeout: int = 2000
+              ) -> dict:
+        """One case run with each step kept (`pycheck.trace`)."""
+        try:
+            return self._ask({"op": "trace", "source": source,
+                              "entry": entry, "case": list(case),
+                              "timeout": timeout},
+                             wait=GRACE + timeout * 5 / 1000)
+        except CheckerError as bad:
+            return {"ok": False, "error": str(bad)}
+
+    def trace_project(self, files: dict, file: str, call: str,
+                      wanted: str | None = None, timeout: int = 2000
+                      ) -> dict:
+        """A call run in a project's module, each step kept
+        (`pycheck.trace_project`)."""
+        try:
+            return self._ask({"op": "trace project", "files": files,
+                              "file": file, "call": call,
+                              "wanted": wanted, "timeout": timeout},
+                             wait=GRACE + timeout * 10 / 1000)
+        except CheckerError as bad:
+            return {"ok": False, "error": str(bad)}
+
     def values(self, params, cases, expressions, timeout: int = 50,
                prelude: str = "", types=None) -> list:
         if not expressions:

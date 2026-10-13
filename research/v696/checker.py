@@ -90,6 +90,22 @@ class Checker:
                     for _ in cases]
         return reply["outputs"]
 
+    def trace(self, source: str, entry: str, case, timeout: int = 2000
+              ) -> dict:
+        """One case run with each step kept (`tscheck.js` `trace`): {ok,
+        output, steps: [{line, in, values | returns | raises}], cut}."""
+        return self._ask({"op": "trace", "source": source, "entry": entry,
+                          "case": list(case), "timeout": timeout})
+
+    def trace_project(self, files: dict, file: str, call: str,
+                      wanted: str | None = None, timeout: int = 2000
+                      ) -> dict:
+        """A call run in a project's module, each step kept (`tscheck.js`
+        `trace project`)."""
+        return self._ask({"op": "trace project", "files": files,
+                          "file": file, "call": call, "wanted": wanted,
+                          "timeout": timeout})
+
     def values(self, params, cases, expressions, timeout: int = 50,
                prelude: str = "") -> list:
         """For each expression, its value on each case -- {"value"} or

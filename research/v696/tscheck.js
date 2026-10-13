@@ -151,6 +151,220 @@ function run(source, entry, cases, timeout) {
   });
 }
 
+// A function run on one case, each step it takes kept (v705): before each
+// statement of a function's blocks, its line and the values of the
+// function's own names (read guarded: a `let` before its declaration
+// throws); each `return` kept with what it gives. The edits are made in
+// the text, at the places the compiler's own tree says, then the program
+// is run as `run` runs it. What a debugger shows, as data.
+const TRACED = 400;
+const SHOWN = 80;
+
+function declaredIn(fn) {
+  // the names a function declares itself -- its parameters and variables,
+  // not those of functions inside it
+  const names = new Set();
+  const named = (binding) => {
+    if (binding && ts.isIdentifier(binding)) names.add(binding.text);
+  };
+  for (const param of fn.parameters || []) named(param.name);
+  const walk = (node) => {
+    if (node !== fn && ts.isFunctionLike(node)) return;
+    if (ts.isVariableDeclaration(node)) named(node.name);
+    if (ts.isCatchClause(node) && node.variableDeclaration)
+      named(node.variableDeclaration.name);
+    ts.forEachChild(node, walk);
+  };
+  if (fn.body) walk(fn.body);
+  return [...names];
+}
+
+function instrument(source) {
+  const file = ts.createSourceFile("t.ts", source, ts.ScriptTarget.ES2020,
+                                   true);
+  const edits = [];
+  const lineOf = (node) =>
+    file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+  const visit = (node, fn) => {
+    if (ts.isFunctionLike(node) && node.body && ts.isBlock(node.body)) {
+      const name = node.name && ts.isIdentifier(node.name)
+        ? node.name.text : "<anonymous>";
+      fn = { name, names: declaredIn(node) };
+    }
+    if (fn && ts.isBlock(node)) {
+      const values = fn.names.map((one) =>
+        `${JSON.stringify(one)}: __v(() => ${one})`).join(", ");
+      for (const statement of node.statements) {
+        edits.push([statement.getStart(file), statement.getStart(file),
+                    `__step(${lineOf(statement)}, ${JSON.stringify(fn.name)},` +
+                    ` () => ({${values}})); `]);
+      }
+    }
+    if (fn && ts.isReturnStatement(node) && node.expression) {
+      const at = node.expression;
+      edits.push([at.getStart(file), at.getEnd(),
+                  `__ret(${lineOf(node)}, ${JSON.stringify(fn.name)}, (` +
+                  source.slice(at.getStart(file), at.getEnd()) + "))"]);
+    }
+    ts.forEachChild(node, (child) => visit(child, fn));
+  };
+  visit(file, null);
+  // from the end, so each edit's places still hold; a return inside a
+  // return's expression is left as it was
+  edits.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  let out = source;
+  let floor = Infinity;
+  for (const [start, end, text] of edits) {
+    if (end > floor) continue;
+    out = out.slice(0, start) + text + out.slice(end);
+    if (end > start) floor = start;
+  }
+  return out;
+}
+
+function shown(value) {
+  let said;
+  try {
+    said = JSON.stringify(plain(value));
+    if (said === undefined) said = "null";
+  } catch (error) {
+    said = `<${typeof value}>`;
+  }
+  return said.length <= SHOWN ? said : said.slice(0, SHOWN) + "...";
+}
+
+function trace(source, entry, args, timeout) {
+  const context = sandbox();
+  const steps = [];
+  const seen = new Map();
+  const unset = {};
+  context.__v = (get) => { try { return get(); } catch (e) { return unset; } };
+  context.__step = (line, name, get) => {
+    if (steps.length >= TRACED) return;
+    const now = {};
+    const got = get();
+    for (const key of Object.keys(got))
+      if (got[key] !== unset) now[key] = shown(got[key]);
+    const before = seen.get(name) || {};
+    const values = {};
+    for (const key of Object.keys(now))
+      if (before[key] !== now[key]) values[key] = now[key];
+    seen.set(name, now);
+    steps.push({ line, in: name, values });
+  };
+  context.__ret = (line, name, value) => {
+    if (steps.length < TRACED)
+      steps.push({ line, in: name, returns: shown(value) });
+    return value;
+  };
+  vm.runInContext(transpile(instrument(source)) +
+                  `\n;globalThis.__entry = ${entry};`, context, { timeout });
+  let output;
+  try {
+    context.__args = args;
+    output = reported(vm.runInContext("__entry(...__args)", context,
+                                      { timeout }));
+  } catch (error) {
+    const said = String(error && error.message || error);
+    output = { error: said };
+    const last = steps[steps.length - 1];
+    steps.push({ line: last ? last.line : null, in: last ? last.in : entry,
+                 raises: said });
+  }
+  return { output, steps, cut: steps.length >= TRACED };
+}
+
+// A call as written evaluated in a project's module (v705): the project's
+// files transpiled -- the call's own file instrumented, as `trace` does --
+// loaded as `project` loads them, the call run among that module's names,
+// each step kept; and, where what it should give is said, whether it does.
+const TRACE_LOADER = `
+(function (files, file) {
+  const cache = {};
+  const resolve = (from, spec) => {
+    const parts = from.split("/").slice(0, -1);
+    for (const part of spec.split("/")) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    const base = parts.join("/");
+    if (base in files) return base;
+    if (base + ".ts" in files) return base + ".ts";
+    throw new Error("no module " + spec + " from " + from);
+  };
+  const load = (one) => {
+    if (cache[one]) return cache[one].exports;
+    const module = { exports: {} };
+    cache[one] = module;
+    const wrapped = new Function("require", "module", "exports", files[one]);
+    wrapped((spec) => spec.startsWith(".") ? load(resolve(one, spec))
+                                          : require(spec),
+            module, module.exports);
+    return module.exports;
+  };
+  return load(file);
+})(__files, __file);
+`;
+
+function traceProject(files, file, call, wanted, timeout) {
+  const context = sandbox();
+  const steps = [];
+  const seen = new Map();
+  const unset = {};
+  context.__v = (get) => { try { return get(); } catch (e) { return unset; } };
+  context.__step = (line, name, get) => {
+    if (steps.length >= TRACED) return;
+    const now = {};
+    const got = get();
+    for (const key of Object.keys(got))
+      if (got[key] !== unset) now[key] = shown(got[key]);
+    const before = seen.get(name) || {};
+    const values = {};
+    for (const key of Object.keys(now))
+      if (before[key] !== now[key]) values[key] = now[key];
+    seen.set(name, now);
+    steps.push({ line, in: name, file, values });
+  };
+  context.__ret = (line, name, value) => {
+    if (steps.length < TRACED)
+      steps.push({ line, in: name, returns: shown(value) });
+    return value;
+  };
+  const transpiled = {};
+  for (const [one, text] of Object.entries(files))
+    transpiled[one] = transpile(one === file ? instrument(text) : text);
+  context.__files = transpiled;
+  context.__file = file;
+  const exports = vm.runInContext(TRACE_LOADER, context, { timeout });
+  context.__exports = exports;
+  const names = Object.keys(exports);
+  const run = (text) => vm.runInContext(
+    `(function (${names.join(", ")}) { return (${transpile(
+      "(" + text + ")").replace(/;\s*$/, "")}); })` +
+    `(...Object.keys(__exports).map((k) => __exports[k]))`, context,
+    { timeout });
+  let output;
+  try {
+    const value = run(call);
+    output = { value: shown(value) };
+    if (wanted) {
+      try {
+        output.right = JSON.stringify(plain(run(wanted))) ===
+          JSON.stringify(plain(value));
+      } catch (error) {
+        output.right = String(wanted).trim() === shown(value);
+      }
+    }
+  } catch (error) {
+    const said = String(error && error.message || error);
+    output = { error: said };
+    const last = steps[steps.length - 1];
+    steps.push({ line: last ? last.line : null, in: last ? last.in : "",
+                 raises: said });
+  }
+  return { output, steps, cut: steps.length >= TRACED };
+}
+
 // The library as the compiler has it: for each receiver type named, every
 // method's parameters and return type, with the receiver's type variables
 // instantiated (`number[]`'s `indexOf(searchElement: number, ...)`), and
@@ -2258,6 +2472,15 @@ lines.on("line", (line) => {
     } else if (request.op === "run") {
       reply.outputs = run(request.source, request.entry, request.cases,
                           request.timeout || 200);
+      reply.ok = true;
+    } else if (request.op === "trace project") {
+      Object.assign(reply, traceProject(request.files, request.file,
+                                        request.call, request.wanted,
+                                        request.timeout || 2000));
+      reply.ok = true;
+    } else if (request.op === "trace") {
+      Object.assign(reply, trace(request.source, request.entry, request.case,
+                                 request.timeout || 2000));
       reply.ok = true;
     } else if (request.op === "values") {
       reply.values = values(request.params, request.cases,

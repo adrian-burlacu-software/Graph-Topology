@@ -128,7 +128,9 @@ class CarryingTests(unittest.TestCase):
             self.assertEqual(asked, [('change s._ask_name so that it '
                                       'answers "what is my dog called?" '
                                       'after "my dog is called Rex"',
-                                      "_ask_name", "s.py")])
+                                      "_ask_name", "s.py",
+                                      # the case, kept out of the code
+                                      "what is my dog called?")])
             self.assertIn("Changed it", change)
             self.assertIn("1 cases are this goal's checks",
                           "\n".join(D.carry(state)))

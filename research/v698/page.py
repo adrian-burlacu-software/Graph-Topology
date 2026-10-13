@@ -45,6 +45,8 @@ SHELL_TALK = 212.25
 WAITING: dict = {}
 #: a yes or no to a goal's plan comes before one to a command
 GOAL_STEP = 212.3
+#: the call run last to be debugged, by conversation (v705)
+DEBUGGED: dict = {}
 #: what is said back to a plan held, before the shell and code talk
 PLAN_TALK = 212.28
 #: a goal said back with its plan, by conversation: a yes takes its first
@@ -147,7 +149,7 @@ def _goal(text: str, held, read, key: str = "") -> dict:
 FIRST_CASES = 6
 
 
-def _next_step(key: str, held, change) -> dict:
+def _next_step(key: str, held, change, debug=None) -> dict:
     """A held goal's next step, on a yes (v704 `doing`): of itself, each
     step carried out where it can be; of a project, where it would go
     first (`_first_step`), then the same."""
@@ -163,7 +165,7 @@ def _next_step(key: str, held, change) -> dict:
         found["text"] = found["spoken"] = "\n".join(
             [found["text"]] + lines)
         return found
-    lines = doing.carry(goal, change=change, held=held)
+    lines = doing.carry(goal, change=change, held=held, debug=debug)
     # a plan carried out is kept, done, for what is said back to it
     # (`plan talk`): a yes is no longer its
     found = asking._reply("goal step", goal["goal"], "\n".join(lines),
@@ -307,6 +309,53 @@ def _act(read, text: str, session, memory) -> dict | None:
         return conversation.respond("more", coding.read(text, language),
                                     text, space, turn, ways=read.ways,
                                     language=language)
+    if read.act == "debug":
+        # a run asked to be looked into (v705): the call run in its
+        # project, said, and fixed only where the call then gives what it
+        # should
+        call = " ".join((read.spans.get("CALL") or [""])[0].split())
+        got = (read.spans.get("GOT") or [None])[0]
+        wanted = (read.spans.get("WANT") or [None])[0]
+        if call:
+            call = _as_written(text, call)
+        from research.v705 import talk
+        if key in DEBUGGED and (not call or held is None or not held.find(
+                talk.called(call) or "")):
+            # the call run last, answered (`it should give date(2026, 1,
+            # 22)`): what was marked a call names nothing of the project's
+            # -- it is what the last call should give
+            if call and not wanted:
+                wanted = call
+            call = DEBUGGED[key]
+        if held is None or not call:
+            said = ("Send me the project and name the call -- like "
+                    "`f(3) gives 7 but should give 9` -- and I'll run it "
+                    "and look." if held is None else
+                    "Which call should I run? Say it as you'd write it, "
+                    "like `f(3)`.")
+            found = asking._reply("debug", text, said, {"read": read.json()})
+            found["code"]["answer"]["status"] = "unplaced"
+            return found
+        DEBUGGED[key] = call
+        # each part found after the one before it: the call, what it gave,
+        # what it should give
+        at = text.find(call) + len(call) if call in text else 0
+        if got:
+            got = _as_written(text, got, at)
+            at = text.find(got, at) + len(got) if got in text[at:] else at
+        if wanted:
+            wanted = _as_written(text, wanted, at)
+        made = talk.debug(held, call,
+                          got, wanted, key)
+        found = asking._reply("debug", text, made["said"],
+                              {"read": read.json(), "file": made.get("file"),
+                               "function": made.get("function")},
+                              name=made.get("function") or "")
+        found["code"]["answer"]["status"] = made["status"]
+        if made.get("function"):
+            asking.FOCUS[key] = (asking.Subject(
+                "function", made["function"], made["file"]), turn)
+        return found
     if read.act == "teach":
         return knowledge.taught(read, text)
     if read.act == "run":
@@ -322,6 +371,46 @@ def _act(read, text: str, session, memory) -> dict | None:
                                  name=subject.name)
         return None
     return asking.answered_read(read, text, held, space, turn, key)
+
+
+def _as_written(text: str, phrase: str, after: int = 0) -> str:
+    """A phrase the reader marked, as the message wrote it: its words found
+    in order in the message, from `after` on (the reader's words are
+    lowered and split at marks -- `due_date ( date ( 2026 , 1 , 1 ) )`;
+    what a call should give comes after the call, which may hold the same
+    words), else the phrase."""
+    words = phrase.split()
+    if not words:
+        return phrase
+    pattern = r"\s*".join(re.escape(one) for one in words)
+    found = re.compile(pattern, re.I).search(text, after)
+    if not found:
+        return phrase
+    # code's own extent: an opened bracket or quote runs on to its close
+    # (`due_date(date(2026,` was marked of `due_date(date(2026, 1, 1))`)
+    end, depth, quote = found.end(), 0, None
+    for at, mark in enumerate(text[found.start():found.end()]):
+        if quote:
+            quote = None if mark == quote else quote
+        elif mark in "\"'":
+            quote = mark
+        elif mark in "([{":
+            depth += 1
+        elif mark in ")]}":
+            depth -= 1
+    at = end
+    while (depth > 0 or quote) and at < len(text):
+        mark = text[at]
+        if quote:
+            quote = None if mark == quote else quote
+        elif mark in "\"'":
+            quote = mark
+        elif mark in "([{":
+            depth += 1
+        elif mark in ")]}":
+            depth -= 1
+        at += 1
+    return text[found.start():at].strip(" .?!")
 
 
 def _named_outright(read, text: str, held) -> bool:
@@ -590,13 +679,16 @@ def replies(session) -> list:
                                       "All right -- I've left it.", {})
             else:
                 reply = _next_step(key, Pj.project(key),
-                                   lambda text, function=None, file=None:
-                                   _by_myself(text, memory, function, file))
+                                   lambda text, function=None, file=None,
+                                   case=None: _by_myself(
+                                       text, memory, function, file, case),
+                                   _inside)
             memory["turn"].answer = reply
             return ANSWERED
 
         def _by_myself(text: str, memory, function: str | None = None,
-                       file: str | None = None) -> tuple:
+                       file: str | None = None,
+                       case: str | None = None) -> tuple:
             # a change a plan's step asks for: of a function the look
             # found, made there -- what it is a change of is known, not
             # read back from its own words (`in build, build "what is my
@@ -611,7 +703,9 @@ def replies(session) -> list:
                 if not found or not fixing.available():
                     return f"{function} is not in the project I hold.", False
                 subject = asking.Subject("function", found[0]["name"], file)
-                made = fixing.change(text, held, subject, key)
+                # the case it fixes, kept out of the code (`fixing`)
+                made = fixing.change(text, held, subject, key,
+                                     {"case": case} if case else None)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
             read = reading.read(text, known(key)) \
@@ -627,6 +721,12 @@ def replies(session) -> list:
                 "answer", {}).get("status")
             return (found["text"] if found else "Nothing came of it.",
                     status in ("changed", "planned"))
+
+        def _inside(turns, file, function, act=None):
+            # one of its own functions watched while a failing case is
+            # said again, to a scratch session like this one (v705)
+            from research.v705 import inside
+            return inside.look_inside(session, turns, file, function, act)
 
         def asks_plan_talk(memory) -> bool:
             # what is said back to a plan held: an option picked or asked
@@ -660,10 +760,11 @@ def replies(session) -> list:
             goal.pop("done", None)
             lines = doing.talk(
                 goal, read.act, phrase,
-                change=lambda text, function=None, file=None: _by_myself(
-                    text, memory, function, file),
+                change=lambda text, function=None, file=None, case=None:
+                _by_myself(text, memory, function, file, case),
                 held=held,
-                undo=lambda: (fixing.undo(held, key) or {}).get("said"))
+                undo=lambda: (fixing.undo(held, key) or {}).get("said"),
+                debug=_inside)
             reply = asking._reply("plan talk", typed(memory),
                                   "\n".join(lines),
                                   {"act": read.act, "option": phrase,

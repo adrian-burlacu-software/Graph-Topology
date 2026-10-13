@@ -67,12 +67,16 @@ KNOWN, NOISE = 0.75, 0.15
 # what is said back to a plan held: an option picked, asked about, or
 # what was just done answered (`research/v704/teach_plan_talk.py`)
 ACTS = ("none", "ask", "make", "change", "run", "teach", "goal", "pick",
-        "query", "feedback")
+        "query", "feedback",
+        # a run asked to be looked into: a call, what it gave, what it
+        # should (`research/v705/teach_debug_talk.py`)
+        "debug")
 ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
            "sure", "why", "others", "risk", "files", "functions")
 SUBJECTS = ("none", "project", "file", "named", "last")
 ROLES = ("O", "B-SUBJ", "I-SUBJ", "B-CONCEPT", "I-CONCEPT", "B-MEMBER",
-         "I-MEMBER", "B-OPTION", "I-OPTION")
+         "I-MEMBER", "B-OPTION", "I-OPTION", "B-CALL", "I-CALL", "B-GOT",
+         "I-GOT", "B-WANT", "I-WANT")
 
 #: what each aspect asks, as the teacher is told it
 ASKS = {

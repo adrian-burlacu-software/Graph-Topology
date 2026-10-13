@@ -711,6 +711,15 @@ def _change_once(statement: str, held, subject, key=None,
                 seen[made] = row
                 fresh.append(row)
         for row in fresh:
+            # the case a debugging step is fixing, written into the code: a
+            # fit to the case, not a fix (`return Mention("speaker",
+            # text="what is my dog called?")` for every phrase _whose did
+            # not know -- three agreed, it compiled)
+            case = (context or {}).get("case")
+            if case and case.lower() in row["made"].lower() and \
+                    case.lower() not in part.lower():
+                row["refused"] = "it writes the case it is fixing into the code"
+                continue
             # what the request names of the project by its words (a plan's
             # step: `the shell asks` is shell.ASK) -- a change using none of
             # it is not the change asked (`"asked": parsed.path ==
