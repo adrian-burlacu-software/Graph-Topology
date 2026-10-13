@@ -1904,6 +1904,16 @@ def steps() -> list[Step]:
              _model_check(LLM / "reader-code37", 80),
              needs=("reader-plans-read", "self-model", "smollm3"),
              cost="an hour", gpu=True),
+        Step("editor-debug", "the editor taught to fix what a run shows "
+                             "wrong, in Python and TypeScript: verified "
+                             "programs made wrong by one edit, each "
+                             "statement with its traced run "
+                             "(research/v705/teach_debugging.py)",
+             lambda: (_run("research.v705.teach_debugging", "bugs"),
+                      _run("research.v705.teach_debugging", "corpus"),
+                      _run("research.v705.teach_debugging", "train")),
+             _model_check(LLM / "editor-debug", 600),
+             needs=("editor-named",), cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",
