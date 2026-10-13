@@ -63,6 +63,19 @@ TOPICS = [
     "a plan to learn the codebase", "a plan to reduce technical debt",
     "a plan for moving to Python 3.12", "a plan for a mobile version",
 ]
+#: a quality of the code as a whole, ordered (v706): "make this code more
+#: generalizable" was read a change (1.0), placed nowhere, and asked which
+#: function -- the goals taught were wishes ('I want', 'we should'), never
+#: an order that names no part of the code
+QUALITIES = [
+    "more generalizable", "more general", "more robust", "faster",
+    "easier to read", "easier to maintain", "more modular", "easier to "
+    "extend", "better tested", "more reliable", "less hard-coded",
+    "more consistent", "simpler", "more secure", "handle more cases",
+    "better documented",
+]
+#: a quality's topic, as written and checked
+ORDER = "the code: "
 #: messages written for each topic, by each of two samples
 EACH = 8
 #: the act choices the teacher checks with: the code-talk acts and a goal
@@ -83,20 +96,14 @@ def write(batch: int = 16) -> None:
     if WRITTEN.exists():
         done = {json.loads(line)["topic"] for line in
                 WRITTEN.open(encoding="utf-8")}
-    todo = [one for one in TOPICS if one not in done]
+    todo = [one for one in TOPICS + [ORDER + quality
+                                     for quality in QUALITIES]
+            if one not in done]
     teacher = Teacher()
     teacher.torch.manual_seed(SEED)
     for at in range(0, len(todo), batch):
         chunk = todo[at:at + batch]
-        prompts = [
-            f"Write {EACH} different messages a person might type to an "
-            f"assistant that works on their software, each saying what "
-            f"they want to achieve or improve about {topic} -- an aim or a "
-            f"wish, or asking for a plan, never which function or file to "
-            f"change or what code to write. Vary them a lot: short and "
-            f"long, casual and formal, 'I want', 'we should', 'can we', "
-            f"'let's', 'help me', 'make a plan'. One per line, nothing "
-            f"else." for topic in chunk]
+        prompts = [_prompt(topic) for topic in chunk]
         replies = teacher.write(prompts, longest=500, samples=2,
                                 temperature=0.9)
         with WRITTEN.open("a", encoding="utf-8") as out:
@@ -113,6 +120,41 @@ def write(batch: int = 16) -> None:
         print(f"{at + len(chunk)} of {len(todo)} topics", flush=True)
 
 
+def _prompt(topic: str) -> str:
+    if topic.startswith(ORDER):
+        return (f"Write {EACH} different messages a person might type to "
+                f"an assistant that works on their software, telling it to "
+                f"make the code {topic[len(ORDER):]} -- an order about the "
+                f"code as a whole, never naming a function, file, class or "
+                f"line, nor saying what to change or what code to write. "
+                f"Vary them a lot: short and long, casual and formal, "
+                f"'make this code', 'make the codebase', 'make it', "
+                f"'improve', 'rework', 'clean up'. One per line, nothing "
+                f"else.")
+    return (f"Write {EACH} different messages a person might type to an "
+            f"assistant that works on their software, each saying what "
+            f"they want to achieve or improve about {topic} -- an aim or a "
+            f"wish, or asking for a plan, never which function or file to "
+            f"change or what code to write. Vary them a lot: short and "
+            f"long, casual and formal, 'I want', 'we should', 'can we', "
+            f"'let's', 'help me', 'make a plan'. One per line, nothing "
+            f"else.")
+
+
+#: what an order about the code is checked by: a yes or no -- a choice
+#: among every act reads an order as the change it is worded as
+NAMES_A_PART = ("A programmer typed this to an assistant that works on "
+                "their code: \"{line}\"\nDoes the message name a "
+                "particular function, file, class, variable or line to "
+                "change, or say exactly what code to write? Answer yes "
+                "or no only.")
+
+
+#: what an order kept as a goal names: the code as a whole (teaching only)
+WHOLE = re.compile(r"\b(code|codebase|code base|system|software|project|"
+                   r"architecture|program|application|app)\b", re.I)
+
+
 def check(batch: int = 24) -> dict:
     from research.v696.teach_meaning import Teacher
     rows = [json.loads(line) for line in WRITTEN.open(encoding="utf-8")]
@@ -123,11 +165,21 @@ def check(batch: int = 24) -> dict:
         for at in range(0, len(todo), batch):
             chunk = todo[at:at + batch]
             replies = teacher.write(
-                [K._choice(line, list(CHOICES), "What is this message "
-                           "doing?") for _, line in chunk],
+                [NAMES_A_PART.format(line=line) if topic.startswith(ORDER)
+                 else K._choice(line, list(CHOICES), "What is this "
+                                "message doing?") for topic, line in chunk],
                 longest=3)
             for (topic, line), reply in zip(chunk, replies):
-                chosen = K._picked(reply[0], list(CHOICES))
+                chosen = (("change" if reply[0].strip().lower().startswith(
+                    "yes") else "goal") if topic.startswith(ORDER) else
+                    K._picked(reply[0], list(CHOICES)))
+                if chosen == "goal" and topic.startswith(ORDER) and \
+                        not WHOLE.search(line):
+                    # `make it faster` is how a change of the last answer
+                    # is asked (`make it recursive`): an order is taught a
+                    # goal only where it says it is of the code whole --
+                    # the teacher said no to all 253 (it never says yes)
+                    chosen = "unnamed"
                 counts[chosen] = counts.get(chosen, 0) + 1
                 out.write(json.dumps({"topic": topic, "said": line,
                                       "chosen": chosen}) + "\n")
