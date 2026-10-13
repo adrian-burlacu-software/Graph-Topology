@@ -97,7 +97,12 @@ def _dropped(source: str, language: str) -> list:
         except SyntaxError:
             return []
         for node in ast.walk(tree):
-            if isinstance(node, ast.If) and not node.orelse:
+            # an `if` block, or any one statement of a body: a missing
+            # line is a missing case too (`count += 1` never done)
+            if isinstance(node, ast.stmt) and not isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                           ast.ClassDef, ast.Import, ast.ImportFrom)) \
+                    and not (isinstance(node, ast.If) and node.orelse):
                 made = Dropped(node.lineno - 1, node.end_lineno - 1)
                 try:
                     ast.parse(made.apply(source))
@@ -106,6 +111,13 @@ def _dropped(source: str, language: str) -> list:
                 out.append(made)
         return out
     for at, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.endswith(";") and not stripped.startswith(
+                ("return", "}", "import", "export", "function")) and \
+                stripped.count("(") == stripped.count(")"):
+            # one statement on its line
+            out.append(Dropped(at, at))
+            continue
         if not line.lstrip().startswith("if (") or \
                 line.lstrip().startswith("if (") and "else" in line:
             continue
@@ -125,6 +137,8 @@ def _dropped(source: str, language: str) -> list:
 #: of the bugs made of each program, those that are a missing case at most
 #: (v706; `--missing`: editor-debug2 was taught with 2, editor-debug none)
 MISSING = 0
+#: how often each missing case is taught
+REPEATED = 3
 
 
 def bugs(language: str, split: str, each: int = EACH) -> list:
@@ -234,11 +248,17 @@ def corpus() -> dict:
                          "statement": statement(bug), "path":
                          f"{bug['entry']}.{'py' if language == 'python' else 'ts'}",
                          "part": bug["source"], "start": 1,
-                         "target": T.said(blocks)})
+                         "target": T.said(blocks),
+                         "missing": "-missing-" in bug["name"]})
     random.Random(SEED).shuffle(rows)
     # a share kept apart to watch the loss on
     for one in rows[:len(rows) // 20]:
         one["split"] = "dev"
+    # the missing cases taught more than once (v706): a few among many
+    # changed lines, and the only ones whose fix puts code in
+    rows += [dict(one) for one in rows if one.get("missing") and
+             one["split"] == "train"] * (REPEATED - 1)
+    random.Random(SEED + 1).shuffle(rows)
     with CORPUS.open("w", encoding="utf-8") as stream:
         for one in rows:
             stream.write(json.dumps(one) + "\n")

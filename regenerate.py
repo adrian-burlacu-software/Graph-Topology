@@ -1918,6 +1918,34 @@ def steps() -> list[Step]:
                       _run("research.v705.teach_debugging", "train")),
              _model_check(LLM / "editor-debug", 600),
              needs=("editor-named",), cost="an hour", gpu=True),
+        Step("editor-debug2", "the debugging editor taught missing cases "
+                              "too -- an if block taken out, the fix "
+                              "putting it back (v706)",
+             lambda: (_run("research.v705.teach_debugging", "bugs",
+                           "--missing", "2", "--data", "debug-data2"),
+                      _run("research.v705.teach_debugging", "corpus",
+                           "--data", "debug-data2"),
+                      _run("research.v705.teach_debugging", "train",
+                           "--data", "debug-data2", "--out",
+                           "editor-debug2")),
+             _model_check(LLM / "editor-debug2", 600),
+             needs=("editor-named",), cost="an hour", gpu=True),
+        Step("reader-code-orders", "the shared reader taught goals ordered "
+                                   "of the code as a whole (`make this "
+                                   "code more generalizable`; v706, "
+                                   "research/v704/teach_goals.py)",
+             lambda: (_run("research.v704.teach_goals", "write"),
+                      _run("research.v704.teach_goals", "check"),
+                      _run("research.v704.teach_goals", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code40"),
+                           "--out", str(LLM / "reader-code41"),
+                           "--epochs", "1", "--subject", "math",
+                           "--subject", "design", "--subject", "code",
+                           "--subject", "data", "--subject", "shell",
+                           "--subject", "plan")),
+             _model_check(LLM / "reader-code41", 80),
+             needs=("reader-plan-talk",), cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",
