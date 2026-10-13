@@ -68,6 +68,65 @@ def _edits(source: str, task, language: str) -> list:
     return edits(tree, source, task.entry) if tree is not None else []
 
 
+class Dropped:
+    """A missing case (v706): a guarded branch -- an `if` and all it holds
+    -- taken out, so the fix is putting code in, not changing a line. The
+    edits taught before only ever changed a line, and the editor never
+    added one: asked to make `_whose` give a Mention for `my dog`, 61
+    answers each changed a line that was there."""
+    kind = "missing"
+
+    def __init__(self, first: int, last: int) -> None:
+        self.first, self.last = first, last         # 0-based, inclusive
+
+    def apply(self, source: str) -> str:
+        lines = source.splitlines(keepends=True)
+        return "".join(lines[:self.first] + lines[self.last + 1:])
+
+
+def _dropped(source: str, language: str) -> list:
+    """Each `if` block that can be taken out whole, leaving code that still
+    reads (Python by its tree; TypeScript by its braces, read by the
+    checker when run)."""
+    lines = source.splitlines()
+    out = []
+    if language == "python":
+        import ast
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.If) and not node.orelse:
+                made = Dropped(node.lineno - 1, node.end_lineno - 1)
+                try:
+                    ast.parse(made.apply(source))
+                except SyntaxError:
+                    continue
+                out.append(made)
+        return out
+    for at, line in enumerate(lines):
+        if not line.lstrip().startswith("if (") or \
+                line.lstrip().startswith("if (") and "else" in line:
+            continue
+        depth, end = 0, None
+        for until in range(at, len(lines)):
+            depth += lines[until].count("{") - lines[until].count("}")
+            if depth <= 0 and (until > at or "{" not in lines[at]):
+                end = until
+                break
+        if end is None or end + 1 < len(lines) and \
+                lines[end + 1].lstrip().startswith("else"):
+            continue
+        out.append(Dropped(at, end))
+    return out
+
+
+#: of the bugs made of each program, those that are a missing case at most
+#: (v706; `--missing`: editor-debug2 was taught with 2, editor-debug none)
+MISSING = 0
+
+
 def bugs(language: str, split: str, each: int = EACH) -> list:
     """Each verified program made wrong by single edits that fail a case:
     the bug, the failing case, what it gave, what it should, its run."""
@@ -90,6 +149,11 @@ def bugs(language: str, split: str, each: int = EACH) -> list:
         wanted = [want for _, want in pairs]
         choices = _edits(row["code"], task, language)
         rng.shuffle(choices)
+        if MISSING:
+            # the missing cases first, a few: a fix that puts code in
+            dropped = _dropped(row["code"], language)
+            rng.shuffle(dropped)
+            choices = dropped[:MISSING] + choices
         made = 0
         for one in choices:
             if made >= each:
@@ -397,13 +461,23 @@ def precision(editor: str = "editor-debug", traced: bool = True,
 
 
 def main(argv=None) -> int:
+    global MISSING, DATA, CORPUS, EDITOR
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("bugs", "corpus", "train",
                                         "measure", "precision"))
     parser.add_argument("--editor", default="editor-debug")
     parser.add_argument("--untraced", action="store_true")
     parser.add_argument("--search", action="store_true")
+    parser.add_argument("--missing", type=int, default=MISSING)
+    parser.add_argument("--data", default=DATA.name,
+                        help="the folder of llm/ the bugs and fixes are in")
+    parser.add_argument("--out", default=EDITOR.name,
+                        help="the editor taught, in llm/")
     options = parser.parse_args(argv)
+    MISSING = options.missing
+    DATA = ROOT / "llm" / options.data
+    CORPUS = DATA / "fixes.jsonl"
+    EDITOR = ROOT / "llm" / options.out
     if options.job == "bugs":
         for language in ("typescript", "python"):
             for split in ("train", "held"):

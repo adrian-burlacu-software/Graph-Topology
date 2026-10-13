@@ -363,6 +363,25 @@ def look_inside(session, turns: list, file: str, name: str,
     return found
 
 
+def wanted_of(function) -> str | None:
+    """What a function says it gives, but nothing: `-> Mention | None` is
+    `Mention`; None where it says nothing."""
+    returned = inspect.signature(function).return_annotation
+    if returned is inspect.Signature.empty:
+        return None
+    kinds = [one.strip() for one in str(returned).strip("'\"").split("|")
+             if one.strip() not in ("None", "NoneType")]
+    return " or ".join(kinds) if kinds else None
+
+
+def imports_of(function) -> dict:
+    """The imports of what is in reach (`in_reach`), by name: offered to a
+    change that uses one (`fixing._with_imports`)."""
+    wanted = wanted_of(function)
+    return {written.split("(")[0]: line for written, line in
+            (in_reach(function, wanted) if wanted else []) if line}
+
+
 def statement_of(look: dict, function) -> str:
     """A call looked inside, said as the debugging editor was taught a bug
     (`teach_debugging.statement`): what it was given, what it gave, what
@@ -371,17 +390,79 @@ def statement_of(look: dict, function) -> str:
     given = ", ".join(f"{key}={value}" for key, value in
                       (look.get("given") or {}).items()
                       if key not in ("self", "cls"))
-    returned = inspect.signature(function).return_annotation
-    wanted = None
-    if returned is not inspect.Signature.empty:
-        kinds = [one.strip() for one in str(returned).strip("'\"").split("|")
-                 if one.strip() not in ("None", "NoneType")]
-        wanted = " or ".join(kinds) if kinds else None
+    wanted = wanted_of(function)
     gave = look.get("returns")
     should = (f"should give a {wanted}" if gave == "None" and wanted else
               "should not give up")
-    return (f"{function.__name__}({given}) gives {gave} but {should}. "
+    said = (f"{function.__name__}({given}) gives {gave} but {should}. "
             f"Fix it.\nThe run: {look.get('said')}")
+    reach = in_reach(function, wanted) if gave == "None" and wanted else []
+    if reach:
+        # what in its project gives what it should: the editor is shown one
+        # function, never the one that makes a Mention of `my dog`
+        said += "\nWhat gives a " + wanted + ": " + "; ".join(
+            one for one, _ in reach)
+    return said
+
+
+#: the functions a statement offers at most
+REACH = 4
+
+
+def _header(function) -> str:
+    """`read_mention(tokens: list[str], at: int, ...) -> Mention | None`:
+    a function's def line as written, on one line."""
+    import ast
+    import textwrap
+    source = textwrap.dedent(inspect.getsource(function))
+    node = ast.parse(source).body[0]
+    lines = source.splitlines()[node.lineno - 1:node.body[0].lineno - 1]
+    text = " ".join(" ".join(lines).split())
+    text = text.split("def ", 1)[-1]
+    return text[:-1] if text.endswith(":") else text
+
+
+def in_reach(function, wanted: str) -> list:
+    """The functions of its own code that give what a function should --
+    by their annotations (`-> Mention | None`), those of its module first,
+    then its package's: [(signature as written, import line)]."""
+    import importlib
+    import pkgutil
+    import re as re_
+    kinds = [one.strip() for one in wanted.split(" or ")]
+    module = importlib.import_module(function.__module__)
+    package = function.__module__.rpartition(".")[0]
+    modules = [module]
+    if package:
+        held = importlib.import_module(package)
+        for one in pkgutil.iter_modules(getattr(held, "__path__", [])):
+            if one.name.startswith("test") or one.name == "__main__":
+                continue
+            name = f"{package}.{one.name}"
+            if name == module.__name__:
+                continue
+            try:
+                modules.append(importlib.import_module(name))
+            except Exception:                       # noqa: BLE001
+                continue
+    out = []
+    for held in modules:
+        for name, found in vars(held).items():
+            if not inspect.isfunction(found) or found is function or \
+                    found.__module__ != held.__name__:
+                continue
+            returned = inspect.signature(found).return_annotation
+            if returned is inspect.Signature.empty or not any(
+                    re_.search(rf"\b{re_.escape(kind)}\b", str(returned))
+                    for kind in kinds):
+                continue
+            written = _header(found)
+            imported = None if held is module else \
+                f"from {held.__name__} import {name}"
+            out.append((written, imported))
+            if len(out) >= REACH:
+                return out
+    return out
 
 
 def looked_at(look: dict | None, name: str) -> dict | None:
@@ -439,6 +520,12 @@ def changed_function(function, text: str):
         else node.lineno
     source = textwrap.dedent("".join(lines[first - 1:node.end_lineno]))
     names = dict(function.__globals__)
+    # what the changed file imports, as it would be imported (an import a
+    # change was offered, `fixing._with_imports`)
+    for one in tree.body:
+        if isinstance(one, (ast.Import, ast.ImportFrom)):
+            exec(compile(ast.Module([one], []), "<imports>", "exec"),  # noqa: S102
+                 names)
     # a method made in a class of its own, so that `super()` and its
     # private names compile as they do in its class
     wrapped = f"class {owner.__name__ if owner is not _module(function) else '_Here'}:\n" \

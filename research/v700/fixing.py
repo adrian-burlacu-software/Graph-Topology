@@ -50,6 +50,9 @@ SEED = 700
 #: answers sampled beside the greedy one, in each round; and the rounds,
 #: asked again while nothing passes that changes all the statement names
 SAMPLES, ROUNDS = 6, 3
+#: the rounds asked where each change is tried by running its case again:
+#: the run, not agreement, decides -- so more answers may be looked at
+VERIFIED_ROUNDS = 10
 #: below this the judge is sure a change is not what was said, and it is
 #: refused; above it, the judge only weighs -- it gave removing an unused
 #: import alone 0.18, and the same with a docstring rewritten 0.70
@@ -666,7 +669,8 @@ def _change_once(statement: str, held, subject, key=None,
                                           end, subject)
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
-    for round_ in range(ROUNDS):
+    rounds = VERIFIED_ROUNDS if (context or {}).get("verify") else ROUNDS
+    for round_ in range(rounds):
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
         # a fix from a run seen inside: the editor taught to fix from what
@@ -790,6 +794,22 @@ def _change_once(statement: str, held, subject, key=None,
         # no stop -- and a change one answer wrote is not written, so more
         # answers are asked for before saying so
         nothing = sum(1 for one in tried if one.get("nothing"))
+        verify = (context or {}).get("verify")
+        if verify is not None:
+            # each change tried with its case said again as it is written
+            # (`inside.verify`): asked again until one answers it -- what
+            # is written is what the run shows, not what answers agree on
+            for row in passed:
+                if "verified" in row:
+                    continue
+                why = verify(row["text"])
+                row["verified"] = not why
+                if why:
+                    row["refused"] = f"run again, {why}"
+            if any(row["verified"] for row in passed) or \
+                    round_ + 1 >= VERIFIED_ROUNDS:
+                break
+            continue
         agreed_ = any(row["agree"] + sum(
             other["agree"] for other in seen.values() if other is not row
             and _extends(part, row["made"], other["made"])) >= LEAST_AGREED
@@ -828,14 +848,8 @@ def _change_once(statement: str, held, subject, key=None,
     # `inside.verify`) -- it compiles is no evidence it answers (`return
     # super().run(question, [])`, 3 of 7 agreed: a TypeError for every
     # question) -- and one that does is claimed, as a debugged fix is
-    verify = (context or {}).get("verify")
-    if verify is not None:
-        for row in passed:
-            why = verify(row["text"])
-            if why:
-                row["refused"] = f"run again, {why}"
-            else:
-                row["verified"] = True
+    if (context or {}).get("verify") is not None:
+        # tried as they were written (in the rounds above)
         out["tried"] = [{key_: value for key_, value in one.items()
                          if key_ not in ("text", "made")} for one in tried]
         passed = [row for row in passed if row.get("verified")]

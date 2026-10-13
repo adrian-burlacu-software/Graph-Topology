@@ -726,6 +726,7 @@ def replies(session) -> list:
                         if debug_talk.EDITOR.exists():
                             context.update(
                                 said=inside.statement_of(look, own),
+                                imports=inside.imports_of(own),
                                 editor=debug_talk.EDITOR.name, saying=SAYING)
                 made = fixing.change(text, held, subject, key, context)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
