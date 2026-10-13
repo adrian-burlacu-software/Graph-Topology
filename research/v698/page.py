@@ -316,12 +316,17 @@ def _act(read, text: str, session, memory) -> dict | None:
         call = " ".join((read.spans.get("CALL") or [""])[0].split())
         got = (read.spans.get("GOT") or [None])[0]
         wanted = (read.spans.get("WANT") or [None])[0]
-        if not call and key in DEBUGGED:
-            # the call run last, answered (`it should give date(2026, 1,
-            # 22)`)
-            call = DEBUGGED[key]
-        elif call:
+        if call:
             call = _as_written(text, call)
+        from research.v705 import talk
+        if key in DEBUGGED and (not call or held is None or not held.find(
+                talk.called(call) or "")):
+            # the call run last, answered (`it should give date(2026, 1,
+            # 22)`): what was marked a call names nothing of the project's
+            # -- it is what the last call should give
+            if call and not wanted:
+                wanted = call
+            call = DEBUGGED[key]
         if held is None or not call:
             said = ("Send me the project and name the call -- like "
                     "`f(3) gives 7 but should give 9` -- and I'll run it "
@@ -331,7 +336,6 @@ def _act(read, text: str, session, memory) -> dict | None:
             found = asking._reply("debug", text, said, {"read": read.json()})
             found["code"]["answer"]["status"] = "unplaced"
             return found
-        from research.v705 import talk
         DEBUGGED[key] = call
         made = talk.debug(held, call,
                           got and _as_written(text, got),
