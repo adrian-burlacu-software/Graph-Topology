@@ -703,9 +703,20 @@ def replies(session) -> list:
                 if not found or not fixing.available():
                     return f"{function} is not in the project I hold.", False
                 subject = asking.Subject("function", found[0]["name"], file)
-                # the case it fixes, kept out of the code (`fixing`)
-                made = fixing.change(text, held, subject, key,
-                                     {"case": case} if case else None)
+                # the case it fixes, kept out of the code (`fixing`) -- and
+                # where the function is its own, said again with each
+                # change put in, beside what it answered right (v706)
+                context = {"case": case} if case else None
+                whole = ((GOALS.get(key) or {}).get("finding") or {}).get(
+                    "case") or {}
+                if case and whole.get("said") == case:
+                    from research.v705 import inside
+                    own = inside.function_at(file, function)
+                    checks = inside.cases_of(whole, own) if own else []
+                    if checks:
+                        context["verify"] = lambda after: inside.verify(
+                            session, checks, own, after)
+                made = fixing.change(text, held, subject, key, context)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
             read = reading.read(text, known(key)) \

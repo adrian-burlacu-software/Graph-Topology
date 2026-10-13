@@ -212,6 +212,31 @@ def _resolve(name: str, call: dict):
     return found if inspect.isfunction(found) else None
 
 
+def _super(node, call: dict):
+    """`super().run`: the method the class after the call's own class has,
+    in the order its `self`'s type looks them up -- PinnedAsker.run's
+    `return super().run(question)` is StoreAsker.run. None for anything
+    else."""
+    import ast
+    if not (isinstance(node, ast.Attribute) and isinstance(
+            node.value, ast.Call) and getattr(node.value.func, "id", None)
+            == "super" and not node.value.args):
+        return None
+    local = (call.get("scope") or ({}, {}))[0]
+    here, me = local.get("__class__"), local.get("self")
+    if here is None or me is None:
+        return None
+    order = type(me).__mro__
+    if here not in order:
+        return None
+    for kind in order[order.index(here) + 1:]:
+        found = vars(kind).get(node.attr)
+        if found is not None:
+            found = getattr(found, "__func__", found)
+            return found if inspect.isfunction(found) else None
+    return None
+
+
 def _callee(function, call: dict):
     """Where a call got what it gave up with, followed back through what it
     computed (a backward slice of the run): from the line it gave back at
@@ -278,7 +303,7 @@ def _callee(function, call: dict):
             if not isinstance(one, ast.Call):
                 continue
             name = _dotted(one.func)
-            found = _resolve(name, call) if name else None
+            found = _resolve(name, call) if name else _super(one.func, call)
             if found is None or not _relative(
                     inspect.getsourcefile(found)) or found is function:
                 continue
@@ -325,6 +350,168 @@ def look_inside(session, turns: list, file: str, name: str,
             found["deeper"] = look_inside(session, turns, file, callee,
                                           wanted, depth + 1)
     return found
+
+
+#: the cases it answered right before, said again with a change in
+REGRESSIONS = 4
+
+
+def _owner(function):
+    """The class a method is defined in, else the module: what holds the
+    function by its name."""
+    import importlib
+    module = importlib.import_module(function.__module__)
+    owner = module
+    for part in function.__qualname__.split(".")[:-1]:
+        if part == "<locals>":
+            return None
+        owner = getattr(owner, part, None)
+        if owner is None:
+            return None
+    return owner
+
+
+def changed_function(function, text: str):
+    """The function as a changed file's text defines it, made as the
+    running one was -- in its module's names, a method in its class (its
+    `super()` the class's) -- not yet put in. None where the text does not
+    define it."""
+    import ast
+    import textwrap
+    owner = _owner(function)
+    if owner is None:
+        return None
+    tree = ast.parse(text)
+    holder = tree
+    for part in function.__qualname__.split(".")[:-1]:
+        holder = next((node for node in holder.body if isinstance(
+            node, ast.ClassDef) and node.name == part), None)
+        if holder is None:
+            return None
+    node = next((one for one in holder.body if isinstance(
+        one, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+        one.name == function.__name__), None)
+    if node is None:
+        return None
+    lines = text.splitlines(keepends=True)
+    first = node.decorator_list[0].lineno if node.decorator_list \
+        else node.lineno
+    source = textwrap.dedent("".join(lines[first - 1:node.end_lineno]))
+    names = dict(function.__globals__)
+    # a method made in a class of its own, so that `super()` and its
+    # private names compile as they do in its class
+    wrapped = f"class {owner.__name__ if owner is not _module(function) else '_Here'}:\n" \
+        + textwrap.indent(source, "    ")
+    code = compile(wrapped, inspect.getsourcefile(function) or "<changed>",
+                   "exec")
+    exec(code, names)                               # noqa: S102
+    made = vars(names[owner.__name__ if owner is not _module(function)
+                      else "_Here"])[function.__name__]
+    made = getattr(made, "__func__", made)
+    for name, cell in zip(made.__code__.co_freevars,
+                          made.__closure__ or ()):
+        if name == "__class__":
+            cell.cell_contents = owner
+    return made
+
+
+def _module(function):
+    import importlib
+    return importlib.import_module(function.__module__)
+
+
+def answered(session, turns: list):
+    """The turns said again to a scratch session like `session`: the last
+    turn, as the page is given it."""
+    import contextvars
+    from research.v689.session import Session
+
+    def apart():
+        scratch = Session(session.asker, None, "v705-check", True,
+                          getattr(session, "definitions", None))
+        for said in turns[:-1]:
+            scratch.say(said)
+        return scratch.say(turns[-1])
+    return contextvars.Context().run(apart)
+
+
+def _as_page_turn(turn) -> dict:
+    """A scratch session's turn as the conversation test reads a reply: its
+    text, and its stance."""
+    from research.v690.message import of_turn
+    found = turn.as_dict()
+    return {"reply": {"text": (turn.answer or {}).get("text") or "",
+                      "message": {"stance": of_turn(found).stance}}}
+
+
+def cases_of(case: dict, function) -> list:
+    """The conversation test's own checks for a case: the case, and the
+    conversations of its area it answered right that went the same way
+    (the same operator fired) -- [(turns, check, should hold)]. Only those
+    said without a project: those are what a scratch session says."""
+    from research.v704 import selfmodel, suite
+    model = selfmodel.held() or {}
+    run = selfmodel.RUNS / f"{model.get('run')}.jsonl"
+    turns = case.get("turns") or list(case.get("before") or []) + [
+        case["said"]]
+    found = [item for item in suite.SUITE if item.turns == turns
+             and not item.project]
+    if not found:
+        return []
+    item = found[0]
+    out = [(item.turns, item.check, True)]
+    if run.exists():
+        import json
+        operators = {one["operator"] for one in (case.get("fired") or
+                                                 case.get("tried") or [])}
+        for line in run.open(encoding="utf-8"):
+            row = json.loads(line)
+            if len(out) > REGRESSIONS or row["verdict"] != "right" or \
+                    row["area"] != item.area or row["turns"] == item.turns \
+                    or not operators & {one["operator"] for one in
+                                        row.get("fired") or []}:
+                continue
+            same = [one for one in suite.SUITE if one.turns == row["turns"]
+                    and not one.project]
+            if same:
+                out.append((same[0].turns, same[0].check, True))
+    return out
+
+
+def verify(session, cases: list, function, text: str) -> str | None:
+    """A change of one of its own functions tried before it is written:
+    the function as `text` has it put in for the while, the case said
+    again and the cases it answered right -- None where the case now holds
+    and none of the rest broke, else why not."""
+    made = changed_function(function, text)
+    if made is None:
+        return f"the change does not define {function.__name__}"
+    owner = _owner(function)
+    before = vars(owner)[function.__name__]
+    kept = before
+    if isinstance(before, (staticmethod, classmethod)):
+        made = type(before)(made)
+    setattr(owner, function.__name__, made)
+    try:
+        for at, (turns, check, _) in enumerate(cases):
+            try:
+                turn = answered(session, turns)
+            except Exception as bad:                # noqa: BLE001
+                return (f"\"{turns[-1]}\" raises {type(bad).__name__}: "
+                        f"{bad}")
+            try:
+                held = bool(check(_as_page_turn(turn), None))
+            except Exception:                       # noqa: BLE001
+                held = False
+            if not held:
+                said = " ".join(((turn.answer or {}).get("text") or "")
+                                .split())[:80]
+                return (f"\"{turns[-1]}\" still fails ({said})" if at == 0
+                        else f"\"{turns[-1]}\", answered right before, now "
+                             f"fails ({said})")
+        return None
+    finally:
+        setattr(owner, function.__name__, kept)
 
 
 def _relative(path: str | None) -> str | None:

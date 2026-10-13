@@ -157,6 +157,11 @@ class _Handler:
         return found
 
 
+class _Pinned(_Handler):
+    def ask(self, question):
+        return super().ask(question)
+
+
 class SliceTests(unittest.TestCase):
     """Where a function's give-up came from, followed back through what it
     computed: a handler's answer to the call it was made of, a nothing to
@@ -179,6 +184,25 @@ class SliceTests(unittest.TestCase):
 
     def test_bound(self):
         self.assertIs(self.callee("lost", "a b"), _built)
+
+    def test_super(self):
+        from research.v705 import inside
+        _, calls = inside.watch(_Pinned.ask,
+                                lambda: _Pinned().ask("x?"))
+        self.assertIs(inside._callee(_Pinned.ask, calls[-1]), _Handler.ask)
+
+    def test_changed_method(self):
+        # a changed method made in its class: its super() still the class's
+        from pathlib import Path
+        from research.v705 import inside
+        text = Path(__file__).read_text(encoding="utf-8").replace(
+            "        return super().ask(question)",
+            "        return {**super().ask(question), \"pinned\": True}", 1)
+        made = inside.changed_function(_Pinned.ask, text)
+        self.assertEqual(made(_Pinned(), "x?"),
+                         {"outcome": "unknown", "question": "x?",
+                          "pinned": True})
+        self.assertIs(_Pinned.__dict__["ask"].__name__, "ask")
 
 
 class DebugTalkTests(unittest.TestCase):

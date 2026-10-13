@@ -817,6 +817,32 @@ def _change_once(statement: str, held, subject, key=None,
                              f" -- nothing was written.")})
         out["seconds"] = round(time.time() - started, 2)
         return out
+    # a change of the architecture's own code for a case it failed: tried
+    # with the case said again, and what it answered right before (v706
+    # `inside.verify`) -- it compiles is no evidence it answers (`return
+    # super().run(question, [])`, 3 of 7 agreed: a TypeError for every
+    # question) -- and one that does is claimed, as a debugged fix is
+    verify = (context or {}).get("verify")
+    if verify is not None:
+        for row in passed:
+            why = verify(row["text"])
+            if why:
+                row["refused"] = f"run again, {why}"
+            else:
+                row["verified"] = True
+        out["tried"] = [{key_: value for key_, value in one.items()
+                         if key_ not in ("text", "made")} for one in tried]
+        passed = [row for row in passed if row.get("verified")]
+        if not passed:
+            why = next((one["refused"] for one in tried
+                        if str(one.get("refused", "")).startswith(
+                            "run again")), "none passed the checks")
+            out.update({"status": "unchanged", "said": (
+                f"I did not change {subject.name}: of {len(answers)} "
+                f"changes written, none answers the case when it is run "
+                f"again ({why}) -- nothing was written.")})
+            out["seconds"] = round(time.time() - started, 2)
+            return out
     for row in passed:
         row["size"] = sum(1 for one in diff(text, row["text"], path)
                           .splitlines() if one[:1] in "+-"
@@ -845,7 +871,9 @@ def _change_once(statement: str, held, subject, key=None,
             # refuse: it read removing an unused import that 7 of 7 wrote
             # as not what was said (0.04)
             most = row["agree"] * 2 > len(answers)
-            if chance < JUDGE_FLOOR and not most:
+            # nor one that answers its case when run again
+            if chance < JUDGE_FLOOR and not most and \
+                    not row.get("verified"):
                 row["refused"] = (f"the judge reads it as not what was "
                                   f"said ({chance:.2f})")
         passed = [row for row in passed if "refused" not in row]
@@ -862,7 +890,8 @@ def _change_once(statement: str, held, subject, key=None,
     # a change one answer wrote is a guess: written into the file only
     # where answers written apart agree on it (`_meets` was rewritten,
     # its comparison with what it must give dropped, by 1 of 13)
-    agreed = [row for row in passed if row["agree"] >= LEAST_AGREED]
+    agreed = [row for row in passed if row["agree"] >= LEAST_AGREED
+              or row.get("verified")]
     if not agreed:
         best = max(passed, key=lambda one: one.get("judged", 0.0))
         out["guess"] = diff(text, best["text"], path)
