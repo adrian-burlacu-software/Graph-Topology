@@ -25,7 +25,6 @@ import hashlib
 import json
 import random
 import re
-import string
 import sys
 
 from research.v698 import teach_code_talk as K
@@ -97,8 +96,9 @@ def write() -> None:
 
 
 def _slots(text: str) -> list:
-    return [one for _, one, _, _ in string.Formatter().parse(
-        text.replace("{{", "").replace("}}", "")) if one]
+    # by their own marks: a reply may hold braces of its own (JSON), which
+    # a format string refuses
+    return re.findall(r"\{(CALL|GOT|WANT)\}", text)
 
 
 def check(batch: int = 24) -> dict:
