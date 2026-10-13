@@ -669,10 +669,16 @@ def _change_once(statement: str, held, subject, key=None,
     for round_ in range(ROUNDS):
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
-        writer = _editor(step=context is not None)
+        # a fix from a run seen inside: the editor taught to fix from what
+        # a run shows (v705 `editor-debug`), told so
+        from research.v697.coding import Tools
+        writer = Tools.get().writer(context["editor"]) \
+            if (context or {}).get("editor") else \
+            _editor(step=context is not None)
         writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) + round_)
         written_now = writer.write([asked], samples=SAMPLES, longest=400,
-                                   greedy=round_ == 0)[0]
+                                   greedy=round_ == 0,
+                                   saying=(context or {}).get("saying"))[0]
         answers += written_now
         fresh = []
         for number, answer in enumerate(written_now):

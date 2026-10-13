@@ -363,6 +363,36 @@ def look_inside(session, turns: list, file: str, name: str,
     return found
 
 
+def statement_of(look: dict, function) -> str:
+    """A call looked inside, said as the debugging editor was taught a bug
+    (`teach_debugging.statement`): what it was given, what it gave, what
+    it should have, and the run -- a give-up (None) should give what the
+    function says it gives (`-> Mention | None`: a Mention)."""
+    given = ", ".join(f"{key}={value}" for key, value in
+                      (look.get("given") or {}).items()
+                      if key not in ("self", "cls"))
+    returned = inspect.signature(function).return_annotation
+    wanted = None
+    if returned is not inspect.Signature.empty:
+        kinds = [one.strip() for one in str(returned).strip("'\"").split("|")
+                 if one.strip() not in ("None", "NoneType")]
+        wanted = " or ".join(kinds) if kinds else None
+    gave = look.get("returns")
+    should = (f"should give a {wanted}" if gave == "None" and wanted else
+              "should not give up")
+    return (f"{function.__name__}({given}) gives {gave} but {should}. "
+            f"Fix it.\nThe run: {look.get('said')}")
+
+
+def looked_at(look: dict | None, name: str) -> dict | None:
+    """The call of `name` among those a look followed, else None."""
+    while look:
+        if look.get("function") == name.rpartition(".")[2]:
+            return look
+        look = look.get("deeper")
+    return None
+
+
 #: the cases it answered right before, said again with a change in
 REGRESSIONS = 4
 

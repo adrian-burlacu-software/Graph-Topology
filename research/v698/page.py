@@ -716,6 +716,17 @@ def replies(session) -> list:
                     if checks:
                         context["verify"] = lambda after: inside.verify(
                             session, checks, own, after)
+                    # seen inside: asked of the editor taught to fix from
+                    # a run, as it was taught (v705 `editor-debug`)
+                    look = inside.looked_at((GOALS.get(key) or {}).get(
+                        "finding", {}).get("inside"), found[0]["name"])
+                    if own and look:
+                        from research.v705 import talk as debug_talk
+                        from research.v705.teach_debugging import SAYING
+                        if debug_talk.EDITOR.exists():
+                            context.update(
+                                said=inside.statement_of(look, own),
+                                editor=debug_talk.EDITOR.name, saying=SAYING)
                 made = fixing.change(text, held, subject, key, context)
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
