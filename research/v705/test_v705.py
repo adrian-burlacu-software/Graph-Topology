@@ -116,6 +116,71 @@ class ProjectTraceTests(unittest.TestCase):
         self.assertIn("1961", found["steps"][1]["values"]["sorted"])
 
 
+def _asked(question):
+    return {"outcome": "unknown", "question": question}
+
+
+def _summary(run):
+    return run["outcome"], run["outcome"].upper()
+
+
+def _parsed(text):
+    return text.split()
+
+
+def _built(words):
+    return None
+
+
+class _Turn:
+    answer = None
+    run = None
+
+
+class _Handler:
+    def ask(self, question):
+        return _asked(question)
+
+    def generic(self, said, turn):
+        turn.run = self.ask(said)
+        outcome, headline = _summary(turn.run)
+        turn.answer = {"outcome": outcome, "text": headline}
+
+    def build(self, text):
+        words = _parsed(text)
+        return _built(words)
+
+    def lost(self, text):
+        found = _built(text)
+        if found is None:
+            return None
+        return found
+
+
+class SliceTests(unittest.TestCase):
+    """Where a function's give-up came from, followed back through what it
+    computed: a handler's answer to the call it was made of, a nothing to
+    the call that gave it."""
+
+    def callee(self, name, *args):
+        from research.v705 import inside
+        function = getattr(_Handler, name)
+        _, calls = inside.watch(function,
+                                lambda: function(_Handler(), *args))
+        return inside._callee(function, calls[-1])
+
+    def test_handler(self):
+        # the answer is summary_of what self.ask gave: the first of them
+        self.assertIs(self.callee("generic", "x?", _Turn()), _Handler.ask)
+
+    def test_returned(self):
+        # parse gave words; build gave back the nothing
+        self.assertIs(self.callee("build", "a b"), _built)
+
+    def test_bound(self):
+        self.assertIs(self.callee("lost", "a b"), _built)
+
+
 class DebugTalkTests(unittest.TestCase):
     """A debugging request answered: the call run in its project and said,
     the module's values it reads with it; right where it gives what it
