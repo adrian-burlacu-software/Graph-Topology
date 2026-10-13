@@ -134,10 +134,21 @@ def function_at(file: str, name: str):
         found = importlib.import_module(module)
     except Exception:                               # noqa: BLE001
         return None
+    if "." in name:
+        # `StoreAsker.run`, as the project names a method
+        kind, _, name = name.rpartition(".")
+        held = getattr(found, kind, None)
+        method = vars(held).get(name) if inspect.isclass(held) else None
+        method = getattr(method, "__func__", method)
+        return method if inspect.isfunction(method) else None
     direct = getattr(found, name, None)
-    if inspect.isfunction(direct):
+    if inspect.isfunction(direct) and direct.__module__ == found.__name__:
         return direct
+    # a method of a class the file defines, not one it imports (v689
+    # server's `run` is StoreAsker's, not the Asker it imports)
     for _, kind in inspect.getmembers(found, inspect.isclass):
+        if kind.__module__ != found.__name__:
+            continue
         method = kind.__dict__.get(name)
         if inspect.isfunction(method):
             return method

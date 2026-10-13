@@ -711,7 +711,7 @@ def replies(session) -> list:
                     "case") or {}
                 if case and whole.get("said") == case:
                     from research.v705 import inside
-                    own = inside.function_at(file, function)
+                    own = inside.function_at(file, found[0]["name"])
                     checks = inside.cases_of(whole, own) if own else []
                     if checks:
                         context["verify"] = lambda after: inside.verify(
