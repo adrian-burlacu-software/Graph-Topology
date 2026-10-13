@@ -337,9 +337,16 @@ def _act(read, text: str, session, memory) -> dict | None:
             found["code"]["answer"]["status"] = "unplaced"
             return found
         DEBUGGED[key] = call
+        # each part found after the one before it: the call, what it gave,
+        # what it should give
+        at = text.find(call) + len(call) if call in text else 0
+        if got:
+            got = _as_written(text, got, at)
+            at = text.find(got, at) + len(got) if got in text[at:] else at
+        if wanted:
+            wanted = _as_written(text, wanted, at)
         made = talk.debug(held, call,
-                          got and _as_written(text, got),
-                          wanted and _as_written(text, wanted), key)
+                          got, wanted, key)
         found = asking._reply("debug", text, made["said"],
                               {"read": read.json(), "file": made.get("file"),
                                "function": made.get("function")},
@@ -366,15 +373,17 @@ def _act(read, text: str, session, memory) -> dict | None:
     return asking.answered_read(read, text, held, space, turn, key)
 
 
-def _as_written(text: str, phrase: str) -> str:
+def _as_written(text: str, phrase: str, after: int = 0) -> str:
     """A phrase the reader marked, as the message wrote it: its words found
-    in order in the message (the reader's words are lowered and split at
-    marks -- `due_date ( date ( 2026 , 1 , 1 ) )`), else the phrase."""
+    in order in the message, from `after` on (the reader's words are
+    lowered and split at marks -- `due_date ( date ( 2026 , 1 , 1 ) )`;
+    what a call should give comes after the call, which may hold the same
+    words), else the phrase."""
     words = phrase.split()
     if not words:
         return phrase
     pattern = r"\s*".join(re.escape(one) for one in words)
-    found = re.search(pattern, text, re.I)
+    found = re.compile(pattern, re.I).search(text, after)
     if not found:
         return phrase
     # code's own extent: an opened bracket or quote runs on to its close
