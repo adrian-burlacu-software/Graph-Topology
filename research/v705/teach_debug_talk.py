@@ -61,6 +61,8 @@ EACH, ROUNDS = 12, 8
 #: the calls each kept request is filled with (three were too few beside
 #: code talk's thousands: reader-code38 read 3 of 6 requests as debug)
 FILLED = 8
+#: how often what a call gave, or should give, is an expression
+EXPRESSIONS = 0.35
 VALID = K.VALID
 
 
@@ -174,6 +176,15 @@ def corpus() -> dict:
             else "train"
         for call, got, want in rng.sample(values[split],
                                           min(FILLED, len(values[split]))):
+            # a value may be an expression as well as a literal: another
+            # call's text (`date(2026, 1, 22)`; the bugs' values are
+            # literals, and reader-code39 never marked what a call should
+            # give when it was one)
+            pool = values[split]
+            if rng.random() < EXPRESSIONS:
+                got = rng.choice(pool)[0]
+            if rng.random() < EXPRESSIONS:
+                want = rng.choice(pool)[0]
             filled = {"CALL": call, "GOT": got, "WANT": want}
             said_text = one["template"]
             for name, value in filled.items():

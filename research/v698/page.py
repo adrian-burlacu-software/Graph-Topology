@@ -45,6 +45,8 @@ SHELL_TALK = 212.25
 WAITING: dict = {}
 #: a yes or no to a goal's plan comes before one to a command
 GOAL_STEP = 212.3
+#: the call run last to be debugged, by conversation (v705)
+DEBUGGED: dict = {}
 #: what is said back to a plan held, before the shell and code talk
 PLAN_TALK = 212.28
 #: a goal said back with its plan, by conversation: a yes takes its first
@@ -314,6 +316,12 @@ def _act(read, text: str, session, memory) -> dict | None:
         call = " ".join((read.spans.get("CALL") or [""])[0].split())
         got = (read.spans.get("GOT") or [None])[0]
         wanted = (read.spans.get("WANT") or [None])[0]
+        if not call and key in DEBUGGED:
+            # the call run last, answered (`it should give date(2026, 1,
+            # 22)`)
+            call = DEBUGGED[key]
+        elif call:
+            call = _as_written(text, call)
         if held is None or not call:
             said = ("Send me the project and name the call -- like "
                     "`f(3) gives 7 but should give 9` -- and I'll run it "
@@ -324,7 +332,8 @@ def _act(read, text: str, session, memory) -> dict | None:
             found["code"]["answer"]["status"] = "unplaced"
             return found
         from research.v705 import talk
-        made = talk.debug(held, _as_written(text, call),
+        DEBUGGED[key] = call
+        made = talk.debug(held, call,
                           got and _as_written(text, got),
                           wanted and _as_written(text, wanted), key)
         found = asking._reply("debug", text, made["said"],
