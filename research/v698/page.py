@@ -362,7 +362,33 @@ def _as_written(text: str, phrase: str) -> str:
         return phrase
     pattern = r"\s*".join(re.escape(one) for one in words)
     found = re.search(pattern, text, re.I)
-    return found.group(0).strip(" .?!") if found else phrase
+    if not found:
+        return phrase
+    # code's own extent: an opened bracket or quote runs on to its close
+    # (`due_date(date(2026,` was marked of `due_date(date(2026, 1, 1))`)
+    end, depth, quote = found.end(), 0, None
+    for at, mark in enumerate(text[found.start():found.end()]):
+        if quote:
+            quote = None if mark == quote else quote
+        elif mark in "\"'":
+            quote = mark
+        elif mark in "([{":
+            depth += 1
+        elif mark in ")]}":
+            depth -= 1
+    at = end
+    while (depth > 0 or quote) and at < len(text):
+        mark = text[at]
+        if quote:
+            quote = None if mark == quote else quote
+        elif mark in "\"'":
+            quote = mark
+        elif mark in "([{":
+            depth += 1
+        elif mark in ")]}":
+            depth -= 1
+        at += 1
+    return text[found.start():at].strip(" .?!")
 
 
 def _named_outright(read, text: str, held) -> bool:

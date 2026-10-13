@@ -58,6 +58,9 @@ QUESTION = ("Is the person saying that some code gives a wrong result or "
             "fails, or asking for it to be debugged?")
 #: requests asked of each form, in rounds of two samples
 EACH, ROUNDS = 12, 8
+#: the calls each kept request is filled with (three were too few beside
+#: code talk's thousands: reader-code38 read 3 of 6 requests as debug)
+FILLED = 8
 VALID = K.VALID
 
 
@@ -170,7 +173,7 @@ def corpus() -> dict:
                                         ).digest()[0] / 256 < VALID \
             else "train"
         for call, got, want in rng.sample(values[split],
-                                          min(3, len(values[split]))):
+                                          min(FILLED, len(values[split]))):
             filled = {"CALL": call, "GOT": got, "WANT": want}
             said_text = one["template"]
             for name, value in filled.items():
