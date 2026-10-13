@@ -26,6 +26,17 @@ TS = '''function oldest(books: {title: string, year: number}[]): string {
 }
 '''
 BOOKS = [{"title": "A", "year": 1990}, {"title": "B", "year": 1961}]
+BOOKS_TS = '''export interface Book { title: string; year: number }
+export function byYear(a: Book, b: Book): number {
+  return a.year - b.year;
+}
+'''
+SHELF_TS = '''import { Book, byYear } from "./books";
+export function oldest(books: Book[]): string {
+  const sorted = [...books].sort(byYear);
+  return sorted[sorted.length - 1].title;
+}
+'''
 
 
 class TraceTests(unittest.TestCase):
@@ -63,6 +74,46 @@ class TraceTests(unittest.TestCase):
     def test_typescript(self):
         self.check(*self.traced("typescript", TS), returned_at=8,
                    raised_at=8)
+
+
+class ProjectTraceTests(unittest.TestCase):
+    """A call as written, run in a project's module with its imports, each
+    step of the project's own code kept, and whether it gives what it
+    should."""
+
+    def test_python(self):
+        from pathlib import Path
+        from research.v696.checker import checker
+        root = Path(__file__).resolve().parents[1] / "v704" / "fixtures" / \
+            "library"
+        files = {"/ws/" + one.relative_to(root).as_posix():
+                 one.read_text(encoding="utf-8")
+                 for one in root.rglob("*.py")}
+        held = checker("python")
+        try:
+            found = held.trace_project(
+                files, "/ws/library/loans.py",
+                "due_date(date(2026, 1, 1))", "date(2026, 1, 15)")
+        finally:
+            held.close()
+        self.assertTrue(found["output"]["right"])
+        self.assertEqual(found["steps"][-1]["returns"],
+                         "datetime.date(2026, 1, 15)")
+
+    @unittest.skipUnless(shutil.which("node"), "needs node")
+    def test_typescript(self):
+        from research.v696.checker import checker
+        files = {"/ws/src/books.ts": BOOKS_TS, "/ws/src/shelf.ts": SHELF_TS}
+        held = checker("typescript")
+        try:
+            found = held.trace_project(
+                files, "/ws/src/shelf.ts",
+                'oldest([{title: "A", year: 1990}, {title: "B", '
+                'year: 1961}])', '"B"')
+        finally:
+            held.close()
+        self.assertEqual(found["output"], {"value": '"A"', "right": False})
+        self.assertIn("1961", found["steps"][1]["values"]["sorted"])
 
 
 if __name__ == "__main__":

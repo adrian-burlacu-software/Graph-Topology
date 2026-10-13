@@ -274,6 +274,97 @@ function trace(source, entry, args, timeout) {
   return { output, steps, cut: steps.length >= TRACED };
 }
 
+// A call as written evaluated in a project's module (v705): the project's
+// files transpiled -- the call's own file instrumented, as `trace` does --
+// loaded as `project` loads them, the call run among that module's names,
+// each step kept; and, where what it should give is said, whether it does.
+const TRACE_LOADER = `
+(function (files, file) {
+  const cache = {};
+  const resolve = (from, spec) => {
+    const parts = from.split("/").slice(0, -1);
+    for (const part of spec.split("/")) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    const base = parts.join("/");
+    if (base in files) return base;
+    if (base + ".ts" in files) return base + ".ts";
+    throw new Error("no module " + spec + " from " + from);
+  };
+  const load = (one) => {
+    if (cache[one]) return cache[one].exports;
+    const module = { exports: {} };
+    cache[one] = module;
+    const wrapped = new Function("require", "module", "exports", files[one]);
+    wrapped((spec) => spec.startsWith(".") ? load(resolve(one, spec))
+                                          : require(spec),
+            module, module.exports);
+    return module.exports;
+  };
+  return load(file);
+})(__files, __file);
+`;
+
+function traceProject(files, file, call, wanted, timeout) {
+  const context = sandbox();
+  const steps = [];
+  const seen = new Map();
+  const unset = {};
+  context.__v = (get) => { try { return get(); } catch (e) { return unset; } };
+  context.__step = (line, name, get) => {
+    if (steps.length >= TRACED) return;
+    const now = {};
+    const got = get();
+    for (const key of Object.keys(got))
+      if (got[key] !== unset) now[key] = shown(got[key]);
+    const before = seen.get(name) || {};
+    const values = {};
+    for (const key of Object.keys(now))
+      if (before[key] !== now[key]) values[key] = now[key];
+    seen.set(name, now);
+    steps.push({ line, in: name, file, values });
+  };
+  context.__ret = (line, name, value) => {
+    if (steps.length < TRACED)
+      steps.push({ line, in: name, returns: shown(value) });
+    return value;
+  };
+  const transpiled = {};
+  for (const [one, text] of Object.entries(files))
+    transpiled[one] = transpile(one === file ? instrument(text) : text);
+  context.__files = transpiled;
+  context.__file = file;
+  const exports = vm.runInContext(TRACE_LOADER, context, { timeout });
+  context.__exports = exports;
+  const names = Object.keys(exports);
+  const run = (text) => vm.runInContext(
+    `(function (${names.join(", ")}) { return (${transpile(
+      "(" + text + ")").replace(/;\s*$/, "")}); })` +
+    `(...Object.keys(__exports).map((k) => __exports[k]))`, context,
+    { timeout });
+  let output;
+  try {
+    const value = run(call);
+    output = { value: shown(value) };
+    if (wanted) {
+      try {
+        output.right = JSON.stringify(plain(run(wanted))) ===
+          JSON.stringify(plain(value));
+      } catch (error) {
+        output.right = String(wanted).trim() === shown(value);
+      }
+    }
+  } catch (error) {
+    const said = String(error && error.message || error);
+    output = { error: said };
+    const last = steps[steps.length - 1];
+    steps.push({ line: last ? last.line : null, in: last ? last.in : "",
+                 raises: said });
+  }
+  return { output, steps, cut: steps.length >= TRACED };
+}
+
 // The library as the compiler has it: for each receiver type named, every
 // method's parameters and return type, with the receiver's type variables
 // instantiated (`number[]`'s `indexOf(searchElement: number, ...)`), and
@@ -2381,6 +2472,11 @@ lines.on("line", (line) => {
     } else if (request.op === "run") {
       reply.outputs = run(request.source, request.entry, request.cases,
                           request.timeout || 200);
+      reply.ok = true;
+    } else if (request.op === "trace project") {
+      Object.assign(reply, traceProject(request.files, request.file,
+                                        request.call, request.wanted,
+                                        request.timeout || 2000));
       reply.ok = true;
     } else if (request.op === "trace") {
       Object.assign(reply, trace(request.source, request.entry, request.case,

@@ -434,7 +434,12 @@ def _shown(value) -> str:
     try:
         said = json.dumps(plain(value))
     except Exception:                               # noqa: BLE001
-        said = f"<{type(value).__name__}>"
+        # what JSON cannot carry, as Python writes it (`datetime.date(2026,
+        # 1, 15)`)
+        try:
+            said = repr(value)
+        except Exception:                           # noqa: BLE001
+            said = f"<{type(value).__name__}>"
     return said if len(said) <= SHOWN else said[:SHOWN] + "..."
 
 
@@ -601,6 +606,98 @@ def project(files: dict, main: str, timeout: int) -> dict:
             for name in set(sys.modules) - before:
                 sys.modules.pop(name, None)
     finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def trace_project(files: dict, file: str, call: str, wanted: str | None,
+                  timeout: int) -> dict:
+    """A call, as written (`due_date(date(2026, 1, 1))`), evaluated in a
+    project's module (v705): the project written to a folder of its own,
+    the module imported with its imports, the call run with each step of
+    the project's own code kept -- and, where what it should give is said,
+    whether it gives it (that said, evaluated in the module too)."""
+    import importlib
+    root = tempfile.mkdtemp(prefix="pytrace-")
+    before = set(sys.modules)
+    try:
+        common = _common(list(files))
+        for path, text in files.items():
+            if text is None:
+                continue
+            where = os.path.join(root, os.path.relpath(path, common))
+            os.makedirs(os.path.dirname(where), exist_ok=True)
+            with open(where, "w", encoding="utf-8") as out:
+                out.write(text)
+        relative = os.path.relpath(file, common).replace("\\", "/")
+        name = relative[:-3].replace("/", ".")
+        if name.endswith(".__init__"):
+            name = name[:-9]
+        sys.path.insert(0, root)
+        try:
+            with _Watch(max(timeout * 5, 1000)):
+                module = importlib.import_module(name)
+        except BaseException as bad:                # noqa: BLE001
+            return {"ok": False, "error": f"importing {name}: "
+                                          f"{_failed(bad)}"}
+        space = dict(vars(module))
+        steps: list = []
+        seen: dict = {}
+        raising: set = set()
+        folder = os.path.realpath(root)
+
+        def tracer(frame, event, arg):
+            where_ = os.path.realpath(frame.f_code.co_filename)
+            if not where_.startswith(folder) or len(steps) >= TRACED:
+                return None
+            name_ = frame.f_code.co_name
+            if event == "return" and id(frame) in raising:
+                raising.discard(id(frame))
+                return tracer
+            if event == "line":
+                raising.discard(id(frame))
+                now = {key: _shown(value) for key, value in
+                       frame.f_locals.items() if not key.startswith("__")}
+                before_ = seen.get(id(frame), {})
+                steps.append({"line": frame.f_lineno, "in": name_,
+                              "file": os.path.relpath(where_, folder)
+                              .replace("\\", "/"),
+                              "values": {key: value for key, value in
+                                         now.items()
+                                         if before_.get(key) != value}})
+                seen[id(frame)] = now
+            elif event == "return":
+                steps.append({"line": frame.f_lineno, "in": name_,
+                              "returns": _shown(arg)})
+            elif event == "exception":
+                raising.add(id(frame))
+                steps.append({"line": frame.f_lineno, "in": name_,
+                              "raises": _failed(arg[1])})
+            return tracer
+        printed = io.StringIO()
+        out: dict
+        sys.settrace(tracer)
+        try:
+            with _Watch(timeout), contextlib.redirect_stdout(printed):
+                value = eval(call, space)           # noqa: S307
+            out = {"value": _shown(value), "said": repr(value)[:SHOWN]}
+        except Stopped as bad:
+            out = {"error": str(bad)}
+        except BaseException as bad:                # noqa: BLE001
+            out = {"error": _failed(bad)}
+        finally:
+            sys.settrace(None)
+        if wanted and "error" not in out:
+            try:
+                out["right"] = eval(wanted, space) == value  # noqa: S307
+            except BaseException:                   # noqa: BLE001
+                out["right"] = wanted.strip() in (repr(value), str(value))
+        return {"ok": True, "output": out, "steps": steps,
+                "cut": len(steps) >= TRACED, "module": name}
+    finally:
+        if root in sys.path:
+            sys.path.remove(root)
+        for one in set(sys.modules) - before:
+            sys.modules.pop(one, None)
         shutil.rmtree(root, ignore_errors=True)
 
 
@@ -1236,6 +1333,10 @@ def answer(request: dict) -> dict:
     if op == "trace":
         return trace(request["source"], request["entry"], request["case"],
                      request.get("timeout", 2000))
+    if op == "trace project":
+        return trace_project(request["files"], request["file"],
+                             request["call"], request.get("wanted"),
+                             request.get("timeout", 2000))
     if op == "values":
         return values(request["params"], request["cases"],
                       request["expressions"], request.get("timeout", 50),
