@@ -443,6 +443,24 @@ def _shown(value) -> str:
     return said if len(said) <= SHOWN else said[:SHOWN] + "..."
 
 
+def _read_globals(frame) -> dict:
+    """The module's values a function reads (`LOAN_DAYS = 14`): what a
+    debugger shows beside the locals -- not the modules, functions and
+    classes it calls."""
+    import types
+    out = {}
+    for name in frame.f_code.co_names:
+        if name in frame.f_locals or name not in frame.f_globals:
+            continue
+        value = frame.f_globals[name]
+        if isinstance(value, (types.ModuleType, types.FunctionType,
+                              types.BuiltinFunctionType, type)) or \
+                callable(value):
+            continue
+        out[name] = _shown(value)
+    return out
+
+
 def trace(source: str, entry: str, case: list, timeout: int) -> dict:
     """A function run on one case, each step it takes kept (v705): the
     line, the function it is in, the values that changed since its last
@@ -479,6 +497,7 @@ def trace(source: str, entry: str, case: list, timeout: int) -> dict:
             raising.discard(id(frame))
             now = {key: _shown(value) for key, value in
                    frame.f_locals.items() if not key.startswith("__")}
+            now.update(_read_globals(frame))
             before = seen.get(id(frame), {})
             steps.append({"line": frame.f_lineno, "in": name, "values": {
                 key: value for key, value in now.items()
@@ -657,6 +676,7 @@ def trace_project(files: dict, file: str, call: str, wanted: str | None,
                 raising.discard(id(frame))
                 now = {key: _shown(value) for key, value in
                        frame.f_locals.items() if not key.startswith("__")}
+                now.update(_read_globals(frame))
                 before_ = seen.get(id(frame), {})
                 steps.append({"line": frame.f_lineno, "in": name_,
                               "file": os.path.relpath(where_, folder)

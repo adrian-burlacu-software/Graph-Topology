@@ -307,6 +307,35 @@ def _act(read, text: str, session, memory) -> dict | None:
         return conversation.respond("more", coding.read(text, language),
                                     text, space, turn, ways=read.ways,
                                     language=language)
+    if read.act == "debug":
+        # a run asked to be looked into (v705): the call run in its
+        # project, said, and fixed only where the call then gives what it
+        # should
+        call = " ".join((read.spans.get("CALL") or [""])[0].split())
+        got = (read.spans.get("GOT") or [None])[0]
+        wanted = (read.spans.get("WANT") or [None])[0]
+        if held is None or not call:
+            said = ("Send me the project and name the call -- like "
+                    "`f(3) gives 7 but should give 9` -- and I'll run it "
+                    "and look." if held is None else
+                    "Which call should I run? Say it as you'd write it, "
+                    "like `f(3)`.")
+            found = asking._reply("debug", text, said, {"read": read.json()})
+            found["code"]["answer"]["status"] = "unplaced"
+            return found
+        from research.v705 import talk
+        made = talk.debug(held, _as_written(text, call),
+                          got and _as_written(text, got),
+                          wanted and _as_written(text, wanted), key)
+        found = asking._reply("debug", text, made["said"],
+                              {"read": read.json(), "file": made.get("file"),
+                               "function": made.get("function")},
+                              name=made.get("function") or "")
+        found["code"]["answer"]["status"] = made["status"]
+        if made.get("function"):
+            asking.FOCUS[key] = (asking.Subject(
+                "function", made["function"], made["file"]), turn)
+        return found
     if read.act == "teach":
         return knowledge.taught(read, text)
     if read.act == "run":
@@ -322,6 +351,18 @@ def _act(read, text: str, session, memory) -> dict | None:
                                  name=subject.name)
         return None
     return asking.answered_read(read, text, held, space, turn, key)
+
+
+def _as_written(text: str, phrase: str) -> str:
+    """A phrase the reader marked, as the message wrote it: its words found
+    in order in the message (the reader's words are lowered and split at
+    marks -- `due_date ( date ( 2026 , 1 , 1 ) )`), else the phrase."""
+    words = phrase.split()
+    if not words:
+        return phrase
+    pattern = r"\s*".join(re.escape(one) for one in words)
+    found = re.search(pattern, text, re.I)
+    return found.group(0).strip(" .?!") if found else phrase
 
 
 def _named_outright(read, text: str, held) -> bool:

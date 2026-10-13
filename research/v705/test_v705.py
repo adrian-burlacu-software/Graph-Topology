@@ -116,5 +116,41 @@ class ProjectTraceTests(unittest.TestCase):
         self.assertIn("1961", found["steps"][1]["values"]["sorted"])
 
 
+class DebugTalkTests(unittest.TestCase):
+    """A debugging request answered: the call run in its project and said,
+    the module's values it reads with it; right where it gives what it
+    should."""
+
+    def held(self):
+        from pathlib import Path
+        from research.v698.project import Project
+        root = Path(__file__).resolve().parents[1] / "v704" / "fixtures" / \
+            "library"
+        held = Project("v705-debug-talk")
+        held.put({one.relative_to(root).as_posix():
+                  one.read_text(encoding="utf-8")
+                  for one in root.rglob("*.py")})
+        return held
+
+    def test_run_said(self):
+        from research.v705 import talk
+        found = talk.debug(self.held(), "due_date(date(2026, 1, 1))", None,
+                           None)
+        self.assertEqual(found["status"], "traced")
+        self.assertIn("LOAN_DAYS = 14", found["said"])
+        self.assertIn("datetime.date(2026, 1, 15)", found["said"])
+
+    def test_right_already(self):
+        from research.v705 import talk
+        found = talk.debug(self.held(), "due_date(date(2026, 1, 1))", None,
+                           "date(2026, 1, 15)")
+        self.assertEqual(found["status"], "right")
+
+    def test_nowhere(self):
+        from research.v705 import talk
+        found = talk.debug(self.held(), "nothing_here(1)", None, "2")
+        self.assertEqual(found["status"], "unplaced")
+
+
 if __name__ == "__main__":
     unittest.main()
