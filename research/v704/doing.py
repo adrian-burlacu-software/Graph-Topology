@@ -45,6 +45,9 @@ READERS = (("conversation", "acts"), ("code talk", "code_act"),
 NOTHING = ("none", "generic")
 #: the cases a look diagnoses at most
 MOST = 6
+#: the functions a change is tried in: where the case gives up, then the
+#: one that called it
+UP = 2
 
 
 def readings(text: str) -> list:
@@ -335,16 +338,28 @@ def _step(state: dict, step: dict, change, held, debug=None) -> list:
             return lines + [f"{step['said']}: asked already, in step "
                             f"{state['asked'].index(asked) + 1} -- left."]
         state["asked"].append(asked)
-        # made where the look inside found it, else where the look did
-        target = looked or shared
-        said, changed = change(asked, target.get("function"),
-                               target.get("file"),
-                               (shared.get("case") or {}).get("said"))
+        # made where the look inside found it, else where the look did --
+        # and where no change there answers the case, in the function that
+        # called it, which holds more of what the case needs (`_whose`
+        # cannot make `my dog` a mention; `act`, which calls it, makes
+        # mentions of the same words below it)
+        targets = list(reversed(chain))[:UP] if looked else [shared]
+        said, changed, target = "", False, targets[0]
+        for at, target in enumerate(targets):
+            if at:
+                asked = request_for(shared or None, target)
+                lines.append(f"{said} So, one call up:")
+            said, changed = change(asked, target.get("function"),
+                                   target.get("file"),
+                                   (shared.get("case") or {}).get("said"))
+            lines.append(f"{step['said'] if not at else 'Then'}: I asked "
+                         f"myself to {asked}.")
+            if changed:
+                break
         # what it changed, for the person to answer (`_feedback`)
         state["changed"] = (target.get("function") or "the project") \
             if changed else None
-        return lines + [f"{step['said']}: I asked myself to {asked}.",
-                        said]
+        return lines + [said]
     if kind == "check":
         numbers = [one["n"] for one in state.get("found") or []
                    if one.get("n") is not None]
