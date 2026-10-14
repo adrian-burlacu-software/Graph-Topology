@@ -76,6 +76,19 @@ QUALITIES = [
 ]
 #: a quality's topic, as written and checked
 ORDER = "the code: "
+#: what the assistant does, ordered of it (v705): "improve your general
+#: knowledge" was read a change of `Archive.knowledge`, and the editor
+#: rewrote a query in it -- orders about its own abilities name no code
+ABILITIES = [
+    "general knowledge", "memory", "answers", "understanding of what "
+    "people ask", "reasoning", "planning", "explanations", "code writing",
+    "debugging", "reading of data files", "maths", "common sense",
+    "sense of time", "conversation", "judgement of when it is unsure",
+]
+#: an ability's topic, as written and checked
+YOURS = "your: "
+#: what an order kept as a goal of its own abilities says (teaching only)
+YOU = re.compile(r"\b(you|your|yourself)\b", re.I)
 #: messages written for each topic, by each of two samples
 EACH = 8
 #: the act choices the teacher checks with: the code-talk acts and a goal
@@ -97,7 +110,8 @@ def write(batch: int = 16) -> None:
         done = {json.loads(line)["topic"] for line in
                 WRITTEN.open(encoding="utf-8")}
     todo = [one for one in TOPICS + [ORDER + quality
-                                     for quality in QUALITIES]
+                                     for quality in QUALITIES] +
+            [YOURS + ability for ability in ABILITIES]
             if one not in done]
     teacher = Teacher()
     teacher.torch.manual_seed(SEED)
@@ -121,6 +135,15 @@ def write(batch: int = 16) -> None:
 
 
 def _prompt(topic: str) -> str:
+    if topic.startswith(YOURS):
+        return (f"Write {EACH} different messages a person might type to "
+                f"an AI assistant, telling it to get better at its own "
+                f"{topic[len(YOURS):]} -- an order to the assistant about "
+                f"itself, never naming a function, file or line, nor "
+                f"saying what code to write. Vary them a lot: short and "
+                f"long, casual and formal, 'improve your', 'work on your', "
+                f"'get better at', 'make your ... better', 'boost your'. "
+                f"One per line, nothing else.")
     if topic.startswith(ORDER):
         return (f"Write {EACH} different messages a person might type to "
                 f"an assistant that works on their software, telling it to "
@@ -158,21 +181,34 @@ WHOLE = re.compile(r"\b(code|codebase|code base|system|software|project|"
 def check(batch: int = 24) -> dict:
     from research.v696.teach_meaning import Teacher
     rows = [json.loads(line) for line in WRITTEN.open(encoding="utf-8")]
-    todo = [(one["topic"], line) for one in rows for line in one["lines"]]
-    teacher = Teacher()
+    # checked once: checked again, the teacher's verdicts moved with how
+    # the rows were batched (760 goals kept of 803 against 665)
+    before = [json.loads(line) for line in CHECKED.open(encoding="utf-8")] \
+        if CHECKED.exists() else []
+    seen = {(one["topic"], one["said"]) for one in before}
+    todo = [(one["topic"], line) for one in rows for line in one["lines"]
+            if (one["topic"], line) not in seen]
+    teacher = Teacher() if todo else None
     counts: dict = {}
     with CHECKED.open("w", encoding="utf-8") as out:
+        for one in before:
+            out.write(json.dumps(one) + "\n")
         for at in range(0, len(todo), batch):
             chunk = todo[at:at + batch]
             replies = teacher.write(
-                [NAMES_A_PART.format(line=line) if topic.startswith(ORDER)
+                [NAMES_A_PART.format(line=line)
+                 if topic.startswith((ORDER, YOURS))
                  else K._choice(line, list(CHOICES), "What is this "
                                 "message doing?") for topic, line in chunk],
                 longest=3)
             for (topic, line), reply in zip(chunk, replies):
+                ordered = topic.startswith((ORDER, YOURS))
                 chosen = (("change" if reply[0].strip().lower().startswith(
-                    "yes") else "goal") if topic.startswith(ORDER) else
+                    "yes") else "goal") if ordered else
                     K._picked(reply[0], list(CHOICES)))
+                if chosen == "goal" and topic.startswith(YOURS) and \
+                        not YOU.search(line):
+                    chosen = "unnamed"
                 if chosen == "goal" and topic.startswith(ORDER) and \
                         not WHOLE.search(line):
                     # `make it faster` is how a change of the last answer
