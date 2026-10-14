@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import random
 import subprocess
 import sys
 import time
@@ -324,6 +325,8 @@ def ran(run) -> set:
 
 #: the passing tests of a failing test's class a spectrum is taken over
 PASSING = 12
+#: how long the thinking is given each bug (seconds)
+SECONDS = 240
 
 
 def localize(case: dict, most: int = 8) -> list:
@@ -369,8 +372,13 @@ def verifier(case: dict, function):
             return f"it does not compile: {type(bad).__name__}"
         if made is None:
             return f"the change does not define {function.__name__}"
+        if "guards" not in case:
+            # what passes beside them, as the code is: kept passing --
+            # taking out a line the failing test trips on passed it twice
+            # (`self.calls += 1`; the loop counting a saying's words)
+            case["guards"] = _beside(case)
         with Put(function, made):
-            for test in case["tests"]:
+            for test in case["tests"] + case["guards"]:
                 timer = _watched(LONGEST)
                 try:
                     ok = passes(test)
@@ -378,9 +386,35 @@ def verifier(case: dict, function):
                     ok = False
                 timer.cancel()
                 if not ok:
-                    return f"{test['test']} still fails"
+                    return (f"{test['test']} still fails"
+                            if test in case["tests"] else
+                            f"{test['test']}, which passed, now fails")
         return None
     return verify
+
+
+def _beside(case: dict) -> list:
+    """The tests of the failing tests' classes that pass as the code is
+    now (`PASSING` at most)."""
+    out = []
+    failed = {one["test"] for one in case["tests"]}
+    for holder in sorted({(one["file"], one["test"].split(".")[0])
+                          for one in case["tests"]}):
+        cls = getattr(_module(holder[0]), holder[1])
+        for name in sorted(one for one in dir(cls)
+                           if one.startswith("test")):
+            test = {"file": holder[0], "test": f"{holder[1]}.{name}"}
+            if test["test"] in failed or len(out) >= PASSING:
+                continue
+            timer = _watched(LONGEST)
+            try:
+                ok = passes(test)
+            except BaseException:                   # noqa: BLE001
+                ok = False
+            timer.cancel()
+            if ok:
+                out.append(test)
+    return out
 
 
 def think(most: int = 0) -> dict:
@@ -423,7 +457,7 @@ def think(most: int = 0) -> dict:
                     case["message"], {"said": case["message"],
                                       "tests": case["fails"],
                                       "commit": case}, mind,
-                    random.Random(thinking.SEED), seconds=600)
+                    random.Random(thinking.SEED), seconds=SECONDS)
         finally:
             mind.held.files[case["file"]] = text
             if kept is None:
@@ -441,15 +475,181 @@ def think(most: int = 0) -> dict:
     return counts
 
 
+# -- teaching the editor from them ---------------------------------------------
+
+HISTORY = ROOT / "llm" / "history-data"
+EDITS = HISTORY / "edits.jsonl"
+CORPUS = HISTORY / "corpus.jsonl"
+EDITOR = ROOT / "llm" / "editor-history"
+#: a function taught at most this many lines long, a change at most this
+#: many lines changed
+LINES, CHANGED = 80, 24
+#: the editor's own rows kept beside them, against forgetting, per row
+KEPT = 1.0
+
+
+def edits() -> dict:
+    """Every function its history changed -- the commit's message, the
+    function before, the change as the editor's blocks -- of commits that
+    hold none of the bugs it is measured on (`CHECKED`)."""
+    import difflib
+    from research.v700 import teach_editor as T
+    held = {one["sha"] for one in map(json.loads,
+                                      CHECKED.open(encoding="utf-8"))
+            if one["status"] == "bug"}
+    shas = _git("rev-list", "HEAD", "--", "research").split()
+    rows = []
+    for sha in shas:
+        if sha in held:
+            continue
+        message = _git("log", "-1", "--format=%s", sha).strip()
+        files = [one for one in _git("diff-tree", "--no-commit-id",
+                                     "--name-only", "-r", sha).split()
+                 if one.startswith("research/") and one.endswith(".py")
+                 and not _test(one)]
+        for path in files:
+            before, after = _show(f"{sha}^", path), _show(sha, path)
+            if before is None or after is None:
+                continue
+            old, new = functions(before), functions(after)
+            for name in new:
+                if name not in old or old[name] == new[name]:
+                    continue
+                was = old[name].splitlines(keepends=True)
+                is_ = new[name].splitlines(keepends=True)
+                if len(was) > LINES:
+                    continue
+                changed = sum(1 for one in difflib.ndiff(was, is_)
+                              if one[:1] in "+-")
+                if not changed or changed > CHANGED:
+                    continue
+                blocks = T.blocks_of(was, is_, 0, len(was))
+                if not blocks:
+                    continue
+                rows.append({"sha": sha, "language": "python",
+                             "statement": f"{message}\nChange {name} "
+                                          f"in {path} for it.",
+                             "path": path, "part": old[name], "start": 1,
+                             "target": T.said(blocks)})
+    HISTORY.mkdir(parents=True, exist_ok=True)
+    with EDITS.open("w", encoding="utf-8") as out:
+        for one in rows:
+            out.write(json.dumps(one) + "\n")
+    found = {"edits": len(rows), "commits": len({one["sha"] for one in rows})}
+    print(json.dumps(found))
+    return found
+
+
+def corpus() -> dict:
+    """The history's edits (a twentieth kept apart, by commit) and as many
+    of the debugging editor's own rows."""
+    import hashlib
+    rows = [json.loads(line) for line in EDITS.open(encoding="utf-8")]
+    for one in rows:
+        at = hashlib.sha1(one["sha"].encode()).digest()[0] / 256
+        one["split"] = "dev" if at < 0.05 else "train"
+    own = [json.loads(line) for line in (ROOT / "llm" / "debug-data2" /
+                                         "fixes.jsonl").open(
+        encoding="utf-8")]
+    rng = random.Random(7058)
+    rng.shuffle(own)
+    rows += [one for one in own if one["split"] == "train"][
+        :int(len(rows) * KEPT)]
+    rng.shuffle(rows)
+    with CORPUS.open("w", encoding="utf-8") as out:
+        for one in rows:
+            out.write(json.dumps(one) + "\n")
+    found = {"rows": len(rows), "history": sum("sha" in one for one in rows)}
+    print(json.dumps(found))
+    return found
+
+
+def train(epochs: int = 2) -> None:
+    """The debugging editor taught its own history's changes."""
+    from research.v700 import teach_editor as T
+    from research.v705.teach_debugging import SAYING
+    T.SAYING = SAYING
+    T.train(EDITOR, epochs=epochs, corpus=CORPUS, longest=1024,
+            base=ROOT / "llm" / "editor-debug2", rate=5e-5)
+
+
+#: the bugs an editor is measured on, and the rounds of answers it is given
+MEASURED, ROUNDS = 40, 3
+
+
+def measure(editor: str = "editor-debug2") -> dict:
+    """An editor told the goal and the place -- the commit's message and
+    its function, put back as it was -- fixing it: changed where the
+    failing tests then pass. Of the first `MEASURED` bugs (none of whose
+    commits it was taught)."""
+    from research.v698.asking import Subject
+    from research.v698.project import Project
+    from research.v700 import fixing
+    from research.v705 import inside
+    from research.v705.teach_debugging import SAYING
+    fixing.VERIFIED_ROUNDS = ROUNDS
+    mined = {(one["sha"], one["function"]): one for one in
+             map(json.loads, MINED.open(encoding="utf-8"))}
+    bugs = [one for one in map(json.loads, CHECKED.open(encoding="utf-8"))
+            if one["status"] == "bug"][:MEASURED]
+    fixed, out = 0, []
+    for bug in bugs:
+        case = {**mined[(bug["sha"], bug["function"])], "tests": bug["fails"]}
+        function = _current(case)
+        made = planted(case)
+        disk = (ROOT / case["file"]).read_text(encoding="utf-8")
+        old = disk.replace(functions(disk)[case["function"]], case["before"])
+        held = Project("measure")
+        held.put({case["file"]: old})
+        import linecache
+        path = str(ROOT / case["file"])
+        kept = linecache.cache.get(path)
+        linecache.cache[path] = (len(old), None, old.splitlines(True), path)
+        try:
+            with Put(function, made):
+                planted_now = _current(case)
+                context = {"editor": editor, "saying": SAYING,
+                           "verify": verifier(case, planted_now),
+                           "imports": inside.imports_of(planted_now)}
+                found = fixing.change(
+                    f"{case['message']}\nChange {case['function']} in "
+                    f"{case['file']} for it.", held,
+                    Subject("function", case["function"], case["file"]),
+                    "measure", context)
+        except Exception as bad:                    # noqa: BLE001
+            found = {"status": f"failed: {type(bad).__name__}"}
+        finally:
+            if kept is None:
+                linecache.cache.pop(path, None)
+            else:
+                linecache.cache[path] = kept
+        ok = found.get("status") in ("changed", "partly")
+        fixed += ok
+        out.append({"sha": case["sha"], "function": case["function"],
+                    "fixed": ok, "status": found.get("status")})
+        print(f"{case['sha'][:7]} {case['function']}: {found.get('status')}",
+              flush=True)
+    result = {"editor": editor, "bugs": len(bugs), "fixed": fixed}
+    (ROOT / "state" / f"v705-commits-measure-{editor}.json").write_text(
+        json.dumps({**result, "each": out}, indent=1), encoding="utf-8")
+    print(json.dumps(result))
+    return result
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("mine", "check", "think"))
+    parser.add_argument("job", choices=("mine", "check", "think", "edits",
+                                           "corpus", "train", "measure"))
+    parser.add_argument("--editor", default="editor-debug2")
     parser.add_argument("--most", type=int, default=0)
     options = parser.parse_args(argv)
     if options.job == "think":
         think(options.most)
+    elif options.job == "measure":
+        measure(options.editor)
     else:
-        {"mine": mine, "check": check}[options.job]()
+        {"mine": mine, "check": check, "edits": edits, "corpus": corpus,
+         "train": train}[options.job]()
     return 0
 
 

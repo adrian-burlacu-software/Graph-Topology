@@ -347,9 +347,10 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
                    "said": inside.statement_of(look_, function)
                    if look_ else None,
                    "imports": inside.imports_of(function)}
-        asked = (f"change {place['function']} so that "
-                 + ", ".join(one["test"] for one in case["tests"])
-                 + " pass") if case.get("tests") else (
+        # a goal and a place, as its history's changes are taught
+        # (`commits.edits`): the message, and which function it is in
+        asked = (f"{pad.goal}\nChange {place['function']} in "
+                 f"{place['file']} for it.") if case.get("tests") else (
             f"change {place['function']} so that it answers "
             f"\"{case['said']}\"")
         made = fixing.change(asked, held,
