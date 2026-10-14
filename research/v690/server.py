@@ -113,7 +113,7 @@ class PinnedAsker(v689.StoreAsker):
         key = (question.strip().lower() + "|"
                + repr(sorted(self.pins.items())))
         with self.service._lock:
-            found = self.service._cache.get(key)
+            found = None if v689.FRESH.get() else self.service._cache.get(key)
         if found is None:
             found = self.service.loop.run(question, dict(self.pins)).as_dict()
             with self.service._lock:

@@ -102,6 +102,10 @@ def _scratch(session, Session):
     import uuid
     name = f"v705-scratch-{uuid.uuid4().hex[:12]}"
     SCRATCH.set(True)
+    # worked out afresh: a look inside sees the code run, not a cache's
+    # answer (`StoreAsker.run`)
+    from research.v689.server import FRESH
+    FRESH.set(True)
     try:
         yield Session(session.asker, None, name, True,
                       getattr(session, "definitions", None))

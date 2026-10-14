@@ -12,6 +12,7 @@ v688's `Service` underneath -- two processes cannot hold the store at once.
 from __future__ import annotations
 
 import argparse
+import contextvars
 import urllib.parse
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -165,6 +166,12 @@ EXAMPLES = [
 ]
 
 
+#: whether a run is worked out afresh, not given from what was answered
+#: before: a run looked inside (v705 `inside`) must run, or the look sees a
+#: cache's answer and never the code that made it
+FRESH = contextvars.ContextVar("v689_fresh", default=False)
+
+
 class StoreAsker(Asker):
     """v687 from the pool's first engine, v688 from the service's loop.
 
@@ -195,7 +202,7 @@ class StoreAsker(Asker):
         # either page is answered once.
         key = question.strip().lower() + "|" + repr([])
         with self.service._lock:
-            found = self.service._cache.get(key)
+            found = None if FRESH.get() else self.service._cache.get(key)
         if found is None:
             found = self.service.loop.run(question).as_dict()
             with self.service._lock:
