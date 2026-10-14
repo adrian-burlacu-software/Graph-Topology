@@ -158,7 +158,24 @@ def passes(test: dict) -> bool:
     with contextlib.redirect_stdout(io.StringIO()), \
             contextlib.redirect_stderr(io.StringIO()):
         cls(method).run(result)
+    LAST["failure"] = next((text for _, text in result.failures +
+                            result.errors), "")
     return result.wasSuccessful()
+
+
+#: what the last test run said where it failed (`passes`)
+LAST: dict = {}
+
+
+def failure(test: dict) -> str:
+    """How a test fails, as its traceback ends: the line that failed and
+    what was raised (`AssertionError: 'x' != 'y'`)."""
+    passes(test)
+    lines = [one for one in LAST.get("failure", "").splitlines()
+             if one.strip()]
+    said = [one.strip() for one in lines if one.strip().startswith(
+        ("self.assert", "assert"))][-1:] + lines[-1:]
+    return " / ".join(said)[:400]
 
 
 def planted(case: dict):
@@ -610,8 +627,7 @@ def measure(editor: str = "editor-debug2") -> dict:
                            "verify": verifier(case, planted_now),
                            "imports": inside.imports_of(planted_now)}
                 found = fixing.change(
-                    f"{case['message']}\nChange {case['function']} in "
-                    f"{case['file']} for it.", held,
+                    statement(case, failure(case["tests"][0])), held,
                     Subject("function", case["function"], case["file"]),
                     "measure", context)
         except Exception as bad:                    # noqa: BLE001
@@ -631,10 +647,180 @@ def measure(editor: str = "editor-debug2") -> dict:
     return result
 
 
+# -- the teacher's fixes, kept where they hold -----------------------------------
+
+TAUGHT = HISTORY / "teacher-fixes.jsonl"
+TAUGHT_CORPUS = HISTORY / "taught-corpus.jsonl"
+TAUGHT_EDITOR = ROOT / "llm" / "editor-taught"
+#: the fixes the teacher writes of each bug
+TRIES = 8
+
+FIX = ("A function in a Python project has a bug. The commit that fixed it "
+       "said: \"{message}\"\nIn {path}, the function as it is:\n```python\n"
+       "{before}\n```\nThis test fails:\n```python\n{test}\n```\nIt fails "
+       "with: {failure}\nWrite the whole corrected function -- the same "
+       "name and parameters -- in one ```python block, nothing else.")
+
+
+def statement(case: dict, failed: str) -> str:
+    """What the editor is told of a bug, taught and asked alike: the goal
+    (the commit's message), the place, and how its test fails."""
+    test = case["tests"][0]["test"]
+    return (f"{case['message']}\nChange {case['function']} in "
+            f"{case['file']} for it.\n{test} fails: {failed}")
+
+
+def _code_of(reply: str) -> str | None:
+    import re
+    found = re.search(r"```(?:python)?\n(.*?)```", reply, re.S)
+    return found.group(1) if found else None
+
+
+def _placed(fixed: str, before: str, text: str) -> str | None:
+    """The file's text with the function as the teacher wrote it, indented
+    as the old one stood; None where it is not one function of its name."""
+    import textwrap
+    code = textwrap.dedent(fixed).strip("\n")
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+    name = before.split("(")[0].split()[-1]
+    if len(tree.body) != 1 or not isinstance(
+            tree.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)) or \
+            tree.body[0].name != name:
+        return None
+    at = text.index(before)
+    indent = text[text.rfind("\n", 0, at) + 1:at]
+    lines = code.splitlines()
+    placed = "\n".join([lines[0]] + [indent + one if one.strip() else one
+                                     for one in lines[1:]])
+    return text[:at] + placed + text[at + len(before):]
+
+
+def _held_out() -> set:
+    """The commits of the bugs editors are measured on (`measure`)."""
+    bugs = [one for one in map(json.loads, CHECKED.open(encoding="utf-8"))
+            if one["status"] == "bug"]
+    return {one["sha"] for one in bugs[:MEASURED]}
+
+
+def teach() -> dict:
+    """The teacher (SmolLM3, offline) told each bug not measured on --
+    the commit's message, the function, a failing test and how it fails
+    -- writing `TRIES` fixes; each run with the tests and those beside
+    them, kept where all pass."""
+    from research.v696.teach_meaning import Teacher
+    mined = {(one["sha"], one["function"]): one for one in
+             map(json.loads, MINED.open(encoding="utf-8"))}
+    held = _held_out()
+    bugs = [one for one in map(json.loads, CHECKED.open(encoding="utf-8"))
+            if one["status"] == "bug" and one["sha"] not in held]
+    done = set()
+    if TAUGHT.exists():
+        done = {(one["sha"], one["function"]) for one in
+                map(json.loads, TAUGHT.open(encoding="utf-8"))}
+    teacher = Teacher()
+    HISTORY.mkdir(parents=True, exist_ok=True)
+    counts = {"bugs": 0, "fixed": 0, "fixes": 0}
+    for bug in bugs:
+        if (bug["sha"], bug["function"]) in done:
+            continue
+        case = {**mined[(bug["sha"], bug["function"])], "tests": bug["fails"]}
+        function = _current(case)
+        made = planted(case)
+        disk = (ROOT / case["file"]).read_text(encoding="utf-8")
+        old = disk.replace(functions(disk)[case["function"]], case["before"])
+        test = case["tests"][0]
+        source = functions((ROOT / test["file"]).read_text(
+            encoding="utf-8")).get(test["test"], "")
+        kept = []
+        replies = []
+        with Put(function, made):
+            failed = failure(test)
+            replies = teacher.write([FIX.format(
+                message=case["message"], path=case["file"],
+                before=case["before"], test=source, failure=failed)],
+                longest=900, samples=TRIES, temperature=0.8)[0]
+            verify = verifier(case, _current(case))
+            seen = set()
+            for reply in replies:
+                code = _code_of(reply)
+                text = _placed(code, case["before"], old) if code else None
+                if text is None or text in seen:
+                    continue
+                seen.add(text)
+                if verify(text) is None:
+                    kept.append(functions(text)[case["function"]])
+        counts["bugs"] += 1
+        counts["fixed"] += bool(kept)
+        counts["fixes"] += len(kept)
+        with TAUGHT.open("a", encoding="utf-8") as out:
+            out.write(json.dumps({"sha": case["sha"],
+                                  "function": case["function"],
+                                  "file": case["file"],
+                                  "statement": statement(case, failed),
+                                  "before": case["before"],
+                                  "fixes": kept}) + "\n")
+        print(f"{case['sha'][:7]} {case['function']}: {len(kept)} of "
+              f"{len(replies)} hold", flush=True)
+    print(json.dumps(counts))
+    return counts
+
+
+def taught_corpus() -> dict:
+    """The fixes that held as the editor's rows -- told what it will be
+    told, answered with the change as blocks -- and three times as many
+    of its own (against forgetting)."""
+    from research.v700 import teach_editor as T
+    rows = []
+    for one in map(json.loads, TAUGHT.open(encoding="utf-8")):
+        file_text = (ROOT / one["file"]).read_text(encoding="utf-8")
+        at = file_text.find(one["before"].split("\n")[0])
+        indent = file_text[file_text.rfind("\n", 0, at) + 1:at] \
+            if at >= 0 else ""
+        was = (indent + one["before"]).splitlines(keepends=True)
+        for fixed in one["fixes"]:
+            is_ = (indent + fixed).splitlines(keepends=True)
+            blocks = T.blocks_of(was, is_, 0, len(was))
+            if not blocks:
+                continue
+            rows.append({"split": "train", "language": "python",
+                         "statement": one["statement"], "path": one["file"],
+                         "part": "".join(was), "start": 1,
+                         "target": T.said(blocks), "sha": one["sha"]})
+    taught = len(rows)
+    own = [json.loads(line) for line in (ROOT / "llm" / "debug-data2" /
+                                         "fixes.jsonl").open(
+        encoding="utf-8")]
+    rng = random.Random(7059)
+    rng.shuffle(own)
+    rows += [one for one in own if one["split"] == "train"][
+        :max(taught * 3, 200)]
+    rows += [one for one in own if one["split"] == "dev"][:50]
+    rng.shuffle(rows)
+    with TAUGHT_CORPUS.open("w", encoding="utf-8") as out:
+        for one in rows:
+            out.write(json.dumps(one) + "\n")
+    found = {"rows": len(rows), "taught": taught}
+    print(json.dumps(found))
+    return found
+
+
+def train_taught(epochs: int = 3) -> None:
+    """The debugging editor taught the teacher's fixes that held."""
+    from research.v700 import teach_editor as T
+    from research.v705.teach_debugging import SAYING
+    T.SAYING = SAYING
+    T.train(TAUGHT_EDITOR, epochs=epochs, corpus=TAUGHT_CORPUS,
+            longest=1024, base=ROOT / "llm" / "editor-debug2", rate=5e-5)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("mine", "check", "think", "edits",
-                                           "corpus", "train", "measure"))
+                                           "corpus", "train", "measure", "teach",
+                                           "taught-corpus", "train-taught"))
     parser.add_argument("--editor", default="editor-debug2")
     parser.add_argument("--most", type=int, default=0)
     options = parser.parse_args(argv)
@@ -644,7 +830,8 @@ def main(argv=None) -> int:
         measure(options.editor)
     else:
         {"mine": mine, "check": check, "edits": edits, "corpus": corpus,
-         "train": train}[options.job]()
+         "train": train, "teach": teach, "taught-corpus": taught_corpus,
+         "train-taught": train_taught}[options.job]()
     return 0
 
 
