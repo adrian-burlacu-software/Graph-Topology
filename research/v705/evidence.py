@@ -32,6 +32,24 @@ def ways(goal: str) -> list:
             if best - score <= LEAD]
 
 
+def case_of(turn, turns: list, check, **more) -> dict:
+    """A case as `doing.diagnose` takes it apart: what was said, how the
+    run went, and the check that says whether it is right."""
+    from research.v704 import converse
+    found = turn.as_dict()
+    return {"said": turns[-1], "turns": list(turns), "n": None,
+            "fired": converse.fired_of(found),
+            "acts": {"read": ((found.get("heard") or {}).get("acts")
+                              or [])[:2],
+                     "taken": (found.get("reading") or {}).get("act")},
+            "answer": " ".join(((turn.answer or {}).get("text") or "")
+                               .split())[:160],
+            "part": next((one["operator"] for one in reversed(
+                converse.fired_of(found)) if one.get("outcome") ==
+                "answered"), None),
+            "check": check, **more}
+
+
 def failures(goal: str) -> list:
     """The conversation test's failed cases of the weaknesses near the
     goal (`selfmodel.weaknesses`), each with its check."""
