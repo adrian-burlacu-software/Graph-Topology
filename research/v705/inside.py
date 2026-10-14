@@ -82,6 +82,29 @@ def watch(function, run) -> tuple:
     return got, calls
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def _scratch(session, Session):
+    """A scratch session like `session`, under a name of its own: what is
+    kept per conversation is kept by its name (v691's scene is
+    `SCENES[conversation]`), and replays under one name shared one scene
+    -- `my dog is called Rex` said in one, `where is Mary?` in the next
+    was the dog's scene's, and answered `which one?`. Dropped after."""
+    import uuid
+    name = f"v705-scratch-{uuid.uuid4().hex[:12]}"
+    try:
+        yield Session(session.asker, None, name, True,
+                      getattr(session, "definitions", None))
+    finally:
+        try:
+            from research.v691 import page as scenes
+            scenes.SCENES.pop(name, None)
+        except Exception:                           # noqa: BLE001
+            pass
+
+
 def replay(session, turns: list, function) -> tuple:
     """The turns said again to a scratch session like `session` -- the
     last with `function` watched: (the last turn, its calls)."""
@@ -89,11 +112,10 @@ def replay(session, turns: list, function) -> tuple:
     from research.v689.session import Session
 
     def apart():
-        scratch = Session(session.asker, None, "v705-debug", True,
-                          getattr(session, "definitions", None))
-        for said in turns[:-1]:
-            scratch.say(said)
-        return watch(function, lambda: scratch.say(turns[-1]))
+        with _scratch(session, Session) as scratch:
+            for said in turns[:-1]:
+                scratch.say(said)
+            return watch(function, lambda: scratch.say(turns[-1]))
     # its own world: run in a context of its own, so what the scratch
     # session changes is its own and not the operator's that asked
     # (`executive.effect`: 'plan talk changed conversation')
@@ -740,11 +762,10 @@ def answered(session, turns: list):
     from research.v689.session import Session
 
     def apart():
-        scratch = Session(session.asker, None, "v705-check", True,
-                          getattr(session, "definitions", None))
-        for said in turns[:-1]:
-            scratch.say(said)
-        return scratch.say(turns[-1])
+        with _scratch(session, Session) as scratch:
+            for said in turns[:-1]:
+                scratch.say(said)
+            return scratch.say(turns[-1])
     return contextvars.Context().run(apart)
 
 
