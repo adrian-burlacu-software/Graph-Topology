@@ -52,6 +52,8 @@ USED = 3
 #: a kind of question is an ability it lacks when none of this many is
 #: answered
 LACKING = 4
+#: what it answered right of a kind, guarding a fix of the rest, at most
+GUARDS = 4
 
 
 # -- how it asks ----------------------------------------------------------------------
@@ -288,15 +290,22 @@ def knowledge(session, rng: random.Random | None = None) -> list:
     for one in questions(rng):
         right, said, check, turn = answered(session, one)
         kind = kinds.setdefault((one["relation"], one["polar"]),
-                                {"asked": 0, "right": 0, "cases": []})
+                                {"asked": 0, "right": 0, "cases": [],
+                                 "held": []})
         kind["asked"] += 1
         kind["right"] += right
-        if not right:
+        if right:
+            kind["held"].append(([one["question"]], check))
+        else:
             kind["cases"].append(evidence.case_of(
                 turn, [one["question"]], check, area=one["relation"],
                 expected=one["target"]))
     ideas = []
     for (relation, polar), kind in kinds.items():
+        # what it answered right of the kind guards a fix of the rest: it
+        # must still answer them (`inside.cases_of`)
+        for case in kind["cases"]:
+            case["guards"] = kind["held"][:GUARDS]
         form = "yes or no" if polar == "yes" else "asked what"
         if kind["right"] == kind["asked"]:
             continue

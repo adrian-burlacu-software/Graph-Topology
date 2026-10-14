@@ -17,6 +17,11 @@ WAYS = (
     ("failures", "what it gets wrong now",
      "what it gets wrong now: questions answered wrongly or not at all, "
      "things it was told and forgot, messages sent to the wrong part"),
+    ("knowledge", "saying what it knows: facts its store holds, asked of it",
+     "what it knows but cannot say: facts it holds about things -- what "
+     "they are made of, used for, where they are found -- asked of it and "
+     "answered wrongly or not at all; knowing, understanding, general "
+     "knowledge"),
 )
 #: ways within this much of the nearest are taken too
 LEAD = 0.05
@@ -75,7 +80,28 @@ def gather(goal: str, session=None) -> dict:
     for name, _ in taken:
         if name == "failures":
             cases += failures(goal)
+        elif name == "knowledge" and session is not None:
+            cases += known(session)["cases"]
     return {"ways": taken, "cases": cases}
+
+
+def known(session) -> dict:
+    """What its knowledge against what it can say found (`ideas`): the
+    cases of each fault, each knowing the idea it came of; and the counts
+    of all it was asked."""
+    from research.v705 import ideas
+    found = ideas.knowledge(session)
+    cases, asked, right = [], 0, 0
+    for idea in found:
+        asked += idea["asked"]
+        right += idea["right"]
+        if idea["kind"] != "fault":
+            continue
+        for one in idea["cases"]:
+            cases.append({**one, "idea": {key: value for key, value in
+                                          idea.items() if key != "cases"}})
+    return {"cases": cases, "asked": asked, "right": right,
+            "ideas": found}
 
 
 def weaknesses(goal: str, session, model: dict) -> list:
@@ -83,7 +109,18 @@ def weaknesses(goal: str, session, model: dict) -> list:
     (`selfmodel.weaknesses`), by the ways of looking it takes."""
     from research.v704 import selfmodel
     out = []
-    for name, _ in ways(goal):
+    for name, what in ways(goal):
         if name == "failures":
             out += selfmodel.weaknesses(goal, model)
+        elif name == "knowledge" and session is not None:
+            found = known(session)
+            if found["cases"]:
+                wrong = found["asked"] - found["right"]
+                out.append({"what": what, "name": name, "bad": wrong,
+                            "right": found["right"], "of": found["asked"],
+                            "wrong": wrong,
+                            "how": f"{found['right']} right of "
+                                   f"{found['asked']}, {wrong} wrong",
+                            "examples": found["cases"][:2],
+                            "cases": found["cases"], "where": []})
     return out

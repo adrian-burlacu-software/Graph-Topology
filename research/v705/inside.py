@@ -798,6 +798,9 @@ def cases_of(case: dict, function) -> list:
         out = [(turns, case["check"], True)]
         if case.get("original"):
             out.append((*case["original"], True))
+        # what it answers right of the same kind (`ideas.knowledge`)
+        out += [(list(turns), check, True)
+                for turns, check in case.get("guards") or ()]
     elif found:
         item = found[0]
         out = [(item.turns, item.check, True)]

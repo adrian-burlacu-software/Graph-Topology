@@ -92,7 +92,8 @@ def diagnose(case: dict, found_places: dict | None = None) -> dict:
             # what a case found by a way of looking brings (v705
             # `evidence`): the check of it, and what it was made from
             **{key: case[key] for key in ("check", "original", "area",
-                                          "swaps") if key in case}}
+                                          "guards", "expected", "idea")
+               if key in case}}
 
 
 def _lost(case: dict, tried: list, found_places: dict) -> dict | None:
@@ -347,8 +348,16 @@ def _subgoal(state: dict, change, held, debug=None) -> list:
     lines = _step(state, {"kind": "change",
                           "said": _said_subgoal(state)[0].upper() +
                           _said_subgoal(state)[1:]}, change, held, debug)
+    met = bool(state.get("changed"))
     state.setdefault("results", []).append(
-        (one["function"], one["file"], bool(state.get("changed"))))
+        (one["function"], one["file"], met))
+    # an idea's case: what came of it, for which ways of having ideas pay
+    # (v705 `ideas.ledger`)
+    idea = (one.get("case") or {}).get("idea")
+    if idea:
+        from research.v705 import ideas
+        ideas.kept({**idea, "place": f"{one['function']} in {one['file']}",
+                    "cases": [one["case"]]}, "fixed" if met else "not fixed")
     state["sub"] = at + 1
     return lines + _next_subgoal(state)
 
