@@ -18,6 +18,7 @@ All read the utterance as typed (`v697.page.said_as_typed`).
 """
 from __future__ import annotations
 
+import json
 import re
 
 from research.v687.executive import ANSWERED, Operator
@@ -127,7 +128,10 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     else:
         weak = selfmodel.weaknesses(text, model) if itself else []
     if weak:
-        looked["weaknesses"] = weak
+        # as the page shows it: a case's check said by what it checks
+        looked["weaknesses"] = json.loads(json.dumps(
+            weak, default=lambda one: getattr(one, "about", None) or
+            type(one).__name__))
     # its steps, chosen from how this project reached goals like it (v704),
     # each said of what it is done to: the weakness it starts with, or what
     # in the project the goal's words point to
