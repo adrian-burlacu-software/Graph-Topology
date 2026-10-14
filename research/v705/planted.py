@@ -235,6 +235,44 @@ def plant(most: int = 0) -> dict:
     return counts
 
 
+#: what a test failing of the world, not of the edit, says
+NOISE = ("sqlite3.", "subprocess.TimeoutExpired", "OSError",
+         "FileNotFoundError", "PermissionError", "MemoryError",
+         "CUDA", "unable to open database")
+#: what a test failing by a crash says (`NameError: name 'word' is not
+#: defined` names its fix: an edit undone)
+CRASHES = ("NameError", "UnboundLocalError", "AttributeError", "TypeError",
+           "KeyError", "IndexError", "ValueError", "ZeroDivisionError",
+           "RecursionError", "ImportError")
+
+
+def failing(bug: dict) -> str:
+    """How a planted bug shows: `noise` (the world failed, not the edit),
+    `crash` (an exception names it), else `wrong` (it runs and says the
+    wrong thing -- what self-improvement meets: `_whose` giving nothing).
+    Of the first 351 planted, 69% were crashes."""
+    said = bug["fails"][0].get("failure", "")
+    last = said.split(" / ")[-1]
+    if any(one in said for one in NOISE):
+        return "noise"
+    if "AssertionError" in last or not any(one in last for one in CRASHES):
+        return "wrong"
+    return "crash"
+
+
+def _taught(row: dict, bug: dict) -> bool:
+    """Whether a planted bug is one to teach or measure: not noise, and of
+    the missing kind only where a whole `if` was taken out (taking out a
+    declaration -- `cache = {}` -- is a crash, not a missing case)."""
+    if failing(bug) == "noise":
+        return False
+    if bug["kind"] == "missing":
+        gone = [one for one in row["right"].splitlines()
+                if one not in bug["wrong"].splitlines()]
+        return bool(gone) and gone[0].strip().startswith(("if ", "elif "))
+    return True
+
+
 def statement(row: dict, bug: dict) -> str:
     """What the editor is told of a planted bug: as of its history's
     (`commits.statement`), the goal the failing test."""
@@ -257,6 +295,8 @@ def corpus() -> dict:
         indent = text[text.rfind("\n", 0, at) + 1:at] if at >= 0 else ""
         right = (indent + row["right"]).splitlines(keepends=True)
         for bug in row["bugs"]:
+            if not _taught(row, bug):
+                continue
             wrong = (indent + bug["wrong"]).splitlines(keepends=True)
             blocks = T.blocks_of(wrong, right, 0, len(wrong))
             if not blocks:
@@ -265,9 +305,15 @@ def corpus() -> dict:
                          "statement": statement(row, bug),
                          "path": row["file"], "part": "".join(wrong),
                          "start": 1, "target": T.said(blocks),
-                         "kind": bug["kind"]})
-    planted = len(rows)
+                         "kind": bug["kind"], "failing": failing(bug)})
     rng = random.Random(SEED)
+    rng.shuffle(rows)
+    # wrong answers, all of them; crashes no more than as many -- taught
+    # as they come, the editor would learn to undo typos a traceback names
+    wrong = [one for one in rows if one["failing"] == "wrong"]
+    rows = wrong + [one for one in rows
+                    if one["failing"] == "crash"][:len(wrong)]
+    planted = len(rows)
     rng.shuffle(rows)
     for one in rows[:len(rows) // 20]:
         one["split"] = "dev"
@@ -281,7 +327,8 @@ def corpus() -> dict:
     with CORPUS.open("w", encoding="utf-8") as out:
         for one in rows:
             out.write(json.dumps(one) + "\n")
-    found = {"rows": len(rows), "planted": planted}
+    found = {"rows": len(rows), "planted": planted,
+             "wrong answers": len(wrong)}
     print(json.dumps(found))
     return found
 
@@ -312,9 +359,16 @@ def measure(editor: str = "editor-debug2") -> dict:
     covered = json.loads(COVERED.read_text(encoding="utf-8"))["functions"]
     bugs = [(row, bug) for row in map(json.loads,
                                       PLANTED.open(encoding="utf-8"))
-            if row["held"] for bug in row["bugs"]]
+            if row["held"] for bug in row["bugs"] if _taught(row, bug)]
     random.Random(SEED).shuffle(bugs)
+    # as many wrong answers as crashes, each counted apart (`by failing`):
+    # a gain on crashes says nothing of what self-improvement meets
+    wrong = [one for one in bugs if failing(one[1]) == "wrong"]
+    crash = [one for one in bugs if failing(one[1]) == "crash"]
+    bugs = wrong[:MEASURED // 2] + crash[:MEASURED - min(len(wrong),
+                                                         MEASURED // 2)]
     fixed, by_kind, out = 0, {}, []
+    by_failing: dict = {}
     for row, bug in bugs[:MEASURED]:
         case = {"file": row["file"], "function": row["function"],
                 "tests": [{"file": one["file"], "test": one["test"]}
@@ -350,12 +404,15 @@ def measure(editor: str = "editor-debug2") -> dict:
         kind = by_kind.setdefault(bug["kind"], [0, 0])
         kind[0] += ok
         kind[1] += 1
+        shows = by_failing.setdefault(failing(bug), [0, 0])
+        shows[0] += ok
+        shows[1] += 1
         out.append({"place": row["place"], "kind": bug["kind"], "fixed": ok,
                     "status": found.get("status")})
         print(f"{row['function']} ({bug['kind']}): {found.get('status')}",
               flush=True)
     result = {"editor": editor, "bugs": len(out), "fixed": fixed,
-              "by kind": by_kind}
+              "by failing": by_failing, "by kind": by_kind}
     (ROOT / "state" / f"v705-planted-measure-{editor}.json").write_text(
         json.dumps({**result, "each": out}, indent=1), encoding="utf-8")
     print(json.dumps(result))
