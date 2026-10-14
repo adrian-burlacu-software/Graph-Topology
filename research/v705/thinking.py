@@ -95,25 +95,27 @@ def layers(pad: Pad, mind) -> None:
     words = _things(said)
     parser = mind.service.pool.engines[0].parser
     parsed = parser.parse(said)
-    held = [("the parser's subject", parsed.subject or "",
-             {"function": "Parser.parse", "file": "research/v687/language.py"}),
-            ("the parser's target", parsed.target or "", None)]
     pad.think("observe", f"The parser reads \"{said}\" as about "
                          f"\"{parsed.subject}\""
                          + (f", asked of \"{parsed.target}\"" if parsed.target
                             else "") + f" ({parsed.relation or 'no relation'}).")
+    # each phrase it said, followed through every call of its own code:
+    # the first to give back its last word without the rest drops it
+    # (`inside.lost`) -- through any layer, an executive's too
+    from research.v705 import inside
+    turns = list(case.get("turns") or [said])
     for phrase in words:
         if len(phrase.split()) < 2:
             continue
-        for name, value, place in held:
-            if place and value and value != phrase and \
-                    value in phrase.split():
-                pad.think("suppose", f"\"{phrase}\" is said, and {name} is "
-                                     f"\"{value}\": the rest of it is lost "
-                                     f"in {place['function']} "
-                                     f"({place['file']}).", place=place)
-                pad.place = {**place, "lost": phrase}
-                return
+        found = inside.lost(mind.session, turns, phrase)
+        if found:
+            place = {"function": found["function"], "file": found["file"]}
+            pad.think("suppose", f"\"{phrase}\" is said, and "
+                                 f"{found['function']} ({found['file']}) "
+                                 f"gives back {found['returns'][:80]}: the "
+                                 f"rest of it is lost there.", place=place)
+            pad.place = {**place, "lost": phrase}
+            return
     pad.think("observe", "No layer drops a word the question said.")
 
 

@@ -879,7 +879,14 @@ def verify(session, cases: list, function, text: str) -> str | None:
     the function as `text` has it put in for the while, the case said
     again and the cases it answered right -- None where the case now holds
     and none of the rest broke, else why not."""
-    made = changed_function(function, text)
+    try:
+        made = changed_function(function, text)
+    except Exception as bad:                        # noqa: BLE001
+        # made apart from its file, a method can fail to compile where the
+        # file did (an indent the class body allowed): that answer fails,
+        # not the checking of the rest (`IndentationError`, session.py)
+        return f"the changed {function.__name__} does not compile: " \
+               f"{type(bad).__name__}: {bad}"
     if made is None:
         return f"the change does not define {function.__name__}"
     # what it answered right is what a scratch session answers right as it
@@ -923,6 +930,111 @@ def verify(session, cases: list, function, text: str) -> str | None:
         return None
     finally:
         setattr(owner, function.__name__, kept)
+
+
+def _says(value, phrase: str, depth: int = 0) -> bool:
+    """Whether a value holds a phrase, looked at shallowly -- a word goes
+    from layer to layer as a string or a list of words: a string, words in
+    order (`['a', 'baby', 'powder']`), or the strings and word lists right
+    in a dict or an object (searched deep, a whole v688 run took over half
+    an hour)."""
+    if isinstance(value, str):
+        return phrase in value.lower()
+    if isinstance(value, (list, tuple)):
+        items = value[:40]
+        if items and all(isinstance(one, str) for one in items):
+            return phrase in " ".join(items).lower()
+        return False
+    if depth:
+        return False
+    if isinstance(value, dict):
+        fields = list(value.values())[:40]
+    else:
+        held = getattr(value, "__dict__", None)
+        fields = list(held.values())[:40] if isinstance(held, dict) else []
+    return any(_says(one, phrase, 1) for one in fields)
+
+
+def _fields(value) -> list:
+    """What a value gives back, field by field: itself where it is a
+    string or words, else its items -- a parse holds the question whole
+    beside the subject it lost (`subject: powder`)."""
+    if isinstance(value, str) or (isinstance(value, (list, tuple)) and value
+                                  and all(isinstance(one, str)
+                                          for one in value)):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return list(value)[:40]
+    if isinstance(value, dict):
+        return list(value.values())[:40]
+    held = getattr(value, "__dict__", None)
+    return list(held.values())[:40] if isinstance(held, dict) else []
+
+
+def lost(session, turns: list, phrase: str) -> dict | None:
+    """Where a phrase said is lost: every call of its own code watched
+    while the turns are said again, the first to return that was given
+    the phrase (`baby powder`) and gave back its last word without it
+    (`powder`) -- the place a word was dropped, by what the calls held,
+    through any layer an executive runs (`Parser.parse`, under v688's
+    loop). {function, file, line, returns}, else None."""
+    import contextvars
+    phrase = phrase.lower()
+    head = phrase.split()[-1]
+    # the phrase's other words, each gone from what was given back
+    others = phrase.split()[:-1]
+    found: list = []
+    frames: dict = {}
+
+    def local(frame, event, arg):
+        if event == "return" and id(frame) in frames:
+            path = frames.pop(id(frame))
+            if not found and any(
+                    _says(one, head, 1) and not any(_says(one, word, 1)
+                                                    for word in others)
+                    for one in _fields(arg)):
+                found.append({"function": getattr(
+                    frame.f_code, "co_qualname", frame.f_code.co_name),
+                    "file": path, "line": frame.f_lineno,
+                    "returns": _shown(arg)})
+        return local
+
+    places: dict = {}
+
+    def tracer(frame, event, arg):
+        if event != "call" or found:
+            return None
+        # each file placed once, by its name first: resolving a path on
+        # every call of a whole run took longer than the run
+        name = frame.f_code.co_filename
+        path = places.get(name, False)
+        if path is False:
+            path = _relative(name) if "research" in name else None
+            if path and (not path.startswith("research/") or
+                         "/test" in path):
+                path = None
+            places[name] = path
+        if not path:
+            return None
+        if any(_says(value, phrase) for name, value in
+               frame.f_locals.items() if name != "self"):
+            frames[id(frame)] = path
+            return local
+        return None
+
+    def apart():
+        from research.v689.session import Session
+        with _scratch(session, Session) as scratch:
+            for said in turns[:-1]:
+                scratch.say(said)
+            previous = sys.gettrace()
+            sys.settrace(tracer)
+            try:
+                scratch.say(turns[-1])
+            finally:
+                sys.settrace(previous)
+    contextvars.Context().run(apart)
+    return found[0] if found else None
 
 
 def _relative(path: str | None) -> str | None:
