@@ -117,8 +117,10 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     # place it fails at a subgoal carried out in turn (`doing.findings`)
     from research.v705 import evidence, inside
     itself = bool(model) and selfmodel.about_itself(text)
-    # never while it is asking itself (a scratch session's answer)
-    found_by = itself and session is not None and not inside.SCRATCH.get()
+    # of itself or of the code it holds alike -- never while it is asking
+    # itself (a scratch session's answer)
+    found_by = bool(model) and (itself or held is not None) and \
+        session is not None and not inside.SCRATCH.get()
     if found_by:
         weak = evidence.weaknesses(text, session, model)
         looked["ways"] = [what for _, what in evidence.ways(text)]

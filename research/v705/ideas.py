@@ -36,6 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TAUGHT = ROOT / "llm" / "reader-data" / "train.jsonl"
 LEDGER = ROOT / "state" / "v705-ideas.jsonl"
+FOUND = ROOT / "state" / "v705-knowledge.json"
 SEED = 7052
 #: the relations asked of it, and how much of the store answers each
 RELATIONS = ("made_of", "used_for", "at_location", "has_part", "part_of",
@@ -295,17 +296,21 @@ def knowledge(session, rng: random.Random | None = None) -> list:
         kind["asked"] += 1
         kind["right"] += right
         if right:
-            kind["held"].append(([one["question"]], check))
+            kind["held"].append(([one["question"]], check,
+                                 one["polar"], one["target"]))
         else:
             kind["cases"].append(evidence.case_of(
                 turn, [one["question"]], check, area=one["relation"],
-                expected=one["target"]))
+                expected=one["target"], polar=one["polar"]))
     ideas = []
     for (relation, polar), kind in kinds.items():
         # what it answered right of the kind guards a fix of the rest: it
         # must still answer them (`inside.cases_of`)
         for case in kind["cases"]:
-            case["guards"] = kind["held"][:GUARDS]
+            case["guards"] = [(turns, check) for turns, check, _, _ in
+                              kind["held"][:GUARDS]]
+            case["guarded"] = [(turns[0], polar, target) for turns, _,
+                               polar, target in kind["held"][:GUARDS]]
         form = "yes or no" if polar == "yes" else "asked what"
         if kind["right"] == kind["asked"]:
             continue
@@ -332,6 +337,45 @@ def knowledge(session, rng: random.Random | None = None) -> list:
     ideas.sort(key=lambda one: (("fault", "ability", "reading").index(
         one["kind"]), one["right"] - one["asked"]))
     return ideas
+
+
+# -- what was found, kept for a goal ------------------------------------------------
+
+def _check(polar: str, expected: str):
+    from research.v704 import converse
+    return converse.stance("yes") if polar == "yes" else \
+        converse.says(*expected.split()[-1:])
+
+
+def saved(found: list) -> None:
+    """What asking itself found, kept for a goal to read
+    (`evidence.known`): asking takes minutes, a turn cannot."""
+    keep = ("said", "turns", "n", "fired", "acts", "answer", "part",
+            "area", "expected", "polar", "guarded")
+    FOUND.parent.mkdir(parents=True, exist_ok=True)
+    FOUND.write_text(json.dumps({"at": time.strftime("%Y-%m-%d %H:%M"),
+                                 "ideas": [{**{key: value for key, value in
+                                               idea.items() if key != "cases"},
+                                            "cases": [{key: one[key] for key in
+                                                       keep if key in one}
+                                                      for one in idea["cases"]]}
+                                           for idea in found]}, indent=1),
+                     encoding="utf-8")
+
+
+def loaded() -> list | None:
+    """What asking itself found last (`saved`), each case with its check
+    and guards made again; None where it has not asked."""
+    if not FOUND.exists():
+        return None
+    out = json.loads(FOUND.read_text(encoding="utf-8"))["ideas"]
+    for idea in out:
+        for one in idea["cases"]:
+            one["check"] = _check(one["polar"], one["expected"])
+            one["guards"] = [([question], _check(polar, expected))
+                             for question, polar, expected in
+                             one.get("guarded") or ()]
+    return out
 
 
 # -- the ledger --------------------------------------------------------------------
@@ -375,7 +419,9 @@ def main(argv=None) -> int:
     service = v688.Service(build.DEFAULT_STORE, 1, 8, teacher=False)
     session = Session(PinnedAsker(service), None, "ideas", True,
                       DefinitionMemory(None))
-    for idea in knowledge(session):
+    found = knowledge(session)
+    saved(found)
+    for idea in found:
         kept(idea)
         print(f"[{idea['kind']}] {idea['said']}")
         for one in idea["cases"][:3]:

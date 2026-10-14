@@ -90,7 +90,11 @@ def known(session) -> dict:
     cases of each fault, each knowing the idea it came of; and the counts
     of all it was asked."""
     from research.v705 import ideas
-    found = ideas.knowledge(session)
+    # what asking itself found last (`python -m research.v705.ideas
+    # knowledge`): asked in a turn, it took minutes
+    found = ideas.loaded()
+    if found is None:
+        found = ideas.knowledge(session)
     cases, asked, right = [], 0, 0
     for idea in found:
         asked += idea["asked"]
