@@ -1969,6 +1969,17 @@ def steps() -> list[Step]:
              lambda: _run("research.v704.teach_saying", "train"),
              _model_check(LLM / "plan-sayer2", 600),
              needs=("plan-sayings",), cost="half an hour", gpu=True),
+        Step("editor-own", "the debugging editor taught bugs planted in "
+                           "its own code -- each a test's function made "
+                           "wrong by one edit, mostly wrong answers, the "
+                           "fix the edit undone (research/v705/planted.py)",
+             lambda: (_run("research.v705.planted", "cover"),
+                      _run("research.v705.planted", "plant", "--most",
+                           "500"),
+                      _run("research.v705.planted", "corpus"),
+                      _run("research.v705.planted", "train")),
+             _model_check(LLM / "editor-own", 600),
+             needs=("editor-debug2",), cost="five hours", gpu=True),
         Step("measures-head", "what a goal about its replies measures "
                               "(`more concise`: length, lower) -- two "
                               "heads over MiniLM as pretrained "
