@@ -760,7 +760,7 @@ def _owner(function):
     return owner
 
 
-def changed_function(function, text: str):
+def changed_function(function, text: str, filename: str | None = None):
     """The function as a changed file's text defines it, made as the
     running one was -- in its module's names, a method in its class (its
     `super()` the class's) -- not yet put in. None where the text does not
@@ -800,7 +800,8 @@ def changed_function(function, text: str):
     wrapped = "\n" * max(first - 2, 0) + \
         f"class {owner.__name__ if owner is not _module(function) else '_Here'}:\n" \
         + textwrap.indent(source, "    ")
-    code = compile(wrapped, inspect.getsourcefile(function) or "<changed>",
+    code = compile(wrapped, filename or inspect.getsourcefile(function)
+                   or "<changed>",
                    "exec")
     exec(code, names)                               # noqa: S102
     made = vars(names[owner.__name__ if owner is not _module(function)

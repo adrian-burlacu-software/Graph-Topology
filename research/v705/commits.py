@@ -168,11 +168,21 @@ def planted(case: dict):
     function = _current(case)
     text = (ROOT / case["file"]).read_text(encoding="utf-8")
     now = functions(text)[case["function"]]
+    old = text.replace(now, case["before"])
+    # a file of its own, its lines the old text's: its source read back
+    # (`inspect`, through linecache) is what runs -- the file's own entry
+    # set to the old text shifted every other function of it
+    import linecache
+    name = str(ROOT / case["file"]) + PLANTED
+    linecache.cache[name] = (len(old), None, old.splitlines(True), name)
     try:
-        return inside.changed_function(function, text.replace(
-            now, case["before"]))
+        return inside.changed_function(function, old, filename=name)
     except Exception:                               # noqa: BLE001
         return None
+
+
+#: what a planted function's file is named by: its own, beside the real one
+PLANTED = ".planted"
 
 
 class Put:
@@ -296,7 +306,7 @@ def ran(run) -> set:
     places: dict = {}
 
     def start(code, _offset):
-        name = code.co_filename
+        name = code.co_filename.removesuffix(PLANTED)
         path = places.get(name, False)
         if path is False:
             path = inside._relative(name) if "research" in name else None
@@ -445,12 +455,6 @@ def think(most: int = 0) -> dict:
         text = mind.held.files[case["file"]]
         old = text.replace(functions(text)[case["function"]], case["before"])
         mind.held.files[case["file"]] = old
-        # its source read back as it runs: the old function's lines, not
-        # the file's on disk (`inspect` reads through linecache)
-        import linecache
-        path = str(ROOT / case["file"])
-        kept = linecache.cache.get(path)
-        linecache.cache[path] = (len(old), None, old.splitlines(True), path)
         try:
             with Put(function, made):
                 pad = thinking.think_case(
@@ -460,10 +464,6 @@ def think(most: int = 0) -> dict:
                     random.Random(thinking.SEED), seconds=SECONDS)
         finally:
             mind.held.files[case["file"]] = text
-            if kept is None:
-                linecache.cache.pop(path, None)
-            else:
-                linecache.cache[path] = kept
         places = [one["function"] for one in pad.places]
         counts["thought"] += 1
         counts["fixed"] += pad.reward >= 1
@@ -575,6 +575,8 @@ def train(epochs: int = 2) -> None:
 
 #: the bugs an editor is measured on, and the rounds of answers it is given
 MEASURED, ROUNDS = 40, 3
+#: the first bug measured (a run taken up again)
+FROM = 0
 
 
 def measure(editor: str = "editor-debug2") -> dict:
@@ -601,10 +603,6 @@ def measure(editor: str = "editor-debug2") -> dict:
         old = disk.replace(functions(disk)[case["function"]], case["before"])
         held = Project("measure")
         held.put({case["file"]: old})
-        import linecache
-        path = str(ROOT / case["file"])
-        kept = linecache.cache.get(path)
-        linecache.cache[path] = (len(old), None, old.splitlines(True), path)
         try:
             with Put(function, made):
                 planted_now = _current(case)
@@ -617,12 +615,9 @@ def measure(editor: str = "editor-debug2") -> dict:
                     Subject("function", case["function"], case["file"]),
                     "measure", context)
         except Exception as bad:                    # noqa: BLE001
+            import traceback
+            traceback.print_exc()
             found = {"status": f"failed: {type(bad).__name__}"}
-        finally:
-            if kept is None:
-                linecache.cache.pop(path, None)
-            else:
-                linecache.cache[path] = kept
         ok = found.get("status") in ("changed", "partly")
         fixed += ok
         out.append({"sha": case["sha"], "function": case["function"],
