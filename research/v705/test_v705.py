@@ -188,6 +188,46 @@ def _shouted(words: list[str]):
     return found.upper() if found else None
 
 
+class SubgoalTests(unittest.TestCase):
+    """A goal's cases taken apart into the places they fail -- each a
+    subgoal carried in turn, and looked at again when a round met any."""
+
+    def found(self, said, function, how="answered"):
+        return {"said": said, "lost": None, "tried": [
+            {"operator": "op", "outcome": how, "function": function,
+             "file": "research/x.py"}]}
+
+    def test_places(self):
+        from research.v704 import doing
+        subs = doing.findings([self.found("a", "f"), self.found("b", "g"),
+                               self.found("c", "g"),
+                               self.found("d", "h", "declined")])
+        self.assertEqual([(one["function"], one["cases"]) for one in subs],
+                         [("h", 1), ("g", 2), ("f", 1)])
+
+    def test_rounds(self):
+        from research.v704 import doing
+        changed = []
+
+        def change(asked, function, file, case):
+            changed.append(function)
+            return f"changed {function}", function == "g"
+        state = {"goal": "x", "weak": [], "subgoals": [
+            {"function": "g", "file": "research/x.py", "how": "answered",
+             "cases": 1, "case": {"said": "b", "before": []},
+             "operator": "op", "all": ["b"]}], "sub": 0, "at": 0,
+            "again": lambda: []}
+        lines = doing.carry(state, change=change, held=_Held())
+        self.assertEqual(changed, ["g"])
+        self.assertTrue(state["done"])
+        self.assertIn("1 met", lines[-1])
+        self.assertIn("nothing fails now", lines[-1])
+
+
+class _Held:
+    files = {"research/x.py": ""}
+
+
 class CompositionTests(unittest.TestCase):
     def test_precedent(self):
         # _named gets past _first_word's nothing with `or _word_at(...)`:

@@ -102,7 +102,7 @@ def _arguments(text: str, read) -> str | None:
     return None
 
 
-def _goal(text: str, held, read, key: str = "") -> dict:
+def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     """Something wanted, not something to do (v704): never acted on -- told
     `I want to improve the ability for it to communicate in general`, the
     architecture once changed a function called `plan` -- but said back as
@@ -113,8 +113,16 @@ def _goal(text: str, held, read, key: str = "") -> dict:
     # conversation test (v704 `selfmodel`) -- what the steps are of
     from research.v704 import history, selfmodel, teach_saying
     model = selfmodel.held()
-    weak = selfmodel.weaknesses(text, model) \
-        if model and selfmodel.about_itself(text) else []
+    # of itself: what its own ways of looking find (v705 `evidence`), each
+    # place it fails at a subgoal carried out in turn (`doing.findings`)
+    from research.v705 import evidence
+    itself = bool(model) and selfmodel.about_itself(text)
+    found_by = itself and session is not None
+    if found_by:
+        weak = evidence.weaknesses(text, session, model)
+        looked["ways"] = [what for _, what in evidence.ways(text)]
+    else:
+        weak = selfmodel.weaknesses(text, model) if itself else []
     if weak:
         looked["weaknesses"] = weak
     # its steps, chosen from how this project reached goals like it (v704),
@@ -137,9 +145,13 @@ def _goal(text: str, held, read, key: str = "") -> dict:
     said = teach_saying.joined(pieces, sayings)
     if near and not planned:
         said += " What your words point to: " + ", ".join(near) + "."
-    if planned and key:
+    if key and (planned or (found_by and weak)):
         # kept for a yes: the first step taken (`_first_step`)
         GOALS[key] = {"goal": text, "weak": weak, "plan": planned}
+        if found_by and weak:
+            # carried place by place; looked at again when a round met any
+            GOALS[key].update(subgoals=[], again=lambda: evidence.gather(
+                text, session)["cases"])
     found = asking._reply("goal", text, said, looked)
     found["code"]["answer"]["status"] = "goal"
     return found
@@ -234,7 +246,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                 or (held.language() if held is not None else None)
                 or space.language)
     if read.act == "goal":
-        return _goal(text, held, read, key)
+        return _goal(text, held, read, key, session)
     if read.act == "make":
         asked = coding.read(text, language)
         if asked.get("yours") and space.request and \

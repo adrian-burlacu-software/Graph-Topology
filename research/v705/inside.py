@@ -790,10 +790,19 @@ def cases_of(case: dict, function) -> list:
         case["said"]]
     found = [item for item in suite.SUITE if item.turns == turns
              and not item.project]
-    if not found:
+    if case.get("check") is not None:
+        # a case found by a way of looking (`evidence`) brings its check
+        # -- a variant, the conversation it was made from as well
+        from research.v704.suite import Conversation
+        item = Conversation(case.get("area") or "", turns, case["check"])
+        out = [(turns, case["check"], True)]
+        if case.get("original"):
+            out.append((*case["original"], True))
+    elif found:
+        item = found[0]
+        out = [(item.turns, item.check, True)]
+    else:
         return []
-    item = found[0]
-    out = [(item.turns, item.check, True)]
     if run.exists():
         import json
         operators = {one["operator"] for one in (case.get("fired") or

@@ -48,6 +48,8 @@ MOST = 6
 #: the functions a change is tried in: where the case gives up, then the
 #: one that called it
 UP = 2
+#: rounds of subgoals a goal is looked at again for at most
+ROUNDS = 3
 
 
 def readings(text: str) -> list:
@@ -86,7 +88,11 @@ def diagnose(case: dict, found_places: dict | None = None) -> dict:
     return {"said": case["said"].split("\n")[0], "n": case.get("n"),
             "before": turns[:-1], "read": readings(turns[-1]),
             "tried": tried, "lost": _lost(case, tried, found_places),
-            "answer": case.get("answer", "")}
+            "answer": case.get("answer", ""),
+            # what a case found by a way of looking brings (v705
+            # `evidence`): the check of it, and what it was made from
+            **{key: case[key] for key in ("check", "original", "area",
+                                          "swaps") if key in case}}
 
 
 def _lost(case: dict, tried: list, found_places: dict) -> dict | None:
@@ -135,6 +141,42 @@ def said_diagnosis(one: dict) -> str:
     if steps:
         line += "; tried: " + " -> ".join(steps)
     return line
+
+
+#: what a place did with a case, most telling first
+HOW = ("never tried", "declined", "answered")
+
+
+def findings(found: list) -> list:
+    """Every place the cases fail at, each case under the one most telling
+    of it (lost there, else declined there, else answered wrongly there):
+    the goal's subgoals (v705), most telling and most cases first -- each
+    as `finding` gives one."""
+    places: dict = {}
+    for one in found:
+        keys = []
+        if one.get("lost"):
+            keys.append((("never tried", one["lost"]["function"],
+                          one["lost"]["file"]), one["lost"]["operator"]))
+        for step in one["tried"]:
+            if step["function"] and step["outcome"] in ("declined",
+                                                        "answered"):
+                keys.append(((step["outcome"], step["function"],
+                              step["file"]), step["operator"]))
+        if not keys:
+            continue
+        key, operator = min(keys, key=lambda item: HOW.index(item[0][0]))
+        places.setdefault(key, []).append((operator, one))
+    out = []
+    for (how, function, file), cases in sorted(
+            places.items(), key=lambda item: (HOW.index(item[0][0]),
+                                              -len(item[1]))):
+        operators = list(dict.fromkeys(op for op, _ in cases))
+        out.append({"operator": ", ".join(operators), "function": function,
+                    "file": file, "how": how, "cases": len(cases),
+                    "case": cases[0][1],
+                    "all": [one["said"] for _, one in cases]})
+    return out
 
 
 def finding(found: list) -> dict | None:
@@ -252,6 +294,16 @@ def carry(state: dict, change=None, held=None, debug=None) -> list:
     weak = state["weak"][0] if state.get("weak") else None
     steps = (state.get("plan") or {}).get("steps") or []
     at = state.get("at")
+    if at is None and state.get("subgoals") is not None:
+        # a goal found by its own ways of looking (v705 `evidence`): its
+        # subgoals are the places its cases fail
+        lines += _look(state, weak)
+        state["at"] = 0
+        state["subgoals"] = findings(state.get("found") or [])
+        state["sub"] = 0
+        return lines + _next_subgoal(state)
+    if state.get("subgoals") is not None:
+        return lines + _subgoal(state, change, held, debug)
     if at is None:
         lines += _look(state, weak)
         state["at"] = 0
@@ -267,6 +319,69 @@ def carry(state: dict, change=None, held=None, debug=None) -> list:
                         "ask." if state.get("measuring") else ""))
         state["done"] = True
     return lines
+
+
+def _said_subgoal(state: dict) -> str:
+    subs, at = state["subgoals"], state["sub"]
+    one = subs[at]
+    return (f"subgoal {at + 1} of {len(subs)}: {one['function']} in "
+            f"{one['file']}, where \"{one['case']['said']}\" goes wrong"
+            + (f" ({one['cases']} cases)" if one["cases"] > 1 else ""))
+
+
+def _next_subgoal(state: dict) -> list:
+    if state["sub"] < len(state["subgoals"]):
+        return [f"Next: {_said_subgoal(state)}. Shall I go on?"]
+    return _again(state)
+
+
+def _subgoal(state: dict, change, held, debug=None) -> list:
+    """The next subgoal carried out: a change where its cases fail, looked
+    inside, built and run again -- then the next, and when all are tried,
+    a look again (`_again`)."""
+    subs, at = state["subgoals"], state["sub"]
+    if at >= len(subs):
+        return _again(state)
+    one = subs[at]
+    state["finding"] = one
+    lines = _step(state, {"kind": "change",
+                          "said": _said_subgoal(state)[0].upper() +
+                          _said_subgoal(state)[1:]}, change, held, debug)
+    state.setdefault("results", []).append(
+        (one["function"], one["file"], bool(state.get("changed"))))
+    state["sub"] = at + 1
+    return lines + _next_subgoal(state)
+
+
+def _again(state: dict) -> list:
+    """All subgoals tried: where any was met, the ways of looking are
+    looked with again (`state["again"]`) -- what a change fixed is gone,
+    what it uncovered is new -- and the places not tried yet are the next
+    round; where none was, or nothing is left, the goal is done."""
+    results = state.get("results") or []
+    met = [one for one in results if one[2]]
+    tried = {(one[0], one[1]) for one in results}
+    said = (f"Of {len(results)} subgoals, {len(met)} met"
+            + (f" ({', '.join(one[0] for one in met)})" if met else "")
+            + ".")
+    again = state.get("again")
+    if met and again is not None and state.get("rounds", 1) < ROUNDS:
+        cases = again()
+        found_places = selfmodel.places()
+        found = [diagnose(one, found_places) for one in cases[:MOST * 2]]
+        fresh = [one for one in findings(found)
+                 if (one["function"], one["file"]) not in tried]
+        if fresh:
+            state.update(subgoals=fresh, sub=0, found=found,
+                         rounds=state.get("rounds", 1) + 1)
+            return [said, f"Looked again: {len(cases)} cases still fail, "
+                          f"{len(fresh)} at places not tried yet.",
+                    f"Next: {_said_subgoal(state)}. Shall I go on?"]
+        said += (f" Looked again: {len(cases)} cases still fail, all at "
+                 f"places already tried." if cases else
+                 " Looked again: nothing fails now.")
+    state["done"] = True
+    return [said + " That is as far as I can take this goal."]
 
 
 def _look(state: dict, weak: dict | None) -> list:
