@@ -711,6 +711,23 @@ def cases_of(case: dict, function) -> list:
     return out
 
 
+#: whether a case holds said to a scratch session as the code is, by
+#: session and turns
+_NOW: dict = {}
+
+
+def _holds_now(session, case: tuple) -> bool:
+    turns, check, _ = case
+    key = (id(session), tuple(turns))
+    if key not in _NOW:
+        try:
+            _NOW[key] = bool(check(_as_page_turn(answered(session, turns)),
+                                   None))
+        except Exception:                           # noqa: BLE001
+            _NOW[key] = False
+    return _NOW[key]
+
+
 def verify(session, cases: list, function, text: str) -> str | None:
     """A change of one of its own functions tried before it is written:
     the function as `text` has it put in for the while, the case said
@@ -719,6 +736,11 @@ def verify(session, cases: list, function, text: str) -> str | None:
     made = changed_function(function, text)
     if made is None:
         return f"the change does not define {function.__name__}"
+    # what it answered right is what a scratch session answers right as it
+    # is: the test's verdict came through the whole page ("where is Mary?"
+    # answered by the scene, which a session alone answers "which one?")
+    cases = [cases[0]] + [one for one in cases[1:]
+                          if _holds_now(session, one)]
     owner = _owner(function)
     before = vars(owner)[function.__name__]
     kept = before
