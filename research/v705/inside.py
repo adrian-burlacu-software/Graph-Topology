@@ -446,6 +446,23 @@ def statement_of(look: dict, function) -> str:
 REACH = 4
 
 
+def _entry(module, name: str) -> bool:
+    """Whether a function is its module's entry point -- what `if __name__
+    == "__main__":` calls: it reads the command line and exits, never
+    something to call from inside another function."""
+    import ast
+    try:
+        tree = ast.parse(inspect.getsource(module))
+    except (OSError, TypeError, SyntaxError):
+        return False
+    for node in tree.body:
+        if isinstance(node, ast.If) and "__main__" in ast.dump(node.test):
+            return any(isinstance(one, ast.Call) and
+                       getattr(one.func, "id", None) == name
+                       for one in ast.walk(node))
+    return False
+
+
 def _header(function) -> str:
     """`read_mention(tokens: list[str], at: int, ...) -> Mention | None`:
     a function's def line as written, on one line."""
@@ -486,7 +503,8 @@ def in_reach(function, wanted: str) -> list:
     for held in modules:
         for name, found in vars(held).items():
             if not inspect.isfunction(found) or found is function or \
-                    found.__module__ != held.__name__:
+                    found.__module__ != held.__name__ or \
+                    _entry(held, name):
                 continue
             returned = inspect.signature(found).return_annotation
             if returned is inspect.Signature.empty or not any(
@@ -884,7 +902,12 @@ def verify(session, cases: list, function, text: str) -> str | None:
         for at, (turns, check, _) in enumerate(cases):
             try:
                 turn = answered(session, turns)
-            except Exception as bad:                # noqa: BLE001
+            except BaseException as bad:            # noqa: BLE001
+                # an exit too: a change that ends the process fails, it
+                # does not end the checking (a composed `main()` parsed
+                # the command line and exited)
+                if isinstance(bad, KeyboardInterrupt):
+                    raise
                 return (f"\"{turns[-1]}\" raises {type(bad).__name__}: "
                         f"{bad}")
             try:
