@@ -383,6 +383,30 @@ def kept(pad: Pad) -> None:
                          for one in pad.thoughts]}) + "\n")
 
 
+def examples(least: float = 0.3) -> list:
+    """What a proposer of the next thought is taught (expert iteration):
+    of each chain that came to something (`least`: a cause found, a fix
+    that held), each tool it chose, with the pad as it was when chosen --
+    {pad, tool, reward}. A chain that came to nothing teaches nothing yet;
+    kept, it is what reinforcement will weigh against."""
+    if not CHAINS.exists():
+        return []
+    out = []
+    for line in CHAINS.open(encoding="utf-8"):
+        chain = json.loads(line)
+        if chain["reward"] < least:
+            continue
+        thoughts = chain["thoughts"]
+        for at, one in enumerate(thoughts):
+            if not one.get("tool"):
+                continue
+            pad = "\n".join(f"[{t['kind']}] {t['said']}"
+                            for t in thoughts[:at])
+            out.append({"pad": pad, "tool": one["tool"],
+                        "reward": chain["reward"]})
+    return out
+
+
 def chains() -> dict:
     if not CHAINS.exists():
         return {}
