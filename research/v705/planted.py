@@ -159,9 +159,22 @@ def plant(most: int = 0) -> dict:
         rng.shuffle(places)
         places = places[:most]
     counts = {"functions": 0, "bugs": 0}
+    if commits.RUNNING.exists():
+        # the function a test never came back from last time: left
+        stuck = json.loads(commits.RUNNING.read_text(encoding="utf-8"))
+        if stuck.get("place"):
+            done.add(stuck["place"])
+            with PLANTED.open("a", encoding="utf-8") as out:
+                out.write(json.dumps({"place": stuck["place"], "file": "",
+                                      "function": "", "right": "",
+                                      "held": False, "bugs": [],
+                                      "slow": True}) + "\n")
+        commits.RUNNING.unlink()
     for place in places:
         if place in done or "<" in place:
             continue
+        commits.RUNNING.write_text(json.dumps({"place": place}),
+                                   encoding="utf-8")
         file, name = place.split("#")
         text = (ROOT / file).read_text(encoding="utf-8")
         source = commits.functions(text).get(name)
@@ -216,6 +229,8 @@ def plant(most: int = 0) -> dict:
                                   "held": held(file, name),
                                   "bugs": kept}) + "\n")
         print(f"{name}: {len(kept)} of {len(edits)} edits", flush=True)
+    if commits.RUNNING.exists():
+        commits.RUNNING.unlink()
     print(json.dumps(counts))
     return counts
 
@@ -235,7 +250,7 @@ def corpus() -> dict:
     from research.v700 import teach_editor as T
     rows = []
     for row in map(json.loads, PLANTED.open(encoding="utf-8")):
-        if row["held"]:
+        if row["held"] or not row["bugs"]:
             continue
         text = (ROOT / row["file"]).read_text(encoding="utf-8")
         at = text.find(row["right"])
