@@ -1969,6 +1969,16 @@ def steps() -> list[Step]:
              lambda: _run("research.v704.teach_saying", "train"),
              _model_check(LLM / "plan-sayer2", 600),
              needs=("plan-sayings",), cost="half an hour", gpu=True),
+        Step("measures-head", "what a goal about its replies measures "
+                              "(`more concise`: length, lower) -- two "
+                              "heads over MiniLM as pretrained "
+                              "(research/v705/teach_measures.py)",
+             lambda: (_run("research.v705.teach_measures", "write"),
+                      _run("research.v705.teach_measures", "check"),
+                      _run("research.v705.teach_measures", "train")),
+             lambda: ("heads.pt" if (LLM / "measures-head" /
+                                     "heads.pt").exists() else None),
+             needs=("reader-code-yours",), cost="ten minutes", gpu=True),
         Step("picker", "a judge of what a request changes, among the "
                        "functions a project has (research/v703)",
              lambda: (_run("research.v703.teach_plans", "commits",

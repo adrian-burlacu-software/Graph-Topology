@@ -602,7 +602,8 @@ def change(statement: str, held, subject, key=None,
 
 
 def first_verified(held, path: str, candidates: list, verify, key=None,
-                   name: str = "") -> dict:
+                   name: str = "",
+                   how: str = "where it gave up, it now asks") -> dict:
     """Of changed texts of a file made by construction (v706
     `inside.compositions`: a call of what is in reach put in where a
     function gives up), the first that pyflakes finds nothing more wrong
@@ -623,10 +624,9 @@ def first_verified(held, path: str, candidates: list, verify, key=None,
         changed_ = diff(text, changed, path)
         return {"status": "changed", "diff": changed_, "call": call,
                 "tried": tried, "said": (
-                    f"Changed {name} in {path}: where it gave up, it now "
-                    f"asks {call} -- of {len(tried) + 1} calls of what "
-                    f"gives what it should, the first whose case holds "
-                    f"when run again"
+                    f"Changed {name} in {path}: {how} {call} -- of "
+                    f"{len(tried) + 1} changes made by construction, the "
+                    f"first whose case holds when run again"
                     + (", in the file." if written else
                        " (in the project I hold).") + "\n" + changed_)}
     return {"status": "unchanged", "tried": tried, "said": (

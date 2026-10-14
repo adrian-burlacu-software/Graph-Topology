@@ -344,5 +344,40 @@ class DebugTalkTests(unittest.TestCase):
         self.assertEqual(found["status"], "unplaced")
 
 
+class MeasureTests(unittest.TestCase):
+    """A goal about its replies (`measures`): the changes made by
+    construction, and what a reply is made from."""
+
+    def test_smaller(self):
+        from research.v704 import history
+        from research.v705 import measures
+        text = open(history.__file__, encoding="utf-8").read()
+        made = {what: changed for changed, what in
+                measures.smaller(history.ground, text)}
+        changed = made["`frame + PRECEDENT` without `PRECEDENT`"]
+        compile(changed, "history.py", "exec")
+        self.assertIn("step.update(frame=frame, slots=slots,", changed)
+        self.assertEqual(len(changed.splitlines()), len(text.splitlines()))
+
+    def test_dropped(self):
+        from research.v704 import history
+        from research.v705 import measures
+        text = open(history.__file__, encoding="utf-8").read()
+        for changed, _ in measures.dropped(history.ground, text):
+            compile(changed, "history.py", "exec")
+
+    def test_feeding(self):
+        from research.v698 import page
+        from research.v705 import measures
+        names = {one.__name__ for one in measures.feeding(page._goal)}
+        self.assertTrue({"pieces_of", "joined", "plan", "say"} <= names)
+
+    def test_measures(self):
+        from research.v705 import measures
+        self.assertEqual(measures.length("one two three"), 3)
+        self.assertEqual(measures.questions("why? how?"), 2)
+        self.assertGreater(measures.repetition("a b c a b c"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

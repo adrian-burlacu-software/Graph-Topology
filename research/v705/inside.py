@@ -93,6 +93,10 @@ from contextlib import contextmanager
 SCRATCH = _contextvars.ContextVar("v705_scratch", default=False)
 
 
+#: what a replay's sampling is seeded with
+REPLAYED = 7057
+
+
 @contextmanager
 def _scratch(session, Session):
     """A scratch session like `session`, under a name of its own: what is
@@ -114,11 +118,25 @@ def _scratch(session, Session):
     from research.v697 import page as typing
     typed = getattr(typing._TYPED, "text", None)
     typing._TYPED.text = None
+    # said again, said the same: the sayer samples (`May I begin` or
+    # `Shall I start`), and a reply's length moved by more than a change
+    # that shortened it did -- seeded, and put back after
+    import random
+    import torch
+    states = (random.getstate(), torch.get_rng_state(),
+              torch.cuda.get_rng_state_all() if torch.cuda.is_available()
+              else None)
+    random.seed(REPLAYED)
+    torch.manual_seed(REPLAYED)
     try:
         yield Session(session.asker, None, name, True,
                       getattr(session, "definitions", None))
     finally:
         typing._TYPED.text = typed
+        random.setstate(states[0])
+        torch.set_rng_state(states[1])
+        if states[2] is not None:
+            torch.cuda.set_rng_state_all(states[2])
         try:
             from research.v691 import page as scenes
             scenes.SCENES.pop(name, None)

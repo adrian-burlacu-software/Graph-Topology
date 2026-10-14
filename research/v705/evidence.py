@@ -22,6 +22,10 @@ WAYS = (
      "they are made of, used for, where they are found -- asked of it and "
      "answered wrongly or not at all; knowing, understanding, general "
      "knowledge"),
+    ("measures", "how its replies read",
+     "how its replies read: how long they are, how many sentences, how "
+     "much they repeat or ask back -- replies made shorter or longer, "
+     "plainer, more concise or more detailed"),
 )
 #: ways within this much of the nearest are taken too
 LEAD = 0.05
@@ -90,6 +94,9 @@ def gather(goal: str, session=None) -> dict:
             cases += failures(goal, session)
         elif name == "knowledge" and session is not None:
             cases += known(session)["cases"]
+        elif name == "measures":
+            from research.v705 import measures
+            cases += measures.cases(goal, session)
     return {"ways": taken, "cases": cases}
 
 
@@ -135,4 +142,17 @@ def weaknesses(goal: str, session, model: dict) -> list:
                                    f"{found['asked']}, {wrong} wrong",
                             "examples": found["cases"][:2],
                             "cases": found["cases"], "where": []})
+        elif name == "measures" and session is not None:
+            from research.v705 import measures
+            found = measures.cases(goal, session)
+            if found:
+                one = found[0]["measure"]
+                way = "down" if one["way"] == "min" else "up"
+                out.append({"what": f"{what}: {one['measure']}, {way}",
+                            "name": name, "bad": 1, "right": 0, "of": 1,
+                            "wrong": 1,
+                            "how": f"the worst reply's {one['measure']} is "
+                                   f"{one['is']:g}",
+                            "examples": found[:1], "cases": found,
+                            "where": []})
     return out

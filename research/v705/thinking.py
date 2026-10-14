@@ -185,6 +185,58 @@ def look(pad: Pad, mind) -> None:
               place=pad.place)
 
 
+def source(pad: Pad, mind) -> None:
+    """Where the reply's words come from (`measures.made`): each function
+    of its own code that gave back a piece of it, the most first -- the
+    first the place, the rest above it to go to."""
+    from research.v705 import measures
+    case = pad.case
+    if case is None or not case.get("answer"):
+        return
+    found = measures.made(mind.session, list(case.get("turns") or
+                                             [case["said"]]),
+                          case["answer"])
+    if not found:
+        pad.think("observe", "No function of its own gave back a piece of "
+                             "the reply.")
+        return
+    pad.think("observe", "The reply's words come from " + ", ".join(
+        f"{one['function']} ({one['gave']} characters)" for one in found)
+        + ".")
+    # and what those were made from (`measures.feeding`): where what is
+    # said is chosen, as templates filled later -- nearest the goal first
+    import inspect
+    from research.v701.likeness import nearest
+    from research.v705 import inside
+    seen = {(one["function"], one["file"]) for one in found}
+    fed: dict = {}
+    for one in found:
+        function = inside.function_at(one["file"], one["function"])
+        for made in measures.feeding(function) if function else []:
+            key = (made.__qualname__,
+                   inside._relative(inspect.getsourcefile(made)))
+            if key not in seen and key not in fed:
+                doc = " ".join((made.__doc__ or "").split("\n\n")[0].split())
+                fed[key] = f"{made.__name__.replace('_', ' ')}: {doc}"
+    near = dict((said, score) for score, said in
+                nearest(pad.goal, sorted(set(fed.values())))) if fed else {}
+    ranked = sorted(fed, key=lambda key: -near[fed[key]])
+    if ranked:
+        pad.think("observe", "They are made from " + ", ".join(
+            function for function, _ in ranked[:measures.PLACES]) + ".")
+    # the one that gave back the most (the reply joined), then what it is
+    # made of, then the rest that only passed it on (`_reply`, `_act`)
+    given = [{"function": one["function"], "file": one["file"]}
+             for one in found]
+    places = given[:1] + [{"function": function, "file": path}
+                          for function, path in ranked] + given[1:]
+    places = places[:measures.PLACES]
+    pad.place = {**places[0], "callers": list(reversed(places[1:]))}
+    pad.think("suppose", f"What it says is chosen in "
+                         f"{places[0]['function']} or what it is made of.",
+              place=dict(pad.place))
+
+
 def up(pad: Pad, mind) -> None:
     """The function that called the place."""
     callers = (pad.place or {}).get("callers") or []
@@ -247,11 +299,18 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
                              Subject("function", function.__qualname__,
                                      place["file"]), "thinking", context)
     else:
-        candidates = (inside.precedents(function, look_, text) +
-                      inside.compositions(function, look_, text)) \
-            if look_ else []
+        if case.get("measure"):
+            # how a reply reads: the function without each thing it does
+            from research.v705 import measures
+            candidates = measures.smaller(function, text) + \
+                measures.dropped(function, text)
+        else:
+            candidates = (inside.precedents(function, look_, text) +
+                          inside.compositions(function, look_, text)) \
+                if look_ else []
         made = fixing.first_verified(held, place["file"], candidates, verify,
-                                     "thinking", function.__qualname__) \
+                                     "thinking", function.__qualname__,
+                                     how="it is now") \
             if candidates else {"status": "unchanged",
                                 "said": "Nothing in reach to build from."}
     met = made["status"] in ("changed", "partly")
@@ -294,7 +353,8 @@ def use(pad: Pad, mind) -> None:
 
 
 TOOLS = {"gather": gather, "layers": layers, "diagnose": diagnose,
-         "look": look, "build": build, "edit": edit, "up": up, "use": use}
+         "look": look, "build": build, "edit": edit, "up": up, "use": use,
+         "source": source}
 
 
 # -- the policy -----------------------------------------------------------------------
@@ -310,6 +370,16 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
             return "gather"
         return "use" if used.count("use") < USES else None
     since = _since_case(pad)
+    if pad.case.get("measure"):
+        # a reply's measure: where its words come from, each place built
+        # without one thing in turn, then the next place
+        if "source" not in since:
+            return "source"
+        if pad.place is None:
+            return None
+        if (pad.place["function"], "build") not in pad.tried:
+            return "build"
+        return "up" if pad.place.get("callers") else None
     if "layers" not in since:
         return "layers"
     if pad.place is None:
@@ -352,6 +422,13 @@ def _since_case(pad: Pad) -> list:
 
 def choose(pad: Pad, rng: random.Random) -> str | None:
     picked = heuristic(pad, rng)
+    if pad.case and pad.case.get("measure"):
+        # a measure's places are set by where its words come from: a look
+        # sets places of its own, an editor answers a case it is not
+        if picked in ("build", "up") and rng.random() < EXPLORE:
+            picked = rng.choice([one for one in ("build", "up", "use")
+                                 if one != picked])
+        return picked
     if picked in ("build", "edit", "up", "look") and rng.random() < EXPLORE:
         # trying another than the order would: what a learned policy
         # needs to see the worth of
