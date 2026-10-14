@@ -474,6 +474,111 @@ def looked_at(look: dict | None, name: str) -> dict | None:
     return None
 
 
+#: the calls a composition tries at most
+COMPOSED = 12
+
+
+def _filled(callee, function) -> list:
+    """Each way of calling `callee` from inside `function` with what it
+    holds: a parameter filled by the name it has there, else by one of the
+    same annotation, else an int by 0; one with a default filled only by
+    its own name, a flag tried both ways. [argument text], fewest first."""
+    import itertools
+    mine = inspect.signature(function).parameters
+    by_kind: dict = {}
+    for name, one in mine.items():
+        if name in ("self", "cls"):
+            continue
+        by_kind.setdefault(str(one.annotation), []).append(name)
+    choices = []
+    for name, one in inspect.signature(callee).parameters.items():
+        if name in ("self", "cls") or one.kind in (one.VAR_POSITIONAL,
+                                                  one.VAR_KEYWORD):
+            continue
+        given = None
+        if name in mine:
+            given = [name]
+        elif one.annotation is not inspect.Parameter.empty and \
+                by_kind.get(str(one.annotation)):
+            given = by_kind[str(one.annotation)]
+        has_default = one.default is not inspect.Parameter.empty
+        if has_default:
+            if isinstance(one.default, bool):
+                choices.append([None, f"{name}={not one.default}"])
+            elif given and name in mine:
+                choices.append([f"{name}={name}"])
+            continue
+        if given:
+            choices.append(given)
+        elif "int" in str(one.annotation):
+            choices.append(["0"])
+        else:
+            return []                   # a parameter nothing here fills
+    out = []
+    for picked in itertools.product(*choices):
+        out.append(", ".join(one for one in picked if one))
+    return out[:COMPOSED]
+
+
+def compositions(function, look: dict, text: str) -> list:
+    """The function's file with a call put in where it gave up: of each
+    function in reach that gives what it should, filled from what the
+    function holds (`_filled`), and given back where it gives something --
+    [(the file's text, the call as written)]. Candidates by construction,
+    for running the case to decide (`verify`)."""
+    wanted = wanted_of(function)
+    line = look.get("line")
+    if not wanted or not line or look.get("returns") != "None":
+        return []
+    lines = text.splitlines(keepends=True)
+    if not 0 < line <= len(lines):
+        return []
+    at = lines[line - 1]
+    indent = at[:len(at) - len(at.lstrip())]
+    ending = "\r\n" if at.endswith("\r\n") else "\n"
+    made = "found"
+    while made in inspect.getsource(function):
+        made = "_" + made
+    out = []
+    module = _module(function)
+    for written, imported in in_reach(function, wanted):
+        name = written.split("(")[0]
+        callee = getattr(module, name, None)
+        if callee is None and imported:
+            import importlib
+            callee = getattr(importlib.import_module(
+                imported.split()[1]), name, None)
+        if callee is None:
+            continue
+        for args in _filled(callee, function):
+            call = f"{name}({args})"
+            put = [f"{indent}{made} = {call}{ending}",
+                   f"{indent}if {made} is not None:{ending}",
+                   f"{indent}    return {made}{ending}"]
+            changed = "".join(lines[:line - 1] + put + lines[line - 1:])
+            if imported:
+                changed = _imported(changed, imported)
+            out.append((changed, call))
+            if len(out) >= COMPOSED:
+                return out
+    return out
+
+
+def _imported(text: str, line: str) -> str:
+    """The file with an import put after its last one at its top."""
+    import ast
+    tree = ast.parse(text)
+    at = 0
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            at = node.end_lineno
+        elif at:
+            break
+    lines = text.splitlines(keepends=True)
+    ending = "\r\n" if "\r\n" in text else "\n"
+    return "".join(lines[:at] + [line + ending] + lines[at:])
+
+
 #: the cases it answered right before, said again with a change in
 REGRESSIONS = 4
 

@@ -162,6 +162,43 @@ class _Pinned(_Handler):
         return super().ask(question)
 
 
+class _Word(str):
+    pass
+
+
+def _word_at(words: list[str], at: int, upper: bool = False) -> _Word | None:
+    if at < len(words):
+        return _Word(words[at].upper() if upper else words[at])
+    return None
+
+
+def _first_word(words: list[str]) -> _Word | None:
+    if len(words) == 1:
+        return _Word(words[0])
+    return None
+
+
+class CompositionTests(unittest.TestCase):
+    """What a function that gives up should give, built from what in reach
+    gives it, filled from what the function holds."""
+
+    def test_filled(self):
+        import inspect
+        from pathlib import Path
+        from research.v705 import inside
+        source = Path(__file__).read_text(encoding="utf-8")
+        lines, first = inspect.getsourcelines(_first_word)
+        gave_up = first + len(lines) - 1
+        made = inside.compositions(_first_word, {"line": gave_up,
+                                                 "returns": "None"}, source)
+        calls = [call for _, call in made]
+        self.assertEqual(calls[:2], ["_word_at(words, 0)",
+                                     "_word_at(words, 0, upper=True)"])
+        namespace: dict = {}
+        exec(compile(made[0][0], "made", "exec"), namespace)   # noqa: S102
+        self.assertEqual(namespace["_first_word"](["a", "b"]), "a")
+
+
 class SliceTests(unittest.TestCase):
     """Where a function's give-up came from, followed back through what it
     computed: a handler's answer to the call it was made of, a nothing to

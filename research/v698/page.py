@@ -737,6 +737,22 @@ def replies(session) -> list:
                                 imports=inside.imports_of(own),
                                 editor=editor.name, saying=SAYING)
                 made = fixing.change(text, held, subject, key, context)
+                if made["status"] not in ("changed", "partly") and \
+                        context and context.get("verify") and \
+                        context.get("editor"):
+                    # what the editor did not write, built: a call of what
+                    # in reach gives what it should, filled from what the
+                    # function holds, put in where it gave up -- each run
+                    # again (v706 `inside.compositions`)
+                    look = inside.looked_at((GOALS.get(key) or {}).get(
+                        "finding", {}).get("inside"), found[0]["name"])
+                    built = fixing.first_verified(
+                        held, file, inside.compositions(
+                            own, look, held.files[file]),
+                        context["verify"], key, found[0]["name"])
+                    if built["said"]:
+                        made = {**made, "status": built["status"],
+                                "said": made["said"] + " " + built["said"]}
                 asking.FOCUS[key] = (subject, v697_page._turn(memory))
                 return made["said"], made["status"] == "changed"
             read = reading.read(text, known(key)) \

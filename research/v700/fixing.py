@@ -601,6 +601,39 @@ def change(statement: str, held, subject, key=None,
     return first
 
 
+def first_verified(held, path: str, candidates: list, verify, key=None,
+                   name: str = "") -> dict:
+    """Of changed texts of a file made by construction (v706
+    `inside.compositions`: a call of what is in reach put in where a
+    function gives up), the first that pyflakes finds nothing more wrong
+    in and whose case, run again, holds (`verify`) -- written. {status,
+    said, diff?}."""
+    text = held.files[path]
+    flakes = _flakes(path, text)
+    tried = []
+    for changed, call in candidates:
+        more = _more_wrong(flakes, _flakes(path, changed))
+        why = (f"pyflakes finds {more[0]['message']}" if more else
+               verify(changed))
+        if why:
+            tried.append(f"{call}: {why}")
+            continue
+        written = held.write(path, changed)
+        MADE.setdefault(key, []).append((path, text, changed))
+        changed_ = diff(text, changed, path)
+        return {"status": "changed", "diff": changed_, "call": call,
+                "tried": tried, "said": (
+                    f"Changed {name} in {path}: where it gave up, it now "
+                    f"asks {call} -- of {len(tried) + 1} calls of what "
+                    f"gives what it should, the first whose case holds "
+                    f"when run again"
+                    + (", in the file." if written else
+                       " (in the project I hold).") + "\n" + changed_)}
+    return {"status": "unchanged", "tried": tried, "said": (
+        f"Nor did any of {len(tried)} calls of what gives what it should "
+        f"answer the case." if tried else "")}
+
+
 def defined_in(text: str, path: str, start: int = 1,
                end: int = 10 ** 9) -> set:
     """The names a Python file defines on lines [start, end] -- assigns,
