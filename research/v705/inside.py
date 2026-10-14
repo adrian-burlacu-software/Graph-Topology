@@ -82,7 +82,14 @@ def watch(function, run) -> tuple:
     return got, calls
 
 
+import contextvars as _contextvars
 from contextlib import contextmanager
+
+#: whether what runs is said to a scratch session -- an answer it is
+#: checking, never a goal to act on: asking itself "What is needed to an
+#: electric guitar?" for a goal's evidence was read as a goal, which asked
+#: itself again, until the stack ran out
+SCRATCH = _contextvars.ContextVar("v705_scratch", default=False)
 
 
 @contextmanager
@@ -94,6 +101,7 @@ def _scratch(session, Session):
     was the dog's scene's, and answered `which one?`. Dropped after."""
     import uuid
     name = f"v705-scratch-{uuid.uuid4().hex[:12]}"
+    SCRATCH.set(True)
     try:
         yield Session(session.asker, None, name, True,
                       getattr(session, "definitions", None))

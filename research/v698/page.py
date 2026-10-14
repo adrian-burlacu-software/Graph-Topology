@@ -115,9 +115,10 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     model = selfmodel.held()
     # of itself: what its own ways of looking find (v705 `evidence`), each
     # place it fails at a subgoal carried out in turn (`doing.findings`)
-    from research.v705 import evidence
+    from research.v705 import evidence, inside
     itself = bool(model) and selfmodel.about_itself(text)
-    found_by = itself and session is not None
+    # never while it is asking itself (a scratch session's answer)
+    found_by = itself and session is not None and not inside.SCRATCH.get()
     if found_by:
         weak = evidence.weaknesses(text, session, model)
         looked["ways"] = [what for _, what in evidence.ways(text)]
@@ -145,7 +146,7 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     said = teach_saying.joined(pieces, sayings)
     if near and not planned:
         said += " What your words point to: " + ", ".join(near) + "."
-    if key and (planned or (found_by and weak)):
+    if key and (planned or (found_by and weak)) and not inside.SCRATCH.get():
         # kept for a yes: the first step taken (`_first_step`)
         GOALS[key] = {"goal": text, "weak": weak, "plan": planned}
         if found_by and weak:
