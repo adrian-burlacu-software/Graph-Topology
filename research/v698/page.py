@@ -103,6 +103,13 @@ def _arguments(text: str, read) -> str | None:
     return None
 
 
+def _shown(value):
+    """What a goal holds, as the page shows it: a case's check said by what
+    it checks (v705 cases carry their checks), never kept as a function."""
+    return json.loads(json.dumps(value, default=lambda one: getattr(
+        one, "about", None) or type(one).__name__))
+
+
 def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     """Something wanted, not something to do (v704): never acted on -- told
     `I want to improve the ability for it to communicate in general`, the
@@ -128,10 +135,7 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     else:
         weak = selfmodel.weaknesses(text, model) if itself else []
     if weak:
-        # as the page shows it: a case's check said by what it checks
-        looked["weaknesses"] = json.loads(json.dumps(
-            weak, default=lambda one: getattr(one, "about", None) or
-            type(one).__name__))
+        looked["weaknesses"] = _shown(weak)
     # its steps, chosen from how this project reached goals like it (v704),
     # each said of what it is done to: the weakness it starts with, or what
     # in the project the goal's words point to
@@ -188,9 +192,9 @@ def _next_step(key: str, held, change, debug=None) -> dict:
     # a plan carried out is kept, done, for what is said back to it
     # (`plan talk`): a yes is no longer its
     found = asking._reply("goal step", goal["goal"], "\n".join(lines),
-                          {"goal": goal["goal"], "at": goal.get("at"),
-                           "found": goal.get("found"),
-                           "finding": goal.get("finding")})
+                          _shown({"goal": goal["goal"], "at": goal.get("at"),
+                                  "found": goal.get("found"),
+                                  "finding": goal.get("finding")}))
     found["code"]["answer"]["status"] = "goal step"
     return found
 

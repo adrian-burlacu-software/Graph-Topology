@@ -48,6 +48,8 @@ FRAMES, ASKED = 6, 6
 SHORTEST, LONGEST = 3, 8
 #: how sure its reader must be that a question reads as the kind it is of
 READ_FLOOR = 0.6
+#: how sure its reader must be of a frame's relation
+SURE = 0.9
 #: a concept is asked about where WordNet's tagged text uses its word
 USED = 3
 #: a kind of question is an ability it lacks when none of this many is
@@ -60,49 +62,62 @@ GUARDS = 4
 # -- how it asks ----------------------------------------------------------------------
 
 def frames(most: int = FRAMES) -> dict:
-    """(relation, polar) -> its taught questions of that kind that ask it
-    plainly: begun by a question word, one span of what it is about
-    (`SUBJ`) and, asked yes or no, one of what is asked of it (`TARGET`)."""
+    """(relation, polar) -> the questions people wrote of that kind (the
+    conversation test's, `v704.suite`), as its reader reads them: the
+    relation read surely, the word it is about (`SUBJ`) and, asked yes or
+    no, what is asked of it (`TARGET`) -- a singular noun it is about, so
+    a thing put in its place reads as said. Its reader's own taught
+    questions were the frames first; their labels are noisy (`is a hall
+    to the pawnshop`, taught 236 times as is a) and it asked `What a
+    commuter of person is she?`."""
+    from research import encoder
+    from research.v691 import hearing
+    from research.v692.corpus import words
+    from research.v704 import suite
     out: dict = {}
-    with TAUGHT.open(encoding="utf-8") as stream:
-        for line in stream:
-            if '"task": "parse"' not in line:
-                continue
-            row = json.loads(line)
-            relation, polar = row["relation"], row["polar"]
-            if relation not in RELATIONS:
-                continue
-            words, roles = row["words"], row["parse"]
-            if not SHORTEST <= len(words) <= LONGEST or \
-                    not row["tags"] or row["tags"][0] not in (
-                        "WP", "WRB", "WDT", "VBZ", "VBP", "MD", "VBD"):
-                continue
-            subject = _span(roles, ("SUBJ",))
-            target = _span(roles, ("TARGET",))
-            if subject is None or (polar == "yes") != (target is not None):
-                continue
-            if any(role not in ("O", "SUBJ", "TARGET") for role in roles):
-                continue
-            # a frame said negated asks the opposite of the fact put in it
-            # (`is a beagle that can not streak`), by its own parse
-            if "neg" in (row.get("deps") or ()):
-                continue
-            # its shape: the words around what it is about
-            shape = tuple("{S}" if subject[0] <= at < subject[1] else
-                          "{T}" if target and target[0] <= at < target[1]
-                          else word for at, word in enumerate(words))
-            shape = tuple(one for at, one in enumerate(shape)
-                          if not (at and one in ("{S}", "{T}")
-                                  and shape[at - 1] == one))
-            held = out.setdefault((relation, polar), {})
-            if shape not in held:
-                held[shape] = {"words": words, "subject": subject,
-                               "target": target, "taught": 0}
-            held[shape]["taught"] += 1
-    # the ways it was taught to ask most often: `what is X made of` many
-    # times over, `is a window huffed to have X` once
-    return {key: sorted(held.values(), key=lambda one: -one["taught"])[
-        :most] for key, held in out.items()}
+    for item in suite.SUITE:
+        if item.project or len(item.turns) != 1:
+            continue
+        said = words(item.turns[0])
+        found = encoder.read(said, heads=("relation", "polar", "parse"))
+        relation, chance = found["relation"][0]
+        polar = found["polar"][0][0]
+        if relation not in RELATIONS or chance < SURE:
+            continue
+        roles = [str(one) for one in found["parse"]]
+        subject = _span(roles, ("SUBJ",))
+        target = _span([one.replace("TARGET-VERB", "TARGET")
+                        for one in roles], ("TARGET",))
+        if subject is None or (polar == "yes") != (target is not None):
+            continue
+        parsed = hearing.parse(" ".join(said))
+        tags = [one.tag for one in parsed]
+        # the word it is about is the question's subject, by its parse:
+        # `candle` of `how can i light a candle` is what is lit, and put
+        # in its place, `How can i light a trim?`
+        if len(tags) != len(said) or not all(
+                tag == "NN" for tag in tags[subject[0]:subject[1]]) or \
+                not parsed[subject[1] - 1].dep.startswith("nsubj"):
+            continue
+        # nothing else in it is a thing: `what is the capital of france`
+        # filled asked `What is a glass of france?`
+        slots = set(range(*subject)) | (set(range(*target)) if target
+                                        else set())
+        if any(tag.startswith(("NN", "JJ")) for at, tag in enumerate(tags)
+               if at not in slots):
+            continue
+        out.setdefault((relation, polar), []).append({
+            "words": [one.lower() for one in said if one not in "?.!"],
+            "subject": subject, "target": target,
+            "determined": subject[0] > 0 and tags[subject[0] - 1] == "DT",
+            "taught": 1})
+    return {key: held[:most] for key, held in out.items()}
+
+
+def _a_thing(tags: list, span: tuple) -> bool:
+    start, end = span
+    return start > 0 and tags[start - 1] == "DT" and \
+        all(tag in ("NN", "NNS") for tag in tags[start:end])
 
 
 def _span(roles: list, wanted: tuple) -> tuple | None:
@@ -230,11 +245,26 @@ def questions(rng: random.Random) -> list:
                 if kept >= ASKED:
                     break
                 for frame in shapes:
-                    before = frame["words"][frame["subject"][0] - 1] \
-                        if frame["subject"][0] else ""
-                    said_subject = subject if before in ("a", "an", "the") \
-                        else _article(subject)
+                    # its own determiner made `a` or `an` for the thing put
+                    # in; one with none (`what is ice made of`) given one
+                    said_subject = _article(subject)
+                    if frame.get("determined"):
+                        frame = {**frame, "words": frame["words"][
+                            :frame["subject"][0] - 1] + frame["words"][
+                            frame["subject"][0]:], "subject": (
+                            frame["subject"][0] - 1, frame["subject"][1] - 1),
+                            "target": None if frame["target"] is None else (
+                                frame["target"][0] - 1,
+                                frame["target"][1] - 1)}
                     said_target = target if polar == "yes" else None
+                    # the target's determiner made again too (`a act`)
+                    at = (frame["target"] or (0, 0))[0]
+                    if said_target and at and \
+                            frame["words"][at - 1] in ("a", "an"):
+                        frame = {**frame, "words": frame["words"][:at - 1] +
+                                 frame["words"][at:], "target": (
+                                     at - 1, frame["target"][1] - 1)}
+                        said_target = _article(said_target)
                     question = filled(frame, said_subject, said_target)
                     if reads_as(question, relation, polar, subject,
                                 said_target):
