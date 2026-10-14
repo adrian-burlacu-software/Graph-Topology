@@ -110,6 +110,10 @@ def _shown(value):
         one, "about", None) or type(one).__name__))
 
 
+#: how long a goal is thought about before it is answered (seconds)
+THINKING = 240
+
+
 def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     """Something wanted, not something to do (v704): never acted on -- told
     `I want to improve the ability for it to communicate in general`, the
@@ -154,6 +158,19 @@ def _goal(text: str, held, read, key: str = "", session=None) -> dict:
     sayings, by_sayer = teach_saying.say(pieces)
     looked["said by the sayer"] = f"{by_sayer} of {len(pieces)}"
     said = teach_saying.joined(pieces, sayings)
+    if found_by:
+        # thought about before it is answered (v705 `thinking`): tools
+        # chosen from the pad, its own found ones too, each step on the
+        # page; the reply says what the thinking came to
+        from research.v705 import thinking
+        pad = thinking.think(text, thinking.Held(session, held),
+                             seconds=THINKING)
+        looked["thinking"] = [f"[{one['kind']}] {one['said']}"
+                              for one in pad.thoughts]
+        came = next((one["said"] for one in reversed(pad.thoughts)
+                     if one["kind"] in ("result", "suppose")), None)
+        said += f" I thought it through in {len(pad.thoughts)} steps" + (
+            f": {came}" if came else " and came to nothing yet.")
     if near and not planned:
         said += " What your words point to: " + ", ".join(near) + "."
     if key and (planned or (found_by and weak)) and not inside.SCRATCH.get():

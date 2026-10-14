@@ -41,6 +41,8 @@ LONGEST = 40
 EXPLORE = 0.15
 #: the cases a chain takes up at most
 CASES = 3
+#: the found tools a chain calls where nothing fails
+USES = 4
 
 
 # -- the pad ------------------------------------------------------------------------
@@ -56,6 +58,8 @@ class Pad:
         self.case: dict | None = None
         self.place: dict | None = None
         self.tried: list = []
+        #: the found tools called (`use`)
+        self.used: set = set()
         self.done_cases: list = []
         self.reward = 0.0
         self.done = False
@@ -258,8 +262,39 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
         pad.done = True
 
 
+def use(pad: Pad, mind) -> None:
+    """A tool found in its own code (`tools`): of those it can call with
+    what the pad holds, the one whose docstring is nearest what the
+    thinking is about, run guarded; what it gave back observed."""
+    from research.v705 import tools
+    held = tools.holds(pad, mind)
+    about = (pad.case or {}).get("said") or pad.goal
+    last = next((one["said"] for one in reversed(pad.thoughts)
+                 if one["kind"] in ("observe", "suppose")), "")
+    near = tools.ranked(f"{about} {last}"[:400], held, pad.used)
+    if not near:
+        pad.think("observe", "No tool of its own is left to call with what "
+                             "it holds.")
+        return
+    likeness, tool = near[0]
+    name = f"{tool['module']}.{tool['name']}"
+    pad.used.add(name)
+    arguments = tools.filled(tool, held)
+    pad.think("act", f"Calling {name} ({likeness:.2f}): {tool['doc'][:120]}",
+              called=name)
+    out = tools.called(tool, arguments)
+    if out.get("slow"):
+        pad.think("observe", f"{name} took longer than {tools.SLOW:.0f}s; "
+                             f"left.")
+    elif "failed" in out:
+        pad.think("observe", f"{name} failed: {out['failed']}"[:200])
+    else:
+        pad.think("observe", f"{name} gave back "
+                             f"{tools.shown(out['gave'])}.", called=name)
+
+
 TOOLS = {"gather": gather, "layers": layers, "diagnose": diagnose,
-         "look": look, "build": build, "edit": edit, "up": up}
+         "look": look, "build": build, "edit": edit, "up": up, "use": use}
 
 
 # -- the policy -----------------------------------------------------------------------
@@ -270,7 +305,10 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
     a word; inside it; built, then edited; one call up, and again."""
     used = [one.get("tool") for one in pad.thoughts if one.get("tool")]
     if not pad.cases:
-        return "gather" if "gather" not in used else None
+        # nothing fails by its ways of looking: its own tools, read with
+        if "gather" not in used:
+            return "gather"
+        return "use" if used.count("use") < USES else None
     since = _since_case(pad)
     if "layers" not in since:
         return "layers"
@@ -288,6 +326,8 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
         return "edit"
     if pad.place.get("callers"):
         return "up"
+    if "use" not in since:
+        return "use"
     # nothing left to try for this case: the next one, thought about anew
     left = [one for one in pad.cases if one is not pad.case
             and one["said"] not in pad.done_cases]
@@ -315,7 +355,7 @@ def choose(pad: Pad, rng: random.Random) -> str | None:
     if picked in ("build", "edit", "up", "look") and rng.random() < EXPLORE:
         # trying another than the order would: what a learned policy
         # needs to see the worth of
-        others = [one for one in ("build", "edit", "up", "look")
+        others = [one for one in ("build", "edit", "up", "look", "use")
                   if one != picked]
         picked = rng.choice(others)
     return picked
@@ -344,14 +384,27 @@ class Mind:
                        if "__pycache__" not in path.parts})
 
 
+class Held:
+    """The mind of a turn (`page`): the conversation's own session, the
+    service under it and the code it holds."""
+
+    def __init__(self, session, held) -> None:
+        self.session = session
+        self.service = session.asker.service
+        self.held = held
+
+
 def think(goal: str, mind: Mind, rng: random.Random | None = None,
-          policy=choose) -> Pad:
+          policy=choose, seconds: float | None = None) -> Pad:
     """A goal thought about: tools chosen from the pad until it comes to
-    something or nothing is left to try; the chain kept."""
+    something, nothing is left to try or `seconds` are up; the chain
+    kept."""
     rng = rng or random.Random(SEED)
     pad = Pad(goal)
     pad.think("goal", goal)
-    while not pad.done and len(pad.thoughts) < LONGEST:
+    until = time.monotonic() + seconds if seconds else None
+    while not pad.done and len(pad.thoughts) < LONGEST and (
+            until is None or time.monotonic() < until):
         tool = policy(pad, rng)
         if tool is None:
             break
