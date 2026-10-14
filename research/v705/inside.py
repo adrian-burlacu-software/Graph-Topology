@@ -13,6 +13,7 @@ it was given, each line it took with what changed, and what it gave back
 from __future__ import annotations
 
 import inspect
+import re
 import sys
 
 from research.v705.debugging import SAID
@@ -971,6 +972,20 @@ def _fields(value) -> list:
     return list(held.values())[:40] if isinstance(held, dict) else []
 
 
+def _names(value, head: str, others: list) -> bool:
+    """Whether a field names the thing by its head alone: a string of no
+    more words than the phrase (`powder`, `powder.n.03`) holding the head
+    and none of the rest -- not a definition that mentions it (`a
+    rapidly firing automatic gun` for a machine gun)."""
+    if not isinstance(value, str):
+        return False
+    words = re.split(r"[\s._]+", value.lower().strip())
+    words = [one for one in words if one and not one.isdigit()
+             and one not in ("n", "v", "a", "s", "r")]
+    return 0 < len(words) <= len(others) + 1 and head in words and \
+        not any(one in words for one in others)
+
+
 def lost(session, turns: list, phrase: str) -> dict | None:
     """Where a phrase said is lost: every call of its own code watched
     while the turns are said again, the first to return that was given
@@ -989,10 +1004,8 @@ def lost(session, turns: list, phrase: str) -> dict | None:
     def local(frame, event, arg):
         if event == "return" and id(frame) in frames:
             path = frames.pop(id(frame))
-            if not found and any(
-                    _says(one, head, 1) and not any(_says(one, word, 1)
-                                                    for word in others)
-                    for one in _fields(arg)):
+            if not found and any(_names(one, head, others)
+                                 for one in _fields(arg)):
                 found.append({"function": getattr(
                     frame.f_code, "co_qualname", frame.f_code.co_name),
                     "file": path, "line": frame.f_lineno,

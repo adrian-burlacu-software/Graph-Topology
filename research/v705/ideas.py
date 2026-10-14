@@ -369,6 +369,104 @@ def knowledge(session, rng: random.Random | None = None) -> list:
     return ideas
 
 
+# -- its own code: what the failing cases run that the passing do not ------------------
+
+#: the lines a code idea is of at most, and the least a line must score
+SUSPECTED, SUSPECT = 8, 0.5
+
+
+def covered(session, turns: list) -> set:
+    """The lines of its own code saying the turns runs: {(file, function,
+    line)}, by `sys.monitoring` -- each line reported once, then let be."""
+    from research.v705 import inside
+    monitoring = sys.monitoring
+    tool = monitoring.COVERAGE_ID
+    seen: set = set()
+    places: dict = {}
+
+    def line(code, number):
+        name = code.co_filename
+        path = places.get(name, False)
+        if path is False:
+            path = inside._relative(name) if "research" in name else None
+            if path and ("/test" in path or not path.startswith("research/")):
+                path = None
+            places[name] = path
+        if path:
+            seen.add((path, getattr(code, "co_qualname", code.co_name),
+                      number))
+        return monitoring.DISABLE
+    monitoring.use_tool_id(tool, "v705-ideas")
+    try:
+        monitoring.register_callback(tool, monitoring.events.LINE, line)
+        monitoring.set_events(tool, monitoring.events.LINE)
+        monitoring.restart_events()
+        inside.answered(session, turns)
+    finally:
+        monitoring.set_events(tool, 0)
+        monitoring.register_callback(tool, monitoring.events.LINE, None)
+        monitoring.free_tool_id(tool)
+    return seen
+
+
+def spectrum(session, most: int = 0) -> list:
+    """Ideas from its own code: the conversation test's cases said again
+    (those said without a project), the lines each runs, and which lines
+    the failing ones run that the passing ones do not -- by Ochiai, as
+    `debugging.suspects` scores a program's lines. Each function holding
+    suspected lines an idea, with the failing cases that run them."""
+    import math
+    from research.v704 import suite
+    from research.v705 import evidence, inside
+    runs = []
+    items = [one for one in suite.SUITE if not one.project]
+    for item in items[:most or None]:
+        try:
+            lines = covered(session, item.turns)
+            holds = inside._holds_now(session, (item.turns, item.check,
+                                                True))
+        except Exception:                           # noqa: BLE001
+            continue
+        runs.append((item, lines, holds))
+    failing = sum(1 for _, _, holds in runs if not holds)
+    if not failing or failing == len(runs):
+        return []
+    by_line: dict = {}
+    for item, lines, holds in runs:
+        for one in lines:
+            counts = by_line.setdefault(one, [0, 0])
+            counts[0 if not holds else 1] += 1
+    scored = sorted(((bad / math.sqrt(failing * (bad + good)), one)
+                     for one, (bad, good) in by_line.items() if bad),
+                    reverse=True)
+    by_function: dict = {}
+    for score, (path, function, number) in scored:
+        if score < SUSPECT:
+            break
+        held = by_function.setdefault((path, function), [])
+        if len(held) < 3:
+            held.append((number, round(score, 2)))
+        if len(by_function) >= SUSPECTED:
+            break
+    ideas = []
+    for (path, function), lines in by_function.items():
+        cases = [evidence.case_of(inside.answered(session, item.turns),
+                                  item.turns, item.check, area=item.area)
+                 for item, ran, holds in runs if not holds and any(
+                     (path, function, number) in ran
+                     for number, _ in lines)][:4]
+        ideas.append({
+            "source": "code", "kind": "fault", "relation": "",
+            "polar": "", "place": {"function": function, "file": path},
+            "said": (f"{function} ({path}) runs for failing cases more "
+                     f"than for passing ones: lines "
+                     f"{', '.join(str(number) for number, _ in lines)} "
+                     f"(Ochiai {lines[0][1]})"),
+            "asked": len(runs), "right": len(runs) - failing,
+            "cases": cases})
+    return ideas
+
+
 # -- what was found, kept for a goal ------------------------------------------------
 
 def _check(polar: str, expected: str):
@@ -436,7 +534,7 @@ def ledger() -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("knowledge", "ledger"))
+    parser.add_argument("job", choices=("knowledge", "code", "ledger"))
     options = parser.parse_args(argv)
     if options.job == "ledger":
         print(json.dumps(ledger(), indent=1))
@@ -449,6 +547,13 @@ def main(argv=None) -> int:
     service = v688.Service(build.DEFAULT_STORE, 1, 8, teacher=False)
     session = Session(PinnedAsker(service), None, "ideas", True,
                       DefinitionMemory(None))
+    if options.job == "code":
+        for idea in spectrum(session):
+            kept(idea)
+            print(f"[{idea['kind']}] {idea['said']}")
+            for one in idea["cases"][:3]:
+                print(f"    {one['said']} -> {one['answer'][:90]}")
+        return 0
     found = knowledge(session)
     saved(found)
     for idea in found:
