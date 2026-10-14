@@ -342,7 +342,7 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
         from research.v705 import talk as debug_talk
         from research.v705.teach_debugging import SAYING
         context = {"case": case["said"], "verify": verify,
-                   "editor": (debug_talk.EDITOR.parent / "editor-debug2").name,
+                   "editor": (debug_talk.EDITOR.parent / "editor-own").name,
                    "saying": SAYING,
                    "said": inside.statement_of(look_, function)
                    if look_ else None,
