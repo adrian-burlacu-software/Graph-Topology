@@ -43,7 +43,7 @@ RELATIONS = ("made_of", "used_for", "at_location", "has_part", "part_of",
              "capable_of", "causes", "has_prerequisite", "desires",
              "has_property", "is_a")
 #: frames of a relation and form at most, facts asked of each kind
-FRAMES, ASKED = 6, 6
+FRAMES, ASKED = 6, 60
 #: the shortest a frame is, and the longest
 SHORTEST, LONGEST = 3, 8
 #: how sure its reader must be that a question reads as the kind it is of
