@@ -190,7 +190,7 @@ def function_at(file: str, name: str):
 
 
 #: how many calls deep a give-up is followed
-DEEPEST = 3
+DEEPEST = 8
 
 
 def _dotted(node) -> str | None:
@@ -376,7 +376,10 @@ def look_inside(session, turns: list, file: str, name: str,
     file = _relative(inspect.getsourcefile(function)) or file
     _, calls = replay(session, turns, function)
     if not calls:
-        return {"said": f"{name} was never called", "calls": 0}
+        # deeper, a call not seen here (run in another thread) ends what
+        # is followed: the call above is where it was last seen
+        return None if depth else {"said": f"{name} was never called",
+                                   "calls": 0}
     call = next((one for one in calls if wanted and any(
         repr(wanted) == value for value in one["args"].values())),
         calls[-1])
