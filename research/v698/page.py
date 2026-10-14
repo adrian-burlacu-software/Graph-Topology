@@ -746,9 +746,12 @@ def replies(session) -> list:
                     # again (v706 `inside.compositions`)
                     look = inside.looked_at((GOALS.get(key) or {}).get(
                         "finding", {}).get("inside"), found[0]["name"])
+                    # -- and the code's own way past such a nothing
+                    # elsewhere (`_whose(...) or mention(...)`)
                     built = fixing.first_verified(
-                        held, file, inside.compositions(
-                            own, look, held.files[file]),
+                        held, file, inside.precedents(
+                            own, look, held.files[file]) +
+                        inside.compositions(own, look, held.files[file]),
                         context["verify"], key, found[0]["name"])
                     if built["said"]:
                         made = {**made, "status": built["status"],

@@ -178,7 +178,33 @@ def _first_word(words: list[str]) -> _Word | None:
     return None
 
 
+def _named(words: list[str]):
+    found = _first_word(words) or _word_at(words, 0)
+    return found
+
+
+def _shouted(words: list[str]):
+    found = _first_word(words)
+    return found.upper() if found else None
+
+
 class CompositionTests(unittest.TestCase):
+    def test_precedent(self):
+        # _named gets past _first_word's nothing with `or _word_at(...)`:
+        # _shouted, which gives up on it, is offered the same
+        import inspect
+        from pathlib import Path
+        from research.v705 import inside
+        source = Path(__file__).read_text(encoding="utf-8")
+        lines, first = inspect.getsourcelines(_shouted)
+        made = inside.precedents(_shouted, {
+            "line": first + 2, "returns": "None",
+            "deeper": {"function": "_first_word", "returns": "None"}},
+            source)
+        self.assertEqual([line for _, line in made],
+                         ["found = _first_word(words) or "
+                          "_word_at(words, 0)"])
+
     """What a function that gives up should give, built from what in reach
     gives it, filled from what the function holds."""
 

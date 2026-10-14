@@ -564,6 +564,86 @@ def compositions(function, look: dict, text: str) -> list:
     return out
 
 
+def precedents(function, look: dict, text: str) -> list:
+    """Where a function gave up because a call it made gave nothing
+    (`act`: `whose = _whose(...)` was None), the code's own way past that
+    elsewhere: another call of the same function falling back with `or`
+    (`statement`: `_whose(words, ...) or mention(tokens, span, ...)`) --
+    the fallback put after the call here, where every name it uses is one
+    the function has. [(the file's text, the line as changed)]."""
+    import ast
+    deeper = (look or {}).get("deeper") or {}
+    callee = deeper.get("function")
+    if not callee or deeper.get("returns") != "None":
+        return []
+    lines, first = inspect.getsourcelines(function)
+    tree = ast.parse(__import__("textwrap").dedent("".join(lines)))
+    here = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call) \
+                and _dotted(node.value.func) and \
+                _dotted(node.value.func).rpartition(".")[2] == callee:
+            here = node
+            break
+    if here is None:
+        return []
+    bound = set(inspect.signature(function).parameters) | {
+        one.id for one in ast.walk(tree) if isinstance(one, ast.Name)
+        and isinstance(one.ctx, ast.Store)} | set(function.__globals__)
+    module = _module(function)
+    sources = [module]
+    package = function.__module__.rpartition(".")[0]
+    if package:
+        import importlib
+        import pkgutil
+        held = importlib.import_module(package)
+        for one in pkgutil.iter_modules(getattr(held, "__path__", [])):
+            if one.name.startswith("test") or one.name == "__main__":
+                continue
+            try:
+                found = importlib.import_module(f"{package}.{one.name}")
+            except Exception:                       # noqa: BLE001
+                continue
+            if found is not module:
+                sources.append(found)
+    fallbacks = []
+    for held in sources:
+        try:
+            source = inspect.getsource(held)
+        except (OSError, TypeError):
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if not (isinstance(node, ast.BoolOp) and isinstance(
+                    node.op, ast.Or) and isinstance(node.values[0], ast.Call)
+                    and (_dotted(node.values[0].func) or "").rpartition(
+                        ".")[2] == callee):
+                continue
+            for other in node.values[1:]:
+                used = {one.id for one in ast.walk(other)
+                        if isinstance(one, ast.Name)}
+                said = ast.get_source_segment(source, other)
+                if said and used <= bound and said not in fallbacks:
+                    fallbacks.append(said)
+    file_lines = text.splitlines(keepends=True)
+    line = here.lineno + first - 1
+    end = here.end_lineno + first - 1
+    old = "".join(file_lines[line - 1:end])
+    call = ast.get_source_segment(textwrap_dedented(lines), here.value)
+    out = []
+    for fallback in fallbacks[:COMPOSED]:
+        if call is None or call not in old:
+            break
+        changed_line = old.replace(call, f"{call} or {fallback}", 1)
+        out.append(("".join(file_lines[:line - 1]) + changed_line +
+                    "".join(file_lines[end:]), changed_line.strip()))
+    return out
+
+
+def textwrap_dedented(lines: list) -> str:
+    import textwrap
+    return textwrap.dedent("".join(lines))
+
+
 def _imported(text: str, line: str) -> str:
     """The file with an import put after its last one at its top."""
     import ast
