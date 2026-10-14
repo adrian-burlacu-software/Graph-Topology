@@ -107,10 +107,18 @@ def _scratch(session, Session):
     # answer (`StoreAsker.run`)
     from research.v689.server import FRESH
     FRESH.set(True)
+    # what the person typed is not what the scratch session is told: the
+    # page keeps it per thread (v697 `_TYPED`), and a replay in a turn read
+    # the turn's own message -- "Can a cyclist wear helmet?" answered "That's
+    # something you want to achieve", every change judged by it
+    from research.v697 import page as typing
+    typed = getattr(typing._TYPED, "text", None)
+    typing._TYPED.text = None
     try:
         yield Session(session.asker, None, name, True,
                       getattr(session, "definitions", None))
     finally:
+        typing._TYPED.text = typed
         try:
             from research.v691 import page as scenes
             scenes.SCENES.pop(name, None)
