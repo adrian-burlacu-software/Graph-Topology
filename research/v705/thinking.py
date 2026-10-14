@@ -60,6 +60,8 @@ class Pad:
         self.tried: list = []
         #: the found tools called (`use`)
         self.used: set = set()
+        #: the places a case was localized to (`localize`)
+        self.places: list = []
         self.done_cases: list = []
         self.reward = 0.0
         self.done = False
@@ -230,10 +232,51 @@ def source(pad: Pad, mind) -> None:
              for one in found]
     places = given[:1] + [{"function": function, "file": path}
                           for function, path in ranked] + given[1:]
-    places = places[:measures.PLACES]
+    places = [one for one in places if not judging(one)][:measures.PLACES]
     pad.place = {**places[0], "callers": list(reversed(places[1:]))}
     pad.think("suppose", f"What it says is chosen in "
                          f"{places[0]['function']} or what it is made of.",
+              place=dict(pad.place))
+
+
+#: what judges a change, never a place to change: set to a bug from its
+#: history, the thinking took out the line of its test runner that runs
+#: the test (`commits.passes`), and every test passed -- the files that
+#: think, check and measure, and the functions of `inside` a case is said
+#: again and judged by
+JUDGING_FILES = ("research/v705/thinking.py", "research/v705/commits.py",
+                 "research/v705/measures.py", "research/v705/evidence.py",
+                 "research/v705/tools.py")
+JUDGING = {("research/v705/inside.py", name) for name in (
+    "_scratch", "replay", "changed_function", "answered", "_as_page_turn",
+    "cases_of", "_holds_now", "verify", "_module", "_owner")}
+
+
+def judging(place: dict) -> bool:
+    """Whether a place is of what judges a change."""
+    return place.get("file") in JUDGING_FILES or (
+        place.get("file"), place.get("function")) in JUDGING
+
+
+def localize(pad: Pad, mind) -> None:
+    """Where failing tests go wrong (`commits.localize`): the functions
+    they run, against the passing tests beside them, by Ochiai -- the
+    first the place, the rest to go to."""
+    from research.v705 import commits
+    found = [one for one in commits.localize(pad.case, most=12)
+             if not judging(one)][:8]
+    pad.places = found
+    if not found:
+        pad.think("observe", "The failing tests run nothing of its own.")
+        return
+    pad.place = {"function": found[0]["function"], "file": found[0]["file"],
+                 "callers": [{"function": one["function"],
+                              "file": one["file"]}
+                             for one in reversed(found[1:])]}
+    pad.think("suppose", "The failing tests run, more than the passing "
+                         "ones, " + ", ".join(
+                             f"{one['function']} ({one['score']})"
+                             for one in found[:5]) + ".",
               place=dict(pad.place))
 
 
@@ -268,22 +311,32 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
     if not place or not case:
         return
     pad.tried.append((place["function"], "edit" if edit else "build"))
+    if judging(place):
+        pad.think("observe", f"{place['function']} judges the change; it "
+                             f"is not changed to pass.")
+        return
     function = inside.function_at(place["file"], place["function"])
     if function is None:
         pad.think("observe", f"{place['function']} is not one of its own "
                              f"functions it can change.")
         return
-    checks = inside.cases_of(case, function)
-    if not checks:
-        pad.think("observe", "It has no check to run a change against.")
-        return
     held = mind.held
     text = held.files.get(place["file"])
     if text is None:
         return
+    if case.get("tests"):
+        # a case its tests say is right (`commits`): run again, they pass
+        from research.v705 import commits
+        verify = commits.verifier(case, function)
+    else:
+        checks = inside.cases_of(case, function)
+        if not checks:
+            pad.think("observe", "It has no check to run a change "
+                                 "against.")
+            return
 
-    def verify(after):
-        return inside.verify(mind.session, checks, function, after)
+        def verify(after):
+            return inside.verify(mind.session, checks, function, after)
     look_ = inside.looked_at(place.get("look"), function.__name__) or {}
     if edit:
         from research.v705 import talk as debug_talk
@@ -294,13 +347,18 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
                    "said": inside.statement_of(look_, function)
                    if look_ else None,
                    "imports": inside.imports_of(function)}
-        made = fixing.change(f"change {place['function']} so that it "
-                             f"answers \"{case['said']}\"", held,
+        asked = (f"change {place['function']} so that "
+                 + ", ".join(one["test"] for one in case["tests"])
+                 + " pass") if case.get("tests") else (
+            f"change {place['function']} so that it answers "
+            f"\"{case['said']}\"")
+        made = fixing.change(asked, held,
                              Subject("function", function.__qualname__,
                                      place["file"]), "thinking", context)
     else:
-        if case.get("measure"):
-            # how a reply reads: the function without each thing it does
+        if case.get("measure") or case.get("tests"):
+            # how a reply reads, or what tests say: the function with each
+            # thing it does made less, or taken out
             from research.v705 import measures
             candidates = measures.smaller(function, text) + \
                 measures.dropped(function, text)
@@ -354,7 +412,7 @@ def use(pad: Pad, mind) -> None:
 
 TOOLS = {"gather": gather, "layers": layers, "diagnose": diagnose,
          "look": look, "build": build, "edit": edit, "up": up, "use": use,
-         "source": source}
+         "source": source, "localize": localize}
 
 
 # -- the policy -----------------------------------------------------------------------
@@ -370,6 +428,19 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
             return "gather"
         return "use" if used.count("use") < USES else None
     since = _since_case(pad)
+    if pad.case.get("tests"):
+        # failing tests: where by spectrum, each place built, then edited,
+        # then the next
+        if "localize" not in since:
+            return "localize"
+        if pad.place is None:
+            return None
+        here = pad.place["function"]
+        if (here, "build") not in pad.tried:
+            return "build"
+        if (here, "edit") not in pad.tried:
+            return "edit"
+        return "up" if pad.place.get("callers") else None
     if pad.case.get("measure"):
         # a reply's measure: where its words come from, each place built
         # without one thing in turn, then the next place
@@ -422,7 +493,7 @@ def _since_case(pad: Pad) -> list:
 
 def choose(pad: Pad, rng: random.Random) -> str | None:
     picked = heuristic(pad, rng)
-    if pad.case and pad.case.get("measure"):
+    if pad.case and (pad.case.get("measure") or pad.case.get("tests")):
         # a measure's places are set by where its words come from: a look
         # sets places of its own, an editor answers a case it is not
         if picked in ("build", "up") and rng.random() < EXPLORE:
@@ -479,6 +550,26 @@ def think(goal: str, mind: Mind, rng: random.Random | None = None,
     rng = rng or random.Random(SEED)
     pad = Pad(goal)
     pad.think("goal", goal)
+    return _thought(pad, mind, rng, policy, seconds)
+
+
+def think_case(goal: str, case: dict, mind, rng: random.Random | None = None,
+               seconds: float | None = None) -> Pad:
+    """A case given, not gathered (a bug from its history, `commits`):
+    thought about as `think` does, from the case on."""
+    rng = rng or random.Random(SEED)
+    pad = Pad(goal)
+    pad.think("goal", goal)
+    pad.cases, pad.case = [case], case
+    pad.think("observe", f"{len(case.get('tests') or [])} tests fail: "
+                         + ", ".join(one["test"] for one in
+                                     case.get("tests") or []) + ".")
+    return _thought(pad, mind, rng, choose, seconds)
+
+
+def _thought(pad: Pad, mind, rng, policy, seconds) -> Pad:
+    """Tools chosen from the pad until it comes to something, nothing is
+    left to try or `seconds` are up; the chain kept."""
     until = time.monotonic() + seconds if seconds else None
     while not pad.done and len(pad.thoughts) < LONGEST and (
             until is None or time.monotonic() < until):
@@ -504,13 +595,20 @@ def think(goal: str, mind: Mind, rng: random.Random | None = None,
 
 def kept(pad: Pad) -> None:
     CHAINS.parent.mkdir(parents=True, exist_ok=True)
+    commit = (pad.case or {}).get("commit")
     with CHAINS.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps({
             "at": time.strftime("%Y-%m-%d %H:%M"), "goal": pad.goal,
             "reward": pad.reward,
             "thoughts": [{key: value for key, value in one.items()
                           if key in ("kind", "said", "tool", "met")}
-                         for one in pad.thoughts]}) + "\n")
+                         for one in pad.thoughts],
+            # a bug from its history: where the commit says the fix was,
+            # and where the thinking looked -- a chain in hindsight
+            **({"commit": {"sha": commit["sha"], "file": commit["file"],
+                           "function": commit["function"]},
+                "places": [one["function"] for one in pad.places]}
+               if commit else {})}) + "\n")
 
 
 def examples(least: float = 0.3) -> list:

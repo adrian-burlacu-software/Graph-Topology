@@ -795,7 +795,10 @@ def changed_function(function, text: str):
                  names)
     # a method made in a class of its own, so that `super()` and its
     # private names compile as they do in its class
-    wrapped = f"class {owner.__name__ if owner is not _module(function) else '_Here'}:\n" \
+    # on the lines the text has it on: what reads its source back (a
+    # change built of it, `inspect`) reads the text's lines, not others
+    wrapped = "\n" * max(first - 2, 0) + \
+        f"class {owner.__name__ if owner is not _module(function) else '_Here'}:\n" \
         + textwrap.indent(source, "    ")
     code = compile(wrapped, inspect.getsourcefile(function) or "<changed>",
                    "exec")
@@ -803,6 +806,11 @@ def changed_function(function, text: str):
     made = vars(names[owner.__name__ if owner is not _module(function)
                       else "_Here"])[function.__name__]
     made = getattr(made, "__func__", made)
+    # named as the one it stands in for: made in `_Here`, a module's
+    # function ran as `_Here.carry`, and a spectrum's first suspect was a
+    # function nothing could find (`commits.localize`)
+    made.__qualname__ = function.__qualname__
+    made.__code__ = made.__code__.replace(co_qualname=function.__qualname__)
     for name, cell in zip(made.__code__.co_freevars,
                           made.__closure__ or ()):
         if name == "__class__":
