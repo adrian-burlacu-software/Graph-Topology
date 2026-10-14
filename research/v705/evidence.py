@@ -55,9 +55,11 @@ def case_of(turn, turns: list, check, **more) -> dict:
             "check": check, **more}
 
 
-def failures(goal: str) -> list:
+def failures(goal: str, session=None) -> list:
     """The conversation test's failed cases of the weaknesses near the
-    goal (`selfmodel.weaknesses`), each with its check."""
+    goal (`selfmodel.weaknesses`), each with its check -- where a session
+    is given, only those that fail now: the test's run is days old, and
+    `what is my dog called?` was fixed since."""
     from research.v704 import selfmodel, suite
     model = selfmodel.held()
     if not model:
@@ -67,9 +69,15 @@ def failures(goal: str) -> list:
     out = []
     for weak in selfmodel.weaknesses(goal, model):
         for one in weak.get("cases") or []:
-            check = checks.get(tuple(one.get("turns") or [one["said"]]))
-            if check is not None:
-                out.append({**one, "check": check, "area": weak["name"]})
+            turns = list(one.get("turns") or [one["said"]])
+            check = checks.get(tuple(turns))
+            if check is None:
+                continue
+            if session is not None:
+                from research.v705 import inside
+                if inside._holds_now(session, (turns, check, True)):
+                    continue
+            out.append({**one, "check": check, "area": weak["name"]})
     return out
 
 
@@ -79,7 +87,7 @@ def gather(goal: str, session=None) -> dict:
     cases = []
     for name, _ in taken:
         if name == "failures":
-            cases += failures(goal)
+            cases += failures(goal, session)
         elif name == "knowledge" and session is not None:
             cases += known(session)["cases"]
     return {"ways": taken, "cases": cases}

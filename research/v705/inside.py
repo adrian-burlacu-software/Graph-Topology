@@ -867,6 +867,11 @@ def verify(session, cases: list, function, text: str) -> str | None:
     # what it answered right is what a scratch session answers right as it
     # is: the test's verdict came through the whole page ("where is Mary?"
     # answered by the scene, which a session alone answers "which one?")
+    # a case that holds as the code is proves nothing of a change: any
+    # harmless edit would pass it (`spans` changed, `what is my dog
+    # called?` answered before and after)
+    if _holds_now(session, cases[0]):
+        return f"\"{cases[0][0][-1]}\" holds already, without the change"
     cases = [cases[0]] + [one for one in cases[1:]
                           if _holds_now(session, one)]
     owner = _owner(function)
