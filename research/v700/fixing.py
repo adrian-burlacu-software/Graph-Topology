@@ -631,7 +631,7 @@ def first_verified(held, path: str, candidates: list, verify, key=None,
                        " (in the project I hold).") + "\n" + changed_)}
     return {"status": "unchanged", "tried": tried, "said": (
         f"Nor did any of {len(tried)} calls of what gives what it should "
-        f"answer the case." if tried else "")}
+        f"answer the case ({'; '.join(tried[:2])})." if tried else "")}
 
 
 def defined_in(text: str, path: str, start: int = 1,
