@@ -782,6 +782,17 @@ class Parser:
                     pos[kept[at].i] = "NOUN"
             if pos[kept[verb].i] == "NOUN":
                 pos[kept[verb].i] = "VERB"
+        # The reader marks a subject's head (`powder`), as it was taught
+        # (`beef plant`: `plant`); the words that compound it are its own
+        # (`baby powder` is one thing the store knows, `powder` another --
+        # asked what a baby powder is made of, it answered of powder).
+        if doc is not None and subject_span:
+            start, end = subject_span
+            head = kept[end - 1]
+            while start > 0 and kept[start - 1].dep_ == "compound" and \
+                    kept[start - 1].head.i == head.i:
+                start -= 1
+            subject_span = (start, end)
         subject, unknown = self._named(kept, subject_span, polar, pos)
         target, hedged = None, False
         target_span = _run(roles, "TARGET", "TARGET-VERB")
@@ -848,6 +859,14 @@ class Parser:
                         if form in self.vocabulary and form not in STOP:
                             return form, None
             return None, texts[0]
+        # asked what, the longest phrase the store has a word for too, its
+        # head's lemma where it has none (`baby powder`, not `powder`)
+        if self.vocabulary and len(group) > 1:
+            for start in range(len(group) - 1):
+                for form in (" ".join(lemmas[start:]),
+                             " ".join(texts[start:])):
+                    if form in self.vocabulary and form not in STOP:
+                        return form, None
         return lemmas[-1], None
 
     def cued(self, question: str) -> Parse:
