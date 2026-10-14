@@ -658,16 +658,53 @@ TRIES = 8
 FIX = ("A function in a Python project has a bug. The commit that fixed it "
        "said: \"{message}\"\nIn {path}, the function as it is:\n```python\n"
        "{before}\n```\nThis test fails:\n```python\n{test}\n```\nIt fails "
-       "with: {failure}\nWrite the whole corrected function -- the same "
+       "with: {failure}\nIn the same file, beside it:\n{reach}\n"
+       "Write the whole corrected function -- the same "
        "name and parameters -- in one ```python block, nothing else.")
+
+
+#: the functions beside it a fix is told of
+REACH = 10
+
+
+def reach(case: dict, about: str = "") -> list:
+    """What the function could call in its own file, as a programmer would
+    look: each other function's def line and the first line of what it
+    says, the nearest it in the file first -- a helper is written beside
+    what it helps. The fixes of its history call what their commit added
+    beside them (`determines`, nine lines below `relevance`): told nothing
+    of it, the teacher held 0 of 24; ranked by the commit's message
+    (`rung 2: control forms`), it was not among the ten."""
+    text = (ROOT / case["file"]).read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    own = case["function"].split(".")[-1]
+    at = next((node.lineno for node in ast.walk(tree) if isinstance(
+        node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == own),
+        0)
+    said = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
+                node.name != own and not node.name.startswith("test"):
+            source = ast.get_source_segment(text, node) or ""
+            head = " ".join(source.split(":\n")[0].split()) + ":"
+            doc = (ast.get_docstring(node) or "").split("\n")[0]
+            said.append((abs(node.lineno - at),
+                         f"{head}  # {doc}" if doc else head))
+    return [one for _, one in sorted(said)][:REACH]
 
 
 def statement(case: dict, failed: str) -> str:
     """What the editor is told of a bug, taught and asked alike: the goal
-    (the commit's message), the place, and how its test fails."""
+    (the commit's message), the place, how its test fails, and what it
+    could call beside it."""
     test = case["tests"][0]["test"]
+    near = reach(case)
     return (f"{case['message']}\nChange {case['function']} in "
-            f"{case['file']} for it.\n{test} fails: {failed}")
+            f"{case['file']} for it.\n{test} fails: {failed}"
+            + ("\nBeside it:\n" + "\n".join(near) if near else ""))
 
 
 def _code_of(reply: str) -> str | None:
@@ -734,23 +771,35 @@ def teach() -> dict:
         test = case["tests"][0]
         source = functions((ROOT / test["file"]).read_text(
             encoding="utf-8")).get(test["test"], "")
-        kept = []
+        kept, why = [], []
         replies = []
         with Put(function, made):
             failed = failure(test)
             replies = teacher.write([FIX.format(
                 message=case["message"], path=case["file"],
-                before=case["before"], test=source, failure=failed)],
+                before=case["before"], test=source, failure=failed,
+                reach="\n".join(reach(case, "")))],
                 longest=900, samples=TRIES, temperature=0.8)[0]
             verify = verifier(case, _current(case))
             seen = set()
+            why = []
             for reply in replies:
                 code = _code_of(reply)
                 text = _placed(code, case["before"], old) if code else None
-                if text is None or text in seen:
+                if text is None:
+                    why.append("no code block" if not code else
+                               "not one function of its name")
+                    continue
+                if text in seen:
+                    why.append("the same again")
                     continue
                 seen.add(text)
-                if verify(text) is None:
+                if text == old:
+                    why.append("unchanged")
+                    continue
+                said = verify(text)
+                why.append(said or "holds")
+                if said is None:
                     kept.append(functions(text)[case["function"]])
         counts["bugs"] += 1
         counts["fixed"] += bool(kept)
@@ -761,7 +810,8 @@ def teach() -> dict:
                                   "file": case["file"],
                                   "statement": statement(case, failed),
                                   "before": case["before"],
-                                  "fixes": kept}) + "\n")
+                                  "fixes": kept, "why": why,
+                                  "replies": replies}) + "\n")
         print(f"{case['sha'][:7]} {case['function']}: {len(kept)} of "
               f"{len(replies)} hold", flush=True)
     print(json.dumps(counts))
