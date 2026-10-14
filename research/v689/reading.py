@@ -467,6 +467,9 @@ def _whose(phrase: list[str], lexicon, names: frozenset) -> Mention | None:
                 and found.form not in ("indefinite", "another")):
             found.text = " ".join(phrase)
             return found
+    _found = read_mention(phrase, 0, lexicon, final_ok=True, names=names)
+    if _found is not None:
+        return _found
     return None
 
 
