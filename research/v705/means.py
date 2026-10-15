@@ -440,7 +440,6 @@ def _put(text: str, before: str, statements: list) -> list:
     lines = before.splitlines()
     out = []
     at = text.index(before)
-    indent = text[text.rfind("\n", 0, at) + 1:at]
     spots = [(one.lineno, "before a return") for one in ast.walk(node)
              if isinstance(one, ast.Return)]
     first = node.body[0]
@@ -1074,7 +1073,6 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
     now; a program found for them (`deduce.solve`), else one for the
     failing call and a condition telling the two apart; set before each
     return, judged by the tests. {moves, source} or None."""
-    from research.v705 import deduce
     failing = wanted.get("failing") or {}
     raw = failing.get("_raw")
     fell = failing.get("_fell")
@@ -1310,6 +1308,146 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
 #: broken down by deduction
 LEAVES = True
 DEDUCED = True
+#: whether one edit on the suspected lines is tried first (`repair`)
+REPAIR = True
+#: whether a change that holds is made as general as its tests let it be
+GENERAL = True
+
+
+def generalized(case: dict, found: dict, verify, old: str, row: dict
+                ) -> dict:
+    """A change that holds, made as general as the tests let it be: a
+    constant it put in that a name of the failing call held is that name
+    (`'language': 'python'` where `language` was 'python'); a statement it
+    added that the tests hold without is taken out; a parameter it added
+    that nothing reads is said (`interface only`). The tests judge each
+    step; what they refuse stays as it was."""
+    from research.v705 import inside
+    source = found["source"]
+    steps = []
+
+    def holds(text_source: str) -> bool:
+        text = commits._placed(text_source, case["before"], old)
+        return text is not None and verify(text) is None
+
+    # what the failing call held, by name, with the change in
+    function = commits._current(case)
+    text = commits._placed(source, case["before"], old)
+    named = {}
+    try:
+        made = inside.changed_function(function, text)
+        with commits.Put(function, made):
+            calls = _calls_of(made, lambda: commits.passes(case["tests"][0]))
+        for name, value in (calls[-1][0] if calls else {}).items():
+            if isinstance(value, (str, int)) and not isinstance(value, bool) \
+                    and value not in (0, 1, "") and not name.startswith("_"):
+                named.setdefault(repr(value), []).append(name)
+    except Exception:                               # noqa: BLE001
+        pass
+    before = _constants_of(case["before"])
+    tree = _tree(source)
+    for node in [one for one in ast.walk(tree)
+                 if isinstance(one, ast.Constant)]:
+        if repr(node.value) not in named or \
+                before.get(repr(node.value), 0) >= _constants_of(
+                    source).get(repr(node.value), 0):
+            continue
+        done = False
+        for name in named[repr(node.value)]:
+            kept = node.value
+            # the name; else the name where it is given, what was there
+            # where not (`language or 'python'`: read(text) gives none)
+            for new in (ast.Name(id=name, ctx=ast.Load()),
+                        ast.BoolOp(op=ast.Or(), values=[
+                            ast.Name(id=name, ctx=ast.Load()),
+                            ast.Constant(value=kept)])):
+                parents = {child: one for one in ast.walk(tree)
+                           for child in ast.iter_child_nodes(one)}
+                if not _swapped(parents, node, new):
+                    continue
+                trying = _unparsed(tree)
+                if holds(trying):
+                    source = trying
+                    steps.append(f"{kept!r} is {ast.unparse(new)}")
+                    done = True
+                    break
+                _swapped(parents, new, node)
+            if done:
+                break
+    # statements it put in (inserted lines all, not a line it changed: that
+    # taken out is the code's own gone too), each taken out where the tests
+    # hold without
+    import difflib
+    was = _unparsed(_tree(case["before"])).splitlines()
+    for _ in range(12):
+        source = _unparsed(_tree(source))
+        tree = _tree(source)
+        now = source.splitlines()
+        inserted = set()
+        for kind, _, _, start, end in difflib.SequenceMatcher(
+                None, was, now, autojunk=False).get_opcodes():
+            if kind == "insert":
+                inserted |= set(range(start + 1, end + 1))
+        added = [one for one in ast.walk(tree.body[0])
+                 if isinstance(one, ast.stmt) and one is not tree.body[0]
+                 and set(range(one.lineno, one.end_lineno + 1)) <= inserted]
+        dropped = False
+        for node in added:
+            parents = {child: one for one in ast.walk(tree)
+                       for child in ast.iter_child_nodes(one)}
+            holder = parents.get(node)
+            body = next((value for _, value in ast.iter_fields(holder)
+                         if isinstance(value, list) and any(
+                             one is node for one in value)), None)
+            if body is None or len(body) < 2:
+                continue
+            at = [id(one) for one in body].index(id(node))
+            body.pop(at)
+            trying = _unparsed(tree)
+            if holds(trying):
+                source = trying
+                steps.append("taken out, not needed: "
+                             + ast.unparse(node).splitlines()[0][:60])
+                dropped = True
+                break
+            body.insert(at, node)
+        if not dropped:
+            break
+    # a parameter it added that nothing reads
+    function_now = _tree(source).body[0]
+    params_before = {one.arg for one in ast.walk(_tree(case["before"]))
+                     if isinstance(one, ast.arg)}
+    read = {one.id for one in ast.walk(function_now)
+            if isinstance(one, ast.Name) and isinstance(one.ctx, ast.Load)}
+    unread = [one.arg for one in function_now.args.args +
+              function_now.args.kwonlyargs
+              if one.arg not in params_before and one.arg not in read]
+    if unread:
+        row["interface only"] = unread
+    row["generalized"] = steps
+    return {"moves": list(found["moves"]) + steps, "source": source}
+
+
+def _constants_of(source: str) -> dict:
+    out: dict = {}
+    for one in ast.walk(_tree(source)):
+        if isinstance(one, ast.Constant):
+            out[repr(one.value)] = out.get(repr(one.value), 0) + 1
+    return out
+
+
+def _swapped(parents: dict, node, new) -> bool:
+    parent = parents.get(node)
+    for name, value in ast.iter_fields(parent) if parent else []:
+        if value is node:
+            setattr(parent, name, new)
+            parents[new] = parent
+            return True
+        if isinstance(value, list) and any(one is node for one in value):
+            value[[id(one) for one in value].index(id(node))] = new
+            parents[new] = parent
+            return True
+    return False
 
 LEAF = ("A function of a Python project is being changed step by step "
         "toward a goal: {goal}\nThe steps taken so far: {moves}\nThe "
@@ -1416,7 +1554,7 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
     tests and those beside them."""
     import importlib
     import linecache
-    from research.v705 import design, inside
+    from research.v705 import design, inside, repair
     held = json.loads((ROOT / "state" / "v705-semantics.json").read_text(
         encoding="utf-8"))
     found = cases(which, most)
@@ -1471,8 +1609,16 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
                 if wanted["failing"] or wanted["crash"]:
                     counts["goal"] += 1
                     verify = commits.verifier(case, commits._current(case))
-                    found_ = deepen(case, case["before"], wanted, held,
-                                    verify, old, name, row)
+                    # a slip first: one edit on the lines the failing test
+                    # runs most apart from the rest (`repair`); a design only
+                    # where none holds
+                    found_ = repair.search(case, commits._current(case), old,
+                                           verify, row) if REPAIR else None
+                    if found_ is None:
+                        found_ = deepen(case, case["before"], wanted, held,
+                                        verify, old, name, row)
+                    if found_ and GENERAL:
+                        found_ = generalized(case, found_, verify, old, row)
                     counts["planned"] += bool(row.get("tries"))
                     if found_:
                         row["fixed"] = found_

@@ -472,20 +472,54 @@ def verifier(case: dict, function):
             # taking out a line the failing test trips on passed it twice
             # (`self.calls += 1`; the loop counting a saying's words)
             case["guards"] = _beside(case)
-        with Put(function, made):
-            for test in case["tests"] + case["guards"]:
-                timer = _watched(LONGEST)
-                try:
-                    ok = passes(test)
-                except BaseException:               # noqa: BLE001
-                    ok = False
-                timer.cancel()
-                if not ok:
-                    return (f"{test['test']} still fails"
-                            if test in case["tests"] else
-                            f"{test['test']}, which passed, now fails")
-        return None
+        # a change whose tests never came back (a deadlock waits in C,
+        # where nothing can be raised, and the process was ended): refused
+        # when the run takes up again, not tried a second time
+        import hashlib
+        key = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        if key in _hung():
+            return "its tests never came back"
+        TRYING.write_text(key, encoding="utf-8")
+        try:
+            return _judged(case, function, made)
+        finally:
+            TRYING.unlink(missing_ok=True)
     return verify
+
+
+#: the change being tried, while its tests run; and those that hung
+TRYING = ROOT / "state" / "v705-trying.txt"
+HUNG = ROOT / "state" / "v705-hung.json"
+
+
+def _hung() -> set:
+    """The changes whose tests never came back -- the one being tried
+    when the process last ended among them."""
+    hung = set(json.loads(HUNG.read_text(encoding="utf-8"))) \
+        if HUNG.exists() else set()
+    if TRYING.exists():
+        hung.add(TRYING.read_text(encoding="utf-8").strip())
+        HUNG.write_text(json.dumps(sorted(hung)), encoding="utf-8")
+        TRYING.unlink()
+    return hung
+
+
+def _judged(case: dict, function, made) -> str | None:
+    """The failing tests, then those beside them, with the change in: None
+    where all pass, else which does not."""
+    with Put(function, made):
+        for test in case["tests"] + case["guards"]:
+            timer = _watched(LONGEST)
+            try:
+                ok = passes(test)
+            except BaseException:                   # noqa: BLE001
+                ok = False
+            timer.cancel()
+            if not ok:
+                return (f"{test['test']} still fails"
+                        if test in case["tests"] else
+                        f"{test['test']}, which passed, now fails")
+    return None
 
 
 def _strings(source: str) -> set:
