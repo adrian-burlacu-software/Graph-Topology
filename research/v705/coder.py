@@ -43,6 +43,66 @@ class Coder(Teacher):
         self.model.eval()
 
 
+_LOADED: dict = {}
+
+#: what the code model is told of a change any case asks for
+CHANGE = ("A function of a Python project should change. What is wanted: "
+          "{goal}\nIn {path}, the function as it is:\n```python\n{before}\n"
+          "```\n{shown}\nIn the same file, beside it:\n{reach}\nWrite the "
+          "whole changed function -- the same name and parameters -- in one "
+          "```python block, nothing else.")
+
+
+def get() -> Coder:
+    """The code model, loaded once."""
+    if "coder" not in _LOADED:
+        _LOADED["coder"] = Coder()
+    return _LOADED["coder"]
+
+
+def _shown(case: dict) -> str:
+    """What shows the function wrong, as the case has it."""
+    if case.get("tests"):
+        test = case["tests"][0]
+        source = commits.functions((ROOT / test["file"]).read_text(
+            encoding="utf-8")).get(test["test"], "")
+        return (f"This test fails:\n```python\n{source}\n```\nIt fails "
+                f"with: {commits.failure(test)}")
+    if case.get("measure"):
+        one = case["measure"]
+        way = "less" if one["way"] == "min" else "more"
+        return (f"Told \"{case['said']}\", the program replies:\n"
+                f"{case.get('answer', '')}\nThe reply should have {way} "
+                f"{one['measure']}, saying the same.")
+    return (f"Told \"{case['said']}\", the program answers "
+            f"\"{(case.get('answer') or '')[:300]}\", which is wrong.")
+
+
+def written(goal: str, case: dict, place: dict, function, text: str
+            ) -> list:
+    """The code model's answers as changed texts of the file:
+    [(text, what)] -- each the function of its name, put in where it
+    stands."""
+    before = commits.functions(text).get(place["function"])
+    if not before:
+        return []
+    asked = CHANGE.format(goal=goal, path=place["file"], before=before,
+                          shown=_shown(case),
+                          reach="\n".join(commits.reach(
+                              {"file": place["file"],
+                               "function": place["function"]})))
+    replies = get().write([asked], longest=900, samples=TRIES,
+                          temperature=0.8)[0]
+    out, seen = [], set()
+    for reply in replies:
+        code = commits._code_of(reply)
+        changed = commits._placed(code, before, text) if code else None
+        if changed and changed != text and changed not in seen:
+            seen.add(changed)
+            out.append((changed, f"answer {len(out) + 1}"))
+    return out
+
+
 def measure(most: int = 0) -> dict:
     """Of the bugs editors are measured on (`commits.MEASURED`), each fixed
     where one of `TRIES` answers makes the failing tests pass and those

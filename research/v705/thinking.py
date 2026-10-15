@@ -303,6 +303,12 @@ def edit(pad: Pad, mind) -> None:
     _fix(pad, mind, edit=True)
 
 
+def write(pad: Pad, mind) -> None:
+    """The code model asked for the whole function, each answer run
+    again."""
+    _fix(pad, mind, edit="write")
+
+
 def _fix(pad: Pad, mind, edit: bool) -> None:
     from research.v700 import fixing
     from research.v698.asking import Subject
@@ -310,7 +316,8 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
     place, case = pad.place, pad.case
     if not place or not case:
         return
-    pad.tried.append((place["function"], "edit" if edit else "build"))
+    pad.tried.append((place["function"], "write" if edit == "write" else
+                      "edit" if edit else "build"))
     if judging(place):
         pad.think("observe", f"{place['function']} judges the change; it "
                              f"is not changed to pass.")
@@ -338,7 +345,7 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
         def verify(after):
             return inside.verify(mind.session, checks, function, after)
     look_ = inside.looked_at(place.get("look"), function.__name__) or {}
-    if edit:
+    if edit is True:
         from research.v705 import talk as debug_talk
         from research.v705.teach_debugging import SAYING
         context = {"case": case["said"], "verify": verify,
@@ -361,6 +368,18 @@ def _fix(pad: Pad, mind, edit: bool) -> None:
         made = fixing.change(asked, held,
                              Subject("function", function.__qualname__,
                                      place["file"]), "thinking", context)
+    elif edit == "write":
+        # the code model writes the whole function (`coder`), told the
+        # goal, the function, what shows it wrong and what is beside it;
+        # each answer run again
+        from research.v705 import coder
+        candidates = coder.written(pad.goal, case, place, function, text)
+        made = fixing.first_verified(held, place["file"], candidates, verify,
+                                     "thinking", function.__qualname__,
+                                     how="the code model wrote it:") \
+            if candidates else {"status": "unchanged",
+                                "said": "The code model wrote nothing that "
+                                        "is the function."}
     else:
         if case.get("measure") or case.get("tests"):
             # how a reply reads, or what tests say: the function with each
@@ -418,7 +437,7 @@ def use(pad: Pad, mind) -> None:
 
 TOOLS = {"gather": gather, "layers": layers, "diagnose": diagnose,
          "look": look, "build": build, "edit": edit, "up": up, "use": use,
-         "source": source, "localize": localize}
+         "source": source, "localize": localize, "write": write}
 
 
 # -- the policy -----------------------------------------------------------------------
@@ -446,6 +465,8 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
             return "build"
         if (here, "edit") not in pad.tried:
             return "edit"
+        if (here, "write") not in pad.tried:
+            return "write"
         return "up" if pad.place.get("callers") else None
     if pad.case.get("measure"):
         # a reply's measure: where its words come from, each place built
@@ -456,6 +477,8 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
             return None
         if (pad.place["function"], "build") not in pad.tried:
             return "build"
+        if (pad.place["function"], "write") not in pad.tried:
+            return "write"
         return "up" if pad.place.get("callers") else None
     if "layers" not in since:
         return "layers"
@@ -471,6 +494,8 @@ def heuristic(pad: Pad, rng: random.Random) -> str | None:
         return "build"
     if (here, "edit") not in pad.tried:
         return "edit"
+    if (here, "write") not in pad.tried and here:
+        return "write"
     if pad.place.get("callers"):
         return "up"
     if "use" not in since:

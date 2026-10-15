@@ -384,7 +384,22 @@ def localize(case: dict, most: int = 8) -> list:
         scores.append({"file": place[0], "function": place[1],
                        "score": round(score, 3)})
     scores.sort(key=lambda one: (-one["score"], one["function"]))
-    return [one for one in scores if "<" not in one["function"]][:most]
+    # functions only: a class's body runs too where its module is imported
+    # (`Expr`, `Form`), and was taken for a place nothing could change
+    from research.v705 import inside
+    out = []
+    for one in scores:
+        if "<" in one["function"]:
+            continue
+        try:
+            found = inside.function_at(one["file"], one["function"])
+        except Exception:                           # noqa: BLE001
+            found = None
+        if found is not None:
+            out.append(one)
+        if len(out) >= most:
+            break
+    return out
 
 
 def verifier(case: dict, function):
@@ -725,12 +740,17 @@ def _placed(fixed: str, before: str, text: str) -> str | None:
     name = before.split("(")[0].split()[-1]
     # the function of its name, among any others the answer wrote (a
     # helper beside it, an import): those are not put in
-    found = next((one for one in tree.body if isinstance(
+    # a method written in its class is the method (84 of 293 of the code
+    # model's answers were thrown away for the class around them)
+    found = next((one for one in ast.walk(tree) if isinstance(
         one, (ast.FunctionDef, ast.AsyncFunctionDef)) and one.name == name),
         None)
     if found is None:
         return None
-    code = ast.get_source_segment(code, found)
+    # as if written at the margin: a method's lines after its first keep
+    # the class's indent
+    code = textwrap.dedent(" " * found.col_offset +
+                           ast.get_source_segment(code, found))
     at = text.index(before)
     indent = text[text.rfind("\n", 0, at) + 1:at]
     lines = code.splitlines()
