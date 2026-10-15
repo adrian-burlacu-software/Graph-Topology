@@ -24,8 +24,9 @@ import textwrap
 
 from research.v705 import commits
 
-#: the lines tried, most suspected first, and the edits tried in all
-LINES, MOST = 8, 400
+#: the lines tried, most suspected first, the edits ordered (by where they
+#: stand and by the code model), and those of them tried by the tests
+LINES, POOL, MOST = 8, 1500, 400
 #: how long a test run for its lines may take (they took under three
 #: seconds when the coverage was gathered)
 SPECTRUM_SECONDS = 20
@@ -121,8 +122,8 @@ def _replace(parents: dict, node, new) -> bool:
 def _bound(tree) -> list:
     """The names a function binds: its parameters and what it assigns."""
     function = tree.body[0]
-    names = [one.arg for one in function.args.args + function.args.kwonlyargs
-             if one.arg != "self"]
+    # `self` too: `pinned._cache` for `self._cache` was out of reach
+    names = [one.arg for one in function.args.args + function.args.kwonlyargs]
     for node in ast.walk(function):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             names.append(node.id)
@@ -161,6 +162,48 @@ def _edits(tree, node, parents, context: dict) -> list:
     if context.get("condition"):
         out.append(("turned round", lambda t, n, p: _replace(
             p, n, ast.UnaryOp(op=ast.Not(), operand=n))))
+        # a condition that is only its subject: what it was compared with
+        # gone (`if 'json':` for `if kind == 'json':`; `if key:` for `if key
+        # in self._cache:`)
+        if isinstance(node, ast.Constant):
+            for name in context["bound"][:12]:
+                out.append((f"{name} == {node.value!r}",
+                            lambda t, n, p, m=name: _replace(p, n, ast.Compare(
+                                left=ast.Name(id=m, ctx=ast.Load()),
+                                ops=[ast.Eq()], comparators=[n]))))
+        if isinstance(node, (ast.Name, ast.Attribute)):
+            for holder in context["containers"][:10]:
+                if holder != ast.unparse(node):
+                    out.append((f"in {holder}",
+                                lambda t, n, p, h=holder: _replace(
+                                    p, n, ast.Compare(
+                                        left=n, ops=[ast.In()],
+                                        comparators=[ast.parse(
+                                            h, mode="eval").body]))))
+    if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load) \
+            and not (isinstance(parents.get(node), ast.Call) and
+                     parents[node].func is node):
+        # a method not called (`K.category` for `K.category(one.name)`)
+        for name in context["names"][:10]:
+            out.append((f"called with {name}",
+                        lambda t, n, p, m=name: _replace(p, n, ast.Call(
+                            func=n, args=[ast.parse(m, mode="eval").body],
+                            keywords=[]))))
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and \
+            node.func.id in ("self", "cls"):
+        # the object called for one of its methods (`self(arrow, scope)`
+        # for `self._lambda(arrow, scope)`)
+        for method in context["methods"][:16]:
+            out.append((f"self.{method}(...)",
+                        lambda t, n, p, m=method: _set_callee(n, m)))
+    if context.get("joined") and (isinstance(node, ast.IfExp) or isinstance(
+            node, ast.Constant) and isinstance(node.value, str)):
+        # a piece of a string left off its end (`'I-'` for `'I-' + name`)
+        for name in context["names"][:8]:
+            out.append((f"+ {name}",
+                        lambda t, n, p, m=name: _replace(p, n, ast.BinOp(
+                            left=n, op=ast.Add(),
+                            right=ast.parse(m, mode="eval").body))))
     if isinstance(node, ast.Constant) and not isinstance(parents.get(node),
                                                          ast.Expr):
         # (a docstring is no value)
@@ -194,6 +237,11 @@ def _edits(tree, node, parents, context: dict) -> list:
                             func=ast.Name(id=f, ctx=ast.Load()), args=[n],
                             keywords=[]))))
     return out
+
+
+def _set_callee(node, method) -> bool:
+    node.func = ast.Attribute(value=node.func, attr=method, ctx=ast.Load())
+    return True
 
 
 def _set_op(node, op) -> bool:
@@ -251,7 +299,10 @@ def _constants_for(value, context: dict) -> list:
         return list(dict.fromkeys(one for one in (
             value + 1, value - 1, 0, 1, -1) + tuple(
             one for one in context["numbers"] if one != value)
-            if one != value))[:8]
+            if one != value))[:12]
+    if isinstance(value, float):
+        return [one for one in dict.fromkeys(context["numbers"])
+                if one != value][:8]
     if isinstance(value, str):
         return [one for one in context["strings"] if one != value][:12]
     if value is None:
@@ -281,9 +332,30 @@ def _context(tree, module_source: str) -> dict:
     called = [one.func.id for one in ast.walk(function)
               if isinstance(one, ast.Call) and isinstance(one.func, ast.Name)
               and len(one.args) == 1]
+    # the numbers of the whole module: `-1` meant `0.5`, said elsewhere
+    numbers += [one.value for one in ast.walk(module)
+                if isinstance(one, ast.Constant) and isinstance(
+                    one.value, (int, float)) and not isinstance(
+                    one.value, bool)][:40]
+    # what holds things, as the function says them (`self._cache`)
+    containers = [ast.unparse(one) for one in ast.walk(function)
+                  if isinstance(one, (ast.Attribute, ast.Name)) and
+                  isinstance(one.ctx, ast.Load) and
+                  isinstance(_parents(tree).get(one), ast.Subscript)]
+    # names a call or a piece may take: bound, and a comprehension's own
+    names = _bound(tree) + [one.id for node in ast.walk(function)
+                            if isinstance(node, ast.comprehension)
+                            for one in ast.walk(node.target)
+                            if isinstance(one, ast.Name)]
+    # and their fields, as the module reads them off a receiver so named
+    names += [f"{one}.{field}" for one in list(names)
+              for field in sorted(receivers.get(one, set()))[:4]]
+    methods = sorted(receivers.get("self", set()))
     return {"bound": _bound(tree), "strings": list(dict.fromkeys(strings)),
             "numbers": list(dict.fromkeys(numbers)),
             "receivers": receivers, "attributes": attributes,
+            "containers": list(dict.fromkeys(containers)),
+            "names": list(dict.fromkeys(names)), "methods": methods,
             "wraps": list(dict.fromkeys(called + list(WRAPS)))}
 
 
@@ -305,6 +377,9 @@ def candidates(source: str, lines: list, module_source: str = "") -> list:
                 continue
             here = dict(context)
             here["condition"] = id(node) in conditions
+            parent = _parents(tree).get(node)
+            here["joined"] = isinstance(parent, ast.Call) and any(
+                one is node for one in parent.args)
             if isinstance(node, ast.Attribute):
                 here["attributes"] = sorted(context["receivers"].get(
                     ast.unparse(node.value), set()))[:12]
@@ -335,7 +410,7 @@ def candidates(source: str, lines: list, module_source: str = "") -> list:
                         out.append((line, "statement taken out",
                                     ast.unparse(made)))
                         break
-        if len(out) >= MOST * 10:
+        if len(out) >= POOL * 4:
             break
     # the few edits of every line before the many of one (a value put
     # inside each of sixteen calls): operators, constants, a call off, two
@@ -348,7 +423,7 @@ def candidates(source: str, lines: list, module_source: str = "") -> list:
         if one[2] not in seen:
             seen.add(one[2])
             kept.append(one)
-    return kept[:MOST]
+    return kept[:POOL]
 
 
 def _group(what: str) -> int:
@@ -384,7 +459,23 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
     except (OSError, TypeError):
         module_source = ""
     tried, held = 0, []
-    for line, what, made in candidates(source, lines, module_source):
+    found = candidates(source, lines, module_source)
+    if NATURAL and found:
+        # tried in the order of where they stand (suspected lines, few
+        # edits first) and of how natural the code model finds each, the
+        # two ranks summed -- the true edit in the first six for 9 of 12
+        # bugs, against 3 by where they stand alone; one batch on the GPU
+        from research.v705 import natural
+        try:
+            gain = natural.gained(ast.unparse(ast.parse(source)),
+                                  [one[2] for one in found])
+            by = {at: rank for rank, at in enumerate(sorted(
+                range(len(found)), key=lambda at: -gain[at]))}
+            found = [found[at] for at in sorted(
+                range(len(found)), key=lambda at: (at + by[at], at))]
+        except Exception as bad:                    # noqa: BLE001
+            row["natural"] = f"{type(bad).__name__}: {bad}"[:120]
+    for line, what, made in found[:MOST]:
         text = commits._placed(made, case["before"], old)
         if text is None:
             continue
@@ -418,6 +509,9 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
     return {"moves": [f"line {line}: {what}"], "source": made}
 
 
+#: whether the edits are tried in the order the code model and where they
+#: stand give together (`natural`)
+NATURAL = True
 #: how the changes that hold are chosen among: by what they change of the
 #: tests' calls and of fuzzed ones ("both"), of one of them, or the first
 RANK = "both"
