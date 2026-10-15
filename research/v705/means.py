@@ -110,7 +110,7 @@ def goal(case: dict) -> dict:
             wanted = args[wanted_at] if wanted_at is not None and \
                 len(args) > wanted_at else None
             path = _path(value, names)
-            row = {"check": name, "path": path,
+            row = {"check": name, "path": path, "_raw": (value, wanted),
                    "got": repr(value)[:SHOWN],
                    "wanted": repr(wanted)[:SHOWN] if wanted_at is not None
                    else None,
@@ -431,6 +431,11 @@ def crashed(raised: str | None) -> dict | None:
     if found:
         return {"needs": "parameter", "function": found.group(1),
                 "name": found.group(2)}
+    found = re.search(r"(\w+)\(\) takes (\d+) positional arguments? but "
+                      r"(\d+) (?:were|was) given", last)
+    if found:
+        return {"needs": "positional", "function": found.group(1),
+                "count": int(found.group(3)) - int(found.group(2))}
     found = re.search(r"(\w+)\(\) missing \d+ required positional "
                       r"arguments?: '(\w+)'", last)
     if found:
@@ -455,6 +460,44 @@ def _free(expression: str) -> set:
     import builtins
     return {one.id for one in ast.walk(tree) if isinstance(one, ast.Name)
             } - set(dir(builtins))
+
+
+def _passed(raised: str, function: str) -> list:
+    """The values a failing call gave the function, read off the call as
+    its traceback shows it (`read("pairs ...", "python")`): its literal
+    arguments, in order; [] where it does not show one."""
+    # the call as the traceback quotes it, not the error's own words
+    # (`TypeError: read() takes ...`)
+    lines = raised.rstrip().splitlines()
+    raised = "\n".join(lines[:-1])
+    at = raised.rfind(f"{function}(")
+    if at < 0:
+        return []
+    depth, end = 0, None
+    for index in range(at + len(function), len(raised)):
+        char = raised[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    if end is None:
+        return []
+    said = " ".join(line.strip() for line in raised[at:end].splitlines()
+                    if not set(line.strip()) <= set("~^"))
+    try:
+        call = ast.parse(said, mode="eval").body
+    except SyntaxError:
+        return []
+    out = []
+    for one in getattr(call, "args", []):
+        try:
+            out.append(ast.literal_eval(one))
+        except ValueError:
+            out.append(None)
+    return out
 
 
 def _kind_of(said: str | None) -> str | None:
@@ -548,6 +591,49 @@ def designs(case: dict, wanted: dict, source: str, held: dict) -> list:
                         crash["name"], ast.Name(crash["name"], ast.Load())))
             add(tree, f"takes {crash['name']}"
                 + (", passed on to what takes it" if passed else ""))
+    if crash and crash["needs"] == "positional" and \
+            crash["function"] == own:
+        # more given than it takes: a parameter more, named as a key it
+        # gives (`language`, once given) -- and, given, that key is it
+        tree = _tree(source)
+        node = tree.body[0]
+        taken = {one.arg for one in node.args.args + node.args.kwonlyargs}
+        keys = [one.value for one in ast.walk(tree)
+                if isinstance(one, ast.Constant) and isinstance(
+                    one.value, str) and one.value.isidentifier() and
+                one.value not in taken]
+        returned = _returned_name(source)
+        # the key whose value in its code is what the failing call passes
+        # first (`"python"` passed, `'language': 'python'` given)
+        passed = _passed(wanted.get("raised") or "", own)[len(taken - {
+            "self", "cls"}):]
+        given = {}
+        for one in ast.walk(tree):
+            if isinstance(one, ast.Dict):
+                for key_, value in zip(one.keys, one.values):
+                    if isinstance(key_, ast.Constant) and \
+                            isinstance(value, ast.Constant):
+                        given[key_.value] = value.value
+        keys = sorted(dict.fromkeys(keys), key=lambda one: (
+            not any(_equal(given.get(one), value) for value in passed),))
+        for key in keys[:6]:
+            for sets in (False, True):
+                tree = _tree(source)
+                node = tree.body[0]
+                node.args.args.append(ast.arg(key))
+                node.args.defaults.append(ast.Constant(None))
+                made = _unparsed(tree)
+                if sets:
+                    if not returned:
+                        continue
+                    made = _inserted(made, [
+                        f"if {key} is not None:\n"
+                        f"    {returned}[{key!r}] = {key}"],
+                        "before a return")
+                    if not made:
+                        continue
+                out.append((made, f"takes {key}" +
+                            (f", which gives its {key}" if sets else "")))
     if crash and crash["needs"] == "argument":
         # a call missing an argument: filled from what is held there, as
         # the rest of its code fills it, or a value its code gives that key
@@ -684,15 +770,240 @@ def _inserted(source: str, statements: list, spot: str) -> str | None:
         return None
 
 
+# -- a leaf, by deduction -------------------------------------------------------------
+
+#: the calls of the passing tests beside it taken as examples at most
+KEPT_CALLS = 8
+#: the kinds of value an example's inputs keep (a store, an engine: not)
+PLAIN_KINDS = (str, int, float, bool, list, tuple, dict, type(None))
+
+
+def _calls_of(function, run) -> list:
+    """Each call of the function while `run()` runs: (what it held when it
+    gave back, what it gave back)."""
+    code = function.__code__
+    seen = []
+
+    def profiler(frame, event, arg):
+        if event == "return" and frame.f_code is code:
+            seen.append((dict(frame.f_locals), arg))
+    previous = sys.getprofile()
+    sys.setprofile(profiler)
+    try:
+        run()
+    except Exception:                               # noqa: BLE001
+        pass
+    finally:
+        sys.setprofile(previous)
+    return seen
+
+
+def _at(value, path: list):
+    for kind, step in path:
+        value = value[step] if kind in ("key", "index") else \
+            getattr(value, step)
+    return value
+
+
+def _located(value, root, depth: int = 2) -> list | None:
+    """Where in what a function gave back a value is: [(kind, step)] --
+    the same object first, else an equal one; None where it is not."""
+    def walk(held, path, level, same):
+        if (held is value) if same else _equal(held, value):
+            return path
+        if level >= depth:
+            return None
+        steps = []
+        if isinstance(held, dict):
+            steps = [("key", key, one) for key, one in held.items()]
+        elif isinstance(held, (list, tuple)):
+            steps = [("index", at, one) for at, one in enumerate(held)]
+        elif hasattr(held, "__dict__") and not isinstance(held, type):
+            steps = [("attr", key, one) for key, one in vars(held).items()
+                     if not key.startswith("_")]
+        for kind, step, one in steps[:60]:
+            found = walk(one, path + [(kind, step)], level + 1, same)
+            if found is not None:
+                return found
+        return None
+    return walk(root, [], 0, True) or walk(root, [], 0, False)
+
+
+def _equal(one, other) -> bool:
+    try:
+        return type(one) is type(other) and bool(one == other)
+    except Exception:                               # noqa: BLE001
+        return False
+
+
+def _inputs(held: dict, returned_name: str | None) -> dict:
+    """What a call held, as an example's inputs: plain values, not what
+    it gives back."""
+    return {name: value for name, value in held.items()
+            if not name.startswith("_") and name != returned_name and
+            isinstance(value, PLAIN_KINDS)}
+
+
+def _returned_name(source: str) -> str | None:
+    """The one name every return of the function gives back, if one."""
+    names = {ast.unparse(one.value) for one in ast.walk(_tree(source))
+             if isinstance(one, ast.Return) and one.value is not None}
+    one = next(iter(names)) if len(names) == 1 else None
+    return one if one and one.isidentifier() else None
+
+
+def _library(function):
+    """What a found program may call: its module's tables (a dict of
+    strings) and functions of one argument; and the tables of strings
+    anywhere in its code already loaded (`pytypes.BACK`)."""
+    import inspect
+    from research.v705.deduce import Library
+    held = {}
+    module = sys.modules.get(function.__module__)
+
+    def table(value) -> bool:
+        return isinstance(value, dict) and len(value) >= 3 and all(
+            isinstance(key, str) and isinstance(one, str)
+            for key, one in list(value.items())[:50])
+    for name, value in vars(module).items() if module else []:
+        if name.startswith("__"):
+            continue
+        if table(value):
+            held[name] = (value, None)
+        elif inspect.isfunction(value) and value.__module__ == \
+                module.__name__ and value is not function:
+            try:
+                needed = [one for one in inspect.signature(
+                    value).parameters.values()
+                    if one.default is inspect.Parameter.empty]
+            except (TypeError, ValueError):
+                continue
+            if len(needed) == 1:
+                held[name] = (value, None)
+    for modname, other in list(sys.modules.items()):
+        if not modname.startswith("research.") or other is module or \
+                other is None:
+            continue
+        for name, value in list(vars(other).items()):
+            if name.isupper() and table(value):
+                alias = f"{modname.split('.')[-1]}_{name}"
+                held.setdefault(alias, (value, f"from {modname} import "
+                                               f"{name} as {alias}"))
+    return Library(held)
+
+
+def _target(name: str, path: list) -> str:
+    said = name
+    for kind, step in path:
+        said += f".{step}" if kind == "attr" else f"[{step!r}]"
+    return said
+
+
+def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
+            old: str, row: dict) -> list:
+    """The leaf by deduction: which part of what the function gives back
+    the check finds wrong; examples of it -- the failing call with what
+    the check wants, the calls of the tests beside it with what they get
+    now; a program found for them (`deduce.solve`), else one for the
+    failing call and a condition telling the two apart; set before each
+    return, judged by the tests. {moves, source} or None."""
+    from research.v705 import deduce
+    failing = wanted.get("failing") or {}
+    raw = failing.get("_raw")
+    if not raw:
+        return []
+    got, want = raw
+    function = commits._current(case)
+    calls = _calls_of(function, lambda: commits.passes(case["tests"][0]))
+    name = _returned_name(source)
+    # the parts the check finds wrong, and where each is in what it gave
+    parts = []
+    for held_, returned in reversed(calls):
+        if isinstance(got, (tuple, list)) and isinstance(want, (tuple,
+                                                                list)) \
+                and len(got) == len(want):
+            pairs = [(one, other) for one, other in zip(got, want)
+                     if not _equal(one, other)]
+        else:
+            pairs = [(got, want)]
+        found = [(_located(one, returned), other) for one, other in pairs]
+        if found and all(path is not None for path, _ in found):
+            parts = [(path, other, held_) for path, other in found]
+            break
+    if not parts:
+        row.setdefault("deduction", []).append("no part of what it gives "
+                                               "back is what the check "
+                                               "looked at")
+        return []
+    beside = []
+    for test in case.get("guards") or []:
+        beside += _calls_of(function, lambda test=test: commits.passes(test))
+        if len(beside) >= KEPT_CALLS:
+            break
+    library = _library(function)
+    statements = []
+    for path, other, held_ in parts:
+        failing_ex = [(_inputs(held_, name), other)]
+        kept_ex = []
+        for one_held, returned in beside[:KEPT_CALLS]:
+            try:
+                kept_ex.append((_inputs(one_held, name),
+                                _at(returned, path)))
+            except Exception:                       # noqa: BLE001
+                continue
+        found = deduce.solve(failing_ex + kept_ex, library)
+        condition = None
+        if not found:
+            found = deduce.solve(failing_ex, library)
+            if found and kept_ex:
+                condition = deduce.condition(
+                    [inputs for inputs, _ in failing_ex],
+                    [inputs for inputs, _ in kept_ex], library)
+                if condition is None:
+                    found = []
+        if not found:
+            row.setdefault("deduction", []).append(
+                f"nothing found for {path} = {repr(other)[:60]}")
+            return []
+        program = found[0]
+        target = _target(name or "_made", path) if path else None
+        lines = [f"    {one}" for one in program.imports]
+        if target:
+            line = f"{target} = {program.expr}"
+        else:
+            line = f"return {program.expr}"
+        # found of these examples, it holds where they do: where it does not
+        # apply (no `def` line in a request: `re.search` finds none), what
+        # was there is kept
+        body = lines + [f"    {line}"]
+        if condition:
+            body = [f"    if {condition.expr}:"] + [
+                "    " + one for one in body]
+        statements.append("\n".join(["try:"] + body +
+                                    ["except Exception:", "    pass"]))
+        row.setdefault("deduction", []).append(
+            f"{_target('it', path)} = {program.expr}"
+            + (f" if {condition.expr}" if condition else ""))
+    if name is None and any(path for path, _, _ in parts):
+        return []
+    made = _inserted(source, statements, "before a return")
+    if not made:
+        return []
+    # a move like any other: tried, and planned on from where the test
+    # gets further (`deepen`)
+    return [(made, "deduced " + "; ".join(row["deduction"][-len(parts):]))]
+
+
 #: moves planned one after another at most, and the moves kept at each
-DEPTH, BEAM = 3, 4
+DEPTH, BEAM = 5, 3
 
 
 def _said(wanted: dict) -> str:
     """A goal as one line, to tell whether a move changed it."""
     if wanted.get("failing"):
         one = wanted["failing"]
-        return f"{one['check']} {one.get('path')} {one['got']} "                f"{one.get('wanted')}"
+        return (f"{one['check']} {one.get('path')} {one['got']} "
+                f"{one.get('wanted')}")
     return json.dumps(wanted.get("crash"))
 
 
@@ -705,7 +1016,10 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
     from (`DEPTH` moves, `BEAM` kept at each). {moves, source} or None."""
     from research.v705 import inside
     moved = []
-    for made_source, why in designs(case, wanted, source, held):
+    proposed = designs(case, wanted, source, held)
+    if DEDUCED:
+        proposed += deduced(case, source, wanted, held, verify, old, row)
+    for made_source, why in proposed:
         text = commits._placed(made_source, case["before"], old)
         if text is None:
             continue
@@ -749,8 +1063,10 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
     return None
 
 
-#: whether a goal no move reaches is given to the code model
+#: whether a goal no move reaches is given to the code model, and first
+#: broken down by deduction
 LEAVES = True
+DEDUCED = True
 
 LEAF = ("A function of a Python project is being changed step by step "
         "toward a goal: {goal}\nThe steps taken so far: {moves}\nThe "
@@ -818,6 +1134,27 @@ def run(most: int = 0, which: str = "design") -> dict:
         encoding="utf-8"))
     if which == "design":
         found = design.cases()[:most or None]
+    elif which == "planted":
+        # its own code made wrong by one edit, held out, giving a wrong
+        # answer (`planted`): the function as wrong is the one put back
+        from research.v705 import planted
+        covered = json.loads(planted.COVERED.read_text(
+            encoding="utf-8"))["functions"]
+        found = []
+        for row in map(json.loads, planted.PLANTED.open(encoding="utf-8")):
+            for bug in row["bugs"]:
+                if row["held"] and planted._taught(row, bug) and \
+                        planted.failing(bug) == "wrong":
+                    tests = [{"file": one["file"], "test": one["test"]}
+                             for one in bug["fails"]]
+                    found.append({
+                        "file": row["file"], "function": row["function"],
+                        "before": bug["wrong"], "tests": tests,
+                        "message": f"make {tests[0]['test']} pass",
+                        "guards": [one for one in covered[row["place"]][:4]
+                                   if one["test"] not in
+                                   {test["test"] for test in tests}]})
+        found = found[:most or 30]
     else:
         mined = {(one["sha"], one["function"]): one for one in
                  map(json.loads, commits.MINED.open(encoding="utf-8"))}
@@ -880,10 +1217,14 @@ def run(most: int = 0, which: str = "design") -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("run", "history"))
+    parser.add_argument("job", choices=("run", "history", "planted"))
     parser.add_argument("--most", type=int, default=0)
+    parser.add_argument("--out", default="")
     options = parser.parse_args(argv)
-    run(options.most, "design" if options.job == "run" else "history")
+    global OUT
+    if options.out:
+        OUT = ROOT / "state" / options.out
+    run(options.most, {"run": "design"}.get(options.job, options.job))
     return 0
 
 

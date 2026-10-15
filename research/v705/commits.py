@@ -477,8 +477,19 @@ def copies_test(case: dict, function, text: str) -> str | None:
             value = one
         if isinstance(value, str) and len(value.strip()) >= 3:
             wanted.append(value.strip())
+    import keyword
+    import re
     for one in sorted(after - before, key=len, reverse=True):
         core = one.strip().strip(":;,.")
+        # glue of the language's own words and marks (`'def '`, `'() ->
+        # '`) is how code is written, not what one test says
+        words = re.findall(r"[A-Za-z_]\w*", core)
+        if not any(not keyword.iskeyword(word) for word in words):
+            continue
+        # one name -- a key, a field, a kind (`'language'`, `'python'`) --
+        # is what the code and its test share by design, not a case
+        if core.isidentifier():
+            continue
         if len(core) >= 3 and core in said:
             return core[:60]
         if any(value in one for value in wanted):

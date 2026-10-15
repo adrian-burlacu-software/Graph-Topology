@@ -354,33 +354,34 @@ def _common_prefix(texts: list) -> str:
 
 
 def _extracted(examples, library, clock) -> list:
-    """A string that is a piece of a string in hand: found between what is
-    around it in every example -- the same text before it (or the start),
-    the same after (or the end)."""
-    out = []
+    """A string that is a piece of a string in hand -- by what it begins
+    with first, in every string in hand (the line that begins with `def
+    `); only then by what is around it in each (the same text before it,
+    or the start; the same after, or the end). Tried the other way, a
+    flattened copy of the text, read first, was cut by what happened to
+    stand beside the piece (`s ` of `vowels`)."""
     space = library.space()
-    for program, values in _strings(examples, library, clock):
-        if not all(want and want in value for value, (_, want) in
-                   zip(values, examples)):
-            continue
-        # anchored on its own words first: every piece begins with the same
-        # text -- the line that begins with `def `
-        head = _common_prefix([want for _, want in examples])
-        # where a word of it ends, the fewest words first: `def `, not
-        # `def vowe` -- with one example, all of it is shared
-        ends = [at for at in range(2, min(len(head), 12) + 1)
-                if head[at - 1].isalnum() and
-                (at == len(head) or not head[at].isalnum())]
-        for length in ends:
-            start = head[:length] + (" " if head[length:length + 1] == " "
-                                     else "")
-            pattern = f"^({re.escape(start)}.*?)$"
+    holding = [(program, values) for program, values in
+               _strings(examples, library, clock)
+               if all(want and want in value for value, (_, want) in
+                      zip(values, examples))]
+    head = _common_prefix([want for _, want in examples])
+    # where a word of it ends, the fewest words first: `def `, not `def
+    # vowe` -- with one example, all of it is shared
+    ends = [at for at in range(2, min(len(head), 12) + 1)
+            if head[at - 1].isalnum() and
+            (at == len(head) or not head[at].isalnum())]
+    for length in ends:
+        start = head[:length] + (" " if head[length:length + 1] == " "
+                                 else "")
+        pattern = f"^({re.escape(start)}.*?)$"
+        for program, _ in holding:
             candidate = Program(
                 f"re.search({pattern!r}, {program.expr}, re.M).group(1)",
                 program.imports, program.size + 2)
             if _fits(candidate, examples, space):
-                out.append(candidate)
-                return out
+                return [candidate]
+    for program, values in holding:
         befores, afters = [], []
         for value, (_, want) in zip(values, examples):
             at = value.index(want)
@@ -395,9 +396,8 @@ def _extracted(examples, library, clock) -> list:
                     f"re.search({pattern!r}, {program.expr}, re.M | re.S)"
                     f".group(1)", program.imports, program.size + 2)
                 if _fits(candidate, examples, space):
-                    out.append(candidate)
-                    return out
-    return out
+                    return [candidate]
+    return []
 
 
 def _contexts(texts: list, suffix: bool) -> list:
@@ -413,7 +413,7 @@ def _contexts(texts: list, suffix: bool) -> list:
     if all(text.endswith(line) if suffix else text.startswith(line)
            for text in texts):
         out.append(line)
-    for length in range(1, min(len(shared), 12) + 1):
+    for length in range(2, min(len(shared), 12) + 1):
         piece = shared[-length:] if suffix else shared[:length]
         out.append(piece)
     out.append("^" if suffix else "$")
