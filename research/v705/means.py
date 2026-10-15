@@ -766,6 +766,10 @@ def _leaf(case: dict, source: str, wanted: dict, moves: tuple) -> list:
     from research.v705 import coder
     one = wanted.get("failing")
     crash = wanted.get("crash")
+    if one and one.get("wanted"):
+        # what the check should get, told the model: not to be written in
+        # as it is (`commits.copies_test`)
+        case.setdefault("wanted values", []).append(one["wanted"])
     if one:
         check = (f"{one['check']} of {one.get('path') or 'a value'}"
                  f"{' (made by ' + one['made by'] + ')' if one.get('made by') else ''}"

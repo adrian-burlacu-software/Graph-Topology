@@ -379,5 +379,44 @@ class MeasureTests(unittest.TestCase):
         self.assertGreater(measures.repetition("a b c a b c"), 0)
 
 
+class MeansTests(unittest.TestCase):
+    """Designing by means-ends (`means`): goals from how a test falls,
+    moves put in, and what a change may not write."""
+
+    def test_crash_goals(self):
+        from research.v705 import means
+        self.assertEqual(means.crashed(
+            "x\nTypeError: run() got an unexpected keyword argument "
+            "'timeout'"), {"needs": "parameter", "function": "run",
+                           "name": "timeout"})
+        self.assertEqual(means.crashed("x\nKeyError: 'language'"),
+                         {"needs": "key", "name": "language"})
+        self.assertEqual(means.crashed(
+            "TypeError: _framing() missing 1 required positional "
+            "argument: 'kind'")["needs"], "argument")
+
+    def test_inserted_before_each_return(self):
+        from research.v705 import means
+        made = means._inserted(
+            "def f(x):\n    if x:\n        return 1\n    return 2\n",
+            ["log(x)"], "before a return")
+        self.assertEqual(made.count("log(x)"), 2)
+
+    def test_scope_is_what_is_bound_before(self):
+        from research.v705 import means
+        source = "def f(text):\n    out = {}\n    args = 1\n    return out\n"
+        self.assertNotIn("args", means._scope(source, 2))
+        self.assertIn("args", means._scope(source))
+
+    def test_a_change_may_not_write_what_the_check_wants(self):
+        from research.v705 import commits
+
+        def spec():
+            return "x"
+        text = "def spec():\n    return 'for x in xs if (x % 2 == 0):'\n"
+        case = {"tests": [], "wanted values": ["' for x in xs if '"]}
+        self.assertTrue(commits.copies_test(case, spec, text))
+
+
 if __name__ == "__main__":
     unittest.main()

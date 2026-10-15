@@ -414,6 +414,9 @@ def verifier(case: dict, function):
             return f"it does not compile: {type(bad).__name__}"
         if made is None:
             return f"the change does not define {function.__name__}"
+        copied = copies_test(case, function, text)
+        if copied:
+            return f"it writes the test's {copied!r} into the code"
         if "guards" not in case:
             # what passes beside them, as the code is: kept passing --
             # taking out a line the failing test trips on passed it twice
@@ -433,6 +436,54 @@ def verifier(case: dict, function):
                             f"{test['test']}, which passed, now fails")
         return None
     return verify
+
+
+def _strings(source: str) -> set:
+    """The string constants of some code, three characters or more."""
+    import textwrap
+    try:
+        tree = ast.parse(textwrap.dedent(source))
+    except SyntaxError:
+        return set()
+    return {one.value for one in ast.walk(tree) if isinstance(
+        one, ast.Constant) and isinstance(one.value, str) and
+        len(one.value.strip()) >= 3}
+
+
+def copies_test(case: dict, function, text: str) -> str | None:
+    """A string a change puts in the function that its failing tests say
+    -- the case written into the code, not fixed (told what a check
+    should get, the code model wrote `'for x in xs if (x % 2 == 0):'`, the
+    test's own). None where it writes none."""
+    import inspect
+    try:
+        before = _strings(inspect.getsource(function))
+    except (OSError, TypeError):
+        before = set()
+    name = function.__qualname__
+    after = _strings(functions(text).get(name, "") or functions(text).get(
+        name.split(".")[-1], ""))
+    said = " ".join(case.get("wanted values") or [])
+    for test in case.get("tests") or []:
+        said += functions((ROOT / test["file"]).read_text(
+            encoding="utf-8")).get(test["test"], "")
+    # what a check wanted, as a value: written inside a new string too
+    # (`' for x in xs if '` in `'for x in xs if (x % 2 == 0):'`)
+    wanted = []
+    for one in case.get("wanted values") or []:
+        try:
+            value = ast.literal_eval(one)
+        except (ValueError, SyntaxError):
+            value = one
+        if isinstance(value, str) and len(value.strip()) >= 3:
+            wanted.append(value.strip())
+    for one in sorted(after - before, key=len, reverse=True):
+        core = one.strip().strip(":;,.")
+        if len(core) >= 3 and core in said:
+            return core[:60]
+        if any(value in one for value in wanted):
+            return core[:60]
+    return None
 
 
 def _beside(case: dict) -> list:
