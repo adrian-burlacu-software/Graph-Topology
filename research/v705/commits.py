@@ -814,7 +814,12 @@ def _beside(case: dict) -> list:
         timer.cancel()
         if ok:
             out.append(test)
-        elif len(case["tests"]) < MOST_FAILING:
+        elif len(case["tests"]) < MOST_FAILING and (
+                "known good" not in case or
+                test["test"] in case["known good"]):
+            # (and passed on the code as last known good: the coverage was
+            # gathered days ago, and four of _split_top's six fail on the
+            # true code too -- no change could pass them)
             # it ran the function and passed as the code was gathered
             # (`planted.cover` keeps no other): failing now, it fails for
             # what is wrong in it -- more of what is wanted, not a guard

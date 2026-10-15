@@ -390,28 +390,91 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         row["repair"] = {"tried": tried}
         return None
     # of those the tests pass, the one that changes least of what it does
-    # where the tests beside it call it: a slip undone changes the calls it
-    # went wrong on, `and` made `or` changes many it did not
-    changed = _changed(function, [one[3] for one in held], case)
-    best = min(range(len(held)), key=lambda at: (changed[at], at))
+    # where the tests beside it call it, and on calls like those (fuzzed):
+    # a slip undone changes the calls it went wrong on, `and` made `or`
+    # changes many it did not
+    calls = truth_recorded(function, case.get("guards") or [])
+    changed = _changed(function, [one[3] for one in held], calls)
+    fuzzed = _changed(function, [one[3] for one in held], _fuzzed(calls))
+    best = min(range(len(held)), key=lambda at: (
+        (fuzzed[at] + changed[at]) if RANK == "both" else
+        changed[at] if RANK == "calls" else fuzzed[at] if RANK == "fuzz"
+        else 0, at))
     line, what, made, _ = held[best]
     row["repair"] = {"tried": tried, "line": line, "edit": what,
-                     "held": [[one[1], count] for one, count in
-                              zip(held, changed)]}
+                     "held": [{"edit": one[1], "line": one[0],
+                               "calls": count, "fuzzed": fuzz,
+                               "source": one[2]}
+                              for one, count, fuzz in zip(held, changed,
+                                                          fuzzed)]}
     return {"moves": [f"line {line}: {what}"], "source": made}
+
+
+#: how the changes that hold are chosen among: by what they change of the
+#: tests' calls and of fuzzed ones ("both"), of one of them, or the first
+RANK = "both"
+#: fuzzed calls made at most
+FUZZED = 300
+
+
+def truth_recorded(function, tests: list) -> list:
+    from research.v705 import truth
+    return truth._recorded(function, tests)
+
+
+def _variants(value) -> list:
+    """Values like one, a step from it."""
+    if isinstance(value, bool):
+        return [not value]
+    if isinstance(value, int):
+        return [value + 1, value - 1, 0]
+    if isinstance(value, float):
+        return [value * 2, -value, 0.0]
+    if isinstance(value, str):
+        out = ["", value.upper(), value + value[-1:]]
+        if len(value) > 1:
+            out += [value[1:], value[:-1]]
+        return out
+    if isinstance(value, list):
+        out = [[], list(reversed(value))]
+        if value:
+            out += [value[1:], value + value[:1]]
+        return out
+    if isinstance(value, tuple):
+        return [tuple(one) for one in _variants(list(value))]
+    if isinstance(value, dict) and value:
+        return [{key: one for key, one in value.items() if key != drop}
+                for drop in list(value)[:3]]
+    return []
+
+
+def _fuzzed(calls: list) -> list:
+    """Calls like the tests' own, one argument a step from what it was."""
+    import copy
+    import random
+    rng = random.Random(7057)
+    out = []
+    for held, gave in calls:
+        for name, value in held.items():
+            if name == "self":
+                continue
+            for other in _variants(value):
+                one = copy.copy(held)
+                one[name] = other
+                out.append((one, None))
+    rng.shuffle(out)
+    return out[:FUZZED]
 
 
 #: the changes the tests pass kept to choose among
 KEPT = 6
 
 
-def _changed(function, texts: list, case: dict) -> list:
-    """Of each changed file's text, how many of the calls the tests beside
-    it make of the function it answers otherwise than the function does
-    now."""
+def _changed(function, texts: list, calls: list) -> list:
+    """Of each changed file's text, how many of these calls of the function
+    it answers otherwise than the function does now."""
     import copy
     from research.v705 import inside, truth
-    calls = truth._recorded(function, case.get("guards") or [])
     out = []
     for text in texts:
         try:

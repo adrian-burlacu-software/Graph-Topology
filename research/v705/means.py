@@ -1593,6 +1593,18 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
         name = str(ROOT / case["file"]) + commits.PLANTED
         linecache.cache[name] = (len(old), None, old.splitlines(True), name)
         row = {"function": case["function"], "helper": helper, "key": key}
+        # which tests that run it passed on the code as last known good
+        # (before the bug: what a CI run would know), so that only those
+        # failing now are taken as what is wanted
+        case["known good"] = set()
+        for test in commits._covering(case)[:commits.COVERING * 3]:
+            timer = commits._watched(commits.LONGEST)
+            try:
+                if commits.passes(test):
+                    case["known good"].add(test["test"])
+            except Exception:                       # noqa: BLE001
+                pass
+            timer.cancel()
         try:
             if helper:
                 delattr(module, helper)
@@ -1672,6 +1684,14 @@ def judge(which: str) -> dict:
         row["truth"] = truth.real(case, true, text) if text else {
             "real": False, "why": "not placed"}
         counts["real"] += bool(row["truth"]["real"])
+        # every change that held, not only the one chosen: which way of
+        # choosing would have chosen a real one
+        for one in (row.get("repair") or {}).get("held") or []:
+            if "source" not in one:
+                continue
+            placed = commits._placed(one["source"], case["before"], old)
+            one["real"] = bool(placed and truth.real(case, true, placed)[
+                "real"])
         print(case["function"], json.dumps(row["truth"])[:300], flush=True)
     data["real"] = counts["real"]
     OUT.write_text(json.dumps(data, indent=1, default=repr),
