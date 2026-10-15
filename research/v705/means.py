@@ -144,23 +144,103 @@ def goal(case: dict) -> dict:
 
 # -- step 3: planning back from it ---------------------------------------------
 
-def _scope(source: str) -> dict:
+def _scope(source: str, upto: int | None = None) -> dict:
     """The names the function holds where it runs: its parameters, and
-    what it binds -- {name: kind as said, or ""}."""
+    what it binds -- before line `upto` of its source where given (a
+    value offered at the first line, `args`, was not bound there yet) --
+    {name: kind as said, or ""}."""
     tree = ast.parse(textwrap.dedent(source))
     node = tree.body[0]
     out = {one.arg: ast.unparse(one.annotation) if one.annotation else ""
            for one in node.args.posonlyargs + node.args.args +
            node.args.kwonlyargs}
     for one in ast.walk(node):
+        if upto is not None and getattr(one, "lineno", 0) >= upto:
+            continue
         if isinstance(one, ast.Assign):
             for target in one.targets:
                 if isinstance(target, ast.Name):
                     out.setdefault(target.id, "")
-        elif isinstance(one, (ast.For, ast.comprehension)) and \
-                isinstance(one.target, ast.Name):
+        elif isinstance(one, ast.For) and isinstance(one.target, ast.Name):
             out.setdefault(one.target.id, "")
     return out
+
+
+def _constants(case: dict, key: str) -> list:
+    """The values its own code gives a key, in the file and beside it:
+    `"change"` of `{"kind": "change", ...}` and of `x["kind"] = "change"`
+    -- what kinds a step has, as the code says."""
+    out = []
+    # its own file first, then any of its code that names the key
+    files = [ROOT / case["file"]] + [
+        path for path in sorted((ROOT / "research").rglob("*.py"))
+        if "__pycache__" not in path.parts]
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if f'"{key}"' not in text and f"'{key}'" not in text and \
+                f"{key}=" not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            pairs = []
+            if isinstance(node, ast.Dict):
+                pairs = list(zip(node.keys, node.values))
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Subscript):
+                pairs = [(node.targets[0].slice, node.value)]
+            elif isinstance(node, ast.keyword) and node.arg == key:
+                pairs = [(ast.Constant(key), node.value)]
+            for name, value in pairs:
+                if isinstance(name, ast.Constant) and name.value == key \
+                        and isinstance(value, ast.Constant) and \
+                        isinstance(value.value, (str, int, bool)):
+                    said = repr(value.value)
+                    if said not in out:
+                        out.append(said)
+    return out[:8]
+
+
+def _precedents(callee: str, name: str) -> list:
+    """How the rest of its code calls a function: the expression each
+    call gives the parameter `name` (by keyword) -- `kind=piece["kind"]`."""
+    out = []
+    for path in sorted((ROOT / "research").rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if f"{callee}(" not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        # where the parameter stands, of each function of that name: a call
+        # gives it by place as often as by name (`_framing(piece["kind"])`)
+        at = {one.args.args.index(arg) - (1 if one.args.args[0].arg in
+                                          ("self", "cls") else 0)
+              for one in ast.walk(tree)
+              if isinstance(one, ast.FunctionDef) and one.name == callee
+              for arg in one.args.args if arg.arg == name}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and \
+                    ast.unparse(node.func).split(".")[-1] == callee:
+                said = [ast.unparse(one.value) for one in node.keywords
+                        if one.arg == name]
+                said += [ast.unparse(node.args[one]) for one in at
+                         if one < len(node.args)]
+                for one in said:
+                    if one not in out:
+                        out.append(one)
+    return out[:8]
 
 
 def _filled(meaning: dict, scope: dict, seen: dict) -> str | None:
@@ -306,6 +386,355 @@ def _put(text: str, before: str, statements: list) -> list:
     return out
 
 
+# -- the goal said of the function itself ---------------------------------------
+
+def _callee(call: str) -> str:
+    """`carry` of `Q.carry(self.asked(...), ...)`."""
+    import re
+    found = re.match(r"\s*([\w\.]+)\s*\(", call or "")
+    return found.group(1).split(".")[-1] if found else ""
+
+
+def of_return(case: dict, row: dict, held: dict) -> str | None:
+    """Where the goal's value is in what the function gives back: the
+    rest of its path (`.value` of `found.value`, `` of `lines`) where the
+    test's name was made by a call of the function, or of a function
+    that calls it and gives back what it gives. None where it is not."""
+    path = row.get("path") or ""
+    own = case["function"].split(".")[-1]
+    callee = _callee(row.get("made by") or "")
+    if not path or not callee:
+        return None
+    root = path.split("[")[0].split(".")[0]
+    if callee != own:
+        callers = [key for key, one in held["functions"].items()
+                   if key.split("#")[1].split(".")[-1] == callee and
+                   any(name.split(".")[-1] == own for name in one["calls"])]
+        if not callers:
+            return None
+    return path[len(root):]
+
+
+def crashed(raised: str | None) -> dict | None:
+    """What a test that never got to its checks needs, from how it fell:
+    a parameter (`run() got an unexpected keyword argument 'timeout'`), an
+    argument (`_framing() missing 1 required positional argument:
+    'kind'`), a key (`KeyError: 'language'`), an attribute."""
+    import re
+    lines = [one.strip() for one in (raised or "").splitlines()
+             if one.strip()]
+    if not lines:
+        return None
+    last = lines[-1]
+    found = re.search(r"(\w+)\(\) got an unexpected keyword argument "
+                      r"'(\w+)'", last)
+    if found:
+        return {"needs": "parameter", "function": found.group(1),
+                "name": found.group(2)}
+    found = re.search(r"(\w+)\(\) missing \d+ required positional "
+                      r"arguments?: '(\w+)'", last)
+    if found:
+        return {"needs": "argument", "function": found.group(1),
+                "name": found.group(2)}
+    found = re.match(r"KeyError: '([\w ]+)'", last)
+    if found:
+        return {"needs": "key", "name": found.group(1)}
+    found = re.search(r"AttributeError: '\w+' object has no attribute "
+                      r"'(\w+)'", last)
+    if found:
+        return {"needs": "attribute", "name": found.group(1)}
+    return None
+
+
+def _free(expression: str) -> set:
+    """The names an expression reads."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError:
+        return {"?"}
+    import builtins
+    return {one.id for one in ast.walk(tree) if isinstance(one, ast.Name)
+            } - set(dir(builtins))
+
+
+def _kind_of(said: str | None) -> str | None:
+    """The kind of value a check wanted, as it said it (`'c'`: str)."""
+    try:
+        value = ast.literal_eval(said or "")
+    except (ValueError, SyntaxError):
+        return None
+    return type(value).__name__
+
+
+# -- designs: whole functions, changed --------------------------------------------
+
+def _values(kind: str | None, scope: dict, case: dict, held: dict,
+            near: str = "") -> list:
+    """What could stand for a value of a kind, from what the function
+    holds: the names of its scope (of that kind where known), and the
+    calls of its file's functions that give that kind, their arguments
+    filled from the scope -- names near `near` first."""
+    out = []
+    names = sorted(scope, key=lambda one: (near and near not in one, one))
+    for name in names:
+        written = scope[name]
+        if not kind or not written or written.split("[")[0] == kind:
+            out.append(name)
+    for key, one in held["functions"].items():
+        file, name = key.split("#")
+        if file != case["file"] or "." in name or \
+                name == case["function"].split(".")[-1]:
+            continue
+        gives = [one["returns"]] + one["gives"]
+        if kind and not any(kind == (given or "").split("[")[0].split(" ")[0]
+                            for given in gives):
+            continue
+        args = _filled(one, scope, (held.get("seen") or {}).get(key) or {})
+        if args is not None:
+            out.append(f"{name}({args})")
+    near_first = sorted(out, key=lambda one: (near and near not in one,))
+    return near_first[:12]
+
+
+def _tree(source: str):
+    return ast.parse(textwrap.dedent(source))
+
+
+def _unparsed(tree) -> str:
+    ast.fix_missing_locations(tree)
+    return ast.unparse(tree)
+
+
+def _calls_taking(source: str, name: str, case: dict, held: dict) -> list:
+    """The calls in the function of its own code's functions that take a
+    parameter named `name`."""
+    takes = {key.split("#")[1].split(".")[-1] for key, one in
+             held["functions"].items() if name in one["params"]}
+    return [one for one in ast.walk(_tree(source))
+            if isinstance(one, ast.Call) and
+            (ast.unparse(one.func).split(".")[-1] in takes)]
+
+
+def designs(case: dict, wanted: dict, source: str, held: dict) -> list:
+    """Changed versions of the function, planned from the goal: [(source,
+    why)] -- an interface a crash asks for, a value its return should
+    give, a callback it should call, and the plans of `plans`."""
+    out: list = []
+    own = case["function"].split(".")[-1]
+    scope = _scope(source)
+    crash = wanted.get("crash")
+    failing = wanted.get("failing") or {}
+
+    def add(tree, why):
+        made = _unparsed(tree)
+        if made not in {one for one, _ in out}:
+            out.append((made, why))
+
+    if crash and crash["needs"] == "parameter" and crash["function"] == own:
+        # a parameter it is asked to take: taken, and passed on to each
+        # call inside that takes one of that name
+        for passed in (False, True):
+            tree = _tree(source)
+            node = tree.body[0]
+            node.args.kwonlyargs.append(ast.arg(crash["name"]))
+            node.args.kw_defaults.append(ast.Constant(None))
+            if passed:
+                calls = _calls_taking(ast.unparse(node), crash["name"],
+                                      case, held)
+                if not calls:
+                    continue
+                for call in calls:
+                    call.keywords.append(ast.keyword(
+                        crash["name"], ast.Name(crash["name"], ast.Load())))
+            add(tree, f"takes {crash['name']}"
+                + (", passed on to what takes it" if passed else ""))
+    if crash and crash["needs"] == "argument":
+        # a call missing an argument: filled from what is held there, as
+        # the rest of its code fills it, or a value its code gives that key
+        at = next((one.lineno for one in ast.walk(_tree(source))
+                   if isinstance(one, ast.Call) and
+                   ast.unparse(one.func).split(".")[-1] ==
+                   crash["function"]), None)
+        here = _scope(source, at)
+        offered = [one for one in _precedents(crash["function"],
+                                              crash["name"])
+                   if _free(one) <= set(here)] +             _constants(case, crash["name"]) +             _values(None, here, case, held, crash["name"])
+        for value in list(dict.fromkeys(offered))[:10]:
+            tree = _tree(source)
+            calls = [one for one in ast.walk(tree)
+                     if isinstance(one, ast.Call) and
+                     ast.unparse(one.func).split(".")[-1] ==
+                     crash["function"]]
+            if not calls:
+                break
+            for call in calls:
+                call.keywords.append(ast.keyword(
+                    crash["name"], ast.parse(value, mode="eval").body))
+            add(tree, f"{crash['function']} given {crash['name']}={value}")
+    if crash and crash["needs"] in ("key", "attribute"):
+        # a key of what it gives back: given, from what is held where the
+        # dict is made, or a value its code gives that key
+        dicts = [one for one in ast.walk(_tree(source))
+                 if isinstance(one, ast.Dict)]
+        here = _scope(source, dicts[0].lineno) if dicts else scope
+        offered = _constants(case, crash["name"]) +             _values(None, here, case, held, crash["name"])
+        for value in list(dict.fromkeys(offered))[:10]:
+            tree = _tree(source)
+            changed = False
+            for one in ast.walk(tree):
+                if isinstance(one, ast.Dict) and crash["needs"] == "key":
+                    one.keys.append(ast.Constant(crash["name"]))
+                    one.values.append(ast.parse(value, mode="eval").body)
+                    changed = True
+                    break
+            if changed:
+                add(tree, f"gives {crash['name']}: {value}")
+    if failing:
+        rest = of_return(case, failing, held)
+        kind = _kind_of(failing.get("wanted"))
+        if rest is not None:
+            field = rest.lstrip(".") if rest.startswith(".") and \
+                "[" not in rest else None
+            last = max((one.lineno for one in ast.walk(_tree(source))
+                        if isinstance(one, ast.Return)), default=None)
+            here = _scope(source, last)
+            offered = (_constants(case, field) if field else []) +                 _values(kind, here, case, held, field or "")
+            for value in list(dict.fromkeys(offered))[:12]:
+                tree = _tree(source)
+                returns = [one for one in ast.walk(tree)
+                           if isinstance(one, ast.Return) and
+                           one.value is not None]
+                if not returns:
+                    break
+                if field:
+                    # the field of what it gives back, given the value
+                    for ret in returns:
+                        if isinstance(ret.value, ast.Call):
+                            kept = [one for one in ret.value.keywords
+                                    if one.arg != field]
+                            ret.value.keywords = kept + [ast.keyword(
+                                field, ast.parse(value, mode="eval").body)]
+                    add(tree, f"what it gives back has {field} = {value}")
+                elif rest == "":
+                    for ret in returns:
+                        ret.value = ast.parse(value, mode="eval").body
+                    add(tree, f"gives back {value}")
+        # a callback: the parameter the goal's value is filled through
+        callbacks = [name for name in scope if name in
+                     (held["functions"].get(f"{case['file']}#{case['function']}")
+                      or {}).get("params", []) and name not in ("self",)]
+        for name in callbacks:
+            takers = [key for key, one in held["functions"].items()
+                      if key.split("#")[0] == case["file"] and
+                      name in one["params"] and name in one["calls"] and
+                      "." not in key.split("#")[1] and
+                      key.split("#")[1] != own]
+            for key in takers:
+                args = _filled(held["functions"][key], scope,
+                               (held.get("seen") or {}).get(key) or {})
+                if args is None:
+                    continue
+                call = f"{key.split('#')[1]}({args})"
+                for statements in ([call],):
+                    for spot in ("first", "before a return"):
+                        made = _inserted(source, statements, spot)
+                        if made:
+                            out.append((made, f"{call}, which calls {name}"
+                                        f" ({spot})"))
+    for statements, why in plans(case, failing, source, held) \
+            if failing else []:
+        for spot in ("before a return", "first"):
+            made = _inserted(source, statements, spot)
+            if made:
+                out.append((made, f"{why} ({spot})"))
+    return out[:PLANS]
+
+
+def _inserted(source: str, statements: list, spot: str) -> str | None:
+    """The function with the statements put in: first, or before each
+    return."""
+    tree = _tree(source)
+    node = tree.body[0]
+    new = [ast.parse(one).body[0] for one in statements]
+
+    class Before(ast.NodeTransformer):
+        def generic_visit(self, one):
+            super().generic_visit(one)
+            for field in ("body", "orelse", "finalbody"):
+                block = getattr(one, field, None)
+                if not isinstance(block, list):
+                    continue
+                changed = []
+                for statement in block:
+                    if isinstance(statement, ast.Return):
+                        changed += [ast.parse(ast.unparse(one_)).body[0]
+                                    for one_ in new]
+                    changed.append(statement)
+                setattr(one, field, changed)
+            return one
+    if spot == "first":
+        at = 1 if node.body and isinstance(node.body[0], ast.Expr) and \
+            isinstance(node.body[0].value, ast.Constant) else 0
+        node.body[at:at] = new
+    else:
+        Before().visit(node)
+    try:
+        return _unparsed(tree)
+    except Exception:                               # noqa: BLE001
+        return None
+
+
+#: moves planned one after another at most, and the moves kept at each
+DEPTH, BEAM = 3, 4
+
+
+def _said(wanted: dict) -> str:
+    """A goal as one line, to tell whether a move changed it."""
+    if wanted.get("failing"):
+        one = wanted["failing"]
+        return f"{one['check']} {one.get('path')} {one['got']} "                f"{one.get('wanted')}"
+    return json.dumps(wanted.get("crash"))
+
+
+def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
+           old: str, name: str, row: dict, depth: int = 1,
+           moves: tuple = ()) -> dict | None:
+    """Means-ends, move by move: each design of the goal tried; one whose
+    test passes is the answer; one that moves the goal -- the test gets
+    past where it fell, to a check or a fall of its own -- is planned on
+    from (`DEPTH` moves, `BEAM` kept at each). {moves, source} or None."""
+    from research.v705 import inside
+    moved = []
+    for made_source, why in designs(case, wanted, source, held):
+        text = commits._placed(made_source, case["before"], old)
+        if text is None:
+            continue
+        said = verify(text)
+        row.setdefault("tries", []).append(
+            [depth, " / ".join(moves + (why,))[:160],
+             (said or "holds")[:100]])
+        if said is None:
+            return {"moves": list(moves + (why,)), "source": made_source}
+        if depth >= DEPTH or len(moved) >= BEAM:
+            continue
+        try:
+            made = inside.changed_function(commits._current(case), text,
+                                           filename=name)
+            with commits.Put(commits._current(case), made):
+                after = goal(case)
+        except Exception:                           # noqa: BLE001
+            continue
+        after["crash"] = crashed(after["raised"])             if not after["failing"] else None
+        if (after["failing"] or after["crash"]) and                 _said(after) != _said(wanted):
+            moved.append((made_source, why, after))
+    for made_source, why, after in moved:
+        found = deepen(case, made_source, after, held, verify, old, name,
+                       row, depth + 1, moves + (why,))
+        if found:
+            return found
+    return None
+
+
 def run(most: int = 0, which: str = "design") -> dict:
     """Each held-out bug (`design.cases`, or the history's measured ones):
     the goal from its test, the plans, each put in and judged by the
@@ -349,27 +778,20 @@ def run(most: int = 0, which: str = "design") -> dict:
                 if "guards" not in case:
                     case["guards"] = commits._beside(case)
                 wanted = goal(case)
+                wanted["crash"] = crashed(wanted["raised"])                     if not wanted["failing"] else None
                 row["goal"] = wanted["failing"]
-                row["raised"] = wanted["raised"]
+                row["crash"] = wanted["crash"]
                 if wanted["failing"]:
+                    row["of return"] = of_return(case, wanted["failing"],
+                                                 held)
+                if wanted["failing"] or wanted["crash"]:
                     counts["goal"] += 1
-                    planned = plans(case, wanted["failing"], case["before"],
-                                    held)
-                    row["plans"] = len(planned)
-                    counts["planned"] += bool(planned)
                     verify = commits.verifier(case, commits._current(case))
-                    tried = 0
-                    for statements, why in planned:
-                        for text, where in _put(old, case["before"],
-                                                statements):
-                            tried += 1
-                            if verify(text) is None:
-                                row["fixed"] = {"why": why, "where": where,
-                                                "statements": statements}
-                                break
-                        if row.get("fixed"):
-                            break
-                    row["tried"] = tried
+                    found_ = deepen(case, case["before"], wanted, held,
+                                    verify, old, name, row)
+                    counts["planned"] += bool(row.get("tries"))
+                    if found_:
+                        row["fixed"] = found_
                     counts["fixed"] += bool(row.get("fixed"))
         except Exception as bad:                    # noqa: BLE001
             row["failed"] = f"{type(bad).__name__}: {bad}"[:200]
