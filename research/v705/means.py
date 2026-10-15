@@ -1123,6 +1123,13 @@ def _leaf(case: dict, source: str, wanted: dict, moves: tuple) -> list:
     return out
 
 
+def _case_key(case: dict) -> str:
+    """What a case is, to know it again on a run taken up."""
+    import hashlib
+    return hashlib.sha1(f"{case['file']}#{case['function']}#"
+                        f"{case['before']}".encode()).hexdigest()[:16]
+
+
 def run(most: int = 0, which: str = "design") -> dict:
     """Each held-out bug (`design.cases`, or the history's measured ones):
     the goal from its test, the plans, each put in and judged by the
@@ -1165,7 +1172,23 @@ def run(most: int = 0, which: str = "design") -> dict:
             :most or commits.MEASURED]
     counts = {"bugs": len(found), "goal": 0, "planned": 0, "fixed": 0}
     out = []
+    # each bug's row kept as it is done: stopped and run again, it takes
+    # up after the last one
+    partial = OUT.with_suffix(".partial.jsonl")
+    done = {}
+    if partial.exists():
+        for line in partial.open(encoding="utf-8"):
+            one = json.loads(line)
+            done[one["key"]] = one["row"]
     for case in found:
+        key = _case_key(case)
+        if key in done:
+            row = done[key]
+            counts["goal"] += bool(row.get("goal") or row.get("crash"))
+            counts["planned"] += bool(row.get("tries"))
+            counts["fixed"] += bool(row.get("fixed"))
+            out.append(row)
+            continue
         module = importlib.import_module(".".join(
             Path(case["file"]).with_suffix("").parts))
         helper = case.get("helper")
@@ -1208,6 +1231,9 @@ def run(most: int = 0, which: str = "design") -> dict:
             if helper:
                 setattr(module, helper, kept_helper)
         out.append(row)
+        with partial.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"key": key, "row": row},
+                                    default=repr) + "\n")
         print(json.dumps(row, default=repr)[:500], flush=True)
     OUT.write_text(json.dumps({**counts, "each": out}, indent=1,
                               default=repr), encoding="utf-8")
