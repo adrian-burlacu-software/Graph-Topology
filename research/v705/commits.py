@@ -814,9 +814,18 @@ def _beside(case: dict) -> list:
         timer.cancel()
         if ok:
             out.append(test)
+        elif len(case["tests"]) < MOST_FAILING:
+            # it ran the function and passed as the code was gathered
+            # (`planted.cover` keeps no other): failing now, it fails for
+            # what is wrong in it -- more of what is wanted, not a guard
+            # to drop (_split_top's change held by three, failed three)
+            case["tests"].append(test)
     return out
 
 
+#: the failing tests a change is judged by at most, those reported and
+#: those that run the function and fail now
+MOST_FAILING = 8
 #: the tests beyond its class a change is judged by, at most
 COVERING = 12
 

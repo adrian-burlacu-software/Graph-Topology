@@ -180,12 +180,21 @@ def real(case: dict, true, text: str) -> dict:
             "real": 0 < calls == agree and passed == len(tests)}
 
 
-def _sealed(run):
+def _sealed(run, seconds: float = 0):
     """`run()` with the world shut: what deduction's programs may not do
-    (`deduce.WORLD`), it may not either."""
+    (`deduce.WORLD`), it may not either -- and stopped past `seconds`
+    (`REPLAY`): a change that loops without end, replayed out of its
+    tests' watch, ran two hours and took 19 GB."""
     from research.v705 import deduce
+    # the watch first: it loads what it needs, which a sealed run may not
+    timer = commits._watched(seconds or REPLAY)
     deduce._PURE.on = True
     try:
         return run()
     finally:
         deduce._PURE.on = False
+        timer.cancel()
+
+
+#: how long one call replayed may take (seconds)
+REPLAY = 10

@@ -375,7 +375,7 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         module_source = inspect.getsource(module) if module else ""
     except (OSError, TypeError):
         module_source = ""
-    tried = 0
+    tried, held = 0, []
     for line, what, made in candidates(source, lines, module_source):
         text = commits._placed(made, case["before"], old)
         if text is None:
@@ -383,7 +383,57 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         tried += 1
         said = verify(text)
         if said is None:
-            row["repair"] = {"tried": tried, "line": line, "edit": what}
-            return {"moves": [f"line {line}: {what}"], "source": made}
-    row["repair"] = {"tried": tried}
-    return None
+            held.append((line, what, made, text))
+            if len(held) >= KEPT:
+                break
+    if not held:
+        row["repair"] = {"tried": tried}
+        return None
+    # of those the tests pass, the one that changes least of what it does
+    # where the tests beside it call it: a slip undone changes the calls it
+    # went wrong on, `and` made `or` changes many it did not
+    changed = _changed(function, [one[3] for one in held], case)
+    best = min(range(len(held)), key=lambda at: (changed[at], at))
+    line, what, made, _ = held[best]
+    row["repair"] = {"tried": tried, "line": line, "edit": what,
+                     "held": [[one[1], count] for one, count in
+                              zip(held, changed)]}
+    return {"moves": [f"line {line}: {what}"], "source": made}
+
+
+#: the changes the tests pass kept to choose among
+KEPT = 6
+
+
+def _changed(function, texts: list, case: dict) -> list:
+    """Of each changed file's text, how many of the calls the tests beside
+    it make of the function it answers otherwise than the function does
+    now."""
+    import copy
+    from research.v705 import inside, truth
+    calls = truth._recorded(function, case.get("guards") or [])
+    out = []
+    for text in texts:
+        try:
+            made = inside.changed_function(function, text)
+        except Exception:                           # noqa: BLE001
+            out.append(len(calls) + 1)
+            continue
+        count = 0
+        for held, _ in calls:
+            now, again, mine = (copy.deepcopy(held) for _ in range(3))
+            try:
+                gave = truth._sealed(lambda: truth._called(function, now))
+                twice = truth._sealed(lambda: truth._called(function, again))
+            except Exception:                       # noqa: BLE001
+                continue
+            if not truth._alike(gave, twice):
+                continue
+            try:
+                got = truth._sealed(lambda: truth._called(made, mine))
+            except Exception as bad:                # noqa: BLE001
+                got = bad
+            count += not (truth._alike(got, gave) and truth._alike(mine,
+                                                                   now))
+        out.append(count)
+    return out

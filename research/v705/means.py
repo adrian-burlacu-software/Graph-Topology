@@ -31,6 +31,7 @@ import json
 import os
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 from research.v705 import commits
@@ -1612,13 +1613,20 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
                     # a slip first: one edit on the lines the failing test
                     # runs most apart from the rest (`repair`); a design only
                     # where none holds
+                    # how long each way took, to set beside what it gave
+                    clock = time.time()
                     found_ = repair.search(case, commits._current(case), old,
                                            verify, row) if REPAIR else None
+                    row["seconds"] = {"repair": round(time.time() - clock)}
                     if found_ is None:
+                        clock = time.time()
                         found_ = deepen(case, case["before"], wanted, held,
                                         verify, old, name, row)
+                        row["seconds"]["plan"] = round(time.time() - clock)
                     if found_ and GENERAL:
+                        clock = time.time()
                         found_ = generalized(case, found_, verify, old, row)
+                        row["seconds"]["general"] = round(time.time() - clock)
                     counts["planned"] += bool(row.get("tries"))
                     if found_:
                         row["fixed"] = found_
