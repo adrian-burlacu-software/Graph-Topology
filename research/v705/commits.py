@@ -723,10 +723,14 @@ def _placed(fixed: str, before: str, text: str) -> str | None:
     except SyntaxError:
         return None
     name = before.split("(")[0].split()[-1]
-    if len(tree.body) != 1 or not isinstance(
-            tree.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)) or \
-            tree.body[0].name != name:
+    # the function of its name, among any others the answer wrote (a
+    # helper beside it, an import): those are not put in
+    found = next((one for one in tree.body if isinstance(
+        one, (ast.FunctionDef, ast.AsyncFunctionDef)) and one.name == name),
+        None)
+    if found is None:
         return None
+    code = ast.get_source_segment(code, found)
     at = text.index(before)
     indent = text[text.rfind("\n", 0, at) + 1:at]
     lines = code.splitlines()
