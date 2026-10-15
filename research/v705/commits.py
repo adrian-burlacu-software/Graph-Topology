@@ -243,14 +243,35 @@ class Put:
 
 
 def _watched(seconds: float):
-    """Ends the process where a test runs past `seconds`: a test cannot be
-    stopped in it, and the next run takes up from the next case."""
+    """A test that runs past `seconds` fails: a TimeoutError raised in the
+    thread running it (a change that loops forever is a wrong change, and
+    ending the process on it ended a whole run at `read`); and where it
+    is still stuck as long again (waiting in C, where nothing is raised)
+    the process ends, and the next run takes up from the next case."""
+    import ctypes
     import os
     import threading
-    timer = threading.Timer(seconds, lambda: os._exit(3))
-    timer.daemon = True
-    timer.start()
-    return timer
+    stuck = threading.get_ident()
+
+    class Watch:
+        def __init__(self):
+            self.raised = threading.Timer(seconds, self.stop)
+            self.ended = threading.Timer(2 * seconds, lambda: os._exit(3))
+            for one in (self.raised, self.ended):
+                one.daemon = True
+                one.start()
+
+        def stop(self):
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_ulong(stuck), ctypes.py_object(TimeoutError))
+
+        def cancel(self):
+            self.raised.cancel()
+            self.ended.cancel()
+            # raised just as it finished: taken back before it lands
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_ulong(stuck), None)
+    return Watch()
 
 
 def check() -> dict:
