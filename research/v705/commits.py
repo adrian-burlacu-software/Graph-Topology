@@ -762,7 +762,45 @@ def _beside(case: dict) -> list:
             timer.cancel()
             if ok:
                 out.append(test)
+    # and the tests anywhere that run the function (`planted.cover`): its
+    # class alone let a `read` through that set `yours` on every request,
+    # and broke a test of the ways of writing two versions on
+    seen = failed | {one["test"] for one in out}
+    for test in _covering(case)[:COVERING * 3]:
+        if len(out) >= PASSING + COVERING:
+            break
+        if test["test"] in seen:
+            continue
+        seen.add(test["test"])
+        timer = _watched(LONGEST)
+        try:
+            ok = passes(test)
+        except BaseException:                       # noqa: BLE001
+            ok = False
+        timer.cancel()
+        if ok:
+            out.append(test)
     return out
+
+
+#: the tests beyond its class a change is judged by, at most
+COVERING = 12
+
+
+def _covering(case: dict) -> list:
+    """The quick tests that run the case's function, quickest first, as
+    `planted.cover` found them -- none where it was never gathered."""
+    path = ROOT / "state" / "v705-covered.json"
+    if not path.exists():
+        return []
+    if "covered" not in _COVERED:
+        _COVERED["covered"] = json.loads(path.read_text(
+            encoding="utf-8")).get("functions", {})
+    return list(_COVERED["covered"].get(
+        f"{case['file']}#{case['function']}", []))
+
+
+_COVERED: dict = {}
 
 
 def think(most: int = 0) -> dict:

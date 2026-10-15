@@ -28,6 +28,7 @@ import argparse
 import ast
 import contextlib
 import json
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -854,7 +855,10 @@ def _inserted(source: str, statements: list, spot: str) -> str | None:
 # -- a leaf, by deduction -------------------------------------------------------------
 
 #: the calls of the passing tests beside it taken as examples at most
-KEPT_CALLS = 8
+KEPT_CALLS = 16
+#: the calls beside it tried, one by one, as more of what one program
+#: explains
+SUBSET_TRIED = 8
 #: the kinds of value an example's inputs keep (a store, an engine: not)
 PLAIN_KINDS = (str, int, float, bool, list, tuple, dict, type(None))
 
@@ -972,7 +976,11 @@ def _library(function):
                 alias = f"{modname.split('.')[-1]}_{name}"
                 held.setdefault(alias, (value, f"from {modname} import "
                                                f"{name} as {alias}"))
-    return Library(held)
+    try:
+        said = inspect.getsource(module) if module else ""
+    except (OSError, TypeError):
+        said = ""
+    return Library(held, said)
 
 
 def _calling(module, function) -> set:
@@ -1007,6 +1015,25 @@ def _calling(module, function) -> set:
                 back.add(name)
                 grown = True
     return back
+
+
+#: what a deduced statement falling with says: it does not apply here (no
+#: `def` line to search, a piece that is no literal), and what was there is
+#: kept -- not a recursion or a stop
+NOT_HERE = (LookupError, TypeError, ValueError, AttributeError, SyntaxError)
+
+
+def _changes(program, inputs: dict, want, space: dict) -> bool:
+    """Whether a program set where a call gives `want` now would change
+    it: it gives something else, not falling as one that does not apply."""
+    from research.v705.deduce import ANY, _same
+    try:
+        got = program(inputs, space)
+    except NOT_HERE:
+        return False
+    except Exception:                               # noqa: BLE001
+        return True
+    return want is ANY or not _same(got, want)
 
 
 def _in_part(steps: list, wanted, known: list):
@@ -1054,7 +1081,25 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
     if not raw and not fell:
         return []
     got, want = raw or (None, None)
+    # the function as the moves so far made it, not as it was planted:
+    # watched as it was, `read(text, 'python')` fell for want of the
+    # language the first move gave it, and the call taken for the failing
+    # one was the one before
+    from research.v705 import inside
     function = commits._current(case)
+    text = commits._placed(source, case["before"], old)
+    try:
+        made = inside.changed_function(function, text) if text else None
+    except Exception:                               # noqa: BLE001
+        made = None
+    with commits.Put(function, made) if made is not None else \
+            contextlib.nullcontext():
+        return _deduced(case, source, wanted, made or function, raw, fell,
+                        got, want, row)
+
+
+def _deduced(case, source, wanted, function, raw, fell, got, want, row):
+    from research.v705 import deduce
     calls = _calls_of(function, lambda: commits.passes(case["tests"][0]))
     name = _returned_name(source)
     # the parts the check finds wrong, and where each is in what it gave
@@ -1102,26 +1147,62 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
     statements = []
     for path, other, held_ in parts:
         failing_ex = [(_inputs(held_, name), other)]
-        kept_ex = []
+        kept_ex, absent = [], []
         for one_held, returned in beside[:KEPT_CALLS]:
             try:
                 kept_ex.append((_inputs(one_held, name),
                                 _at(returned, path)))
+            except (LookupError, AttributeError, TypeError):
+                # a call that gives no such part is one it must stay unset
+                # for (`yours` set on every request broke one that has none)
+                absent.append(_inputs(one_held, name))
             except Exception:                       # noqa: BLE001
                 continue
         found = deduce.solve(failing_ex + kept_ex, library)
         condition = None
+        if found and absent:
+            condition = deduce.condition(
+                [inputs for inputs, _ in failing_ex + kept_ex], absent,
+                library)
+            if condition is None:
+                found = []
         if not found:
-            found = deduce.solve(failing_ex, library)
-            if found and kept_ex:
+            # what one program explains: the failing call and as many of
+            # those beside it as it goes on explaining (the Python requests
+            # of the test, not the TypeScript beside them) -- set apart from
+            # the rest by a condition, the rest left as they were
+            together = []
+            # grown only where the failing call is known in part, and can
+            # teach no rule alone: grown from a whole one, it took in a
+            # TypeScript call whose signature is its second line
+            for one in kept_ex[:SUBSET_TRIED] if deduce._partial(other) \
+                    else []:
+                if deduce.solve(failing_ex + together + [one], library):
+                    together.append(one)
+            apart = [one for one in kept_ex if one not in together] + [
+                (inputs, deduce.ANY) for inputs in absent]
+            found = deduce.solve(failing_ex + together, library)
+            if found:
+                # set apart only what it would change: where it gives what
+                # is there now, or falls as one that does not apply (kept as
+                # it was, `NOT_HERE`), nothing tells them apart
+                space = library.space()
+                apart = [(inputs, want) for inputs, want in apart
+                         if _changes(found[0], inputs, want, space)]
+            if found and apart:
                 condition = deduce.condition(
-                    [inputs for inputs, _ in failing_ex],
-                    [inputs for inputs, _ in kept_ex], library)
+                    [inputs for inputs, _ in failing_ex + together],
+                    [inputs for inputs, _ in apart], library)
                 if condition is None:
                     found = []
         if not found:
             row.setdefault("deduction", []).append(
                 f"nothing found for {path} = {repr(other)[:60]}")
+            if os.environ.get("V705_MISSED"):
+                # the examples a miss was given, to look at
+                with open(os.environ["V705_MISSED"], "a",
+                          encoding="utf-8") as stream:
+                    stream.write(repr(failing_ex + kept_ex) + "\n")
             return []
         program = found[0]
         target = _target(name or "_made", path) if path else None
@@ -1141,7 +1222,7 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
         # a group of): not a recursion or a stop, which kept swallowed ran
         # read -> answered -> read on without end
         statements.append("\n".join(["try:"] + body + [
-            "except (LookupError, TypeError, ValueError, AttributeError):",
+            f"except ({', '.join(one.__name__ for one in NOT_HERE)}):",
             "    pass"]))
         row.setdefault("deduction", []).append(
             f"{_target('it', path)} = {program.expr}"

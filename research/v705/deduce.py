@@ -22,8 +22,11 @@ read a signature, take fields apart, build a list of pairs.
 """
 from __future__ import annotations
 
+import functools
 import itertools
 import re
+import sys
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -47,7 +50,35 @@ class Program:
     size: int = 1
 
     def __call__(self, inputs: dict, space: dict):
-        return eval(self.expr, space, dict(inputs))       # noqa: S307
+        # a program is of its inputs alone: one that reads a file or the
+        # store is not what they give (`known_of` read a file a call, and
+        # the search ran out of time on it)
+        _PURE.on = True
+        try:
+            return eval(_compiled(self.expr), space, dict(inputs))  # noqa: S307
+        finally:
+            _PURE.on = False
+
+
+#: whether a program is being run, in this thread
+_PURE = threading.local()
+#: what a program running may not do: reach outside itself
+WORLD = ("open", "os.", "subprocess.", "socket.", "sqlite3.", "shutil.",
+         "urllib.", "http.", "ctypes.")
+
+
+def _guard(event: str, args) -> None:
+    if getattr(_PURE, "on", False) and event.startswith(WORLD):
+        _PURE.touched = True
+        raise PermissionError(f"a program may not {event}")
+
+
+sys.addaudithook(_guard)
+
+
+@functools.lru_cache(maxsize=200_000)
+def _compiled(expr: str):
+    return compile(expr, "<deduced>", "eval")
 
 
 @dataclass
@@ -55,6 +86,13 @@ class Library:
     """What a program may call besides the builtins: its own code's
     functions and tables, by name -- {name: (value, import line)}."""
     held: dict = field(default_factory=dict)
+    #: the text of the code it is for, whose words are its own
+    said: str = ""
+
+    def words(self) -> set:
+        if "_words" not in self.__dict__:
+            self.__dict__["_words"] = set(re.findall(r"\w+", self.said))
+        return self.__dict__["_words"]
 
     def space(self) -> dict:
         import ast
@@ -129,8 +167,13 @@ def _fits(program: Program, examples: list, space: dict) -> bool:
 
 
 class _Clock:
+    """How long one solve has, and what it has grown over which inputs
+    (the same inputs are grown over for every part of a value)."""
+
     def __init__(self, seconds: float) -> None:
         self.until = time.time() + seconds
+        self.grown: dict = {}
+        self.impure: set = set()
 
     def over(self) -> bool:
         return time.time() > self.until
@@ -143,21 +186,38 @@ def _grown(examples: list, library: Library, clock: _Clock) -> list:
     fields and items, string and list methods, the library's calls -- each
     with what it gives on every example, one of each set of values
     (observational equivalence): [(Program, values)]."""
+    # the inputs themselves kept with the key, so their ids stay theirs
+    key = (id(library), tuple(id(inputs) for inputs, _ in examples))
+    if key in clock.grown:
+        return clock.grown[key][1]
+    out = _growing(examples, library, clock)
+    if not clock.over():
+        clock.grown[key] = ([inputs for inputs, _ in examples], out)
+    return out
+
+
+def _growing(examples: list, library: Library, clock: _Clock) -> list:
     space = library.space()
     names = sorted(set.intersection(*(set(inputs) for inputs, _ in
                                       examples))) if examples else []
     seen: dict = {}
     out: list = []
 
-    def offer(expr: str, imports=(), size=1) -> None:
-        if len(out) > GROWN or clock.over():
+    def offer(expr: str, imports=(), size=1, called=None) -> None:
+        if len(out) > GROWN or clock.over() or called in clock.impure:
             return
         program = Program(expr, tuple(imports), size)
         values = []
         for inputs, _ in examples:
+            _PURE.touched = False
             try:
                 values.append(program(inputs, space))
             except Exception:                       # noqa: BLE001
+                # reached outside (refused, whatever it became -- an import
+                # refused its file is "no module"): not tried again this
+                # solve, where it was looked for afresh at every call
+                if called and _PURE.touched:
+                    clock.impure.add(called)
                 return
         try:
             key = repr(values)[:3000]
@@ -219,7 +279,7 @@ def _grown(examples: list, library: Library, clock: _Clock) -> list:
                 elif callable(value):
                     offer(f"{name}({said})",
                           program.imports + ((line,) if line else ()),
-                          program.size + 1)
+                          program.size + 1, called=name)
     return out
 
 
@@ -417,32 +477,32 @@ def _kept_and_made(examples, library, depth, clock, lists) -> list:
         if not ok or all(kept for _, kept in labelled):
             continue
         # what tells the elements kept from the rest: a flag in hand, or a
-        # word the kept all hold (`'=' in one`)
-        test = condition([inputs for inputs, kept in labelled if kept],
-                         [inputs for inputs, kept in labelled if not kept],
-                         library)
-        if test is None:
-            continue
-        inner = []
-        for (inputs, want), value in zip(examples, values):
-            taken = [item for item in value
-                     if _safe(test, {**inputs, "one": item}, space)]
-            if len(taken) < len(want) or not isinstance(want, Prefix) and \
-                    len(taken) != len(want):
-                inner = []
-                break
-            inner += [({**inputs, "one": item}, element)
-                      for item, element in zip(taken, want)]
-        if not inner:
-            continue
-        made = solve(inner, library, depth + 1, clock)
-        if made:
-            return [Program(
-                f"[{made[0].expr} for one in {program.expr} "
-                f"if {test.expr}]",
-                tuple(sorted(set(made[0].imports + test.imports +
-                                 program.imports))),
-                made[0].size + test.size + program.size + 1)]
+        # word the kept all hold (`'=' in one`) -- the first that keeps as
+        # many as every example wants, those it knows only in part too
+        for test in itertools.islice(conditions(
+                [inputs for inputs, kept in labelled if kept],
+                [inputs for inputs, kept in labelled if not kept],
+                library), 8):
+            inner = []
+            for (inputs, want), value in zip(examples, values):
+                taken = [item for item in value
+                         if _safe(test, {**inputs, "one": item}, space)]
+                if len(taken) < len(want) or not isinstance(
+                        want, Prefix) and len(taken) != len(want):
+                    inner = []
+                    break
+                inner += [({**inputs, "one": item}, element)
+                          for item, element in zip(taken, want)]
+            if not inner:
+                continue
+            made = solve(inner, library, depth + 1, clock)
+            if made:
+                return [Program(
+                    f"[{made[0].expr} for one in {program.expr} "
+                    f"if {test.expr}]",
+                    tuple(sorted(set(made[0].imports + test.imports +
+                                     program.imports))),
+                    made[0].size + test.size + program.size + 1)]
     return []
 
 
@@ -476,23 +536,32 @@ def _windows(text: str, want, most: int) -> list:
     """The pieces of a text that, read as a literal, are the wanted value:
     [(piece, form)], cut where a word does not go on, first found first."""
     out = []
-    starts = [at for at in range(len(text))
-              if at == 0 or not (text[at - 1].isalnum() and
-                                 text[at].isalnum())]
-    for start in starts:
-        for end in range(start + 1, min(len(text), start + most) + 1):
-            if end < len(text) and text[end - 1].isalnum() and \
-                    text[end].isalnum():
-                continue
-            piece = text[start:end]
-            if piece != piece.strip():
-                continue
-            for form in READ_AS:
-                try:
-                    if _same(_read(form.format(piece)), want):
-                        out.append((piece, form))
-                except Exception:                   # noqa: BLE001
-                    pass
+    # a literal's words are its value's (`(1, 2), None`: 1 2 None): only
+    # where the text has those words in a row is a piece tried, widened
+    # over the marks around them
+    words = re.findall(r"\w+", repr(want))
+    if not words:
+        return out
+    tokens = list(re.finditer(r"\w+", text))
+    for at in range(len(tokens) - len(words) + 1):
+        if [one.group() for one in tokens[at:at + len(words)]] != words:
+            continue
+        first, last = tokens[at], tokens[at + len(words) - 1]
+        before = tokens[at - 1].end() if at else 0
+        after = tokens[at + len(words)].start() \
+            if at + len(words) < len(tokens) else len(text)
+        for start in range(max(before, first.start() - 4),
+                           first.start() + 1):
+            for end in range(last.end(), min(after, last.end() + 6) + 1):
+                piece = text[start:end]
+                if piece != piece.strip() or len(piece) > most:
+                    continue
+                for form in READ_AS:
+                    try:
+                        if _same(_read(form.format(piece)), want):
+                            out.append((piece, form))
+                    except Exception:               # noqa: BLE001
+                        pass
     return out
 
 
@@ -732,26 +801,40 @@ def condition(apart: list, kept: list, library: Library | None = None
     `apart`, false of every one of `kept`: an expression in hand that
     gives a flag, or whether a string in hand holds a piece the first
     group's all hold and the second's none."""
+    return next(conditions(apart, kept, library), None)
+
+
+def conditions(apart: list, kept: list, library: Library | None = None):
+    """Each thing that tells two groups apart, in `condition`'s order: the
+    first of them may be true of these by chance (a quote mark held by
+    every saying of one request's examples), and another case decides."""
     library = library or Library()
     clock = _Clock(SECONDS)
     examples = [(inputs, True) for inputs in apart] + \
         [(inputs, False) for inputs in kept]
-    found = _searched(examples, library, clock)
-    if found:
-        return found[0]
+    yield from _searched(examples, library, clock)[:5]
     space = library.space()
-    for program, values in _strings(examples, library, clock):
+    # a word of what was given, not of something made of it: in a string
+    # made of the inputs a word is there by how it was made (`'2' in
+    # _norm(len(spans))`)
+    for program, values in [one for one in _strings(examples, library,
+                                                     clock)
+                            if one[0].size == 1]:
         firsts = values[:len(apart)]
         rest = values[len(apart):]
         # the shortest piece the first group's strings all hold, none of
         # the second's: a word of theirs, by the line it is on
+        # a word its own code uses before one only these examples hold (a
+        # request about `day` set apart from the rest by `day`, where every
+        # `def` request is the kind)
         for word in sorted({one for text in firsts[:1]
                             for one in re.findall(r"[\w']+|\S", text)},
-                           key=lambda one: (not one[0].isalnum(), len(one))):
+                           key=lambda one: (not one[0].isalnum(),
+                                            one not in library.words(),
+                                            len(one), one)):
             if all(word in text for text in firsts) and \
                     not any(word in text for text in rest):
                 candidate = Program(f"{word!r} in {program.expr}",
                                     program.imports, program.size + 1)
                 if _fits(candidate, examples, space):
-                    return candidate
-    return None
+                    yield candidate
