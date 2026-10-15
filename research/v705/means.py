@@ -83,12 +83,90 @@ def _made_by(test: dict) -> dict:
     except SyntaxError:
         return out
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+        # a call, or a part of what one gives (`read(...)["examples"]`)
+        if isinstance(node, ast.Assign) and isinstance(
+                _steps(node.value)[0], ast.Call):
             for target in node.targets:
                 for one in ast.walk(target):
                     if isinstance(one, ast.Name):
                         out[one.id] = ast.unparse(node.value)[:120]
     return out
+
+
+def _steps(node) -> tuple:
+    """An expression as what it starts from and the steps into it:
+    `x[0]['args']` -- (Name x, [("index", 0), ("key", "args")]); a step
+    not by a constant ends the steps there."""
+    steps = []
+    while True:
+        if isinstance(node, ast.Subscript) and isinstance(
+                node.slice, ast.Constant):
+            kind = "index" if isinstance(node.slice.value, int) else "key"
+            steps.insert(0, (kind, node.slice.value))
+            node = node.value
+        elif isinstance(node, ast.Attribute):
+            steps.insert(0, ("attr", node.attr))
+            node = node.value
+        else:
+            return node, steps
+
+
+def fell_at(test: dict, raised: str) -> dict | None:
+    """Where a test fell in its own lines, before a check could look --
+    `examples[0]["args"]` an IndexError, the list empty -- read as a goal
+    in part: the check that line is (`assertEqual(examples[0]["args"],
+    [[1, 2], None])`), what it wants (a literal), and the steps into what
+    the function gave back that it looks along (`read(...)["examples"]`,
+    then `[0]["args"]`). None where it fell elsewhere."""
+    import re
+    path = str(ROOT / test["file"])
+    frames = re.findall(r'File "([^"]+)", line (\d+)', raised or "")
+    if not frames or Path(frames[-1][0]).resolve() != Path(path).resolve():
+        return None
+    line = int(frames[-1][1])
+    holder, method = test["test"].split(".")
+    tree = ast.parse((ROOT / test["file"]).read_text(encoding="utf-8"))
+    cls = next((one for one in tree.body if isinstance(one, ast.ClassDef)
+                and one.name == holder), None)
+    function = next((one for one in (cls.body if cls else [])
+                     if isinstance(one, ast.FunctionDef) and
+                     one.name == method), None)
+    if function is None:
+        return None
+    check = next((one for one in ast.walk(function)
+                  if isinstance(one, ast.Call) and isinstance(
+                      one.func, ast.Attribute) and one.func.attr in CHECKS
+                  and one.lineno <= line <= one.end_lineno), None)
+    if check is None:
+        return None
+    value_at, wanted_at = CHECKS[check.func.attr]
+    if wanted_at is None or len(check.args) <= max(value_at, wanted_at):
+        return None
+    try:
+        wanted = ast.literal_eval(check.args[wanted_at])
+    except (ValueError, SyntaxError, TypeError):
+        return None
+    root, steps = _steps(check.args[value_at])
+    if not isinstance(root, ast.Name):
+        return None
+    # the call the name was bound to, and its own steps
+    made = None
+    for one in ast.walk(function):
+        if isinstance(one, ast.Assign) and one.lineno <= line and any(
+                isinstance(target, ast.Name) and target.id == root.id
+                for target in one.targets):
+            made = one.value
+    if made is None:
+        return None
+    call, before = _steps(made)
+    if not isinstance(call, ast.Call):
+        return None
+    return {"check": check.func.attr, "path": ast.unparse(
+        check.args[value_at]), "_fell": {"steps": before + steps,
+                                         "wanted": wanted},
+            "got": "(" + (raised or "").strip().splitlines()[-1][:80] + ")",
+            "wanted": repr(wanted)[:SHOWN], "made by": ast.unparse(call),
+            "failed": True}
 
 
 def goal(case: dict) -> dict:
@@ -136,10 +214,13 @@ def goal(case: dict) -> dict:
         for name, method in kept.items():
             setattr(unittest.TestCase, name, method)
     failing = next((one for one in seen if one["failed"]), None)
+    raised = commits.LAST.get("failure", "")
+    if failing is None and raised:
+        # fallen in its own lines on the way to a check: that check, in part
+        failing = fell_at(test, raised)
     return {"failing": failing, "kept": [one for one in seen
                                          if not one["failed"]],
-            "raised": None if failing else commits.LAST.get(
-                "failure", "")[-300:]}
+            "raised": None if failing else raised[-300:]}
 
 
 # -- step 3: planning back from it ---------------------------------------------
@@ -928,6 +1009,29 @@ def _calling(module, function) -> set:
     return back
 
 
+def _in_part(steps: list, wanted, known: list):
+    """What a check looking along `steps` and wanting `wanted` says of the
+    value it starts from: an element at an index, a list that begins so
+    (`deduce.Prefix`); a key, a dict with that key so and the others the
+    values like it have (`known`), open (`deduce.ANY`)."""
+    from research.v705.deduce import ANY, Prefix
+    if not steps:
+        return wanted
+    (kind, step), rest = steps[0], steps[1:]
+    if kind == "index" and isinstance(step, int) and step >= 0:
+        inner = [one for value in known if isinstance(value, list)
+                 for one in value]
+        return Prefix([ANY] * step + [_in_part(rest, wanted, inner)])
+    if kind == "key":
+        dicts = [value for value in known if isinstance(value, dict)]
+        keys = set().union(*(set(one) for one in dicts)) | {step}
+        out = {key: ANY for key in keys}
+        out[step] = _in_part(rest, wanted, [one[step] for one in dicts
+                                            if step in one])
+        return out
+    return ANY
+
+
 def _target(name: str, path: list) -> str:
     said = name
     for kind, step in path:
@@ -946,15 +1050,33 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
     from research.v705 import deduce
     failing = wanted.get("failing") or {}
     raw = failing.get("_raw")
-    if not raw:
+    fell = failing.get("_fell")
+    if not raw and not fell:
         return []
-    got, want = raw
+    got, want = raw or (None, None)
     function = commits._current(case)
     calls = _calls_of(function, lambda: commits.passes(case["tests"][0]))
     name = _returned_name(source)
     # the parts the check finds wrong, and where each is in what it gave
     parts = []
-    for held_, returned in reversed(calls):
+    # the test's own calls before the one it fell after: what they gave
+    # passed its checks, examples as good as those beside it
+    earlier = []
+    if fell and calls:
+        steps = fell["steps"]
+        cut = next((at for at, (kind, _) in enumerate(steps)
+                    if kind == "index"), len(steps))
+        path = steps[:cut]
+        earlier = calls[:-1]
+        known = []
+        for _, returned in earlier:
+            try:
+                known.append(_at(returned, path))
+            except Exception:                       # noqa: BLE001
+                continue
+        parts = [(path, _in_part(steps[cut:], fell["wanted"], known),
+                  calls[-1][0])]
+    for held_, returned in reversed(calls if raw else []):
         if isinstance(got, (tuple, list)) and isinstance(want, (tuple,
                                                                 list)) \
                 and len(got) == len(want):
@@ -971,7 +1093,7 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
                                                "back is what the check "
                                                "looked at")
         return []
-    beside = []
+    beside = list(earlier)
     for test in case.get("guards") or []:
         beside += _calls_of(function, lambda test=test: commits.passes(test))
         if len(beside) >= KEPT_CALLS:
@@ -1170,7 +1292,7 @@ def _case_key(case: dict) -> str:
                         f"{case['before']}".encode()).hexdigest()[:16]
 
 
-def run(most: int = 0, which: str = "design") -> dict:
+def run(most: int = 0, which: str = "design", only: str = "") -> dict:
     """Each held-out bug (`design.cases`, or the history's measured ones):
     the goal from its test, the plans, each put in and judged by the
     tests and those beside them."""
@@ -1210,6 +1332,8 @@ def run(most: int = 0, which: str = "design") -> dict:
                  for one in map(json.loads, commits.CHECKED.open(
                      encoding="utf-8")) if one["status"] == "bug"][
             :most or commits.MEASURED]
+    if only:
+        found = [one for one in found if one["function"] == only]
     counts = {"bugs": len(found), "goal": 0, "planned": 0, "fixed": 0}
     out = []
     # each bug's row kept as it is done: stopped and run again, it takes
@@ -1286,11 +1410,14 @@ def main(argv=None) -> int:
     parser.add_argument("job", choices=("run", "history", "planted"))
     parser.add_argument("--most", type=int, default=0)
     parser.add_argument("--out", default="")
+    parser.add_argument("--only", default="",
+                        help="the one function whose case is run")
     options = parser.parse_args(argv)
     global OUT
     if options.out:
         OUT = ROOT / "state" / options.out
-    run(options.most, {"run": "design"}.get(options.job, options.job))
+    run(options.most, {"run": "design"}.get(options.job, options.job),
+        options.only)
     return 0
 
 

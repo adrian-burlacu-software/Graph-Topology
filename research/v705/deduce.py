@@ -57,13 +57,56 @@ class Library:
     held: dict = field(default_factory=dict)
 
     def space(self) -> dict:
+        import ast
         import builtins
-        out = {"re": re, "__builtins__": builtins}
+        import json
+        out = {"re": re, "ast": ast, "json": json, "__builtins__": builtins}
         out.update({name: value for name, (value, _) in self.held.items()})
         return out
 
 
+class _Any:
+    """A part of a wanted value nothing says (a key of an element the test
+    never looked at): anything there will do."""
+
+    def __repr__(self) -> str:
+        return "ANY"
+
+
+ANY = _Any()
+
+
+class Prefix(list):
+    """A wanted list known only by its first elements (`examples[0]`
+    looked at, the rest not): it begins with these, whatever follows."""
+
+    def __repr__(self) -> str:
+        return "Prefix(" + list.__repr__(self) + ")"
+
+
+def _partial(value) -> bool:
+    """Whether a wanted value leaves some of itself open."""
+    if value is ANY or isinstance(value, Prefix):
+        return True
+    if isinstance(value, dict):
+        return any(_partial(one) for one in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_partial(one) for one in value)
+    return False
+
+
 def _same(one, other) -> bool:
+    if other is ANY:
+        return True
+    if isinstance(other, Prefix):
+        return isinstance(one, list) and len(one) >= len(other) and all(
+            _same(a, b) for a, b in zip(one, other))
+    if _partial(other):
+        if isinstance(other, dict):
+            return isinstance(one, dict) and set(one) == set(other) and all(
+                _same(one[key], other[key]) for key in other)
+        return type(one) is type(other) and len(one) == len(other) and all(
+            _same(a, b) for a, b in zip(one, other))
     try:
         if type(one) is not type(other) and not (
                 isinstance(one, (int, float)) and
@@ -199,6 +242,11 @@ def solve(examples: list, library: Library | None = None, depth: int = 0,
     shape, each part solved, the parts put back."""
     library = library or Library()
     clock = clock or _Clock(SECONDS)
+    if examples and all(want is ANY for _, want in examples):
+        # nothing said of it anywhere: whatever is put there
+        return [Program("None")]
+    # an example that says nothing of this part does not bear on it
+    examples = [one for one in examples if one[1] is not ANY]
     if not examples or depth > DEPTH or clock.over():
         return []
     space = library.space()
@@ -212,12 +260,19 @@ def solve(examples: list, library: Library | None = None, depth: int = 0,
         # beside one picked by what is around it, the latter first
         anchored = _extracted(examples, library, clock)
         return sorted(found[:3] + anchored, key=_general)[:3]
-    kinds = {type(value) for value in wanted}
+    kinds = {list if isinstance(value, Prefix) else type(value)
+             for value in wanted}
     out: list = []
-    if len(kinds) == 1:
+    if kinds - {str} and not any(_partial(value) for value in wanted):
+        # a value written out in a string in hand is what a reader of
+        # literals makes of that piece of it -- one rule, before taking the
+        # value apart into many
+        out += _parsed(examples, library, depth, clock)
+    if not out and len(kinds) == 1:
         kind = kinds.pop()
         if kind in (tuple, list):
-            out += _fields(examples, library, depth, clock, kind) or []
+            if not any(isinstance(value, Prefix) for value in wanted):
+                out += _fields(examples, library, depth, clock, kind) or []
             if not out:
                 out += _mapped(examples, library, depth, clock, kind)
         elif kind is dict:
@@ -275,8 +330,10 @@ def _mapped(examples, library, depth, clock, kind) -> list:
     for program, values in lists:
         if clock.over():
             break
-        if all(len(value) == len(want) for value, (_, want) in
-               zip(values, examples)):
+        if all(len(value) == len(want) or isinstance(want, Prefix) and
+               len(value) >= len(want) for value, (_, want) in
+               zip(values, examples)) and \
+                any(not isinstance(want, Prefix) for _, want in examples):
             inner = [({**inputs, "one": item}, want_item)
                      for (inputs, want), value in zip(examples, values)
                      for item, want_item in zip(value, want)]
@@ -306,6 +363,172 @@ def _mapped(examples, library, depth, clock, kind) -> list:
                     tuple(sorted(set(found[0].imports + program.imports))),
                     found[0].size + program.size + 1))
                 break
+    if not out:
+        out += _kept_and_made(examples, library, depth, clock, lists)
+    return out
+
+
+def _leaves(value) -> list:
+    """The strings inside a wanted value, three characters or more."""
+    if isinstance(value, str):
+        return [value] if len(value.strip()) >= 3 else []
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, (list, tuple)):
+        return [one for item in value for one in _leaves(item)]
+    return []
+
+
+def _kept_and_made(examples, library, depth, clock, lists) -> list:
+    """A list made of some of another's elements (`[f(one) for one in L if
+    p(one)]`): in the examples whose wanted list is whole, each wanted
+    element is of the element of L that holds its words (the line a saying
+    of it was cut from), in order; what tells those apart from the rest is
+    found (p), and each wanted element found of its own (f) -- where the
+    wanted list is known only by its first elements, as many as it says."""
+    whole = [at for at, (_, want) in enumerate(examples)
+             if not isinstance(want, Prefix) and want]
+    if not whole:
+        return []
+    space = library.space()
+    for program, values in lists[:40]:
+        if clock.over():
+            break
+        labelled, ok = [], True
+        for at in whole:
+            items, want = values[at], examples[at][1]
+            if not all(isinstance(item, str) for item in items):
+                ok = False
+                break
+            chosen, start = [], 0
+            for element in want:
+                words = sorted(_leaves(element), key=len, reverse=True)
+                where = next((index for index in range(start, len(items))
+                              if words and words[0] in items[index]), None)
+                if where is None:
+                    ok = False
+                    break
+                chosen.append(where)
+                start = where + 1
+            if not ok:
+                break
+            labelled += [({**examples[at][0], "one": item}, index in chosen)
+                         for index, item in enumerate(items)]
+        if not ok or all(kept for _, kept in labelled):
+            continue
+        # what tells the elements kept from the rest: a flag in hand, or a
+        # word the kept all hold (`'=' in one`)
+        test = condition([inputs for inputs, kept in labelled if kept],
+                         [inputs for inputs, kept in labelled if not kept],
+                         library)
+        if test is None:
+            continue
+        inner = []
+        for (inputs, want), value in zip(examples, values):
+            taken = [item for item in value
+                     if _safe(test, {**inputs, "one": item}, space)]
+            if len(taken) < len(want) or not isinstance(want, Prefix) and \
+                    len(taken) != len(want):
+                inner = []
+                break
+            inner += [({**inputs, "one": item}, element)
+                      for item, element in zip(taken, want)]
+        if not inner:
+            continue
+        made = solve(inner, library, depth + 1, clock)
+        if made:
+            return [Program(
+                f"[{made[0].expr} for one in {program.expr} "
+                f"if {test.expr}]",
+                tuple(sorted(set(made[0].imports + test.imports +
+                                 program.imports))),
+                made[0].size + test.size + program.size + 1)]
+    return []
+
+
+def _safe(program: Program, inputs: dict, space: dict):
+    try:
+        return program(inputs, space)
+    except Exception:                               # noqa: BLE001
+        return None
+
+
+#: how a piece of text is read as a value: as written, and as the items
+#: of a call's arguments (`(1, 2), None` read as `[(1, 2), None]`)
+READ_AS = ("{}", "[{}]")
+
+
+def _plain(value):
+    """A value read as data: tuples as lists (what JSON keeps)."""
+    if isinstance(value, (list, tuple)):
+        return [_plain(one) for one in value]
+    if isinstance(value, dict):
+        return {key: _plain(one) for key, one in value.items()}
+    return value
+
+
+def _read(text: str):
+    import ast
+    return _plain(ast.literal_eval(text))
+
+
+def _windows(text: str, want, most: int) -> list:
+    """The pieces of a text that, read as a literal, are the wanted value:
+    [(piece, form)], cut where a word does not go on, first found first."""
+    out = []
+    starts = [at for at in range(len(text))
+              if at == 0 or not (text[at - 1].isalnum() and
+                                 text[at].isalnum())]
+    for start in starts:
+        for end in range(start + 1, min(len(text), start + most) + 1):
+            if end < len(text) and text[end - 1].isalnum() and \
+                    text[end].isalnum():
+                continue
+            piece = text[start:end]
+            if piece != piece.strip():
+                continue
+            for form in READ_AS:
+                try:
+                    if _same(_read(form.format(piece)), want):
+                        out.append((piece, form))
+                except Exception:                   # noqa: BLE001
+                    pass
+    return out
+
+
+def _parsed(examples, library, depth, clock) -> list:
+    """A value that is a piece of a string in hand read as a literal --
+    the piece found again as a string goal (by what is around it), read by
+    `ast.literal_eval` (tuples as lists)."""
+    out = []
+    for program, values in _strings(examples, library, clock)[:30]:
+        if clock.over():
+            break
+        found = []
+        for value, (_, want) in zip(values, examples):
+            most = 3 * len(repr(want)) + 4
+            found.append(_windows(value[:600], want, most))
+        if not all(found):
+            continue
+        for form in READ_AS:
+            for pick in (0, -1):
+                pieces = [[one for one in each if one[1] == form]
+                          for each in found]
+                if not all(pieces):
+                    continue
+                goal = [(inputs, each[pick][0]) for (inputs, _), each in
+                        zip(examples, pieces)]
+                inner = solve(goal, library, depth + 1, clock)
+                if not inner:
+                    continue
+                said = inner[0].expr if form == "{}" else \
+                    f"'[' + {inner[0].expr} + ']'"
+                out.append(Program(
+                    f"json.loads(json.dumps(ast.literal_eval({said})))",
+                    tuple(sorted(set(inner[0].imports +
+                                     ("import ast", "import json")))),
+                    inner[0].size + 1))
+                return out
     return out
 
 
@@ -413,7 +636,14 @@ def _contexts(texts: list, suffix: bool) -> list:
     if all(text.endswith(line) if suffix else text.startswith(line)
            for text in texts):
         out.append(line)
-    for length in range(2, min(len(shared), 12) + 1):
+    # one example shares all of itself with itself: any text beside the
+    # piece fits it, and fit by chance (`'\ _(.*?)si'` cut a saying out of
+    # a docstring); what two examples share says something of both
+    # -- and one character shared by three or more is no chance (`(` before
+    # the arguments of `vowels(`, `add(`, `f(`), where by two it was
+    least = 1 if len(texts) >= 3 else 2
+    for length in range(least, min(len(shared), 12) + 1) \
+            if len(texts) >= 2 else ():
         piece = shared[-length:] if suffix else shared[:length]
         out.append(piece)
     out.append("^" if suffix else "$")

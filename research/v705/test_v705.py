@@ -439,6 +439,31 @@ class DeduceTests(unittest.TestCase):
                                    [{"text": "function f(x) {}"}]).expr,
                          "'def' in text")
 
+    def test_values_read_from_some_lines_one_known_in_part(self):
+        from research.v705.deduce import ANY, Prefix, solve
+        examples = [
+            ({"text": 'count\nvowels("hello") == 2\nvowels("sky") == 0'},
+             [{"args": ["hello"], "value": 2,
+               "said": 'vowels("hello") == 2'},
+              {"args": ["sky"], "value": 0, "said": 'vowels("sky") == 0'}]),
+            ({"text": "add them\nadd(1, 2) == 3"},
+             [{"args": [1, 2], "value": 3, "said": "add(1, 2) == 3"}]),
+            ({"text": "pairs\nf((1, 2), None) == [2, 1]"},
+             Prefix([{"args": [[1, 2], None], "value": ANY,
+                      "said": ANY}]))]
+        found = solve(examples)
+        self.assertTrue(found)
+        made = found[0]({"text": "g\ng('a', (3,)) == {'k': 1}"},
+                        {**__import__("research.v705.deduce", fromlist=[
+                            "Library"]).Library().space()})
+        self.assertEqual(made, [{"args": ["a", [3]], "value": {"k": 1},
+                                 "said": "g('a', (3,)) == {'k': 1}"}])
+
+    def test_one_example_gives_no_context_by_chance(self):
+        from research.v705.deduce import solve
+        self.assertEqual(solve([({"where": "a _mysaid si b"}, "mysaid")]),
+                         [])
+
 
 class MeansTests(unittest.TestCase):
     """Designing by means-ends (`means`): goals from how a test falls,
