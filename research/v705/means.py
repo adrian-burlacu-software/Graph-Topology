@@ -865,13 +865,15 @@ def _library(function):
         return isinstance(value, dict) and len(value) >= 3 and all(
             isinstance(key, str) and isinstance(one, str)
             for key, one in list(value.items())[:50])
+    back = _calling(module, function) if module else set()
     for name, value in vars(module).items() if module else []:
         if name.startswith("__"):
             continue
         if table(value):
             held[name] = (value, None)
         elif inspect.isfunction(value) and value.__module__ == \
-                module.__name__ and value is not function:
+                module.__name__ and value is not function and \
+                name not in back:
             try:
                 needed = [one for one in inspect.signature(
                     value).parameters.values()
@@ -890,6 +892,40 @@ def _library(function):
                 held.setdefault(alias, (value, f"from {modname} import "
                                                f"{name} as {alias}"))
     return Library(held)
+
+
+def _calling(module, function) -> set:
+    """The module's functions that call back into `function`, at once or
+    through others of it: a program for it may not call them (`read`
+    given `answered(text)`, which reads the request again)."""
+    import inspect
+    import types
+
+    def names(code) -> set:
+        out = set(code.co_names)
+        for one in code.co_consts:
+            if isinstance(one, types.CodeType):
+                out |= names(one)
+        return out
+    calls = {}
+    for name, value in vars(module).items():
+        if inspect.isfunction(value) and value.__module__ == module.__name__:
+            calls[name] = names(value.__code__)
+        elif inspect.isclass(value) and value.__module__ == module.__name__:
+            for one in vars(value).values():
+                if inspect.isfunction(one):
+                    calls.setdefault(value.__name__, set()).update(
+                        names(one.__code__))
+    # the name it is called by: its own, and its class's for a method
+    target = {function.__name__, function.__qualname__.split(".")[0]}
+    back, grown = set(), True
+    while grown:
+        grown = False
+        for name, called in calls.items():
+            if name not in back and called & (target | back):
+                back.add(name)
+                grown = True
+    return back
 
 
 def _target(name: str, path: list) -> str:
@@ -979,8 +1015,12 @@ def deduced(case: dict, source: str, wanted: dict, held: dict, verify,
         if condition:
             body = [f"    if {condition.expr}:"] + [
                 "    " + one for one in body]
-        statements.append("\n".join(["try:"] + body +
-                                    ["except Exception:", "    pass"]))
+        # only what says "not here" (nothing found to index, a None to read
+        # a group of): not a recursion or a stop, which kept swallowed ran
+        # read -> answered -> read on without end
+        statements.append("\n".join(["try:"] + body + [
+            "except (LookupError, TypeError, ValueError, AttributeError):",
+            "    pass"]))
         row.setdefault("deduction", []).append(
             f"{_target('it', path)} = {program.expr}"
             + (f" if {condition.expr}" if condition else ""))

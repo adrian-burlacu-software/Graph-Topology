@@ -256,10 +256,17 @@ def _watched(seconds: float):
     class Watch:
         def __init__(self):
             self.raised = threading.Timer(seconds, self.stop)
-            self.ended = threading.Timer(2 * seconds, lambda: os._exit(3))
+            self.ended = threading.Timer(2 * seconds, self.end)
             for one in (self.raised, self.ended):
                 one.daemon = True
                 one.start()
+
+        def end(self):
+            # where it was stuck, said before it goes
+            import faulthandler
+            import sys
+            faulthandler.dump_traceback(sys.__stderr__, all_threads=True)
+            os._exit(3)
 
         def stop(self):
             ctypes.pythonapi.PyThreadState_SetAsyncExc(
