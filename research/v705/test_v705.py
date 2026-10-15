@@ -479,5 +479,51 @@ class MeansTests(unittest.TestCase):
         self.assertTrue(commits.copies_test(case, spec, text))
 
 
+class VerifyTests(unittest.TestCase):
+    """What a change is judged by, beyond its tests passing."""
+
+    def test_a_read_some_way_leaves_unset(self):
+        from research.v705.commits import unbound
+        self.assertEqual(unbound(
+            "def run(self, key):\n"
+            "    with self._lock:\n"
+            "        if key not in self._cache:\n"
+            "            answer = self.loop.run(key)\n"
+            "            return answer\n"
+            "        else:\n"
+            "            return answer\n"), {"answer"})
+        self.assertEqual(unbound(
+            "def f(a):\n"
+            "    if not a:\n"
+            "        return 0\n"
+            "    else:\n"
+            "        y = 1\n"
+            "    try:\n"
+            "        z = g()\n"
+            "    except E:\n"
+            "        raise\n"
+            "    return [x for x in y if x] + z\n"), set())
+
+    def test_a_thread_that_dies_fails_its_test(self):
+        import sys
+        import threading
+        from research.v705 import commits
+
+        class Dies(unittest.TestCase):
+            def test_it(self):
+                one = threading.Thread(target=lambda: 1 / 0)
+                one.start()
+                one.join()
+        here = sys.modules[__name__]
+        here._Dies = Dies
+        try:
+            self.assertFalse(commits.passes(
+                {"file": "research/v705/test_v705.py",
+                 "test": "_Dies.test_it"}))
+            self.assertIn("ZeroDivisionError", commits.LAST["failure"])
+        finally:
+            del here._Dies
+
+
 if __name__ == "__main__":
     unittest.main()

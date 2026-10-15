@@ -155,12 +155,31 @@ def passes(test: dict) -> bool:
     result = unittest.TestResult()
     import io
     import contextlib
-    with contextlib.redirect_stdout(io.StringIO()), \
-            contextlib.redirect_stderr(io.StringIO()):
-        cls(method).run(result)
+    import threading
+    # a thread the test starts that dies of an error is the test failing:
+    # unittest never hears of it, and `Service.run` held with its waiting
+    # readers ending on `return answer` unbound, `calls == ['same']` true
+    before = {one.ident for one in threading.enumerate()}
+    died = []
+    hook = threading.excepthook
+
+    def heard(args):
+        if args.thread is None or args.thread.ident not in before:
+            died.append(f"{args.exc_type.__name__}: {args.exc_value}")
+        else:
+            hook(args)
+    threading.excepthook = heard
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            cls(method).run(result)
+    finally:
+        threading.excepthook = hook
     LAST["failure"] = next((text for _, text in result.failures +
                             result.errors), "")
-    return result.wasSuccessful()
+    if died and not LAST["failure"]:
+        LAST["failure"] = f"a thread it started died: {died[0]}"
+    return result.wasSuccessful() and not died
 
 
 #: what the last test run said where it failed (`passes`)
@@ -417,6 +436,9 @@ def verifier(case: dict, function):
         copied = copies_test(case, function, text)
         if copied:
             return f"it writes the test's {copied!r} into the code"
+        loose = reads_unbound(function, text)
+        if loose:
+            return f"it reads {loose} where a way there leaves it unset"
         if "guards" not in case:
             # what passes beside them, as the code is: kept passing --
             # taking out a line the failing test trips on passed it twice
@@ -495,6 +517,200 @@ def copies_test(case: dict, function, text: str) -> str | None:
         if any(value in one for value in wanted):
             return core[:60]
     return None
+
+
+def reads_unbound(function, text: str) -> str | None:
+    """A local name a change reads where some way to that read never sets
+    it, and the function as it was had no such read -- passing tests that
+    never take that way say nothing of it (`return answer` in the branch
+    that found the answer cached). None where it adds none."""
+    import inspect
+    try:
+        was = unbound(inspect.getsource(function))
+    except (OSError, TypeError):
+        was = set()
+    name = function.__qualname__
+    found = functions(text)
+    now = found.get(name, "") or found.get(name.split(".")[-1], "")
+    new = sorted(unbound(now) - was) if now else []
+    return new[0] if new else None
+
+
+def unbound(source: str) -> set:
+    """The local names a function reads somewhere a way to it leaves them
+    unset: each statement taken in order with what is surely set by then
+    -- both arms of an `if` for what follows, none of a loop's body, a
+    `try`'s handlers from before it; a way that returns, raises, breaks or
+    goes on sets everything (nothing after it on that way runs)."""
+    import textwrap
+    try:
+        tree = ast.parse(textwrap.dedent(source))
+    except SyntaxError:
+        return set()
+    function = next((one for one in tree.body if isinstance(
+        one, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+    if function is None:
+        return set()
+    arguments = function.args
+    given = {one.arg for one in arguments.posonlyargs + arguments.args +
+             arguments.kwonlyargs} | {one.arg for one in (arguments.vararg,
+                                                          arguments.kwarg)
+                                      if one}
+    outer = set()
+    local = set(given)
+    for node in _own(function.body):
+        if isinstance(node, (ast.Global, ast.Nonlocal)):
+            outer |= set(node.names)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (
+                ast.Store, ast.Del)):
+            local.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                               ast.ClassDef)):
+            local.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            local |= {(one.asname or one.name).split(".")[0]
+                      for one in node.names}
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            local.add(node.name)
+    local -= outer
+    flagged: set = set()
+
+    def read(node, bound):
+        for one in _own([node], expression=True):
+            if isinstance(one, ast.Name) and isinstance(one.ctx, ast.Load) \
+                    and one.id in local and one.id not in bound:
+                flagged.add(one.id)
+        for one in _own([node], expression=True):
+            if isinstance(one, ast.NamedExpr):
+                bound.add(one.target.id)
+
+    def sets(target) -> set:
+        return {one.id for one in ast.walk(target)
+                if isinstance(one, ast.Name)} | {
+            getattr(one, "name", None) or getattr(one, "rest", None)
+            for one in ast.walk(target) if isinstance(one, (
+                ast.MatchAs, ast.MatchStar, ast.MatchMapping))} - {None}
+
+    def walk(body, bound):
+        """What is surely set after `body`, or None where it never ends
+        by running off its end."""
+        bound = set(bound)
+        for statement in body:
+            if isinstance(statement, (ast.Return, ast.Raise)):
+                for part in ast.iter_child_nodes(statement):
+                    read(part, bound)
+                return None
+            if isinstance(statement, (ast.Break, ast.Continue)):
+                return None
+            if isinstance(statement, ast.If):
+                read(statement.test, bound)
+                arms = [walk(statement.body, bound),
+                        walk(statement.orelse, bound)]
+                ended = [one for one in arms if one is not None]
+                if not ended:
+                    return None
+                bound = set.intersection(*ended)
+            elif isinstance(statement, (ast.For, ast.AsyncFor)):
+                read(statement.iter, bound)
+                walk(statement.body, bound | sets(statement.target))
+                after = walk(statement.orelse, bound)
+                bound = after if after is not None else bound
+            elif isinstance(statement, ast.While):
+                read(statement.test, bound)
+                walk(statement.body, bound)
+                after = walk(statement.orelse, bound)
+                bound = after if after is not None else bound
+            elif isinstance(statement, (ast.With, ast.AsyncWith)):
+                for item in statement.items:
+                    read(item.context_expr, bound)
+                    if item.optional_vars is not None:
+                        bound |= sets(item.optional_vars)
+                after = walk(statement.body, bound)
+                if after is None:
+                    return None
+                bound = after
+            elif isinstance(statement, ast.Try) or type(
+                    statement).__name__ == "TryStar":
+                tried = walk(statement.body, bound)
+                tried = walk(statement.orelse, tried) if tried is not None \
+                    else None
+                caught = [walk(handler.body, bound | ({handler.name} if
+                                                      handler.name else
+                                                      set()))
+                          for handler in statement.handlers]
+                ended = [one for one in [tried] + caught if one is not None]
+                after = walk(statement.finalbody, set.intersection(*ended)
+                             if ended else bound)
+                if not ended or after is None:
+                    return None
+                bound = after
+            elif isinstance(statement, ast.Match):
+                read(statement.subject, bound)
+                arms = [walk(case.body, bound | sets(case.pattern))
+                        for case in statement.cases] + [bound]
+                bound = set.intersection(*[one for one in arms
+                                           if one is not None])
+            elif isinstance(statement, (ast.FunctionDef,
+                                        ast.AsyncFunctionDef,
+                                        ast.ClassDef)):
+                for part in statement.decorator_list:
+                    read(part, bound)
+                bound.add(statement.name)
+            elif isinstance(statement, (ast.Import, ast.ImportFrom)):
+                bound |= {(one.asname or one.name).split(".")[0]
+                          for one in statement.names}
+            elif isinstance(statement, ast.AugAssign):
+                read(statement.value, bound)
+                read(statement.target, bound)
+                if isinstance(statement.target, ast.Name) and \
+                        statement.target.id in local and \
+                        statement.target.id not in bound:
+                    flagged.add(statement.target.id)
+            elif isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                if statement.value is not None:
+                    read(statement.value, bound)
+                targets = statement.targets if isinstance(
+                    statement, ast.Assign) else [statement.target]
+                for target in targets:
+                    if not isinstance(target, ast.Name):
+                        read(target, bound)
+                    bound |= {one.id for one in ast.walk(target) if
+                              isinstance(one, ast.Name) and
+                              isinstance(one.ctx, ast.Store)}
+            elif isinstance(statement, ast.Delete):
+                for target in statement.targets:
+                    read(target, bound)
+                    if isinstance(target, ast.Name):
+                        bound.discard(target.id)
+            else:
+                for part in ast.iter_child_nodes(statement):
+                    read(part, bound)
+        return bound
+    walk(function.body, given)
+    return flagged
+
+
+def _own(nodes: list, expression: bool = False):
+    """The nodes under these in the same scope: not inside a function,
+    lambda, class or comprehension of their own (a comprehension's reads
+    of its own names are not the function's)."""
+    scoped = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+              ast.Lambda, ast.ListComp, ast.SetComp, ast.DictComp,
+              ast.GeneratorExp)
+    stack = list(nodes)
+    while stack:
+        node = stack.pop()
+        yield node
+        if isinstance(node, scoped):
+            if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                                 ast.GeneratorExp)):
+                # the first iterable is read in the function's own scope
+                stack.append(node.generators[0].iter)
+            elif not expression and isinstance(node, (
+                    ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            continue
+        stack.extend(ast.iter_child_nodes(node))
 
 
 def _beside(case: dict) -> list:
