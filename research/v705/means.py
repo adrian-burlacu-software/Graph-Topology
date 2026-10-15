@@ -1373,23 +1373,20 @@ def _case_key(case: dict) -> str:
                         f"{case['before']}".encode()).hexdigest()[:16]
 
 
-def run(most: int = 0, which: str = "design", only: str = "") -> dict:
-    """Each held-out bug (`design.cases`, or the history's measured ones):
-    the goal from its test, the plans, each put in and judged by the
-    tests and those beside them."""
-    import importlib
-    import linecache
-    from research.v705 import design, inside
-    held = json.loads((ROOT / "state" / "v705-semantics.json").read_text(
-        encoding="utf-8"))
+def cases(which: str = "design", most: int = 0) -> list:
+    """The bugs of a set: `design` (helpers taken out), `planted`
+    (its own code made wrong by one edit, giving a wrong answer), or
+    the history's measured ones -- each {file, function, before,
+    tests, ...}."""
+    from research.v705 import design
     if which == "design":
         found = design.cases()[:most or None]
     elif which == "planted":
         # its own code made wrong by one edit, held out, giving a wrong
         # answer (`planted`): the function as wrong is the one put back
+        # judged as every other set is (`commits._beside`: the class's
+        # tests and those anywhere that run it), not four of its covering
         from research.v705 import planted
-        covered = json.loads(planted.COVERED.read_text(
-            encoding="utf-8"))["functions"]
         found = []
         for row in map(json.loads, planted.PLANTED.open(encoding="utf-8")):
             for bug in row["bugs"]:
@@ -1400,10 +1397,7 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
                     found.append({
                         "file": row["file"], "function": row["function"],
                         "before": bug["wrong"], "tests": tests,
-                        "message": f"make {tests[0]['test']} pass",
-                        "guards": [one for one in covered[row["place"]][:4]
-                                   if one["test"] not in
-                                   {test["test"] for test in tests}]})
+                        "message": f"make {tests[0]['test']} pass"})
         found = found[:most or 30]
     else:
         mined = {(one["sha"], one["function"]): one for one in
@@ -1413,6 +1407,19 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
                  for one in map(json.loads, commits.CHECKED.open(
                      encoding="utf-8")) if one["status"] == "bug"][
             :most or commits.MEASURED]
+    return found
+
+
+def run(most: int = 0, which: str = "design", only: str = "") -> dict:
+    """Each held-out bug (`design.cases`, or the history's measured ones):
+    the goal from its test, the plans, each put in and judged by the
+    tests and those beside them."""
+    import importlib
+    import linecache
+    from research.v705 import design, inside
+    held = json.loads((ROOT / "state" / "v705-semantics.json").read_text(
+        encoding="utf-8"))
+    found = cases(which, most)
     if only:
         found = [one for one in found if one["function"] == only]
     counts = {"bugs": len(found), "goal": 0, "planned": 0, "fixed": 0}
@@ -1446,7 +1453,7 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
         function = commits._current(case)
         name = str(ROOT / case["file"]) + commits.PLANTED
         linecache.cache[name] = (len(old), None, old.splitlines(True), name)
-        row = {"function": case["function"], "helper": helper}
+        row = {"function": case["function"], "helper": helper, "key": key}
         try:
             if helper:
                 delattr(module, helper)
@@ -1486,9 +1493,44 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
     return counts
 
 
+def judge(which: str) -> dict:
+    """Each change a run held (state/<out>) against the true function
+    (`truth.real`): every call of it the tests make, and every quick test
+    that runs it -- the held ones counted again as real or not, and kept
+    in each row as `truth`."""
+    from research.v705 import truth
+    found = {_case_key(case): case for case in cases(which)}
+    data = json.loads(OUT.read_text(encoding="utf-8"))
+    counts = {"held": 0, "real": 0}
+    for at, row in enumerate(data["each"]):
+        # by its key; rows written before they kept one, by their place
+        case = found.get(row.get("key")) or (
+            list(found.values())[at] if len(data["each"]) == len(found)
+            else None)
+        if not row.get("fixed") or case is None:
+            continue
+        counts["held"] += 1
+        true = commits._current(case)
+        disk = (ROOT / case["file"]).read_text(encoding="utf-8")
+        old = disk.replace(commits.functions(disk)[case["function"]],
+                           case["before"])
+        text = commits._placed(row["fixed"]["source"], case["before"], old)
+        row["truth"] = truth.real(case, true, text) if text else {
+            "real": False, "why": "not placed"}
+        counts["real"] += bool(row["truth"]["real"])
+        print(case["function"], json.dumps(row["truth"])[:300], flush=True)
+    data["real"] = counts["real"]
+    OUT.write_text(json.dumps(data, indent=1, default=repr),
+                   encoding="utf-8")
+    print(json.dumps(counts))
+    return counts
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("run", "history", "planted"))
+    parser.add_argument("job", choices=("run", "history", "planted",
+                                        "judge-run", "judge-history",
+                                        "judge-planted"))
     parser.add_argument("--most", type=int, default=0)
     parser.add_argument("--out", default="")
     parser.add_argument("--only", default="",
@@ -1497,6 +1539,10 @@ def main(argv=None) -> int:
     global OUT
     if options.out:
         OUT = ROOT / "state" / options.out
+    if options.job.startswith("judge-"):
+        which = options.job.split("-", 1)[1]
+        judge({"run": "design"}.get(which, which))
+        return 0
     run(options.most, {"run": "design"}.get(options.job, options.job),
         options.only)
     return 0
