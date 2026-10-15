@@ -169,11 +169,15 @@ def passes(test: dict) -> bool:
         else:
             hook(args)
     threading.excepthook = heard
+    # every test watched here, not by each that runs one: localizing ran
+    # the planted bug's own endless loop unwatched to 20 GB
+    timer = _watched(PASS_SECONDS)
     try:
         with contextlib.redirect_stdout(io.StringIO()), \
                 contextlib.redirect_stderr(io.StringIO()):
             cls(method).run(result)
     finally:
+        timer.cancel()
         threading.excepthook = hook
     LAST["failure"] = next((text for _, text in result.failures +
                             result.errors), "")
@@ -182,6 +186,9 @@ def passes(test: dict) -> bool:
     return result.wasSuccessful() and not died
 
 
+#: how long any one test may run (seconds): a TimeoutError in it after,
+#: the process ended at twice
+PASS_SECONDS = 60
 #: what the last test run said where it failed (`passes`)
 LAST: dict = {}
 

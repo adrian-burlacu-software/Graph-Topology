@@ -26,6 +26,9 @@ from research.v705 import commits
 
 #: the lines tried, most suspected first, and the edits tried in all
 LINES, MOST = 8, 400
+#: how long a test run for its lines may take (they took under three
+#: seconds when the coverage was gathered)
+SPECTRUM_SECONDS = 20
 #: the calls put round a value where one is missing
 WRAPS = ("len", "str", "int", "list", "sorted", "set", "tuple", "bool",
          "abs", "min", "max", "sum", "any", "all", "reversed", "repr")
@@ -56,10 +59,15 @@ def _lines_run(function, run) -> set:
         for code in codes:
             monitoring.set_local_events(tool, code, monitoring.events.LINE)
         monitoring.restart_events()
+        # watched as every test is: the bug itself may never end on one
+        # (_split_top planted wrong grew to 20 GB here, unwatched)
+        timer = commits._watched(SPECTRUM_SECONDS)
         try:
             run()
         except Exception:                           # noqa: BLE001
             pass
+        finally:
+            timer.cancel()
     finally:
         for code in codes:
             monitoring.set_local_events(tool, code, 0)
