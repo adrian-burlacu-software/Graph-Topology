@@ -379,6 +379,67 @@ class MeasureTests(unittest.TestCase):
         self.assertGreater(measures.repetition("a b c a b c"), 0)
 
 
+class DeduceTests(unittest.TestCase):
+    """Deduction (`deduce`): a wanted value broken down by its shape, each
+    part found, the whole put back -- most general first."""
+
+    REQUESTS = [({"text": 'count the vowels\ndef vowels(s: str) -> int:\n'
+                          'vowels("hello") == 2'},
+                 "def vowels(s: str) -> int:"),
+                ({"text": "add two\ndef add(a: int, b: int) -> int:\n"
+                          "add(1, 2) == 3"},
+                 "def add(a: int, b: int) -> int:")]
+
+    def solved(self, examples, library=None):
+        from research.v705.deduce import solve
+        found = solve(examples, library)
+        self.assertTrue(found, examples)
+        return found[0].expr
+
+    def test_a_piece_by_what_it_begins_with(self):
+        said = self.solved(self.REQUESTS[:1])
+        self.assertIn("^(def", said)
+        self.assertNotIn("vowe", said)
+
+    def test_pieces_put_one_after_another(self):
+        self.assertEqual(self.solved(
+            [({"name": "vowels", "ret": "int"}, "def vowels() -> int:"),
+             ({"name": "add", "ret": "str"}, "def add() -> str:")]),
+            "'def ' + name + '() -> ' + ret + ':'")
+
+    def test_a_list_made_of_another(self):
+        self.assertEqual(self.solved(
+            [({"sig": "s: str"}, [["s", "str"]]),
+             ({"sig": "a: int, b: int"}, [["a", "int"], ["b", "int"]])]),
+            "[one.split(': ') for one in sig.split(', ')]")
+
+    def test_a_list_kept_of_another(self):
+        self.assertEqual(self.solved(
+            [({"xs": [1, 2, 3, 4]}, [2, 4]), ({"xs": [5, 6]}, [6])]),
+            "[one for one in xs if one % 2 == 0]")
+
+    def test_joined(self):
+        self.assertEqual(self.solved(
+            [({"xs": ["a", "b"]}, "a, b"), ({"xs": ["c", "d", "e"]},
+                                            "c, d, e")]),
+            "', '.join(xs)")
+
+    def test_its_own_table(self):
+        from research.v696 import pytypes
+        from research.v705.deduce import Library
+        library = Library({"BACK": (pytypes.BACK, "from research.v696."
+                                                  "pytypes import BACK")})
+        self.assertEqual(self.solved([({"kind": "string"}, "str"),
+                                      ({"kind": "number"}, "int")], library),
+                         "BACK.get(kind, kind)")
+
+    def test_a_condition_by_a_word(self):
+        from research.v705.deduce import condition
+        self.assertEqual(condition([{"text": "def f(x): pass"}],
+                                   [{"text": "function f(x) {}"}]).expr,
+                         "'def' in text")
+
+
 class MeansTests(unittest.TestCase):
     """Designing by means-ends (`means`): goals from how a test falls,
     moves put in, and what a change may not write."""
