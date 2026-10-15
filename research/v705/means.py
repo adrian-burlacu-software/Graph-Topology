@@ -732,7 +732,75 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
                        row, depth + 1, moves + (why,))
         if found:
             return found
+    # a goal no move of its own reaches: the code model told it exactly
+    # -- the moves so far, what the check gets and should -- writes the
+    # function as it stands now
+    if LEAVES:
+        for made_source, why in _leaf(case, source, wanted, moves):
+            text = commits._placed(made_source, case["before"], old)
+            if text is None:
+                continue
+            said = verify(text)
+            row.setdefault("tries", []).append(
+                [depth, " / ".join(moves + (why,))[:160],
+                 (said or "holds")[:100]])
+            if said is None:
+                return {"moves": list(moves + (why,)), "source": made_source}
     return None
+
+
+#: whether a goal no move reaches is given to the code model
+LEAVES = True
+
+LEAF = ("A function of a Python project is being changed step by step "
+        "toward a goal: {goal}\nThe steps taken so far: {moves}\nThe "
+        "function as it is now:\n```python\n{source}\n```\nWhat its test "
+        "checks now: {check}\nIn the same file, beside it:\n{reach}\nWrite "
+        "the whole function changed so that the check holds -- the same "
+        "name and parameters -- in one ```python block, nothing else.")
+
+
+def _leaf(case: dict, source: str, wanted: dict, moves: tuple) -> list:
+    """The code model's answers for a goal said exactly: [(source,
+    why)]."""
+    from research.v705 import coder
+    one = wanted.get("failing")
+    crash = wanted.get("crash")
+    if one:
+        check = (f"{one['check']} of {one.get('path') or 'a value'}"
+                 f"{' (made by ' + one['made by'] + ')' if one.get('made by') else ''}"
+                 f": it gets {one['got']}, it should be {one.get('wanted')}")
+    elif crash:
+        check = f"the test falls: {json.dumps(crash)} -- " \
+                f"{(wanted.get('raised') or '').strip().splitlines()[-1]}"
+    else:
+        return []
+    asked = LEAF.format(goal=case["message"],
+                        moves="; ".join(moves) or "none",
+                        source=textwrap.dedent(source), check=check,
+                        reach="\n".join(commits.reach(case)))
+    replies = coder.get().write([asked], longest=900, samples=coder.TRIES,
+                                temperature=0.8)[0]
+    out, seen = [], set()
+    name = case["function"].split(".")[-1]
+    for reply in replies:
+        code = commits._code_of(reply)
+        if not code:
+            continue
+        try:
+            tree = ast.parse(textwrap.dedent(code))
+        except SyntaxError:
+            continue
+        found = next((node for node in ast.walk(tree) if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+            node.name == name), None)
+        if found is None:
+            continue
+        made = ast.unparse(found)
+        if made not in seen:
+            seen.add(made)
+            out.append((made, f"the code model wrote it ({check[:60]})"))
+    return out
 
 
 def run(most: int = 0, which: str = "design") -> dict:
