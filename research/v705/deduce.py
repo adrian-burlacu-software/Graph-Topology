@@ -54,6 +54,7 @@ class Program:
         # store is not what they give (`known_of` read a file a call, and
         # the search ran out of time on it)
         _PURE.on = True
+        _RUNS[0] += 1
         try:
             return eval(_compiled(self.expr), space, dict(inputs))  # noqa: S307
         finally:
@@ -171,12 +172,22 @@ class _Clock:
     (the same inputs are grown over for every part of a value)."""
 
     def __init__(self, seconds: float) -> None:
-        self.until = time.time() + seconds
+        # counted in programs run, so a solve finds the same on a busy
+        # machine as an idle one (read's examples were found alone and not
+        # after seven cases had run); the time only as a last stop
+        self.until = time.time() + seconds * 4
+        self.last = _RUNS[0] + int(seconds * RUNS_A_SECOND)
         self.grown: dict = {}
         self.impure: set = set()
 
     def over(self) -> bool:
-        return time.time() > self.until
+        return _RUNS[0] > self.last or time.time() > self.until
+
+
+#: programs run so far, by any solve
+_RUNS = [0]
+#: programs an idle machine runs a second (the budget's measure)
+RUNS_A_SECOND = 300_000
 
 
 # -- search over what is in hand -------------------------------------------------
