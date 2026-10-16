@@ -425,6 +425,14 @@ def _context(tree, module_source: str) -> dict:
     names += [f"{one}.{field}" for one in list(names)
               for field in sorted(receivers.get(one, set()))[:4]]
     methods = sorted(receivers.get("self", set()))
+    # a field compared with a value somewhere in the module
+    compared = list(dict.fromkeys(
+        (one.left.attr, one.comparators[0].value) for one in ast.walk(module)
+        if isinstance(one, ast.Compare) and len(one.ops) == 1 and isinstance(
+            one.ops[0], (ast.Eq, ast.NotEq)) and isinstance(
+            one.left, ast.Attribute) and isinstance(one.comparators[0],
+                                                    ast.Constant)
+        and isinstance(one.comparators[0].value, (str, int))))
     # parts a condition may lack: what it indexes counted, a part of it
     # compared with a name, two names compared
     subscripts = list(dict.fromkeys(
@@ -449,7 +457,61 @@ def _context(tree, module_source: str) -> dict:
             "containers": list(dict.fromkeys(containers)),
             "names": list(dict.fromkeys(names)), "methods": methods,
             "conjuncts": list(dict.fromkeys(conjuncts)),
+            "compared": compared,
             "wraps": list(dict.fromkeys(called + list(WRAPS)))}
+
+
+#: helpers offered at a place at most
+HELPERS = 8
+
+
+def _helpers(function, context: dict) -> list:
+    """[(name, its arguments as this function would give them)]: the
+    module's own functions this one does not call yet whose parameters
+    without a default it holds by name."""
+    import inspect
+    namespace = context.get("namespace") or {}
+    module = namespace.get("__name__")
+    called = {ast.unparse(one.func) for one in ast.walk(function)
+              if isinstance(one, ast.Call)}
+    out = []
+    for name, value in namespace.items():
+        if not inspect.isfunction(value) or value.__module__ != module or                 name == function.name or name in called:
+            continue
+        try:
+            needed = [one.name for one in inspect.signature(
+                value).parameters.values()
+                if one.default is inspect.Parameter.empty and one.kind in (
+                    one.POSITIONAL_ONLY, one.POSITIONAL_OR_KEYWORD)]
+        except (TypeError, ValueError):
+            continue
+        if needed and all(one in context["bound"] for one in needed):
+            out.append((name, needed))
+    return out
+
+
+def _dispatched(tree, helpers: list, context: dict) -> list:
+    """`if <a case>: return <helper>(...)` first in the function: the case
+    a field compared with a value as the module compares it elsewhere
+    (`x.language == 'python'` said somewhere is what makes `bug.language
+    == 'python'` a case)."""
+    function = tree.body[0]
+    at = 1 if function.body and isinstance(function.body[0], ast.Expr) and         isinstance(getattr(function.body[0], "value", None), ast.Constant)         else 0
+    line = function.body[at].lineno if len(function.body) > at else         function.lineno
+    cases = [f"{holder}.{field} == {value!r}"
+             for holder in context["bound"]
+             for field, value in context.get("compared", [])
+             if field in context["receivers"].get(holder, set())][:12]
+    out = []
+    for name, args in helpers[:HELPERS]:
+        for case in cases:
+            made = copy.deepcopy(tree)
+            made.body[0].body.insert(at, ast.parse(
+                f"if {case}:" + chr(10) + f"    return {name}({', '.join(args)})"
+            ).body[0])
+            out.append((line, f"if {case}: return {name}(...)",
+                        ast.unparse(ast.fix_missing_locations(made))))
+    return out
 
 
 def candidates(source: str, lines: list, module_source: str = "",
@@ -467,6 +529,22 @@ def candidates(source: str, lines: list, module_source: str = "",
         if isinstance(node, ast.comprehension) for one in node.ifs}
     nodes = list(ast.walk(function))
     out = []
+    # a feature's own shape: a case handed to a helper of the module that
+    # takes what this function holds -- `if bug.language == 'python':
+    # return _repair_python(bug, budget, rewrite)`; and a default given by
+    # one (`... if name else _super(...)` for `... else None`)
+    helpers = _helpers(function, context)
+    out += _dispatched(tree, helpers, context)
+    for index, node in enumerate(nodes):
+        if isinstance(node, ast.Constant) and node.value is None and                 getattr(node, "lineno", None) in lines:
+            for name, args in helpers[:HELPERS]:
+                made = copy.deepcopy(tree)
+                target = list(ast.walk(made.body[0]))[index]
+                call = ast.parse(f"{name}({', '.join(args)})",
+                                 mode="eval").body
+                if _replace(_parents(made), target, call):
+                    out.append((node.lineno, f"None -> {name}(...)",
+                                ast.unparse(ast.fix_missing_locations(made))))
     for line in lines:
         for index, node in enumerate(nodes):
             if getattr(node, "lineno", None) != line or node is function:
