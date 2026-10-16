@@ -561,7 +561,10 @@ def change(statement: str, held, subject, key=None,
     offers for what that says."""
     first = _change_once(statement, held, subject, key, context=context,
                          spans=spans)
-    if first["status"] != "changed":
+    if first["status"] != "changed" or first.get("by kind"):
+        # made as the kind the reader read: its roles say what the change
+        # is, all of it -- the words the statement shares with the code are
+        # not more of it to change (`a`, in `take a message`)
         return first
     named = set(first.get("named", ()))
     done = set(first.get("touched", ()))
@@ -881,9 +884,18 @@ def _change_once(statement: str, held, subject, key=None,
             after = _with_imports(path, "".join(lines[:start - 1]) + made +
                                   "".join(lines[end:]),
                                   (context or {}).get("imports"))
+            # what it touches of what was said: the names the statement
+            # shares with the code, and what the reader marked it to take,
+            # pass or call -- in the lines it changes (`message`, taken; the
+            # words the statement shares with the code are `gained` and `a`,
+            # on lines a parameter put on the end does not change)
+            marked = {word for role, found in spans.items()
+                      if role != "SUBJ" for one in found
+                      for word in re.findall(r"\w+", one)}
+            changed_ = _changed_names(part, made)
             row.update({"index": len(tried) - 1, "agree": 1, "text": after,
                         "made": made, "touched": sorted(
-                            named & _changed_names(part, made))})
+                            (named & changed_) | (marked & changed_))})
             seen[made] = row
             check(row)
     out = {"subject": subject.name, "file": path, "lines": [start, end],
@@ -1021,6 +1033,7 @@ def _change_once(statement: str, held, subject, key=None,
         "folder on disk was given)"
     out.update({
         "status": "changed", "written": written, "diff": changed,
+        "by kind": bool(best.get("by kind")),
         "agree": best["agree"], "of": len(answers),
         "touched": best["touched"],
         "said": (f"Changed "

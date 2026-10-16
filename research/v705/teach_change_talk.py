@@ -68,7 +68,10 @@ FORMS = {
               "helper {HELPER} -- like 'when it is {CASE}, {SUBJ} should "
               "use {HELPER}', 'for {CASE}, have {SUBJ} call {HELPER} "
               "instead', '{SUBJ} should send {CASE} to {HELPER}'",
-              "asking that a function handle one case by calling a helper"),
+              # said of the example filled in: asked abstractly, the check
+              # left 140 of 155 out, as plain as 'for {CASE}, have {SUBJ}
+              # call {HELPER} instead'
+              "asking that {SUBJ} call {HELPER} when it is {CASE}"),
 }
 #: the roles of what a change names, after the reader's own (`K.ROLES`)
 ROLES = ("NEW", "DEFAULT", "VALUE", "CALLEE", "CASE", "HELPER")
@@ -117,6 +120,12 @@ def _slots(text: str) -> list:
     return re.findall(r"\{(%s)\}" % "|".join(SLOTS), text)
 
 
+#: the kinds a request is checked against, and each form's
+CHOICES = ("that the function parse take a new input or parameter",
+           "that inside parse, a value be passed on to another call",
+           "that parse call another function for one particular case",
+           "something else")
+KIND_OF = {"takes": 0, "takes default": 0, "passes": 1, "hands": 2}
 #: what each slot is shown as when a request is checked
 SHOWN = {"SUBJ": "parse", "NEW": "language", "DEFAULT": "None",
          "VALUE": "spec.language", "CALLEE": "checker", "CASE": "python",
@@ -137,12 +146,20 @@ def check(batch: int = 24) -> dict:
                 shown = line
                 for name, value in SHOWN.items():
                     shown = shown.replace("{" + name + "}", value)
+                # which of the kinds it asks, as letters: asked yes or no of
+                # one kind, the teacher said no to 'make parse take
+                # language' and to 'for python, have parse call
+                # _parse_python instead' alike
                 prompts.append(f"A programmer typed this to an assistant: "
-                               f"\"{shown}\"\nIs the person "
-                               f"{FORMS[form][2]}? Answer yes or no only.")
+                               f"\"{shown}\"\nWhat does the person ask "
+                               f"for?\n" + "\n".join(
+                                   f"{letter}) {said}" for letter, said in
+                                   zip("ABCD", CHOICES)) +
+                               "\nAnswer with the letter only.")
             replies = teacher.write(prompts, longest=3)
             for (form, line), reply in zip(chunk, replies):
-                kept = reply[0].strip().lower().startswith("yes")
+                letter = reply[0].strip()[:1].upper()
+                kept = letter == "ABCD"[KIND_OF[form]]
                 key = f"{form} {'kept' if kept else 'left'}"
                 counts[key] = counts.get(key, 0) + 1
                 out.write(json.dumps({"form": form, "template": line,
