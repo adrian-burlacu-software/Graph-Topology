@@ -1,0 +1,260 @@
+"""Teaching the shared reader what a change asks to be made (v705): its
+kind, by the words it marks -- a function taking something new, a value
+passed on to a call, a case handed to a helper.
+
+    python -m research.v705.teach_change_talk write    the teacher writes requests
+    python -m research.v705.teach_change_talk check    yes or no, each
+    python -m research.v705.teach_change_talk corpus   llm/code-talk-data/*-change
+
+The change path read "gained should take a message, empty by default" as
+a change of `gained` -- and its editors wrote twenty changes, none of the
+`def` line; a change of the right kind was there to be made (`shaped`:
+a parameter, a value passed on, a case handed to a helper), and nothing
+read which kind was asked. The reader reads it, as it reads a debugging
+request's call and values (`teach_debug_talk`): **roles** for what the
+change names -- `NEW` what the function is to take, `DEFAULT` what it is
+when not given, `VALUE` what is passed on, `CALLEE` the call it is passed
+to, `CASE` the case a helper is for, `HELPER` the helper -- the function
+changed `SUBJ`, the act `change`. **By construction**: the teacher
+(SmolLM3, offline) writes requests in each form with the slots where they
+go, never filled -- it invents no names -- checked yes-or-no; each filled
+with names this repository's own code uses: its functions, their
+parameters and defaults, the values its calls are given, the cases its
+code compares, its helpers; a template in train or valid by its own hash.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import hashlib
+import json
+import random
+import re
+import sys
+from pathlib import Path
+
+from research.v698 import teach_code_talk as K
+
+ROOT = Path(__file__).resolve().parents[2]
+DATA = K.DATA
+WRITTEN = DATA / "change-written.jsonl"
+CHECKED = DATA / "change-checked.jsonl"
+SEED = 7052
+#: each form a request takes: the slots it names, what the person asks,
+#: and the question its check asks
+FORMS = {
+    "takes": ("{SUBJ}, {NEW}",
+              "asks that the function {SUBJ} take something new, {NEW}, as "
+              "an input -- like 'make {SUBJ} take {NEW}', '{SUBJ} should "
+              "accept {NEW} too', 'add a {NEW} parameter to {SUBJ}'",
+              "asking that a function get a new input or parameter"),
+    "takes default": ("{SUBJ}, {NEW}, {DEFAULT}",
+                      "asks that the function {SUBJ} take something new, "
+                      "{NEW}, which is {DEFAULT} when it is not given -- like "
+                      "'{SUBJ} should take {NEW}, {DEFAULT} by default', "
+                      "'give {SUBJ} an optional {NEW} defaulting to "
+                      "{DEFAULT}'",
+                      "asking that a function get a new input with a "
+                      "default value"),
+    "passes": ("{SUBJ}, {VALUE}, {CALLEE}",
+               "asks that in the function {SUBJ}, the call to {CALLEE} be "
+               "given {VALUE} -- like 'in {SUBJ}, pass {VALUE} to {CALLEE}', "
+               "'{SUBJ} should give {CALLEE} the {VALUE}', 'have {SUBJ} "
+               "hand {VALUE} on to {CALLEE}'",
+               "asking that a value be passed on to a call inside a "
+               "function"),
+    "hands": ("{SUBJ}, {CASE}, {HELPER}",
+              "asks that the function {SUBJ} hand the case {CASE} to the "
+              "helper {HELPER} -- like 'when it is {CASE}, {SUBJ} should "
+              "use {HELPER}', 'for {CASE}, have {SUBJ} call {HELPER} "
+              "instead', '{SUBJ} should send {CASE} to {HELPER}'",
+              "asking that a function handle one case by calling a helper"),
+}
+#: the roles of what a change names, after the reader's own (`K.ROLES`)
+ROLES = ("NEW", "DEFAULT", "VALUE", "CALLEE", "CASE", "HELPER")
+SLOTS = ("SUBJ",) + ROLES
+#: requests asked of each form, in rounds of two samples
+EACH, ROUNDS = 12, 8
+#: the fillings each kept request is given
+FILLED = 6
+VALID = K.VALID
+
+
+def write() -> None:
+    from research.v696.teach_meaning import Teacher
+    teacher = Teacher()
+    teacher.torch.manual_seed(SEED)
+    with WRITTEN.open("w", encoding="utf-8") as out:
+        for round_ in range(ROUNDS):
+            forms = list(FORMS)
+            prompts = [
+                f"Write {EACH} different messages a programmer types to an "
+                f"assistant that changes their code, in which the person "
+                f"{FORMS[form][1]}. Write {FORMS[form][0]} exactly where "
+                f"they go -- do not fill them in. Vary them a lot: short "
+                f"and long, casual and formal. One per line, nothing else."
+                for form in forms]
+            replies = teacher.write(prompts, longest=600, samples=2,
+                                    temperature=0.95)
+            for form, written in zip(forms, replies):
+                wanted = set(_slots(FORMS[form][0]))
+                lines = []
+                for reply in written:
+                    for line in reply.splitlines():
+                        line = re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", line)
+                        line = line.strip().strip("\"'“”")
+                        if set(_slots(line)) == wanted and all(
+                                line.count("{" + one + "}") == 1
+                                for one in wanted) and \
+                                not re.search(r"\{(?!(%s)\})" % "|".join(
+                                    SLOTS), line) and 8 <= len(line) <= 220:
+                            lines.append(line)
+                out.write(json.dumps({"form": form, "lines": lines}) + "\n")
+            print(f"round {round_ + 1} of {ROUNDS}", flush=True)
+
+
+def _slots(text: str) -> list:
+    return re.findall(r"\{(%s)\}" % "|".join(SLOTS), text)
+
+
+#: what each slot is shown as when a request is checked
+SHOWN = {"SUBJ": "parse", "NEW": "language", "DEFAULT": "None",
+         "VALUE": "spec.language", "CALLEE": "checker", "CASE": "python",
+         "HELPER": "_parse_python"}
+
+
+def check(batch: int = 24) -> dict:
+    from research.v696.teach_meaning import Teacher
+    rows = [json.loads(line) for line in WRITTEN.open(encoding="utf-8")]
+    todo = [(row["form"], line) for row in rows for line in row["lines"]]
+    teacher = Teacher()
+    counts: dict = {}
+    with CHECKED.open("w", encoding="utf-8") as out:
+        for at in range(0, len(todo), batch):
+            chunk = todo[at:at + batch]
+            prompts = []
+            for form, line in chunk:
+                shown = line
+                for name, value in SHOWN.items():
+                    shown = shown.replace("{" + name + "}", value)
+                prompts.append(f"A programmer typed this to an assistant: "
+                               f"\"{shown}\"\nIs the person "
+                               f"{FORMS[form][2]}? Answer yes or no only.")
+            replies = teacher.write(prompts, longest=3)
+            for (form, line), reply in zip(chunk, replies):
+                kept = reply[0].strip().lower().startswith("yes")
+                key = f"{form} {'kept' if kept else 'left'}"
+                counts[key] = counts.get(key, 0) + 1
+                out.write(json.dumps({"form": form, "template": line,
+                                      "kept": kept}) + "\n")
+    print(json.dumps(counts))
+    return counts
+
+
+def names() -> dict:
+    """What this repository's own code names, by slot: its functions, their
+    parameters and defaults, the values its calls are given (a name, or a
+    field of one), the calls, the strings it compares, its helpers."""
+    out = {slot: set() for slot in SLOTS}
+    for path in sorted((ROOT / "research").rglob("*.py")):
+        if "test" in path.name:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if len(node.name) >= 3:
+                    out["SUBJ"].add(node.name)
+                if node.name.startswith("_") and not node.name.startswith(
+                        "__"):
+                    out["HELPER"].add(node.name)
+                for one in node.args.args + node.args.kwonlyargs:
+                    if one.arg not in ("self", "cls") and len(one.arg) >= 3:
+                        out["NEW"].add(one.arg)
+                for one in node.args.defaults + node.args.kw_defaults:
+                    if isinstance(one, ast.Constant) and len(repr(
+                            one.value)) <= 12:
+                        out["DEFAULT"].add(repr(one.value))
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    out["CALLEE"].add(node.func.id)
+                for one in node.args + [one.value for one in node.keywords]:
+                    said = ast.unparse(one)
+                    if isinstance(one, (ast.Name, ast.Attribute)) and \
+                            len(said) <= 24 and said.count(".") <= 1:
+                        out["VALUE"].add(said)
+            elif isinstance(node, ast.Compare) and len(node.ops) == 1 and \
+                    isinstance(node.comparators[0], ast.Constant) and \
+                    isinstance(node.comparators[0].value, str) and \
+                    re.fullmatch(r"[a-z]{3,12}", node.comparators[0].value):
+                out["CASE"].add(node.comparators[0].value)
+    return {slot: sorted(found) for slot, found in out.items()}
+
+
+def corpus() -> dict:
+    """The kept requests as code-talk records: act `change`, the function
+    changed `SUBJ`, what the change names in its roles; the split by the
+    request as written, the names by a hash of their own."""
+    rows = [json.loads(line) for line in CHECKED.open(encoding="utf-8")]
+    kept = [one for one in rows if one["kept"]]
+    rng = random.Random(SEED)
+    found = names()
+
+    def split_of(text: str) -> str:
+        return "valid" if hashlib.sha1(text.lower().encode()).digest()[0] / \
+            256 < VALID else "train"
+    pools = {split: {slot: [one for one in values if split_of(one) == split]
+                     for slot, values in found.items()}
+             for split in ("train", "valid")}
+    out = {"train": [], "valid": []}
+    for one in kept:
+        split = split_of(one["template"])
+        slots = _slots(one["template"])
+        for _ in range(FILLED):
+            filled = {slot: rng.choice(pools[split][slot]) for slot in slots
+                      if pools[split][slot]}
+            if len(filled) != len(slots):
+                break
+            said_text = one["template"]
+            for name, value in filled.items():
+                said_text = said_text.replace("{" + name + "}", value)
+            said = K.words(said_text)
+            roles = ["O"] * len(said)
+            fine = True
+            for name in slots:
+                span = K._match(said, filled[name])
+                if span is None or any(roles[at] != "O" for at in range(
+                        *span)):
+                    fine = False
+                    break
+                for at in range(*span):
+                    roles[at] = ("B-" if at == span[0] else "I-") + name
+            if not fine or not said:
+                continue
+            out[split].append(K.record(said, roles, "change", "none",
+                                       "named", f"change {one['form']}"))
+    counts = {}
+    for split, records in out.items():
+        rng.shuffle(records)
+        with (DATA / f"{split}-change.jsonl").open(
+                "w", encoding="utf-8") as stream:
+            for one in records:
+                stream.write(json.dumps(one) + "\n")
+        counts[split] = len(records)
+    counts["kept templates"] = len(kept)
+    print(json.dumps(counts))
+    return counts
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("job", choices=("write", "check", "corpus"))
+    options = parser.parse_args(argv)
+    {"write": write, "check": check, "corpus": corpus}[options.job]()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

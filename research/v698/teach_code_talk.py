@@ -76,7 +76,13 @@ ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
 SUBJECTS = ("none", "project", "file", "named", "last")
 ROLES = ("O", "B-SUBJ", "I-SUBJ", "B-CONCEPT", "I-CONCEPT", "B-MEMBER",
          "I-MEMBER", "B-OPTION", "I-OPTION", "B-CALL", "I-CALL", "B-GOT",
-         "I-GOT", "B-WANT", "I-WANT")
+         "I-GOT", "B-WANT", "I-WANT",
+         # what a change names (`research/v705/teach_change_talk.py`): what
+         # a function is to take and its default, a value passed on and the
+         # call it goes to, a case and the helper it is handed to
+         "B-NEW", "I-NEW", "B-DEFAULT", "I-DEFAULT", "B-VALUE", "I-VALUE",
+         "B-CALLEE", "I-CALLEE", "B-CASE", "I-CASE", "B-HELPER",
+         "I-HELPER")
 
 #: what each aspect asks, as the teacher is told it
 ASKS = {
