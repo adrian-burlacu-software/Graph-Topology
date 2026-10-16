@@ -26,7 +26,7 @@ from research.v705 import commits
 
 #: the lines tried, most suspected first, the edits ordered (by where they
 #: stand and by the code model), and those of them tried by the tests
-LINES, POOL, MOST = 40, 1500, 400
+LINES, POOL, MOST = 40, 600, 400
 #: how long a test run for its lines may take (they took under three
 #: seconds when the coverage was gathered)
 SPECTRUM_SECONDS = 20

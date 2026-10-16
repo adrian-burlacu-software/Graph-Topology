@@ -8,13 +8,20 @@ repair makes (`repair.candidates`), before the tests judge any.
 Each source is scored whole and against the code it was made from: what
 counts is how much less likely the edit made it (`gained`), so a long
 function is not unlike a short one for its length.
+
+The vocabulary is 152k words: the whole of a batch's next-word scores at
+once (16 sources of 1024 tokens) is 10 GB, past the card, and spilled into
+the machine's memory a run went from 17 s a bug to 70 min. So the model
+gives its last hidden layer only, and the words' scores are made from it a
+few positions at a time, kept only for the word that came; and a batch is
+as many sources as `TOKENS` tokens hold.
 """
 from __future__ import annotations
 
-#: sources scored at once
-BATCH = 16
-#: tokens of a source scored at most
-LONGEST = 1024
+#: tokens a batch holds in all, and of a source at most
+TOKENS, LONGEST = 4096, 1024
+#: positions whose next-word scores are made at once
+POSITIONS = 128
 
 
 def scores(sources: list) -> list:
@@ -23,25 +30,76 @@ def scores(sources: list) -> list:
     from research.v705 import coder
     model = coder.get()
     tokenizer, network = model.tokenizer, model.model
-    out = []
-    for at in range(0, len(sources), BATCH):
-        batch = sources[at:at + BATCH]
-        held = tokenizer(batch, return_tensors="pt", padding=True,
-                         truncation=True, max_length=LONGEST).to("cuda")
-        # padded on the left: each counted from its own first token
-        positions = (held["attention_mask"].cumsum(-1) - 1).clamp(min=0)
+    encoded = [tokenizer(one, truncation=True, max_length=LONGEST)[
+        "input_ids"] for one in sources]
+    order = sorted(range(len(sources)), key=lambda at: len(encoded[at]))
+    out = [0.0] * len(sources)
+    at = 0
+    while at < len(order):
+        longest = len(encoded[order[min(len(order) - 1, at)]])
+        size = max(1, TOKENS // max(1, longest))
+        # sorted by length: the last of a batch is its longest
+        while size > 1 and at + size - 1 < len(order) and len(
+                encoded[order[at + size - 1]]) * size > TOKENS:
+            size -= 1
+        batch = order[at:at + size]
+        at += size
+        width = max(len(encoded[one]) for one in batch)
+        pad = tokenizer.pad_token_id
+        ids = torch.tensor([[pad] * (width - len(encoded[one])) +
+                            encoded[one] for one in batch], device="cuda")
+        mask = torch.tensor([[0] * (width - len(encoded[one])) +
+                             [1] * len(encoded[one]) for one in batch],
+                            device="cuda")
+        positions = (mask.cumsum(-1) - 1).clamp(min=0)
         with torch.no_grad():
-            logits = network(**held, position_ids=positions).logits.float()
-        logp = torch.log_softmax(logits[:, :-1], dim=-1)
-        target = held["input_ids"][:, 1:]
-        mask = held["attention_mask"][:, 1:].float()
-        picked = logp.gather(-1, target.unsqueeze(-1)).squeeze(-1)
-        out += (picked * mask).sum(dim=1).tolist()
+            hidden = network.model(input_ids=ids, attention_mask=mask,
+                                   position_ids=positions).last_hidden_state
+            total = torch.zeros(len(batch), device="cuda")
+            for start in range(0, width - 1, POSITIONS):
+                end = min(width - 1, start + POSITIONS)
+                # the word that came, less all words' (log-sum-exp): no
+                # softmax over the vocabulary made and read again
+                logits = network.lm_head(hidden[:, start:end])
+                target = ids[:, start + 1:end + 1]
+                picked = logits.gather(-1, target.unsqueeze(-1)).squeeze(
+                    -1).float() - torch.logsumexp(logits, dim=-1).float()
+                total += (picked * mask[:, start + 1:end + 1]).sum(dim=1)
+                del logits
+        for one, value in zip(batch, total.tolist()):
+            out[one] = value
     return out
+
+
+#: tokens of the code kept before an edit, and after it, when scoring it
+BEFORE, AFTER = 48, 24
 
 
 def gained(original: str, sources: list) -> list:
     """How much more likely each source is than the code it was made from
-    (negative: less likely)."""
-    base = scores([original])[0]
-    return [one - base for one in scores(sources)]
+    (negative: less likely) -- scored where they differ only: the tokens
+    from `BEFORE` ahead of the first that differs to `AFTER` past the last,
+    of each and of the original alike (the same text either side of an
+    edit scores the same; whole, a 55-line function's 1500 edits took
+    three minutes)."""
+    from research.v705 import coder
+    tokenizer = coder.get().tokenizer
+    base = tokenizer(original)["input_ids"]
+    windows, pairs = [], []
+    for source in sources:
+        ids = tokenizer(source)["input_ids"]
+        first = next((at for at, (a, b) in enumerate(zip(base, ids))
+                      if a != b), min(len(base), len(ids)))
+        tail = next((at for at, (a, b) in enumerate(zip(base[::-1],
+                                                         ids[::-1]))
+                     if a != b or at >= min(len(base), len(ids)) - first),
+                    0)
+        start = max(0, first - BEFORE)
+        mine = tokenizer.decode(ids[start:len(ids) - tail + AFTER])
+        theirs = tokenizer.decode(base[start:len(base) - tail + AFTER])
+        pairs.append((len(windows), len(windows) + 1))
+        windows += [mine, theirs]
+    # the original's windows repeat (one per edit of a place): scored once
+    unique = list(dict.fromkeys(windows))
+    scored = dict(zip(unique, scores(unique)))
+    return [scored[windows[a]] - scored[windows[b]] for a, b in pairs]
