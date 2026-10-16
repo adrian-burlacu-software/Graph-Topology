@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import itertools
 import math
 import sys
 import textwrap
@@ -27,6 +28,8 @@ from research.v705 import commits
 #: the lines tried, most suspected first, the edits ordered (by where they
 #: stand and by the code model), and those of them tried by the tests
 LINES, POOL, MOST = 40, 600, 400
+#: the parts a condition may be given at a place, at most
+CONJUNCTS = 30
 #: how long a test run for its lines may take (they took under three
 #: seconds when the coverage was gathered)
 SPECTRUM_SECONDS = 20
@@ -180,6 +183,18 @@ def _edits(tree, node, parents, context: dict) -> list:
                                         left=n, ops=[ast.In()],
                                         comparators=[ast.parse(
                                             h, mode="eval").body]))))
+    if context.get("condition") or isinstance(node, ast.BoolOp) and \
+            isinstance(node.op, ast.And):
+        # a part of the condition missing (`parts[0] == 'at'` for `len(parts)
+        # == 3 and parts[0] == 'at' and parts[1] == thing`): one more part
+        # of the names there, each made one edit
+        for said in context["conjuncts"][:CONJUNCTS]:
+            out.append((f"and {said}",
+                        lambda t, n, p, s=said: _replace(p, n, ast.BoolOp(
+                            op=ast.And(), values=(
+                                list(n.values) if isinstance(n, ast.BoolOp)
+                                and isinstance(n.op, ast.And) else [n])
+                            + [ast.parse(s, mode="eval").body]))))
     if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load) \
             and not (isinstance(parents.get(node), ast.Call) and
                      parents[node].func is node):
@@ -351,11 +366,30 @@ def _context(tree, module_source: str) -> dict:
     names += [f"{one}.{field}" for one in list(names)
               for field in sorted(receivers.get(one, set()))[:4]]
     methods = sorted(receivers.get("self", set()))
+    # parts a condition may lack: what it indexes counted, a part of it
+    # compared with a name, two names compared
+    subscripts = list(dict.fromkeys(
+        ast.unparse(one) for one in ast.walk(function)
+        if isinstance(one, ast.Subscript) and isinstance(one.ctx, ast.Load)
+        and len(ast.unparse(one)) < 30))
+    indexed = list(dict.fromkeys(
+        ast.unparse(one.value) for one in ast.walk(function)
+        if isinstance(one, ast.Subscript) and isinstance(one.value, ast.Name)))
+    plain = [one for one in _bound(tree) if one != "self"][:8]
+    conjuncts = [f"len({one}) == {number}" for one in indexed[:4]
+                 for number in sorted({abs(n) for n in numbers if
+                                       isinstance(n, int) and n < 8}
+                                      | {1, 2, 3})[:4]]
+    conjuncts += [f"{one} == {name}" for one in subscripts[:6]
+                  for name in plain if name not in one]
+    conjuncts += [f"{one} == {other}" for one, other in itertools.combinations(
+        plain, 2)][:12]
     return {"bound": _bound(tree), "strings": list(dict.fromkeys(strings)),
             "numbers": list(dict.fromkeys(numbers)),
             "receivers": receivers, "attributes": attributes,
             "containers": list(dict.fromkeys(containers)),
             "names": list(dict.fromkeys(names)), "methods": methods,
+            "conjuncts": list(dict.fromkeys(conjuncts)),
             "wraps": list(dict.fromkeys(called + list(WRAPS)))}
 
 
@@ -429,7 +463,7 @@ def candidates(source: str, lines: list, module_source: str = "") -> list:
 def _group(what: str) -> int:
     if "put round" in what:
         return 2
-    if what.startswith(".") or what == "statement taken out" or (
+    if what.startswith((".", "and ")) or what == "statement taken out" or (
             " -> " in what and what.split(" -> ")[0].isidentifier() and
             what.split(" -> ")[0] not in _OPERATOR_NAMES):
         return 1
@@ -461,33 +495,15 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         module_source = inspect.getsource(module) if module else ""
     except (OSError, TypeError):
         module_source = ""
-    tried, held = 0, []
-    found = candidates(source, lines, module_source)
-    if NATURAL and found:
-        # tried in the order of where they stand (suspected lines, few
-        # edits first) and of how natural the code model finds each, the
-        # two ranks summed -- the true edit in the first six for 9 of 12
-        # bugs, against 3 by where they stand alone; one batch on the GPU
-        from research.v705 import natural
-        try:
-            gain = natural.gained(ast.unparse(ast.parse(source)),
-                                  [one[2] for one in found])
-            by = {at: rank for rank, at in enumerate(sorted(
-                range(len(found)), key=lambda at: -gain[at]))}
-            found = [found[at] for at in sorted(
-                range(len(found)), key=lambda at: (at + by[at], at))]
-        except Exception as bad:                    # noqa: BLE001
-            row["natural"] = f"{type(bad).__name__}: {bad}"[:120]
-    for line, what, made in found[:MOST]:
-        text = commits._placed(made, case["before"], old)
-        if text is None:
-            continue
-        tried += 1
-        said = verify(text)
-        if said is None:
-            held.append((line, what, made, text))
-            if len(held) >= KEPT:
-                break
+    found = _ordered(source, candidates(source, lines, module_source), row)
+    held, tried = _tried(found[:MOST], case, old, verify)
+    if not held and PAIRS:
+        # no one edit: two -- each of the first edits by how far it gets
+        # the failing tests (more pass, or they fail otherwise), the best
+        # of them each given a second edit, tried in the code model's order
+        held, more = _paired(case, function, old, verify, row, found, lines,
+                             module_source)
+        tried += more
     if not held:
         row["repair"] = {"tried": tried}
         return None
@@ -510,6 +526,123 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
                               for one, count, fuzz in zip(held, changed,
                                                           fuzzed)]}
     return {"moves": [f"line {line}: {what}"], "source": made}
+
+
+def _ordered(source: str, found: list, row: dict, pool: int = 0) -> list:
+    """Edits in the order of where they stand (suspected lines, few edits
+    first) and of how natural the code model finds each, the two ranks
+    summed -- the true edit in the first six for 11 of 14 bugs, against 3
+    by where they stand alone; one batch on the GPU."""
+    found = found[:pool] if pool else found
+    if not NATURAL or not found:
+        return found
+    from research.v705 import natural
+    try:
+        gain = natural.gained(ast.unparse(ast.parse(source)),
+                              [one[2] for one in found])
+    except Exception as bad:                        # noqa: BLE001
+        row["natural"] = f"{type(bad).__name__}: {bad}"[:120]
+        return found
+    by = {at: rank for rank, at in enumerate(sorted(
+        range(len(found)), key=lambda at: -gain[at]))}
+    return [found[at] for at in sorted(range(len(found)),
+                                       key=lambda at: (at + by[at], at))]
+
+
+def _tried(found: list, case: dict, old: str, verify) -> tuple:
+    """Each edit judged by the tests, until `KEPT` hold: (held, tried)."""
+    tried, held = 0, []
+    for line, what, made in found:
+        text = commits._placed(made, case["before"], old)
+        if text is None:
+            continue
+        tried += 1
+        if verify(text) is None:
+            held.append((line, what, made, text))
+            if len(held) >= KEPT:
+                break
+    return held, tried
+
+
+#: whether two edits are tried where no one edit holds; of how many first
+#: edits progress is measured, how many are kept, and how many second
+#: edits each is given (of how many ordered)
+PAIRS = True
+FIRSTS, BEAM, SECONDS, SECOND_POOL = 120, 8, 40, 200
+
+
+def _progress(case: dict, function, text: str, before: dict) -> tuple:
+    """How far an edit gets the failing tests: (how many pass, how many
+    fail otherwise than they did)."""
+    from research.v705 import inside
+    try:
+        made = inside.changed_function(function, text)
+    except Exception:                               # noqa: BLE001
+        return (-1, -1)
+    passed = moved = 0
+    with commits.Put(function, made):
+        for test in case["tests"]:
+            said = commits.failure(test)
+            if not commits.LAST.get("failure"):
+                passed += 1
+            elif said != before.get(test["test"]):
+                moved += 1
+    return (passed, moved)
+
+
+def _relined(case: dict, function, lines: list) -> list:
+    """The suspected lines of a function's source as they stand once it is
+    written out again (`ast.unparse`): by the nodes on them."""
+    import inspect
+    try:
+        source = textwrap.dedent(inspect.getsource(function))
+    except (OSError, TypeError):
+        source = textwrap.dedent(case["before"])
+    tree = ast.parse(source)
+    again = ast.parse(ast.unparse(tree))
+    pairs = list(zip(ast.walk(tree), ast.walk(again)))
+    out = []
+    for line in lines:
+        for one, other in pairs:
+            if isinstance(one, ast.stmt) and one.lineno == line and                     other.lineno not in out:
+                out.append(other.lineno)
+                break
+    return out
+
+
+def _paired(case, function, old, verify, row, found, lines,
+            module_source) -> tuple:
+    """Two edits: the first edits measured by how far they get the failing
+    tests, the `BEAM` best (the rest by order) each given second edits in
+    the code model's order, judged by the tests -- (held, tried)."""
+    before = {test["test"]: commits.failure(test) for test in case["tests"]}
+    measured = []
+    for at, (line, what, made) in enumerate(found[:FIRSTS]):
+        text = commits._placed(made, case["before"], old)
+        if text is None:
+            continue
+        measured.append(((line, what, made),
+                         _progress(case, function, text, before), at))
+    measured.sort(key=lambda one: (-one[1][0], -one[1][1], one[2]))
+    beam = [one for one in measured if one[1] > (0, 0)][:BEAM]
+    beam += [one for one in sorted(measured, key=lambda one: one[2])
+             if one not in beam][:BEAM - len(beam)]
+    row["beam"] = [[one[0][1], list(one[1])] for one in beam]
+    tried, held = len(measured), []
+    # an edited function is written out again without its comments: the
+    # suspected lines as they stand there
+    lines = _relined(case, function, lines)
+    for (line, what, made), _, _ in beam:
+        second = _ordered(made, candidates(made, lines, module_source), row,
+                          pool=SECOND_POOL)
+        pairs = [(line2, f"{what} / {what2}", made2)
+                 for line2, what2, made2 in second[:SECONDS]]
+        more, count = _tried(pairs, case, old, verify)
+        held += more
+        tried += count
+        if len(held) >= KEPT:
+            break
+    return held[:KEPT], tried
 
 
 #: whether the edits are tried in the order the code model and where they
