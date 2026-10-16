@@ -504,6 +504,22 @@ class MeansTests(unittest.TestCase):
         self.assertTrue(commits.copies_test(case, spec, text))
 
 
+class RepairTests(unittest.TestCase):
+    """What repair measures a change by between pass and fail."""
+
+    def test_nearer_values_are_closer(self):
+        from research.v705.repair import closeness
+        self.assertEqual(closeness("abc", "abc"), 1.0)
+        self.assertGreater(closeness("abd", "abc"), closeness("xyz", "abc"))
+        self.assertGreater(closeness(9, 10), closeness(2, 10))
+        self.assertGreater(closeness([1, 2], [1, 2, 3]), closeness([], [1, 2,
+                                                                     3]))
+        self.assertGreater(closeness({"a": 1, "b": 2}, {"a": 1, "b": 3}),
+                           closeness({"c": 1}, {"a": 1, "b": 3}))
+        self.assertEqual(closeness(None, "x"), 0.0)
+        self.assertEqual(closeness(True, 1), 0.0)
+
+
 class VerifyTests(unittest.TestCase):
     """What a change is judged by, beyond its tests passing."""
 

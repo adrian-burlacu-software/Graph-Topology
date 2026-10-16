@@ -678,39 +678,118 @@ def _relined(case: dict, function, lines: list) -> list:
     return out
 
 
+def closeness(got, wanted) -> float:
+    """How near a value a check got is to the one it wanted, from 0 to 1:
+    equal 1; strings by how much of them match, numbers by how far apart
+    for their size, lists by what they share, dicts by the keys they share
+    and how near those keys' values are -- a gradient where the tests give
+    only pass or fail."""
+    import difflib
+    try:
+        if type(got) is type(wanted) and got == wanted:
+            return 1.0
+    except Exception:                               # noqa: BLE001
+        pass
+    if isinstance(got, str) and isinstance(wanted, str):
+        return difflib.SequenceMatcher(None, got, wanted).ratio()
+    if isinstance(got, (int, float)) and isinstance(wanted, (int, float))             and not isinstance(got, bool) and not isinstance(wanted, bool):
+        return 1.0 / (1.0 + abs(got - wanted) / (abs(wanted) + 1.0))
+    if isinstance(got, (list, tuple)) and isinstance(wanted, (list, tuple)):
+        if not got and not wanted:
+            return 1.0
+        mine = [repr(one) for one in got]
+        shared = sum(min(mine.count(one), [repr(x) for x in wanted].count(
+            one)) for one in set(mine))
+        return shared / max(len(got), len(wanted))
+    if isinstance(got, dict) and isinstance(wanted, dict):
+        keys = set(got) | set(wanted)
+        if not keys:
+            return 1.0
+        return sum(closeness(got[key], wanted[key]) for key in
+                   set(got) & set(wanted)) / len(keys)
+    return 0.0
+
+
+def _fitness(case: dict, function, text: str) -> float:
+    """How far a change gets the failing tests, from 0 to 1: each passing
+    1, each failing as near as its first failed check got to what it
+    wanted (`closeness`, at most 0.9), a fall before any check 0."""
+    from research.v705 import inside, means
+    try:
+        made = inside.changed_function(function, text)
+    except Exception:                               # noqa: BLE001
+        return -1.0
+    total = 0.0
+    with commits.Put(function, made):
+        for test in case["tests"]:
+            found = means.goal({"tests": [test]})
+            failing = found.get("failing")
+            if failing is None and not found.get("raised"):
+                total += 1.0
+            elif failing and failing.get("_raw"):
+                got, wanted = failing["_raw"]
+                total += 0.9 * closeness(got, wanted)
+    return total / max(1, len(case["tests"]))
+
+
+#: how many edits a change may make at most, and how many changes are kept
+#: going at each depth (those getting the failing tests furthest)
+DEPTH = 4
+
+
 def _paired(case, function, old, verify, row, found, lines,
             module_source, where=None) -> tuple:
-    """Two edits: the first edits measured by how far they get the failing
-    tests, the `BEAM` best (the rest by order) each given second edits in
-    the code model's order, judged by the tests -- (held, tried)."""
-    before = {test["test"]: commits.failure(test) for test in case["tests"]}
-    measured = []
-    for at, (line, what, made) in enumerate(found[:FIRSTS]):
-        text = commits._placed(made, case["before"], old)
-        if text is None:
-            continue
-        measured.append(((line, what, made),
-                         _progress(case, function, text, before), at))
-    measured.sort(key=lambda one: (-one[1][0], -one[1][1], one[2]))
-    beam = [one for one in measured if one[1] > (0, 0)][:BEAM]
-    beam += [one for one in sorted(measured, key=lambda one: one[2])
-             if one not in beam][:BEAM - len(beam)]
-    row["beam"] = [[one[0][1], list(one[1])] for one in beam]
-    tried, held = len(measured), []
+    """Changes of more than one edit, depth by depth (`DEPTH`): at each,
+    the changes kept going each given edits in the code model's order;
+    an edit kept where it gets the failing tests further than the change
+    it was made on (`_fitness`), the `BEAM` furthest going on; one whose
+    failing tests all pass judged by every test. The fewest edits that
+    hold win (the search stops at the first depth any holds) --
+    (held, tried)."""
+    import inspect
+    try:
+        source = textwrap.dedent(inspect.getsource(function))
+    except (OSError, TypeError):
+        source = textwrap.dedent(case["before"])
+    root = commits._placed(ast.unparse(ast.parse(source)), case["before"],
+                           old)
+    frontier = [(None, [], _fitness(case, function, root) if root else 0.0)]
     # an edited function is written out again without its comments: the
     # suspected lines as they stand there
-    lines = _relined(case, function, lines)
-    for (line, what, made), _, _ in beam:
-        second = _ordered(made, candidates(made, lines, module_source,
-                                           where), row,
-                          pool=SECOND_POOL)
-        pairs = [(line2, f"{what} / {what2}", made2)
-                 for line2, what2, made2 in second[:SECONDS]]
-        more, count = _tried(pairs, case, old, verify)
-        held += more
-        tried += count
-        if len(held) >= KEPT:
+    relined = _relined(case, function, lines)
+    held, tried, kept = [], 0, []
+    for depth in range(1, DEPTH + 1):
+        children = []
+        for made_so_far, moves, fit in frontier:
+            if made_so_far is None:
+                edits = found[:FIRSTS]
+            else:
+                edits = _ordered(made_so_far, candidates(
+                    made_so_far, relined, module_source, where), row,
+                    pool=SECOND_POOL)[:SECONDS]
+            for line, what, made in edits:
+                text = commits._placed(made, case["before"], old)
+                if text is None:
+                    continue
+                tried += 1
+                reached = _fitness(case, function, text)
+                if reached >= 1.0 - 1e-9 and depth > 1:
+                    if verify(text) is None:
+                        held.append((line, " / ".join(moves + [what]),
+                                     made, text))
+                        if len(held) >= KEPT:
+                            break
+                elif reached > fit:
+                    children.append((made, moves + [what], reached))
+            if len(held) >= KEPT:
+                break
+        kept.append([[" / ".join(one[1]), round(one[2], 3)]
+                     for one in sorted(children, key=lambda one: -one[2])[
+                         :BEAM]])
+        if held or not children:
             break
+        frontier = sorted(children, key=lambda one: -one[2])[:BEAM]
+    row["beam"] = kept
     return held[:KEPT], tried
 
 
