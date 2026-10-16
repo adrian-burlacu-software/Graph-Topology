@@ -78,9 +78,12 @@ ROLES = ("NEW", "DEFAULT", "VALUE", "CALLEE", "CASE", "HELPER")
 SLOTS = ("SUBJ",) + ROLES
 #: requests asked of each form, in rounds of two samples
 EACH, ROUNDS = 12, 8
-#: the fillings each kept request is given
-FILLED = 6
+#: the fillings each kept request is given (six were too few beside the
+#: reader's 450 000 records: reader-code44 marked no role of a change)
+FILLED = 30
 VALID = K.VALID
+#: how often a request says first which file the function is in
+IN_FILE = 0.4
 
 
 def write() -> None:
@@ -225,6 +228,9 @@ def corpus() -> dict:
     pools = {split: {slot: [one for one in values if split_of(one) == split]
                      for slot, values in found.items()}
              for split in ("train", "valid")}
+    files = {split: sorted({path.name for path in (ROOT / "research").rglob(
+        "*.py") if split_of(path.name) == split}) for split in ("train",
+                                                                "valid")}
     out = {"train": [], "valid": []}
     for one in kept:
         split = split_of(one["template"])
@@ -237,8 +243,22 @@ def corpus() -> dict:
             said_text = one["template"]
             for name, value in filled.items():
                 said_text = said_text.replace("{" + name + "}", value)
+            # where the function is, said first as people do: `In
+            # natural.py, gained should take a message` -- never said so in
+            # a template, and reader-code45 marked no role of a change once
+            # it was
+            put_first = None
+            if files[split] and rng.random() < IN_FILE:
+                put_first = rng.choice(files[split])
+                said_text = f"In {put_first}, " + said_text[:1].lower() + \
+                    said_text[1:]
             said = K.words(said_text)
             roles = ["O"] * len(said)
+            if put_first is not None:
+                span = K._match(said, put_first)
+                if span is not None:
+                    for at in range(*span):
+                        roles[at] = ("B-" if at == span[0] else "I-") + "SUBJ"
             fine = True
             for name in slots:
                 span = K._match(said, filled[name])
