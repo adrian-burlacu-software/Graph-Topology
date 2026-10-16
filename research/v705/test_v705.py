@@ -520,6 +520,46 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(closeness(True, 1), 0.0)
 
 
+class SpliceTests(unittest.TestCase):
+    """A change made on a tree put into the text as written."""
+
+    ORIGINAL = ('    def gained(self, original: str,\n'
+                '               sources: list) -> list:\n'
+                '        """Doc."""\n'
+                '        # a comment kept\n'
+                '        base = 1   # trailing comment kept\n'
+                '        if base:\n'
+                '            # inner comment\n'
+                '            x = base + 1\n'
+                '        return [x]\n')
+
+    def test_comments_and_layout_kept(self):
+        import ast
+        import textwrap
+        from research.v705.splice import spliced
+        tree = ast.parse(textwrap.dedent(self.ORIGINAL))
+        function = tree.body[0]
+        function.body[2].body[0].value.op = ast.Sub()
+        function.args.args.append(ast.arg(arg="said"))
+        function.args.defaults = [ast.Constant("")]
+        made = spliced(self.ORIGINAL, ast.unparse(tree))
+        self.assertIn("# trailing comment kept", made)
+        self.assertIn("# inner comment", made)
+        self.assertIn("x = base - 1", made)
+        self.assertIn("said=''", made)
+        self.assertTrue(made.startswith("    def gained("))
+
+    def test_a_statement_put_in(self):
+        import ast
+        import textwrap
+        from research.v705.splice import spliced
+        tree = ast.parse(textwrap.dedent(self.ORIGINAL))
+        tree.body[0].body.insert(2, ast.parse("y = 2").body[0])
+        made = spliced(self.ORIGINAL, ast.unparse(tree))
+        self.assertIn("        y = 2\n        if base:", made)
+        self.assertIn("sources: list) -> list:", made)
+
+
 class VerifyTests(unittest.TestCase):
     """What a change is judged by, beyond its tests passing."""
 

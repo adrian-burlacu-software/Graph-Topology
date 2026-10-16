@@ -24,12 +24,15 @@ TOKENS, LONGEST = 4096, 1024
 POSITIONS = 128
 
 
-def scores(sources: list) -> list:
-    """The summed log-likelihood of each source under the code model."""
+def scores(sources: list, held=None) -> list:
+    """The summed log-likelihood of each source under a language model
+    held (`.tokenizer`, `.model`): the code model where none is given -- the
+    server's own editor where the code model has no room beside it."""
     import torch
     from research.v705 import coder
-    model = coder.get()
+    model = held or coder.get()
     tokenizer, network = model.tokenizer, model.model
+    device = next(network.parameters()).device
     encoded = [tokenizer(one, truncation=True, max_length=LONGEST)[
         "input_ids"] for one in sources]
     order = sorted(range(len(sources)), key=lambda at: len(encoded[at]))
@@ -47,15 +50,15 @@ def scores(sources: list) -> list:
         width = max(len(encoded[one]) for one in batch)
         pad = tokenizer.pad_token_id
         ids = torch.tensor([[pad] * (width - len(encoded[one])) +
-                            encoded[one] for one in batch], device="cuda")
+                            encoded[one] for one in batch], device=device)
         mask = torch.tensor([[0] * (width - len(encoded[one])) +
                              [1] * len(encoded[one]) for one in batch],
-                            device="cuda")
+                            device=device)
         positions = (mask.cumsum(-1) - 1).clamp(min=0)
         with torch.no_grad():
             hidden = network.model(input_ids=ids, attention_mask=mask,
                                    position_ids=positions).last_hidden_state
-            total = torch.zeros(len(batch), device="cuda")
+            total = torch.zeros(len(batch), device=device)
             for start in range(0, width - 1, POSITIONS):
                 end = min(width - 1, start + POSITIONS)
                 # the word that came, less all words' (log-sum-exp): no
@@ -75,7 +78,8 @@ def scores(sources: list) -> list:
 BEFORE, AFTER = 48, 24
 
 
-def gained(original: str, sources: list) -> list:
+def gained(original: str, sources: list, said: str = "",
+           held=None) -> list:
     """How much more likely each source is than the code it was made from
     (negative: less likely) -- scored where they differ only: the tokens
     from `BEFORE` ahead of the first that differs to `AFTER` past the last,
@@ -83,7 +87,10 @@ def gained(original: str, sources: list) -> list:
     edit scores the same; whole, a 55-line function's 1500 edits took
     three minutes)."""
     from research.v705 import coder
-    tokenizer = coder.get().tokenizer
+    tokenizer = (held or coder.get()).tokenizer
+    # what the change is for, said before each window alike: the edits that
+    # do it more likely after it than those that do not
+    ahead = "".join(f"# {line}\n" for line in said.splitlines())
     base = tokenizer(original)["input_ids"]
     windows, pairs = [], []
     for source in sources:
@@ -98,8 +105,8 @@ def gained(original: str, sources: list) -> list:
         mine = tokenizer.decode(ids[start:len(ids) - tail + AFTER])
         theirs = tokenizer.decode(base[start:len(base) - tail + AFTER])
         pairs.append((len(windows), len(windows) + 1))
-        windows += [mine, theirs]
+        windows += [ahead + mine, ahead + theirs]
     # the original's windows repeat (one per edit of a place): scored once
     unique = list(dict.fromkeys(windows))
-    scored = dict(zip(unique, scores(unique)))
+    scored = dict(zip(unique, scores(unique, held)))
     return [scored[windows[a]] - scored[windows[b]] for a, b in pairs]
