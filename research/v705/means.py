@@ -1471,6 +1471,12 @@ def _leaf(case: dict, source: str, wanted: dict, moves: tuple) -> list:
                         moves="; ".join(moves) or "none",
                         source=textwrap.dedent(source), check=check,
                         reach="\n".join(commits.reach(case)))
+    # sampled the same for the same case and goal: a run that gives one
+    # answer once and none the next measures luck (tuple_of, run 7 to 8)
+    import hashlib
+    import torch
+    torch.manual_seed(int(hashlib.sha1((_case_key(case) + asked).encode(
+        "utf-8")).hexdigest()[:8], 16))
     replies = coder.get().write([asked], longest=900, samples=coder.TRIES,
                                 temperature=0.8)[0]
     out, seen = [], set()

@@ -879,9 +879,10 @@ def _fitness(case: dict, function, text: str) -> float:
     return total / max(1, len(case["tests"]))
 
 
-#: how many edits a change may make at most, and how many changes are kept
-#: going at each depth (those getting the failing tests furthest)
-DEPTH = 4
+#: how many edits a change may make at most: two -- three and four found
+#: nothing more on the planted bugs and took 24 min on one (the measure
+#: between pass and fail ties many edits, and a deeper beam only widens)
+DEPTH = 2
 
 
 def _paired(case, function, old, verify, row, found, lines,
