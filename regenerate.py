@@ -1975,12 +1975,12 @@ def steps() -> list[Step]:
                       _run("research.v705.teach_change_talk", "corpus"),
                       _run("research.v689.teach_reader", "train",
                            "--base", str(LLM / "reader-code43"),
-                           "--out", str(LLM / "reader-code46"),
+                           "--out", str(LLM / "reader-code47"),
                            "--epochs", "1", "--rate", "2e-5",
                            "--subject", "math", "--subject", "design",
                            "--subject", "code", "--subject", "data",
                            "--subject", "shell", "--subject", "plan")),
-             _model_check(LLM / "reader-code46", 80),
+             _model_check(LLM / "reader-code47", 80),
              needs=("reader-code-yours",), cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "

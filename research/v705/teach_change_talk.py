@@ -84,6 +84,8 @@ FILLED = 30
 VALID = K.VALID
 #: how often a request says first which file the function is in
 IN_FILE = 0.4
+#: how many times as often a request to take something is filled
+TAKES_MORE = 3
 
 
 def write() -> None:
@@ -235,7 +237,12 @@ def corpus() -> dict:
     for one in kept:
         split = split_of(one["template"])
         slots = _slots(one["template"])
-        for _ in range(FILLED):
+        # `takes X` is said of every function asked to be written (`a
+        # function that takes a list`, its X no role): what a change is to
+        # take is taught more for it -- reader-code46 marked it in its own
+        # templates and in no request beside
+        for _ in range(FILLED * TAKES_MORE if one["form"].startswith(
+                "takes") else FILLED):
             filled = {slot: rng.choice(pools[split][slot]) for slot in slots
                       if pools[split][slot]}
             if len(filled) != len(slots):
