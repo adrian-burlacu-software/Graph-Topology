@@ -237,6 +237,14 @@ def _edits(tree, node, parents, context: dict) -> list:
                 out.append((f".{node.attr} -> .{other}",
                             lambda t, n, p, o=other: _set_attr(n, o)))
     if isinstance(node, ast.Call):
+        # a parameter the callee takes that the call leaves to its default,
+        # given what is in hand by its name (`checker()` for
+        # `checker(spec.language)`, `P.library()` for
+        # `P.library(language=spec.language)`): the plumbing a feature
+        # wants threaded through code already there
+        for name, said in _unpassed(node, context):
+            out.append((f"{name}={said} passed",
+                        lambda t, n, p, k=name, s=said: _pass(n, k, s)))
         if len(node.args) == 1 and not node.keywords:
             out.append((f"{ast.unparse(node.func)}(...) taken off",
                         lambda t, n, p: _replace(p, n, n.args[0])))
@@ -252,6 +260,57 @@ def _edits(tree, node, parents, context: dict) -> list:
                             func=ast.Name(id=f, ctx=ast.Load()), args=[n],
                             keywords=[]))))
     return out
+
+
+def _callee(node, context: dict):
+    """What a call calls, found in the module as it runs (or the class of
+    the method being changed, for `self.m(...)`); None where not."""
+    namespace = context.get("namespace") or {}
+    func = node.func
+    if isinstance(func, ast.Name):
+        return namespace.get(func.id)
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        if func.value.id == "self" and context.get("owner") is not None:
+            return getattr(context["owner"], func.attr, None)
+        base = namespace.get(func.value.id)
+        return getattr(base, func.attr, None) if base is not None else None
+    return None
+
+
+def _unpassed(node, context: dict) -> list:
+    """[(parameter, what in hand to give it)]: the parameters the callee
+    takes that this call does not give, each with what is in hand by its
+    name -- the name itself, or a field so named of a name (as the module
+    reads that field off a receiver so named)."""
+    import inspect
+    target = _callee(node, context)
+    if target is None or not callable(target):
+        return []
+    try:
+        parameters = list(inspect.signature(target).parameters.values())
+    except (TypeError, ValueError):
+        return []
+    given = {one.arg for one in node.keywords if one.arg}
+    positional = [one for one in parameters if one.kind in (
+        one.POSITIONAL_ONLY, one.POSITIONAL_OR_KEYWORD)]
+    given |= {one.name for one in positional[:len(node.args)]}
+    out = []
+    for one in parameters:
+        if one.name in given or one.name in ("self", "cls") or one.kind in (
+                one.VAR_POSITIONAL, one.VAR_KEYWORD, one.POSITIONAL_ONLY):
+            continue
+        if one.name in context["bound"]:
+            out.append((one.name, one.name))
+        for holder in context["bound"]:
+            if one.name in context["receivers"].get(holder, set()):
+                out.append((one.name, f"{holder}.{one.name}"))
+    return out[:8]
+
+
+def _pass(node, name: str, said: str) -> bool:
+    node.keywords.append(ast.keyword(arg=name, value=ast.parse(
+        said, mode="eval").body))
+    return True
 
 
 def _set_callee(node, method) -> bool:
@@ -393,11 +452,14 @@ def _context(tree, module_source: str) -> dict:
             "wraps": list(dict.fromkeys(called + list(WRAPS)))}
 
 
-def candidates(source: str, lines: list, module_source: str = "") -> list:
+def candidates(source: str, lines: list, module_source: str = "",
+               where: dict | None = None) -> list:
     """[(line, what was done, the function's source with it done)] of the
     edits on these lines, in their order, at most `MOST`."""
     tree = ast.parse(textwrap.dedent(source))
     context = _context(tree, module_source)
+    # the module as it runs and the method's class: what calls call
+    context.update(where or {})
     function = tree.body[0]
     conditions = {id(node.test) for node in ast.walk(function)
                   if isinstance(node, (ast.If, ast.While, ast.IfExp))} | {
@@ -495,14 +557,20 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         module_source = inspect.getsource(module) if module else ""
     except (OSError, TypeError):
         module_source = ""
-    found = _ordered(source, candidates(source, lines, module_source), row)
+    owner = module
+    for part in function.__qualname__.split(".")[:-1]:
+        owner = getattr(owner, part, None)
+    where = {"namespace": vars(module) if module else {},
+             "owner": owner if owner is not module else None}
+    found = _ordered(source, candidates(source, lines, module_source, where),
+                     row)
     held, tried = _tried(found[:MOST], case, old, verify)
     if not held and PAIRS:
         # no one edit: two -- each of the first edits by how far it gets
         # the failing tests (more pass, or they fail otherwise), the best
         # of them each given a second edit, tried in the code model's order
         held, more = _paired(case, function, old, verify, row, found, lines,
-                             module_source)
+                             module_source, where)
         tried += more
     if not held:
         row["repair"] = {"tried": tried}
@@ -611,7 +679,7 @@ def _relined(case: dict, function, lines: list) -> list:
 
 
 def _paired(case, function, old, verify, row, found, lines,
-            module_source) -> tuple:
+            module_source, where=None) -> tuple:
     """Two edits: the first edits measured by how far they get the failing
     tests, the `BEAM` best (the rest by order) each given second edits in
     the code model's order, judged by the tests -- (held, tried)."""
@@ -633,7 +701,8 @@ def _paired(case, function, old, verify, row, found, lines,
     # suspected lines as they stand there
     lines = _relined(case, function, lines)
     for (line, what, made), _, _ in beam:
-        second = _ordered(made, candidates(made, lines, module_source), row,
+        second = _ordered(made, candidates(made, lines, module_source,
+                                           where), row,
                           pool=SECOND_POOL)
         pairs = [(line2, f"{what} / {what2}", made2)
                  for line2, what2, made2 in second[:SECONDS]]

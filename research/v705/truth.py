@@ -193,10 +193,36 @@ def _same_code(one: str, other: str) -> bool:
     import ast
     import textwrap
     try:
-        return ast.dump(ast.parse(textwrap.dedent(one))) == ast.dump(
-            ast.parse(textwrap.dedent(other)))
+        return ast.dump(_plain(ast.parse(textwrap.dedent(one)))) == ast.dump(
+            _plain(ast.parse(textwrap.dedent(other))))
     except SyntaxError:
         return False
+
+
+def _plain(tree):
+    """A tree with what logic says twice said once: `not not x` is `x`,
+    `not (a in b)` is `a not in b`, `not (a not in b)` is `a in b`
+    (Service.run's own fix written `not (not key in self._cache)`)."""
+    import ast
+
+    class Plain(ast.NodeTransformer):
+        def visit_UnaryOp(self, node):
+            self.generic_visit(node)
+            if not isinstance(node.op, ast.Not):
+                return node
+            inner = node.operand
+            if isinstance(inner, ast.UnaryOp) and isinstance(inner.op,
+                                                             ast.Not):
+                return inner.operand
+            if isinstance(inner, ast.Compare) and len(inner.ops) == 1:
+                turned = {ast.In: ast.NotIn, ast.NotIn: ast.In,
+                          ast.Is: ast.IsNot, ast.IsNot: ast.Is}.get(
+                    type(inner.ops[0]))
+                if turned:
+                    return ast.Compare(left=inner.left, ops=[turned()],
+                                       comparators=inner.comparators)
+            return node
+    return Plain().visit(tree)
 
 
 def _sealed(run, seconds: float = 0):
