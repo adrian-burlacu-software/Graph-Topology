@@ -458,6 +458,12 @@ def _context(tree, module_source: str) -> dict:
             "names": list(dict.fromkeys(names)), "methods": methods,
             "conjuncts": list(dict.fromkeys(conjuncts)),
             "compared": compared,
+            # the keys the module subscripts with, as strings
+            "keys": list(dict.fromkeys(
+                one.slice.value for one in ast.walk(module)
+                if isinstance(one, ast.Subscript) and isinstance(
+                    one.slice, ast.Constant) and isinstance(
+                    one.slice.value, str)))[:60],
             "wraps": list(dict.fromkeys(called + list(WRAPS)))}
 
 
@@ -514,6 +520,72 @@ def _dispatched(tree, helpers: list, context: dict) -> list:
     return out
 
 
+def _copied(tree, context: dict) -> list:
+    """`if 'k' in a: b['k'] = a['k']` after the last statement that stores
+    into `b`, in the block it stands in: a field the function reads off
+    one dict carried into the one it fills (`if 'file' in node:
+    where['file'] = node['file']` beside its own `if 'said' in node:
+    where['said'] = node['said']`) -- `k` a key the module subscripts
+    somewhere that this function does not store into `b` yet."""
+    function = tree.body[0]
+
+    def key(node):
+        return node.slice.value if isinstance(node.slice, ast.Constant) and             isinstance(node.slice.value, str) else None
+    read, stored = set(), {}
+    for node in ast.walk(function):
+        if isinstance(node, ast.Subscript) and isinstance(
+                node.value, ast.Name) and key(node):
+            if isinstance(node.ctx, ast.Store):
+                stored.setdefault(node.value.id, set()).add(key(node))
+            else:
+                read.add(node.value.id)
+    # the last statement of any block storing into each dict, by its place
+    # in the walk: (the block's index path, its position)
+    last = {}
+    for holder in ast.walk(function):
+        for field, body in ast.iter_fields(holder):
+            if not isinstance(body, list):
+                continue
+            for at, statement in enumerate(body):
+                if not isinstance(statement, ast.stmt):
+                    continue
+                for node in ast.walk(statement):
+                    if isinstance(node, ast.Subscript) and isinstance(
+                            node.ctx, ast.Store) and isinstance(
+                            node.value, ast.Name):
+                        last.setdefault(node.value.id, {})[id(holder)] = (
+                            statement.lineno, at, field, id(holder))
+    keys = context.get("keys", [])
+    nodes = list(ast.walk(function))
+    out = []
+    for into, already in stored.items():
+        # in the block of the last store, and beside the statement holding
+        # it in the block around (`if 'said' in node:` stands beside its own)
+        for line, at, field, holder_id in list(last.get(into, {}).values())[
+                -2:]:
+            index = next(number for number, one in enumerate(nodes)
+                         if id(one) == holder_id)
+            out += _copies(tree, index, field, at, line, into, read, keys,
+                           already)
+    return out[:120]
+
+
+def _copies(tree, index, field, at, line, into, read, keys, already) -> list:
+    """Each key copied from each dict read into `into`, put in at `at` of
+    the `field` block of the walk's `index`th node."""
+    out = []
+    for source in sorted(read - {into}):
+        for name in [one for one in keys if one not in already][:30]:
+            made = copy.deepcopy(tree)
+            holder = list(ast.walk(made.body[0]))[index]
+            getattr(holder, field).insert(at + 1, ast.parse(
+                f"if {name!r} in {source}:" + chr(10) +
+                f"    {into}[{name!r}] = {source}[{name!r}]").body[0])
+            out.append((line, f"{into}[{name!r}] = {source}[{name!r}]",
+                        ast.unparse(ast.fix_missing_locations(made))))
+    return out
+
+
 def candidates(source: str, lines: list, module_source: str = "",
                where: dict | None = None) -> list:
     """[(line, what was done, the function's source with it done)] of the
@@ -535,6 +607,7 @@ def candidates(source: str, lines: list, module_source: str = "",
     # one (`... if name else _super(...)` for `... else None`)
     helpers = _helpers(function, context)
     out += _dispatched(tree, helpers, context)
+    out += _copied(tree, context)
     for index, node in enumerate(nodes):
         if isinstance(node, ast.Constant) and node.value is None and                 getattr(node, "lineno", None) in lines:
             for name, args in helpers[:HELPERS]:
