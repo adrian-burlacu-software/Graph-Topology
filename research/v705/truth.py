@@ -136,6 +136,13 @@ def real(case: dict, true, text: str) -> dict:
         made = inside.changed_function(true, text)
     except Exception as bad:                        # noqa: BLE001
         return {"real": False, "why": f"{type(bad).__name__}"}
+    # the true function itself, written out again: real whatever the calls
+    # (Service.run's own fix had no call a copy could replay: threads)
+    found = commits.functions(text)
+    written = found.get(case["function"]) or found.get(
+        case["function"].split(".")[-1], "")
+    if written and _same_code(written, inspect.getsource(true)):
+        return {"real": True, "exact": True}
     tests = list(case["tests"]) + [
         one for one in _covering(case)
         if one["test"] not in {test["test"] for test in case["tests"]}]
@@ -178,6 +185,18 @@ def real(case: dict, true, text: str) -> dict:
             "passed": passed, "unlike": unlike,
             # no call to compare is no evidence it is the same
             "real": 0 < calls == agree and passed == len(tests)}
+
+
+def _same_code(one: str, other: str) -> bool:
+    """Two sources the same code: alike once parsed (comments and layout
+    aside)."""
+    import ast
+    import textwrap
+    try:
+        return ast.dump(ast.parse(textwrap.dedent(one))) == ast.dump(
+            ast.parse(textwrap.dedent(other)))
+    except SyntaxError:
+        return False
 
 
 def _sealed(run, seconds: float = 0):

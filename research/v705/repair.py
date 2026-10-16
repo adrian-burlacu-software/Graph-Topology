@@ -26,7 +26,7 @@ from research.v705 import commits
 
 #: the lines tried, most suspected first, the edits ordered (by where they
 #: stand and by the code model), and those of them tried by the tests
-LINES, POOL, MOST = 8, 1500, 400
+LINES, POOL, MOST = 40, 1500, 400
 #: how long a test run for its lines may take (they took under three
 #: seconds when the coverage was gathered)
 SPECTRUM_SECONDS = 20
@@ -450,6 +450,9 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         source = textwrap.dedent(case["before"])
     if "guards" not in case:
         case["guards"] = commits._beside(case)
+    # every line the failing tests run, most suspected first: the code
+    # model's order sorts their edits with where they stand (five true
+    # lines stood past the first eight)
     lines = [line for line, score in suspected(case, function)
              if score > 0][:LINES]
     row["suspected"] = lines
@@ -568,8 +571,9 @@ def _fuzzed(calls: list) -> list:
     return out[:FUZZED]
 
 
-#: the changes the tests pass kept to choose among
-KEPT = 6
+#: the changes the tests pass kept to choose among (each kept runs every
+#: guard: six made a run four times as long, for no more real)
+KEPT = 3
 
 
 def _changed(function, texts: list, calls: list) -> list:
