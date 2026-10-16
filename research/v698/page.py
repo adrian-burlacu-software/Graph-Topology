@@ -318,7 +318,8 @@ def _act(read, text: str, session, memory) -> dict | None:
             if held is not None else None
         if subject is not None and subject.kind in ("function", "file"):
             if fixing.available():
-                made = fixing.change(text, held, subject, key)
+                made = fixing.change(text, held, subject, key,
+                                     spans=read.spans)
                 asking.FOCUS[key] = (subject, turn)
                 found = asking._reply("change", text, made["said"],
                                       {"read": read.json()},

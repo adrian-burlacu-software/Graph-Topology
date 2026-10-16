@@ -40,6 +40,31 @@ def _header(function) -> str:
     return ast.unparse(bare).splitlines()[0]
 
 
+def _appended(old, new) -> list | None:
+    """The parameters `new` has after all of `old`'s, as written (`message:
+    str = ''`), where that is all that changed; None otherwise."""
+    if old.vararg or old.kwonlyargs or old.kwarg or old.posonlyargs or \
+            new.vararg or new.kwonlyargs or new.kwarg or new.posonlyargs:
+        return None
+    if len(new.args) <= len(old.args) or [ast.dump(one) for one in new.args[
+            :len(old.args)]] != [ast.dump(one) for one in old.args]:
+        return None
+    defaults = [None] * (len(new.args) - len(new.defaults)) + list(
+        new.defaults)
+    kept = [None] * (len(old.args) - len(old.defaults)) + list(old.defaults)
+    if [ast.dump(one) if one else None for one in defaults[:len(old.args)]] \
+            != [ast.dump(one) if one else None for one in kept]:
+        return None
+    out = []
+    for arg, default in zip(new.args[len(old.args):],
+                            defaults[len(old.args):]):
+        said = ast.unparse(arg)
+        if default is not None:
+            said += (" = " if arg.annotation else "=") + ast.unparse(default)
+        out.append(said)
+    return out
+
+
 def _bodies(node) -> list:
     """The statement lists a statement holds, by field."""
     return [(name, value) for name, value in ast.iter_fields(node)
@@ -129,8 +154,27 @@ def spliced(original: str, made: str) -> str | None:
         end = head
         while end <= len(lines) and not lines[end - 1].rstrip().endswith(":"):
             end += 1
-        edits.append((head, end, [lines[head - 1][:old.col_offset] +
-                                  _header(new)]))
+        added = _appended(old.args, new.args)
+        if added is not None and (ast.dump(old.returns) if old.returns
+                                  else None) == (ast.dump(new.returns)
+                                                 if new.returns else None):
+            # only parameters put on the end: those written in before the
+            # `)` closing the ones there, the rest of the line as it was
+            # (`said: str = ""` was written `said: str=''` again)
+            said = "\n".join(lines[head - 1:end])
+            close = said.rfind(")", 0, said.rfind("->") if "->" in said
+                               else said.rfind(":"))
+            if close > 0:
+                before_ = said[:close].rstrip()
+                joined = ", " if not before_.endswith("(") else ""
+                said = before_ + joined + ", ".join(added) + said[close:]
+                edits.append((head, end, said.split("\n")))
+            else:
+                edits.append((head, end, [lines[head - 1][:old.col_offset] +
+                                          _header(new)]))
+        else:
+            edits.append((head, end, [lines[head - 1][:old.col_offset] +
+                                      _header(new)]))
     body_indent = lines[old.body[0].lineno - 1][:old.body[0].col_offset]
     if not _replace_in(lines, old.body, new.body, body_indent, edits,
                        old.body[0].lineno - 1):

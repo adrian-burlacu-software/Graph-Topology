@@ -552,14 +552,15 @@ PASSES = 4
 
 
 def change(statement: str, held, subject, key=None,
-           context: dict | None = None) -> dict:
+           context: dict | None = None, spans: dict | None = None) -> dict:
     """The change asked, made -- again, on what it made, while the
     statement names code no pass has changed yet, each pass changing some
     of what is left; the passes kept as one change (`undo` puts all back).
     `context`: what a plan's step is given beside the statement (v703
     `teach_parts`) -- `said` to the editor, and the `imports` the project
     offers for what that says."""
-    first = _change_once(statement, held, subject, key, context=context)
+    first = _change_once(statement, held, subject, key, context=context,
+                         spans=spans)
     if first["status"] != "changed":
         return first
     named = set(first.get("named", ()))
@@ -571,7 +572,7 @@ def change(statement: str, held, subject, key=None,
     # `server.server.port`)
     while passes < PASSES and named - done and not is_data(first["file"]):
         more = _change_once(statement, held, subject, key,
-                            need=named - done, context=context)
+                            need=named - done, context=context, spans=spans)
         if more["status"] != "changed":
             break
         done |= set(more.get("touched", ()))
@@ -663,9 +664,16 @@ def defined_in(text: str, path: str, start: int = 1,
     return out
 
 
+#: a change made by the kind the request names is written where the judge
+#: reads it as what was said at least so, and above the next so made by
+#: at least so much
+KIND_JUDGED, KIND_MARGIN = 0.5, 0.1
+
+
 def _change_once(statement: str, held, subject, key=None,
                  need: set | None = None,
-                 context: dict | None = None) -> dict:
+                 context: dict | None = None,
+                 spans: dict | None = None) -> dict:
     """One change asked, made: what was tried, what was checked, what was
     written. `need`: names it must change some of (what earlier passes
     left)."""
@@ -702,6 +710,77 @@ def _change_once(statement: str, held, subject, key=None,
                                           end, subject)
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
+    def check(row) -> None:
+        """An answer's change put to every check: kept in `passed`, or
+        refused with why -- the editors' and those made by their kind
+        (`shaped.asked`) alike."""
+        # the case a debugging step is fixing, written into the code: a
+        # fit to the case, not a fix (`return Mention("speaker",
+        # text="what is my dog called?")` for every phrase _whose did
+        # not know -- three agreed, it compiled)
+        case = (context or {}).get("case")
+        if case and case.lower() in row["made"].lower() and \
+                case.lower() not in part.lower():
+            row["refused"] = "it writes the case it is fixing into the code"
+            return
+        # what the request names of the project by its words (a plan's
+        # step: `the shell asks` is shell.ASK) -- a change using none of
+        # it is not the change asked (`"asked": parsed.path ==
+        # "/api/shell"` compiled, two wrote it, the judge let it by)
+        wanted = (context or {}).get("names")
+        if wanted and not any(name in line for line in _lines_changed(
+                part, row["made"])[1] for name in wanted):
+            row["refused"] = ("it uses nothing the request names "
+                              f"({', '.join(wanted)})")
+            return
+        if need and not set(row["touched"]) & need:
+            row["refused"] = ("it changes none of what is left "
+                              f"({', '.join(sorted(need))})")
+            return
+        if named and not row["touched"]:
+            # a change of nothing the statement names is not the
+            # change it asks for, however well it compiles
+            row["refused"] = ("it changes nothing the statement names "
+                              f"({', '.join(sorted(named))})")
+            return
+        if data:
+            if block is not None and _outside(block, start, part,
+                                              row["made"]):
+                row["refused"] = ("it changes lines outside what the "
+                                  f"statement is of (lines {block[0] + 1}"
+                                  f"-{block[1] + 1})")
+                return
+            wrong = data_wrong(path, text, row["text"])
+            if wrong:
+                row["refused"] = wrong
+                return
+            passed.append(row)
+            return
+        if not _reads(path, row["text"]):
+            row["refused"] = "the file no longer reads"
+            return
+        try:
+            found = _diagnosed(held, path, row["text"])
+        except Unchecked as bad:
+            row["refused"] = f"the compiler could not check it: {bad}"
+            return
+        row["diagnostics"] = len(found)
+        more = _more_wrong(before, found)
+        if more:
+            row["refused"] = (f"the compiler finds {len(more)} more "
+                              f"wrong: {more[0].get('message', '')}")
+            return
+        more = _more_wrong(flakes_before, _flakes(path, row["text"]))
+        if more:
+            row["refused"] = (f"pyflakes finds {len(more)} more wrong: "
+                              f"{more[0]['message']}")
+            return
+        unfound = _unfound_imports(held, text, row["text"], path)
+        if unfound:
+            row["refused"] = (f"it imports what the project does not "
+                              f"have: {', '.join(unfound)}")
+            return
+        passed.append(row)
     rounds = VERIFIED_ROUNDS if (context or {}).get("verify") else ROUNDS
     for round_ in range(rounds):
         # each request sampled by a seed of its own and the round's, as the
@@ -754,73 +833,7 @@ def _change_once(statement: str, held, subject, key=None,
                 seen[made] = row
                 fresh.append(row)
         for row in fresh:
-            # the case a debugging step is fixing, written into the code: a
-            # fit to the case, not a fix (`return Mention("speaker",
-            # text="what is my dog called?")` for every phrase _whose did
-            # not know -- three agreed, it compiled)
-            case = (context or {}).get("case")
-            if case and case.lower() in row["made"].lower() and \
-                    case.lower() not in part.lower():
-                row["refused"] = "it writes the case it is fixing into the code"
-                continue
-            # what the request names of the project by its words (a plan's
-            # step: `the shell asks` is shell.ASK) -- a change using none of
-            # it is not the change asked (`"asked": parsed.path ==
-            # "/api/shell"` compiled, two wrote it, the judge let it by)
-            wanted = (context or {}).get("names")
-            if wanted and not any(name in line for line in _lines_changed(
-                    part, row["made"])[1] for name in wanted):
-                row["refused"] = ("it uses nothing the request names "
-                                  f"({', '.join(wanted)})")
-                continue
-            if need and not set(row["touched"]) & need:
-                row["refused"] = ("it changes none of what is left "
-                                  f"({', '.join(sorted(need))})")
-                continue
-            if named and not row["touched"]:
-                # a change of nothing the statement names is not the
-                # change it asks for, however well it compiles
-                row["refused"] = ("it changes nothing the statement names "
-                                  f"({', '.join(sorted(named))})")
-                continue
-            if data:
-                if block is not None and _outside(block, start, part,
-                                                  row["made"]):
-                    row["refused"] = ("it changes lines outside what the "
-                                      f"statement is of (lines {block[0] + 1}"
-                                      f"-{block[1] + 1})")
-                    continue
-                wrong = data_wrong(path, text, row["text"])
-                if wrong:
-                    row["refused"] = wrong
-                    continue
-                passed.append(row)
-                continue
-            if not _reads(path, row["text"]):
-                row["refused"] = "the file no longer reads"
-                continue
-            try:
-                found = _diagnosed(held, path, row["text"])
-            except Unchecked as bad:
-                row["refused"] = f"the compiler could not check it: {bad}"
-                continue
-            row["diagnostics"] = len(found)
-            more = _more_wrong(before, found)
-            if more:
-                row["refused"] = (f"the compiler finds {len(more)} more "
-                                  f"wrong: {more[0].get('message', '')}")
-                continue
-            more = _more_wrong(flakes_before, _flakes(path, row["text"]))
-            if more:
-                row["refused"] = (f"pyflakes finds {len(more)} more wrong: "
-                                  f"{more[0]['message']}")
-                continue
-            unfound = _unfound_imports(held, text, row["text"], path)
-            if unfound:
-                row["refused"] = (f"it imports what the project does not "
-                                  f"have: {', '.join(unfound)}")
-                continue
-            passed.append(row)
+            check(row)
         # asked again only while nothing passed that answers agree on: the
         # words a statement shares with the code are not all code it names
         # (`it`, `never` are names in some code), so all of them touched is
@@ -849,6 +862,30 @@ def _change_once(statement: str, held, subject, key=None,
             for row in passed)
         if agreed_ or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
             break
+    # the change of the kind the request's roles name (the reader's spans,
+    # `shaped.asked`): a parameter it is to take, a value passed on, a case
+    # handed to a helper -- what the editors could not write ("gained
+    # should take a message": twenty answers, none of the `def` line)
+    if spans and not data:
+        from research.v705 import shaped
+        for what, made in shaped.asked(spans, part, path, text):
+            row = {"answer": f"(by its kind) {what}", "greedy": False,
+                   "round": -1, "kind": what}
+            tried.append(row)
+            if made in seen:
+                # an editor wrote it too: answers written apart agreeing
+                seen[made]["agree"] += 1
+                seen[made]["kind"] = what
+                row["same as"] = seen[made]["index"]
+                continue
+            after = _with_imports(path, "".join(lines[:start - 1]) + made +
+                                  "".join(lines[end:]),
+                                  (context or {}).get("imports"))
+            row.update({"index": len(tried) - 1, "agree": 1, "text": after,
+                        "made": made, "touched": sorted(
+                            named & _changed_names(part, made))})
+            seen[made] = row
+            check(row)
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
@@ -943,8 +980,21 @@ def _change_once(statement: str, held, subject, key=None,
     # a change one answer wrote is a guess: written into the file only
     # where answers written apart agree on it (`_meets` was rewritten,
     # its comparison with what it must give dropped, by 1 of 13)
+    # -- or one made by the kind the request names, where none the editors
+    # wrote agree: the judge reading it as what was said, and clearly
+    # above the next made so (it is made, not sampled: two copies of it
+    # agreeing would say nothing)
+    by_kind = sorted((row for row in passed if row.get("kind")),
+                     key=lambda one: -one.get("judged", 0.0))
+    if by_kind and "judged" in by_kind[0] and not any(
+            row["agree"] >= LEAST_AGREED for row in passed
+            if not row.get("kind")):
+        best_, second = by_kind[0], (by_kind[1].get("judged", 0.0)
+                                     if len(by_kind) > 1 else 0.0)
+        if best_["judged"] >= KIND_JUDGED and                 best_["judged"] - second >= KIND_MARGIN:
+            best_["by kind"] = True
     agreed = [row for row in passed if row["agree"] >= LEAST_AGREED
-              or row.get("verified")]
+              or row.get("verified") or row.get("by kind")]
     if not agreed:
         best = max(passed, key=lambda one: one.get("judged", 0.0))
         out["guess"] = diff(text, best["text"], path)
@@ -976,8 +1026,12 @@ def _change_once(statement: str, held, subject, key=None,
         "said": (f"Changed "
                  f"{path if subject.kind == 'file' else subject.name + ' in ' + path}"
                  f" ({count} lines), "
-                 f"{where_}. {best['agree']} of {len(answers)} changes "
-                 f"written agree on it, and "
+                 f"{where_}. "
+                 + (f"Made as what you asked for ({best['kind']}), the "
+                    f"judge reading it so ({best.get('judged', 0):.2f}), and "
+                    if best.get("by kind") else
+                    f"{best['agree']} of {len(answers)} changes written "
+                    f"agree on it, and ")
                  + ("it still reads as data and repeats no place it has."
                     if data else "the compiler finds nothing more wrong "
                     "with the file."))})

@@ -61,6 +61,99 @@ def _where(path: str) -> dict:
     return {"namespace": vars(module)} if module else {}
 
 
+def _identifier(said: str) -> str:
+    """Words a request marks, as the name they would be in code
+    (`commit message` -> `commit_message`)."""
+    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", said)
+    return "_".join(words) if words and not said.strip().isidentifier() \
+        else said.strip()
+
+
+def _literal(said: str):
+    import ast as _ast
+    try:
+        return True, _ast.literal_eval(said.strip())
+    except (ValueError, SyntaxError):
+        return False, None
+
+
+def asked(spans: dict, part: str, path: str, text: str) -> list:
+    """The changes of the kind a request's roles name (the reader's
+    `spans`, `teach_change_talk`): [(what, the part with it in as
+    written)] -- a function taking what it marks `NEW` (its `DEFAULT`, or
+    each plain one); the call it marks `CALLEE` given the `VALUE`; the
+    `CASE` handed to the `HELPER`. None of a kind not asked for."""
+    from research.v705 import repair, splice
+    source = textwrap.dedent(part)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    if not tree.body or not isinstance(tree.body[0], (ast.FunctionDef,
+                                                      ast.AsyncFunctionDef)):
+        return []
+    function = tree.body[0]
+    made: list = []
+    for new in spans.get("NEW", []):
+        name = _identifier(new)
+        if not name.isidentifier() or keyword.iskeyword(name):
+            continue
+        given = [_literal(one) for one in spans.get("DEFAULT", [])]
+        defaults = [value for ok, value in given if ok] or list(DEFAULTS)
+        for default in defaults:
+            changed = ast.parse(ast.unparse(tree))
+            args = changed.body[0].args
+            if args.vararg is not None:
+                args.kwonlyargs.append(ast.arg(arg=name))
+                args.kw_defaults.append(ast.Constant(default))
+            else:
+                args.args.append(ast.arg(arg=name))
+                args.defaults.append(ast.Constant(default))
+            made.append((f"takes {name}={default!r}", ast.unparse(changed)))
+    where = _where(path)
+    for value in spans.get("VALUE", []):
+        for callee in spans.get("CALLEE", []):
+            # the keyword the callee takes it by: its own parameter so
+            # named where it can be found, else the value's own last name
+            last = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", value)
+            keyword_ = last[-1] if last else None
+            for at, node in enumerate(ast.walk(function)):
+                if not isinstance(node, ast.Call) or not ast.unparse(
+                        node.func).endswith(callee.strip()) or keyword_ is None:
+                    continue
+                changed = ast.parse(ast.unparse(tree))
+                target = list(ast.walk(changed.body[0]))[at]
+                try:
+                    target.keywords.append(ast.keyword(
+                        arg=keyword_, value=ast.parse(value.strip(),
+                                                      mode="eval").body))
+                except SyntaxError:
+                    continue
+                made.append((f"{callee}(..., {keyword_}={value})",
+                             ast.unparse(changed)))
+    for case in spans.get("CASE", []):
+        for helper in spans.get("HELPER", []):
+            context = repair._context(tree, text)
+            context.update(where)
+            helpers = [one for one in repair._helpers(function, context)
+                       if one[0] == helper.strip()] or [
+                (helper.strip(), [one.arg for one in function.args.args
+                                  if one.arg not in ("self", "cls")])]
+            wanted = case.strip().strip("'\"")
+            context["compared"] = [one for one in context.get(
+                "compared", []) if str(one[1]) == wanted] or [
+                (field, wanted) for field, _ in context.get("compared", [])]
+            for line, what, source_ in repair._dispatched(tree, helpers,
+                                                          context):
+                made.append((what, source_))
+    out = []
+    for what, source_ in made:
+        put = splice.spliced(part, source_)
+        if put is not None and put != part:
+            out.append((what, put))
+    return out
+
+
 def offered(statement: str, part: str, path: str, text: str,
             held) -> list:
     """The changes of `part` (one function, as written) the request may
