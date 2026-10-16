@@ -565,7 +565,7 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
     found = _ordered(source, candidates(source, lines, module_source, where),
                      row)
     held, tried = _tried(found[:MOST], case, old, verify)
-    if not held and PAIRS:
+    if not held:
         # no one edit: two -- each of the first edits by how far it gets
         # the failing tests (more pass, or they fail otherwise), the best
         # of them each given a second edit, tried in the code model's order
@@ -576,23 +576,17 @@ def search(case: dict, function, old: str, verify, row: dict) -> dict | None:
         row["repair"] = {"tried": tried}
         return None
     # of those the tests pass, the one that changes least of what it does
-    # where the tests beside it call it, and on calls like those (fuzzed):
-    # a slip undone changes the calls it went wrong on, `and` made `or`
-    # changes many it did not
+    # where the tests beside it call it: a slip undone changes the calls it
+    # went wrong on, `and` made `or` changes many it did not (calls fuzzed
+    # from these were measured too, and chose no better)
     calls = truth_recorded(function, case.get("guards") or [])
     changed = _changed(function, [one[3] for one in held], calls)
-    fuzzed = _changed(function, [one[3] for one in held], _fuzzed(calls))
-    best = min(range(len(held)), key=lambda at: (
-        (fuzzed[at] + changed[at]) if RANK == "both" else
-        changed[at] if RANK == "calls" else fuzzed[at] if RANK == "fuzz"
-        else 0, at))
+    best = min(range(len(held)), key=lambda at: (changed[at], at))
     line, what, made, _ = held[best]
     row["repair"] = {"tried": tried, "line": line, "edit": what,
                      "held": [{"edit": one[1], "line": one[0],
-                               "calls": count, "fuzzed": fuzz,
-                               "source": one[2]}
-                              for one, count, fuzz in zip(held, changed,
-                                                          fuzzed)]}
+                               "calls": count, "source": one[2]}
+                              for one, count in zip(held, changed)]}
     return {"moves": [f"line {line}: {what}"], "source": made}
 
 
@@ -602,7 +596,7 @@ def _ordered(source: str, found: list, row: dict, pool: int = 0) -> list:
     summed -- the true edit in the first six for 11 of 14 bugs, against 3
     by where they stand alone; one batch on the GPU."""
     found = found[:pool] if pool else found
-    if not NATURAL or not found:
+    if not found:
         return found
     from research.v705 import natural
     try:
@@ -632,11 +626,13 @@ def _tried(found: list, case: dict, old: str, verify) -> tuple:
     return held, tried
 
 
-#: whether two edits are tried where no one edit holds; of how many first
-#: edits progress is measured, how many are kept, and how many second
-#: edits each is given (of how many ordered)
-PAIRS = True
+#: of how many first edits progress is measured, how many changes are kept
+#: going at each depth, and how many edits each is given (of how many
+#: ordered)
 FIRSTS, BEAM, SECONDS, SECOND_POOL = 120, 8, 40, 200
+#: the changes the tests pass kept to choose among (each kept runs every
+#: guard: six made a run four times as long, for no more real)
+KEPT = 3
 
 
 def _progress(case: dict, function, text: str, before: dict) -> tuple:
@@ -793,68 +789,9 @@ def _paired(case, function, old, verify, row, found, lines,
     return held[:KEPT], tried
 
 
-#: whether the edits are tried in the order the code model and where they
-#: stand give together (`natural`)
-NATURAL = True
-#: how the changes that hold are chosen among: by what they change of the
-#: tests' calls and of fuzzed ones ("both"), of one of them, or the first
-RANK = "both"
-#: fuzzed calls made at most
-FUZZED = 300
-
-
 def truth_recorded(function, tests: list) -> list:
     from research.v705 import truth
     return truth._recorded(function, tests)
-
-
-def _variants(value) -> list:
-    """Values like one, a step from it."""
-    if isinstance(value, bool):
-        return [not value]
-    if isinstance(value, int):
-        return [value + 1, value - 1, 0]
-    if isinstance(value, float):
-        return [value * 2, -value, 0.0]
-    if isinstance(value, str):
-        out = ["", value.upper(), value + value[-1:]]
-        if len(value) > 1:
-            out += [value[1:], value[:-1]]
-        return out
-    if isinstance(value, list):
-        out = [[], list(reversed(value))]
-        if value:
-            out += [value[1:], value + value[:1]]
-        return out
-    if isinstance(value, tuple):
-        return [tuple(one) for one in _variants(list(value))]
-    if isinstance(value, dict) and value:
-        return [{key: one for key, one in value.items() if key != drop}
-                for drop in list(value)[:3]]
-    return []
-
-
-def _fuzzed(calls: list) -> list:
-    """Calls like the tests' own, one argument a step from what it was."""
-    import copy
-    import random
-    rng = random.Random(7057)
-    out = []
-    for held, gave in calls:
-        for name, value in held.items():
-            if name == "self":
-                continue
-            for other in _variants(value):
-                one = copy.copy(held)
-                one[name] = other
-                out.append((one, None))
-    rng.shuffle(out)
-    return out[:FUZZED]
-
-
-#: the changes the tests pass kept to choose among (each kept runs every
-#: guard: six made a run four times as long, for no more real)
-KEPT = 3
 
 
 def _changed(function, texts: list, calls: list) -> list:

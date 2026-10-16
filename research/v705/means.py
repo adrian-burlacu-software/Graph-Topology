@@ -1259,8 +1259,7 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
     from research.v705 import inside
     moved = []
     proposed = designs(case, wanted, source, held)
-    if DEDUCED:
-        proposed += deduced(case, source, wanted, held, verify, old, row)
+    proposed += deduced(case, source, wanted, held, verify, old, row)
     for made_source, why in proposed:
         text = commits._placed(made_source, case["before"], old)
         if text is None:
@@ -1291,28 +1290,19 @@ def deepen(case: dict, source: str, wanted: dict, held: dict, verify,
     # a goal no move of its own reaches: the code model told it exactly
     # -- the moves so far, what the check gets and should -- writes the
     # function as it stands now
-    if LEAVES:
-        for made_source, why in _leaf(case, source, wanted, moves):
-            text = commits._placed(made_source, case["before"], old)
-            if text is None:
-                continue
-            said = verify(text)
-            row.setdefault("tries", []).append(
-                [depth, " / ".join(moves + (why,))[:160],
-                 (said or "holds")[:100]])
-            if said is None:
-                return {"moves": list(moves + (why,)), "source": made_source}
+    for made_source, why in _leaf(case, source, wanted, moves):
+        text = commits._placed(made_source, case["before"], old)
+        if text is None:
+            continue
+        said = verify(text)
+        row.setdefault("tries", []).append(
+            [depth, " / ".join(moves + (why,))[:160],
+             (said or "holds")[:100]])
+        if said is None:
+            return {"moves": list(moves + (why,)), "source": made_source}
     return None
 
 
-#: whether a goal no move reaches is given to the code model, and first
-#: broken down by deduction
-LEAVES = True
-DEDUCED = True
-#: whether one edit on the suspected lines is tried first (`repair`)
-REPAIR = True
-#: whether a change that holds is made as general as its tests let it be
-GENERAL = True
 
 
 def generalized(case: dict, found: dict, verify, old: str, row: dict
@@ -1622,20 +1612,20 @@ def run(most: int = 0, which: str = "design", only: str = "") -> dict:
                 if wanted["failing"] or wanted["crash"]:
                     counts["goal"] += 1
                     verify = commits.verifier(case, commits._current(case))
-                    # a slip first: one edit on the lines the failing test
-                    # runs most apart from the rest (`repair`); a design only
-                    # where none holds
-                    # how long each way took, to set beside what it gave
+                    # a slip first: edits on the lines the failing test runs
+                    # most apart from the rest (`repair`); a design only where
+                    # none holds; what holds made as general as the tests let
+                    # it be -- how long each took kept beside what it gave
                     clock = time.time()
                     found_ = repair.search(case, commits._current(case), old,
-                                           verify, row) if REPAIR else None
+                                           verify, row)
                     row["seconds"] = {"repair": round(time.time() - clock)}
                     if found_ is None:
                         clock = time.time()
                         found_ = deepen(case, case["before"], wanted, held,
                                         verify, old, name, row)
                         row["seconds"]["plan"] = round(time.time() - clock)
-                    if found_ and GENERAL:
+                    if found_:
                         clock = time.time()
                         found_ = generalized(case, found_, verify, old, row)
                         row["seconds"]["general"] = round(time.time() - clock)
