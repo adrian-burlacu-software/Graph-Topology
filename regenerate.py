@@ -1963,6 +1963,25 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code43", 80),
              needs=("reader-code-orders",), cost="an hour", gpu=True),
+        Step("reader-code-change", "the shared reader taught what a change "
+                                   "names (v705 `teach_change_talk`): what a "
+                                   "function is to take and its default, a "
+                                   "value passed on and the call it goes "
+                                   "to, a case and the helper it is handed "
+                                   "to -- read so, the change path makes the "
+                                   "change of that kind (`shaped.asked`)",
+             lambda: (_run("research.v705.teach_change_talk", "write"),
+                      _run("research.v705.teach_change_talk", "check"),
+                      _run("research.v705.teach_change_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code43"),
+                           "--out", str(LLM / "reader-code44"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code44", 80),
+             needs=("reader-code-yours",), cost="an hour", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",
