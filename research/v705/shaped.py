@@ -127,7 +127,8 @@ def _given(function, where: dict) -> str:
 USES, USES_POOL = 3, 200
 
 
-def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
+def _used(taken: str, name: str, text: str, said: str, path: str,
+          original: str = "") -> list:
     """[(what, source)]: the function with `name` taken (`taken`) and read
     by one edit more, the likeliest `USES` by the code model after the
     request."""
@@ -168,7 +169,10 @@ def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
     # edits that match what the change is for come first`) -- the judge
     # read `given or commit_message` above `said or commit_message`
     from research.v705 import teach_already
-    like = teach_already.chances(ast.unparse(tree), said) if said else {}
+    # (read of the function as it was: with the parameter in its `def`
+    # line, the request's own words drew the reading from `said`)
+    like = teach_already.chances(original or ast.unparse(tree), said) \
+        if said else {}
     nearest = max(kin, key=lambda one: like.get(one, 0.0), default=None)
     if nearest is not None and like.get(nearest, 0.0) >= \
             teach_already.FLOOR:
@@ -310,7 +314,7 @@ def asked(spans: dict, part: str, path: str, text: str,
         # commit message and score each window after it`: taking it is
         # half of what was asked
         if taking:
-            made += _used(taking[0][1], name, text, said, path)
+            made += _used(taking[0][1], name, text, said, path, part)
     where = _where(path)
     # a value handed on to a call and a case handed to a helper are said
     # alike (`repair should hand python bugs to _repair_python` was read
