@@ -1093,10 +1093,15 @@ def _change_once(statement: str, held, subject, key=None,
                       if role != "SUBJ" for one in found
                       for word in re.findall(r"\w+", one)}
             changed_ = _changed_names(part, made)
+            # (a word marked found as a word of a name changed as well:
+            # `commit`, `message` of `commit_message`)
+            parts = {piece for one in changed_ for piece in one.split("_")
+                     if piece}
             row.update({"index": len(tried) - 1, "agree": 1, "by": {"kind"},
                         "text": after,
                         "made": made, "touched": sorted(
-                            (named & changed_) | (marked & changed_))})
+                            (named & changed_) | (marked & changed_) |
+                            (marked & parts))})
             seen[made] = row
             check(row)
     out = {"subject": subject.name, "file": path, "lines": [start, end],

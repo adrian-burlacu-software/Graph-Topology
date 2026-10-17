@@ -158,8 +158,11 @@ def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
                         function.args.defaults[::-1]))
     defaults.update({one.arg: value for one, value in zip(
         function.args.kwonlyargs, function.args.kw_defaults) if value})
+    # (what a parameter is, as its annotation or a default of a value says
+    # -- `None` says only that it may be left out: `held or commit`, of
+    # `held=None`, was the code model's likeliest)
     kin = {one for one, value in defaults.items() if one != name and
-           isinstance(value, ast.Constant)}
+           isinstance(value, ast.Constant) and value.value is not None}
     for at, node in enumerate(ast.walk(function)):
         if not (isinstance(node, ast.Name) and node.id in kin and
                 isinstance(node.ctx, ast.Load)):
