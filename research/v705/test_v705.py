@@ -582,6 +582,16 @@ class ChangeChecksTests(unittest.TestCase):
         self.assertIsNone(_shifted(part, part.replace("c, d", "c, e, d")))
         self.assertIsNone(_shifted(part, part.replace("c, d", "z, d")))
 
+    def test_a_parameter_put_before_others(self):
+        from research.v700.fixing import _put_before
+        part = "def gained(a, b, said='', held=None):\n    return a\n"
+        self.assertEqual(_put_before(part, part.replace(
+            "said='', ", "said='', commit='', ")), "gained")
+        self.assertIsNone(_put_before(part, part.replace(
+            "held=None", "held=None, commit=''")))
+        self.assertIsNone(_put_before(part, part.replace(
+            "held=None", "held=None, *, commit=''")))
+
     def test_what_a_helper_gives_dropped(self):
         from research.v700.fixing import _dropped
         text = ("def helper(bug) -> int:\n    return 1\n\n"

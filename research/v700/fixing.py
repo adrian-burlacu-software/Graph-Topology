@@ -581,6 +581,34 @@ def _shifted(part: str, made: str) -> str | None:
     return None
 
 
+def _put_before(part: str, made: str) -> str | None:
+    """A function a change gives a parameter before ones it had, by
+    position: what each caller gives by position now goes to the one
+    before (`gained(original, sources, said="", commit="", held=None)`:
+    a call giving `held` third gave it as `commit`). The function, or
+    None. Python only."""
+    import ast
+    import textwrap
+    try:
+        before = ast.parse(textwrap.dedent(part))
+        after = ast.parse(textwrap.dedent(made))
+    except SyntaxError:
+        return None
+    was = {node.name: [one.arg for one in node.args.posonlyargs +
+                       node.args.args] for node in ast.walk(before)
+           if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    for node in ast.walk(after):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                or node.name not in was:
+            continue
+        old = was[node.name]
+        new = [one.arg for one in node.args.posonlyargs + node.args.args]
+        if len(new) > len(old) and new[:len(old)] != old and \
+                [one for one in new if one in old] == old:
+            return node.name
+    return None
+
+
 def _dropped(part: str, made: str, text: str) -> str | None:
     """A function of the module that gives a value, called by a statement
     a change puts in and what it gives dropped (`_repair_python(bug)`,
@@ -887,6 +915,13 @@ def _change_once(statement: str, held, subject, key=None,
                               f"was given, each after it now another "
                               f"parameter's")
             return
+        before_ = _put_before(part, row["made"]) if path.endswith(".py") \
+            else None
+        if before_:
+            row["refused"] = (f"it gives {before_} a parameter before ones "
+                              f"it had, what callers give by position now "
+                              f"another's")
+            return
         dropped = _dropped(part, row["made"], row["text"]) \
             if path.endswith(".py") else None
         if dropped:
@@ -934,13 +969,18 @@ def _change_once(statement: str, held, subject, key=None,
                     row["refused"] = "it changes nothing"
                     continue
                 if made in seen:
-                    seen[made]["agree"] += 1
+                    # agreeing are the answers that wrote it, each once (an
+                    # answer is all its changes and each alone: counted per
+                    # change, "9 of 7 changes written agree")
+                    seen[made]["by"].add((round_, number))
+                    seen[made]["agree"] = len(seen[made]["by"])
                     row["same as"] = seen[made]["index"]
                     continue
                 after = _with_imports(path, "".join(lines[:start - 1]) +
                                       made + "".join(lines[end:]),
                                       (context or {}).get("imports"))
                 row.update({"index": len(tried) - 1, "agree": 1,
+                            "by": {(round_, number)},
                             "text": after, "made": made, "touched": sorted(
                                 named & _changed_names(part, made))})
                 seen[made] = row
@@ -969,9 +1009,9 @@ def _change_once(statement: str, held, subject, key=None,
                     round_ + 1 >= VERIFIED_ROUNDS:
                 break
             continue
-        agreed_ = any(row["agree"] + sum(
-            other["agree"] for other in seen.values() if other is not row
-            and _extends(part, row["made"], other["made"])) >= LEAST_AGREED
+        agreed_ = any(len(row["by"].union(*(
+            other["by"] for other in seen.values() if other is not row
+            and _extends(part, row["made"], other["made"])))) >= LEAST_AGREED
             for row in passed)
         if agreed_ or nothing >= LEAST_AGREED and nothing * 2 > len(answers):
             break
@@ -988,7 +1028,8 @@ def _change_once(statement: str, held, subject, key=None,
             tried.append(row)
             if made in seen:
                 # an editor wrote it too: answers written apart agreeing
-                seen[made]["agree"] += 1
+                seen[made]["by"].add("kind")
+                seen[made]["agree"] = len(seen[made]["by"])
                 seen[made]["kind"] = what
                 row["same as"] = seen[made]["index"]
                 continue
@@ -1004,7 +1045,8 @@ def _change_once(statement: str, held, subject, key=None,
                       if role != "SUBJ" for one in found
                       for word in re.findall(r"\w+", one)}
             changed_ = _changed_names(part, made)
-            row.update({"index": len(tried) - 1, "agree": 1, "text": after,
+            row.update({"index": len(tried) - 1, "agree": 1, "by": {"kind"},
+                        "text": after,
                         "made": made, "touched": sorted(
                             (named & changed_) | (marked & changed_))})
             seen[made] = row
@@ -1012,7 +1054,7 @@ def _change_once(statement: str, held, subject, key=None,
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
-                      if key_ not in ("text", "made")} for one in tried],
+                      if key_ not in ("text", "made", "by")} for one in tried],
            "diagnostics before": len(before)}
     # most answers written apart saying nothing here is to change: the step
     # is not this function's (2 of 7 said so of do_GET, where the change
@@ -1044,7 +1086,7 @@ def _change_once(statement: str, held, subject, key=None,
     if (context or {}).get("verify") is not None:
         # tried as they were written (in the rounds above)
         out["tried"] = [{key_: value for key_, value in one.items()
-                         if key_ not in ("text", "made")} for one in tried]
+                         if key_ not in ("text", "made", "by")} for one in tried]
         passed = [row for row in passed if row.get("verified")]
         if not passed:
             why = next((one["refused"] for one in tried
@@ -1064,11 +1106,13 @@ def _change_once(statement: str, held, subject, key=None,
     # change: three of seven wrote `"asked": shell.ASK,`, two of them with
     # a key of their own after it -- the more is a guess, the change agreed
     for row in passed:
-        more = sum(other["agree"] for other in seen.values()
-                   if other is not row and _extends(part, row["made"],
-                                                    other["made"]))
+        within = set().union(*(other["by"] for other in seen.values()
+                               if other is not row and _extends(
+                                   part, row["made"], other["made"])))
+        more = len(within - row["by"])
         if more:
-            row["agree"] += more
+            row["by"] = row["by"] | within
+            row["agree"] = len(row["by"])
             row["within"] = more
     # whether each does what was said: the judge's reading of the statement
     # against the change (`teach_judge.py`) -- a change it does not believe
@@ -1091,7 +1135,7 @@ def _change_once(statement: str, held, subject, key=None,
                                   f"said ({chance:.2f})")
         passed = [row for row in passed if "refused" not in row]
         out["tried"] = [{key_: value for key_, value in one.items()
-                         if key_ not in ("text", "made")} for one in tried]
+                         if key_ not in ("text", "made", "by")} for one in tried]
         if not passed:
             out.update({"status": "unchanged", "said": (
                 f"I could not change {subject.name} as asked: of "
