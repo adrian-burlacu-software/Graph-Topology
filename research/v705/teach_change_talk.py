@@ -86,6 +86,8 @@ VALID = K.VALID
 IN_FILE = 0.4
 #: how many times as often a request to take something is filled
 TAKES_MORE = 3
+#: how often what a function is to take is said in words, after an article
+WORDED = 0.5
 
 
 def write() -> None:
@@ -215,6 +217,35 @@ def names() -> dict:
     return {slot: sorted(found) for slot, found in out.items()}
 
 
+#: what a value is passed on to said as people go on to say it (`pass
+#: spec.language on to Spec`: one kept template in 81 said `on to`, and
+#: reader-code47 read the value as a parameter taken)
+ON_TO = ("on to", "along to", "through to")
+#: the verbs a call can be given a value with, the call said first (`give
+#: library the spec.language`: three templates said the call first)
+GIVEN = ("pass", "give", "hand", "send", "provide")
+
+
+def _said_otherwise(template: str) -> list:
+    """A request to pass a value on, said the other ways people say it:
+    its `to` as `on to` and the like, and the call before the value."""
+    out = []
+    joined = re.search(r"\{VALUE\}\s+to\s+\{CALLEE\}", template)
+    if joined:
+        for said in ON_TO:
+            out.append(template[:joined.start()] + "{VALUE} " + said +
+                       " {CALLEE}" + template[joined.end():])
+    first = re.search(r"\b(%s)\s+(?:the\s+)?\{VALUE\}\s+(?:on\s+|over\s+)?"
+                      r"(?:to|into)\s+\{CALLEE\}" % "|".join(GIVEN), template,
+                      re.IGNORECASE)
+    if first:
+        verb = first.group(1).lower()
+        out.append(template[:first.start()] + ("give" if verb in (
+            "pass", "provide") else verb) + " {CALLEE} the {VALUE}" +
+            template[first.end():])
+    return out
+
+
 def corpus() -> dict:
     """The kept requests as code-talk records: act `change`, the function
     changed `SUBJ`, what the change names in its roles; the split by the
@@ -234,20 +265,38 @@ def corpus() -> dict:
         "*.py") if split_of(path.name) == split}) for split in ("train",
                                                                 "valid")}
     out = {"train": [], "valid": []}
+    # each said otherwise as well, in its own split
+    kept = kept + [{**one, "template": said, "split": split_of(
+        one["template"])} for one in kept if one["form"] == "passes"
+        for said in _said_otherwise(one["template"])]
     for one in kept:
-        split = split_of(one["template"])
+        split = one.get("split") or split_of(one["template"])
         slots = _slots(one["template"])
         # `takes X` is said of every function asked to be written (`a
         # function that takes a list`, its X no role): what a change is to
         # take is taught more for it -- reader-code46 marked it in its own
-        # templates and in no request beside
-        for _ in range(FILLED * TAKES_MORE if one["form"].startswith(
-                "takes") else FILLED):
+        # templates and in no request beside; and a value passed on as
+        # often (`_sub_spec should pass spec.language on to Spec` read as
+        # one taken where it was not)
+        for _ in range(FILLED * TAKES_MORE if one["form"] in (
+                "takes", "takes default", "passes") else FILLED):
             filled = {slot: rng.choice(pools[split][slot]) for slot in slots
                       if pools[split][slot]}
             if len(filled) != len(slots):
                 break
             said_text = one["template"]
+            # what a function is to take, said as people say it as often as
+            # not: `take a message`, `the commit message` -- a filler was
+            # always a name as code writes it, and reader-code47 marked no
+            # NEW of `gained should take a message`
+            if "NEW" in filled and rng.random() < WORDED:
+                words_ = [one_ for one_ in filled["NEW"].split("_") if one_]
+                if words_ and all(one_.isalpha() for one_ in words_):
+                    filled["NEW"] = " ".join(words_)
+                    article = rng.choice(("a ", "the ", "an " if words_[0][
+                        0] in "aeiou" else "a "))
+                    said_text = re.sub(r"(?<![A-Za-z])(a |an |the )?\{NEW\}",
+                                       article + "{NEW}", said_text, count=1)
             for name, value in filled.items():
                 said_text = said_text.replace("{" + name + "}", value)
             # where the function is, said first as people do: `In

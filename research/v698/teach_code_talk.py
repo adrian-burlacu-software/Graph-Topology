@@ -1038,8 +1038,65 @@ def _swapped(said: list, roles: list, old: str, new: str) -> list | None:
     return out
 
 
+#: what a function is said to take (`takes`), and the words said between
+#: the verb and it (`takes in two arrays`, `take a message`)
+#: (not `taking`: `why is find_index taking the count` says what it does)
+TAKING = ("take", "takes", "accept", "accepts")
+#: said before the verb where what is taken is not asked for (`shell_sort
+#: cannot accept negative numbers`)
+NOT_TAKING = ("not", "cannot", "can't", "doesn't", "won't", "never", "n't")
+BEFORE_TAKEN = ("in", "a", "an", "the", "one", "two", "three", "four",
+                "some", "any", "another", "also", "optional", "extra")
+#: the words said after what is taken, not of its name
+AFTER_TAKEN = ("and", "or", "of", "as", "to", "with", "from", "by", "in",
+               "into", "then", "that", "which", "returns", "return", "for",
+               "at", "on", "too", "instead", "and", "is", "are", "where",
+               "when", "if", "parameter", "argument", "input", "inputs",
+               "arguments", "parameters", "so", "but", "this", "it", "them",
+               "that", "out", "over", "care", "place", "off", "up", "away",
+               "time", "effect", "advantage", "single", "no", "early")
+#: the most words a name said is
+TAKEN_WORDS = 3
+
+
+def _taken(words_, roles) -> list:
+    """The roles with what a function made or changed is said to take
+    marked NEW, where nothing of the message is NEW yet: `a function that
+    takes two arrays` takes arrays as `parse should take language` takes
+    language, and taught O in the one and NEW in the other the reader
+    learnt neither (`gained should take a message` read without it)."""
+    if any(one[2:] in ("NEW", "DEFAULT", "VALUE", "CALLEE", "CASE", "HELPER")
+           for one in roles):
+        # its change named already (`have it take care of python`)
+        return roles
+    out = list(roles)
+    for at, word in enumerate(words_):
+        if word not in TAKING or (at and words_[at - 1] in NOT_TAKING):
+            continue
+        then = at + 1
+        while then < len(words_) and (words_[then] in BEFORE_TAKEN
+                                      or words_[then].isdigit()):
+            then += 1
+        if then >= len(words_) or out[then] != "O" or not words_[then][
+                :1].isalpha() or words_[then] in AFTER_TAKEN or (
+                then + 1 < len(words_) and words_[then + 1] == "at"):
+            continue
+        # the name as said, to the word that is not of it (`the commit
+        # message and`, `a list of`)
+        end = then + 1
+        while end < len(words_) and out[end] == "O" and \
+                words_[end].isalpha() and words_[end] not in AFTER_TAKEN:
+            end += 1
+        out[then] = "B-NEW"
+        for at_ in range(then + 1, end):
+            out[at_] = "I-NEW"
+    return out
+
+
 def record(words_, roles, act, aspect, subject, source,
            ways=None) -> dict:
+    if act in ("make", "change"):
+        roles = _taken(words_, roles)
     out = {"task": "code", "words": words_, "roles": roles, "act": act,
            "aspect": aspect, "subject": subject,
            "tags": [""] * len(words_), "deps": [""] * len(words_),
