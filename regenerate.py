@@ -1982,6 +1982,15 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code49", 80),
              needs=("reader-code-yours",), cost="an hour", gpu=True),
+        Step("already", "whether a function already takes what a change "
+                        "asks it to take, read against each parameter as "
+                        "the code says what it is (v705 `teach_already`, "
+                        "this repository's code and Python's library)",
+             lambda: (_run("research.v705.teach_already", "write"),
+                      _run("research.v705.teach_already", "check"),
+                      _run("research.v705.teach_already", "train")),
+             _model_check(LLM / "already4", 400),
+             needs=("reader-code-change",), cost="four hours", gpu=True),
         Step("plan-sayer", "a decoder that says each piece of a goal's "
                            "reply in its own words, read back by the "
                            "reader (research/v704/teach_saying.py)",

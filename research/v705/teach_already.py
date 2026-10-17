@@ -73,8 +73,10 @@ DESCRIBED, ASKED_OF = 25, 2
 ASKED = 3000
 VALID = 0.1
 #: the chance from which a parameter is read as what was asked (of its
-#: parameters and none, together one)
-FLOOR = 0.5
+#: parameters and none, together one): on the held functions, 92% of what
+#: is read so at 0.9 is right, 73% of what is so found, and 7 of 420
+#: requests for something new read as a parameter (at 0.5: 86%, 81%, 14)
+FLOOR = 0.9
 
 
 def described(function, source: str) -> dict:
