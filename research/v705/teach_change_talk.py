@@ -88,6 +88,8 @@ IN_FILE = 0.4
 TAKES_MORE = 3
 #: how often what a function is to take is said in words, after an article
 WORDED = 0.5
+#: the roles naming what the project has: known to be code where it is read
+KNOWN_ROLES = ("SUBJ", "CALLEE", "HELPER")
 
 
 def write() -> None:
@@ -326,8 +328,17 @@ def corpus() -> dict:
                     roles[at] = ("B-" if at == span[0] else "I-") + name
             if not fine or not said:
                 continue
-            out[split].append(K.record(said, roles, "change", "none",
-                                       "named", f"change {one['form']}"))
+            made = K.record(said, roles, "change", "none", "named",
+                            f"change {one['form']}")
+            # what the project has is known to be code (`reading._known`),
+            # as the code corpus teaches it (`K.KNOWN`): the function, its
+            # file, the call, the helper -- untagged, reader-code48 read
+            # `parse should take language` with no NEW where parse was
+            # known, and with it where it was not
+            if rng.random() < K.KNOWN:
+                made["tags"] = ["CODE" if role[2:] in KNOWN_ROLES else ""
+                                for role in roles]
+            out[split].append(made)
     counts = {}
     for split, records in out.items():
         rng.shuffle(records)

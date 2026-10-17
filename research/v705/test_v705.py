@@ -559,6 +559,66 @@ class SpliceTests(unittest.TestCase):
         self.assertIn("        y = 2\n        if base:", made)
         self.assertIn("sources: list) -> list:", made)
 
+    def test_an_argument_put_on_a_call_over_lines(self):
+        from research.v705.splice import spliced
+        original = ('def f(spec):\n'
+                    '    return checker().tests(spec.a + "x"\n'
+                    '                           + spec.b) is None\n')
+        made = ('def f(spec):\n    return checker(language=spec.language)'
+                '.tests(spec.a + "x" + spec.b) is None\n')
+        self.assertEqual(spliced(original, made), original.replace(
+            "checker()", "checker(language=spec.language)"))
+
+
+class ChangeChecksTests(unittest.TestCase):
+    """What a change asked in words is refused for (v700 `fixing`)."""
+
+    def test_arguments_shifted(self):
+        from research.v700.fixing import _shifted
+        part = "def f(s):\n    return Spec(a, b,\n                c, d=x)\n"
+        self.assertEqual(_shifted(part, part.replace("b,\n", "b, s.l,\n")),
+                         "Spec")
+        self.assertIsNone(_shifted(part, part.replace("d=x", "d=x, l=s.l")))
+        self.assertIsNone(_shifted(part, part.replace("c, d", "c, e, d")))
+        self.assertIsNone(_shifted(part, part.replace("c, d", "z, d")))
+
+    def test_what_a_helper_gives_dropped(self):
+        from research.v700.fixing import _dropped
+        text = ("def helper(bug) -> int:\n    return 1\n\n"
+                "def log(x):\n    print(x)\n\n"
+                "def f(bug):\n    x = 1\n    return x\n")
+        part = "def f(bug):\n    x = 1\n    return x\n"
+        self.assertEqual(_dropped(part, part.replace(
+            "    x = 1\n", "    helper(bug)\n    x = 1\n"), text), "helper")
+        self.assertIsNone(_dropped(part, part.replace(
+            "    x = 1\n", "    log(bug)\n    x = 1\n"), text))
+        self.assertIsNone(_dropped(part, part.replace(
+            "    x = 1\n", "    return helper(bug)\n"), text))
+
+
+class ShapedTests(unittest.TestCase):
+    """Changes made by the kind a request's roles name (`shaped.asked`)."""
+
+    def test_a_case_handed_on_what_the_function_is_given(self):
+        # the case read as a value passed on, the field one the project
+        # compares with it: a case of the parameter, not of a loop's name
+        from research.v705.shaped import asked
+        part = ("def repair(bug, budget):\n"
+                "    for node in bug.nodes:\n"
+                "        if node.kind == 'x':\n"
+                "            pass\n"
+                "    return None\n")
+        # (what a bug has, as the module reads it off one)
+        text = part + "\n\ndef shown(bug):\n    return bug.language\n"
+        made = asked({"VALUE": ["python"], "CALLEE": ["_repair_python"]},
+                     part, "elsewhere.py", text,
+                     project={"other.py": "if one.language == 'python':\n"
+                                          "    pass\n"})
+        written = [source for _, source in made]
+        self.assertTrue(any("if bug.language == 'python':" in one
+                            for one in written), written)
+        self.assertFalse(any("node.language" in one for one in written))
+
 
 class VerifyTests(unittest.TestCase):
     """What a change is judged by, beyond its tests passing."""

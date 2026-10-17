@@ -79,18 +79,22 @@ BEFORE, AFTER = 48, 24
 
 
 def gained(original: str, sources: list, said: str = "",
-           held=None) -> list:
+           held=None, given: str = "") -> list:
     """How much more likely each source is than the code it was made from
     (negative: less likely) -- scored where they differ only: the tokens
     from `BEFORE` ahead of the first that differs to `AFTER` past the last,
     of each and of the original alike (the same text either side of an
     edit scores the same; whole, a 55-line function's 1500 edits took
-    three minutes)."""
+    three minutes). `given`: code written ahead of each window alike."""
     from research.v705 import coder
     tokenizer = (held or coder.get()).tokenizer
     # what the change is for, said before each window alike: the edits that
     # do it more likely after it than those that do not
     ahead = "".join(f"# {line}\n" for line in said.splitlines())
+    # and code the window does not reach, as it is written ahead of it:
+    # what the function is given (`class Bug: ... language: str`) -- out of
+    # the window, `bug.language == 'python'` was the least likely field
+    ahead = (given.rstrip() + "\n\n" if given.strip() else "") + ahead
     base = tokenizer(original)["input_ids"]
     windows, pairs = [], []
     for source in sources:

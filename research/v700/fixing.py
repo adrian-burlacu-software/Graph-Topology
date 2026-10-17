@@ -184,7 +184,11 @@ def placed(read, held, statement: str):
         own = subject.name.split(".")[-1]
         others = [one for one in said if one != own
                   and one.rsplit("/", 1)[-1] != subject.name.rsplit("/", 1)[-1]]
-        return (sum(one in code for one in others),
+        # a field said is where what it is read off is (`spec.language`
+        # where `spec` is: the `_passes` of experiment.py, not editing.py's
+        # `_passes(bug, source)`)
+        return (sum(one in code or ("." in one and one.split(".")[0] in code)
+                    for one in others),
                 own in marked or subject.name in marked)
     return max(candidates, key=score)
 
@@ -541,6 +545,80 @@ def _changed_names(part: str, made: str) -> set:
     return out
 
 
+def _shifted(part: str, made: str) -> str | None:
+    """A call a change gives a value before what it was given already, by
+    position: every argument after it now goes to the next parameter (six
+    of seven wrote `Spec(name, params, spec.language, body_type, ...)`
+    for `pass spec.language on to Spec`: `body_type` given as examples).
+    The call so changed, or None. Python only: what does not parse is
+    not looked at."""
+    import ast
+    import textwrap
+    try:
+        before = ast.parse(textwrap.dedent(part))
+        after = ast.parse(textwrap.dedent(made))
+    except SyntaxError:
+        return None
+
+    def calls(tree) -> dict:
+        out: dict = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                out.setdefault(ast.dump(node.func), []).append(
+                    (node.func, [ast.dump(one) for one in node.args]))
+        return out
+    now = calls(after)
+    for func, given in calls(before).items():
+        for called, old in given:
+            for _, new in now.get(func, []) if old else ():
+                if len(new) <= len(old) or new[:len(old)] == old:
+                    continue
+                # the old arguments all there, in order, with more among
+                # them: some given by position to another parameter now
+                left = iter(new)
+                if all(any(one == other for other in left) for one in old):
+                    return ast.unparse(called)
+    return None
+
+
+def _dropped(part: str, made: str, text: str) -> str | None:
+    """A function of the module that gives a value, called by a statement
+    a change puts in and what it gives dropped (`_repair_python(bug)`,
+    the `Fix` it returns thrown away and the repair carried on, for `hand
+    python bugs to _repair_python`; two of seven wrote it). Its name, or
+    None. Python only."""
+    import ast
+    import textwrap
+    try:
+        module = ast.parse(text)
+        before = ast.parse(textwrap.dedent(part))
+        after = ast.parse(textwrap.dedent(made))
+    except SyntaxError:
+        return None
+    giving = {node.name for node in module.body
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+              and not (isinstance(node.returns, ast.Constant)
+                       and node.returns.value is None)
+              and (node.returns is not None or any(
+                  isinstance(one, ast.Return) and one.value is not None
+                  for one in ast.walk(node)))}
+
+    def called(tree) -> list:
+        return [ast.dump(node) for node in ast.walk(tree)
+                if isinstance(node, ast.Expr) and isinstance(node.value,
+                                                             ast.Call)
+                and isinstance(node.value.func, ast.Name)
+                and node.value.func.id in giving]
+    was = called(before)
+    for one in called(after):
+        if one in was:
+            was.remove(one)
+            continue
+        return next(node.value.func.id for node in ast.walk(after)
+                    if isinstance(node, ast.Expr) and ast.dump(node) == one)
+    return None
+
+
 def diff(before: str, after: str, path: str) -> str:
     return "".join(difflib.unified_diff(
         _lines(before), _lines(after), f"a/{path}", f"b/{path}", n=2))
@@ -671,6 +749,9 @@ def defined_in(text: str, path: str, start: int = 1,
 #: reads it as what was said at least so, and above the next so made by
 #: at least so much
 KIND_JUDGED, KIND_MARGIN = 0.5, 0.1
+#: the roles the reader marks of what a change names (v705
+#: `teach_change_talk.ROLES`)
+CHANGE_ROLES = ("NEW", "DEFAULT", "VALUE", "CALLEE", "CASE", "HELPER")
 
 
 def _change_once(statement: str, held, subject, key=None,
@@ -713,6 +794,12 @@ def _change_once(statement: str, held, subject, key=None,
                                           end, subject)
     flakes_before = _flakes(path, text)
     tried, seen, passed, answers = [], {}, [], []
+    # what the reader marks a change to name, as words and as the name
+    # they would be in code (`commit message`, `commit_message`)
+    from research.v705.shaped import _identifier
+    marking = set() if data else {
+        word for role in CHANGE_ROLES for one in (spans or {}).get(role, [])
+        for word in re.findall(r"\w+", one) + [_identifier(one)]}
     def check(row) -> None:
         """An answer's change put to every check: kept in `passed`, or
         refused with why -- the editors' and those made by their kind
@@ -735,6 +822,16 @@ def _change_once(statement: str, held, subject, key=None,
                 part, row["made"])[1] for name in wanted):
             row["refused"] = ("it uses nothing the request names "
                               f"({', '.join(wanted)})")
+            return
+        # what the reader marks the change to name (a parameter to take, a
+        # value passed on, the call, the case, the helper): a change putting
+        # in none of it is not the change asked (`or isinstance(bug.source,
+        # list)`, two of seven, for `hand python bugs to _repair_python`)
+        if marking and not any(re.search(rf"\b{re.escape(word)}\b", line)
+                               for line in _lines_changed(part, row["made"])[1]
+                               for word in marking):
+            row["refused"] = ("it puts in nothing the request marks "
+                              f"({', '.join(sorted(marking))})")
             return
         if need and not set(row["touched"]) & need:
             row["refused"] = ("it changes none of what is left "
@@ -782,6 +879,19 @@ def _change_once(statement: str, held, subject, key=None,
         if unfound:
             row["refused"] = (f"it imports what the project does not "
                               f"have: {', '.join(unfound)}")
+            return
+        shifted = _shifted(part, row["made"]) if path.endswith(".py") \
+            else None
+        if shifted:
+            row["refused"] = (f"it gives {shifted} a value before what it "
+                              f"was given, each after it now another "
+                              f"parameter's")
+            return
+        dropped = _dropped(part, row["made"], row["text"]) \
+            if path.endswith(".py") else None
+        if dropped:
+            row["refused"] = (f"it calls {dropped} and drops what it "
+                              f"gives")
             return
         passed.append(row)
     rounds = VERIFIED_ROUNDS if (context or {}).get("verify") else ROUNDS
@@ -871,7 +981,8 @@ def _change_once(statement: str, held, subject, key=None,
     # should take a message": twenty answers, none of the `def` line)
     if spans and not data:
         from research.v705 import shaped
-        for what, made in shaped.asked(spans, part, path, text):
+        for what, made in shaped.asked(spans, part, path, text,
+                                       said=statement, project=held.files):
             row = {"answer": f"(by its kind) {what}", "greedy": False,
                    "round": -1, "kind": what}
             tried.append(row)
@@ -996,14 +1107,18 @@ def _change_once(statement: str, held, subject, key=None,
     # wrote agree: the judge reading it as what was said, and clearly
     # above the next made so (it is made, not sampled: two copies of it
     # agreeing would say nothing)
+    # (above the next made so, not above the editors' too: the judge read
+    # answers that wrote `spec.language(got.program)` at 0.92 and the
+    # change asked at 0.85)
     by_kind = sorted((row for row in passed if row.get("kind")),
                      key=lambda one: -one.get("judged", 0.0))
     if by_kind and "judged" in by_kind[0] and not any(
             row["agree"] >= LEAST_AGREED for row in passed
             if not row.get("kind")):
-        best_, second = by_kind[0], (by_kind[1].get("judged", 0.0)
-                                     if len(by_kind) > 1 else 0.0)
-        if best_["judged"] >= KIND_JUDGED and                 best_["judged"] - second >= KIND_MARGIN:
+        best_ = by_kind[0]
+        second = by_kind[1].get("judged", 0.0) if len(by_kind) > 1 else 0.0
+        if best_["judged"] >= KIND_JUDGED and \
+                best_["judged"] - second >= KIND_MARGIN:
             best_["by kind"] = True
     agreed = [row for row in passed if row["agree"] >= LEAST_AGREED
               or row.get("verified") or row.get("by kind")]
@@ -1022,8 +1137,9 @@ def _change_once(statement: str, held, subject, key=None,
     # what was said: answers written apart agreeing is evidence the judge
     # does not have (it prefers changes with more in them); then the
     # smallest -- what was not asked is not changed -- and the greedy one
-    best = max(passed, key=lambda one: (one["agree"] * one.get("judged", 1.0),
-                                        -one["size"], one["greedy"]))
+    best = next((row for row in passed if row.get("by kind")), None) or max(
+        passed, key=lambda one: (one["agree"] * one.get("judged", 1.0),
+                                 -one["size"], one["greedy"]))
     written = held.write(path, best["text"])
     MADE.setdefault(key, []).append((path, text, best["text"]))
     changed = diff(text, best["text"], path)

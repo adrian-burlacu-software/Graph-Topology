@@ -496,6 +496,24 @@ def _helpers(function, context: dict) -> list:
     return out
 
 
+def declared(annotation, namespace: dict) -> list:
+    """The fields a parameter's class declares (`bug: Bug`: name, source,
+    ..., language), looked up in the module's namespace; none where it is
+    not found."""
+    if annotation is None:
+        return []
+    said = annotation.value if isinstance(annotation, ast.Constant) and         isinstance(annotation.value, str) else ast.unparse(annotation)
+    found = namespace.get(said.split(".")[0]) if said else None
+    for part in said.split(".")[1:]:
+        found = getattr(found, part, None)
+    if not isinstance(found, type):
+        return []
+    out = []
+    for one in reversed(found.__mro__):
+        out += list(getattr(one, "__annotations__", {}))
+    return list(dict.fromkeys(out))
+
+
 def _dispatched(tree, helpers: list, context: dict) -> list:
     """`if <a case>: return <helper>(...)` first in the function: the case
     a field compared with a value as the module compares it elsewhere
@@ -504,10 +522,17 @@ def _dispatched(tree, helpers: list, context: dict) -> list:
     function = tree.body[0]
     at = 1 if function.body and isinstance(function.body[0], ast.Expr) and         isinstance(getattr(function.body[0], "value", None), ast.Constant)         else 0
     line = function.body[at].lineno if len(function.body) > at else         function.lineno
-    cases = [f"{holder}.{field} == {value!r}"
-             for holder in context["bound"]
+    # of what the function is given: all there is where the case is put,
+    # first in it (`node.kind` of a loop's `node` cannot be asked there) --
+    # and what each has, as the module reads it off one so named or as its
+    # class declares it (`bug: Bug`, `Bug.language`)
+    given = function.args.posonlyargs + function.args.args +         function.args.kwonlyargs
+    cases = [f"{holder.arg}.{field} == {value!r}"
+             for holder in given
              for field, value in context.get("compared", [])
-             if field in context["receivers"].get(holder, set())][:12]
+             if field in context["receivers"].get(holder.arg, set()) | set(
+                 declared(holder.annotation, context.get("namespace", {})))
+             ][:12]
     out = []
     for name, args in helpers[:HELPERS]:
         for case in cases:

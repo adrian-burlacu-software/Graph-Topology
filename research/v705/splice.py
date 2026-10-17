@@ -92,6 +92,91 @@ def _same_shell(one, other) -> bool:
     return True
 
 
+def _differing(old, new):
+    """The innermost pair of nodes two trees differ at, where they differ
+    at one place only: (old node, new node), the old one with a place in
+    the text."""
+    if type(old) is not type(new):
+        return old, new
+    differ = []
+    for name, value in ast.iter_fields(old):
+        other = getattr(new, name)
+        if isinstance(value, list):
+            if len(value) != len(other):
+                return old, new
+            for one, two in zip(value, other):
+                if isinstance(one, ast.AST):
+                    if ast.dump(one) != ast.dump(two):
+                        differ.append((one, two))
+                elif one != two:
+                    return old, new
+        elif isinstance(value, ast.AST):
+            if ast.dump(value) != ast.dump(other):
+                differ.append((value, other))
+        elif value != other:
+            return old, new
+    if len(differ) == 1:
+        inner = _differing(*differ[0])
+        if getattr(inner[0], "end_col_offset", None) is not None:
+            return inner
+    return old, new
+
+
+def _column(line: str, offset: int) -> int:
+    """A tree's column (bytes of UTF-8) as an index into the line."""
+    return len(line.encode("utf-8")[:offset].decode("utf-8", "replace"))
+
+
+def _finer(lines: list, old, new) -> list | None:
+    """A statement changed in one place, as its lines with only that place
+    written again -- an argument put on the end of a call written in
+    before its `)` (`checker()` -> `checker(language=spec.language)`, the
+    rest of the statement over its lines as it was); None where it cannot
+    be put in so."""
+    at, made = _differing(old, new)
+    if at is old or getattr(at, "end_col_offset", None) is None:
+        return None
+    first, last = old.lineno, old.end_lineno
+    text = lines[first - 1:last]
+    begin = (at.lineno - first, _column(lines[at.lineno - 1], at.col_offset))
+    end = (at.end_lineno - first, _column(lines[at.end_lineno - 1],
+                                          at.end_col_offset))
+    said = None
+    if isinstance(at, ast.Call) and isinstance(made, ast.Call) and \
+            ast.dump(at.func) == ast.dump(made.func) and \
+            [ast.dump(one) for one in made.args[:len(at.args)]] == [
+                ast.dump(one) for one in at.args] and \
+            [ast.dump(one) for one in made.keywords[:len(at.keywords)]] == [
+                ast.dump(one) for one in at.keywords] and (
+            len(made.args) == len(at.args) or not at.keywords):
+        added = [ast.unparse(one) for one in made.args[len(at.args):]] + [
+            ast.unparse(one) for one in made.keywords[len(at.keywords):]]
+        close = text[end[0]][:end[1]]
+        if added and close.endswith(")"):
+            inside = close[:-1].rstrip()
+            joined = "" if inside.endswith("(") else " " if inside.endswith(
+                ",") else ", "
+            text = text[:end[0]] + [inside + joined + ", ".join(added) + ")" +
+                                    text[end[0]][end[1]:]] + text[end[0] + 1:]
+            said = text
+    if said is None:
+        if begin[0] != end[0]:
+            return None
+        line = text[begin[0]]
+        text = text[:begin[0]] + [line[:begin[1]] + ast.unparse(made) +
+                                  line[end[1]:]] + text[begin[0] + 1:]
+    # the statement read again as the new one, or not put in so (inside
+    # a block of its own, at whatever indentation it is)
+    try:
+        again = ast.parse("if 1:\n" + "\n".join(" " + one for one in text))
+    except SyntaxError:
+        return None
+    again = again.body[0]
+    if len(again.body) != 1 or ast.dump(again.body[0]) != ast.dump(new):
+        return None
+    return text
+
+
 def _replace_in(lines: list, was: list, now: list, indent: str, edits: list,
                 after_line: int) -> bool:
     """The edits that turn the statement list `was` into `now`: [(first
@@ -116,8 +201,11 @@ def _replace_in(lines: list, was: list, now: list, indent: str, edits: list,
                                            edits, first.lineno - 1):
                             return False
                 else:
+                    # where it changed in one place, that place only
+                    finer = _finer(lines, old, new)
                     edits.append((old.lineno, old.end_lineno,
-                                  _said(new, indent)))
+                                  finer if finer is not None
+                                  else _said(new, indent)))
             continue
         new_lines = [line for one in now[b0:b1] for line in _said(one, indent)]
         if a1 > a0:
