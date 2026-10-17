@@ -163,6 +163,16 @@ def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
     # `held=None`, was the code model's likeliest)
     kin = {one for one, value in defaults.items() if one != name and
            isinstance(value, ast.Constant) and value.value is not None}
+    # of them, the one the request reads as what is asked
+    # (`teach_already`: `said`, 1.0, of `take the commit message ... so the
+    # edits that match what the change is for come first`) -- the judge
+    # read `given or commit_message` above `said or commit_message`
+    from research.v705 import teach_already
+    like = teach_already.chances(ast.unparse(tree), said) if said else {}
+    nearest = max(kin, key=lambda one: like.get(one, 0.0), default=None)
+    if nearest is not None and like.get(nearest, 0.0) >= \
+            teach_already.FLOOR:
+        kin = {nearest}
     for at, node in enumerate(ast.walk(function)):
         if not (isinstance(node, ast.Name) and node.id in kin and
                 isinstance(node.ctx, ast.Load)):
@@ -268,7 +278,10 @@ def asked(spans: dict, part: str, path: str, text: str,
     joined = [" ".join(news[first:last]) for first in range(len(news))
               for last in range(first + 2, len(news) + 1)
               if " ".join(news[first:last]).lower() in lowered]
-    for new in news + joined:
+    # and a word of a name said is not a name of its own (`commit`,
+    # `message` of `the commit message`)
+    inside = {one for whole in joined for one in whole.split()}
+    for new in [one for one in news if one not in inside] + joined:
         name = _identifier(new)
         if not name.isidentifier() or keyword.iskeyword(name):
             continue
