@@ -56,6 +56,17 @@ FORMS = {
                       "{DEFAULT}'",
                       "asking that a function get a new input with a "
                       "default value"),
+    # what is taken said with what it is for (`gained should also take
+    # the commit message and score each window after it, so ...`: read
+    # with `window` the call, and nothing taken)
+    "takes and uses": ("{SUBJ}, {NEW}",
+                       "asks that the function {SUBJ} take something new, "
+                       "{NEW}, and says in the same message what {SUBJ} "
+                       "should do with it and why -- like 'make {SUBJ} take "
+                       "{NEW} and print it before each line, so the log "
+                       "says whose it is', '{SUBJ} should also take {NEW} "
+                       "and skip the rows it names'",
+                       "asking that a function get a new input and use it"),
     "passes": ("{SUBJ}, {VALUE}, {CALLEE}",
                "asks that in the function {SUBJ}, the call to {CALLEE} be "
                "given {VALUE} -- like 'in {SUBJ}, pass {VALUE} to {CALLEE}', "
@@ -92,13 +103,15 @@ WORDED = 0.5
 KNOWN_ROLES = ("SUBJ", "CALLEE", "HELPER")
 
 
-def write() -> None:
+def write(only: list | None = None) -> None:
+    """Every form's requests written again -- or `only` those forms', put
+    after what was written (a form added: the others as they were)."""
     from research.v696.teach_meaning import Teacher
     teacher = Teacher()
-    teacher.torch.manual_seed(SEED)
-    with WRITTEN.open("w", encoding="utf-8") as out:
+    teacher.torch.manual_seed(SEED + (len(only) if only else 0))
+    with WRITTEN.open("a" if only else "w", encoding="utf-8") as out:
         for round_ in range(ROUNDS):
-            forms = list(FORMS)
+            forms = list(only or FORMS)
             prompts = [
                 f"Write {EACH} different messages a programmer types to an "
                 f"assistant that changes their code, in which the person "
@@ -134,7 +147,8 @@ CHOICES = ("that the function parse take a new input or parameter",
            "that inside parse, a value be passed on to another call",
            "that parse call another function for one particular case",
            "something else")
-KIND_OF = {"takes": 0, "takes default": 0, "passes": 1, "hands": 2}
+KIND_OF = {"takes": 0, "takes default": 0, "takes and uses": 0,
+           "passes": 1, "hands": 2}
 #: what each slot is shown as when a request is checked
 SHOWN = {"SUBJ": "parse", "NEW": "language", "DEFAULT": "None",
          "VALUE": "spec.language", "CALLEE": "checker", "CASE": "python",
@@ -281,7 +295,7 @@ def corpus() -> dict:
         # often (`_sub_spec should pass spec.language on to Spec` read as
         # one taken where it was not)
         for _ in range(FILLED * TAKES_MORE if one["form"] in (
-                "takes", "takes default", "passes") else FILLED):
+                "takes", "takes default", "takes and uses", "passes") else FILLED):
             filled = {slot: rng.choice(pools[split][slot]) for slot in slots
                       if pools[split][slot]}
             if len(filled) != len(slots):
@@ -355,8 +369,13 @@ def corpus() -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=("write", "check", "corpus"))
+    parser.add_argument("--forms", nargs="*", default=None,
+                        help="write only these forms, after what is written")
     options = parser.parse_args(argv)
-    {"write": write, "check": check, "corpus": corpus}[options.job]()
+    if options.job == "write":
+        write(options.forms)
+    else:
+        {"check": check, "corpus": corpus}[options.job]()
     return 0
 
 

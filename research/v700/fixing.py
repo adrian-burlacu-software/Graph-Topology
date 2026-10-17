@@ -657,6 +657,49 @@ def diff(before: str, after: str, path: str) -> str:
 PASSES = 4
 
 
+#: the functions a conversation was told already take what it asked them
+#: to: asked again, the change is made (`_taken_already`)
+TOLD: dict = {}
+
+
+def _taken_already(statement: str, held, subject, key, spans) -> dict | None:
+    """What a person says where a function is asked to take what it takes
+    already (v705 `teach_already`): `gained` asked to take the commit
+    message takes it as `said` -- "what the change is for, said before
+    each window alike" -- and the change path added `commit` beside it.
+    Asked, not refused: nothing is written, and asked again in the
+    conversation, the change is made. None where it is not so."""
+    if not (spans or {}).get("NEW") or subject is None or \
+            subject.name in TOLD.get(key, set()):
+        return None
+    where = part_of(held, subject, statement)
+    if where is None or not where[0].endswith(".py"):
+        return None
+    path, start, end = where
+    part = "".join(_lines(held.files[path])[start - 1:end])
+    from research.v705 import teach_already
+    found = teach_already.already(part, statement)
+    if found is None:
+        return None
+    import ast
+    import textwrap
+    name, chance = found
+    try:
+        function = ast.parse(textwrap.dedent(part)).body[0]
+        what = teach_already.described(function, textwrap.dedent(part)).get(
+            name, ("", []))[0]
+    except (SyntaxError, IndexError, AttributeError):
+        what = ""
+    TOLD.setdefault(key, set()).add(subject.name)
+    return {"status": "already", "subject": subject.name, "file": path,
+            "lines": [start, end], "taken as": name,
+            "chance": round(chance, 3),
+            "said": (f"{subject.name} already takes that, I think: `{name}`"
+                     + (f" -- {what.rstrip('.')}." if what else ".") +
+                     f" I changed nothing. If you want a new parameter "
+                     f"beside it, ask again and I will add it.")}
+
+
 def change(statement: str, held, subject, key=None,
            context: dict | None = None, spans: dict | None = None) -> dict:
     """The change asked, made -- again, on what it made, while the
@@ -665,6 +708,9 @@ def change(statement: str, held, subject, key=None,
     `context`: what a plan's step is given beside the statement (v703
     `teach_parts`) -- `said` to the editor, and the `imports` the project
     offers for what that says."""
+    found = _taken_already(statement, held, subject, key, spans)
+    if found is not None:
+        return found
     first = _change_once(statement, held, subject, key, context=context,
                          spans=spans)
     if first["status"] != "changed" or first.get("by kind"):

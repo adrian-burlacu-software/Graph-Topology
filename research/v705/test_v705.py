@@ -609,6 +609,18 @@ class ChangeChecksTests(unittest.TestCase):
 class ShapedTests(unittest.TestCase):
     """Changes made by the kind a request's roles name (`shaped.asked`)."""
 
+    def test_a_parameter_taken_is_used_beside_its_kind(self):
+        from unittest import mock
+        from research.v705 import shaped
+        taken = ("def f(x, said: str = '', note: str = '') -> str:\n"
+                 "    return x + said.strip()\n")
+        with mock.patch("research.v705.natural.gained",
+                        lambda original, sources, **_: [0.0] * len(sources)):
+            made = shaped._used(taken, "note", taken, "", "elsewhere.py")
+        written = [source for _, source in made]
+        self.assertTrue(any("(said or note).strip()" in one
+                            for one in written), written)
+
     def test_a_case_handed_on_what_the_function_is_given(self):
         # the case read as a value passed on, the field one the project
         # compares with it: a case of the parameter, not of a loop's name

@@ -123,6 +123,74 @@ def _given(function, where: dict) -> str:
     return "\n".join(dict.fromkeys(out))
 
 
+#: the uses of a parameter put in that are offered, of how many made
+USES, USES_POOL = 3, 200
+
+
+def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
+    """[(what, source)]: the function with `name` taken (`taken`) and read
+    by one edit more, the likeliest `USES` by the code model after the
+    request."""
+    from research.v705 import repair
+    try:
+        tree = ast.parse(taken)
+    except SyntaxError:
+        return []
+    lines = list(range(1, len(taken.splitlines()) + 1))
+    found = []
+    for _, what, source_ in repair.candidates(taken, lines, text,
+                                              _where(path)):
+        try:
+            reads = any(isinstance(node, ast.Name) and node.id == name and
+                        isinstance(node.ctx, ast.Load)
+                        for node in ast.walk(ast.parse(source_)))
+        except SyntaxError:
+            continue
+        if reads:
+            found.append((f"takes {name}, {what}", source_))
+    # beside a parameter of its kind where that is read (`said or
+    # commit_message`): its kind, as its default is
+    function = tree.body[0]
+    args = function.args.args + function.args.kwonlyargs
+    defaults = dict(zip([one.arg for one in function.args.args][::-1],
+                        function.args.defaults[::-1]))
+    defaults.update({one.arg: value for one, value in zip(
+        function.args.kwonlyargs, function.args.kw_defaults) if value})
+    mine = defaults.get(name)
+    kin = {one.arg for one in args if one.arg != name and mine is not None
+           and isinstance(defaults.get(one.arg), ast.Constant) and
+           isinstance(mine, ast.Constant) and
+           type(defaults[one.arg].value) is type(mine.value)}
+    for at, node in enumerate(ast.walk(function)):
+        if not (isinstance(node, ast.Name) and node.id in kin and
+                isinstance(node.ctx, ast.Load)):
+            continue
+        for first, second in ((node.id, name), (name, node.id)):
+            changed = ast.parse(taken)
+            target = list(ast.walk(changed.body[0]))[at]
+            for parent in ast.walk(changed.body[0]):
+                for field, value in ast.iter_fields(parent):
+                    if value is target:
+                        setattr(parent, field, ast.parse(
+                            f"({first} or {second})", mode="eval").body)
+                    elif isinstance(value, list) and any(
+                            one is target for one in value):
+                        value[[one is target for one in value].index(
+                            True)] = ast.parse(f"({first} or {second})",
+                                               mode="eval").body
+            found.insert(0, (f"takes {name}, {node.id} -> {first} or "
+                                f"{second}", ast.unparse(changed)))
+    found = list({one[1]: one for one in found}.values())[:USES_POOL]
+    if len(found) <= USES:
+        return found
+    from research.v705 import natural
+    gains = natural.gained(ast.unparse(tree), [one[1] for one in found],
+                           said=said, given=_given(tree.body[0],
+                                                   _where(path)))
+    ranked = sorted(range(len(found)), key=lambda at: -gains[at])
+    return [found[at] for at in ranked[:USES]]
+
+
 def _likeliest(tree, made: list, said: str, where: dict) -> tuple:
     """Of changes alike but for one choice ([(what, source)]), the one the
     code model finds likeliest after the request and what the function is
@@ -195,6 +263,13 @@ def asked(spans: dict, part: str, path: str, text: str,
         if len(taking) > 1:
             taking = [_likeliest(tree, taking, said, _where(path))]
         made += taking
+        # and taken to be used: the parameter put in, and one edit of the
+        # function's own kinds reading it (a name it stands for, `x or
+        # it`, put on a string, given to a call taking it) -- `take the
+        # commit message and score each window after it`: taking it is
+        # half of what was asked
+        if taking:
+            made += _used(taking[0][1], name, text, said, path)
     where = _where(path)
     # a value handed on to a call and a case handed to a helper are said
     # alike (`repair should hand python bugs to _repair_python` was read
