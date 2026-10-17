@@ -123,6 +123,18 @@ def _given(function, where: dict) -> str:
     return "\n".join(dict.fromkeys(out))
 
 
+def _likeliest(tree, made: list, said: str, where: dict) -> tuple:
+    """Of changes alike but for one choice ([(what, source)]), the one the
+    code model finds likeliest after the request and what the function is
+    given -- each scored against the function as unparsed, as they are
+    (as written, every window is the whole function)."""
+    from research.v705 import natural
+    gains = natural.gained(ast.unparse(tree), [one for _, one in made],
+                           said=said, given=_given(tree.body[0], where))
+    best = max(range(len(made)), key=lambda at: gains[at])
+    return made[best]
+
+
 def _identifier(said: str) -> str:
     """Words a request marks, as the name they would be in code
     (`commit message` -> `commit_message`)."""
@@ -166,6 +178,7 @@ def asked(spans: dict, part: str, path: str, text: str,
             continue
         given = [_literal(one) for one in spans.get("DEFAULT", [])]
         defaults = [value for ok, value in given if ok] or list(DEFAULTS)
+        taking = []
         for default in defaults:
             changed = ast.parse(ast.unparse(tree))
             args = changed.body[0].args
@@ -175,7 +188,13 @@ def asked(spans: dict, part: str, path: str, text: str,
             else:
                 args.args.append(ast.arg(arg=name))
                 args.defaults.append(ast.Constant(default))
-            made.append((f"takes {name}={default!r}", ast.unparse(changed)))
+            taking.append((f"takes {name}={default!r}", ast.unparse(changed)))
+        # no default said: the likeliest by the code model, the request
+        # ahead -- the judge read `commit=None`, `commit=''`, `commit=0`
+        # alike (0.28 to 0.36), so none was clearly the change
+        if len(taking) > 1:
+            taking = [_likeliest(tree, taking, said, _where(path))]
+        made += taking
     where = _where(path)
     # a value handed on to a call and a case handed to a helper are said
     # alike (`repair should hand python bugs to _repair_python` was read
@@ -273,14 +292,11 @@ def asked(spans: dict, part: str, path: str, text: str,
     # reads `bug.name == 'python'` as it reads `bug.language == 'python'`
     dispatches = list(dict((source_, what) for what, source_ in
                            dispatches).items())
+    # (the request said ahead of each: `hand python bugs` makes
+    # `bug.language` likelier than `bug.source`)
     if len(dispatches) > 1:
-        from research.v705 import natural
-        # the request said ahead of each: `hand python bugs` makes
-        # `bug.language` likelier than `bug.source` (said nothing, the
-        # model chose `bug.source == 'python'`)
-        gains = natural.gained(source, [one for one, _ in dispatches],
-                               said=said, given=_given(function, where))
-        dispatches = [max(zip(gains, dispatches))[1]]
+        dispatches = [_likeliest(tree, [(what, source_) for source_, what
+                                        in dispatches], said, where)[::-1]]
     made += [(what, source_) for source_, what in dispatches]
     # each change once: made from two pairs named, it is one change
     unique: dict = {}

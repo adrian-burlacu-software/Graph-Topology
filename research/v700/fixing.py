@@ -855,7 +855,9 @@ def _change_once(statement: str, held, subject, key=None,
         # value passed on, the call, the case, the helper): a change putting
         # in none of it is not the change asked (`or isinstance(bug.source,
         # list)`, two of seven, for `hand python bugs to _repair_python`)
-        if marking and not any(re.search(rf"\b{re.escape(word)}\b", line)
+        # (a word of a name as well: `commit` of `commit_message`)
+        if marking and not any(word in re.split(r"[^A-Za-z0-9]+", line) or
+                               word in re.findall(r"\w+", line)
                                for line in _lines_changed(part, row["made"])[1]
                                for word in marking):
             row["refused"] = ("it puts in nothing the request marks "
