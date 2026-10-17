@@ -137,36 +137,36 @@ def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
     except SyntaxError:
         return []
     lines = list(range(1, len(taken.splitlines()) + 1))
+    read_before = _read(tree) & {one.arg for one in ast.walk(tree)
+                                 if isinstance(one, ast.arg)}
     found = []
     for _, what, source_ in repair.candidates(taken, lines, text,
                                               _where(path)):
         try:
-            reads = any(isinstance(node, ast.Name) and node.id == name and
-                        isinstance(node.ctx, ast.Load)
-                        for node in ast.walk(ast.parse(source_)))
+            now = _read(ast.parse(source_))
         except SyntaxError:
             continue
-        if reads:
+        # it read, and every parameter read before still read: `said ->
+        # commit` left `said` unread, what every caller gives it lost
+        if name in now and read_before <= now:
             found.append((f"takes {name}, {what}", source_))
-    # beside a parameter of its kind where that is read (`said or
-    # commit_message`): its kind, as its default is
+    # beside a parameter where that is read (`said or commit_message`),
+    # its default as that one's: what stands in for it where it is not
+    # given (taken as `commit=0`, it was of no kind beside `said: str = ""`)
     function = tree.body[0]
-    args = function.args.args + function.args.kwonlyargs
     defaults = dict(zip([one.arg for one in function.args.args][::-1],
                         function.args.defaults[::-1]))
     defaults.update({one.arg: value for one, value in zip(
         function.args.kwonlyargs, function.args.kw_defaults) if value})
-    mine = defaults.get(name)
-    kin = {one.arg for one in args if one.arg != name and mine is not None
-           and isinstance(defaults.get(one.arg), ast.Constant) and
-           isinstance(mine, ast.Constant) and
-           type(defaults[one.arg].value) is type(mine.value)}
+    kin = {one for one, value in defaults.items() if one != name and
+           isinstance(value, ast.Constant)}
     for at, node in enumerate(ast.walk(function)):
         if not (isinstance(node, ast.Name) and node.id in kin and
                 isinstance(node.ctx, ast.Load)):
             continue
         for first, second in ((node.id, name), (name, node.id)):
             changed = ast.parse(taken)
+            _default(changed.body[0], name, defaults[node.id].value)
             target = list(ast.walk(changed.body[0]))[at]
             for parent in ast.walk(changed.body[0]):
                 for field, value in ast.iter_fields(parent):
@@ -189,6 +189,26 @@ def _used(taken: str, name: str, text: str, said: str, path: str) -> list:
                                                    _where(path)))
     ranked = sorted(range(len(found)), key=lambda at: -gains[at])
     return [found[at] for at in ranked[:USES]]
+
+
+def _read(tree) -> set:
+    """The names a tree reads."""
+    return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)}
+
+
+def _default(function, name: str, value) -> None:
+    """A parameter's default made `value`, in place."""
+    args = function.args
+    if name in [one.arg for one in args.kwonlyargs]:
+        at = [one.arg for one in args.kwonlyargs].index(name)
+        args.kw_defaults[at] = ast.Constant(value)
+        return
+    names = [one.arg for one in args.args]
+    if name in names:
+        at = names.index(name) - (len(names) - len(args.defaults))
+        if at >= 0:
+            args.defaults[at] = ast.Constant(value)
 
 
 def _likeliest(tree, made: list, said: str, where: dict) -> tuple:
@@ -239,8 +259,13 @@ def asked(spans: dict, part: str, path: str, text: str,
     made: list = []
     news = spans.get("NEW", [])
     # a name said in words read as one span each (`the commit message`:
-    # `commit`, `message`) -- joined as well
-    for new in news + ([" ".join(news)] if len(news) > 1 else []):
+    # `commit`, `message`) -- joined as well, where said one after the
+    # other (not `commit message window`, of `... and score each window`)
+    lowered = " ".join(said.lower().split())
+    joined = [" ".join(news[first:last]) for first in range(len(news))
+              for last in range(first + 2, len(news) + 1)
+              if " ".join(news[first:last]).lower() in lowered]
+    for new in news + joined:
         name = _identifier(new)
         if not name.isidentifier() or keyword.iskeyword(name):
             continue
