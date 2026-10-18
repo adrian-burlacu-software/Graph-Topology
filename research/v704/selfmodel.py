@@ -330,7 +330,14 @@ def weaknesses(goal: str, model: dict | None = None) -> list:
         chosen.sort(key=lambda one: -one["bad"])
     else:
         chosen.sort(key=lambda one: -near[one["what"]])
-    return chosen[:SHOWN]
+    # and after them every other, worst first -- not said (`later`), but a
+    # goal of itself is all of it: `make fewer mistakes` was near saying
+    # how and remembering, and its data, explaining and shell cases were
+    # never looked at
+    shown = chosen[:SHOWN]
+    rest = sorted((one for one in found if one not in shown),
+                  key=lambda one: -one["bad"])
+    return shown + [{**one, "later": True} for one in rest]
 
 
 def _where(placed: list) -> list:
@@ -355,7 +362,8 @@ def _where(placed: list) -> list:
 def said(found: list, model: dict) -> str:
     lines = [f"What I do worst now, by the conversation test of "
              f"{model['built']}:"]
-    for at, one in enumerate(found, 1):
+    for at, one in enumerate([one for one in found
+                              if not one.get("later")], 1):
         line = f"{at}) {one['what']}: {one['how']}"
         if one["examples"]:
             example = one["examples"][0]

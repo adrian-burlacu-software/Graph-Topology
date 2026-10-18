@@ -123,7 +123,7 @@ def pieces_of(weak: list, model: dict | None, planned: dict | None) -> list:
         out.append(piece("worst", PIECES["worst"], {"DATE": model["built"]}))
         for one in weak:
             example = (one.get("examples") or [None])[0]
-            if not example:
+            if not example or one.get("later"):
                 continue
             filled = {"WHAT": one["what"], "CASE": example["said"].split(
                 "\n")[0], "PART": example.get("part") or "nothing",
