@@ -608,6 +608,20 @@ class PagingTests(unittest.TestCase):
             with torch.no_grad():
                 encoder(ids)
             self.assertTrue(paging._on_card(encoder))
+            # one inside another module of its own is never paged: its
+            # parts are called apart from it (the reader's net)
+
+            class Net(torch.nn.Module):
+                def __init__(self, inner):
+                    super().__init__()
+                    self.inner = inner
+            held = BertModel(BertConfig(
+                hidden_size=256, num_hidden_layers=4, num_attention_heads=4,
+                intermediate_size=512, vocab_size=4096)).to("cuda")
+            net = Net(held)
+            paging.sweep(budget=1)
+            self.assertTrue(paging._on_card(held))
+            self.assertTrue(net.inner is held)
         finally:
             paging.BUDGET = 5000
             del models

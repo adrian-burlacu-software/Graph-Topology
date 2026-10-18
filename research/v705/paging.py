@@ -103,10 +103,17 @@ def watch(torch) -> int:
     except ImportError:
         return 0
     with _LOCK:
-        found = [one for one in gc.get_objects()
-                 if isinstance(one, PreTrainedModel)]
-        inner = {id(child) for one in found for child in one.modules()
-                 if child is not one}
+        import torch.nn
+        modules = [one for one in gc.get_objects()
+                   if isinstance(one, torch.nn.Module)]
+        found = [one for one in modules if isinstance(one, PreTrainedModel)]
+        # one inside any other module is left where it is: its parts may be
+        # called apart from it (the reader's BERT, inside its own net, is
+        # asked `get_input_embeddings()(ids)` -- paged off, no call brought
+        # it back, and every reading failed)
+        inner = {id(child) for one in modules for child in one.children()}
+        inner |= {id(child) for one in found for child in one.modules()
+                  if child is not one}
         for one in found:
             if id(one) in WATCHED or id(one) in inner or not _on_card(one):
                 continue
