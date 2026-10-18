@@ -389,6 +389,17 @@ def _again(state: dict) -> list:
         said += (f" Looked again: {len(cases)} cases still fail, all at "
                  f"places already tried." if cases else
                  " Looked again: nothing fails now.")
+    if len(state.get("weak") or []) > 1 and state.get("subgoals") is not None:
+        # the next of what it does worst, where this one is done: a goal
+        # of itself is all of them (`make fewer mistakes` met nothing in
+        # saying how to do something, and stopped there, the four others
+        # it had said never looked at)
+        done = state["weak"].pop(0)
+        state.setdefault("weak done", []).append(done["what"])
+        state.update(at=None, subgoals=[], sub=0, found=None, finding=None,
+                     results=[], rounds=1)
+        return [said, f"Next: {state['weak'][0]['what']} -- what fails "
+                      f"there, and where. Shall I go on?"]
     state["done"] = True
     return [said + " That is as far as I can take this goal."]
 

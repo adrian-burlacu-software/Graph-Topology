@@ -171,6 +171,19 @@ class CarryingTests(unittest.TestCase):
                          'called?" is read as ask_name, as the reader '
                          'reads it')
 
+    def test_the_next_weakness_when_one_is_done(self):
+        from research.v704 import doing as D
+        state = {"weak": [{"what": "saying how"}, {"what": "remembering"}],
+                 "subgoals": [{"function": "how"}], "sub": 1,
+                 "results": [("how", "scene.py", False)]}
+        lines = D._again(state)
+        self.assertIn("Next: remembering", lines[-1])
+        self.assertFalse(state.get("done"))
+        self.assertEqual(state["weak done"], ["saying how"])
+        # the last one done, the goal is
+        lines = D._again(state)
+        self.assertTrue(state["done"])
+
 
 class HistoryTests(unittest.TestCase):
     """A goal's plan, chosen from goals reached like it."""
