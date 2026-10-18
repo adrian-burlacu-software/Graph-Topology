@@ -910,6 +910,70 @@ def answered(session, turns: list):
     return contextvars.Context().run(apart)
 
 
+def _project(turns: list) -> bool:
+    """Whether the conversation test's case of these turns is asked of a
+    project (v704 `suite`: the library fixture)."""
+    from research.v704 import suite
+    return any(item.turns == list(turns) and item.project
+               for item in suite.SUITE)
+
+
+def _project_turn(turns: list, check) -> tuple:
+    """A case asked of a project said again as the conversation test says
+    it (v704 `converse`): the library copied apart, given to a scratch
+    conversation of the server as its project, each turn said through the
+    whole page -- then checked with the copy, and both dropped. (whether
+    it holds, what was answered). A scratch session alone holds no project:
+    `how many times does this loop run?` could not be said again, and a
+    change of `reader.first` for it was written unchecked (`if at ==
+    name`)."""
+    import contextvars
+    import shutil
+    import tempfile
+    import uuid
+    from research.v697 import page as typing
+    from research.v698 import project as Pj
+    from research.v698 import server
+    from research.v704.converse import FIXTURE, text_of
+    conversations = server.Handler.conversations
+    if conversations is None:
+        return False, "no server to say it to"
+    folder = Path(tempfile.mkdtemp(prefix="v705-replay-"))
+    root = folder / "library"
+    sid = f"v705-scratch-{uuid.uuid4().hex[:12]}"
+
+    def apart():
+        SCRATCH.set(True)
+        from research.v689.server import FRESH
+        FRESH.set(True)
+        typed = getattr(typing._TYPED, "text", None)
+        try:
+            shutil.copytree(FIXTURE, root,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            files = {one.relative_to(root).as_posix(): one.read_text(
+                encoding="utf-8") for one in root.rglob("*") if one.is_file()}
+            Pj.put(sid, files, "library", whole=True, root=str(root))
+            turn: dict = {}
+            # said under the turn's own hold of the store (this thread holds
+            # it already: `say` would wait on itself)
+            for said in turns:
+                typing.said_as_typed(said)
+                turn = conversations.keeper.say(sid, said, False,
+                                                trim=conversations._spoken)
+            try:
+                held = bool(check(turn, root))
+            except Exception:                       # noqa: BLE001
+                held = False
+            return held, " ".join(text_of(turn).split())[:80]
+        finally:
+            typing._TYPED.text = typed
+            conversations.keeper.forget(sid)
+            with Pj._LOCK:
+                Pj.PROJECTS.pop(sid, None)
+            shutil.rmtree(folder, ignore_errors=True)
+    return contextvars.Context().run(apart)
+
+
 def _as_page_turn(turn) -> dict:
     """A scratch session's turn as the conversation test reads a reply: its
     text, and its stance."""
@@ -922,15 +986,14 @@ def _as_page_turn(turn) -> dict:
 def cases_of(case: dict, function) -> list:
     """The conversation test's own checks for a case: the case, and the
     conversations of its area it answered right that went the same way
-    (the same operator fired) -- [(turns, check, should hold)]. Only those
-    said without a project: those are what a scratch session says."""
+    (the same operator fired) -- [(turns, check, should hold)]; those
+    asked of a project said again with it (`_project_turn`)."""
     from research.v704 import selfmodel, suite
     model = selfmodel.held() or {}
     run = selfmodel.RUNS / f"{model.get('run')}.jsonl"
     turns = case.get("turns") or list(case.get("before") or []) + [
         case["said"]]
-    found = [item for item in suite.SUITE if item.turns == turns
-             and not item.project]
+    found = [item for item in suite.SUITE if item.turns == turns]
     if case.get("check") is not None:
         # a case found by a way of looking (`evidence`) brings its check
         # -- a variant, the conversation it was made from as well
@@ -958,8 +1021,7 @@ def cases_of(case: dict, function) -> list:
                     or not operators & {one["operator"] for one in
                                         row.get("fired") or []}:
                 continue
-            same = [one for one in suite.SUITE if one.turns == row["turns"]
-                    and not one.project]
+            same = [one for one in suite.SUITE if one.turns == row["turns"]]
             if same:
                 out.append((same[0].turns, same[0].check, True))
     return out
@@ -975,8 +1037,9 @@ def _holds_now(session, case: tuple) -> bool:
     key = (id(session), tuple(turns))
     if key not in _NOW:
         try:
-            _NOW[key] = bool(check(_as_page_turn(answered(session, turns)),
-                                   None))
+            _NOW[key] = _project_turn(turns, check)[0] if _project(turns) \
+                else bool(check(_as_page_turn(answered(session, turns)),
+                                None))
         except Exception:                           # noqa: BLE001
             _NOW[key] = False
     return _NOW[key]
@@ -1015,6 +1078,19 @@ def verify(session, cases: list, function, text: str) -> str | None:
     setattr(owner, function.__name__, made)
     try:
         for at, (turns, check, _) in enumerate(cases):
+            if _project(turns):
+                try:
+                    held, said = _project_turn(turns, check)
+                except BaseException as bad:        # noqa: BLE001
+                    if isinstance(bad, KeyboardInterrupt):
+                        raise
+                    return (f"\"{turns[-1]}\" raises {type(bad).__name__}: "
+                            f"{bad}")
+                if not held:
+                    return (f"\"{turns[-1]}\" still fails ({said})" if at == 0
+                            else f"\"{turns[-1]}\", answered right before, "
+                                 f"now fails ({said})")
+                continue
             try:
                 turn = answered(session, turns)
             except BaseException as bad:            # noqa: BLE001
