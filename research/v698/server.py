@@ -147,8 +147,14 @@ class Handler(v697.Handler):
                 # what this turn loaded and no longer uses, off the card,
                 # before the next (v705 `paging`): the models loaded for a
                 # goal thought through filled 7.8 GB of 8 and none let go
+                # -- never the turn's undoing: a sweep that fails is said in
+                # the log, and the turn's reply is sent
                 from research.v705 import paging
-                said["paged"] = paging.sweep()
+                try:
+                    said["paged"] = paging.sweep()
+                except Exception:               # noqa: BLE001
+                    import traceback
+                    traceback.print_exc()
                 self._json(said)
             elif parsed.path == "/api/project":
                 files = body.get("files") or {}

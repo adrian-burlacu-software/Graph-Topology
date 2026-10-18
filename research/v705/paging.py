@@ -119,12 +119,13 @@ def _paged(model) -> None:
     """A model brought back to the card first whenever it is called, asked
     to `generate`, or asked its `device`."""
     model.register_forward_pre_hook(_called)
-    generate = model.generate
-
-    def generating(*args, **kwargs):
-        _called(model)
-        return generate(*args, **kwargs)
-    model.generate = generating
+    # (an encoder has no `generate`: BertModel, the reader's)
+    generate = getattr(model, "generate", None)
+    if generate is not None:
+        def generating(*args, **kwargs):
+            _called(model)
+            return generate(*args, **kwargs)
+        model.generate = generating
     kind = type(model)
     model.__class__ = type(kind.__name__, (kind,), {
         "device": property(lambda self: (_called(self),

@@ -757,6 +757,17 @@ def replies(session) -> list:
                     if checks:
                         context["verify"] = lambda after: inside.verify(
                             session, checks, own, after)
+                    elif own is not None:
+                        # a change of its own code for a case it cannot say
+                        # again is a guess at its own code: not made (four
+                        # of seven wrote `if at == name` into reader.first
+                        # for "how many times does this loop run?", a case
+                        # of a project a scratch session does not hold --
+                        # the unit tests failed, and it was put back)
+                        return (f"I can't run \"{case}\" again to check a "
+                                f"change of {found[0]['name']} against it "
+                                f"(it is asked of a project), so I left "
+                                f"{found[0]['name']} as it is."), False
                     # seen inside: asked of the editor taught to fix from
                     # a run, as it was taught (v705 `editor-debug`)
                     look = inside.looked_at((GOALS.get(key) or {}).get(

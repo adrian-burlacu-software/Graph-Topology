@@ -599,6 +599,15 @@ class PagingTests(unittest.TestCase):
             self.assertEqual(made.shape[1], 6)
             self.assertEqual(models[2].device.type, "cuda")
             self.assertEqual(sum(paging._on_card(one) for one in models), 1)
+            # an encoder too, which has no `generate`
+            from transformers import BertConfig, BertModel
+            encoder = BertModel(BertConfig(
+                hidden_size=256, num_hidden_layers=4, num_attention_heads=4,
+                intermediate_size=512, vocab_size=4096)).to("cuda")
+            paging.sweep()
+            with torch.no_grad():
+                encoder(ids)
+            self.assertTrue(paging._on_card(encoder))
         finally:
             paging.BUDGET = 5000
             del models
