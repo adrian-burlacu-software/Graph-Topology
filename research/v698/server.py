@@ -56,6 +56,44 @@ class Conversations(v697.Conversations):
     STEPS = staticmethod(steps_of)
 
 
+def models() -> dict:
+    """Every model this process holds: its kind, where its weights are
+    (`cuda`, `cpu`), how many megabytes, and where it was loaded from --
+    what fills the card, seen (a goal of itself filled 7.9 GB of 8, models
+    loaded as they were needed and never let go)."""
+    import gc
+    import sys
+    if "torch" not in sys.modules:
+        return {"models": [], "cuda": None}
+    import torch
+    found, inner = [], set()
+    modules = [one for one in gc.get_objects()
+               if isinstance(one, torch.nn.Module)]
+    for one in modules:
+        for child in one.children():
+            inner.add(id(child))
+    for one in modules:
+        if id(one) in inner:
+            continue
+        sizes: dict = {}
+        for tensor in list(one.parameters()) + list(one.buffers()):
+            device = tensor.device.type
+            sizes[device] = sizes.get(device, 0) + \
+                tensor.numel() * tensor.element_size()
+        if sum(sizes.values()) < 2 ** 20:
+            continue
+        config = getattr(one, "config", None)
+        found.append({"kind": type(one).__name__,
+                      "from": getattr(config, "_name_or_path", None),
+                      "mb": {key: round(value / 2 ** 20) for key, value
+                             in sizes.items()}})
+    found.sort(key=lambda one: -sum(one["mb"].values()))
+    cuda = {"allocated mb": round(torch.cuda.memory_allocated() / 2 ** 20),
+            "reserved mb": round(torch.cuda.memory_reserved() / 2 ** 20)} \
+        if torch.cuda.is_available() else None
+    return {"models": found, "cuda": cuda}
+
+
 class Handler(v697.Handler):
     conversations: Conversations = None     # type: ignore[assignment]
 
@@ -69,6 +107,8 @@ class Handler(v697.Handler):
                         "started": STARTED, "capabilities": CAPABILITIES,
                         "languages": LANGUAGES,
                         "page": "/", "projects": len(Pj.PROJECTS)})
+        elif parsed.path == "/api/models":
+            self._json(models())
         elif parsed.path == "/api/project":
             held = Pj.project(sid)
             if held is None:
