@@ -142,8 +142,14 @@ class Handler(v697.Handler):
                     self._json({"error": "something said, not too long"},
                                400)
                     return
-                self._json(self.conversations.say(sid, text,
-                                                  bool(body.get("example"))))
+                said = self.conversations.say(sid, text,
+                                              bool(body.get("example")))
+                # what this turn loaded and no longer uses, off the card,
+                # before the next (v705 `paging`): the models loaded for a
+                # goal thought through filled 7.8 GB of 8 and none let go
+                from research.v705 import paging
+                said["paged"] = paging.sweep()
+                self._json(said)
             elif parsed.path == "/api/project":
                 files = body.get("files") or {}
                 # `root` (v700): where the files are on disk -- a change

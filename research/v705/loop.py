@@ -169,7 +169,8 @@ def goal(sid: str) -> list:
         reply = " ".join(text_of(turn).split())
         status = (code_of(turn).get("answer") or {}).get("status")
         turns.append({"said": said, "reply": reply, "status": status,
-                      "at": time.strftime("%H:%M:%S")})
+                      "at": time.strftime("%H:%M:%S"),
+                      "paged": turn.get("paged")})
         # each turn kept as it comes (a turn cut off by its wait lost the
         # round's every turn)
         PARTIAL.write_text(json.dumps({"sid": sid, "turns": turns},

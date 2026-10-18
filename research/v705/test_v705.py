@@ -570,6 +570,40 @@ class SpliceTests(unittest.TestCase):
             "checker()", "checker(language=spec.language)"))
 
 
+class PagingTests(unittest.TestCase):
+    """Models paged off the card and back when used (`paging`)."""
+
+    def test_only_what_fits_on_the_card(self):
+        import torch
+        if not torch.cuda.is_available():
+            self.skipTest("no card")
+        from transformers import LlamaConfig, LlamaForCausalLM
+        from research.v705 import paging
+        config = LlamaConfig(vocab_size=4096, hidden_size=256,
+                             intermediate_size=512, num_hidden_layers=4,
+                             num_attention_heads=4, num_key_value_heads=4)
+        torch.manual_seed(0)
+        models = [LlamaForCausalLM(config).to("cuda") for _ in range(3)]
+        size = paging._size(models[0]) / 2 ** 20
+        ids = torch.tensor([[1, 2, 3, 4]], device="cuda")
+        with torch.no_grad():
+            want = models[0](ids).logits
+        try:
+            paging.sweep(budget=int(size * 1.5))
+            self.assertEqual(sum(paging._on_card(one) for one in models), 1)
+            with torch.no_grad():
+                got = models[0](ids).logits
+                made = models[1].generate(ids, max_new_tokens=2,
+                                          do_sample=False)
+            self.assertTrue(torch.allclose(want, got))
+            self.assertEqual(made.shape[1], 6)
+            self.assertEqual(models[2].device.type, "cuda")
+            self.assertEqual(sum(paging._on_card(one) for one in models), 1)
+        finally:
+            paging.BUDGET = 5000
+            del models
+
+
 class SplicePlaceTests(unittest.TestCase):
     """One place changed, written in place."""
 

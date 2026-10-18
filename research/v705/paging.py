@@ -1,0 +1,154 @@
+"""Models paged on and off the card (v705): what the server has loaded is
+kept, but only what fits on the card is kept *there* -- the rest waits in
+memory and is brought back the moment it is called.
+
+A goal of itself, thought through, loaded eight decoders of 690 MB (the
+maths decoder, the plan sayer, four sketchers, the base decoder, the
+own-bug editor) and three encoders of 480 MB, and let none go: 7.8 GB of
+the card's 8 after one turn, and with the debugging editor beside them
+the card spilled into memory -- a turn of three hours. Each loader keeps
+its model, as it should (loading one takes seconds); what none of them can
+know is what the others hold.
+
+    sweep(budget)   after each turn: every model is watched, and the least
+                    lately used moved to memory until those on the card fit
+    a call          of one in memory (`forward`) moves it back first, the
+                    least lately used of the others moved off to make room
+
+Only a model of `transformers` is paged, whole (not one inside another):
+brought back when it is called, when it is asked to `generate`, and when
+its `device` is asked -- what callers put its inputs on (`generate` asked
+it of a model in memory, put the inputs there, and the call brought the
+weights back to the card: two devices).
+"""
+from __future__ import annotations
+
+import gc
+import threading
+import time
+import weakref
+
+#: what the models on the card may take together, in megabytes: the card's
+#: 8 GB less what the server holds besides (spaCy's transformer, the
+#: reader, work space for a call)
+BUDGET = 5000
+#: {id: (the model, held weakly -- one its loader lets go of is gone --
+#: and when it was last called)}
+WATCHED: dict = {}
+_LOCK = threading.RLock()
+
+
+def _size(model) -> int:
+    return sum(one.numel() * one.element_size()
+               for one in list(model.parameters()) + list(model.buffers()))
+
+
+def _on_card(model) -> bool:
+    try:
+        return next(model.parameters()).device.type == "cuda"
+    except StopIteration:
+        return False
+
+
+def _models() -> list:
+    """[(the model, when last called)] of those still held."""
+    out = []
+    for key, (ref, used) in list(WATCHED.items()):
+        model = ref()
+        if model is None:
+            WATCHED.pop(key, None)
+        else:
+            out.append((model, used))
+    return out
+
+
+def _make_room(torch, needed: int, keep) -> None:
+    """The least lately used models on the card moved to memory until
+    `needed` bytes more fit in the budget -- `keep` left where it is."""
+    with _LOCK:
+        held = [(used, model) for model, used in _models()
+                if model is not keep and _on_card(model)]
+        total = sum(_size(model) for _, model in held) + (
+            _size(keep) if keep is not None and _on_card(keep) else 0)
+        held.sort(key=lambda one: one[0])
+        for _, model in held:
+            if total + needed <= BUDGET * 2 ** 20:
+                break
+            model.to("cpu")
+            model.paged = True
+            total -= _size(model)
+        torch.cuda.empty_cache()
+
+
+def _called(model, args=None, kwargs=None):
+    """Before a watched model is called: back on the card where it was
+    moved off, and marked as used now."""
+    import torch
+    with _LOCK:
+        entry = WATCHED.get(id(model))
+        if entry is not None:
+            WATCHED[id(model)] = (entry[0], time.time())
+        if getattr(model, "paged", False) and not _on_card(model):
+            _make_room(torch, _size(model), model)
+            model.to("cuda")
+            model.paged = False
+    return None
+
+
+def watch(torch) -> int:
+    """Every model of `transformers` this process holds on the card,
+    watched (once each): how many are."""
+    try:
+        from transformers import PreTrainedModel
+    except ImportError:
+        return 0
+    with _LOCK:
+        found = [one for one in gc.get_objects()
+                 if isinstance(one, PreTrainedModel)]
+        inner = {id(child) for one in found for child in one.modules()
+                 if child is not one}
+        for one in found:
+            if id(one) in WATCHED or id(one) in inner or not _on_card(one):
+                continue
+            _paged(one)
+            WATCHED[id(one)] = (weakref.ref(one), time.time())
+        return len(_models())
+
+
+def _paged(model) -> None:
+    """A model brought back to the card first whenever it is called, asked
+    to `generate`, or asked its `device`."""
+    model.register_forward_pre_hook(_called)
+    generate = model.generate
+
+    def generating(*args, **kwargs):
+        _called(model)
+        return generate(*args, **kwargs)
+    model.generate = generating
+    kind = type(model)
+    model.__class__ = type(kind.__name__, (kind,), {
+        "device": property(lambda self: (_called(self),
+                                         kind.device.fget(self))[1]),
+        "__module__": kind.__module__})
+
+
+def sweep(budget: int | None = None) -> dict:
+    """After a turn: every model watched, and those on the card made to fit
+    the budget. What is where, in megabytes."""
+    import sys
+    if "torch" not in sys.modules:
+        return {}
+    import torch
+    if not torch.cuda.is_available():
+        return {}
+    global BUDGET
+    if budget is not None:
+        BUDGET = budget
+    watch(torch)
+    _make_room(torch, 0, None)
+    with _LOCK:
+        held = _models()
+        on = sum(_size(model) for model, _ in held if _on_card(model))
+        off = sum(_size(model) for model, _ in held if not _on_card(model))
+    return {"on the card mb": round(on / 2 ** 20),
+            "in memory mb": round(off / 2 ** 20), "watched": len(held)}

@@ -32,7 +32,8 @@ def scores(sources: list, held=None, tokens: int = TOKENS) -> list:
     from research.v705 import coder
     model = held or coder.get()
     tokenizer, network = model.tokenizer, model.model
-    device = next(network.parameters()).device
+    # (asked of the model: one paged off the card is brought back)
+    device = network.device
     encoded = [tokenizer(one, truncation=True, max_length=LONGEST)[
         "input_ids"] for one in sources]
     order = sorted(range(len(sources)), key=lambda at: len(encoded[at]))
