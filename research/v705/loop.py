@@ -223,15 +223,23 @@ def _logged(row: dict) -> None:
         out.write(json.dumps(row) + "\n")
 
 
-def run(rounds: int = 3) -> list:
+def run(rounds: int = 3, baseline: str | None = None) -> list:
+    """`baseline`: a run of the conversation test already made on the code
+    as it is, its self-model built -- not made again."""
     if _changed():
         raise SystemExit("the tree is not as committed: commit it first, so "
                          "what the loop changes is the loop's alone")
     # on its code as it is now
     _restart()
     stamp = time.strftime("%Y%m%d-%H%M")
-    label = f"loop-{stamp}-0"
-    before = measure(label)
+    label = baseline or f"loop-{stamp}-0"
+    if baseline:
+        from research.v704 import converse, selfmodel
+        selfmodel.build(baseline)
+        before = {one["n"]: one["verdict"] for one in map(json.loads, (
+            converse.OUT / f"{baseline}.jsonl").open(encoding="utf-8"))}
+    else:
+        before = measure(label)
     rows = []
     for round_ in range(1, rounds + 1):
         started = time.time()
@@ -279,8 +287,9 @@ def run(rounds: int = 3) -> list:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rounds", type=int, default=3)
+    parser.add_argument("--baseline", default=None)
     options = parser.parse_args(argv)
-    for row in run(options.rounds):
+    for row in run(options.rounds, options.baseline):
         print(row["round"], row["outcome"])
     return 0
 
