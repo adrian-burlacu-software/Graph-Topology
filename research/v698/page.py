@@ -789,10 +789,12 @@ def replies(session) -> list:
                         "finding", {}).get("inside"), found[0]["name"])
                     # -- and the code's own way past such a nothing
                     # elsewhere (`_whose(...) or mention(...)`)
+                    # -- and repair's own edits of it, the likeliest first
                     built = fixing.first_verified(
                         held, file, inside.precedents(
                             own, look, held.files[file]) +
-                        inside.compositions(own, look, held.files[file]),
+                        inside.compositions(own, look, held.files[file]) +
+                        inside.repaired(own, held.files[file], text),
                         context["verify"], key, found[0]["name"])
                     if built["said"]:
                         made = {**made, "status": built["status"],

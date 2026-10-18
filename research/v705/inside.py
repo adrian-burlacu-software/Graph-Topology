@@ -721,6 +721,59 @@ def precedents(function, look: dict, text: str) -> list:
     return out
 
 
+#: repair's edits of a function replayed at most, the likeliest first
+REPAIRED = 40
+
+
+def repaired(function, text: str, said: str = "") -> list:
+    """The function changed by repair's own kinds of edit (v705 `repair`:
+    an operator, a condition, a value passed on, a case handed to a
+    helper, a field copied, ...), the likeliest by the code model after
+    what is asked (`natural.gained`) first, each put into the file as it
+    is written (`splice`): [(the file's text, what was done)]. The
+    editors write sixty changes a function and none was the change its
+    case needed (`how old am I?`, `is Anna taller than Carl?`); repair
+    makes them by construction, as it does a planted bug's fix."""
+    import ast
+    import textwrap
+    from research.v705 import natural, repair, splice
+    lines, first = inspect.getsourcelines(function)
+    part = "".join(lines)
+    source = textwrap.dedent(part)
+    owner = _owner(function)
+    where = {"namespace": vars(_module(function))}
+    if owner is not None and isinstance(owner, type):
+        where["owner"] = owner
+    try:
+        made = repair.candidates(source, list(range(
+            1, len(source.splitlines()) + 1)), text, where)
+    except Exception:                               # noqa: BLE001
+        return []
+    made = list({one[2]: one for one in made}.values())
+    if not made:
+        return []
+    try:
+        gains = natural.gained(ast.unparse(ast.parse(source)),
+                               [one[2] for one in made], said=said)
+    except Exception:                               # noqa: BLE001
+        gains = [0.0] * len(made)
+    ranked = sorted(range(len(made)), key=lambda at: -gains[at])
+    file_lines = text.splitlines(keepends=True)
+    end = first - 1 + len(lines)
+    out = []
+    for at in ranked:
+        put = splice.spliced(part, made[at][2])
+        if put is None:
+            continue
+        if not put.endswith("\n"):
+            put += "\n"
+        out.append(("".join(file_lines[:first - 1]) + put +
+                    "".join(file_lines[end:]), made[at][1]))
+        if len(out) >= REPAIRED:
+            break
+    return out
+
+
 def textwrap_dedented(lines: list) -> str:
     import textwrap
     return textwrap.dedent("".join(lines))

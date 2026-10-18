@@ -167,6 +167,10 @@ def goal(sid: str) -> list:
                 "as far as I can take" in reply or \
                 "last step of the plan" in reply:
             break
+        # a change written is measured alone: what helps, and what does
+        # not, each its own
+        if _changed():
+            break
         said = "yes"
     return turns
 
