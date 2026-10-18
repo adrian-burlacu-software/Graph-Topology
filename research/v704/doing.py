@@ -86,6 +86,11 @@ def diagnose(case: dict, found_places: dict | None = None) -> dict:
                       "file": place.get("file")})
     turns = case.get("turns") or [case["said"]]
     return {"said": case["said"].split("\n")[0], "n": case.get("n"),
+            # the turns whole: said again, and found among the test's own
+            # (`inside.cases_of`), with the code pasted under the first line
+            # -- `how many times does this loop run?` alone was no case of
+            # the test, and nothing of it could be checked
+            "turns": list(turns),
             "before": turns[:-1], "read": readings(turns[-1]),
             "tried": tried, "lost": _lost(case, tried, found_places),
             "answer": case.get("answer", ""),
@@ -228,7 +233,8 @@ def _inside(state: dict, debug) -> dict | None:
     if "inside" not in shared:
         case = shared["case"]
         lost = case.get("lost") or {}
-        shared["inside"] = debug(list(case["before"]) + [case["said"]],
+        shared["inside"] = debug(list(case.get("turns") or
+                                      list(case["before"]) + [case["said"]]),
                                  shared["file"], shared["function"],
                                  lost.get("act"))
     return shared["inside"]

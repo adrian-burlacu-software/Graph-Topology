@@ -206,6 +206,22 @@ def function_at(file: str, name: str):
     direct = getattr(found, name, None)
     if inspect.isfunction(direct) and direct.__module__ == found.__name__:
         return direct
+    # one defined inside a function of the file (`do_shell`, made by the
+    # page's `replies` each turn): that function, which a change of it is a
+    # change of
+    import ast
+    try:
+        tree = ast.parse(inspect.getsource(found))
+    except (OSError, TypeError, SyntaxError):
+        tree = None
+    for outer in (tree.body if tree is not None else ()):
+        if isinstance(outer, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
+                any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node is not outer and node.name == name
+                    for node in ast.walk(outer)):
+            held = getattr(found, outer.name, None)
+            if inspect.isfunction(held):
+                return held
     # a method of a class the file defines, not one it imports (v689
     # server's `run` is StoreAsker's, not the Asker it imports)
     for _, kind in inspect.getmembers(found, inspect.isclass):
@@ -1076,6 +1092,14 @@ def verify(session, cases: list, function, text: str) -> str | None:
     if isinstance(before, (staticmethod, classmethod)):
         made = type(before)(made)
     setattr(owner, function.__name__, made)
+    # and where it is held to be called: the acts a page makes each turn
+    # are made by the function it registered (v689 `LAYERS`), not the one
+    # its module now names
+    from research.v689 import session as v689_session
+    registered = [at for at, one in enumerate(v689_session.LAYERS)
+                  if one is before]
+    for at in registered:
+        v689_session.LAYERS[at] = made
     try:
         for at, (turns, check, _) in enumerate(cases):
             if _project(turns):
@@ -1114,6 +1138,8 @@ def verify(session, cases: list, function, text: str) -> str | None:
         return None
     finally:
         setattr(owner, function.__name__, kept)
+        for at in registered:
+            v689_session.LAYERS[at] = kept
 
 
 def _says(value, phrase: str, depth: int = 0) -> bool:

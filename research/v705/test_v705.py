@@ -570,6 +570,29 @@ class SpliceTests(unittest.TestCase):
             "checker()", "checker(language=spec.language)"))
 
 
+class NestedTests(unittest.TestCase):
+    """A function defined inside another, found and changed as itself."""
+
+    def test_found_with_its_own_lines(self):
+        from research.v698.project import Project
+        held = Project("nested-test", None)
+        held.put({"m.py": "def outer(session):\n"
+                          "    def do_it(memory):\n"
+                          "        return 1\n"
+                          "    return [do_it]\n\n"
+                          "def plain():\n    return 2\n"})
+        found = held.find("do_it")
+        self.assertEqual([(one["start"], one["end"], one["in"])
+                          for one in found], [(2, 3, "outer")])
+        # what the outline has is found as it was
+        self.assertEqual(held.find("plain")[0]["start"], 6)
+
+    def test_its_function_is_the_one_it_is_in(self):
+        from research.v705 import inside
+        self.assertEqual(inside.function_at("research/v698/page.py",
+                                            "do_shell").__name__, "replies")
+
+
 class PagingTests(unittest.TestCase):
     """Models paged off the card and back when used (`paging`)."""
 

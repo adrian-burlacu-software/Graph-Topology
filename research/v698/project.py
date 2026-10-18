@@ -206,9 +206,54 @@ class Project:
 
     def find(self, name: str) -> list:
         """The functions called `name` (or `Class.name`, or a method
-        `name` of any class)."""
-        return [one for one in self.functions()
-                if one["name"] == name or one["name"].endswith("." + name)]
+        `name` of any class) -- or, where none is, a function defined inside
+        one (`do_shell`, an act the page makes in `replies`), its own lines,
+        with the one it is in."""
+        found = [one for one in self.functions()
+                 if one["name"] == name or one["name"].endswith("." + name)]
+        return found or self.nested(name)
+
+    def nested(self, name: str) -> list:
+        """The functions called `name` defined inside another function of a
+        Python file: [{file, name, start, end, ..., in}] -- not in the
+        outline (what a project has is its functions, not their parts),
+        found where a change is asked of one ("do_shell is not in the
+        project I hold")."""
+        import ast
+        out = []
+        for path, text in sorted(self.files.items()):
+            if not path.endswith(".py") or f"def {name}(" not in text:
+                continue
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                continue
+            for outer in ast.walk(tree):
+                if not isinstance(outer, (ast.FunctionDef,
+                                          ast.AsyncFunctionDef)):
+                    continue
+                for node in ast.walk(outer):
+                    if node is outer or not isinstance(
+                            node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                            or node.name != name:
+                        continue
+                    out.append({"file": path, "name": name,
+                                "kind": "function", "class": None,
+                                "exported": False,
+                                "doc": ast.get_docstring(node),
+                                "start": node.lineno, "end": node.end_lineno,
+                                "params": [[one.arg, None]
+                                           for one in node.args.args],
+                                "returns": None, "async": False,
+                                "calls": [], "in": outer.name})
+        # the innermost of each: one inside another inside a third is the
+        # third's too
+        seen, kept = set(), []
+        for one in sorted(out, key=lambda one: one["end"] - one["start"]):
+            if (one["file"], one["start"]) not in seen:
+                seen.add((one["file"], one["start"]))
+                kept.append(one)
+        return kept
 
     def _resolved(self, path: str, called: str) -> list:
         """What `called` in `path` names: one of its own functions, else
