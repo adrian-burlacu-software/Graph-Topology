@@ -163,7 +163,19 @@ def _finer(lines: list, old, new) -> list | None:
         if begin[0] != end[0]:
             return None
         line = text[begin[0]]
-        text = text[:begin[0]] + [line[:begin[1]] + ast.unparse(made) +
+        put = ast.unparse(made)
+        # what binds less than what it stands for, in brackets: `said` as
+        # `commit or said` in `said.splitlines()` read `commit or
+        # said.splitlines()`, and the whole line was written again
+        # (not where it is the statement's own part: `x = base - 1`)
+        own = any(value is at or (isinstance(value, list) and any(
+            one is at for one in value)) for _, value in ast.iter_fields(old))
+        if not isinstance(made, (ast.Name, ast.Attribute, ast.Constant,
+                                 ast.Call, ast.Subscript, ast.List,
+                                 ast.Tuple, ast.Dict, ast.Set)) and \
+                not own:
+            put = f"({put})"
+        text = text[:begin[0]] + [line[:begin[1]] + put +
                                   line[end[1]:]] + text[begin[0] + 1:]
     # the statement read again as the new one, or not put in so (inside
     # a block of its own, at whatever indentation it is)

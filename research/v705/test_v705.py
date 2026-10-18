@@ -570,6 +570,20 @@ class SpliceTests(unittest.TestCase):
             "checker()", "checker(language=spec.language)"))
 
 
+class SplicePlaceTests(unittest.TestCase):
+    """One place changed, written in place."""
+
+    def test_what_binds_less_put_in_brackets(self):
+        from research.v705.splice import spliced
+        original = ('def f(said, commit=""):\n'
+                    '    ahead = "".join(f"# {line}" for line in '
+                    'said.splitlines())\n'
+                    '    return ahead\n')
+        made = original.replace("in said.splitlines()",
+                                "in (commit or said).splitlines()")
+        self.assertEqual(spliced(original, made), made)
+
+
 class ChangeChecksTests(unittest.TestCase):
     """What a change asked in words is refused for (v700 `fixing`)."""
 
