@@ -42,10 +42,13 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "state" / "v705-loop.jsonl"
 PARTIAL = ROOT / "state" / "v705-loop.partial.json"
 URL = "http://127.0.0.1:8697"
-#: what it is told to want: read as a goal (1.0) and looked at by what it
-#: gets wrong now (`evidence.ways`) -- `fix what you get wrong in
-#: conversations` was read as a change of `conversations` (v690)
-GOAL = "I want you to make fewer mistakes."
+#: what it is told to want: read as a goal (0.73, the floor 0.6) and
+#: looked at by what it gets wrong now (`evidence.ways`), its worst first:
+#: the 21 messages it sends to the wrong part -- `make fewer mistakes`
+#: was near saying how and remembering, which need knowledge and memory
+#: no edit gives; `fix what you get wrong in conversations` was read as a
+#: change of `conversations` (v690)
+GOAL = "I want you to get more things right."
 #: the steps agreed to at most in a round
 STEPS = 16
 #: the server's start, at most (it takes about three minutes)
