@@ -110,12 +110,29 @@ def _start() -> bool:
     if os.name == "nt":
         flags = subprocess.DETACHED_PROCESS | \
             subprocess.CREATE_NEW_PROCESS_GROUP
+    import time
     with log.open("ab") as out:
+        # each start said in the log, when: a wait that saw no server had
+        # no line there to say whether one was started at all
+        out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                  f"by the bridge\n".encode())
+        out.flush()
         STARTED["process"] = subprocess.Popen(
             [sys.executable, "-m", "research.v698", "--workers", WORKERS,
              "--port", port], cwd=ROOT, stdin=subprocess.DEVNULL,
             stdout=out, stderr=out, creationflags=flags)
     return True
+
+
+def _log_tail(lines: int = 8) -> str:
+    """The last lines of the log the bridge starts the server with."""
+    import tempfile
+    log = Path(tempfile.gettempdir()) / "graph-topology-server.log"
+    try:
+        said = log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "(no log)"
+    return "\n".join(one[:200] for one in said.splitlines()[-lines:])
 
 
 def _health(wait: bool = True) -> dict:
@@ -136,9 +153,17 @@ def _health(wait: bool = True) -> dict:
                 found = _raw("/api/health", timeout=5)
                 break
             except Down:
+                running = STARTED["process"]
+                if running is not None and running.poll() is not None:
+                    # the server started has ended: said, with why, not
+                    # waited on (600 s of nothing, twice)
+                    raise Down(f"the server started at {URL} ended (exit "
+                               f"{running.returncode}) before it came up; "
+                               f"its log ends:\n{_log_tail()}") from None
                 if time.time() > until:
                     raise Down(f"the server at {URL} did not come up in "
-                               f"{STARTUP:.0f} s") from None
+                               f"{STARTUP:.0f} s; its log ends:\n"
+                               f"{_log_tail()}") from None
     if SEEN["instance"] not in (None, found.get("instance")):
         # read again from disk: what the architecture changed since is
         # what is there now

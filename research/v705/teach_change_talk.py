@@ -62,10 +62,13 @@ FORMS = {
     "takes and uses": ("{SUBJ}, {NEW}",
                        "asks that the function {SUBJ} take something new, "
                        "{NEW}, and says in the same message what {SUBJ} "
-                       "should do with it and why -- like 'make {SUBJ} take "
-                       "{NEW} and print it before each line, so the log "
-                       "says whose it is', '{SUBJ} should also take {NEW} "
-                       "and skip the rows it names'",
+                       "should do with it and why, naming the things "
+                       "{SUBJ} already works on (its rows, windows, lines, "
+                       "items, files) -- like 'make {SUBJ} take {NEW} and "
+                       "print it before each line, so the log says whose "
+                       "it is', '{SUBJ} should also take {NEW} and weigh "
+                       "every candidate by it, so the closest are tried "
+                       "first'",
                        "asking that a function get a new input and use it"),
     "passes": ("{SUBJ}, {VALUE}, {CALLEE}",
                "asks that in the function {SUBJ}, the call to {CALLEE} be "
@@ -103,12 +106,14 @@ WORDED = 0.5
 KNOWN_ROLES = ("SUBJ", "CALLEE", "HELPER")
 
 
-def write(only: list | None = None) -> None:
+def write(only: list | None = None, seed: int = 0) -> None:
     """Every form's requests written again -- or `only` those forms', put
     after what was written (a form added: the others as they were)."""
     from research.v696.teach_meaning import Teacher
     teacher = Teacher()
-    teacher.torch.manual_seed(SEED + (len(only) if only else 0))
+    # (written again of a form, by a seed of its own: the same seed, the
+    # same requests)
+    teacher.torch.manual_seed(SEED + (len(only) if only else 0) + seed)
     with WRITTEN.open("a" if only else "w", encoding="utf-8") as out:
         for round_ in range(ROUNDS):
             forms = list(only or FORMS)
@@ -371,9 +376,10 @@ def main(argv=None) -> int:
     parser.add_argument("job", choices=("write", "check", "corpus"))
     parser.add_argument("--forms", nargs="*", default=None,
                         help="write only these forms, after what is written")
+    parser.add_argument("--seed", type=int, default=0)
     options = parser.parse_args(argv)
     if options.job == "write":
-        write(options.forms)
+        write(options.forms, options.seed)
     else:
         {"check": check, "corpus": corpus}[options.job]()
     return 0
