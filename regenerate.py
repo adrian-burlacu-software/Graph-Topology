@@ -1975,12 +1975,12 @@ def steps() -> list[Step]:
                       _run("research.v705.teach_change_talk", "corpus"),
                       _run("research.v689.teach_reader", "train",
                            "--base", str(LLM / "reader-code43"),
-                           "--out", str(LLM / "reader-code50"),
+                           "--out", str(LLM / "reader-code51"),
                            "--epochs", "1", "--rate", "2e-5",
                            "--subject", "math", "--subject", "design",
                            "--subject", "code", "--subject", "data",
                            "--subject", "shell", "--subject", "plan")),
-             _model_check(LLM / "reader-code50", 80),
+             _model_check(LLM / "reader-code51", 80),
              needs=("reader-code-yours",), cost="an hour", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
