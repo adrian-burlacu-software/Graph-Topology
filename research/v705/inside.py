@@ -722,7 +722,7 @@ def precedents(function, look: dict, text: str) -> list:
 
 
 #: repair's edits of a function replayed at most, the likeliest first
-REPAIRED = 40
+REPAIRED = 20
 
 
 def repaired(function, text: str, said: str = "") -> list:

@@ -40,6 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "state" / "v705-loop.jsonl"
+PARTIAL = ROOT / "state" / "v705-loop.partial.json"
 URL = "http://127.0.0.1:8697"
 #: what it is told to want: read as a goal (1.0) and looked at by what it
 #: gets wrong now (`evidence.ways`) -- `fix what you get wrong in
@@ -52,8 +53,10 @@ STARTUP = 900
 
 
 #: a turn of the goal waited for at most: thinking it through (240 s),
-#: and a change step writing and running again sixty changes and more
-TURN = 1800
+#: and a change step writing and running again sixty changes and more,
+#: and repair's, each with its case and its neighbours, one call up as
+#: well (half an hour was not enough)
+TURN = 7200
 
 
 def _post(path: str, body: dict) -> dict:
@@ -162,7 +165,12 @@ def goal(sid: str) -> list:
         turn = _post("/api/say", {"sid": sid, "q": said})
         reply = " ".join(text_of(turn).split())
         status = (code_of(turn).get("answer") or {}).get("status")
-        turns.append({"said": said, "reply": reply, "status": status})
+        turns.append({"said": said, "reply": reply, "status": status,
+                      "at": time.strftime("%H:%M:%S")})
+        # each turn kept as it comes (a turn cut off by its wait lost the
+        # round's every turn)
+        PARTIAL.write_text(json.dumps({"sid": sid, "turns": turns},
+                                      indent=1), encoding="utf-8")
         if status not in ("goal", "goal step") or \
                 "as far as I can take" in reply or \
                 "last step of the plan" in reply:
