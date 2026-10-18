@@ -24,7 +24,7 @@ TOKENS, LONGEST = 4096, 1024
 POSITIONS = 128
 
 
-def scores(sources: list, held=None) -> list:
+def scores(sources: list, held=None, tokens: int = TOKENS) -> list:
     """The summed log-likelihood of each source under a language model
     held (`.tokenizer`, `.model`): the code model where none is given -- the
     server's own editor where the code model has no room beside it."""
@@ -40,10 +40,10 @@ def scores(sources: list, held=None) -> list:
     at = 0
     while at < len(order):
         longest = len(encoded[order[min(len(order) - 1, at)]])
-        size = max(1, TOKENS // max(1, longest))
+        size = max(1, tokens // max(1, longest))
         # sorted by length: the last of a batch is its longest
         while size > 1 and at + size - 1 < len(order) and len(
-                encoded[order[at + size - 1]]) * size > TOKENS:
+                encoded[order[at + size - 1]]) * size > tokens:
             size -= 1
         batch = order[at:at + size]
         at += size
@@ -79,7 +79,7 @@ BEFORE, AFTER = 48, 24
 
 
 def gained(original: str, sources: list, said: str = "",
-           held=None, given: str = "") -> list:
+           held=None, given: str = "", tokens: int = TOKENS) -> list:
     """How much more likely each source is than the code it was made from
     (negative: less likely) -- scored where they differ only: the tokens
     from `BEFORE` ahead of the first that differs to `AFTER` past the last,
@@ -112,5 +112,5 @@ def gained(original: str, sources: list, said: str = "",
         windows += [ahead + mine, ahead + theirs]
     # the original's windows repeat (one per edit of a place): scored once
     unique = list(dict.fromkeys(windows))
-    scored = dict(zip(unique, scores(unique, held)))
+    scored = dict(zip(unique, scores(unique, held, tokens)))
     return [scored[windows[a]] - scored[windows[b]] for a, b in pairs]

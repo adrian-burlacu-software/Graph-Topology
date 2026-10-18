@@ -13,6 +13,7 @@ it was given, each line it took with what changed, and what it gave back
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 import re
 import sys
 
@@ -723,6 +724,13 @@ def precedents(function, look: dict, text: str) -> list:
 
 #: repair's edits of a function replayed at most, the likeliest first
 REPAIRED = 20
+#: what ranks them inside the server: the small code model, in small
+#: batches, loaded for it and let go after -- the 1.5B one in batches of
+#: 4096 tokens peaked at 5.8 GB beside the server's own models, and the
+#: card spilled into memory (the server at 24 GB, a turn of three hours)
+RANKER = Path(__file__).resolve().parents[2] / "llm" / \
+    "Qwen2.5-Coder-0.5B-Instruct"
+RANKED_TOKENS = 1024
 
 
 def repaired(function, text: str, said: str = "") -> list:
@@ -752,11 +760,22 @@ def repaired(function, text: str, said: str = "") -> list:
     made = list({one[2]: one for one in made}.values())
     if not made:
         return []
+    held = None
     try:
+        from research.v705 import coder
+        held = coder.Coder(RANKER) if RANKER.exists() else None
         gains = natural.gained(ast.unparse(ast.parse(source)),
-                               [one[2] for one in made], said=said)
+                               [one[2] for one in made], said=said,
+                               held=held, tokens=RANKED_TOKENS)
     except Exception:                               # noqa: BLE001
         gains = [0.0] * len(made)
+    finally:
+        if held is not None:
+            import gc
+            torch = held.torch
+            del held
+            gc.collect()
+            torch.cuda.empty_cache()
     ranked = sorted(range(len(made)), key=lambda at: -gains[at])
     file_lines = text.splitlines(keepends=True)
     end = first - 1 + len(lines)
