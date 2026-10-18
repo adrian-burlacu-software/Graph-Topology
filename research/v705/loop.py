@@ -49,8 +49,10 @@ URL = "http://127.0.0.1:8697"
 #: no edit gives; `fix what you get wrong in conversations` was read as a
 #: change of `conversations` (v690)
 GOAL = "I want you to get more things right."
-#: the steps agreed to at most in a round
-STEPS = 16
+#: the steps agreed to at most in a round: a goal of itself is all it does
+#: worst, fourteen areas of one to three places each -- at 16 the round
+#: ended half through, and the loop with it, nothing yet changed
+STEPS = 200
 #: the server's start, at most (it takes about three minutes)
 STARTUP = 900
 
@@ -155,14 +157,16 @@ def measure(label: str) -> dict:
     return {one["n"]: one["verdict"] for one in map(json.loads, rows)}
 
 
-def goal(sid: str) -> list:
+def goal(sid: str, resume: bool = False) -> list:
     """The goal said to it, and each step it proposes agreed to: the turns,
-    [(said, reply, status)]."""
-    files = _bridge()._files(["research"])
-    _post("/api/project", {"sid": sid, "files": files,
-                           "name": ROOT.name, "root": str(ROOT)})
+    [(said, reply, status)]. `resume`: the conversation goes on where it
+    was, with a yes (the server holding it as it was)."""
+    if not resume:
+        files = _bridge()._files(["research"])
+        _post("/api/project", {"sid": sid, "files": files,
+                               "name": ROOT.name, "root": str(ROOT)})
     turns = []
-    said = GOAL
+    said = "yes" if resume else GOAL
     for _ in range(STEPS):
         from research.v704.converse import code_of, text_of
         turn = _post("/api/say", {"sid": sid, "q": said})
@@ -239,14 +243,17 @@ def _logged(row: dict) -> None:
         out.write(json.dumps(row) + "\n")
 
 
-def run(rounds: int = 3, baseline: str | None = None) -> list:
+def run(rounds: int = 3, baseline: str | None = None,
+        resume: str | None = None) -> list:
     """`baseline`: a run of the conversation test already made on the code
     as it is, its self-model built -- not made again."""
     if _changed():
         raise SystemExit("the tree is not as committed: commit it first, so "
                          "what the loop changes is the loop's alone")
-    # on its code as it is now
-    _restart()
+    # on its code as it is now -- or, going on with a conversation the
+    # server holds, the server as it is
+    if resume is None:
+        _restart()
     stamp = time.strftime("%Y%m%d-%H%M")
     label = baseline or f"loop-{stamp}-0"
     if baseline:
@@ -261,7 +268,8 @@ def run(rounds: int = 3, baseline: str | None = None) -> list:
         started = time.time()
         row = {"round": round_, "measure": label,
                "right": sum(v == "right" for v in before.values()),
-               "turns": goal(f"loop-{stamp}-{round_}")}
+               "turns": goal(resume, True) if resume and round_ == 1
+               else goal(f"loop-{stamp}-{round_}")}
         files = _changed()
         row["changed"] = files
         if not files:
@@ -304,8 +312,11 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--baseline", default=None)
+    parser.add_argument("--resume", default=None,
+                        help="a conversation the running server holds, "
+                             "gone on with")
     options = parser.parse_args(argv)
-    for row in run(options.rounds, options.baseline):
+    for row in run(options.rounds, options.baseline, options.resume):
         print(row["round"], row["outcome"])
     return 0
 
