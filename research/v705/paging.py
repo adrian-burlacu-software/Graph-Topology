@@ -39,6 +39,9 @@ BUDGET = int(_os.environ.get("V705_PAGING_BUDGET") or BUDGET)
 #: what torch may keep on the card beyond what is allocated, in megabytes,
 #: after a model writes
 SPARE = 1000
+#: whether a model came onto the card since the last walk of every object
+#: ([bool], set by what `install` puts in)
+ARRIVED = [True]
 #: {id: (the model, held weakly -- one its loader lets go of is gone --
 #: and when it was last called)}
 WATCHED: dict = {}
@@ -166,6 +169,7 @@ def install() -> None:
     def arrived(model):
         try:
             if _on_card(model) and id(model) not in WATCHED:
+                ARRIVED[0] = True
                 # a model that writes is never a part of another's net (the
                 # reader's BERT is one): watched now, so that the next to
                 # come can make room by moving it -- a goal is one turn,
@@ -184,8 +188,13 @@ def install() -> None:
 
     def to(self, *args, **kwargs):
         return arrived(moving(self, *args, **kwargs))
+
+    def cuda(self, *args, **kwargs):
+        return arrived(onto(self, *args, **kwargs))
+    onto = PreTrainedModel.cuda
     PreTrainedModel.from_pretrained = classmethod(from_pretrained)
     PreTrainedModel.to = to
+    PreTrainedModel.cuda = cuda
     PreTrainedModel._v705_paging = True
 
 
@@ -216,6 +225,14 @@ def _paged(model) -> None:
         "__module__": kind.__module__})
 
 
+def _transformers_model():
+    try:
+        from transformers import PreTrainedModel
+    except ImportError:
+        return None
+    return PreTrainedModel
+
+
 def sweep(budget: int | None = None) -> dict:
     """After a turn: every model watched, and those on the card made to fit
     the budget. What is where, in megabytes."""
@@ -228,7 +245,13 @@ def sweep(budget: int | None = None) -> dict:
     global BUDGET
     if budget is not None:
         BUDGET = budget
-    watch(torch)
+    # every object walked only where a model came onto the card since the
+    # last walk (`install` knows): a server of 8 GB walked whole took 22 s
+    # after each turn, and after most no model has come
+    if ARRIVED[0] or not getattr(_transformers_model(), "_v705_paging",
+                                 False):
+        ARRIVED[0] = False
+        watch(torch)
     _make_room(torch, 0, None)
     with _LOCK:
         held = _models()

@@ -514,6 +514,14 @@ def declared(annotation, namespace: dict) -> list:
     return list(dict.fromkeys(out))
 
 
+def _copy(tree):
+    """A copy of a function's tree to edit: parsed again from the text it
+    was parsed from, where it keeps it (`candidates`) -- the same tree, made
+    by the parser many times faster than `deepcopy` copies one."""
+    text = getattr(tree, "text", None)
+    return ast.parse(text) if text is not None else copy.deepcopy(tree)
+
+
 def _dispatched(tree, helpers: list, context: dict) -> list:
     """`if <a case>: return <helper>(...)` first in the function: the case
     a field compared with a value as the module compares it elsewhere
@@ -536,12 +544,12 @@ def _dispatched(tree, helpers: list, context: dict) -> list:
     out = []
     for name, args in helpers[:HELPERS]:
         for case in cases:
-            made = copy.deepcopy(tree)
+            made = _copy(tree)
             made.body[0].body.insert(at, ast.parse(
                 f"if {case}:" + chr(10) + f"    return {name}({', '.join(args)})"
             ).body[0])
             out.append((line, f"if {case}: return {name}(...)",
-                        ast.unparse(ast.fix_missing_locations(made))))
+                        ast.unparse(made)))
     return out
 
 
@@ -591,8 +599,15 @@ def _copied(tree, context: dict) -> list:
             index = next(number for number, one in enumerate(nodes)
                          if id(one) == holder_id)
             out += _copies(tree, index, field, at, line, into, read, keys,
-                           already)
-    return out[:120]
+                           already)[:COPIED - len(out)]
+            if len(out) >= COPIED:
+                return out
+    return out
+
+
+#: the copies of a field made at most (made all and cut after, a function
+#: reading many dicts made hundreds)
+COPIED = 120
 
 
 def _copies(tree, index, field, at, line, into, read, keys, already) -> list:
@@ -601,13 +616,15 @@ def _copies(tree, index, field, at, line, into, read, keys, already) -> list:
     out = []
     for source in sorted(read - {into}):
         for name in [one for one in keys if one not in already][:30]:
-            made = copy.deepcopy(tree)
+            if len(out) >= COPIED:
+                return out
+            made = _copy(tree)
             holder = list(ast.walk(made.body[0]))[index]
             getattr(holder, field).insert(at + 1, ast.parse(
                 f"if {name!r} in {source}:" + chr(10) +
                 f"    {into}[{name!r}] = {source}[{name!r}]").body[0])
             out.append((line, f"{into}[{name!r}] = {source}[{name!r}]",
-                        ast.unparse(ast.fix_missing_locations(made))))
+                        ast.unparse(made)))
     return out
 
 
@@ -615,7 +632,9 @@ def candidates(source: str, lines: list, module_source: str = "",
                where: dict | None = None) -> list:
     """[(line, what was done, the function's source with it done)] of the
     edits on these lines, in their order, at most `MOST`."""
-    tree = ast.parse(textwrap.dedent(source))
+    text = textwrap.dedent(source)
+    tree = ast.parse(text)
+    tree.text = text
     context = _context(tree, module_source)
     # the module as it runs and the method's class: what calls call
     context.update(where or {})
@@ -625,6 +644,24 @@ def candidates(source: str, lines: list, module_source: str = "",
         id(one) for node in ast.walk(function)
         if isinstance(node, ast.comprehension) for one in node.ifs}
     nodes = list(ast.walk(function))
+    # what each node is in, walked once: the tree is never changed here (each
+    # edit is made on a copy), and walked again for each node of a long
+    # function, it was most of a change step (`page.replies`: 400 lines)
+    parents = _parents(tree)
+
+    everything = list(ast.walk(tree))
+    at_of = {id(node): at for at, node in enumerate(everything)}
+    above = [at_of[id(parents[node])] if node in parents else None
+             for node in everything]
+
+    def fresh():
+        # a copy to edit (`_copy`), its nodes and what each is in: the same
+        # parse, so the same walk -- what each is in found by place, not by
+        # walking it again (3,000 walks of `page.replies`: a minute)
+        made = ast.parse(text)
+        nodes_ = list(ast.walk(made))
+        return made, nodes_, {node: nodes_[up] for node, up in
+                              zip(nodes_, above) if up is not None}
     out = []
     # a feature's own shape: a case handed to a helper of the module that
     # takes what this function holds -- `if bug.language == 'python':
@@ -636,32 +673,32 @@ def candidates(source: str, lines: list, module_source: str = "",
     for index, node in enumerate(nodes):
         if isinstance(node, ast.Constant) and node.value is None and                 getattr(node, "lineno", None) in lines:
             for name, args in helpers[:HELPERS]:
-                made = copy.deepcopy(tree)
-                target = list(ast.walk(made.body[0]))[index]
+                made, made_nodes, made_parents = fresh()
+                target = made_nodes[index + 1]
                 call = ast.parse(f"{name}({', '.join(args)})",
                                  mode="eval").body
-                if _replace(_parents(made), target, call):
+                if _replace(made_parents, target, call):
                     out.append((node.lineno, f"None -> {name}(...)",
-                                ast.unparse(ast.fix_missing_locations(made))))
+                                ast.unparse(made)))
     for line in lines:
         for index, node in enumerate(nodes):
             if getattr(node, "lineno", None) != line or node is function:
                 continue
             here = dict(context)
             here["condition"] = id(node) in conditions
-            parent = _parents(tree).get(node)
+            parent = parents.get(node)
             here["joined"] = isinstance(parent, ast.Call) and any(
                 one is node for one in parent.args)
             if isinstance(node, ast.Attribute):
                 here["attributes"] = sorted(context["receivers"].get(
                     ast.unparse(node.value), set()))[:12]
-            for what, edit in _edits(tree, node, _parents(tree), here):
-                made = copy.deepcopy(tree)
-                target = list(ast.walk(made.body[0]))[index]
+            for what, edit in _edits(tree, node, parents, here):
+                made, made_nodes, made_parents = fresh()
+                target = made_nodes[index + 1]
                 try:
-                    if not edit(made, target, _parents(made)):
+                    if not edit(made, target, made_parents):
                         continue
-                    said = ast.unparse(ast.fix_missing_locations(made))
+                    said = ast.unparse(made)
                     compile(said, "<repair>", "exec")
                 except Exception:                   # noqa: BLE001
                     continue
@@ -671,10 +708,9 @@ def candidates(source: str, lines: list, module_source: str = "",
                 continue
             if isinstance(node, ast.stmt) and not isinstance(
                     node, (ast.FunctionDef, ast.Return)):
-                made = copy.deepcopy(tree)
-                target = list(ast.walk(made.body[0]))[index]
-                parents = _parents(made)
-                holder = parents.get(target)
+                made, made_nodes, made_parents = fresh()
+                target = made_nodes[index + 1]
+                holder = made_parents.get(target)
                 for name, value in ast.iter_fields(holder):
                     if isinstance(value, list) and any(
                             one is target for one in value) and len(value) > 1:
