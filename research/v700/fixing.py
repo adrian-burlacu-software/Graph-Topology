@@ -390,6 +390,47 @@ def _with_imports(path: str, text: str, offered: dict | None) -> str:
         "".join(lines[at:])
 
 
+def _mended_json(path: str, before: str, after: str) -> str | None:
+    """A JSON file a change left unreadable only by its separators, mended:
+    a comma put in where one is expected, one taken out before what closes
+    -- the record the editor added was right, the line above it lacked its
+    comma (all 19 answers to `add a member with id 5 ...` were refused
+    for it). None where it read before and reads now, or no comma mends
+    it."""
+    import json
+    if not path.lower().endswith(".json"):
+        return None
+    try:
+        json.loads(before)
+    except ValueError:
+        return None
+    text = after
+    for _ in range(4):
+        try:
+            json.loads(text)
+            return text if text != after else None
+        except json.JSONDecodeError as bad:
+            if bad.msg == "Expecting ',' delimiter":
+                at = len(text[:bad.pos].rstrip())
+                text = text[:at] + "," + text[at:]
+            elif bad.msg in ("Expecting value",
+                             "Expecting property name enclosed in double "
+                             "quotes", "Illegal trailing comma before end "
+                             "of array", "Illegal trailing comma before "
+                             "end of object"):
+                # at the comma, or after it (as the version says)
+                at = len(text[:bad.pos].rstrip())
+                if text[bad.pos:bad.pos + 1] == ",":
+                    text = text[:bad.pos] + text[bad.pos + 1:]
+                elif at and text[at - 1] == ",":
+                    text = text[:at - 1] + text[at:]
+                else:
+                    return None
+            else:
+                return None
+    return None
+
+
 def data_wrong(path: str, before: str, after: str) -> str | None:
     """Why a change of a data file is not one, or None: it must still read
     as what it is, and put in no place whose name the file already has
@@ -943,6 +984,9 @@ def _change_once(statement: str, held, subject, key=None,
                                   f"statement is of (lines {block[0] + 1}"
                                   f"-{block[1] + 1})")
                 return
+            mended = _mended_json(path, text, row["text"])
+            if mended is not None:
+                row["text"] = mended
             wrong = data_wrong(path, text, row["text"])
             if wrong:
                 row["refused"] = wrong
@@ -1098,10 +1142,24 @@ def _change_once(statement: str, held, subject, key=None,
     # `shaped.asked`): a parameter it is to take, a value passed on, a case
     # handed to a helper -- what the editors could not write ("gained
     # should take a message": twenty answers, none of the `def` line)
-    if spans and not data:
+    kinds = []
+    if data:
+        # a value of the data set as said, made by lookup (v701
+        # `placing.settings`: the record a value names, its field named, a
+        # word of the field's kind) -- the editor, shown Dune's row among
+        # others, set the last row's pages (1 of 19 answers right)
+        from research.v701 import placing
+        head, tail = "".join(lines[:start - 1]), "".join(lines[end:])
+        for what, whole in placing.settings(path, text, statement):
+            if whole.startswith(head) and whole.endswith(tail) and \
+                    len(whole) >= len(head) + len(tail):
+                kinds.append((what, whole[len(head):len(whole) - len(tail)]))
+    elif spans:
         from research.v705 import shaped
-        for what, made in shaped.asked(spans, part, path, text,
-                                       said=statement, project=held.files):
+        kinds = shaped.asked(spans, part, path, text, said=statement,
+                             project=held.files)
+    if kinds:
+        for what, made in kinds:
             row = {"answer": f"(by its kind) {what}", "greedy": False,
                    "round": -1, "kind": what}
             tried.append(row)
@@ -1120,7 +1178,7 @@ def _change_once(statement: str, held, subject, key=None,
             # pass or call -- in the lines it changes (`message`, taken; the
             # words the statement shares with the code are `gained` and `a`,
             # on lines a parameter put on the end does not change)
-            marked = {word for role, found in spans.items()
+            marked = {word for role, found in (spans or {}).items()
                       if role != "SUBJ" for one in found
                       for word in re.findall(r"\w+", one)}
             changed_ = _changed_names(part, made)

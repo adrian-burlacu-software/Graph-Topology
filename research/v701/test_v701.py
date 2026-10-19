@@ -352,6 +352,47 @@ class PlacingTests(unittest.TestCase):
                          (0, 2))
 
 
+class SettingsTests(unittest.TestCase):
+    """A value of the data set by lookup: the record a value names, its
+    field named, a word of the field's kind -- one line, in place."""
+
+    def test_a_record_and_a_setting(self):
+        from research.v701 import placing
+        rows = "id,title,pages\n1,Dune,412\n2,Solaris,204\n"
+        [(what, made)] = placing.settings("b.csv", rows,
+                                          "set Dune's pages to 896")
+        self.assertEqual(made, "id,title,pages\n1,Dune,896\n2,Solaris,204\n")
+        people = ('[\n  {"id": 1, "name": "Alan Turing", "email": '
+                  '"a@x.org"},\n  {"id": 2, "name": "Ada", "email": '
+                  '"b@x.org"}\n]\n')
+        [(what, made)] = placing.settings(
+            "m.json", people, "change Alan Turing's email to t@x.org")
+        self.assertIn('"name": "Alan Turing", "email": "t@x.org"', made)
+        self.assertIn('"email": "b@x.org"', made)
+        config = "server:\n  port: 8080  # the page\n"
+        [(what, made)] = placing.settings("c.yaml", config,
+                                          "set the port to 9090")
+        self.assertEqual(made, "server:\n  port: 9090  # the page\n")
+        # a plain word is no value of a field: what to remove, rename, add
+        # is the editor's
+        self.assertEqual(placing.settings("b.csv", rows,
+                                          "remove Solaris from the books"),
+                         [])
+
+    def test_json_mended_by_its_commas(self):
+        from research.v700.fixing import _mended_json
+        before = '[\n  {"id": 1},\n  {"id": 4}\n]\n'
+        self.assertEqual(
+            _mended_json("m.json", before,
+                         '[\n  {"id": 1},\n  {"id": 4}\n  {"id": 5}\n]\n'),
+            '[\n  {"id": 1},\n  {"id": 4},\n  {"id": 5}\n]\n')
+        self.assertEqual(
+            _mended_json("m.json", before, '[\n  {"id": 1},\n  {"id": 4},\n]\n'),
+            before)
+        self.assertIsNone(_mended_json("m.json", before, before))
+        self.assertIsNone(_mended_json("m.json", before, '[{"id": }]'))
+
+
 class DataFileTests(unittest.TestCase):
     """A change naming no file placed in the data file it is of -- where
     the code has no name for what it says."""

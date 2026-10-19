@@ -142,6 +142,127 @@ def data_file(held, statement: str) -> str | None:
     return best
 
 
+def _shape(value) -> tuple:
+    """What a value looks like: a number, or a string by what it has -- an
+    `@`, a digit, a dot, a space."""
+    if isinstance(value, bool):
+        return ("bool",)
+    if isinstance(value, (int, float)):
+        return ("number",)
+    text = str(value)
+    return ("string", "@" in text, any(one.isdigit() for one in text),
+            "." in text, " " in text)
+
+
+def _as(token: str, old):
+    """A word of the statement as a value of `old`'s kind, or None."""
+    if isinstance(old, bool):
+        return None
+    if isinstance(old, int):
+        return int(token) if re.fullmatch(r"-?\d+", token) else None
+    if isinstance(old, float):
+        return float(token) if re.fullmatch(r"-?\d+(\.\d+)?", token) \
+            else None
+    # a string only where its shape is the old one's and says more than a
+    # word does (an address, a date): plain words are the statement's own
+    if _shape(token) == _shape(old) and _shape(old)[1:3] != (False, False):
+        return token
+    return None
+
+
+def settings(path: str, text: str, statement: str) -> list:
+    """A value of the data set as the statement says, made by lookup, not
+    written: [(what, the file's text so changed)]. A record named by a value
+    it holds whole (`Dune`), a field of it named (`pages`), and a word of
+    the statement of that field's kind (`896`); or a setting named (`port`)
+    and a value of its kind (`9090`). Only where it is one line of the
+    file, changed in place."""
+    from research.v701 import datamodel
+    import json
+    model = datamodel.read(path, text)
+    if model.error:
+        return []
+    said = _words(statement)
+    lowered = " " + re.sub(r"\s+", " ", statement.lower()) + " "
+    tokens = [one.rstrip(".,;:!?") for one in statement.split()]
+    tokens = [re.sub(r"'s$", "", one) for one in tokens if one]
+    lines = text.splitlines(keepends=True)
+    out = []
+
+    def named(name: str) -> bool:
+        return bool(_words(name)) and _words(name) <= said
+
+    def put(at: int, line: str, what: str):
+        changed = "".join(lines[:at] + [line] + lines[at + 1:])
+        if changed != text and (what, changed) not in out:
+            out.append((what, changed))
+    for collection, records in model.records().items():
+        for index, record in enumerate(records):
+            if not isinstance(record, dict):
+                continue
+            by = [(name, value) for name, value in record.items()
+                  if isinstance(value, str) and len(value) >= 3 and
+                  f" {value.lower()}" in lowered]
+            if not by:
+                continue
+            for field_, old in record.items():
+                if not named(field_) or any(field_ == one for one, _ in by):
+                    continue
+                for token in tokens:
+                    new = _as(token, old)
+                    if new is None or new == old:
+                        continue
+                    what = f"{by[0][1]}'s {field_} set to {new}"
+                    if tabular(path):
+                        import csv
+                        import io
+                        # the header, then each record a line
+                        at = index + 1
+                        if at >= len(lines):
+                            continue
+                        cells = next(csv.reader([lines[at]]))
+                        header = next(csv.reader([lines[0]]))
+                        if field_ not in header or \
+                                len(cells) != len(header):
+                            continue
+                        cells[header.index(field_)] = str(new)
+                        buffer = io.StringIO()
+                        csv.writer(buffer, lineterminator="").writerow(cells)
+                        ending = lines[at][len(lines[at].rstrip("\r\n")):]
+                        put(at, buffer.getvalue() + ending, what)
+                    elif path.lower().endswith(".json"):
+                        key = f'"{by[0][0]}": {json.dumps(by[0][1])}'
+                        old_ = f'"{field_}": {json.dumps(old)}'
+                        found = [at for at, line in enumerate(lines)
+                                 if key in line and old_ in line]
+                        if len(found) == 1:
+                            put(found[0], lines[found[0]].replace(
+                                old_, f'"{field_}": {json.dumps(new)}'), what)
+    # a setting: a value of its own, named
+    for place in model.places.values():
+        if set(place.types) & {"object", "array"} or "[]" in place.path:
+            continue
+        own = place.path.rsplit(".", 1)[-1]
+        if not named(own) or not place.examples:
+            continue
+        old = place.examples[0]
+        for token in tokens:
+            new = _as(token, old)
+            if new is None or new == old:
+                continue
+            pattern = re.compile(rf"^(\s*{re.escape(own)}\s*:\s*)"
+                                 rf"{re.escape(str(old))}(\s*(#.*)?)$")
+            found = [at for at, line in enumerate(lines)
+                     if pattern.match(line.rstrip("\r\n"))]
+            if len(found) == 1:
+                line = lines[found[0]]
+                ending = line[len(line.rstrip("\r\n")):]
+                put(found[0], pattern.sub(rf"\g<1>{new}\g<2>",
+                                          line.rstrip("\r\n")) + ending,
+                    f"{place.path} set to {new}")
+    return out
+
+
 def tabular(path: str) -> bool:
     """Whether a data file is a table of rows under a header (`block`)."""
     return path.lower().endswith((".csv", ".tsv"))
