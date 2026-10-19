@@ -36,6 +36,9 @@ BUDGET = 5000
 #: card, each a part of it (the loop's measure, `loop.SERVERS`)
 import os as _os
 BUDGET = int(_os.environ.get("V705_PAGING_BUDGET") or BUDGET)
+#: what torch may keep on the card beyond what is allocated, in megabytes,
+#: after a model writes
+SPARE = 1000
 #: {id: (the model, held weakly -- one its loader lets go of is gone --
 #: and when it was last called)}
 WATCHED: dict = {}
@@ -163,7 +166,15 @@ def install() -> None:
     def arrived(model):
         try:
             if _on_card(model) and id(model) not in WATCHED:
-                _make_room(torch, 0, model)
+                # a model that writes is never a part of another's net (the
+                # reader's BERT is one): watched now, so that the next to
+                # come can make room by moving it -- a goal is one turn,
+                # and seven decoders loaded in it none could move, the
+                # card's 8 GB held 7.7 (16.5 asked of it)
+                if model.can_generate():
+                    adopt(model)
+                else:
+                    _make_room(torch, 0, model)
         except Exception:                           # noqa: BLE001
             pass
         return model
@@ -187,7 +198,16 @@ def _paged(model) -> None:
     if generate is not None:
         def generating(*args, **kwargs):
             _called(model)
-            return generate(*args, **kwargs)
+            try:
+                return generate(*args, **kwargs)
+            finally:
+                # what a batch's cache took, given back where it is more
+                # than the card spares: kept by torch for the next, it is
+                # room no other model can be moved into
+                import torch
+                if torch.cuda.memory_reserved() > \
+                        torch.cuda.memory_allocated() + SPARE * 2 ** 20:
+                    torch.cuda.empty_cache()
         model.generate = generating
     kind = type(model)
     model.__class__ = type(kind.__name__, (kind,), {

@@ -669,10 +669,13 @@ class PagingTests(unittest.TestCase):
             second = LlamaForCausalLM(config).to("cuda")
             self.assertTrue(paging._on_card(second))
             self.assertFalse(paging._on_card(first))
-            # and called, the first comes back
+            # and called, the first comes back -- the second, come within
+            # the turn (no sweep since), moved off for it: a goal is one
+            # turn, and seven decoders loaded in it none could move
             with torch.no_grad():
                 first(torch.tensor([[1, 2]], device="cuda"))
             self.assertTrue(paging._on_card(first))
+            self.assertFalse(paging._on_card(second))
         finally:
             paging.BUDGET = 5000
 

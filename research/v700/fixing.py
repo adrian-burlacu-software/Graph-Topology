@@ -53,8 +53,11 @@ SAMPLES, ROUNDS = 6, 3
 #: the rounds asked where each change is tried by running its case again:
 #: the run, not agreement, decides -- so more answers may be looked at
 VERIFIED_ROUNDS = 10
-#: of those, the rounds written in one batch
-CHUNKED = 3
+#: of those, the rounds written in one batch -- one: three at once (18
+#: answers) took 3.5 GB of the card beyond the editor, one 1.2, for 9.9 s
+#: against 4.8 (the longest answer bounds a batch, not the count), and
+#: beside a goal's other models the card spilled
+CHUNKED = 1
 #: below this the judge is sure a change is not what was said, and it is
 #: refused; above it, the judge only weighs -- it gave removing an unused
 #: import alone 0.18, and the same with a docstring rewritten 0.70
