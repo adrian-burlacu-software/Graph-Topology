@@ -292,6 +292,23 @@ def _act(read, text: str, session, memory) -> dict | None:
         # or the one just talked about (v700): made in the project, and in
         # its files on disk
         from research.v700 import fixing
+        # a change of the project's data naming no file -- a value it holds,
+        # a record described, a setting the code has no name of -- is of
+        # that data file (v701 `placing.data_file`): `set the port to 9090`
+        # was planned across the code, or placed nowhere
+        data = None
+        if held is not None and not _named_outright(read, text, held):
+            from research.v701 import placing
+            data = placing.data_file(held, text)
+        if data is not None and fixing.available():
+            subject = asking.Subject("file", data, data)
+            made = fixing.change(text, held, subject, key, spans=read.spans)
+            asking.FOCUS[key] = (subject, turn)
+            found = asking._reply("change", text, made["said"],
+                                  {"read": read.json()}, name=data)
+            found["code"]["change"] = made
+            found["code"]["answer"]["status"] = made["status"]
+            return found
         # a change naming no function or file of the project outright --
         # its words name what it is about, not where (`report whether the
         # shell asks in /api/health and show it in the MCP health tool`) --

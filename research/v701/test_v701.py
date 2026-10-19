@@ -341,6 +341,59 @@ class PlacingTests(unittest.TestCase):
         self.assertFalse(_outside((0, 1), 1, part, part + "  - name: b\n"))
         self.assertTrue(_outside((1, 1), 1, part, "people:\n  - name: a\n"))
 
+    def test_a_row_by_its_value_not_the_header(self):
+        # `pages` is the header's: the whole file was the block, and the
+        # editor shown its last rows changed Solaris
+        from research.v701 import placing
+        lines = ["id,title,pages", "1,Dune,412", "2,Solaris,204"]
+        self.assertEqual(placing.block(lines, "set Dune's pages to 896",
+                                       rows=True), (1, 1))
+        self.assertEqual(placing.block(lines, "set Dune's pages to 896"),
+                         (0, 2))
+
+
+class DataFileTests(unittest.TestCase):
+    """A change naming no file placed in the data file it is of -- where
+    the code has no name for what it says."""
+
+    def held(self):
+        from research.v698.project import Project
+        held = Project()
+        held.files = {
+            "config.yaml": "server:\n  port: 8080\nlibrary:\n"
+                           "  loan_days: 14\n",
+            "data/books.csv": "id,title,pages\n1,Dune,412\n2,Solaris,204\n",
+            "data/members.json": '[{"id": 1, "name": "Alan Turing", '
+                                 '"email": "a@x.org"}, {"id": 2, "name": '
+                                 '"Ada", "email": "b@x.org"}]\n',
+            "library/loans.py": "LOAN_DAYS = 14\nMAX_LOANS = 3\n\n\n"
+                                "def total_pages(books):\n"
+                                "    return sum(b.pages for b in books)\n"}
+        return held
+
+    def test_each_kind_of_data_change(self):
+        from research.v701 import placing
+        held = self.held()
+        for said, path in (
+                ("set the port to 9090", "config.yaml"),
+                ("change Alan Turing's email to t@x.org",
+                 "data/members.json"),
+                ("remove Solaris from the books", "data/books.csv"),
+                ("add a book with id 3, title Kindred, pages 264",
+                 "data/books.csv"),
+                ("loan_days should be 21 in the config", "config.yaml")):
+            self.assertEqual(placing.data_file(held, said), path, said)
+
+    def test_what_the_code_names_is_the_code(self):
+        from research.v701 import placing
+        held = self.held()
+        # loans.py's LOAN_DAYS and MAX_LOANS; members.json is named for
+        # what each of its records is
+        for said in ("make loans last 21 days instead of 14",
+                     "let members hold up to 5 books at once",
+                     "total_pages should give 0 for no books"):
+            self.assertIsNone(placing.data_file(held, said), said)
+
 
 if __name__ == "__main__":
     unittest.main()

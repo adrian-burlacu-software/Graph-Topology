@@ -96,7 +96,8 @@ def part_of(held, subject, statement: str = "") -> tuple | None:
         # taught its changes, never the file whole (v701 `placing`)
         from research.v701 import placing
         placed_ = placing.window(held.files[subject.file], statement,
-                                 AROUND, LONGEST_PART)
+                                 AROUND, LONGEST_PART,
+                                 placing.tabular(subject.file))
         if placed_ is not None:
             return (subject.file, *placed_)
     lines = held.files[subject.file].splitlines()
@@ -878,7 +879,8 @@ def _change_once(statement: str, held, subject, key=None,
     block = None
     if data:
         from research.v701 import placing
-        block = placing.block(text.splitlines(), statement)
+        block = placing.block(text.splitlines(), statement,
+                              placing.tabular(path))
     named = set() if data else said_names(statement, text, path, start,
                                           end, subject)
     flakes_before = _flakes(path, text)

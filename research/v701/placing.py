@@ -46,14 +46,21 @@ def _children(lines: list, first: int, last: int) -> list:
             for at, head in enumerate(heads)]
 
 
-def block(lines: list, statement: str) -> tuple | None:
+def block(lines: list, statement: str, rows: bool = False) -> tuple | None:
     """(first, last), 0-based and inclusive: the smallest block of a data
     file holding every word of the statement the file has; None where it
-    has none of them."""
+    has none of them. `rows`: a table, its first line the names of its
+    columns -- a word only that line holds says which column, not which
+    row (`set Dune's pages to 896`: `pages` is the header's, and the whole
+    file was the block -- the editor shown its last rows changed Solaris)."""
     said = _words(statement)
     # a comment is no data (`# The page and the reader` holds `the`)
     held = [_words(re.sub(r"(^|\s)#.*$", "", line)) & said
             for line in lines]
+    if rows and len(held) > 1:
+        others = set().union(*held[1:])
+        if others:
+            held[0] = held[0] & others
     def has(first: int, last: int) -> set:
         return set().union(*held[first:last + 1]) if last >= first else set()
     first, last = 0, len(lines) - 1
@@ -75,14 +82,105 @@ def block(lines: list, statement: str) -> tuple | None:
     return first, last
 
 
+def data_file(held, statement: str) -> str | None:
+    """The data file a change naming no file is of -- where the code has no
+    name for what it says (the code is changed where it has: `make loans
+    last 21 days` is of loans.py's LOAN_DAYS, though config.yaml holds
+    loan_days too). A data file is what is changed where the statement
+    says, of it:
+
+    - a value it holds, whole (`set Dune's pages to 896`, `remove Solaris`);
+    - two fields or more of one of its collections: a record described
+      (`add a member with id 5 named ..., email ...`);
+    - a setting the code has no name of (`set the port to 9090`);
+    - the file itself, where no code file is so named (`... in the
+      config`).
+
+    The one that says most; None where none does. Looked up in what the
+    project holds, not read."""
+    said = _words(statement)
+    lowered = " " + re.sub(r"\s+", " ", statement.lower()) + " "
+    code = _code_words(held)
+    code_files = {_one(path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower())
+                  for path in held.files if not _is_data(path)}
+    best, score = None, 0
+    for path, model in sorted(held.data().items()):
+        if model.error:
+            continue
+        fit = 0
+        leaves = [place for place in model.places.values()
+                  if not set(place.types) & {"object", "array"}]
+        # a value it holds, said whole
+        if any(isinstance(value, str) and len(value) >= 3 and
+               f" {value.lower()}" in lowered
+               for place in leaves for value in list(place.distinct)[:500]):
+            fit += 2
+        # two fields of a collection or more: a record
+        for collection, one in model.collections.items():
+            named = {name for name in one.get("fields", ())
+                     if _words(name) and _words(name) <= said}
+            if len(named) >= 2:
+                fit += 2
+        # a setting the code has no name of
+        for place in leaves:
+            own = _words(place.path.rsplit(".", 1)[-1])
+            if own and own <= said and not own <= code and \
+                    "[]" not in place.path and not any(
+                        place.path.startswith(f"{one}.") or place.path == one
+                        for one in model.collections if one):
+                fit += 1
+        # the file named, where no code file is so named -- a file of
+        # settings: one of records is named for what each is (`let members
+        # hold up to 5 books` is of the code's limit, not members.json)
+        base = _one(path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower())
+        if (base in said and base not in code_files and
+                not {"", "[]"} & set(model.collections)) or \
+                path.lower() in lowered:
+            fit += 1
+        if fit > score:
+            best, score = path, fit
+    return best
+
+
+def tabular(path: str) -> bool:
+    """Whether a data file is a table of rows under a header (`block`)."""
+    return path.lower().endswith((".csv", ".tsv"))
+
+
+def _is_data(path: str) -> bool:
+    from research.v698.project import is_data
+    return is_data(path)
+
+
+def _code_words(held) -> set:
+    """Every word of every name the project's code uses (`LOAN_DAYS`: loan,
+    days; `find_by_author`: find, by, author)."""
+    import io
+    import tokenize
+    out = set()
+    for path, text in held.files.items():
+        if _is_data(path):
+            continue
+        try:
+            tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            continue
+        for token in tokens:
+            if token.type == tokenize.NAME:
+                for part in re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+",
+                                       token.string):
+                    out.add(_one(part.lower()))
+    return out
+
+
 def window(text: str, statement: str, around: int,
-           longest: int) -> tuple | None:
+           longest: int, rows: bool = False) -> tuple | None:
     """(first line, last line), 1-based and inclusive, of a data file to
     give the editor: its block (`block`) and `around` lines each side;
     None where the statement says nothing the file has, or the block is
     longer than `longest`."""
     lines = text.splitlines()
-    found = block(lines, statement)
+    found = block(lines, statement, rows)
     if found is None:
         return None
     first = max(0, found[0] - around)
