@@ -747,6 +747,21 @@ REPAIRED = 20
 RANKER = Path(__file__).resolve().parents[2] / "llm" / \
     "Qwen2.5-Coder-0.5B-Instruct"
 RANKED_TOKENS = 1024
+_RANKERS: dict = {}
+
+
+def _ranker():
+    """The ranking code model, loaded once and kept: the pager moves it off
+    the card between turns (v705 `paging`). Let go after each use, it was
+    loaded again each time, and the `gc.collect()` that let it go took
+    3.5 of a goal's 30 minutes (a server of 8 GB walked whole)."""
+    if "ranker" not in _RANKERS:
+        from research.v705 import coder, paging
+        held = coder.Coder(RANKER) if RANKER.exists() else None
+        if held is not None:
+            paging.adopt(held.model)
+        _RANKERS["ranker"] = held
+    return _RANKERS["ranker"]
 
 
 def repaired(function, text: str, said: str = "") -> list:
@@ -776,22 +791,12 @@ def repaired(function, text: str, said: str = "") -> list:
     made = list({one[2]: one for one in made}.values())
     if not made:
         return []
-    held = None
     try:
-        from research.v705 import coder
-        held = coder.Coder(RANKER) if RANKER.exists() else None
         gains = natural.gained(ast.unparse(ast.parse(source)),
                                [one[2] for one in made], said=said,
-                               held=held, tokens=RANKED_TOKENS)
+                               held=_ranker(), tokens=RANKED_TOKENS)
     except Exception:                               # noqa: BLE001
         gains = [0.0] * len(made)
-    finally:
-        if held is not None:
-            import gc
-            torch = held.torch
-            del held
-            gc.collect()
-            torch.cuda.empty_cache()
     ranked = sorted(range(len(made)), key=lambda at: -gains[at])
     file_lines = text.splitlines(keepends=True)
     end = first - 1 + len(lines)
@@ -806,6 +811,52 @@ def repaired(function, text: str, said: str = "") -> list:
                     "".join(file_lines[end:]), made[at][1]))
         if len(out) >= REPAIRED:
             break
+    return out
+
+
+#: the code model's whole changed functions replayed at most
+WRITTEN = 8
+
+
+def written(function, text: str, file: str, case: str, goal: str = "",
+            answer: str = "") -> list:
+    """The function written whole again by the code model (v705 `coder`,
+    told the case and how it goes wrong, and what is beside it), each put
+    into the file where it stands: [(the file's text, what)]. The editors
+    write one or two lines and repair one edit; what its cases need is
+    often more than either (a branch with its own lines, a value worked out
+    and used) -- a function can be its own defined inside another (the
+    acts a page makes), so its own lines are what is changed, not the
+    file's top level's."""
+    import textwrap
+    from research.v705 import coder, commits
+    try:
+        lines, _ = inspect.getsourcelines(function)
+    except (OSError, TypeError):
+        return []
+    before = "".join(lines).strip("\n").lstrip()
+    if before not in text:
+        return []
+    asked = coder.CHANGE.format(
+        goal=goal or f"answer \"{case}\" right", path=file,
+        before=textwrap.dedent("".join(lines)).strip("\n"),
+        shown=coder._shown({"said": case, "answer": answer}),
+        reach="\n".join(commits.reach({"file": file, "function":
+                                       function.__name__})))
+    # sampled the same for the same function and case: said again, the
+    # same answers
+    import zlib
+    held = coder.get()
+    held.torch.manual_seed(REPLAYED + zlib.crc32(asked.encode()))
+    replies = held.write([asked], longest=900, samples=WRITTEN,
+                         temperature=0.8)[0]
+    out, seen = [], set()
+    for reply in replies:
+        code = commits._code_of(reply)
+        changed = commits._placed(code, before, text) if code else None
+        if changed and changed != text and changed not in seen:
+            seen.add(changed)
+            out.append((changed, f"the code model's answer {len(out) + 1}"))
     return out
 
 

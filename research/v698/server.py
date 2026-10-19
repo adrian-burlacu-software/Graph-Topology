@@ -198,6 +198,9 @@ def main() -> None:
     sys.argv = sys.argv[:1] + rest
     print(f"shell: commands that may change something "
           f"{'are shown first' if shell.ASK else 'run at once'}")
+    # room made on the card as each model comes onto it (v705)
+    from research.v705 import paging
+    paging.install()
     v697.main(Handler, Conversations, "v698",
               __doc__.splitlines()[0])
 

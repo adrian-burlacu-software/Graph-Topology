@@ -803,12 +803,20 @@ def replies(session) -> list:
                     # -- and the code's own way past such a nothing
                     # elsewhere (`_whose(...) or mention(...)`)
                     # -- and repair's own edits of it, the likeliest first
+                    # -- and, last, the function written whole again by
+                    # the code model (`inside.written`): what one line or
+                    # one edit cannot be
+                    def wholes():
+                        return inside.written(
+                            own, held.files[file], file, case,
+                            answer=whole.get("answer") or "")
                     built = fixing.first_verified(
                         held, file, inside.precedents(
                             own, look, held.files[file]) +
                         inside.compositions(own, look, held.files[file]) +
                         inside.repaired(own, held.files[file], text),
-                        context["verify"], key, found[0]["name"])
+                        context["verify"], key, found[0]["name"],
+                        more=wholes)
                     if built["said"]:
                         made = {**made, "status": built["status"],
                                 "said": made["said"] + " " + built["said"]}

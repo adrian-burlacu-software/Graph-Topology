@@ -389,6 +389,20 @@ def rescore(label: str) -> dict:
     return found
 
 
+def _seconds() -> dict:
+    """How long each conversation took in the latest run that says:
+    {n: seconds}."""
+    runs = sorted(OUT.glob("*.jsonl"), key=lambda one: one.stat().st_mtime)
+    for path in reversed(runs[-5:]):
+        try:
+            rows = [json.loads(line) for line in path.open(encoding="utf-8")]
+        except (OSError, ValueError):
+            continue
+        if rows and all("seconds" in row for row in rows):
+            return {row["n"]: row["seconds"] for row in rows}
+    return {}
+
+
 def main(argv=None) -> int:
     from research.v704.suite import SUITE
     if argv is None and len(sys.argv) > 2 and sys.argv[1] == "--rescore":
@@ -402,6 +416,12 @@ def main(argv=None) -> int:
     parser.add_argument("--only", type=int, nargs="*", default=None)
     parser.add_argument("--label", default=time.strftime("%Y%m%d-%H%M"))
     parser.add_argument("--workers", type=int, default=WORKERS)
+    parser.add_argument("--urls", nargs="*", default=None,
+                        help="servers of the same code, each said one "
+                             "conversation at a time (a server says one "
+                             "turn at a time, whoever says it)")
+    parser.add_argument("--heavy", nargs="*", default=None,
+                        help="areas said to the first of --urls alone")
     options = parser.parse_args(argv)
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
@@ -409,10 +429,34 @@ def main(argv=None) -> int:
     OUT.mkdir(exist_ok=True)
     started = time.time()
     run_id = str(int(started))
-    with ThreadPoolExecutor(options.workers) as pool:
-        rows = list(pool.map(lambda pair: converse(pair[0], pair[1],
-                                                   options.url, run_id),
-                             chosen))
+    urls = options.urls or [options.url] * options.workers
+    # the longest first, where a run before says how long: the last of
+    # several servers waiting on one long conversation is time lost
+    took = _seconds()
+    chosen.sort(key=lambda pair: -took.get(pair[0], 0))
+    # what writes code, said to the first server alone (most of the card:
+    # its models are large, and two such turns at once filled it -- every
+    # server waited, eighteen turns timed out); the rest to any -- the
+    # first too, once its own are said (206 s of them, against 539 s of
+    # the rest on the other)
+    import collections
+    heavy = set(options.heavy or ()) if len(urls) > 1 else set()
+    own_first = collections.deque(one for one in chosen
+                                  if one[1].area in heavy)
+    shared = collections.deque(one for one in chosen
+                               if one[1].area not in heavy)
+    rows = []
+
+    def worker(at, url):
+        while True:
+            try:
+                pair = own_first.popleft() if at == 0 and own_first \
+                    else shared.popleft()
+            except IndexError:
+                return
+            rows.append(converse(pair[0], pair[1], url, run_id))
+    with ThreadPoolExecutor(len(urls)) as pool:
+        list(pool.map(lambda one: worker(*one), enumerate(urls)))
     rows.sort(key=lambda row: row["n"])
     with (OUT / f"{options.label}.jsonl").open("w", encoding="utf-8") as out:
         for row in rows:

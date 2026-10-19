@@ -53,6 +53,8 @@ SAMPLES, ROUNDS = 6, 3
 #: the rounds asked where each change is tried by running its case again:
 #: the run, not agreement, decides -- so more answers may be looked at
 VERIFIED_ROUNDS = 10
+#: of those, the rounds written in one batch
+CHUNKED = 3
 #: below this the judge is sure a change is not what was said, and it is
 #: refused; above it, the judge only weighs -- it gave removing an unused
 #: import alone 0.18, and the same with a docstring rewritten 0.70
@@ -759,16 +761,26 @@ def change(statement: str, held, subject, key=None,
 
 def first_verified(held, path: str, candidates: list, verify, key=None,
                    name: str = "",
-                   how: str = "where it gave up, it now asks") -> dict:
+                   how: str = "where it gave up, it now asks",
+                   more=None) -> dict:
     """Of changed texts of a file made by construction (v706
     `inside.compositions`: a call of what is in reach put in where a
     function gives up), the first that pyflakes finds nothing more wrong
     in and whose case, run again, holds (`verify`) -- written. {status,
-    said, diff?}."""
+    said, diff?}. `more`: what makes further candidates, asked only where
+    none of these holds (the code model: loaded and run for it)."""
     text = held.files[path]
     flakes = _flakes(path, text)
     tried = []
-    for changed, call in candidates:
+
+    def every():
+        yield from candidates
+        if more is not None:
+            try:
+                yield from more()
+            except Exception as bad:                # noqa: BLE001
+                tried.append(f"the code model: {type(bad).__name__}: {bad}")
+    for changed, call in every():
         more = _more_wrong(flakes, _flakes(path, changed))
         why = (f"pyflakes finds {more[0]['message']}" if more else
                verify(changed))
@@ -978,6 +990,7 @@ def _change_once(statement: str, held, subject, key=None,
             return
         passed.append(row)
     rounds = VERIFIED_ROUNDS if (context or {}).get("verify") else ROUNDS
+    ahead: list = []
     for round_ in range(rounds):
         # each request sampled by a seed of its own and the round's, as the
         # writers are (`sketcher.proposals`): asked again, the same answers
@@ -987,10 +1000,23 @@ def _change_once(statement: str, held, subject, key=None,
         writer = Tools.get().writer(context["editor"]) \
             if (context or {}).get("editor") else \
             _editor(step=context is not None)
-        writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) + round_)
-        written_now = writer.write([asked], samples=SAMPLES, longest=400,
-                                   greedy=round_ == 0,
-                                   saying=(context or {}).get("saying"))[0]
+        if not ahead:
+            # where each change is run again, rounds are mostly all asked
+            # for (none answers its case): written CHUNKED at once, the card
+            # kept busy -- six at a time it was idle more than half the
+            # while, waiting on each small step
+            many = min(CHUNKED, rounds - round_) \
+                if (context or {}).get("verify") else 1
+            writer.torch.manual_seed(SEED + zlib.crc32(asked.encode()) +
+                                     round_)
+            got = writer.write([asked], samples=SAMPLES * many, longest=400,
+                               greedy=round_ == 0,
+                               saying=(context or {}).get("saying"))[0]
+            first = SAMPLES + (round_ == 0)
+            ahead = [got[:first]] + [
+                got[first + SAMPLES * at:first + SAMPLES * (at + 1)]
+                for at in range(many - 1)]
+        written_now = ahead.pop(0)
         answers += written_now
         fresh = []
         for number, answer in enumerate(written_now):

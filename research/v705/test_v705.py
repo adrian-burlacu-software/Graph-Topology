@@ -649,6 +649,33 @@ class PagingTests(unittest.TestCase):
             paging.BUDGET = 5000
             del models
 
+    def test_room_made_as_a_model_comes_onto_the_card(self):
+        # not only after the turn: three servers kept to their parts
+        # between turns held 7.6 GB of the card during them
+        import torch
+        if not torch.cuda.is_available():
+            self.skipTest("no card")
+        from transformers import LlamaConfig, LlamaForCausalLM
+        from research.v705 import paging
+        paging.install()
+        config = LlamaConfig(vocab_size=4096, hidden_size=256,
+                             intermediate_size=512, num_hidden_layers=4,
+                             num_attention_heads=4, num_key_value_heads=4)
+        first = LlamaForCausalLM(config).to("cuda")
+        size = paging._size(first) / 2 ** 20
+        try:
+            paging.sweep(budget=int(size * 1.5))
+            self.assertTrue(paging._on_card(first))
+            second = LlamaForCausalLM(config).to("cuda")
+            self.assertTrue(paging._on_card(second))
+            self.assertFalse(paging._on_card(first))
+            # and called, the first comes back
+            with torch.no_grad():
+                first(torch.tensor([[1, 2]], device="cuda"))
+            self.assertTrue(paging._on_card(first))
+        finally:
+            paging.BUDGET = 5000
+
 
 class SplicePlaceTests(unittest.TestCase):
     """One place changed, written in place."""

@@ -56,7 +56,9 @@ CHANGE = ("A function of a Python project should change. What is wanted: "
 def get() -> Coder:
     """The code model, loaded once."""
     if "coder" not in _LOADED:
+        from research.v705 import paging
         _LOADED["coder"] = Coder()
+        paging.adopt(_LOADED["coder"].model)
     return _LOADED["coder"]
 
 

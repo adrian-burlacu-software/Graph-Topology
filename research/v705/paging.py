@@ -32,6 +32,10 @@ import weakref
 #: 8 GB less what the server holds besides (spaCy's transformer, the
 #: reader, work space for a call)
 BUDGET = 5000
+#: -- or what the process was started with: several servers sharing the
+#: card, each a part of it (the loop's measure, `loop.SERVERS`)
+import os as _os
+BUDGET = int(_os.environ.get("V705_PAGING_BUDGET") or BUDGET)
 #: {id: (the model, held weakly -- one its loader lets go of is gone --
 #: and when it was last called)}
 WATCHED: dict = {}
@@ -120,6 +124,58 @@ def watch(torch) -> int:
             _paged(one)
             WATCHED[id(one)] = (weakref.ref(one), time.time())
         return len(_models())
+
+
+def adopt(model):
+    """One model just loaded, watched from now, and room made for it on the
+    card -- without walking every object (`watch`): what a loader that
+    keeps a large model calls. The model, as given."""
+    import torch
+    if not torch.cuda.is_available() or not _on_card(model):
+        return model
+    with _LOCK:
+        if id(model) not in WATCHED:
+            _paged(model)
+            WATCHED[id(model)] = (weakref.ref(model), time.time())
+        _make_room(torch, 0, model)
+    return model
+
+
+def install() -> None:
+    """Room made on the card as a model of `transformers` comes onto it --
+    loaded there, or moved there -- not only after the turn: a turn of the
+    conversation test loaded the editor, the ways estimator, the judge and
+    the answer checker one after another, and three servers that each kept
+    to 1000 MB between turns held 7.6 GB of the card's 8 during them. What
+    is made room for is not watched until a sweep (it may be inside another
+    module); what is moved off is only what a sweep found whole."""
+    try:
+        import torch
+        from transformers import PreTrainedModel
+    except ImportError:
+        return
+    if getattr(PreTrainedModel, "_v705_paging", False) or \
+            not torch.cuda.is_available():
+        return
+    loading, moving = PreTrainedModel.from_pretrained.__func__, \
+        PreTrainedModel.to
+
+    def arrived(model):
+        try:
+            if _on_card(model) and id(model) not in WATCHED:
+                _make_room(torch, 0, model)
+        except Exception:                           # noqa: BLE001
+            pass
+        return model
+
+    def from_pretrained(cls, *args, **kwargs):
+        return arrived(loading(cls, *args, **kwargs))
+
+    def to(self, *args, **kwargs):
+        return arrived(moving(self, *args, **kwargs))
+    PreTrainedModel.from_pretrained = classmethod(from_pretrained)
+    PreTrainedModel.to = to
+    PreTrainedModel._v705_paging = True
 
 
 def _paged(model) -> None:

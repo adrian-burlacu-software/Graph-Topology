@@ -55,6 +55,21 @@ GOAL = "I want you to get more things right."
 STEPS = 200
 #: the server's start, at most (it takes about three minutes)
 STARTUP = 900
+#: the conversation test said to so many servers of the same code at once,
+#: on ports from 8697 up: a server says one turn at a time, on about one
+#: of the machine's twenty cores, and the test took 39 minutes on one --
+#: each with fewer engines (threads of one process: memory, not speed) and
+#: a part of the card (`paging`, in MB), all of them within it. The card,
+#: not the cores, is what bounds them: three servers of 1000 MB each held
+#: 7.6 GB during their turns (a turn's models are all on the card while it
+#: runs, the code model's 3 GB among them), and eighteen turns timed out
+#: -- so the areas that write code go to the first alone, with most of the
+#: card (24 conversations, 1532 of the test's 2337 s), and the rest (805 s)
+#: to the other
+SERVERS, ENGINES, PARTS = 2, 6, (4200, 1200)
+HEAVY = ("code-change", "data-change")
+#: the server the goal is said to: all its engines and the card's budget
+PORT = 8697
 
 
 #: a turn of the goal waited for at most: thinking it through (240 s),
@@ -96,10 +111,10 @@ def _bridge():
 
 # -- the server ---------------------------------------------------------------
 
-def _up() -> bool:
+def _up(url: str = URL) -> bool:
     import urllib.request
     try:
-        with urllib.request.urlopen(f"{URL}/api/health", timeout=5):
+        with urllib.request.urlopen(f"{url}/api/health", timeout=5):
             return True
     except (urllib.error.URLError, OSError):
         return False
@@ -116,28 +131,42 @@ def _stop() -> None:
     subprocess.run(["powershell", "-NoProfile", "-Command", script],
                    capture_output=True)
     for _ in range(30):
-        if not _up():
+        if not any(_up(f"http://127.0.0.1:{PORT + at}")
+                   for at in range(SERVERS)):
             return
         time.sleep(2)
 
 
-def _start() -> None:
-    """The server started on the code as it is on disk, waited for."""
-    log = ROOT / "state" / "v705-loop-server.log"
-    with log.open("ab") as out:
-        out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} by "
-                  f"the loop\n".encode())
-        subprocess.Popen([sys.executable, "-m", "research.v698",
-                          "--workers", "19", "--port", "8697"], cwd=ROOT,
-                         stdin=subprocess.DEVNULL, stdout=out, stderr=out,
-                         creationflags=getattr(subprocess,
-                                               "CREATE_NEW_PROCESS_GROUP", 0))
+def _start(count: int = 1) -> list:
+    """The server -- or `count` of them, each a part of the card -- started
+    on the code as it is on disk, waited for: their urls."""
+    import os
+    urls = []
+    for at in range(count):
+        log = ROOT / "state" / ("v705-loop-server.log" if at == 0 else
+                                f"v705-loop-server{at}.log")
+        environment = dict(os.environ)
+        if count > 1:
+            environment["V705_PAGING_BUDGET"] = str(
+                PARTS[min(at, len(PARTS) - 1)])
+        with log.open("ab") as out:
+            out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                      f"by the loop\n".encode())
+            subprocess.Popen(
+                [sys.executable, "-m", "research.v698", "--workers",
+                 str(19 if count == 1 else ENGINES), "--port",
+                 str(PORT + at)], cwd=ROOT, env=environment,
+                stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+                creationflags=getattr(subprocess,
+                                      "CREATE_NEW_PROCESS_GROUP", 0))
+        urls.append(f"http://127.0.0.1:{PORT + at}")
     until = time.time() + STARTUP
-    while not _up():
+    while not all(_up(url) for url in urls):
         if time.time() > until:
-            raise RuntimeError(f"the server did not come up in {STARTUP} s "
-                               f"(state/{log.name})")
+            raise RuntimeError(f"the servers did not come up in {STARTUP} s "
+                               f"(state/v705-loop-server*.log)")
         time.sleep(10)
+    return urls
 
 
 def _restart() -> None:
@@ -149,9 +178,17 @@ def _restart() -> None:
 
 def measure(label: str) -> dict:
     """The conversation test run, and the self-model built from it:
-    {n: verdict}."""
+    {n: verdict}. Said to `SERVERS` servers of the code as it is on disk;
+    after, the one the goal is said to is up."""
     from research.v704 import converse, selfmodel
-    converse.main(["--url", URL, "--label", label])
+    _stop()
+    urls = _start(SERVERS)
+    try:
+        converse.main(["--urls", *urls, "--heavy", *HEAVY,
+                       "--label", label])
+    finally:
+        _stop()
+        _start()
     selfmodel.build(label)
     rows = (converse.OUT / f"{label}.jsonl").open(encoding="utf-8")
     return {one["n"]: one["verdict"] for one in map(json.loads, rows)}
@@ -252,7 +289,7 @@ def run(rounds: int = 3, baseline: str | None = None,
                          "what the loop changes is the loop's alone")
     # on its code as it is now -- or, going on with a conversation the
     # server holds, the server as it is
-    if resume is None:
+    if resume is None and baseline:
         _restart()
     stamp = time.strftime("%Y%m%d-%H%M")
     label = baseline or f"loop-{stamp}-0"
@@ -282,7 +319,6 @@ def run(rounds: int = 3, baseline: str | None = None,
         _stop()
         passed, said = tests()
         row["tests"] = said
-        _start()
         after_label = f"loop-{stamp}-{round_}"
         after = measure(after_label) if passed else {}
         row["measured"] = compared(before, after) if passed else None
