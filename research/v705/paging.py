@@ -31,7 +31,7 @@ import weakref
 #: what the models on the card may take together, in megabytes: the card's
 #: 8 GB less what the server holds besides (spaCy's transformer, the
 #: reader, work space for a call)
-BUDGET = 5000
+BUDGET = 3500
 #: -- or what the process was started with: several servers sharing the
 #: card, each a part of it (the loop's measure, `loop.SERVERS`)
 import os as _os
@@ -39,6 +39,13 @@ BUDGET = int(_os.environ.get("V705_PAGING_BUDGET") or BUDGET)
 #: what torch may keep on the card beyond what is allocated, in megabytes,
 #: after a model writes
 SPARE = 1000
+#: what of the card torch may take at all, as a part of it: past it, what
+#: torch keeps of freed blocks is given back and the call tried again, not
+#: spilled into memory -- the card's 8 GB held 6.1 allocated and 8.6
+#: reserved, the card at 23 W of 77 doing "100%", waiting on the spill.
+#: The rest is the display's, and what is not torch's (spaCy's transformer
+#: runs on cupy)
+FRACTION = float(_os.environ.get("V705_CARD_FRACTION") or 0.86)
 #: whether a model came onto the card since the last walk of every object
 #: ([bool], set by what `install` puts in)
 ARRIVED = [True]
@@ -163,6 +170,7 @@ def install() -> None:
     if getattr(PreTrainedModel, "_v705_paging", False) or \
             not torch.cuda.is_available():
         return
+    torch.cuda.set_per_process_memory_fraction(FRACTION)
     loading, moving = PreTrainedModel.from_pretrained.__func__, \
         PreTrainedModel.to
 
@@ -184,7 +192,13 @@ def install() -> None:
         return model
 
     def from_pretrained(cls, *args, **kwargs):
-        return arrived(loading(cls, *args, **kwargs))
+        try:
+            return arrived(loading(cls, *args, **kwargs))
+        except torch.cuda.OutOfMemoryError:
+            # no room to load it: every model watched moved off, and
+            # loaded once more
+            _make_room(torch, 2 ** 50, None)
+            return arrived(loading(cls, *args, **kwargs))
 
     def to(self, *args, **kwargs):
         return arrived(moving(self, *args, **kwargs))
@@ -206,14 +220,20 @@ def _paged(model) -> None:
     generate = getattr(model, "generate", None)
     if generate is not None:
         def generating(*args, **kwargs):
+            import torch
             _called(model)
             try:
-                return generate(*args, **kwargs)
+                try:
+                    return generate(*args, **kwargs)
+                except torch.cuda.OutOfMemoryError:
+                    # out of its part of the card: every other model moved
+                    # off, and tried once more
+                    _make_room(torch, 2 ** 50, model)
+                    return generate(*args, **kwargs)
             finally:
                 # what a batch's cache took, given back where it is more
                 # than the card spares: kept by torch for the next, it is
                 # room no other model can be moved into
-                import torch
                 if torch.cuda.memory_reserved() > \
                         torch.cuda.memory_allocated() + SPARE * 2 ** 20:
                     torch.cuda.empty_cache()

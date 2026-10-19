@@ -67,6 +67,11 @@ STARTUP = 900
 #: card (24 conversations, 1532 of the test's 2337 s), and the rest (805 s)
 #: to the other
 SERVERS, ENGINES, PARTS = 2, 6, (4200, 1200)
+#: and the part of the card each may take at all (`paging.FRACTION`): all
+#: of it -- the two at their peaks need more than the card has, and held
+#: to parts of it they ran out instead of spilling (0.52 and 0.32: eight
+#: wrong; 0.47 and 0.40: seven), a measure made wrong, not slower
+FRACTIONS = (1.0, 1.0)
 HEAVY = ("code-change", "data-change")
 #: the server the goal is said to: all its engines and the card's budget
 PORT = 8697
@@ -149,6 +154,8 @@ def _start(count: int = 1) -> list:
         if count > 1:
             environment["V705_PAGING_BUDGET"] = str(
                 PARTS[min(at, len(PARTS) - 1)])
+            environment["V705_CARD_FRACTION"] = str(
+                FRACTIONS[min(at, len(FRACTIONS) - 1)])
         with log.open("ab") as out:
             out.write(f"\n== started {time.strftime('%Y-%m-%d %H:%M:%S')} "
                       f"by the loop\n".encode())
