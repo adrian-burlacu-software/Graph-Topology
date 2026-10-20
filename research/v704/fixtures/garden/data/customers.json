@@ -1,0 +1,5 @@
+[
+  {"id": 1, "name": "Rosalind Franklin", "email": "rosalind@example.com", "since": "2020-04-11"},
+  {"id": 2, "name": "Barbara McClintock", "email": "barbara@example.com", "since": "2018-09-30"},
+  {"id": 3, "name": "Gregor Mendel", "email": "gregor@example.com", "since": "2023-02-17"}
+]

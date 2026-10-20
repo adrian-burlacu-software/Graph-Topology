@@ -1,0 +1,7 @@
+web:
+  host: 0.0.0.0
+  port: 5000
+nursery:
+  name: Greenleaf Nursery
+  ship_days: 3
+  order_limit: 12

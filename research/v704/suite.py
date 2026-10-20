@@ -24,6 +24,15 @@ class Conversation(NamedTuple):
     turns: list
     check: object
     project: bool = False
+    #: the project it is about, under fixtures/
+    fixture: str = "library"
+
+
+#: what every request passes through -- reading it, finding where, writing,
+#: checking (2026-10-20: made reliable before the edge -- memory, facts,
+#: maths, how-to -- is worked on)
+CORE = ("code-ask", "code-change", "data-ask", "data-change", "shell",
+        "follow-up", "asks", "code-make", "explain")
 
 
 def P(area, turns, check):

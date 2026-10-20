@@ -220,7 +220,8 @@ def py(code: str):
 def untouched_and_asked():
     """Nothing of the project changed, and the answer asks, or declines."""
     def check(turn, root):
-        return root is not None and _same_as_fixture(root) and \
+        return root is not None and \
+            _same_as_fixture(root, FIXTURE.parent / root.name) and \
             unanswered(turn)
     check.about = "changes nothing, and asks or declines"
     check.changes = True
@@ -263,11 +264,11 @@ def replies():
     return check
 
 
-def _same_as_fixture(root: Path) -> bool:
-    for path in FIXTURE.rglob("*"):
+def _same_as_fixture(root: Path, fixture: Path = FIXTURE) -> bool:
+    for path in fixture.rglob("*"):
         if "__pycache__" in path.parts or not path.is_file():
             continue
-        other = root / path.relative_to(FIXTURE)
+        other = root / path.relative_to(fixture)
         if not other.exists() or other.read_bytes() != path.read_bytes():
             return False
     return True
@@ -285,19 +286,20 @@ def _post(url: str, path: str, body: dict) -> dict:
 def converse(number_: int, item, url: str, run_id: str) -> dict:
     sid = f"v704-{run_id}-{number_}"
     root = None
+    fixture = FIXTURE.parent / getattr(item, "fixture", "library")
     out = {"n": number_, "area": item.area, "turns": item.turns,
            "check": getattr(item.check, "about", "")}
     started = time.time()
     try:
         if item.project:
-            root = Path(tempfile.mkdtemp(prefix="v704-")) / "library"
-            shutil.copytree(FIXTURE, root,
+            root = Path(tempfile.mkdtemp(prefix="v704-")) / fixture.name
+            shutil.copytree(fixture, root,
                             ignore=shutil.ignore_patterns("__pycache__"))
             files = {one.relative_to(root).as_posix():
                      one.read_text(encoding="utf-8")
                      for one in root.rglob("*") if one.is_file()}
             _post(url, "/api/project", {"sid": sid, "files": files,
-                                        "name": "library",
+                                        "name": fixture.name,
                                         "root": str(root)})
         said = []
         turn = {}
@@ -312,7 +314,7 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
         if held:
             out["verdict"] = "right"
         elif getattr(item.check, "changes", False) and root is not None \
-                and not _same_as_fixture(root) and \
+                and not _same_as_fixture(root, fixture) and \
                 item.check.about != "changes nothing, and asks or declines":
             out["verdict"] = "wrong"
             out["why"] = "changed the project, not as asked"
@@ -320,7 +322,7 @@ def converse(number_: int, item, url: str, run_id: str) -> dict:
                 "changes nothing, and asks or declines":
             out["verdict"] = "wrong"
             out["why"] = ("changed the project" if root is not None and
-                          not _same_as_fixture(root) else
+                          not _same_as_fixture(root, fixture) else
                           "did not ask or decline")
         else:
             out["verdict"] = "unsure" if unanswered(turn) else "wrong"
@@ -404,7 +406,7 @@ def _seconds() -> dict:
 
 
 def main(argv=None) -> int:
-    from research.v704.suite import SUITE
+    from research.v704.suite import CORE, SUITE
     if argv is None and len(sys.argv) > 2 and sys.argv[1] == "--rescore":
         for label in sys.argv[2:]:
             found = rescore(label)
@@ -413,6 +415,12 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:8697")
     parser.add_argument("--area", default=None)
+    parser.add_argument("--suite", default="suite",
+                        choices=("suite", "heldout"),
+                        help="heldout: fixtures/garden, kept apart from "
+                             "the work it measures")
+    parser.add_argument("--core", action="store_true",
+                        help="only the core areas (suite.CORE)")
     parser.add_argument("--only", type=int, nargs="*", default=None)
     parser.add_argument("--label", default=time.strftime("%Y%m%d-%H%M"))
     parser.add_argument("--workers", type=int, default=WORKERS)
@@ -423,8 +431,11 @@ def main(argv=None) -> int:
     parser.add_argument("--heavy", nargs="*", default=None,
                         help="areas said to the first of --urls alone")
     options = parser.parse_args(argv)
+    if options.suite == "heldout":
+        from research.v704.heldout import HELDOUT as SUITE
     chosen = [(at, one) for at, one in enumerate(SUITE)
               if (options.area is None or one.area == options.area) and
+              (not options.core or one.area in CORE) and
               (options.only is None or at in options.only)]
     OUT.mkdir(exist_ok=True)
     started = time.time()
