@@ -111,6 +111,9 @@ class Subject:
 
 #: conversation -> (Subject, turn): what was talked about last
 FOCUS: dict = {}
+#: conversation -> (data file, place): the place of the data last answered
+#: of (`server.port`), where the focus is a data file
+PLACES: dict = {}
 
 
 # -- reading: the subject, the aspect ----------------------------------------------

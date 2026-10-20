@@ -296,13 +296,28 @@ def _act(read, text: str, session, memory) -> dict | None:
         # a record described, a setting the code has no name of -- is of
         # that data file (v701 `placing.data_file`): `set the port to 9090`
         # was planned across the code, or placed nowhere
-        data = None
+        data, asked = None, text
         if held is not None and not _named_outright(read, text, held):
             from research.v701 import placing
             data = placing.data_file(held, text)
+            # -- or the data just answered of, where it says none of its own
+            # (`change it to 9000`): its place said with it, what `it` is
+            recent = asking._focus(key, space, turn) if data is None \
+                else None
+            if recent is not None and recent.kind == "file" and \
+                    Pj.is_data(recent.file or "") and \
+                    recent.file in held.files and \
+                    placing.block(held.files[recent.file].splitlines(),
+                                  text) is None:
+                data = recent.file
+                file_, place = asking.PLACES.get(key, (None, ""))
+                words = " ".join(part for part in (place or "").replace(
+                    "[]", " ").split(".") if part.strip())
+                if file_ == data and words:
+                    asked = f"{text} ({words})"
         if data is not None and fixing.available():
             subject = asking.Subject("file", data, data)
-            made = fixing.change(text, held, subject, key, spans=read.spans)
+            made = fixing.change(asked, held, subject, key, spans=read.spans)
             asking.FOCUS[key] = (subject, turn)
             found = asking._reply("change", text, made["said"],
                                   {"read": read.json()}, name=data)
@@ -958,6 +973,14 @@ def replies(session) -> list:
                                   {"query": found.json()})
             reply["code"]["data"] = found.json()
             memory["turn"].answer = reply
+            # what was answered of is what is talked about: `change it to
+            # 9000` after `server.port in config.yaml is 8080`
+            if found.file:
+                key = _key(session)
+                asking.FOCUS[key] = (asking.Subject("file", found.file,
+                                                    found.file),
+                                     v697_page._turn(memory))
+                asking.PLACES[key] = (found.file, found.place)
             return ANSWERED
 
         out.append(Operator(
