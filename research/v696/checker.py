@@ -61,16 +61,29 @@ class Checker:
         self.ids = itertools.count(1)
         self.calls = 0
 
-    def _ask(self, request: dict) -> dict:
-        with self.lock:
-            request["id"] = next(self.ids)
-            self.calls += 1
-            self.process.stdin.write(json.dumps(request) + "\n")
-            self.process.stdin.flush()
-            line = self.process.stdout.readline()
-        if not line:
+    def _ask(self, request: dict, again: bool = True) -> dict:
+        try:
+            with self.lock:
+                request["id"] = next(self.ids)
+                self.calls += 1
+                self.process.stdin.write(json.dumps(request) + "\n")
+                self.process.stdin.flush()
+                line = self.process.stdout.readline()
+        except OSError:
+            line = ""
+        reply = json.loads(line) if line else None
+        # the checker worn out -- hours of a measure grew it until every
+        # check said MemoryError, and every change after was refused,
+        # "the compiler cannot check the project" -- started again, and
+        # asked once more
+        if again and (reply is None or (
+                not reply.get("ok") and
+                "MemoryError" in str(reply.get("error")))):
+            self.restart()
+            return self._ask(request, again=False)
+        if reply is None:
             raise CheckerError("the checker stopped")
-        return json.loads(line)
+        return reply
 
     def check(self, source: str) -> list:
         """The type errors in a candidate; none means it type-checks."""

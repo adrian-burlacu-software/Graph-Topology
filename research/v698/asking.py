@@ -299,7 +299,8 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
     if reading.subject == "described" and held is not None and held.files:
         # said by what it does (`which function works out when a loan is
         # due?`): found in the project by meaning
-        return _described(held, reading.said, reading.aspect)
+        return _described(held, " ".join(map(str, reading.words)),
+                          reading.aspect)
     if reading.subject in ("file", "named") and name:
         if name == entry:
             return Subject("code", name)

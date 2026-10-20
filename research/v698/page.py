@@ -379,8 +379,30 @@ def _act(read, text: str, session, memory) -> dict | None:
                 if path_.endswith(".py") and not Pj.is_data(path_):
                     from research.v698 import requested
                     check = requested.checker(text, held, path_)
-                    if check.get("verify") is not None:
-                        context = {"verify": check["verify"],
+                    if check.get("score") is None:
+                        # nothing runs that tells the project as it is from
+                        # the change: answers agreeing are no evidence it
+                        # does what was asked (`overdue should use today's
+                        # date`, 3 of 13 agreeing on a wrong change) -- the
+                        # likeliest shown, not written
+                        context = {"verify": lambda changed: (
+                            "nothing I could run tells the project as it "
+                            "is from the change asked")}
+                    if check.get("score") is not None:
+                        # three rounds of the editors: each candidate is
+                        # run, ten rounds passed a turn's 300 s
+                        # the change written whole by the code model too,
+                        # beside the editors' lines: the tests choose
+                        try:
+                            more = requested.rewritten(
+                                text, held, path_, subject.name
+                                if subject.kind == "function" else None)
+                        except Exception:       # noqa: BLE001
+                            more = []
+                        context = {"score": check["score"], "rounds": 3,
+                                   "tests": len(check["kept"]),
+                                   "original": check["original"],
+                                   "more": more,
                                    "requested": {
                                        "kept": check["kept"],
                                        "need": check["need"]}}
@@ -390,7 +412,10 @@ def _act(read, text: str, session, memory) -> dict | None:
                         # one file, 7 of 7 editors agreeing)
                         for old, new, changed in requested.renames(text,
                                                                    held):
-                            if check["verify files"](changed):
+                            # made, not guessed: its own tests kept and
+                            # one test of what was asked it alone passes
+                            if check["verify files"] is None or \
+                                    check["verify files"](changed, least=1):
                                 continue
                             diffs = []
                             for path__, after in changed.items():
@@ -417,7 +442,7 @@ def _act(read, text: str, session, memory) -> dict | None:
                             return found
                 made = fixing.change(text, held, subject, key,
                                      spans=read.spans, context=context)
-                if context is not None:
+                if context is not None and "requested" in context:
                     made["requested"] = context["requested"]
                 asking.FOCUS[key] = (subject, turn)
                 found = asking._reply("change", text, made["said"],

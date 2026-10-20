@@ -347,6 +347,41 @@ def _lines_changed(part: str, made: str) -> tuple:
     return out, put
 
 
+def _agreed_by_tests(rows: list, tests: int, original=()) -> list:
+    """The changes the tests of what was asked choose, as CodeT chooses
+    (Chen et al. 2022), and what they do, as AlphaCode clusters: the
+    changes that keep the project's own tests, grouped by the tests of
+    what was asked each passes and what each gives for the calls the tests
+    and the code model's chosen inputs make (`.strip(".")` and
+    `.replace(".", "")` pass the same weak tests and differ on a dot
+    inside). A group giving what the code gives now, passing no test,
+    changes nothing asked. A group weighed by how many answers wrote its
+    changes, times one and the tests they pass -- a wrong test is passed
+    by none. The heaviest group, where answers written apart agree on it
+    (two or more), or one passes every test there is (two or more); else
+    none: a change one answer wrote is a guess."""
+    groups: dict = {}
+    original = tuple(original or ())
+    for row in rows:
+        if not row.get("own ok"):
+            continue
+        passes = tuple(row.get("passes") or ())
+        gives = tuple(row.get("gives") or ())
+        if not passes and (not gives or gives == original):
+            continue
+        groups.setdefault((passes, gives), []).append(row)
+    if not groups:
+        return []
+
+    def answers(key) -> int:
+        return sum(len(one.get("by") or {1}) for one in groups[key])
+    best = max(groups, key=lambda one: (answers(one) * (1 + len(one[0])),
+                                        len(one[0])))
+    if answers(best) >= 2 or (len(best[0]) == tests and tests >= 2):
+        return groups[best]
+    return []
+
+
 def _extends(part: str, core: str, more: str) -> bool:
     """Whether `more` makes the change `core` makes, and more besides:
     the same lines taken out, and each line `core` puts in put in by
@@ -1122,6 +1157,22 @@ def _change_once(statement: str, held, subject, key=None,
         # no stop -- and a change one answer wrote is not written, so more
         # answers are asked for before saying so
         nothing = sum(1 for one in tried if one.get("nothing"))
+        score = (context or {}).get("score")
+        if score is not None:
+            # each change run on the tests of what was asked (v698
+            # `requested`), the choice made over all of them as CodeT
+            # makes it: asked again until changes written apart agree on
+            # the tests they pass
+            for row in passed:
+                if "passes" not in row:
+                    row["own ok"], row["passes"], row["gives"] = score(
+                        row["text"])
+            chosen = _agreed_by_tests(passed, context.get("tests", 1),
+                                      context.get("original"))
+            if len(chosen) >= 2 or round_ + 1 >= context.get(
+                    "rounds", VERIFIED_ROUNDS):
+                break
+            continue
         verify = (context or {}).get("verify")
         if verify is not None:
             # each change tried with its case said again as it is written
@@ -1135,7 +1186,8 @@ def _change_once(statement: str, held, subject, key=None,
                 if why:
                     row["refused"] = f"run again, {why}"
             if any(row["verified"] for row in passed) or \
-                    round_ + 1 >= VERIFIED_ROUNDS:
+                    round_ + 1 >= (context or {}).get("rounds",
+                                                      VERIFIED_ROUNDS):
                 break
             continue
         agreed_ = any(len(row["by"].union(*(
@@ -1206,6 +1258,51 @@ def _change_once(statement: str, held, subject, key=None,
                 row["verified"] = not why
                 if why:
                     row["refused"] = f"run again, {why}"
+            score_ = (context or {}).get("score")
+            if score_ is not None and row in passed:
+                row["own ok"], row["passes"], row["gives"] = score_(
+                    row["text"])
+    # the code model's changes (v698 `requested.rewritten`): the function
+    # written whole again -- where the editors write a line or two of it
+    head_, tail_ = "".join(lines[:start - 1]), "".join(lines[end:])
+    for number, whole in enumerate((context or {}).get("more") or ()):
+        if not (whole.startswith(head_) and whole.endswith(tail_) and
+                len(whole) >= len(head_) + len(tail_)):
+            continue
+        made = whole[len(head_):len(whole) - len(tail_)]
+        row = {"answer": f"(the code model) answer {number + 1}",
+               "greedy": False, "round": -2}
+        tried.append(row)
+        if made in seen:
+            seen[made]["by"].add(("coder", number))
+            seen[made]["agree"] = len(seen[made]["by"])
+            row["same as"] = seen[made]["index"]
+            continue
+        row.update({"index": len(tried) - 1, "agree": 1,
+                    "by": {("coder", number)},
+                    "text": _with_imports(path, whole,
+                                          (context or {}).get("imports")),
+                    "made": made,
+                    "touched": sorted(named & _changed_names(part, made))})
+        seen[made] = row
+        check(row)
+        if (context or {}).get("score") is not None and row in passed:
+            row["own ok"], row["passes"], row["gives"] = context["score"](
+                row["text"])
+    if (context or {}).get("score") is not None:
+        # the changes the tests of what was asked choose, over all of them
+        chosen = _agreed_by_tests(passed, context.get("tests", 1),
+                                  context.get("original"))
+        tests = context.get("tests", 1)
+        for row in passed:
+            row["verified"] = row in chosen
+            if row not in chosen:
+                row["refused"] = (
+                    "run again, it breaks the project's tests"
+                    if not row.get("own ok") else
+                    f"run again, {len(row.get('passes', ()))} of {tests} "
+                    f"tests of what was asked hold, and no changes written "
+                    f"apart agree on more")
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
@@ -1238,7 +1335,8 @@ def _change_once(statement: str, held, subject, key=None,
     # `inside.verify`) -- it compiles is no evidence it answers (`return
     # super().run(question, [])`, 3 of 7 agreed: a TypeError for every
     # question) -- and one that does is claimed, as a debugged fix is
-    if (context or {}).get("verify") is not None:
+    if (context or {}).get("verify") is not None or \
+            (context or {}).get("score") is not None:
         # tried as they were written (in the rounds above)
         out["tried"] = [{key_: value for key_, value in one.items()
                          if key_ not in ("text", "made", "by")} for one in tried]
@@ -1321,7 +1419,8 @@ def _change_once(statement: str, held, subject, key=None,
             best_["by kind"] = True
     agreed = [row for row in passed if row["agree"] >= LEAST_AGREED
               or row.get("verified") or row.get("by kind")]
-    if (context or {}).get("verify") is not None:
+    if (context or {}).get("verify") is not None or \
+            (context or {}).get("score") is not None:
         # what was asked is a check that runs (v698 `requested`): only a
         # change it holds for is written -- answers agreeing on one it does
         # not hold for agree on a wrong change (`rename parse_isbn ...
@@ -1367,8 +1466,16 @@ def _change_once(statement: str, held, subject, key=None,
                  + (f"Made as what you asked for ({best['kind']}), the "
                     f"judge reading it so ({best.get('judged', 0):.2f}), and "
                     if best.get("by kind") else
-                    f"{best['agree']} of {len(answers)} changes written "
-                    f"agree on it, and ")
+                    (f"{sum(len(one.get('by') or {1}) for one in passed)} "
+                     f"changes written apart do the same on what you asked "
+                     f"about ({len(best.get('gives') or ())} calls run)"
+                     + (f" and pass {len(best.get('passes') or ())} of "
+                        f"{(context or {}).get('tests', 0)} tests of it"
+                        if (context or {}).get("tests") else "")
+                     + ", the project's own tests still pass, and "
+                     if "gives" in best else
+                     f"{best['agree']} of {len(answers)} changes written "
+                     f"agree on it, and "))
                  + ("it still reads as data and repeats no place it has."
                     if data else "the compiler finds nothing more wrong "
                     "with the file."))})

@@ -72,7 +72,10 @@ SERVERS, ENGINES, PARTS = 2, 6, (4200, 1200)
 #: to parts of it they ran out instead of spilling (0.52 and 0.32: eight
 #: wrong; 0.47 and 0.40: seven), a measure made wrong, not slower
 FRACTIONS = (1.0, 1.0)
-HEAVY = ("code-change", "data-change")
+#: (and what loads the code model: a change's tests of what was asked,
+#: pasted code's one sentence -- the second server loaded it too, 3 GB on a
+#: budget of 1.2, and the card spilled, 7.3 GB "100%" at 25 W)
+HEAVY = ("code-change", "data-change", "explain", "follow-up")
 #: the server the goal is said to: all its engines and the card's budget
 PORT = 8697
 

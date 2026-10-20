@@ -122,6 +122,18 @@ class IndexTests(unittest.TestCase):
         self.assertIn("T.test_load", said)
 
 
+class DescribedTests(unittest.TestCase):
+    def test_a_subject_said_by_what_it_does(self):
+        from research.v698 import asking as A
+        from research.v698.reading import Reading
+        project = held()
+        read = Reading("ask", 1.0, "value", 1.0, "described",
+                       "how many books may one hold ?".split(),
+                       ["O"] * 7)
+        found = A.resolve(read, project, None, 1, "k")
+        self.assertEqual((found.kind, found.name), ("symbol", "MOST"))
+
+
 class ObservedTests(unittest.TestCase):
     def test_pasted_python_run(self):
         from research.v698 import observe
@@ -242,6 +254,26 @@ class RequestedTests(unittest.TestCase):
                                "    def __post_init__(self): 1 / 0\n")
         self.assertIn("breaks the project's tests",
                       check["verify"](broken))
+
+    def test_changes_chosen_as_codet_chooses(self):
+        from research.v700.fixing import _agreed_by_tests
+        right = [{"own ok": True, "passes": (0, 2)},
+                 {"own ok": True, "passes": (0, 2)}]
+        alone = {"own ok": True, "passes": (1,)}
+        broken = {"own ok": False, "passes": ()}
+        # test 3 is wrong -- no change passes it -- and weighs nothing
+        self.assertEqual(_agreed_by_tests(right + [alone, broken], 4), right)
+        # one change alone, passing a test of four: no choice
+        self.assertEqual(_agreed_by_tests([alone, broken], 4), [])
+        # one change alone passing half of them: a guess
+        self.assertEqual(_agreed_by_tests([right[0]], 4), [])
+        # one alone passing every test there is: chosen
+        self.assertEqual(_agreed_by_tests([right[0]], 2), [right[0]])
+        # the same tests passed, but giving differently: apart, and neither
+        # group of one is chosen
+        strip = {"own ok": True, "passes": (0, 2), "gives": ("'978.014'",)}
+        whole = {"own ok": True, "passes": (0, 2), "gives": ("'978014'",)}
+        self.assertEqual(_agreed_by_tests([strip, whole], 4), [])
 
     def test_a_rename_everywhere_it_is_used(self):
         from unittest import mock

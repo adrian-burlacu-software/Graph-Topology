@@ -457,6 +457,12 @@ def main(argv=None) -> int:
     shared = collections.deque(one for one in chosen
                                if one[1].area not in heavy)
     rows = []
+    # each conversation kept as it ends: a run cut short (the machine went
+    # down 2026-10-20, a whole measure lost) keeps what it said
+    partial = OUT / f"{options.label}.partial.jsonl"
+    partial.write_text("", encoding="utf-8")
+    import threading
+    kept = threading.Lock()
 
     def worker(at, url):
         while True:
@@ -465,7 +471,10 @@ def main(argv=None) -> int:
                     else shared.popleft()
             except IndexError:
                 return
-            rows.append(converse(pair[0], pair[1], url, run_id))
+            row = converse(pair[0], pair[1], url, run_id)
+            rows.append(row)
+            with kept, partial.open("a", encoding="utf-8") as out:
+                out.write(json.dumps(row) + "\n")
     with ThreadPoolExecutor(len(urls)) as pool:
         list(pool.map(lambda one: worker(*one), enumerate(urls)))
     rows.sort(key=lambda row: row["n"])
