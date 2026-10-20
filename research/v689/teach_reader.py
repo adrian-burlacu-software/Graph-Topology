@@ -81,8 +81,8 @@ from research.encoder import LONGEST, Heads, features, gold, positions
 from research.v687.language import taught_by_cues
 
 from .reader import (ACTS, CLAUSES, ELIDED, LLM, MARKED, NAMED, NONE, ROLES,
-                     SLOTS, STATED, STATEMENTS, WHO, analysed, build, first,
-                     mark, said_as, spans)
+                     SLOTS, STATED, STATEMENTS, TAUGHT, WHO, analysed, build,
+                     first, mark, said_as, spans)
 
 #: Acts the grammar reads a denial in, which each such question is also
 #: taught denied.
@@ -1187,7 +1187,7 @@ def _contrasts() -> list[str]:
     return found
 
 
-def _statements(count: int = 30) -> list[str]:
+def _statements(count: int = 30, which: str = "all") -> list[str]:
     """Things said rather than asked, for the statement reader to read:
     someone new put down, named, told of, and kinds taught. The words are
     NLTK's names, the nouns WordNet files as animals and artifacts that Brown
@@ -1223,16 +1223,107 @@ def _statements(count: int = 30) -> list[str]:
         "{N} has a {n}", "the {n} can {v}", "{N} and {M} can {v}",
         "{ns} can {v}", "{ns} do not {v}", "a {n} can {v}",
         "{ns} can {v}, and they can {w}", "{N} can {v} but it can not {w}")
+    # someone new named after the verb, and a second beside the first: a
+    # reader taught only names first missed `Sue` in `Tom gave the apple to
+    # Sue`, `Bob` in `Ann gave the pen to Bob`, `Sue` in `Tom met Sue` --
+    # the apple was at "a sue", and nobody had it -- and a place named
+    # (`I live in Lisbon`)
+    named_after = (
+        "{N} gave the {n} to {M}", "{N} gave {M} the {n}",
+        "{N} handed the {n} to {M}", "{N} sent {M} a {n}",
+        "{N} took the {n} from {M}", "{N} met {M}", "{N} met {M} yesterday",
+        "{N} told {M} a story", "{N} went to the {r} with {M}",
+        "{N} called {M}", "{N} saw {M} in the {r}", "i gave the {n} to {M}",
+        "i met {M}", "the {n} belongs to {M}", "{N} lives in {P}",
+        "i live in {P}", "{N} moved to {P}", "{N} is from {P}",
+        "i work in {P}")
+    rooms = ("kitchen", "garden", "office", "hallway", "bedroom", "park")
+    places = _cities() or ["Lisbon", "Oslo"]
+    # a value of something of one's own, and an age, height, weight: `my
+    # favourite colour is green` was read `the favourite is colour green`,
+    # `I'm 30 years old` `I am old`, and neither could be asked back
+    valued = (
+        "my favourite {k} is {kv}", "i am {num} years old",
+        "{N} is {num} years old", "how old am i", "how old is {N}",
+        "how tall is {N}", "how tall am i")
+    # beside them what reads otherwise, so neither is learned as more than
+    # it is (taught 30 of each, the reader took `Mice` in `Mice are afraid
+    # of rooms` for someone new, and `what is the largest animal` for a
+    # question about one here): a kind, capitalised, opening a sentence;
+    # a superlative of a kind, asked of no one -- and not `{Ks} can {v}`:
+    # what a known kind can do is generic, and taught so the reader read
+    # `wembles can fly`, a kind being taught, as generic too
+    contrasts = (
+        "{Ks} are afraid of {ns}", "{Ks} live in {ns}",
+        "what is the {sup} {n}",
+        "which is the {sup} {n}", "what is the {sup} {n} in the world")
+    superlatives = ("largest", "smallest", "fastest", "oldest", "tallest",
+                    "heaviest", "longest", "biggest")
+    kinds = _valued_kinds()
+    # what the reader is told in place of a known name or a taught kind
+    # (`NAMED`, `TAUGHT`) is never said raw in what is new here: `my
+    # favourite animal is dog` taught `dog` -- every taught kind, as read
+    # -- as a value, and `wembles can fly` said after a wemble was taught
+    # was read generic
+    stand_ins = set(NAMED) | set(TAUGHT)
+    fresh_nouns = [one for one in nouns if one not in stand_ins
+                   and one + "s" not in stand_ins]
+    fresh_names = [one for one in names if one.lower() not in stand_ins]
     found = []
-    for frame in frames:
-        for _ in range(count):
-            noun = rng.choice(nouns)
+    # (`which`: "new", only those after the first frames -- labelled apart
+    # and added to a corpus built before: rebuilt whole, the corpus took
+    # the tagger's drift since it was built, `wembles` now a proper noun
+    # and `wembles can fly` labelled generic, not taught)
+    added = named_after + valued + contrasts
+    for frame in (() if which == "new" else frames) + (
+            () if which == "old" else added):
+        old = frame in frames
+        for _ in range(count if old else max(count // 3, 1)):
+            noun = rng.choice(nouns if old else fresh_nouns)
             one, other = rng.sample(verbs, 2)
-            name, second = rng.sample(names, 2)
+            name, second = rng.sample(names if old else fresh_names, 2)
+            kind = rng.choice(sorted(kinds)) if kinds else "colour"
             found.append(frame.format(
                 n=noun, ns=noun + "s", v=one, w=other, a=rng.choice(adjectives),
-                N=name.capitalize(), M=second.capitalize()))
+                N=name.capitalize(), M=second.capitalize(),
+                r=rng.choice(rooms), P=rng.choice(places), k=kind,
+                kv=rng.choice([one for one in kinds.get(kind) or ["green"]
+                               if one not in stand_ins] or ["green"]),
+                num=rng.randint(2, 90), Ks=(noun + "s").capitalize(),
+                sup=rng.choice(superlatives)))
     return found
+
+
+@lru_cache(maxsize=None)
+def _valued_kinds() -> dict:
+    """Kinds a value of one's own is said of (`favourite colour`), each
+    with the words WordNet files under it: {kind: [value, ...]}."""
+    from nltk.corpus import wordnet
+    counts = _brown()
+    out = {}
+    for kind in ("colour", "food", "fruit", "animal", "sport", "season",
+                 "game", "instrument"):
+        synsets = wordnet.synsets(kind, "n")
+        if not synsets:
+            continue
+        values = sorted({lemma for hyponym in synsets[0].closure(
+            lambda one: one.hyponyms(), depth=2)
+            for lemma in hyponym.lemma_names()
+            if lemma.isalpha() and lemma.islower() and counts[lemma] >= 5})
+        if values:
+            out[kind] = values
+    return out
+
+
+@lru_cache(maxsize=None)
+def _cities() -> list:
+    """Cities WordNet knows by name: one-word instances of a city."""
+    from nltk.corpus import wordnet
+    city = {wordnet.synset("city.n.01"), wordnet.synset("national_capital.n.01")}
+    return sorted({lemma for synset in wordnet.all_synsets("n")
+                   if set(synset.instance_hypernyms()) & city
+                   for lemma in synset.lemma_names()
+                   if lemma.isalpha() and lemma[:1].isupper()})
 
 
 def _articled(text: str) -> str:
@@ -1687,7 +1778,9 @@ def sources(external: bool = False) -> list[tuple[str, str]]:
                    if "{x}" in shape else [shape])]
     texts += [(one, "babi") for one in _babi()]
     texts += [(one, "contrast") for one in _contrasts()]
-    texts += [(one, "statement") for one in _statements()]
+    # (the first statements: those added since are labelled apart and put
+    # after, `more`)
+    texts += [(one, "statement") for one in _statements(which="old")]
     # What v687 is asked and v688 is requested, for their readers: the
     # strings of their tests, questions about kinds, requests, and things
     # said in time and in the passive for placing.
@@ -2414,6 +2507,32 @@ def _teach(job) -> tuple[list[dict], collections.Counter]:
     return records, reasons
 
 
+def more(variants: int = 6, processes: int = 5) -> None:
+    """The statements added since the corpus was first built (someone new
+    named after the verb, a place named, a value of one's own, an age),
+    labelled now and put after it in `train.jsonl` and `valid.jsonl`. The
+    corpus is not built again: built whole now, it takes the tagger's drift
+    since (`wembles` a proper noun, `wembles can fly` labelled generic, and
+    a taught kind no longer taught), and the reader with it."""
+    import tempfile
+    global DATA
+    kept, sources_ = DATA, globals()["sources"]
+    new = Path(tempfile.mkdtemp(prefix="reader-more-"))
+    texts = [(one, "statement") for one in _statements(which="new")]
+    try:
+        DATA = new
+        globals()["sources"] = lambda external=False: texts
+        corpus(variants, processes)
+    finally:
+        DATA = kept
+        globals()["sources"] = sources_
+    for name in ("train.jsonl", "valid.jsonl"):
+        added = (new / name).read_text(encoding="utf-8")
+        with (DATA / name).open("a", encoding="utf-8") as out:
+            out.write(added)
+        print(f"{name}: {added.count(chr(10))} records added")
+
+
 def corpus(variants: int, processes: int, limit: int = 0,
            external: bool = False) -> None:
     import multiprocessing
@@ -3087,8 +3206,9 @@ def train(base: Path, out: Path, epochs: int, batch: int, rate: float,
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("what", choices=("corpus", "train", "pools",
-                                         "sources", "social", "claims"))
+    parser.add_argument("what", choices=("corpus", "more", "train",
+                                         "pools", "sources", "social",
+                                         "claims"))
     parser.add_argument("--variants", type=int, default=6)
     parser.add_argument("--external", action="store_true",
                         help="also read WikiAnswers and QA-SRL")
@@ -3107,6 +3227,8 @@ def main(argv=None) -> int:
     if options.what == "corpus":
         corpus(options.variants, options.processes, options.limit,
                options.external)
+    elif options.what == "more":
+        more(options.variants, options.processes)
     elif options.what == "train":
         train(Path(options.base), Path(options.out), options.epochs,
               options.batch, options.rate)

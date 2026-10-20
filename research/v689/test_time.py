@@ -700,5 +700,36 @@ class ReplayTests(unittest.TestCase):
         self.assertTrue({"episode_opened", "occurred", "ordered"} <= kinds)
 
 
+class ToldOfSomeoneTests(unittest.TestCase):
+    """What someone does as a rule somewhere, how old they are, and
+    someone new named after the verb -- each asked back."""
+
+    def test_where_someone_lives(self):
+        # a habit was no occurrence, and `where` found nothing told
+        _, turns, _ = talk("I live in Lisbon.", "where do I live?",
+                           "Mary works in Oslo.", "where does Mary work?")
+        self.assertIn("Lisbon", turns[1].answer["text"])
+        self.assertIn("Oslo", turns[3].answer["text"])
+        self.assertIn("as a rule", turns[0].answer["text"])
+
+    def test_a_habit_with_no_place_is_none(self):
+        session, _, _ = talk("Rex barks.")
+        self.assertEqual(session.timeline.occurrences, [])
+
+    def test_an_age_told_and_asked(self):
+        # `I'm 30 years old` was `I am old`, the age lost
+        _, turns, _ = talk("I'm 30 years old.", "how old am I?")
+        self.assertIn("30 years old", turns[1].answer["text"])
+
+    def test_someone_new_after_the_verb(self):
+        # `Sue` was read a place: the apple was at "a sue" (who has it
+        # then is the store's VerbNet: this one has none)
+        # (both new in one sentence, `Tom` is still missed now and then)
+        session, turns, _ = talk("Tom has an apple.",
+                                 "Tom gave the apple to Sue.")
+        self.assertIn("about Sue", turns[1].answer["text"])
+        self.assertIn("sue", session.discourse.names())
+
+
 if __name__ == "__main__":
     unittest.main()

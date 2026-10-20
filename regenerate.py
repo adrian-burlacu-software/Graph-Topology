@@ -1982,6 +1982,23 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code51", 80),
              needs=("reader-code-yours",), cost="an hour", gpu=True),
+        Step("reader-names-values", "the shared reader taught someone new "
+                                    "named after the verb (`Tom gave the "
+                                    "apple to Sue`), a place named, an age "
+                                    "and a value of one's own (v689 "
+                                    "`teach_reader._statements` new, "
+                                    "labelled apart and added to the "
+                                    "corpus as it was first built)",
+             lambda: (_run("research.v689.teach_reader", "more"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code51"),
+                           "--out", str(LLM / "reader-code57"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code57", 80),
+             needs=("reader-code-change",), cost="half an hour", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

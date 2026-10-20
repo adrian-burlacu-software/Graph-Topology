@@ -61,7 +61,7 @@ have` -- fills no cell here, and is v688's.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import wraps
+from functools import lru_cache, wraps
 
 from .reading import (AUX, COPULA, PLACES, QUESTION_WORDS, SEQUENCE, Mention,
                       Reading, _with_object, read_mention, tags_of, tokens_of)
@@ -454,6 +454,41 @@ def _attribute(q: _Question) -> Reading | None:
 
 
 @_stated
+def _how_attribute(q: _Question) -> Reading | None:
+    """`how old am I`, `how tall is Anna`: the attribute an adjective is a
+    value of (WordNet's: `old` of age, `tall` of stature), asked as `what
+    age is ...` is -- the adjective kept as what is asked."""
+    tokens = q.tokens
+    if (len(tokens) < 4 or tokens[2] not in COPULA
+            or not attributes_of(tokens[1])):
+        return None
+    found = q.mention(3)
+    if _individual(found) and found.end == len(tokens):
+        return q.reading(("value", "attribute"), found, tokens[2],
+                         [tokens[1]])
+    return None
+
+
+def attributes_of(word: str) -> frozenset:
+    """The attributes an adjective is a value of, as nouns (`old`: age;
+    `tall`: height, stature) -- WordNet's own links; none for a word no
+    sense of which has any."""
+    return _attributes_of(word.lower())
+
+
+@lru_cache(maxsize=None)
+def _attributes_of(word: str) -> frozenset:
+    try:
+        from nltk.corpus import wordnet
+        return frozenset(
+            lemma for synset in wordnet.synsets(word, "a")
+            for attribute in synset.attributes()
+            for lemma in attribute.lemma_names())
+    except Exception:                               # noqa: BLE001
+        return frozenset()
+
+
+@_stated
 def _toward(q: _Question) -> Reading | None:
     """`what is Gertrude afraid of`: what a quality toward something is
     toward."""
@@ -802,7 +837,7 @@ SHAPES = {
     "when": (_when_in, _time),
     "where": (_where_did, _where_going, _where),
     "how": (_how_many_in, _route, _time, _carrying, _how_many, _grounds,
-            _again),
+            _again, _how_attribute),
     "which": (_which,),
     "tell": (_about,),
     "and": (_again,),

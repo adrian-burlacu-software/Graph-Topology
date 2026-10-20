@@ -209,7 +209,10 @@ def _adjuncts(words: list[Word], within: set[int]) -> set[int]:
             objects = _children(words, word.index, {"pobj"})
             if objects and time_noun(objects[0].text.lower()):
                 out |= _subtree(words, word.index)
-        elif word.dep == "npadvmod" and time_noun(word.text.lower()):
+        elif word.dep == "npadvmod" and time_noun(word.text.lower()) and \
+                not head.tag.startswith("JJ"):
+            # (a time noun measuring an adjective is what it is, not when:
+            # `I'm 30 years old` was read `I am old`, the age lost)
             out |= _subtree(words, word.index)
     return out
 

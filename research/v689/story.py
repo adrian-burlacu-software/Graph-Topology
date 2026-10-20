@@ -186,7 +186,14 @@ class Story:
             return None
         tense, aspect = self.clause_time(aux, rest)
         if doing and not occurs(tense, aspect):
-            return None
+            # -- but what someone does as a rule somewhere is where they
+            # are found doing it: `I live in Lisbon` was put down as a habit
+            # only, and `where do I live` found nothing told
+            if not (tense == "present" and aspect in ("simple", "habit") and
+                    any(word in changes.DESTINATION | changes.SOURCE |
+                        {"in", "at", "on"} for word in rest[1:])):
+                return None
+            aspect = "habitual"
         episode = self.episode_for(tense)
         self._pending = (episode, tense, aspect)
         if relation not in IN_TIME:
@@ -205,7 +212,8 @@ class Story:
             return ""
         episode, tense, aspect = pending
         rest = list(reading.rest)
-        verb = self.verb_of(reading.aux, rest, aspect)
+        verb = self.verb_of(reading.aux, rest,
+                            "simple" if aspect == "habitual" else aspect)
         if not verb:
             return ""
         parts = self._participants(reading, referent, other)
@@ -499,7 +507,8 @@ class Story:
     def placed(self, occurrence: Occurrence) -> str:
         """Where T1 put an occurrence, as the reply says it."""
         episode = self.timeline.episode(occurrence.episode)
-        text = (f"it {'will happen' if occurrence.tense == 'future' else 'happened'}"
+        text = ("it is so as a rule" if occurrence.aspect == "habitual" else
+                f"it {'will happen' if occurrence.tense == 'future' else 'happened'}"
                 f" {self.phrase(episode)}")
         for (first, second), why in self.timeline.reasons.items():
             if occurrence.id not in (first, second):

@@ -331,6 +331,11 @@ class Timeline:
                 orders.append((new, at, "during",
                                "a progressive is in progress at the time the "
                                "story is at"))
+        elif aspect == "habitual":
+            # what someone does as a rule (`I live in Lisbon`): it holds
+            # through the story, not at a point of it -- nothing is ordered
+            # by it, and the story does not move on
+            pass
         else:
             if at:
                 orders.append((at, new, "before",

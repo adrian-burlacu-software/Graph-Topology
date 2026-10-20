@@ -430,14 +430,21 @@ class Discourse:
 
         if not pool:
             if (described and kind and mention.modifiers
-                    and mention.form in ("definite", "demonstrative")):
+                    and mention.form in ("definite", "demonstrative",
+                                         "possessive")):
+                # (and `my favourite colour is green`: one of yours, so
+                # described -- it was "nothing here was said to be
+                # favourite", told or asked)
+                yours = mention.form == "possessive"
                 referent = self.introduce(kind, accommodated=True,
-                                          weight=weight)
+                                          owner=self.me().id if yours
+                                          else None, weight=weight)
                 for word in mention.modifiers:
                     self.memory.tell(referent.id, "has_property", word, said)
                 return Resolution(
                     said, referent,
-                    f"no {' '.join(mention.modifiers)} {kind} had come up, so "
+                    f"no {' '.join(mention.modifiers)} {kind}"
+                    f"{' of yours' if yours else ''} had come up, so "
                     f"“{said}” is taken to introduce one", [referent.id],
                     introduced=True, identification=seen)
             if mention.modifiers and mention.form == "demonstrative" \

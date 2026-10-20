@@ -433,8 +433,31 @@ def heard_for(session, said: str) -> Heard:
     was = _HEARD.get(key)
     if was is None or was[0] != said:
         was = (said, hear(said, scene_for(session)))
+        if was[1].act == "where" and moved(session, was[1].names):
+            # where a thing is, after a story told it moved, is the
+            # story's: the scene keeps what was said to be so, not what was
+            # done since (`the cat is on the mat. the cat moved to the
+            # sofa.` -- the scene answered the mat)
+            was[1].act, was[1].weight = "", 0
         _HEARD[key] = was
     return was[1]
+
+
+def moved(session, names: list) -> bool:
+    """Whether v689's story was told one of these things changed place
+    (T4: a change of location)."""
+    timeline = getattr(session, "timeline", None)
+    discourse = getattr(session, "discourse", None)
+    if timeline is None or discourse is None or not names:
+        return False
+    for change in getattr(timeline, "changes", ()):
+        if change.kind != "location":
+            continue
+        who = discourse.by_id(change.individual)
+        if who is not None and ((who.kind or "").lower() in names or
+                                (who.name or "").lower() in names):
+            return True
+    return False
 
 
 def used(scene: Scene, heard: Heard) -> str:

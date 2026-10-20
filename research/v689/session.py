@@ -742,9 +742,14 @@ class Session:
     def _values(self, individual: str, attribute: str) -> list[tuple]:
         """(value, said, seq) for each value of an attribute told of one
         individual, in the order told. `green` is a colour because a sense
-        of `green` is a kind of a sense of `color`."""
-        wanted = {sense["id"] for sense in (self.asker.reasoner.senses_of(
-            self.asker.lemma(attribute), "n") or [])}
+        of `green` is a kind of a sense of `color`; `30 years old` an age
+        because the attribute `old` is a value of is age (asked `how old`:
+        the attribute is the adjective's, WordNet's link)."""
+        from .grammar import attributes_of
+        nouns = {attribute} | set(attributes_of(attribute))
+        wanted = {sense["id"] for noun in nouns
+                  for sense in (self.asker.reasoner.senses_of(
+                      self.asker.lemma(noun), "n") or [])}
         cache = self.__dict__.setdefault("_valued", {})
         out = []
         for event in self.memory.log.conversation.events:
@@ -758,7 +763,10 @@ class Session:
                 senses = self.asker.reasoner.senses_of(value, "n") or []
                 cache[key] = any(
                     node in wanted for sense in senses
-                    for node, _, _ in self.asker.reasoner.ascend(sense["id"]))
+                    for node, _, _ in self.asker.reasoner.ascend(
+                        sense["id"])) or any(
+                    set(attributes_of(word)) & nouns
+                    for word in value.split())
             if cache[key]:
                 out.append((value, data.get("said", ""), event.seq))
         return out
@@ -2669,6 +2677,15 @@ class Session:
     def _what(self, reading: Reading, turn: Turn) -> None:
         referent = self._resolve(reading, turn)
         if referent is None:
+            return
+        # what is a value of its own kind is said by its value: `my
+        # favourite colour is green` -- what it is is green, not a colour
+        own = self._values(referent.id, referent.kind) if referent.kind \
+            else []
+        if own:
+            value, said, _ = own[-1]
+            turn.answer = {"outcome": "retrieved", "source": "told",
+                           "text": f"{value} — you told me “{said}”"}
             return
         text = (f"{self.discourse.describe(referent, named=False)}: "
                 f"{self._kind(referent)}, under "
