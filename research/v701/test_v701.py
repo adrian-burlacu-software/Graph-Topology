@@ -379,6 +379,24 @@ class SettingsTests(unittest.TestCase):
                                           "remove Solaris from the books"),
                          [])
 
+    def test_a_setting_like_its_value_and_a_row_given_whole(self):
+        from research.v701 import placing
+        config = "library:\n  name: Riverside Library\n  loan_days: 14\n"
+        [(what, made)] = placing.settings(
+            "c.yaml", config, "rename the library to Hillside Library")
+        self.assertEqual(made, "library:\n  name: Hillside Library\n"
+                               "  loan_days: 14\n")
+        rows = ("id,title,author,pages,year\n1,Dune,Frank Herbert,412,1965\n"
+                "2,Kindred,Octavia E. Butler,264,1979\n")
+        [(what, made)] = placing.appended(
+            "b.csv", rows,
+            "add a book: Neuromancer by William Gibson, 271 pages, 1984, id 3")
+        self.assertTrue(made.endswith(
+            "\n3,Neuromancer,William Gibson,271,1984\n"), made)
+        # a value left over, or a column given none: no row
+        self.assertEqual(placing.appended(
+            "b.csv", rows, "add a book: Neuromancer, 271 pages, id 3"), [])
+
     def test_json_mended_by_its_commas(self):
         from research.v700.fixing import _mended_json
         before = '[\n  {"id": 1},\n  {"id": 4}\n]\n'

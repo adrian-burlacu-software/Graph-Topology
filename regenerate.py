@@ -1999,6 +1999,31 @@ def steps() -> list[Step]:
                            "--subject", "shell", "--subject", "plan")),
              _model_check(LLM / "reader-code57", 80),
              needs=("reader-code-change",), cost="half an hour", gpu=True),
+        Step("reader-index-talk", "the shared reader taught what a "
+                                  "project's index answers -- a constant's "
+                                  "value, a class's fields, a function's "
+                                  "tests, what it answers to, what it gives "
+                                  "in a situation, a thing said by what it "
+                                  "does (v698 `teach_code_ask`) -- a setting "
+                                  "said as it should be as the change it "
+                                  "asks, and data's superlatives, filters "
+                                  "and totals (v701 `teach_data_talk "
+                                  "more3`)",
+             lambda: (_run("research.v698.teach_code_ask", "write"),
+                      _run("research.v698.teach_code_ask", "check"),
+                      _run("research.v698.teach_code_ask", "corpus"),
+                      _run("research.v701.teach_data_talk", "more3"),
+                      _run("research.v701.teach_data_talk", "write"),
+                      _run("research.v701.teach_data_talk", "corpus"),
+                      _run("research.v689.teach_reader", "train",
+                           "--base", str(LLM / "reader-code57"),
+                           "--out", str(LLM / "reader-code58"),
+                           "--epochs", "1", "--rate", "2e-5",
+                           "--subject", "math", "--subject", "design",
+                           "--subject", "code", "--subject", "data",
+                           "--subject", "shell", "--subject", "plan")),
+             _model_check(LLM / "reader-code58", 80),
+             needs=("reader-names-values",), cost="five hours", gpu=True),
         Step("already", "whether a function already takes what a change "
                         "asks it to take, read against each parameter as "
                         "the code says what it is (v705 `teach_already`, "

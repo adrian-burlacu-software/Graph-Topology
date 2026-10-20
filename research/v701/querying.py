@@ -305,7 +305,44 @@ def _by_value(text: str, held) -> Found | None:
                       f"(in {model.path}) is {value}.",
                  value=value, file=model.path, place=place,
                  looked={"named by": named, "value": said, "field": field_,
-                         "likeness": likeness_})
+                         "likeness": likeness_, "record": record})
+
+
+def of_record(text: str, held, path: str, record: dict) -> Found | None:
+    """A question of the record just answered of, naming none of its own
+    (`which book is the oldest?` ... `who wrote it?`): the field the
+    question is nearest asking of that record -- named by its own name, or
+    by meaning, by a lead -- as `_by_value` asks of a record it names."""
+    if not isinstance(record, dict) or len(record) < 2:
+        return None
+    named = next((name for name, value in record.items()
+                  if isinstance(value, str) and len(value) >= 3), None)
+    if named is None:
+        return None
+    said = str(record[named])
+    fields = [one for one in record if one != named]
+    words = set(re.findall(r"[a-z]+", text.lower()))
+    named_here = [one for one in fields
+                  if set(one.lower().replace("_", " ").split()) <= words]
+    likeness_ = None
+    if len(named_here) == 1:
+        field_ = named_here[0]
+    else:
+        from research.v701.likeness import nearest
+        framed = {f"what is the {one.replace('_', ' ')} of {said}?": one
+                  for one in fields}
+        ranked = nearest(text, list(framed))
+        if ranked[0][0] < LEAST_FIELD or (
+                len(ranked) > 1 and ranked[0][0] - ranked[1][0] <
+                FIELD_LEAD):
+            return None
+        field_, likeness_ = framed[ranked[0][1]], round(ranked[0][0], 3)
+    value = record[field_]
+    return Found(said=f"The {field_} of {said} (in {path}) is "
+                      f"{_said_value(value)}.",
+                 value=value, file=path, place=field_,
+                 looked={"of the record": said, "field": field_,
+                         "likeness": likeness_, "record": record})
 
 
 #: what a question may ask of a collection when the act was read too
@@ -427,6 +464,13 @@ def _resolved(held, asked: Asked) -> dict | None:
         records = model.records()[path]
         if by is None and value and asked.op != "none":
             by = _field_by_value(records, fields, asked.op, _value(value))
+        if by is None and value and asked.op in ("gt", "lt", "ge", "le"):
+            # of several fields of numbers, the one the question names
+            # anywhere (`more than 300 pages`)
+            said_ = [one for one in fields if any(
+                _named(word, one) for word in asked.words) and all(
+                _orderable(_field_of(row, one)) for row in records)]
+            by = said_[0] if len(said_) == 1 else None
         asked_field = next((one for one in fields if _named(target, one)),
                            None)
         whole = _named(target, name) or target.lower() == base.lower()
@@ -528,6 +572,28 @@ def carry(asked: Asked, held) -> Found | None:
         # subject when none is marked
         target = asked.known[-1]
         asked.spans = {**asked.spans, "TARGET": [target]}
+    whole = _said_whole(held, asked.words)
+    if whole is not None:
+        value, _, _, holder = whole
+        spans = dict(asked.spans)
+        # a value read in pieces, or as a field (`octavia` and `e . butler`;
+        # `dispossessed` the field): the one the data holds, said whole
+        if not any(_held_as(held, one) for one in spans.get("VALUE", ())) \
+                or len(spans.get("VALUE", ())) > 1:
+            spans["VALUE"] = [value]
+        spans["FIELD"] = [one for one in spans.get("FIELD", ())
+                          if not _same(one, value) and
+                          _said(one)[-1] not in _said(value)]
+        if not spans["FIELD"]:
+            spans.pop("FIELD")
+        if asked.op == "none":
+            asked.op = "eq"
+        # no target (`who has the email katherine@example.org?`): the
+        # records holding it
+        if not target:
+            target = holder
+            spans["TARGET"] = [target]
+        asked.spans = spans
     if not target:
         return None
     asked.spans = _sorted_out(held, asked.spans)
@@ -598,6 +664,9 @@ def _joined(held, asked: Asked, target: str) -> Found | None:
 def _carried(asked: Asked, found: dict | None, target: str) -> Found:
     looked = {"target": target}
     if found is None:
+        # nothing of the data is so called: an answer of no data, which
+        # another part may give (the page's data talk yields to code talk)
+        looked["nothing"] = True
         return Found(f"I find nothing called {target} in the project's "
                      f"data" + (f" with a field {asked.spans['FIELD'][0]}"
                                 if asked.spans.get("FIELD") else "") + ".",
@@ -647,9 +716,35 @@ def _carried(asked: Asked, found: dict | None, target: str) -> Found:
                            if _holds(_field_of(one, by), "eq", word)]
                 looked["filter"] = [by, "eq", _one(word.lower())]
                 break
+    if len(records) == 1:
+        # the one record answered of: what a follow-up's `it` is
+        looked["record"] = records[0]
+    if asked.act == "count" and found["field"] and records and all(
+            isinstance(_field_of(one, found["field"]), (int, float)) and
+            not isinstance(_field_of(one, found["field"]), bool)
+            for one in records):
+        # how many of what a field counts (`how many pages does The
+        # Dispossessed have?`, `... across all the books?`): its amount --
+        # one record's, else theirs together
+        name = found["field"]
+        looked["field"] = name
+        total = sum(_field_of(one, name) for one in records)
+        if len(records) == 1:
+            return Found(f"The {name} of the {group} in {where}"
+                         + _because(looked) + f" is {_said_value(total)}.",
+                         total, where, collection, asked, looked)
+        return Found(f"The {name} of the {len(records)} {group} in {where}"
+                     + _because(looked) + f" come to {_said_value(total)} "
+                     f"together.", total, where, collection, asked, looked)
     if asked.act == "count":
         return Found(f"{len(records)} {group} in {where}" + _because(looked)
                      + ".", len(records), where, collection, asked, looked)
+    if asked.act in ("max", "min") and found["field"] and records and \
+            not all(_orderable(_field_of(one, found["field"]))
+                    for one in records):
+        # the most of a field that names, not counts (`which author has
+        # the most books?`): the value most (least) of the records hold
+        return _most_held(asked, found, model, records, looked)
     if asked.act == "exists":
         there = bool(records)
         return Found((f"Yes: {len(records)} {group} in {where}" if there
@@ -699,9 +794,9 @@ def _extreme(asked: Asked, found: dict, model, records: list,
     where two fields are as near, which is asked, not guessed."""
     collection, group, where = found["collection"], found["name"], model.path
     fields = [str(one) for one in model.collections[collection]["fields"]]
-    numeric = [one for one in fields if any(
-        isinstance(_field_of(row, one), (int, float)) and not isinstance(
-            _field_of(row, one), bool) for row in records)]
+    numeric = [one for one in fields if all(
+        _orderable(_field_of(row, one)) for row in records) and any(
+        _field_of(row, one) is not None for row in records)]
     named = [one for one in fields for phrase in asked.spans.get("FIELD", ())
              if _named(phrase, one)]
     if found["by"] and found["by"] in numeric and not asked.spans.get(
@@ -736,8 +831,7 @@ def _extreme(asked: Asked, found: dict, model, records: list,
                      looked)
     numbers = [_field_of(row, field_) for row in records]
     held = [(number, row) for number, row in zip(numbers, records)
-            if isinstance(number, (int, float)) and not isinstance(number,
-                                                                   bool)]
+            if _orderable(number) and number is not None]
     if not held:
         return Found(f"{field_} of the {group} in {where} holds no numbers.",
                      None, where, collection, asked, looked)
@@ -747,11 +841,91 @@ def _extreme(asked: Asked, found: dict, model, records: list,
         (one for one in fields if one not in numeric), None)
     names = [_field_of(row, key) for row in rows] if key else rows
     looked.update({"field": field_, "extreme": asked.act, "key": key})
+    if len(rows) == 1:
+        looked["record"] = rows[0]
     word = "largest" if asked.act == "max" else "smallest"
     return Found(f"{_said_list(names)}: the {group} in {where} with the "
                  f"{word} {field_} ({_said_value(best)}).",
                  names[0] if len(names) == 1 else names, where, collection,
                  asked, looked)
+
+
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}([T ][\d:.]+)?Z?")
+
+
+def _orderable(value) -> bool:
+    """A number, or a date as data writes it (`2021-03-02`): what has a
+    most and a least."""
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, (int, float)) or (
+        isinstance(value, str) and bool(DATE.fullmatch(value)))
+
+
+def _held_as(held, phrase: str) -> bool:
+    for model in held.data().values():
+        for place in model.places.values():
+            if any(_same(one, phrase) for one in place.distinct):
+                return True
+    return False
+
+
+def _said_whole(held, words: list):
+    """The longest value of the data's records the question says whole,
+    word for word (`Grace Hopper's`, `Octavia E. Butler`): (value, model,
+    collection path, the collection's name) -- None where none is, or two
+    different ones are as long."""
+    from research.v701.teach_data_talk import words as tokens
+    said = [str(one).lower() for one in words]
+    said = [one[:-2] if one.endswith("'s") else one for one in said]
+    found = {}
+    for model in held.data().values():
+        if model.error:
+            continue
+        for path, records in model.records().items():
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                for value in record.values():
+                    if not isinstance(value, str) or len(value) < 3 or \
+                            DATE.fullmatch(value):
+                        continue
+                    own = [one.lower() for one in tokens(value)]
+                    if not own:
+                        continue
+                    for at in range(len(said) - len(own) + 1):
+                        if said[at:at + len(own)] == own:
+                            found.setdefault(value, (value, model, path,
+                                                     _shown_name(path,
+                                                                 model)))
+                            break
+    if not found:
+        return None
+    longest = max(len(one) for one in found)
+    best = [one for one in found.values() if len(one[0]) == longest]
+    return best[0] if len(best) == 1 else None
+
+
+def _most_held(asked: Asked, found: dict, model, records: list,
+               looked: dict) -> Found:
+    """The value of a field most (or fewest) records hold: `Ursula K. Le
+    Guin` -- three of the books."""
+    name, group, where = found["field"], found["name"], model.path
+    counts: dict = {}
+    for one in records:
+        value = _field_of(one, name)
+        if value is not None:
+            counts[str(value)] = counts.get(str(value), 0) + 1
+    if not counts:
+        return Found(f"{name} of the {group} in {where} holds nothing.",
+                     None, where, found["collection"], asked, looked)
+    best = (max if asked.act == "max" else min)(counts.values())
+    names = [value for value, count in counts.items() if count == best]
+    looked.update({"field": name, "most held": asked.act})
+    return Found(f"{_said_list(names)}: the {name} {'most' if asked.act == 'max' else 'fewest'} "
+                 f"of the {group} in {where} have ({best} of "
+                 f"{len(records)}).", names[0] if len(names) == 1 else names,
+                 where, found["collection"], asked, looked)
 
 
 def _at(value, path: str) -> list:

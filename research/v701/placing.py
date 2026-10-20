@@ -129,6 +129,15 @@ def data_file(held, statement: str) -> str | None:
                         place.path.startswith(f"{one}.") or place.path == one
                         for one in model.collections if one):
                 fit += 1
+        # a setting of something named set to a value like its own
+        # (`rename the library to Hillside Library`: library.name, Riverside
+        # Library) -- a word for what it is is not its key
+        for place in leaves:
+            parent = place.path.rsplit(".", 1)[0] if "." in place.path                 else ""
+            if parent and "[]" not in place.path and                     _words(parent.rsplit(".", 1)[-1]) <= said and any(
+                        _resembling(value, statement)
+                        for value in place.examples[:1]):
+                fit += 2
         # the file named, where no code file is so named -- a file of
         # settings: one of records is named for what each is (`let members
         # hold up to 5 books` is of the code's limit, not members.json)
@@ -152,6 +161,35 @@ def _shape(value) -> tuple:
     text = str(value)
     return ("string", "@" in text, any(one.isdigit() for one in text),
             "." in text, " " in text)
+
+
+def _resembling(old, statement: str) -> list:
+    """The spans of a statement that may be a new value of a string `old`
+    of words: as many words, of its shape and its case, sharing a word with
+    it and not it (`Hillside Library` for `Riverside Library`; not `the
+    library`)."""
+    if not isinstance(old, str) or " " not in old.strip():
+        return []
+    words = old.split()
+    tokens = [one.strip(".,;:!?\"'") for one in statement.split()]
+    tokens = [one for one in tokens if one]
+    own = {one.lower() for one in words}
+    out = []
+    for at in range(len(tokens) - len(words) + 1):
+        span = tokens[at:at + len(words)]
+        text = " ".join(span)
+        if text == old or text in out or                 [one[:1].isupper() for one in span] !=                 [one[:1].isupper() for one in words] or                 _shape(text) != _shape(old) or                 not own & {one.lower() for one in span}:
+            continue
+        out.append(text)
+    return out
+
+
+def _yaml_scalar(value: str) -> str:
+    """A string as YAML writes it plain, or quoted where it must be."""
+    import json
+    if re.search(r"(^[\s\-?:,\[\]{}#&*!|>'\"%@`])|(: )|( #)|\s$", value):
+        return json.dumps(value)
+    return value
 
 
 def _as(token: str, old):
@@ -243,13 +281,21 @@ def settings(path: str, text: str, statement: str) -> list:
         if set(place.types) & {"object", "array"} or "[]" in place.path:
             continue
         own = place.path.rsplit(".", 1)[-1]
-        if not named(own) or not place.examples:
+        if not place.examples:
             continue
         old = place.examples[0]
-        for token in tokens:
-            new = _as(token, old)
+        parent = place.path.rsplit(".", 1)[0] if "." in place.path else ""
+        # a value of its own kind, the setting named; or one like its own,
+        # what it is a setting of named (`rename the library to Hillside
+        # Library`)
+        news = [_as(token, old) for token in tokens] if named(own) else []
+        if parent and named(parent.rsplit(".", 1)[-1]):
+            news += _resembling(old, statement)
+        for new in news:
             if new is None or new == old:
                 continue
+            if isinstance(new, str) and not path.lower().endswith(".json"):
+                new = _yaml_scalar(new)
             pattern = re.compile(rf"^(\s*{re.escape(own)}\s*:\s*)"
                                  rf"{re.escape(str(old))}(\s*(#.*)?)$")
             found = [at for at, line in enumerate(lines)
@@ -260,7 +306,104 @@ def settings(path: str, text: str, statement: str) -> list:
                 put(found[0], pattern.sub(rf"\g<1>{new}\g<2>",
                                           line.rstrip("\r\n")) + ending,
                     f"{place.path} set to {new}")
+    if tabular(path):
+        out += [one for one in appended(path, text, statement)
+                if one not in out]
     return out
+
+
+def appended(path: str, text: str, statement: str) -> list:
+    """A table's new row made of what the statement gives it -- each
+    column a value: a number by the column named beside it (`271 pages`,
+    `id 8`), else by the column whose values it lies among (1984: the
+    years); a run of capitalized words (`Neuromancer`, `William Gibson`)
+    each a column of words, in the header's order. Only where every
+    column has one and nothing is left over: [(what, the text so
+    changed)]."""
+    import csv
+    import io
+    if not tabular(path) or not text.strip():
+        return []
+    rows = list(csv.reader(io.StringIO(text)))
+    header, records = rows[0], [row for row in rows[1:] if row]
+    if not records or any(len(row) != len(header) for row in records):
+        return []
+
+    def number(cell: str) -> bool:
+        return bool(re.fullmatch(r"-?\d+(\.\d+)?", cell))
+    numeric = [at for at in range(len(header))
+               if all(number(row[at]) for row in records)]
+    worded = [at for at in range(len(header)) if at not in numeric]
+    # the statement past what introduces it (`add a book:`)
+    said = statement.split(":", 1)[1] if ":" in statement else statement
+    tokens = [one for one in re.findall(r"[^\s,;]+", said)]
+    if tokens:
+        tokens[-1] = tokens[-1].rstrip(".!?")
+    named = {_one(name.lower()): at for at, name in enumerate(header)}
+    given, used = {}, set()
+    # each number the columns named beside it; one with a single such
+    # column first (`271 pages 1984 id 8`: pages is 271's, id 8's)
+    beside = {}
+    for at, token in enumerate(tokens):
+        if number(token):
+            beside[at] = {(one, named[_one(tokens[one].lower())])
+                          for one in (at - 1, at + 1)
+                          if 0 <= one < len(tokens) and
+                          named.get(_one(tokens[one].lower())) in numeric}
+    while True:
+        open_ = {at: {(word, column) for word, column in found
+                      if column not in given and word not in used}
+                 for at, found in beside.items() if at not in used}
+        sure = sorted(((at, next(iter(found)))
+                       for at, found in open_.items() if len(found) == 1),
+                      key=lambda one: len(beside[one[0]]))
+        if not sure:
+            break
+        at, (word, column) = sure[0]
+        given[column] = tokens[at]
+        used |= {at, word}
+    for at, token in enumerate(tokens):
+        if at in used or not number(token):
+            continue
+        # the column whose values it is nearest, by how many times larger
+        # or smaller -- clearly nearer than any other (1984: the years,
+        # not the pages)
+        import math
+        value = abs(float(token)) + 1
+        far = sorted((min(abs(math.log(value / (abs(float(row[column])) + 1)))
+                          for row in records), column)
+                     for column in numeric if column not in given)
+        if not far or len(far) > 1 and far[1][0] < 2 * far[0][0] + 0.1:
+            return []
+        given[far[0][1]] = token
+        used.add(at)
+    # runs of capitalized words, what is left
+    runs, run = [], []
+    for at, token in enumerate(tokens):
+        if at not in used and token[:1].isupper():
+            run.append(token)
+            continue
+        if run:
+            runs.append(" ".join(run))
+        run = []
+    if run:
+        runs.append(" ".join(run))
+    open_ = [column for column in worded if column not in given]
+    if len(runs) != len(open_):
+        return []
+    for column, value in zip(open_, runs):
+        given[column] = value
+    if len(given) != len(header) or any(
+            given[at] == row[at] for row in records for at in numeric
+            if header[at].lower() == "id"):
+        return []
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="").writerow(
+        [given[at] for at in range(len(header))])
+    ending = "" if text.endswith(("\n", "\r")) else "\n"
+    line_end = "\r\n" if "\r\n" in text else "\n"
+    return [(f"a row added: {buffer.getvalue()}",
+             text + ending + buffer.getvalue() + line_end)]
 
 
 def tabular(path: str) -> bool:

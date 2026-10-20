@@ -53,6 +53,9 @@ PLAN_TALK = 212.28
 #: a goal said back with its plan, by conversation: a yes takes its first
 #: step (v704)
 GOALS: dict = {}
+#: the one record a data answer was of, by conversation: (file, record,
+#: turn) -- what a follow-up's `it`, `their` is
+RECORDS: dict = {}
 
 
 def _key(session):
@@ -73,7 +76,11 @@ def known(key) -> set:
         for path in held.files:
             names.add(path)
             names.add(path.rsplit("/", 1)[-1])
-    entry = ((conversation.workspace(key).found or {}).get("answer")
+        # its classes and constants (`Book`, `LOAN_DAYS`) -- not fields:
+        # `title`, `pages` are words before they are code
+        names.update(one.name for one in held.index().symbols.values()
+                     if one.kind in ("class", "constant"))
+    entry =((conversation.workspace(key).found or {}).get("answer")
              or {}).get("entry")
     if entry:
         names.add(entry)
@@ -348,10 +355,70 @@ def _act(read, text: str, session, memory) -> dict | None:
         subject = (fixing.placed(read, held, text)
                    or asking.resolve(read, held, space, turn, key)) \
             if held is not None else None
+        if subject is not None and subject.kind == "symbol":
+            # a constant or a class named (`MAX_LOANS should be 5`): the
+            # change is of its file
+            subject = asking.Subject("file", subject.file, subject.file)
+        if held is not None and (subject is None or subject.kind not in (
+                "function", "file")) and any(
+                path.endswith(".py") for path in held.files):
+            # named nowhere (`let members hold up to 5 books at once`):
+            # what the project has nearest what is said, by meaning -- a
+            # function, or the file of a constant or class
+            near = asking._described(held, text, "where")
+            if near is not None:
+                subject = near if near.kind == "function" else \
+                    asking.Subject("file", near.file, near.file)
         if subject is not None and subject.kind in ("function", "file"):
             if fixing.available():
+                # what was asked, made a check that runs: tests of the
+                # request the project as it is fails, and its own tests
+                # (`requested.py`) -- a change is written where it holds
+                context = None
+                path_ = subject.file or ""
+                if path_.endswith(".py") and not Pj.is_data(path_):
+                    from research.v698 import requested
+                    check = requested.checker(text, held, path_)
+                    if check.get("verify") is not None:
+                        context = {"verify": check["verify"],
+                                   "requested": {
+                                       "kept": check["kept"],
+                                       "need": check["need"]}}
+                        # a name made another everywhere it is used, where
+                        # the request's tests hold for it (`rename
+                        # parse_isbn to clean_isbn everywhere`: two lines of
+                        # one file, 7 of 7 editors agreeing)
+                        for old, new, changed in requested.renames(text,
+                                                                   held):
+                            if check["verify files"](changed):
+                                continue
+                            diffs = []
+                            for path__, after in changed.items():
+                                before = held.files[path__]
+                                held.write(path__, after)
+                                fixing.MADE.setdefault(key, []).append(
+                                    (path__, before, after))
+                                diffs.append(fixing.diff(before, after,
+                                                         path__))
+                            said = (f"Renamed {old} to {new} in "
+                                    f"{', '.join(changed)}: every use of "
+                                    f"it, and the tests of what you asked "
+                                    f"hold ({len(check['kept'])} written, "
+                                    f"the project's own still passing).")
+                            found = asking._reply("change", text, said,
+                                                  {"read": read.json()},
+                                                  name=new)
+                            found["code"]["change"] = {
+                                "status": "changed", "renamed": [old, new],
+                                "files": sorted(changed),
+                                "diff": "\n".join(diffs),
+                                "requested": context["requested"]}
+                            found["code"]["answer"]["status"] = "changed"
+                            return found
                 made = fixing.change(text, held, subject, key,
-                                     spans=read.spans)
+                                     spans=read.spans, context=context)
+                if context is not None:
+                    made["requested"] = context["requested"]
                 asking.FOCUS[key] = (subject, turn)
                 found = asking._reply("change", text, made["said"],
                                       {"read": read.json()},
@@ -947,16 +1014,39 @@ def replies(session) -> list:
             text = typed(memory)
             if text not in found_for:
                 found_for.clear()
-                found_for[text] = querying.answer(
-                    text, Pj.project(_key(session)))
+                key = _key(session)
+                held = Pj.project(key)
+                found = querying.answer(text, held)
+                # a question naming nothing of its own, just after the data
+                # answered of one record (`which book is the oldest?` ...
+                # `who wrote it?`): asked of that record
+                file_, record, at = RECORDS.get(key, (None, None, -1))
+                if (found is None or found.looked.get("nothing") or
+                        found.looked.get("read as") == "no question") and \
+                        record is not None and \
+                        at == v697_page._turn(memory) - 1 and \
+                        held is not None:
+                    of = querying.of_record(text, held, file_, record)
+                    found = of if of is not None else found
+                found_for[text] = found
             return found_for[text]
 
         def asks_data(memory) -> bool:
             found = None if pastes(memory) else data_found(memory)
             if found is None:
                 return False
-            if found.looked.get("read as") != "no question":
+            if found.looked.get("of the record"):
                 return True
+            if found.looked.get("read as") != "no question" and \
+                    not found.looked.get("nothing"):
+                return True
+            if found.looked.get("nothing"):
+                # nothing of the data so called (`which routes does handle
+                # answer`: "I find nothing called routes"): code talk's,
+                # where the reader reads it as code talk
+                read = reading.code_talk(typed(memory), known(_key(session))) \
+                    if reading.taught() else None
+                return read is None
             # read as no question of data, and answered from it all the
             # same: a doing is no question, whatever it names (`set Dune's
             # pages to 896` names a record by a value, and asks to change
@@ -981,6 +1071,9 @@ def replies(session) -> list:
                                                     found.file),
                                      v697_page._turn(memory))
                 asking.PLACES[key] = (found.file, found.place)
+                record = found.looked.get("record")
+                RECORDS[key] = (found.file, record, v697_page._turn(memory)) \
+                    if isinstance(record, dict) else (None, None, -1)
             return ANSWERED
 
         out.append(Operator(

@@ -107,6 +107,8 @@ class Subject:
     kind: str
     name: str
     file: str = ""
+    #: found by meaning (`_described`): another as near to what was said
+    also: str = ""
 
 
 #: conversation -> (Subject, turn): what was talked about last
@@ -132,6 +134,18 @@ def _function(held, name: str, key=None) -> Subject | None:
     return Subject("function", one["name"], one["file"])
 
 
+def _symbol(held, name: str) -> Subject | None:
+    """A class, constant or field of the project's Python by its name
+    (`Book`, `LOAN_DAYS`, `Book.title`): what is not a function."""
+    if held is None or not name:
+        return None
+    found = [one for one in held.index().find(name)
+             if one.kind in ("class", "constant", "field")]
+    if not found:
+        return None
+    return Subject("symbol", found[0].name, found[0].file)
+
+
 def _explicit(text: str, held, space, key=None) -> Subject | None:
     """A subject named outright: a function of the project, a file, the
     project, the conversation's code by its function's name."""
@@ -144,6 +158,8 @@ def _explicit(text: str, held, space, key=None) -> Subject | None:
                 return Subject("code", name)
             if len(name) > 1 and held.find(name):
                 return _function(held, name, key)
+            if len(name) > 1 and _symbol(held, name):
+                return _symbol(held, name)
         for found in PATH.finditer(text):
             path = _file(held, found.group(0))
             if path:
@@ -236,8 +252,12 @@ def _focus(key, space, turn: int) -> Subject | None:
 CAN = {
     "project": ("explain", "bugs", "files", "functions", "size"),
     "file": ("explain", "bugs", "functions", "size", "callers", "calls",
-             "where"),
-    "function": ("explain", "bugs", "where", "callers", "calls", "size"),
+             "where", "cases", "tests"),
+    "function": ("explain", "bugs", "where", "callers", "calls", "size",
+                 "tests", "cases", "outcome"),
+    # a class, a constant, a field (`symbols.Index`)
+    "symbol": ("explain", "where", "callers", "size", "value", "fields",
+               "tests"),
     "code": ("explain", "bugs", "sure", "why", "others", "risk", "size"),
 }
 #: an aspect asked of a subject, as a question to offer
@@ -247,7 +267,9 @@ ASKING = {"explain": "what does {n} do", "bugs": "are there any bugs in {n}",
           "calls": "what does {n} call", "where": "where is {n}",
           "sure": "how sure are you of {n}", "why": "why {n}",
           "others": "what else did you write", "risk": "what are the risks "
-          "of {n}"}
+          "of {n}", "value": "what is {n}", "fields": "what fields does {n} "
+          "have", "tests": "is there a test for {n}", "cases": "what does {n} "
+          "answer to", "outcome": "what does {n} give for an empty input"}
 
 
 def answered(text: str, held, space, turn: int, key) -> dict | None:
@@ -274,6 +296,10 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
     name = phrase.split("(")[0].strip(" ?.,!'\"`")
     if reading.subject == "project" and held is not None:
         return Subject("project", held.name or "the project")
+    if reading.subject == "described" and held is not None and held.files:
+        # said by what it does (`which function works out when a loan is
+        # due?`): found in the project by meaning
+        return _described(held, reading.said, reading.aspect)
     if reading.subject in ("file", "named") and name:
         if name == entry:
             return Subject("code", name)
@@ -281,7 +307,7 @@ def resolve(reading, held, space, turn: int, key) -> Subject | None:
             path = _file(held, name)
             if path:
                 return Subject("file", path, path)
-            found = _function(held, name, key)
+            found = _function(held, name, key) or _symbol(held, name)
             if found:
                 return found
         return Subject("unknown", name)
@@ -321,12 +347,21 @@ def about(aspect: str, subject: Subject, text: str, held, space, turn: int,
             Pj.is_data(subject.file or ""):
         # a data file (v701): what it holds and its schema, from its model
         found = _data_file(held, subject, aspect, text)
-    elif aspect not in CAN[subject.kind] or aspect == "capabilities":
+    elif aspect == "capabilities" or (aspect not in CAN[subject.kind] and (
+            subject.kind == "code" or aspect not in ANSWERS)):
         found = _capabilities(held, space, subject, aspect, text)
+    elif aspect not in CAN[subject.kind]:
+        # an aspect it has no answer of (a function's `value`): what it is,
+        # all of it -- the reader's aspect a near miss, its subject right
+        found = _explain(held, subject, text)
     elif subject.kind == "code":
         found = _code(held, space, subject, aspect, text)
     else:
         found = ANSWERS[aspect](held, subject, text)
+    if subject.also:
+        for field_ in ("text", "spoken"):
+            found[field_] = (f"{found[field_]} (Or {subject.also}: it is as "
+                             f"near to what you said.)")
     FOCUS[key] = (subject, turn)
     found.setdefault("suggest", _suggest(held, subject, aspect))
     found["code"]["subject"] = {"kind": subject.kind, "name": subject.name,
@@ -339,6 +374,19 @@ def _data_file(held, subject: Subject, aspect: str, text: str) -> dict:
     records and their keys -- whatever was asked of it (v701: what a data
     file can be asked is still to be taught)."""
     model = held.data().get(subject.file)
+    if aspect in ("size", "where") and subject.file in held.files:
+        # how big, where: of the file as it is, not what it holds (`how
+        # many lines does books.csv have?` was its schema)
+        text_ = held.files[subject.file]
+        lines = len(text_.splitlines())
+        said = (f"{subject.file} has {lines} lines ({len(text_)} "
+                f"characters)" + (f"; {model.collections[''].get('count')} "
+                                  f"rows under its header"
+                                  if model is not None and "" in
+                                  model.collections and
+                                  subject.file.endswith(".csv") else "")
+                + ".")
+        return _reply("data", text, said, {"lines": lines}, name=subject.name)
     said = model.said() if model is not None else \
         f"I hold no model of {subject.file}."
     # and what it names of other data, and what names it
@@ -378,7 +426,8 @@ def _reply(kind: str, text: str, spoken: str, looked: dict, blocks=(),
 
 def _capabilities(held, space, subject: Subject, aspect, text: str) -> dict:
     what = {"project": "the project", "file": subject.name,
-            "function": subject.name, "code": subject.name}[subject.kind]
+            "function": subject.name, "code": subject.name,
+            "symbol": subject.name}[subject.kind]
     can = ", ".join(ASKING[one].format(n="it") for one in CAN[subject.kind])
     said = (f"I don't know what {aspect} would be for {what}" if aspect and
             aspect != "capabilities" else f"About {what}") + \
@@ -391,8 +440,18 @@ def _file(held, said: str) -> str | None:
     said = said.replace("\\", "/").lstrip("./")
     if said in held.files:
         return said
-    return next((one for one in sorted(held.files)
-                 if one.endswith("/" + said) or one == said), None)
+    found = next((one for one in sorted(held.files)
+                  if one.endswith("/" + said) or one == said), None)
+    if found is not None:
+        return found
+    # a file by its name without its kind, said among other words (`the
+    # cli`: library/cli.py) -- where one file alone is so named
+    for word in reversed(said.split()):
+        named = [one for one in sorted(held.files)
+                 if one.rsplit("/", 1)[-1].rsplit(".", 1)[0] == word]
+        if len(named) == 1:
+            return named[0]
+    return None
 
 
 def _named(held, text: str) -> bool:
@@ -475,6 +534,8 @@ def _explain(held, subject: Subject, text: str) -> dict:
         return _overview(held, text)
     if subject.kind == "file":
         return _a_file(held, subject, text)
+    if subject.kind == "symbol":
+        return _a_symbol(held, subject, text)
     return _a_function(held, subject, text)
 
 
@@ -560,17 +621,119 @@ def _a_function(held, subject: Subject, text: str) -> dict:
     made = [word for word in sorted(uses) if word not in
             ("a name", "a literal", "let", "const", "return")]
     callers = held.callers(one["name"])
+    python = one["file"].endswith(".py")
+    uses = _uses_of(held, one["name"]) if python else None
     said = (f"{_signature(one)}, at {_at(one)}-{one['end']}"
             + (", exported" if one["exported"] else "")
             + (f"; its doc says “{one['doc']}”" if one.get("doc")
                else "")
-            + (f"; made of {', '.join(made[:14])}" if made else "")
-            + (f"; its result comes from {root}" if root else "")
-            + (f"; called by {len(callers)} function(s)" if callers
+            + (f"; made of {', '.join(made[:14])}" if made and not python
+               else "")
+            + (f"; its result comes from {root}" if root and not python
+               else "")
+            + (_inside(held, one) if python else "")
+            + (f"; {_used_said(held, one['name'], uses)}" if python else
+               f"; called by {len(callers)} function(s)" if callers
                else "; nothing in the project calls it") + ".")
     return _reply("explain", text, said, {**one, "uses": made, "root": root,
                                           "callers": callers},
                   [_block(held, one)], subject.name)
+
+
+def _uses_of(held, name: str) -> dict:
+    """What uses `name`, from the index: {calls: [(by, file)], reads,
+    imports: [file], tests: [(by, file)]} -- each once."""
+    out = {"calls": [], "reads": [], "imports": [], "tests": []}
+    index = held.index()
+    for use in index.used_by(name):
+        if index.is_test(use.file) and use.by:
+            row, key = (use.by, use.file), "tests"
+        elif use.how == "import":
+            row, key = use.file, "imports"
+        else:
+            row = (use.by or "the module itself", use.file)
+            key = "calls" if use.how == "call" else "reads"
+        if row not in out[key]:
+            out[key].append(row)
+    return out
+
+
+def _used_said(held, name: str, uses: dict) -> str:
+    """Who uses `name`, said: `called by main (library/cli.py) and handle
+    (library/server.py); imported by library/loans.py; tested by
+    LoansTests.test_due (tests/test_library.py)`."""
+    def named(rows) -> str:
+        return ", ".join(f"{by} ({path})" for by, path in rows)
+    parts = []
+    if uses["calls"]:
+        parts.append(f"called by {named(uses['calls'])}")
+    if uses["reads"]:
+        parts.append(f"used by {named(uses['reads'])}")
+    if uses["imports"]:
+        parts.append(f"imported by {', '.join(uses['imports'])}")
+    if uses["tests"]:
+        parts.append(f"tested by {named(uses['tests'])}")
+    else:
+        parts.append("no test uses it")
+    if not (uses["calls"] or uses["reads"] or uses["imports"]):
+        parts.insert(0, f"{name} is not called or used anywhere in the "
+                        f"project")
+    return "; ".join(parts)
+
+
+def _inside(held, one: dict) -> str:
+    """What a Python function uses of the project (its constants with
+    their values, its functions) and of the language: `; it uses
+    LOAN_DAYS (= 14, how long a book may be kept) and timedelta`."""
+    index = held.index()
+    own, seen = [], set()
+    for use in index.uses:
+        if use.file != one["file"] or use.by != one["name"] or \
+                use.symbol in seen:
+            continue
+        seen.add(use.symbol)
+        symbol = index.symbols[use.symbol]
+        said = symbol.name
+        if symbol.kind == "constant":
+            said += f" (= {symbol.value}" + (f", {symbol.doc}"
+                                             if symbol.doc else "") + ")"
+        own.append(said)
+    library = index.outside.get(f"{one['file']}#{one['name']}", [])
+    cases = index.answers_to(one["name"])
+    out = ""
+    if own or library:
+        out += "; it uses " + ", ".join(own + library)
+    if cases:
+        out += "; it answers to " + ", ".join(cases)
+    return out
+
+
+def _a_symbol(held, subject: Subject, text: str) -> dict:
+    """A class, constant or field: where, what it is, and who uses it."""
+    index = held.index()
+    found = [one for one in index.find(subject.name)
+             if one.file == subject.file] or index.find(subject.name)
+    one = found[0]
+    said = f"{one.name} is a {one.kind} at {one.file}:{one.start}"
+    if one.value:
+        said += f", {'set to' if one.kind == 'constant' else 'by default'}" \
+                f" {one.value}"
+    if one.doc:
+        said += f" -- “{one.doc}”"
+    if one.kind == "class":
+        fields = [field.name.split(".")[-1] for field in index.fields(one.name)]
+        methods = [method.name.split(".")[-1]
+                   for method in index.methods(one.name)]
+        if fields:
+            said += f"; its fields: {', '.join(fields)}"
+        if methods:
+            said += f"; its methods: {', '.join(methods)}"
+    said += f"; {_used_said(held, one.name, _uses_of(held, one.name))}."
+    lines = held.files[one.file].splitlines()
+    block = {"title": f"{one.file}:{one.start}", "kind": one.name,
+             "code": "\n".join(lines[one.start - 1:one.end]),
+             "file": one.file, "line": one.start}
+    return _reply("explain", text, said, one.json(), [block], one.name)
 
 
 def _where(held, subject: Subject, text: str) -> dict:
@@ -582,6 +745,17 @@ def _where(held, subject: Subject, text: str) -> dict:
                         "code": "\n".join(held.files[subject.file]
                                           .splitlines()[:30]),
                         "file": subject.file, "line": 1}], subject.name)
+    if subject.kind == "symbol":
+        one = [found for found in held.index().find(subject.name)
+               if found.file == subject.file][0]
+        said = (f"{one.name} is defined in {one.file}:{one.start}"
+                + (f" as {one.name.split('.')[-1]} = {one.value}"
+                   if one.value else f", a {one.kind}") + ".")
+        lines = held.files[one.file].splitlines()
+        return _reply("where", text, said, one.json(), [
+            {"title": f"{one.file}:{one.start}", "kind": one.name,
+             "code": "\n".join(lines[one.start - 1:one.end]),
+             "file": one.file, "line": one.start}], subject.name)
     found = held.find(subject.name)
     said = f"{subject.name} is defined in " + "; ".join(
         f"{_at(one)}-{one['end']} as {_signature(one)}"
@@ -602,6 +776,10 @@ def _size(held, subject: Subject, text: str) -> dict:
         return _reply("size", text, f"{subject.file}: {read['lines']} lines, "
                       f"{len(read['functions'])} functions.", read,
                       name=subject.name)
+    if subject.kind == "symbol":
+        one = held.index().find(subject.name)[0]
+        return _reply("size", text, f"{one.name}: {one.end - one.start + 1}"
+                      f" lines.", one.json(), name=subject.name)
     one = held.find(subject.name)[0]
     return _reply("size", text, f"{subject.name}: {one['end'] - one['start'] + 1}"
                   f" lines, {len(one['params'])} parameter(s), "
@@ -631,6 +809,13 @@ def _functions(held, subject: Subject, text: str) -> dict:
 def _callers(held, subject: Subject, text: str) -> dict:
     if subject.kind == "file":
         return _a_file(held, subject, text)
+    if subject.kind == "symbol" or str(subject.file).endswith(".py"):
+        uses = _uses_of(held, subject.name)
+        said = _used_said(held, subject.name, uses) + "."
+        if not said.startswith(subject.name):
+            said = f"{subject.name} is {said}"
+        return _reply("callers", text, said, {"uses": uses},
+                      name=subject.name)
     found = held.callers(subject.name)
     said = (f"Nothing in the project calls {subject.name}." if not found
             else f"{subject.name} is called by " + ", ".join(
@@ -734,9 +919,148 @@ def _gaps(held, subject: Subject, text: str) -> dict:
                    "open": open_}, blocks, subject.name, suggest)
 
 
+def _value(held, subject: Subject, text: str) -> dict:
+    """What a constant is set to (or a field by default)."""
+    if subject.kind != "symbol":
+        return _explain(held, subject, text)
+    one = [found for found in held.index().find(subject.name)
+           if found.file == subject.file][0]
+    if not one.value:
+        return _a_symbol(held, subject, text)
+    said = (f"{one.name} is {one.value}" + (f" -- “{one.doc}”" if one.doc
+                                            else "")
+            + f" (at {one.file}:{one.start}).")
+    return _reply("value", text, said, one.json(), name=one.name)
+
+
+def _fields(held, subject: Subject, text: str) -> dict:
+    """What a class holds: its fields (and their defaults), its methods."""
+    index = held.index()
+    if subject.kind != "symbol" or not index.find(subject.name) or \
+            index.find(subject.name)[0].kind != "class":
+        return _explain(held, subject, text)
+    fields = index.fields(subject.name)
+    methods = index.methods(subject.name)
+    article = "An" if subject.name[:1].lower() in "aeiou" else "A"
+    said = (f"{article} {subject.name} has " + (", ".join(
+        field.name.split(".")[-1] + (f" (by default {field.value})"
+                                     if field.value else "")
+        for field in fields) or "no fields of its own")
+        + (f"; its methods: {', '.join(m.name.split('.')[-1] for m in methods)}"
+           if methods else "") + f" ({subject.file}).")
+    return _reply("fields", text, said, {
+        "fields": [one.json() for one in fields],
+        "methods": [one.json() for one in methods]}, name=subject.name)
+
+
+def _tests(held, subject: Subject, text: str) -> dict:
+    """The tests that use it: by name, or none."""
+    names = [subject.name] if subject.kind != "file" else [
+        one.name for one in held.index().symbols.values()
+        if one.file == subject.file and one.kind in ("function", "class")]
+    found = []
+    for name in names:
+        for by, path in _uses_of(held, name)["tests"]:
+            if (by, path) not in found:
+                found.append((by, path))
+    said = (f"Yes: {subject.name} is tested by " + ", ".join(
+        f"{by} ({path})" for by, path in found) + "." if found else
+        f"No test in the project uses {subject.name}.")
+    return _reply("tests", text, said, {"tests": found}, name=subject.name)
+
+
+def _cases(held, subject: Subject, text: str) -> dict:
+    """What a function answers to -- the strings it compares what it is
+    given to, the keys of the table it looks up -- or each of a file's."""
+    index = held.index()
+    names = [subject.name] if subject.kind != "file" else [
+        one.name for one in index.symbols.values()
+        if one.file == subject.file and one.kind in ("function", "method")]
+    found = {name: index.answers_to(name) for name in names}
+    found = {name: cases for name, cases in found.items() if cases}
+    if not found:
+        # no cases it answers to: what it is, all of it -- what it takes,
+        # what it uses, who calls it (`what parameters does lend take?`
+        # read as its cases)
+        return _explain(held, subject, text)
+    said = "; ".join(f"{name} answers to {', '.join(cases)}"
+                     for name, cases in found.items()) + "."
+    return _reply("cases", text, said, {"cases": found}, name=subject.name)
+
+
+#: how near a description must be to what the project has, and how far
+#: ahead of the next, to be taken as naming it (MiniLM-L6, mean pooled:
+#: `which function works out when a loan is due` -- overdue 0.72,
+#: due_date 0.70; `what version does the server report` -- VERSION 0.37,
+#: the next 0.19)
+DESCRIBED, AHEAD = 0.33, 0.05
+#: what kinds of symbol an aspect is asked of
+KINDS_ASKED = {"value": ("constant", "field"), "fields": ("class",),
+               "tests": ("function", "method"), "cases": ("function",),
+               "outcome": ("function", "method"),
+               "callers": ("function", "method", "class", "constant")}
+_MEANT: dict = {}
+
+
+def _meaning(texts: list):
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+    if "model" not in _MEANT:
+        from pathlib import Path
+        path = Path(__file__).resolve().parents[2] / "llm" / "MiniLM-L6-v2"
+        _MEANT["tokenizer"] = AutoTokenizer.from_pretrained(path)
+        _MEANT["model"] = AutoModel.from_pretrained(path).eval()
+    batch = _MEANT["tokenizer"](texts, padding=True, truncation=True,
+                                max_length=128, return_tensors="pt")
+    with torch.no_grad():
+        hidden = _MEANT["model"](**batch).last_hidden_state
+    mask = batch["attention_mask"].unsqueeze(-1)
+    return torch.nn.functional.normalize((hidden * mask).sum(1) /
+                                         mask.sum(1), dim=-1)
+
+
+def _said_as(name: str) -> str:
+    return " ".join(re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+",
+                               name)).lower()
+
+
+def _described(held, said: str, aspect: str) -> Subject | None:
+    """What a project has that a question says by what it does, found by
+    meaning: each symbol said as its kind, its name's words, what is said
+    of it (and a constant's value) -- the nearest, where it is near enough
+    and ahead of the next; else None."""
+    index = held.index()
+    kinds = KINDS_ASKED.get(aspect, ("function", "method", "class",
+                                     "constant"))
+    rows = [one for one in index.symbols.values()
+            if one.kind in kinds and not index.is_test(one.file)]
+    if not rows:
+        return None
+    key = (getattr(held, "_index_key", None), kinds)
+    if key not in _MEANT:
+        _MEANT[key] = _meaning([
+            f"{one.kind} {_said_as(one.name)}: {one.doc}"
+            + (f" = {one.value}" if one.value else "") for one in rows])
+    scores = (_meaning([said]) @ _MEANT[key].T)[0].tolist()
+    ranked = sorted(zip(scores, range(len(rows))), reverse=True)
+    best, at = ranked[0]
+    if best < DESCRIBED:
+        return None
+    one = rows[at]
+    # two as near: both said, the nearer first
+    also = rows[ranked[1][1]].name if len(ranked) > 1 and \
+        ranked[1][0] > best - AHEAD else ""
+    return Subject("function" if one.kind in ("function", "method") else
+                   "symbol", one.name, one.file, also)
+
+
 ANSWERS = {"explain": _explain, "where": _where, "size": _size,
            "files": _files, "functions": _functions, "callers": _callers,
-           "calls": _calls, "bugs": _gaps}
+           "calls": _calls, "bugs": _gaps, "value": _value,
+           "fields": _fields, "tests": _tests, "cases": _cases,
+           # what it gives in a situation: run (the plan's step 3) -- until
+           # then, what it is
+           "outcome": _explain}
 
 
 # -- the conversation's own code -----------------------------------------------------
@@ -854,9 +1178,6 @@ def _code_gaps(space, text: str) -> dict:
 
 #: pasted code with a question about it
 FENCE = re.compile(r"```[\w-]*\n(.*?)```", re.S)
-ABOUT_CODE = re.compile(r"\b(explain|what does|what is|describe|how does|"
-                        r"read|bugs?|wrong)\b", re.I)
-
 
 def code_language(code: str, said: str = "") -> str:
     """The language code is written in, off the code itself (and a fence's
@@ -875,12 +1196,64 @@ def code_language(code: str, said: str = "") -> str:
 
 
 def pasted(text: str) -> str | None:
-    """The code in an utterance that pastes some and asks about it."""
+    """The code in an utterance that pastes some and says something of it
+    -- whatever it says (`how many times does this loop run?` was no
+    question of code by a list of words, and went to the debugger)."""
     found = FENCE.search(text)
-    if found and ABOUT_CODE.search(text[:found.start()] + " "
-                                   + text[found.end():]):
+    if found and re.search(r"[A-Za-z]{2}", text[:found.start()] + " "
+                           + text[found.end():]):
         return found.group(1)
     return None
+
+
+#: what the code model is asked of pasted code: what it does, in words
+SUMMARY = ("Say in one short plain sentence what this Python code does -- "
+           "what it gives or prints for what it is given. No code, no "
+           "names of variables.\n```python\n{code}\n```")
+
+
+def _summary(code: str) -> str:
+    """The code model's one sentence of what pasted code does ('' where it
+    cannot be asked)."""
+    try:
+        from research.v705 import coder
+        said = coder.get().write([SUMMARY.format(code=code.strip())],
+                                 longest=60)[0][0]
+    except Exception:                           # noqa: BLE001
+        return ""
+    said = said.strip().split("\n")[0].strip()
+    return said if 8 <= len(said) <= 240 and "```" not in said else ""
+
+
+def _observed_python(text: str, code: str, space) -> dict:
+    """Pasted Python answered by what running it shows (`observe.py`) --
+    what it gives for what was asked, prints, how often its loops run,
+    where it breaks -- and, of a function, the code model's one sentence
+    of what it does, said as its reading beside what was seen."""
+    from research.v698 import observe
+    seen = observe.observed(text, code)
+    facts = list(seen["facts"])
+    summary = _summary(code) if seen.get("entry") else ""
+    if summary:
+        facts.insert(0 if not seen.get("asked") else 1,
+                     f"In words: {summary}")
+    said = " ".join(facts) or "I ran it: it does nothing I can see."
+    if seen.get("entry"):
+        from research.v697 import coding
+        space.request = {"entry": seen["entry"], "english": "(pasted)",
+                         "said": text, "signature": None, "examples": [],
+                         "made": [], "params": [], "returns": None,
+                         "language": "python"}
+        space.language = "python"
+        space.found = {"request": space.request,
+                       "answer": {"code": code, "entry": seen["entry"],
+                                  "status": "pasted"},
+                       "open": {"inputs": []}}
+    found = _reply("pasted", text, said, {"observed": seen,
+                                          "summary": summary})
+    if seen.get("entry"):
+        found["suggest"] = [{"text": f"{seen['entry']}(…)", "send": False}]
+    return found
 
 
 def read_pasted(text: str, code: str, space) -> dict:
@@ -889,7 +1262,9 @@ def read_pasted(text: str, code: str, space) -> dict:
     from research.v696.checker import checker
     from research.v697 import coding
     from research.v697 import conversation as C
-    language = code_language(code)
+    language = code_language(code, text)
+    if language == "python":
+        return _observed_python(text, code, space)
     source, signature = coding._function(code, language)
     if signature is None:
         return _reply("pasted", text, "I could not find a function in what "

@@ -198,6 +198,19 @@ class Project:
                                       for path, one in read.items()})
         return self._outline
 
+    def index(self):
+        """Every name its Python defines and every use of each, followed
+        through imports and module aliases (`symbols.Index`) -- kept while
+        its Python files are as they were."""
+        from research.v698.symbols import Index
+        python = {path: text for path, text in self.files.items()
+                  if path.endswith(".py")}
+        key = hash(tuple(sorted((path, hash(text))
+                                for path, text in python.items())))
+        if getattr(self, "_index_key", None) != key:
+            self._index, self._index_key = Index(python), key
+        return self._index
+
     def functions(self) -> list:
         """Every function, with its file: [{file, name, ...}]."""
         return [{"file": path, **one} for path, read in

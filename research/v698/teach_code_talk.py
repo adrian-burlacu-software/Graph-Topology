@@ -72,8 +72,14 @@ ACTS = ("none", "ask", "make", "change", "run", "teach", "goal", "pick",
         # should (`research/v705/teach_debug_talk.py`)
         "debug")
 ASPECTS = ("none", "explain", "where", "size", "callers", "calls", "bugs",
-           "sure", "why", "others", "risk", "files", "functions")
-SUBJECTS = ("none", "project", "file", "named", "last")
+           "sure", "why", "others", "risk", "files", "functions",
+           # what a project's index answers (`teach_code_ask.py`): a
+           # constant's value, a class's fields, a function's tests, what it
+           # answers to, what it gives in a situation said in words
+           "value", "fields", "tests", "cases", "outcome")
+#: `described`: said by what it does, not named (`which function works out
+#: when a loan is due?`), found in the project by meaning
+SUBJECTS = ("none", "project", "file", "named", "last", "described")
 ROLES = ("O", "B-SUBJ", "I-SUBJ", "B-CONCEPT", "I-CONCEPT", "B-MEMBER",
          "I-MEMBER", "B-OPTION", "I-OPTION", "B-CALL", "I-CALL", "B-GOT",
          "I-GOT", "B-WANT", "I-WANT",

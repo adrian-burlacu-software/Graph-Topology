@@ -98,6 +98,12 @@ def part_of(held, subject, statement: str = "") -> tuple | None:
         placed_ = placing.window(held.files[subject.file], statement,
                                  AROUND, LONGEST_PART,
                                  placing.tabular(subject.file))
+        # a row the statement gives whole is added after the last, as the
+        # editor was taught adding a record: the table's end shown
+        if placing.appended(subject.file, held.files[subject.file],
+                            statement):
+            count = len(held.files[subject.file].splitlines())
+            placed_ = (max(1, count - 2 * AROUND), count)
         if placed_ is not None:
             return (subject.file, *placed_)
     lines = held.files[subject.file].splitlines()
@@ -1193,6 +1199,13 @@ def _change_once(statement: str, held, subject, key=None,
                             (marked & parts))})
             seen[made] = row
             check(row)
+            verify_ = (context or {}).get("verify")
+            if verify_ is not None and row in passed:
+                # made after the rounds were verified: verified as they were
+                why = verify_(row["text"])
+                row["verified"] = not why
+                if why:
+                    row["refused"] = f"run again, {why}"
     out = {"subject": subject.name, "file": path, "lines": [start, end],
            "named": sorted(named),
            "tried": [{key_: value for key_, value in one.items()
@@ -1308,13 +1321,22 @@ def _change_once(statement: str, held, subject, key=None,
             best_["by kind"] = True
     agreed = [row for row in passed if row["agree"] >= LEAST_AGREED
               or row.get("verified") or row.get("by kind")]
+    if (context or {}).get("verify") is not None:
+        # what was asked is a check that runs (v698 `requested`): only a
+        # change it holds for is written -- answers agreeing on one it does
+        # not hold for agree on a wrong change (`rename parse_isbn ...
+        # everywhere`: 7 of 7, two lines of one file)
+        agreed = [row for row in passed if row.get("verified")]
     if not agreed:
         best = max(passed, key=lambda one: one.get("judged", 0.0))
         out["guess"] = diff(text, best["text"], path)
         out.update({"status": "unsure", "said": (
             f"I did not change {subject.name}: of {len(answers)} changes "
-            f"written, {len(passed)} pass the checks, and no two agree -- "
-            f"I do not write a guess into your file. The likeliest is "
+            f"written, {len(passed)} pass the checks, and "
+            + ("none does what the tests of what you asked check"
+               if (context or {}).get("verify") is not None else
+               "no two agree")
+            + " -- I do not write a guess into your file. The likeliest is "
             f"under `guess`.")})
         out["seconds"] = round(time.time() - started, 2)
         return out

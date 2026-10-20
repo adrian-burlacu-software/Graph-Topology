@@ -441,6 +441,117 @@ def seeds_more2(most: int = 120) -> int:
     return len(out)
 
 
+#: what the third reader read wrong (2026-10-20, the core made reliable):
+#: the most of a field said by a word that means it (`which book is the
+#: longest?` read as `list`; `which member joined first?`, `what is the
+#: newest book?`), a filter of numbers said with the field after the value
+#: (`which books have more than 300 pages?` read as `count`) or as before
+#: and after (`the books published before 1970`), and a field's total
+#: (`how many pages across all the books?` read as `count`)
+SEEDS_MORE3 = DATA / "seeds-more3.jsonl"
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _single(group: str) -> str:
+    return group[:-1] if len(group) > 3 and group.endswith("s") and \
+        not group.endswith("ss") else group
+
+
+def more_queries3(model, rng: random.Random) -> list:
+    out = []
+    for path, found in model.collections.items():
+        if found["count"] < 3:
+            continue
+        group = _name(path) if path else model.path.rsplit(
+            "/", 1)[-1].rsplit(".", 1)[0]
+        if not _wordy(group):
+            continue
+        records = [one for one in model.records()[path]
+                   if isinstance(one, dict)]
+        for name in found["fields"]:
+            if not _wordy(str(name)):
+                continue
+            values = [one.get(name) for one in records]
+            numbers = [one for one in values if isinstance(one, (int, float))
+                       and not isinstance(one, bool)]
+            dates = [one for one in values if isinstance(one, str) and
+                     DATE.fullmatch(one)]
+            if len(numbers) >= 3 or len(dates) >= 3:
+                act = rng.choice(["max", "min"])
+                most = "most" if act == "max" else "least"
+                out.append({"act": act, "op": "none", "target": path,
+                            "field": name,
+                            "seed": rng.choice([
+                                f"which {_single(group)} has the {most} "
+                                f"{name}?",
+                                f"what is the {_single(group)} with the "
+                                f"{most} {name}?"]),
+                            "spans": {"TARGET": [_single(group)],
+                                      "FIELD": [name]},
+                            "optional": ["FIELD"],
+                            "hint": (f"In most of them, do not write {name}: "
+                                     f"say it with one word that means the "
+                                     f"{most} {name} (like longest, "
+                                     f"shortest, newest, oldest, latest, "
+                                     f"earliest, first, last, biggest, "
+                                     f"cheapest, most expensive), as people "
+                                     f"do.")})
+            if len(numbers) >= 3:
+                value = rng.choice(numbers)
+                op = rng.choice(["gt", "lt"])
+                word = "more than" if op == "gt" else "fewer than"
+                out.append({"act": "list", "op": op, "target": path,
+                            "field": name, "value": value,
+                            "seed": f"which {group} have {word} {value} "
+                                    f"{name}?",
+                            "spans": {"TARGET": [group], "FIELD": [name],
+                                      "VALUE": [str(value)]},
+                            "optional": ["FIELD"],
+                            "hint": (f"Ask for the {group} themselves, as a "
+                                     f"list (which, list, show me, what "
+                                     f"are), not how many. Say it with "
+                                     f"{word}, over, under, above, below, "
+                                     f"before, after, earlier or later "
+                                     f"where they fit.")})
+                out.append({"act": "sum", "op": "none", "target": path,
+                            "field": name,
+                            "seed": f"how many {name} are there across all "
+                                    f"the {group}?",
+                            "spans": {"TARGET": [name]},
+                            "hint": (f"Ask for the {name} of all the {group} "
+                                     f"added together: in total, "
+                                     f"altogether, combined, across all, "
+                                     f"overall.")})
+    return out
+
+
+def seeds_more3(most: int = 150) -> int:
+    from research.v701 import datamodel
+    rng = random.Random(SEED + 3)
+    files = _files(rng)
+    by_kind: dict = {}
+    for found in files.values():
+        for path, text in found[:4000]:
+            model = datamodel.read(path, text)
+            if model.error:
+                continue
+            made = more_queries3(model, rng)
+            rng.shuffle(made)
+            for one in made[:2]:
+                one["file"] = path
+                by_kind.setdefault(one["act"], []).append(one)
+    out = []
+    share = most // max(len(by_kind), 1)
+    for kind in sorted(by_kind):
+        out += by_kind[kind][:share]
+    with SEEDS_MORE3.open("w", encoding="utf-8") as stream:
+        for one in out:
+            stream.write(json.dumps(one) + "\n")
+    print({kind: len(found[:share]) for kind, found in sorted(
+        by_kind.items())}, len(out))
+    return len(out)
+
+
 # -- the teacher says each again -----------------------------------------------
 
 def _required(one: dict) -> dict:
@@ -456,7 +567,8 @@ def _kept(spans: dict) -> list:
 
 def write(samples: int = 1, batch: int = 6) -> None:
     from research.v696.teach_meaning import Teacher
-    rows = [json.loads(line) for path in (SEEDS, SEEDS_MORE, SEEDS_MORE2)
+    rows = [json.loads(line) for path in (SEEDS, SEEDS_MORE, SEEDS_MORE2,
+                                          SEEDS_MORE3)
             if path.exists() for line in path.open(encoding="utf-8")]
     done = set()
     if WRITTEN.exists():
@@ -472,7 +584,9 @@ def write(samples: int = 1, batch: int = 6) -> None:
                     f"ways, as a person would type it to an assistant that "
                     f"has read the file: \"{one['seed']}\". Keep "
                     f"{', '.join(_kept(_required(one)))} exactly so in "
-                    f"every one. " + STYLE) for one in chunk]
+                    f"every one. " + (one.get("hint", "") + " "
+                                      if one.get("hint") else "") + STYLE)
+                   for one in chunk]
         replies = teacher.write(prompts, longest=600, samples=samples,
                                 temperature=0.9)
         with WRITTEN.open("a", encoding="utf-8") as stream:
@@ -627,10 +741,12 @@ def corpus(negatives: int = 3000) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=("seeds", "more", "more2", "write",
+    parser.add_argument("job", choices=("seeds", "more", "more2", "more3",
+                                        "write",
                                         "corpus"))
     options = parser.parse_args(argv)
     {"seeds": seeds, "more": seeds_more, "more2": seeds_more2,
+     "more3": seeds_more3,
      "write": write,
      "corpus": corpus}[options.job]()
     return 0
